@@ -1917,8 +1917,11 @@ int spider_db_mbase::connect(
       conn->tgt_ssl_cert_length |
       conn->tgt_ssl_key_length
     ) {
-      mysql_ssl_set(db_conn, conn->tgt_ssl_key, conn->tgt_ssl_cert,
-        conn->tgt_ssl_ca, conn->tgt_ssl_capath, conn->tgt_ssl_cipher);
+      mysql_options(db_conn, MYSQL_OPT_SSL_KEY, conn->tgt_ssl_key);
+      mysql_options(db_conn, MYSQL_OPT_SSL_CERT, conn->tgt_ssl_cert);
+      mysql_options(db_conn, MYSQL_OPT_SSL_CA, conn->tgt_ssl_ca);
+      mysql_options(db_conn, MYSQL_OPT_SSL_CAPATH, conn->tgt_ssl_capath);
+      mysql_options(db_conn, MYSQL_OPT_SSL_CIPHER, conn->tgt_ssl_cipher);
       if (conn->tgt_ssl_vsc)
       {
         my_bool verify_flg = TRUE;

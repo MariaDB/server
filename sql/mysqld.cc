@@ -4651,10 +4651,9 @@ static void init_ssl()
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
-      sql_print_warning("Failed to setup SSL");
-      sql_print_warning("SSL error: %s", sslGetErrString(error));
-      opt_use_ssl = 0;
-      have_ssl= SHOW_OPTION_DISABLED;
+      sql_print_error("Failed to setup SSL");
+      sql_print_error("SSL error: %s", sslGetErrString(error));
+      unireg_abort(1);
     }
     else
       ssl_acceptor_stats.init();

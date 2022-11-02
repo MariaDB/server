@@ -418,12 +418,13 @@ public:
 
   uint get_container_elements() const { return container_elements; }
 
+  uint get_container_lookups() { return n_checks; }
+
   double get_r_selectivity_pct() const
   {
-    return static_cast<double>(n_positive_checks) /
-      static_cast<double>(n_checks);
+    return n_checks ? static_cast<double>(n_positive_checks) /
+                      static_cast<double>(n_checks) : 0;
   }
 
   size_t get_container_buff_size() const { return container_buff_size; }
 };
-

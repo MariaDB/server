@@ -10412,6 +10412,18 @@ do_continue:;
 
   DBUG_ASSERT(create_info->default_table_charset);
 
+  /*
+    The ALTER related code cannot alter partitions and change column data types
+    at the same time. So in case of partition change statements like:
+      ALTER TABLE t1 DROP PARTITION p1;
+    we skip implicit data type upgrade (such as "MariaDB 5.3 TIME" to
+    "MySQL 5.6 TIME" or vice versa according to mysql56_temporal_format).
+    Note, one can run a separate "ALTER TABLE t1 FORCE;" statement
+    before or after the partition change ALTER statement to upgrade data types.
+  */
+  if (IF_PARTITIONING(!fast_alter_partition, 1))
+    Create_field::upgrade_data_types(alter_info->create_list);
+
   if (create_info->check_fields(thd, alter_info,
                                 table_list->table_name, table_list->db) ||
       create_info->fix_period_fields(thd, alter_info))

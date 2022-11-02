@@ -481,6 +481,12 @@ extern struct sql_service_st {
   void (STDCALL *mysql_free_result_func)(MYSQL_RES *result);
   MYSQL_ROW (STDCALL *mysql_fetch_row_func)(MYSQL_RES *result);
   void (STDCALL *mysql_close_func)(MYSQL *mysql);
+  int (STDCALL *mysql_options_func)(MYSQL *mysql, enum mysql_option option,
+                            const void *arg);
+  unsigned long *(STDCALL *mysql_fetch_lengths_func)(MYSQL_RES *res);
+  int (STDCALL *mysql_set_character_set_func)(MYSQL *mysql, const char *cs_name);
+  unsigned int (STDCALL *mysql_num_fields_func)(MYSQL_RES *res);
+  int (STDCALL *mysql_select_db_func)(MYSQL *mysql, const char *db);
 } *sql_service;
 MYSQL *mysql_real_connect_local(MYSQL *mysql);
 }

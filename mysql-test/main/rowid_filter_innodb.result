@@ -137,6 +137,7 @@ ANALYZE
             "rows": 605,
             "selectivity_pct": 10.07493755,
             "r_rows": 605,
+            "r_lookups": 510,
             "r_selectivity_pct": 11.76470588,
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
@@ -719,6 +720,7 @@ ANALYZE
             "rows": 605,
             "selectivity_pct": 10.07493755,
             "r_rows": 605,
+            "r_lookups": 510,
             "r_selectivity_pct": 11.76470588,
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
@@ -2156,7 +2158,7 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	t2	ref	i1,i2	i1	5	const	1	100.00	Using index condition; Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` having 0
 DROP TABLE t1,t2;
@@ -2165,7 +2167,7 @@ DROP TABLE t1,t2;
 #             that uses in expensive subquery
 #
 CREATE TABLE t1 (
-pk1 INT PRIMARY KEY, a1 INT, b1 VARCHAR(1), KEY(b1)
+pk1 INT PRIMARY KEY, a1 INT, b1 VARCHAR(1), KEY(a1), KEY(b1)
 ) ENGINE=MyISAM;
 INSERT INTO t1 VALUES
 (10,0,'z'),(11,3,'j'),(12,8,'f'),(13,8,'p'),(14,6,'w'),(15,0,'c'),(16,1,'j'),
@@ -2184,21 +2186,31 @@ INSERT INTO t1 VALUES
 (101,0,'u'),(102,7,'r'),(103,2,'x'),(104,8,'e'),(105,8,'i'),(106,5,'q'),
 (107,8,'z'),(108,3,'k'),(109,65,NULL);
 CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 INT, b2 VARCHAR(1)) ENGINE=MyISAM;
-INSERT INTO t2 VALUES (1,1,'x');
+INSERT INTO t2 VALUES (1,1,'i');
 INSERT INTO t2 SELECT * FROM t1;
-SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+INSERT INTO t1 SELECT pk1+200, a1, b1 FROM t1;
+INSERT INTO t1 SELECT pk1+400, a1, b1 FROM t1;
+ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
 WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
 pk1	a1	b1	pk2	a2	b2
-65	2	a	109	65	NULL
-EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+17	1	f	16	1	j
+37	3	g	36	3	a
+105	8	i	104	8	e
+EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
 WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	101	100.00	Using where
-1	PRIMARY	t1	eq_ref|filter	PRIMARY,b1	PRIMARY|b1	4|4	test.t2.a2	1 (87%)	87.00	Using where; Using rowid filter
+1	PRIMARY	t1	ref|filter	a1,b1	a1|b1	5|4	test.t2.a2	36 (29%)	28.75	Using where; Using rowid filter
 2	SUBQUERY	t2	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using index condition
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`pk1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select max(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`pk2` <= 1) and `test`.`t2`.`a2` <> `test`.`t2`.`pk2`
-EXPLAIN FORMAT=JSON SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
+Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select max(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`pk2` <= 1) and `test`.`t1`.`pk1` + 1 = `test`.`t2`.`pk2` + 2
+EXPLAIN FORMAT=JSON SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
 WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
 EXPLAIN
 {
@@ -2211,29 +2223,29 @@ EXPLAIN
           "access_type": "ALL",
           "rows": 101,
           "filtered": 100,
-          "attached_condition": "t2.a2 <> t2.pk2 and t2.a2 is not null"
+          "attached_condition": "t2.a2 is not null"
         }
       },
       {
         "table": {
           "table_name": "t1",
-          "access_type": "eq_ref",
-          "possible_keys": ["PRIMARY", "b1"],
-          "key": "PRIMARY",
-          "key_length": "4",
-          "used_key_parts": ["pk1"],
+          "access_type": "ref",
+          "possible_keys": ["a1", "b1"],
+          "key": "a1",
+          "key_length": "5",
+          "used_key_parts": ["a1"],
           "ref": ["test.t2.a2"],
           "rowid_filter": {
             "range": {
               "key": "b1",
               "used_key_parts": ["b1"]
             },
-            "rows": 87,
-            "selectivity_pct": 87
+            "rows": 115,
+            "selectivity_pct": 28.75
           },
-          "rows": 1,
-          "filtered": 87,
-          "attached_condition": "t1.b1 <= (subquery#2)"
+          "rows": 36,
+          "filtered": 28.75,
+          "attached_condition": "t1.b1 <= (subquery#2) and t1.pk1 + 1 = t2.pk2 + 2"
         }
       }
     ],
@@ -2306,15 +2318,468 @@ set @save_optimizer_switch= @@optimizer_switch;
 SET @@optimizer_switch="index_merge_sort_union=OFF";
 CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b));
 INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+ANALYZE table t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 explain
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	a,b	b|a	5|5	const	2 (14%)	Using where; Using rowid filter
+1	SIMPLE	t1	range|filter	a,b	a|b	5|5	NULL	64 (29%)	Using index condition; Using where; Using rowid filter
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 a	b
 1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
+1	0
 drop table t1;
 SET @@optimizer_switch=@save_optimizer_switch;
+#
+# MDEV-28846: Poor performance when rowid filter contains no elements
+#
+create table t1 (
+pk int primary key auto_increment,
+nm varchar(32),
+fl1 tinyint default 0,
+fl2 tinyint default 0,
+index idx1(nm, fl1),
+index idx2(fl2)
+) engine=myisam;
+create table name (
+pk int primary key auto_increment,
+nm bigint
+) engine=myisam;
+create table flag2 (
+pk int primary key auto_increment,
+fl2 tinyint
+) engine=myisam;
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
+insert into t1(nm,fl2)
+select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select '500%' as a;
+a
+500%
+set optimizer_switch='rowid_filter=on';
+explain
+select * from t1  where nm like '500%' AND fl2 = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx1	35	NULL	1	Using index condition; Using where
+analyze format=json
+select * from t1  where nm like '500%' AND fl2 = 0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx1",
+          "key_length": "35",
+          "used_key_parts": ["nm"],
+          "r_loops": 1,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 49.20000076,
+          "r_filtered": 100,
+          "index_condition": "t1.nm like '500%'",
+          "attached_condition": "t1.fl2 = 0"
+        }
+      }
+    ]
+  }
+}
+select * from t1  where nm like '500%' AND fl2 = 0;
+pk	nm	fl1	fl2
+517	500	0	0
+truncate table name;
+truncate table flag2;
+truncate table t1;
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
+insert into t1(nm,fl2)
+select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+set optimizer_switch='rowid_filter=off';
+explain
+select * from t1  where nm like '500%' AND fl2 = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx1	35	NULL	1	Using index condition; Using where
+analyze format=json
+select * from t1  where nm like '500%' AND fl2 = 0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx1",
+          "key_length": "35",
+          "used_key_parts": ["nm"],
+          "r_loops": 1,
+          "rows": 1,
+          "r_rows": 1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 49.20000076,
+          "r_filtered": 100,
+          "index_condition": "t1.nm like '500%'",
+          "attached_condition": "t1.fl2 = 0"
+        }
+      }
+    ]
+  }
+}
+select * from t1  where nm like '500%' AND fl2 = 0;
+pk	nm	fl1	fl2
+517	500	0	0
+truncate table name;
+truncate table flag2;
+truncate table t1;
+insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
+insert into flag2(fl2) select seq mod 10 from seq_1_to_1000 order by rand(19);
+insert into t1(nm,fl2)
+select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select '607%' as a;
+a
+607%
+set optimizer_switch='rowid_filter=on';
+explain
+select * from t1  where nm like '607%' AND fl2 = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx1	35	NULL	1	Using index condition; Using where
+select * from t1  where nm like '607%' AND fl2 = 0;
+pk	nm	fl1	fl2
+721	607	0	0
+truncate table name;
+truncate table flag2;
+truncate table t1;
+insert into name(nm) select seq from seq_1_to_10000 order by rand(17);
+insert into flag2(fl2) select seq mod 100 from seq_1_to_10000 order by rand(19);
+insert into t1(nm,fl2)
+select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select '75%' as a;
+a
+75%
+set optimizer_switch='rowid_filter=on';
+explain
+select * from t1  where nm like '75%' AND fl2 = 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref|filter	idx1,idx2	idx2|idx1	2|35	const	55 (1%)	Using where; Using rowid filter
+analyze format=json
+select * from t1  where nm like '75%' AND fl2 = 0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx2",
+          "key_length": "2",
+          "used_key_parts": ["fl2"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "idx1",
+              "used_key_parts": ["nm"]
+            },
+            "rows": 115,
+            "selectivity_pct": 1.15,
+            "r_rows": 111,
+            "r_lookups": 100,
+            "r_selectivity_pct": 2,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "r_loops": 1,
+          "rows": 55,
+          "r_rows": 2,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 1.149999976,
+          "r_filtered": 100,
+          "attached_condition": "t1.nm like '75%'"
+        }
+      }
+    ]
+  }
+}
+select * from t1  where nm like '75%' AND fl2 = 0;
+pk	nm	fl1	fl2
+4543	7503	0	0
+7373	7518	0	0
+drop table name, flag2;
+drop table t1;
+create table t1 (
+pk int primary key auto_increment,
+nm char(255),
+fl1 tinyint default 0,
+fl2 int default 0,
+index idx1(nm, fl1),
+index idx2(fl2)
+) engine=myisam;
+create table name (
+pk int primary key auto_increment,
+nm bigint
+) engine=myisam;
+create table flag2 (
+pk int primary key auto_increment,
+fl2 int
+) engine=myisam;
+insert into name(nm) select seq from seq_1_to_10000 order by rand(17);
+insert into flag2(fl2) select seq mod 10 from seq_1_to_10000 order by rand(19);
+insert into t1(nm,fl2)
+select nm, fl2 from name, flag2 where name.pk = flag2.pk;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select * from t1
+where
+(
+nm like '3400%' or nm like '3402%' or nm like '3403%' or
+nm like '3404%' or nm like '3405%' or nm like '3406%' or nm like '3407%' or
+nm like '3409%' or
+nm like '3411%' or nm like '3412%' or nm like '3413%' or
+nm like '3414%' or nm like '3415%' or nm like '3416%' or nm like '3417%' or
+nm like '3418%' or nm like '3419%' or
+nm like '3421%' or nm like '3422%' or nm like '3423%' or
+nm like '3424%' or nm like '3425%' or nm like '3426%' or nm like '3427%' or
+nm like '3428%' or nm like '3429%' or
+nm like '3430%' or nm like '3431%' or nm like '3432%' or nm like '3433%' or
+nm like '3434%' or nm like '3435%' or nm like '3436%' or nm like '3437%' or
+nm like '3439%' or
+nm like '3440%' or nm like '3441%' or nm like '3442%' or nm like '3443%' or
+nm like '3444%' or nm like '3445%' or nm like '3446%' or nm like '3447%' or
+nm like '3448%'
+) and fl2 = 0;
+pk	nm	fl1	fl2
+analyze format=json select * from t1
+where
+(
+nm like '3400%' or nm like '3402%' or nm like '3403%' or
+nm like '3404%' or nm like '3405%' or nm like '3406%' or nm like '3407%' or
+nm like '3409%' or
+nm like '3411%' or nm like '3412%' or nm like '3413%' or
+nm like '3414%' or nm like '3415%' or nm like '3416%' or nm like '3417%' or
+nm like '3418%' or nm like '3419%' or
+nm like '3421%' or nm like '3422%' or nm like '3423%' or
+nm like '3424%' or nm like '3425%' or nm like '3426%' or nm like '3427%' or
+nm like '3428%' or nm like '3429%' or
+nm like '3430%' or nm like '3431%' or nm like '3432%' or nm like '3433%' or
+nm like '3434%' or nm like '3435%' or nm like '3436%' or nm like '3437%' or
+nm like '3439%' or
+nm like '3440%' or nm like '3441%' or nm like '3442%' or nm like '3443%' or
+nm like '3444%' or nm like '3445%' or nm like '3446%' or nm like '3447%' or
+nm like '3448%'
+) and fl2 = 0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx2",
+          "key_length": "5",
+          "used_key_parts": ["fl2"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "idx1",
+              "used_key_parts": ["nm"]
+            },
+            "rows": 44,
+            "selectivity_pct": 0.44,
+            "r_rows": 44,
+            "r_lookups": 1000,
+            "r_selectivity_pct": 0,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "r_loops": 1,
+          "rows": 863,
+          "r_rows": 0,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 0.439999998,
+          "r_filtered": 100,
+          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+        }
+      }
+    ]
+  }
+}
+create table t0 select * from t1  where nm like '34%';
+delete from t1 using t1,t0 where t1.nm=t0.nm;
+analyze format=json select * from t1
+where
+(
+nm like '3400%' or nm like '3402%' or nm like '3403%' or
+nm like '3404%' or nm like '3405%' or nm like '3406%' or nm like '3407%' or
+nm like '3409%' or
+nm like '3411%' or nm like '3412%' or nm like '3413%' or
+nm like '3414%' or nm like '3415%' or nm like '3416%' or nm like '3417%' or
+nm like '3418%' or nm like '3419%' or
+nm like '3421%' or nm like '3422%' or nm like '3423%' or
+nm like '3424%' or nm like '3425%' or nm like '3426%' or nm like '3427%' or
+nm like '3428%' or nm like '3429%' or
+nm like '3430%' or nm like '3431%' or nm like '3432%' or nm like '3433%' or
+nm like '3434%' or nm like '3435%' or nm like '3436%' or nm like '3437%' or
+nm like '3439%' or
+nm like '3440%' or nm like '3441%' or nm like '3442%' or nm like '3443%' or
+nm like '3444%' or nm like '3445%' or nm like '3446%' or nm like '3447%' or
+nm like '3448%'
+) and fl2 = 0;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["idx1", "idx2"],
+          "key": "idx2",
+          "key_length": "5",
+          "used_key_parts": ["fl2"],
+          "ref": ["const"],
+          "rowid_filter": {
+            "range": {
+              "key": "idx1",
+              "used_key_parts": ["nm"]
+            },
+            "rows": 44,
+            "selectivity_pct": 0.44,
+            "r_rows": 0,
+            "r_lookups": 0,
+            "r_selectivity_pct": 0,
+            "r_buffer_size": "REPLACED",
+            "r_filling_time_ms": "REPLACED"
+          },
+          "r_loops": 1,
+          "rows": 853,
+          "r_rows": 0,
+          "filtered": 0.439999998,
+          "r_filtered": 100,
+          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+        }
+      }
+    ]
+  }
+}
+drop table t0;
+set optimizer_switch='rowid_filter=default';
+drop table name, flag2;
+drop table t1;
 set @@use_stat_tables=@save_use_stat_tables;
 SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
 #
@@ -2340,6 +2805,10 @@ insert into t1 values
 (81,'a','a',20),(82,'a','a',0),(83,'a','a',0),(84,'a','a',null),
 (85,'a','a',-1),(86,'a','a',5),(87,'a','a',null),(88,'a','a',160),
 (89,null,null,null),(90,'a','a',14785),(91,'a','a',0),(92,'a','a',null);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 ( select * from t1
 where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
 union
@@ -2458,46 +2927,44 @@ drop table t1, t2;
 #
 create table t1 (a int, b int, key (b), key (a)) engine=innodb;
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='rowid_filter=off';
-select count(*) from t1 where a in (22,83,11) and b=2;
+select count(*) from t1 where a between 21 and 30 and b=2;
 count(*)
-6
-explain extended select count(*) from t1 where a in (22,83,11) and b=2;
+5
+explain extended select count(*) from t1 where a between 21 and 30 and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	b,a	a	5	NULL	33	5.90	Using index condition; Using where
+1	SIMPLE	t1	ref	b,a	b	5	const	24	9.60	Using where
 Warnings:
-Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (22,83,11)
-select * from t1 where a in (22,83,11) and b=2;
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` between 21 and 30
+select * from t1 where a between 21 and 30 and b=2;
 a	b
-11	2
-11	2
-11	2
+30	2
+21	2
 22	2
-83	2
-83	2
+26	2
+25	2
 set optimizer_switch='rowid_filter=on';
-select count(*) from t1 where a in (22,83,11) and b=2;
+select count(*) from t1 where a between 21 and 30 and b=2;
 count(*)
-6
-explain extended select count(*) from t1 where a in (22,83,11) and b=2;
+5
+explain extended select count(*) from t1 where a between 21 and 30 and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	59 (3%)	3.30	Using where; Using rowid filter
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	24 (10%)	9.60	Using where; Using rowid filter
 Warnings:
-Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (22,83,11)
-select * from t1 where a in (22,83,11) and b=2;
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` between 21 and 30
+select * from t1 where a between 21 and 30 and b=2;
 a	b
-11	2
-11	2
-83	2
-11	2
-83	2
+30	2
+21	2
 22	2
+26	2
+25	2
 drop table t1;
 set optimizer_switch=@save_optimizer_switch;
 SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
@@ -2652,7 +3119,7 @@ set global innodb_stats_persistent= @stats.save;
 #
 CREATE TABLE t1 (
 id int(11) unsigned NOT NULL AUTO_INCREMENT,
-domain varchar(255) NOT NULL,
+domain varchar(32) NOT NULL,
 registrant_name varchar(255) DEFAULT NULL,
 registrant_organization varchar(255) DEFAULT NULL,
 registrant_street1 varchar(255) DEFAULT NULL,
@@ -2743,21 +3210,216 @@ null, 'SUELZBURGSTRASSE 158A', null, null, null, null, 'KOELN', '50937',
 'MAXIMILIAN V. KETELHODT', null, 'SUELZBURGSTRASSE 158A', null, null, null,
 null, 'KOELN', '50937', 'GERMANY', 'ICANN@EXPIRES-2009.WEBCARE24.COM',
 '492214307580', '', '2017-01-30 10:08:29');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+VALUES
+('www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28');
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+SELECT
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp
+FROM t1;
+INSERT INTO t1 (
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp)
+SELECT
+domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp
+FROM t1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'json'
+test.t1	analyze	status	OK
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='mrr=on,mrr_sort_keys=on';
 SELECT * FROM t1
 WHERE 1 = 1 AND domain = 'www.mailhost.i-dev.fr' AND
-timestamp >= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -1 MONTH)
+timestamp >= DATE_ADD('2017-01-30 08:24:51', INTERVAL -1 MONTH)
 ORDER BY timestamp DESC;
 id	domain	registrant_name	registrant_organization	registrant_street1	registrant_street2	registrant_street3	registrant_street4	registrant_street5	registrant_city	registrant_postal_code	registrant_country	registrant_email	registrant_telephone	administrative_name	administrative_organization	administrative_street1	administrative_street2	administrative_street3	administrative_street4	administrative_street5	administrative_city	administrative_postal_code	administrative_country	administrative_email	administrative_telephone	technical_name	technical_organization	technical_street1	technical_street2	technical_street3	technical_street4	technical_street5	technical_city	technical_postal_code	technical_country	technical_email	technical_telephone	json	timestamp
+80551	www.mailhost.i-dev.fr	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL		2017-01-30 10:00:56
+80579	www.mailhost.i-dev.fr	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL		2017-01-30 10:00:56
+80594	www.mailhost.i-dev.fr	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL		2017-01-30 10:00:56
+80609	www.mailhost.i-dev.fr	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL		2017-01-30 10:00:56
 EXPLAIN EXTENDED SELECT * FROM t1
 WHERE 1 = 1 AND domain = 'www.mailhost.i-dev.fr' AND
-timestamp >= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -1 MONTH)
+timestamp >= DATE_ADD('2017-01-30 08:24:51', INTERVAL -1 MONTH)
 ORDER BY timestamp DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	ixEventWhoisDomainDomain,ixEventWhoisDomainTimestamp	ixEventWhoisDomainDomain|ixEventWhoisDomainTimestamp	767|4	const	2 (14%)	14.29	Using index condition; Using where; Using filesort; Using rowid filter
+1	SIMPLE	t1	ALL	ixEventWhoisDomainDomain,ixEventWhoisDomainTimestamp	NULL	NULL	NULL	60	22.22	Using where; Using filesort
 Warnings:
-Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`domain` AS `domain`,`test`.`t1`.`registrant_name` AS `registrant_name`,`test`.`t1`.`registrant_organization` AS `registrant_organization`,`test`.`t1`.`registrant_street1` AS `registrant_street1`,`test`.`t1`.`registrant_street2` AS `registrant_street2`,`test`.`t1`.`registrant_street3` AS `registrant_street3`,`test`.`t1`.`registrant_street4` AS `registrant_street4`,`test`.`t1`.`registrant_street5` AS `registrant_street5`,`test`.`t1`.`registrant_city` AS `registrant_city`,`test`.`t1`.`registrant_postal_code` AS `registrant_postal_code`,`test`.`t1`.`registrant_country` AS `registrant_country`,`test`.`t1`.`registrant_email` AS `registrant_email`,`test`.`t1`.`registrant_telephone` AS `registrant_telephone`,`test`.`t1`.`administrative_name` AS `administrative_name`,`test`.`t1`.`administrative_organization` AS `administrative_organization`,`test`.`t1`.`administrative_street1` AS `administrative_street1`,`test`.`t1`.`administrative_street2` AS `administrative_street2`,`test`.`t1`.`administrative_street3` AS `administrative_street3`,`test`.`t1`.`administrative_street4` AS `administrative_street4`,`test`.`t1`.`administrative_street5` AS `administrative_street5`,`test`.`t1`.`administrative_city` AS `administrative_city`,`test`.`t1`.`administrative_postal_code` AS `administrative_postal_code`,`test`.`t1`.`administrative_country` AS `administrative_country`,`test`.`t1`.`administrative_email` AS `administrative_email`,`test`.`t1`.`administrative_telephone` AS `administrative_telephone`,`test`.`t1`.`technical_name` AS `technical_name`,`test`.`t1`.`technical_organization` AS `technical_organization`,`test`.`t1`.`technical_street1` AS `technical_street1`,`test`.`t1`.`technical_street2` AS `technical_street2`,`test`.`t1`.`technical_street3` AS `technical_street3`,`test`.`t1`.`technical_street4` AS `technical_street4`,`test`.`t1`.`technical_street5` AS `technical_street5`,`test`.`t1`.`technical_city` AS `technical_city`,`test`.`t1`.`technical_postal_code` AS `technical_postal_code`,`test`.`t1`.`technical_country` AS `technical_country`,`test`.`t1`.`technical_email` AS `technical_email`,`test`.`t1`.`technical_telephone` AS `technical_telephone`,`test`.`t1`.`json` AS `json`,`test`.`t1`.`timestamp` AS `timestamp` from `test`.`t1` where `test`.`t1`.`domain` = 'www.mailhost.i-dev.fr' and `test`.`t1`.`timestamp` >= <cache>(current_timestamp() + interval -1 month) order by `test`.`t1`.`timestamp` desc
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`domain` AS `domain`,`test`.`t1`.`registrant_name` AS `registrant_name`,`test`.`t1`.`registrant_organization` AS `registrant_organization`,`test`.`t1`.`registrant_street1` AS `registrant_street1`,`test`.`t1`.`registrant_street2` AS `registrant_street2`,`test`.`t1`.`registrant_street3` AS `registrant_street3`,`test`.`t1`.`registrant_street4` AS `registrant_street4`,`test`.`t1`.`registrant_street5` AS `registrant_street5`,`test`.`t1`.`registrant_city` AS `registrant_city`,`test`.`t1`.`registrant_postal_code` AS `registrant_postal_code`,`test`.`t1`.`registrant_country` AS `registrant_country`,`test`.`t1`.`registrant_email` AS `registrant_email`,`test`.`t1`.`registrant_telephone` AS `registrant_telephone`,`test`.`t1`.`administrative_name` AS `administrative_name`,`test`.`t1`.`administrative_organization` AS `administrative_organization`,`test`.`t1`.`administrative_street1` AS `administrative_street1`,`test`.`t1`.`administrative_street2` AS `administrative_street2`,`test`.`t1`.`administrative_street3` AS `administrative_street3`,`test`.`t1`.`administrative_street4` AS `administrative_street4`,`test`.`t1`.`administrative_street5` AS `administrative_street5`,`test`.`t1`.`administrative_city` AS `administrative_city`,`test`.`t1`.`administrative_postal_code` AS `administrative_postal_code`,`test`.`t1`.`administrative_country` AS `administrative_country`,`test`.`t1`.`administrative_email` AS `administrative_email`,`test`.`t1`.`administrative_telephone` AS `administrative_telephone`,`test`.`t1`.`technical_name` AS `technical_name`,`test`.`t1`.`technical_organization` AS `technical_organization`,`test`.`t1`.`technical_street1` AS `technical_street1`,`test`.`t1`.`technical_street2` AS `technical_street2`,`test`.`t1`.`technical_street3` AS `technical_street3`,`test`.`t1`.`technical_street4` AS `technical_street4`,`test`.`t1`.`technical_street5` AS `technical_street5`,`test`.`t1`.`technical_city` AS `technical_city`,`test`.`t1`.`technical_postal_code` AS `technical_postal_code`,`test`.`t1`.`technical_country` AS `technical_country`,`test`.`t1`.`technical_email` AS `technical_email`,`test`.`t1`.`technical_telephone` AS `technical_telephone`,`test`.`t1`.`json` AS `json`,`test`.`t1`.`timestamp` AS `timestamp` from `test`.`t1` where `test`.`t1`.`domain` = 'www.mailhost.i-dev.fr' and `test`.`t1`.`timestamp` >= <cache>('2017-01-30 08:24:51' + interval -1 month) order by `test`.`t1`.`timestamp` desc
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1;
 #
@@ -2919,6 +3581,10 @@ insert into filt(id,aceid,clid,fh) values
 (6341490487802728361,6341490487802728360,1,1291319099896431785),
 (6341490487802728362,6341490487802728360,1,8948400944397203540),
 (6341490487802728363,6341490487802728361,1,6701841652906431497);
+insert into filt select id+10000,aceid,clid,fh from filt;
+insert into filt select id+20000,aceid,clid,fh from filt;
+insert into filt select id+40000,aceid,clid,fh from filt;
+insert into filt select id+80000,aceid,clid,fh from filt;
 analyze table filt, acei, acli;
 Table	Op	Msg_type	Msg_text
 test.filt	analyze	status	Engine-independent statistics collected
@@ -2943,7 +3609,7 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where
-1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	1	17.14	Using where
+1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	24	14.46	Using where
 Warnings:
 Note	1003	select `test`.`t`.`id` AS `id`,`test`.`fi`.`id` AS `id`,`test`.`fi`.`aceid` AS `aceid`,`test`.`fi`.`clid` AS `clid`,`test`.`fi`.`fh` AS `fh` from `test`.`acli` `t` join `test`.`acei` `a` join `test`.`filt` `fi` where `test`.`t`.`tp` = 121 and `test`.`a`.`atp` = 1 and `test`.`fi`.`aceid` = `test`.`a`.`id` and `test`.`a`.`aclid` = `test`.`t`.`id` and `test`.`t`.`rid` = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and `test`.`fi`.`fh` in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)
 set statement optimizer_switch='rowid_filter=off' for select t.id, fi.*
@@ -2958,6 +3624,36 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	id	aceid	clid	fh
 3080602882609775594	3080602882609775600	3080602882609775598	1	6311439873746261694
 3080602882609775594	3080602882609775601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609785600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609785601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609795600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609795601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609805600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609805601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609815600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609815601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609825600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609825601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609835600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609835601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609845600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609845601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609855600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609855601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609865600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609865601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609875600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609875601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609885600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609885601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609895600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609895601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609905600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609905601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609915600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609915601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609925600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609925601	3080602882609775598	1	6311439873746261694
 set statement optimizer_switch='rowid_filter=on' for explain extended select t.id, fi.*
 from (acli t inner join acei a on a.aclid = t.id)
 inner join filt fi on a.id = fi.aceid
@@ -2970,7 +3666,7 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where
-1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	1 (17%)	17.14	Using where; Using rowid filter
+1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	24 (14%)	14.46	Using where; Using rowid filter
 Warnings:
 Note	1003	select `test`.`t`.`id` AS `id`,`test`.`fi`.`id` AS `id`,`test`.`fi`.`aceid` AS `aceid`,`test`.`fi`.`clid` AS `clid`,`test`.`fi`.`fh` AS `fh` from `test`.`acli` `t` join `test`.`acei` `a` join `test`.`filt` `fi` where `test`.`t`.`tp` = 121 and `test`.`a`.`atp` = 1 and `test`.`fi`.`aceid` = `test`.`a`.`id` and `test`.`a`.`aclid` = `test`.`t`.`id` and `test`.`t`.`rid` = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and `test`.`fi`.`fh` in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)
 set statement optimizer_switch='rowid_filter=on' for select t.id, fi.*
@@ -2985,6 +3681,36 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	id	aceid	clid	fh
 3080602882609775594	3080602882609775600	3080602882609775598	1	6311439873746261694
 3080602882609775594	3080602882609775601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609785600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609785601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609795600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609795601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609805600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609805601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609815600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609815601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609825600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609825601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609835600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609835601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609845600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609845601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609855600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609855601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609865600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609865601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609875600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609875601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609885600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609885601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609895600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609895601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609905600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609905601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609915600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609915601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609925600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609925601	3080602882609775598	1	6311439873746261694
 set optimizer_switch='mrr=on';
 set join_cache_level=6;
 set statement optimizer_switch='rowid_filter=off' for explain extended select t.id, fi.*
@@ -2999,7 +3725,7 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where; Using join buffer (flat, BKA join); Rowid-ordered scan
-1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	1	17.14	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan
+1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	24	14.46	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan
 Warnings:
 Note	1003	select `test`.`t`.`id` AS `id`,`test`.`fi`.`id` AS `id`,`test`.`fi`.`aceid` AS `aceid`,`test`.`fi`.`clid` AS `clid`,`test`.`fi`.`fh` AS `fh` from `test`.`acli` `t` join `test`.`acei` `a` join `test`.`filt` `fi` where `test`.`t`.`tp` = 121 and `test`.`a`.`atp` = 1 and `test`.`fi`.`aceid` = `test`.`a`.`id` and `test`.`a`.`aclid` = `test`.`t`.`id` and `test`.`t`.`rid` = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and `test`.`fi`.`fh` in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)
 set statement optimizer_switch='rowid_filter=off' for select t.id, fi.*
@@ -3014,6 +3740,36 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	id	aceid	clid	fh
 3080602882609775594	3080602882609775600	3080602882609775598	1	6311439873746261694
 3080602882609775594	3080602882609775601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609785600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609785601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609795600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609795601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609805600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609805601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609815600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609815601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609825600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609825601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609835600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609835601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609845600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609845601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609855600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609855601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609865600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609865601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609875600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609875601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609885600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609885601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609895600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609895601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609905600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609905601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609915600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609915601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609925600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609925601	3080602882609775598	1	6311439873746261694
 set statement optimizer_switch='rowid_filter=on' for explain extended select t.id, fi.*
 from (acli t inner join acei a on a.aclid = t.id)
 inner join filt fi on a.id = fi.aceid
@@ -3026,7 +3782,7 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where; Using join buffer (flat, BKA join); Rowid-ordered scan
-1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	1 (17%)	17.14	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan; Using rowid filter
+1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	24 (14%)	14.46	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan; Using rowid filter
 Warnings:
 Note	1003	select `test`.`t`.`id` AS `id`,`test`.`fi`.`id` AS `id`,`test`.`fi`.`aceid` AS `aceid`,`test`.`fi`.`clid` AS `clid`,`test`.`fi`.`fh` AS `fh` from `test`.`acli` `t` join `test`.`acei` `a` join `test`.`filt` `fi` where `test`.`t`.`tp` = 121 and `test`.`a`.`atp` = 1 and `test`.`fi`.`aceid` = `test`.`a`.`id` and `test`.`a`.`aclid` = `test`.`t`.`id` and `test`.`t`.`rid` = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and `test`.`fi`.`fh` in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)
 set statement optimizer_switch='rowid_filter=on' for select t.id, fi.*
@@ -3041,6 +3797,36 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	id	aceid	clid	fh
 3080602882609775594	3080602882609775600	3080602882609775598	1	6311439873746261694
 3080602882609775594	3080602882609775601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609785600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609785601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609795600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609795601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609805600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609805601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609815600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609815601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609825600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609825601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609835600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609835601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609845600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609845601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609855600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609855601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609865600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609865601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609875600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609875601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609885600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609885601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609895600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609895601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609905600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609905601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609915600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609915601	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609925600	3080602882609775598	1	6311439873746261694
+3080602882609775594	3080602882609925601	3080602882609775598	1	6311439873746261694
 set statement optimizer_switch='rowid_filter=on' for analyze format=json select t.id, fi.*
 from (acli t inner join acei a on a.aclid = t.id)
 inner join filt fi on a.id = fi.aceid
@@ -3131,23 +3917,24 @@ ANALYZE
                 "key": "filt_fh",
                 "used_key_parts": ["fh"]
               },
-              "rows": 6,
-              "selectivity_pct": 17.14285714,
-              "r_rows": 5,
+              "rows": 81,
+              "selectivity_pct": 14.46428571,
+              "r_rows": 80,
+              "r_lookups": 80,
               "r_selectivity_pct": 40,
               "r_buffer_size": "REPLACED",
               "r_filling_time_ms": "REPLACED"
             },
             "r_loops": 1,
-            "rows": 1,
-            "r_rows": 2,
+            "rows": 24,
+            "r_rows": 32,
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
-            "filtered": 17.1428566,
+            "filtered": 14.46428585,
             "r_filtered": 100
           },
           "buffer_type": "incremental",
-          "buffer_size": "603",
+          "buffer_size": "4Kb",
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan",
           "attached_condition": "fi.fh in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)",
@@ -3170,39 +3957,100 @@ CREATE TABLE t1 (pk int NOT NULL, c1 varchar(1)) engine=innodb;
 INSERT INTO t1 VALUES
 (1,NULL),(15,'o'),(16,'x'),(19,'t'),(35,'k'),(36,'h'),(42,'t'),(43,'h'),
 (53,'l'),(62,'a'),(71,NULL),(79,'u'),(128,'y'),(129,NULL),(133,NULL);
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
 CREATE TABLE t2 (
-i1 int, c1 varchar(1) NOT NULL, KEY c1 (c1), KEY i1 (i1)
+i1 int, c1 varchar(1) NOT NULL,
+filler1 char(255) default '0', filler2 char(255) default '0',
+KEY c1 (c1), KEY i1 (i1)
 ) engine=innodb;
-INSERT INTO t2 VALUES
-(1,'1'),(NULL,'1'),(42,'t'),(NULL,'1'),(79,'u'),(NULL,'1'),
-(NULL,'4'),(NULL,'4'),(NULL,'1'),(NULL,'u'),(2,'1'),(NULL,'w');
+INSERT INTO t2(i1,c1) VALUES
+(NULL,'1'),(1,'1'),(2,'t'),(3,'1'),(4,'u'),(5,'1'),
+(6,'4'),(7,'4'),(8,'1'),(1,'u'),(2,'1'),(NULL,'w');
 INSERT INTO t2 SELECT * FROM t2;
+INSERT INTO t2 SELECT * FROM t2;
+INSERT INTO t2 SELECT * FROM t2;
+INSERT INTO t2 SELECT * FROM t2;
+ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
 SELECT * FROM t1
 WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
-WHERE t2.i1 = t1.pk AND t2.i1 IS NOT NULL);
+WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
 pk	c1
+1	NULL
 15	o
 16	x
 19	t
 35	k
 36	h
+42	t
 43	h
 53	l
 62	a
 71	NULL
+79	u
+128	y
+129	NULL
+133	NULL
+1	NULL
+15	o
+16	x
+19	t
+35	k
+36	h
+42	t
+43	h
+53	l
+62	a
+71	NULL
+79	u
+128	y
+129	NULL
+133	NULL
+1	NULL
+15	o
+16	x
+19	t
+35	k
+36	h
+42	t
+43	h
+53	l
+62	a
+71	NULL
+79	u
+128	y
+129	NULL
+133	NULL
+1	NULL
+15	o
+16	x
+19	t
+35	k
+36	h
+42	t
+43	h
+53	l
+62	a
+71	NULL
+79	u
 128	y
 129	NULL
 133	NULL
 EXPLAIN EXTENDED SELECT * FROM t1
 WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
-WHERE t2.i1 = t1.pk AND t2.i1 IS NOT NULL);
+WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	15	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ref|filter	c1,i1	c1|i1	3|5	func	6 (33%)	33.33	Using where; Full scan on NULL key; Using rowid filter
-2	DEPENDENT SUBQUERY	a1	ALL	NULL	NULL	NULL	NULL	15	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	ref|filter	c1,i1	c1|i1	3|5	func	38 (25%)	25.00	Using where; Full scan on NULL key; Using rowid filter
+2	DEPENDENT SUBQUERY	a1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`c1` AS `c1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`c1`,`test`.`t1`.`pk`>(<in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#2 */ select `test`.`t2`.`c1` from `test`.`t2` join `test`.`t1` `a1` where `test`.`t2`.`i1` = `test`.`t1`.`pk` and `test`.`t2`.`i1` is not null and trigcond(<cache>(`test`.`t1`.`c1`) = `test`.`t2`.`c1`))))
+Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`c1` AS `c1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`c1`,`test`.`t1`.`pk`>(<in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#2 */ select `test`.`t2`.`c1` from `test`.`t2` join `test`.`t1` `a1` where `test`.`t2`.`i1` = `test`.`t1`.`pk` and `test`.`t2`.`i1` between 3 and 5 and trigcond(<cache>(`test`.`t1`.`c1`) = `test`.`t2`.`c1`))))
 DROP TABLE t1,t2;
 set global innodb_stats_persistent= @stats.save;
 # End of 10.4 tests
