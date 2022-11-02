@@ -42,10 +42,6 @@ Created 3/26/1996 Heikki Tuuri
 
 #include <unordered_map>
 
-#ifdef UNIV_PFS_RWLOCK
-extern mysql_pfs_key_t trx_purge_latch_key;
-#endif /* UNIV_PFS_RWLOCK */
-
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
 ulong		srv_max_purge_lag = 0;
 
@@ -184,6 +180,7 @@ void purge_sys_t::create()
   hdr_page_no= 0;
   hdr_offset= 0;
   latch.SRW_LOCK_INIT(trx_purge_latch_key);
+  end_latch.init();
   mysql_mutex_init(purge_sys_pq_mutex_key, &pq_mutex, nullptr);
   truncate.current= NULL;
   truncate.last= NULL;
@@ -205,9 +202,38 @@ void purge_sys_t::close()
   trx->state= TRX_STATE_NOT_STARTED;
   trx->free();
   latch.destroy();
+  end_latch.destroy();
   mysql_mutex_destroy(&pq_mutex);
   mem_heap_free(heap);
   heap= nullptr;
+}
+
+/** Determine if the history of a transaction is purgeable.
+@param trx_id  transaction identifier
+@return whether the history is purgeable */
+TRANSACTIONAL_TARGET bool purge_sys_t::is_purgeable(trx_id_t trx_id) const
+{
+  bool purgeable;
+#if !defined SUX_LOCK_GENERIC && !defined NO_ELISION
+  purgeable= false;
+  if (xbegin())
+  {
+    if (!latch.is_write_locked())
+    {
+      purgeable= view.changes_visible(trx_id);
+      xend();
+    }
+    else
+      xabort();
+  }
+  else
+#endif
+  {
+    latch.rd_lock(SRW_LOCK_CALL);
+    purgeable= view.changes_visible(trx_id);
+    latch.rd_unlock();
+  }
+  return purgeable;
 }
 
 /*================ UNDO LOG HISTORY LIST =============================*/
@@ -1201,7 +1227,6 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 
 	i = 0;
 
-	const ulint		batch_size = srv_purge_batch_size;
 	std::unordered_map<table_id_t, purge_node_t*> table_id_map;
 	mem_heap_empty(purge_sys.heap);
 
@@ -1253,7 +1278,7 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 
 		node->undo_recs.push(purge_rec);
 
-		if (n_pages_handled >= batch_size) {
+		if (n_pages_handled >= srv_purge_batch_size) {
 			break;
 		}
 	}
@@ -1305,14 +1330,14 @@ extern tpool::waitable_task purge_worker_task;
 /** Wait for pending purge jobs to complete. */
 static void trx_purge_wait_for_workers_to_complete()
 {
-  bool notify_wait = purge_worker_task.is_running();
+  const bool notify_wait{purge_worker_task.is_running()};
 
   if (notify_wait)
-   tpool::tpool_wait_begin();
+    tpool::tpool_wait_begin();
 
   purge_worker_task.wait();
 
-  if(notify_wait)
+  if (notify_wait)
     tpool::tpool_wait_end();
 
   /* There should be no outstanding tasks as long
@@ -1320,12 +1345,33 @@ static void trx_purge_wait_for_workers_to_complete()
   ut_ad(srv_get_task_queue_length() == 0);
 }
 
+/** Update end_view at the end of a purge batch. */
+TRANSACTIONAL_INLINE void purge_sys_t::clone_end_view()
+{
+  /* This is only invoked only by the purge coordinator,
+  which is the only thread that can modify our inputs head, tail, view.
+  Therefore, we only need to protect end_view from concurrent reads. */
+
+  /* Limit the end_view similar to what trx_purge_truncate_history() does. */
+  const trx_id_t trx_no= head.trx_no ? head.trx_no : tail.trx_no;
+#ifdef SUX_LOCK_GENERIC
+  end_latch.wr_lock();
+#else
+  transactional_lock_guard<srw_spin_lock_low> g(end_latch);
+#endif
+  end_view= view;
+  end_view.clamp_low_limit_id(trx_no);
+#ifdef SUX_LOCK_GENERIC
+  end_latch.wr_unlock();
+#endif
+}
+
 /**
 Run a purge batch.
 @param n_tasks   number of purge tasks to submit to the queue
 @param truncate  whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-ulint trx_purge(ulint n_tasks, bool truncate)
+TRANSACTIONAL_TARGET ulint trx_purge(ulint n_tasks, bool truncate)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
@@ -1358,6 +1404,8 @@ ulint trx_purge(ulint n_tasks, bool truncate)
 	que_run_threads(thr);
 
 	trx_purge_wait_for_workers_to_complete();
+
+	purge_sys.clone_end_view();
 
 	if (truncate) {
 		trx_purge_truncate_history();

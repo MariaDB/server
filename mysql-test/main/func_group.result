@@ -2549,5 +2549,9 @@ Warning	1292	Truncated incorrect DOUBLE value: 'x'
 Warning	1292	Truncated incorrect DOUBLE value: 'x'
 DROP TABLE t1;
 #
+#  MDEV-29678 Valgrind/MSAN uninitialised value errors upon PS with ALTER under ONLY_FULL_GROUP_BY
+#
+SET STATEMENT sql_mode=ONLY_FULL_GROUP_BY FOR EXECUTE IMMEDIATE 'ALTER TABLE mysql.time_zone_transition ORDER BY Time_zone_id, Transition_time';
+#
 # End of 10.3 tests
 #

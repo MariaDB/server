@@ -1,6 +1,6 @@
 mysqld is alive
-mysqladmin: unknown variable 'database=db1'
-Warning: mysqladmin: unknown variable 'loose-database=db2'
+mariadb-admin: unknown variable 'database=db1'
+Warning: mariadb-admin: unknown variable 'loose-database=db2'
 mysqld is alive
 #
 # Bug#58221 : mysqladmin --sleep=x --count=x keeps looping

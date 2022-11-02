@@ -57,19 +57,11 @@ syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close(FILE) || die "Unable to close $file";
 EOF
 
-# Debug assertions would fail due to the injected corruption.
---let $restart_parameters= --loose-skip-debug-assert
 --source include/start_mysqld.inc
-
-let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_PATTERN= \[Warning\] InnoDB: A transaction id in a record of table `test`\.`t1` is newer than the system-wide maximum;
---source include/search_pattern_in_file.inc
-
 call mtr.add_suppression("\\[Warning\\] InnoDB: A transaction id in a record of table `test`\\.`t1` is newer than the system-wide maximum");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption");
+call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
 
-# A debug assertion would cause a duplicated message to be output.
-SET @save_count = @@max_error_count;
-SET max_error_count = 1;
+--error ER_NOT_KEYFILE
 SELECT * FROM t1;
-SET max_error_count = @save_count;
 DROP TABLE t1;

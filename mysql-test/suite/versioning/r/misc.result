@@ -1,5 +1,32 @@
 set time_zone='+00:00';
 #
+# MDEV-29750 triggers can modify history
+#
+set sql_mode='', timestamp=unix_timestamp('2010-10-10 10:10:10');
+create table t (a int, b int as (a+1), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
+insert into t values (1,1, '2022-01-01','2023-01-01'),(2,2, '2022-02-02','2023-02-02');
+Warnings:
+Warning	1906	The value specified for generated column 'b' in table 't' has been ignored
+Warning	1906	The value specified for generated column 's' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'b' in table 't' has been ignored
+Warning	1906	The value specified for generated column 's' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't' has been ignored
+create trigger tr before insert on t for each row set new.b=1, new.s = '2022-03-03', new.e = '2023-03-03';
+insert into t (a) values (3),(4);
+select * from t for system_time all;
+a	b	s	e
+1	2	2010-10-10 10:10:10.000000	2038-01-19 03:14:07.999999
+2	3	2010-10-10 10:10:10.000000	2038-01-19 03:14:07.999999
+3	4	2010-10-10 10:10:10.000000	2038-01-19 03:14:07.999999
+4	5	2010-10-10 10:10:10.000000	2038-01-19 03:14:07.999999
+drop table t;
+set sql_mode=default, timestamp=default;
+#
+# End of 10.3 tests
+#
+set time_zone='+00:00';
+#
 # MDEV-29721 Inconsistency upon inserting history with visible system versioning columns
 #
 create table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;

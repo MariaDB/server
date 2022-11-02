@@ -1015,8 +1015,10 @@ enum options_xtrabackup
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_LOCK_WAIT_TIMEOUT,
   OPT_INNODB_LOG_BUFFER_SIZE,
+#if defined __linux__ || defined _WIN32
+  OPT_INNODB_LOG_FILE_BUFFERING,
+#endif
   OPT_INNODB_LOG_FILE_SIZE,
-  OPT_INNODB_LOG_FILES_IN_GROUP,
   OPT_INNODB_OPEN_FILES,
   OPT_XTRA_DEBUG_SYNC,
   OPT_INNODB_CHECKSUM_ALGORITHM,
@@ -1577,6 +1579,13 @@ struct my_option xb_server_options[] =
    (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
    IF_WIN(GET_ULL,GET_ULONG), REQUIRED_ARG, 2U << 20,
    2U << 20, SIZE_T_MAX, 0, 4096, 0},
+#if defined __linux__ || defined _WIN32
+  {"innodb_log_file_buffering", OPT_INNODB_LOG_FILE_BUFFERING,
+   "Whether the file system cache for ib_logfile0 is enabled during --backup",
+   (G_PTR*) &log_sys.log_buffered,
+   (G_PTR*) &log_sys.log_buffered, 0, GET_BOOL, NO_ARG,
+   TRUE, 0, 0, 0, 0, 0},
+#endif
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
@@ -1892,10 +1901,6 @@ xb_get_one_option(const struct my_option *opt,
   case OPT_INNODB_LOG_GROUP_HOME_DIR:
 
     ADD_PRINT_PARAM_OPT(srv_log_group_home_dir);
-    break;
-
-  case OPT_INNODB_LOG_FILES_IN_GROUP:
-  case OPT_INNODB_LOG_FILE_SIZE:
     break;
 
   case OPT_INNODB_FLUSH_METHOD:

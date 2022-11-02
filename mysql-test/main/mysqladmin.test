@@ -11,13 +11,13 @@
 # Bug#10608 mysqladmin breaks on "database" variable in my.cnf
 #
 
---replace_regex /.*mysqladmin.*: unknown/mysqladmin: unknown/
+--replace_regex /.*mariadb-admin.*: unknown/mariadb-admin: unknown/
 --error 7
 --exec $MYSQLADMIN --database=db1 --default-character-set=latin1 -S $MASTER_MYSOCK -P $MASTER_MYPORT  -u root --password= ping 2>&1
 
 # When mysqladmin finds "loose-database" it shall print
 # a warning and continue
---replace_regex /Warning: .*mysqladmin.*: unknown/Warning: mysqladmin: unknown/
+--replace_regex /Warning: .*mariadb-admin.*: unknown/Warning: mariadb-admin: unknown/
 --exec $MYSQLADMIN --loose-database=db2 --default-character-set=latin1 -S $MASTER_MYSOCK -P $MASTER_MYPORT  -u root --password= ping 2>&1
 
 --echo #

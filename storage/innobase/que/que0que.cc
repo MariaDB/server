@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -566,6 +566,27 @@ que_node_type_string(
 }
 #endif /* DBUG_TRACE */
 
+
+/**********************************************************************//**
+Performs an execution step of an open or close cursor statement node.
+@param thr query thread */
+static void open_step(que_thr_t *thr)
+{
+  open_node_t *node= static_cast<open_node_t*>(thr->run_node);
+  ut_ad(que_node_get_type(node) == QUE_NODE_OPEN);
+  sel_node_t *sel_node= node->cursor_def;
+
+  if (node->op_type == ROW_SEL_OPEN_CURSOR)
+    sel_node->state= SEL_NODE_OPEN;
+  else
+  {
+    ut_ad(sel_node->state != SEL_NODE_CLOSED);
+    sel_node->state= SEL_NODE_CLOSED;
+  }
+
+  thr->run_node= que_node_get_parent(node);
+}
+
 /**********************************************************************//**
 Performs an execution step on a query thread.
 @return query thread to run next: it may differ from the input
@@ -636,7 +657,7 @@ que_thr_step(
 	} else if (type == QUE_NODE_FETCH) {
 		thr = fetch_step(thr);
 	} else if (type == QUE_NODE_OPEN) {
-		thr = open_step(thr);
+		open_step(thr);
 	} else if (type == QUE_NODE_FUNC) {
 		proc_eval_step(thr);
 

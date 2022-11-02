@@ -193,3 +193,105 @@ INSERT INTO t1 () values ();
 EXECUTE stmt;
 DROP TABLE t1;
 DROP SEQUENCE s;
+#
+# MDEV-29540 Incorrect sequence values in INSERT SELECT
+#
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (
+a BIGINT UNSIGNED NOT NULL PRIMARY KEY
+DEFAULT (NEXT VALUE FOR s1),
+b CHAR(1) NOT NULL
+);
+INSERT INTO t1 (b) VALUES ('a');
+INSERT INTO t1 (b) VALUES ('b'), ('c');
+INSERT INTO t1 (b) VALUES ('d');
+INSERT INTO t1 (b) SELECT c FROM (
+SELECT 'e' as c
+UNION
+SELECT 'f'
+  UNION
+SELECT 'g'
+) der;
+SELECT a, b FROM t1;
+a	b
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+ALTER SEQUENCE s1 RESTART;
+INSERT INTO t1 (b) SELECT c FROM (
+SELECT 'a' as c
+UNION
+SELECT 'b'
+  UNION
+SELECT 'c'
+  UNION
+SELECT 'd'
+  UNION
+SELECT 'e'
+  UNION
+SELECT 'f'
+  UNION
+SELECT 'g'
+) der;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+ALTER SEQUENCE s1 RESTART;
+INSERT IGNORE INTO t1 (b) SELECT c FROM (
+SELECT 'a' as c
+UNION
+SELECT 'b'
+  UNION
+SELECT 'c'
+  UNION
+SELECT 'd'
+  UNION
+SELECT 'e'
+  UNION
+SELECT 'f'
+  UNION
+SELECT 'g'
+) der;
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+Warning	1062	Duplicate entry '3' for key 'PRIMARY'
+Warning	1062	Duplicate entry '4' for key 'PRIMARY'
+Warning	1062	Duplicate entry '5' for key 'PRIMARY'
+Warning	1062	Duplicate entry '6' for key 'PRIMARY'
+Warning	1062	Duplicate entry '7' for key 'PRIMARY'
+SELECT a, b FROM t1;
+a	b
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+INSERT IGNORE INTO t1 (b) SELECT c FROM (
+SELECT 'h' as c
+UNION
+SELECT 'i'
+  UNION
+SELECT 'j'
+) der;
+SELECT a, b FROM t1;
+a	b
+1	a
+2	b
+3	c
+4	d
+5	e
+6	f
+7	g
+8	h
+9	i
+10	j
+DROP TABLE t1;
+DROP SEQUENCE s1;
+#
+# End of 10.3 tests
+#

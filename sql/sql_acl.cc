@@ -4189,7 +4189,7 @@ bool change_password(THD *thd, LEX_USER *user)
   if (update_user_table_password(thd, tables.user_table(), *acl_user))
     goto end;
 
-  acl_cache->clear(1);                          // Clear locked hostname cache
+  hostname_cache_refresh();                    // Clear locked hostname cache
   mysql_mutex_unlock(&acl_cache->lock);
   result= acl_cache_is_locked= 0;
   if (mysql_bin_log.is_open())
@@ -4346,7 +4346,6 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
       goto end;
     }
 
-    acl_cache->clear(1);
     mysql_mutex_unlock(&acl_cache->lock);
     result= 0;
     if (mysql_bin_log.is_open())
@@ -7836,7 +7835,10 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
        a role
     */
     if (role_as_user)
+    {
       propagate_role_grants(role_as_user, PRIVS_TO_MERGE::ALL);
+      acl_cache->clear(1);
+    }
   }
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -14268,11 +14270,11 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
         if (global_system_variables.log_warnings)
           sql_print_information("X509 issuer mismatch: should be '%s' "
                             "but is '%s'", acl_user->x509_issuer, ptr);
-        free(ptr);
+        OPENSSL_free(ptr);
         X509_free(cert);
         return 1;
       }
-      free(ptr);
+      OPENSSL_free(ptr);
     }
     /* X509 subject is specified, we check it .. */
     if (acl_user->x509_subject[0])
@@ -14285,11 +14287,11 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
         if (global_system_variables.log_warnings)
           sql_print_information("X509 subject mismatch: should be '%s' but is '%s'",
                           acl_user->x509_subject, ptr);
-        free(ptr);
+        OPENSSL_free(ptr);
         X509_free(cert);
         return 1;
       }
-      free(ptr);
+      OPENSSL_free(ptr);
     }
     X509_free(cert);
     return 0;
