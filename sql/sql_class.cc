@@ -3745,8 +3745,10 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     {
       cache= val_item->get_cache(thd);
       set_op(val_item->type_handler());
+      cache->setup(thd, val_item);
     }
-    cache->store(val_item);
+    else
+      cache->store(val_item);
     it->store(0, cache);
   }
   it->assigned(1);
