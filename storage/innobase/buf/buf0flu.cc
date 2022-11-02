@@ -790,8 +790,20 @@ inline bool buf_page_t::flush(bool lru, fil_space_t *space)
 
   if (s >= READ_FIX || oldest_modification() < 2)
   {
+  defer:
     lock.u_unlock(true);
     return false;
+  }
+
+  if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
+  {
+    const lsn_t lsn=
+      mach_read_from_8(my_assume_aligned<8>(FIL_PAGE_LSN +
+                                            (zip.data ? zip.data
+                                             : frame)));
+    ut_ad(lsn >= oldest_modification());
+    if (lsn > log_sys.get_flushed_lsn())
+      goto defer;
   }
 
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
@@ -886,20 +898,8 @@ inline bool buf_page_t::flush(bool lru, fil_space_t *space)
   }
 
   if ((s & LRU_MASK) == REINIT || !space->use_doublewrite())
-  {
-    if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
-    {
-      const lsn_t lsn=
-        mach_read_from_8(my_assume_aligned<8>(FIL_PAGE_LSN +
-                                              (write_frame ? write_frame
-                                               : frame)));
-      ut_ad(lsn >= oldest_modification());
-      if (lsn > log_sys.get_flushed_lsn())
-        log_write_up_to(lsn, true);
-    }
     space->io(IORequest{type, this, slot}, physical_offset(), size,
               write_frame, this);
-  }
   else
     buf_dblwr.add_to_batch(IORequest{this, slot, space->chain.start, type},
                            size);
@@ -1504,6 +1504,19 @@ void buf_flush_wait_batch_end(bool lru)
   }
 }
 
+/** Whether a background log flush is pending */
+static std::atomic_flag log_flush_pending;
+
+/** Advance log_sys.get_flushed_lsn() */
+static void log_flush(void *)
+{
+  /* Guarantee progress for buf_flush_lists(). */
+  log_buffer_flush_to_disk(true);
+  log_flush_pending.clear();
+}
+
+static tpool::waitable_task log_flush_task(log_flush, nullptr, nullptr);
+
 /** Write out dirty blocks from buf_pool.flush_list.
 @param max_n    wished maximum mumber of blocks flushed
 @param lsn      buf_pool.get_oldest_modification(LSN_MAX) target
@@ -1515,6 +1528,20 @@ static ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED, lsn_t lsn= LSN_MAX)
 
   if (buf_pool.n_flush_list())
     return 0;
+
+  lsn_t flushed_lsn= log_sys.get_flushed_lsn();
+  if (log_sys.get_lsn() > flushed_lsn)
+  {
+    log_flush_task.wait();
+    flushed_lsn= log_sys.get_flushed_lsn();
+    if (log_sys.get_lsn() > flushed_lsn &&
+        !log_flush_pending.test_and_set())
+      srv_thread_pool->submit_task(&log_flush_task);
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+    if (UNIV_UNLIKELY(ibuf_debug))
+      log_buffer_flush_to_disk(true);
+#endif
+  }
 
   mysql_mutex_lock(&buf_pool.mutex);
   const bool running= buf_pool.n_flush_list_ != 0;
@@ -2386,6 +2413,8 @@ next:
     buf_flush_wait_batch_end_acquiring_mutex(false);
   }
 
+  log_flush_task.wait();
+
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_limit= buf_flush_sync_lsn;
   if (UNIV_UNLIKELY(lsn_limit != 0))
@@ -2458,6 +2487,7 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   ut_ad(!buf_pool.any_io_pending());
+  log_flush_task.wait();
 }
 
 /** Synchronously flush dirty blocks during recv_sys_t::apply().
