@@ -164,11 +164,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -333,11 +334,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -502,11 +504,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -671,11 +674,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -840,11 +844,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -1009,11 +1014,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -1178,11 +1184,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -1347,11 +1354,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -1516,11 +1524,12 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 connection slave;
 connection master;
 CREATE TABLE t1 (x int) with system versioning;
@@ -1685,9 +1694,10 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
-reset master;
+connection slave;
 connection slave;
 include/stop_slave.inc
 reset slave;
 include/start_slave.inc
+reset master;
 include/rpl_end.inc
