@@ -429,6 +429,10 @@ class trx_mod_table_time_t
   /** First modification of a system versioned column
   (NONE= no versioning, BULK= the table was dropped) */
   undo_no_t first_versioned= NONE;
+#ifdef UNIV_DEBUG
+  /** Whether the modified table is a FTS auxiliary table */
+  bool fts_aux_table= false;
+#endif /* UNIV_DEBUG */
 public:
   /** Constructor
   @param rows   number of modified rows so far */
@@ -483,6 +487,12 @@ public:
       first_versioned= NONE;
     return false;
   }
+
+#ifdef UNIV_DEBUG
+  void set_aux_table() { fts_aux_table= true; }
+
+  bool is_aux_table() const { return fts_aux_table; }
+#endif /* UNIV_DEBUG */
 };
 
 /** Collection of persistent tables and their first modification
