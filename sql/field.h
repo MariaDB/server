@@ -555,7 +555,6 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
 #define VCOL_AUTO_INC         16
 #define VCOL_IMPOSSIBLE       32
 #define VCOL_NEXTVAL          64  /* NEXVAL is not implemented for vcols */
-#define VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS 128
 
 #define VCOL_NOT_STRICTLY_DETERMINISTIC                       \
   (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC | VCOL_SESSION_FUNC)
@@ -587,6 +586,7 @@ public:
   bool stored_in_db;
   bool utf8;                                    /* Already in utf8 */
   bool automatic_name;
+  bool if_not_exists;
   Item *expr;
   Lex_ident name;                               /* Name of constraint */
   /* see VCOL_* (VCOL_FIELD_REF, ...) */

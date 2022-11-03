@@ -151,7 +151,9 @@ show create table t1;
 DROP PROCEDURE sp;
 DROP TABLE t1;
 
+--echo #
 --echo # End of 10.2 tests
+--echo #
 
 #
 # Check that we don't lose constraints as part of CREATE ... SELECT
@@ -171,4 +173,19 @@ insert into t1 values ("ccc");
 --error ER_CONSTRAINT_FAILED
 insert into t1 values ("");
 select * from t1;
+drop table t1;
+
+#
+# add if not exists in SP
+#
+
+create table t1 (a int, b int);
+create procedure sp() alter table t1 add constraint if not exists foo check (b > 0);
+call sp;
+show create table t1;
+call sp;
+show create table t1;
+call sp;
+show create table t1;
+drop procedure sp;
 drop table t1;

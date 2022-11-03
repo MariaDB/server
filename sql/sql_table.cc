@@ -6219,10 +6219,8 @@ remove_key:
 
     while ((check=it++))
     {
-      if (!(check->flags & VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
-          check->name.length)
+      if (!check->if_not_exists && check->name.length)
         continue;
-      check->flags= 0;
       for (c= share->field_check_constraints;
            c < share->table_check_constraints ; c++)
       {
