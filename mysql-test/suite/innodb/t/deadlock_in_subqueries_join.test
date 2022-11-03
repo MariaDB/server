@@ -1,0 +1,81 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+CREATE TABLE t1 (
+  pkey int NOT NULL PRIMARY KEY,
+  c int
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES(1,1);
+
+CREATE TABLE t2 (
+  pkey int NOT NULL PRIMARY KEY,
+  c int
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+INSERT INTO t2 VALUES (2, NULL);
+
+# The following table is to increase tansaction weight on deadlock resolution
+CREATE TABLE t3 (c int) engine = InnoDB;
+INSERT INTO t3 VALUES (10), (20), (30), (40), (50);
+
+--let $i= 2
+--let $delete= 2
+--let $update= 1
+--connect(con1, localhost,root,,)
+
+while($i) {
+--connection default
+START TRANSACTION; # trx 1
+# The following update is necessary to increase the transaction weight, which is
+# calculated as the number of locks + the number of undo records during deadlock
+# report. Victim's transaction should have minimum weight. We need trx 2 to be
+# choosen as victim, that's why we need to increase the current transaction
+# weight.
+UPDATE t3 SET c=c+1000;
+SELECT * FROM t1 FOR UPDATE;
+
+--connection con1
+START TRANSACTION; # trx 2
+# 1) read record from t2, lock it
+# 2) check if the read record should be deleted, i.e. read record from t1,
+# as the record from t1 is locked by trx 1, the subselect will be suspended.
+# see 'while' loop in mysql_delete() or mysql_update() and
+# select->skip_record(thd) call for details.
+if ($i == $delete) {
+--send DELETE FROM t2 WHERE c NOT IN (SELECT ref_0.pkey FROM t1 AS ref_0 INNER JOIN t1 AS ref_1 ON ref_0.c = ref_0.pkey)
+}
+if ($i == $update) {
+--send UPDATE t2 SET pkey=pkey+10 WHERE c NOT IN (SELECT ref_0.pkey FROM t1 AS ref_0 INNER JOIN t1 AS ref_1 ON ref_0.c = ref_0.pkey)
+}
+
+--connection default
+let $wait_condition=
+  SELECT count(*) = 1 FROM information_schema.processlist
+  WHERE (state = 'Sending data' OR state = "Updating")
+  AND (info LIKE 'delete from t2 where%' OR
+       info LIKE 'UPDATE t2 SET pkey=pkey+10 WHERE%');
+--source include/wait_condition.inc
+
+# The record from t2 is locked by the previous delete, so trx 2 is waiting for
+# trx 1, and trx 1 will be blocked by trx 2 with the following SELECT. So we
+# have deadlock here. And trx 2 is chosen as deadlock victim as trx 1 has
+# greater weight.
+SELECT * FROM t2 FOR UPDATE;
+COMMIT;
+
+--connection con1
+# If the bug is not fixed, there will be assertion failure as
+# mysql_delete()/mysql_update() will continue execution despite its subselect
+# got deadlock error
+--error ER_LOCK_DEADLOCK
+--reap
+COMMIT;
+--dec $i
+}
+
+--disconnect con1
+
+--connection default
+DROP TABLE t1,t2,t3;
+--source include/wait_until_count_sessions.inc
