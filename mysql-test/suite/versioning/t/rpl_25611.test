@@ -1,7 +1,6 @@
 --source suite/versioning/engines.inc
 --source include/have_partition.inc
 --source include/master-slave.inc
-# loop 10 times
 --let $i= 10 
 while($i > 0)
 {
@@ -138,12 +137,15 @@ while($i > 0)
     connection master;
     drop table t1;
 
-    # explicit RESET MASTER for testing MDEV_25611
-    reset master;
+    sync_slave_with_master;
     connection slave;
     --source include/stop_slave.inc
     reset slave;
     --source include/start_slave.inc
+
+
+    # explicit RESET MASTER for testing MDEV_25611
+    reset master;
 }
 --source include/rpl_end.inc
 
