@@ -1,7 +1,7 @@
 --source suite/versioning/engines.inc
 --source include/have_partition.inc
 --source include/master-slave.inc
-# loop 10
+# loop 10 times
 --let $i= 10 
 while($i > 0)
 {
