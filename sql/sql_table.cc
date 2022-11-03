@@ -4622,7 +4622,7 @@ without_overlaps_err:
         my_error(ER_TOO_LONG_IDENT, MYF(0), check->name.str);
         DBUG_RETURN(TRUE);
       }
-      if (check_expression(check, &check->name, VCOL_CHECK_TABLE))
+      if (check_expression(check, &check->name, VCOL_CHECK_TABLE, alter_info))
         DBUG_RETURN(TRUE);
     }
   }
