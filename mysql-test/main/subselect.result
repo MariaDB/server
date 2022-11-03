@@ -7382,6 +7382,17 @@ a
 drop table t1,t2,t3;
 # End of 10.2 tests
 #
+# MDEV-29926: ASAN heap-use-after-free in Explain_query::~Explain_query
+#
+CREATE TABLE t (a VARCHAR(1)) CHARACTER SET utf8mb3;
+EXECUTE IMMEDIATE "SELECT COUNT(*) FROM t WHERE a < (SELECT 'x')";
+COUNT(*)
+0
+DROP TABLE t;
+#
+# End of 10.3 tests
+#
+#
 # Start of 10.4 tests
 #
 #
