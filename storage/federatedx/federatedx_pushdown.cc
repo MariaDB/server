@@ -35,6 +35,64 @@
 */
 
 
+/*
+  Check if table and database names are equal on local and remote servers
+
+  SYNOPSIS
+    local_and_remote_names_match()
+    tbl_share      Pointer to current table TABLE_SHARE structure
+    fshare         Pointer to current table FEDERATEDX_SHARE structure
+
+  DESCRIPTION
+    FederatedX table on the local server may refer to a table having another
+    name on the remote server. The remote table may even reside in a different
+    database. For example:
+
+    -- Remote server
+    CREATE TABLE t1 (id int(32));
+
+    -- Local server
+    CREATE TABLE t2 ENGINE="FEDERATEDX"
+    CONNECTION="mysql://joe:joespass@192.168.1.111:9308/federatedx/t1";
+
+    It's not a problem while the federated_pushdown is disabled 'cause
+    the CONNECTION strings are being parsed for every table during
+    the execution, so the table names are translated from local to remote.
+    But in case of the federated_pushdown the whole query is pushed down
+    to the engine without any translation, so the remote server may try
+    to select data from a nonexistent table (for example, query
+    "SELECT * FROM t2" will try to retrieve data from nonexistent "t2").
+
+    This function checks whether there is a mismatch between local and remote
+    table/database names
+
+  RETURN VALUE
+    false           names are equal
+    true            names are not equal
+
+*/
+bool local_and_remote_names_mismatch(const TABLE_SHARE *tbl_share,
+                                     const FEDERATEDX_SHARE *fshare)
+{
+
+  if (lower_case_table_names)
+  {
+    if (strcasecmp(fshare->database, tbl_share->db.str) != 0)
+      return true;
+  }
+  else
+  {
+    if (strncmp(fshare->database, tbl_share->db.str, tbl_share->db.length) != 0)
+      return true;
+  }
+
+  return my_strnncoll(system_charset_info, (uchar *) fshare->table_name,
+                      strlen(fshare->table_name),
+                      (uchar *) tbl_share->table_name.str,
+                      tbl_share->table_name.length) != 0;
+}
+
+
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 {
@@ -42,7 +100,6 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
     return 0;
 
   ha_federatedx_derived_handler* handler = NULL;
-  handlerton *ht= 0;
 
   SELECT_LEX_UNIT *unit= derived->derived;
 
@@ -54,9 +111,16 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
     {
       if (!tbl->table)
 	return 0;
-      if (!ht)
-        ht= tbl->table->file->partition_ht();
-      else if (ht != tbl->table->file->partition_ht())
+      /*
+        We intentionally don't support partitioned federatedx tables here, so
+        use file->ht and not file->partition_ht().
+      */
+      if (tbl->table->file->ht != federatedx_hton)
+        return 0;
+
+      const FEDERATEDX_SHARE *fshare=
+        ((ha_federatedx*)tbl->table->file)->get_federatedx_share();
+      if (local_and_remote_names_mismatch(tbl->table->s, fshare))
         return 0;
     }
   }
@@ -170,15 +234,22 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
     return 0;
 
   ha_federatedx_select_handler* handler = NULL;
-  handlerton *ht= 0;
 
   for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
   {
     if (!tbl->table)
       return 0;
-    if (!ht)
-      ht= tbl->table->file->partition_ht();
-    else if (ht != tbl->table->file->partition_ht())
+    /*
+      We intentionally don't support partitioned federatedx tables here, so
+      use file->ht and not file->partition_ht().
+    */
+    if (tbl->table->file->ht != federatedx_hton)
+     return 0;
+
+    const FEDERATEDX_SHARE *fshare=
+      ((ha_federatedx*)tbl->table->file)->get_federatedx_share();
+
+    if (local_and_remote_names_mismatch(tbl->table->s, fshare))
       return 0;
   }
 

@@ -62,6 +62,12 @@ extern struct sql_service_st {
   void (STDCALL *mysql_free_result_func)(MYSQL_RES *result);
   MYSQL_ROW (STDCALL *mysql_fetch_row_func)(MYSQL_RES *result);
   void (STDCALL *mysql_close_func)(MYSQL *mysql);
+  int (STDCALL *mysql_options_func)(MYSQL *mysql, enum mysql_option option,
+                            const void *arg);
+  unsigned long *(STDCALL *mysql_fetch_lengths_func)(MYSQL_RES *res);
+  int (STDCALL *mysql_set_character_set_func)(MYSQL *mysql, const char *cs_name);
+  unsigned int (STDCALL *mysql_num_fields_func)(MYSQL_RES *res);
+  int (STDCALL *mysql_select_db_func)(MYSQL *mysql, const char *db);
 } *sql_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -78,6 +84,11 @@ extern struct sql_service_st {
 #define mysql_free_result(R) sql_service->mysql_free_result_func(R)
 #define mysql_fetch_row(R) sql_service->mysql_fetch_row_func(R)
 #define mysql_close(M) sql_service->mysql_close_func(M)
+#define mysql_options(M,O,V) sql_service->mysql_options_func(M,O,V)
+#define mysql_fetch_lengths(R) sql_service->mysql_fetch_lengths_func(R)
+#define mysql_set_character_set(M,C) sql_service->mysql_set_character_set_func(M,C)
+#define mysql_num_fields(R) sql_service->mysql_num_fields_func(R)
+#define mysql_select_db(M,D) sql_service->mysql_select_db_func(M,D)
 
 #else
 
