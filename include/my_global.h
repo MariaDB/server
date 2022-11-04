@@ -598,6 +598,9 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #else
 #define HAVE_SOCK_CLOEXEC
 #endif
+#ifndef O_TEXT
+#define O_TEXT 0
+#endif
 
 /* additional file share flags for win32 */
 #ifdef _WIN32

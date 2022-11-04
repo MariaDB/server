@@ -494,7 +494,7 @@ static uint parse_input_file(const char *file_name, struct errors **top_error,
   section_start= er_offset;
   section_count= 0;
 
-  if (!(file= my_fopen(file_name, O_RDONLY | O_SHARE, MYF(MY_WME))))
+  if (!(file= my_fopen(file_name, O_RDONLY | O_TEXT | O_SHARE, MYF(MY_WME))))
     DBUG_RETURN(0);
 
   while ((str= fgets(buff, sizeof(buff), file)))
