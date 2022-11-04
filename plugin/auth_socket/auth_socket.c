@@ -26,6 +26,7 @@
 */
 #define _GNU_SOURCE 1 /* for struct ucred */
 
+#include <my_global.h>
 #include <mysql/plugin_auth.h>
 #include <string.h>
 #include <pwd.h>

@@ -24,6 +24,7 @@
   It intentionally uses no constants like CR_OK ok PASSWORD_USED_YES.
 */
 
+#include <my_global.h>
 #include <mysql/plugin.h>
 #include <string.h>
 #include <stdio.h>

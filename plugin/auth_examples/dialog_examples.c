@@ -31,6 +31,7 @@
   is not known in advance.
 */
 
+#include <my_global.h>
 #include <mysql/plugin_auth.h>
 #include <string.h>
 #include <stdio.h>

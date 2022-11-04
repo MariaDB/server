@@ -38,6 +38,7 @@ typedef unsigned __int64 my_ulonglong;
 typedef unsigned long long my_ulonglong;
 #endif
 
+#include <my_global.h>
 #include <stdlib.h>
 #include <mysqld_error.h>
 #include <typelib.h>
