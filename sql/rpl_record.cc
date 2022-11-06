@@ -143,6 +143,8 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
 }
 #endif
 
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+static int fill_extra_persistent_columns(TABLE *table, int master_cols);
 
 /**
    Unpack a row into @c table->record[0].
@@ -188,7 +190,6 @@ pack_row(TABLE *table, MY_BITMAP const* cols,
    @retval HA_ERR_CORRUPT_EVENT
    Found error when trying to unpack fields.
  */
-#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int
 unpack_row(rpl_group_info *rgi,
            TABLE *table, uint const colcnt,
@@ -490,7 +491,7 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
   @param master_cols   No of columns on master 
   @returns 0 on        success
  */
-int fill_extra_persistent_columns(TABLE *table, int master_cols)
+static int fill_extra_persistent_columns(TABLE *table, int master_cols)
 {
   int error= 0;
   Field **vfield_ptr, *vfield;
@@ -500,7 +501,8 @@ int fill_extra_persistent_columns(TABLE *table, int master_cols)
   for (vfield_ptr= table->vfield; *vfield_ptr; ++vfield_ptr)
   {
     vfield= *vfield_ptr;
-    if (vfield->field_index >= master_cols && vfield->stored_in_db())
+    if (vfield->field_index >= master_cols && (vfield->stored_in_db() ||
+               (vfield->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG))))
     {
       bitmap_set_bit(table->write_set, vfield->field_index);
       error= vfield->vcol_info->expr->save_in_field(vfield,0);
