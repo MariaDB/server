@@ -5115,13 +5115,21 @@ ha_innobase::keys_to_use_for_scanning()
 	return(&key_map_full);
 }
 
-/** Ensure that indexed virtual columns will be computed. */
+/****************************************************************//**
+Ensure that indexed virtual columns will be computed.
+Needs to be done for indexes that are being added with inplace ALTER
+in a different thread, because from the server point of view these
+columns are not yet indexed.
+*/
 void ha_innobase::column_bitmaps_signal()
 {
   if (!table->vfield || table->current_lock != F_WRLCK)
     return;
 
   dict_index_t* clust_index= dict_table_get_first_index(m_prebuilt->table);
+  if (!clust_index->online_log)
+    return;
+
   uint num_v= 0;
   for (uint j = 0; j < table->s->virtual_fields; j++)
   {
