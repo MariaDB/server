@@ -1560,7 +1560,7 @@ bool Item_field::check_vcol_func_processor(void *arg)
 {
   context= 0;
   vcol_func_processor_result *res= (vcol_func_processor_result *) arg;
-  if (res && res->alter_info)
+  if (res->alter_info)
   {
     for (Key &k: res->alter_info->key_list)
     {
