@@ -11972,12 +11972,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     rpl_group_info rgi(&rli);
     RPL_TABLE_LIST rpl_table(to, TL_WRITE, from, table_event.get_table_def(),
                              copy, copy_end);
-    Cache_flip_event_log *binlog= from->s->online_alter_binlog;
+    DBUG_ASSERT(to->pos_in_table_list == NULL);
+    to->pos_in_table_list= &rpl_table;
     rgi.thd= thd;
     rgi.tables_to_lock= &rpl_table;
 
     rgi.m_table_map.set_table(from->s->table_map_id, to);
 
+    Cache_flip_event_log *binlog= from->s->online_alter_binlog;
     DBUG_ASSERT(binlog->is_open());
 
     rli.relay_log.description_event_for_exec=
@@ -12010,6 +12012,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
     if (error)
       from->s->tdc->flush_unused(1); // to free the binlog
+    to->pos_in_table_list= NULL; // Safety
   }
   else if (online) // error was on copy stage
   {
