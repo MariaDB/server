@@ -53,6 +53,7 @@
 #include "wsrep_mysqld.h"
 #include "sql_insert.h"
 #include "sql_table.h"
+#include <mysql/service_wsrep.h>
 
 #include <my_bitmap.h>
 #include "rpl_utility.h"
@@ -5008,17 +5009,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       }
     }
 
-#ifdef HAVE_QUERY_CACHE
     /*
       Moved invalidation right before the call to rows_event_stmt_cleanup(),
       to avoid query cache being polluted with stale entries,
+      Query cache is not invalidated on wsrep applier here
     */
-# ifdef WITH_WSREP
-    /* Query cache is not invalidated on wsrep applier here */
     if (!(WSREP(thd) && wsrep_thd_is_applying(thd)))
-# endif /* WITH_WSREP */
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#endif /* HAVE_QUERY_CACHE */
   }
 
   table= m_table= rgi->m_table_map.get_table(m_table_id);
@@ -5231,10 +5228,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   /* remove trigger's tables */
   restore_empty_query_table_list(thd->lex);
 
-#if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
   if (WSREP(thd) && wsrep_thd_is_applying(thd))
-    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#endif /* WITH_WSREP && HAVE_QUERY_CACHE */
+    query_cache_invalidate_locked_for_write(thd, rgi->tables_to_lock);
 
   if (get_flags(STMT_END_F))
   {
@@ -6732,14 +6727,12 @@ int Rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     TODO: Add safety measures against infinite looping. 
    */
 
-  if (table->s->sequence)
+  if (unlikely(table->s->sequence))
     error= update_sequence();
   else while (unlikely(error= table->file->ha_write_row(table->record[0])))
   {
-    if (error == HA_ERR_LOCK_DEADLOCK ||
-        error == HA_ERR_LOCK_WAIT_TIMEOUT ||
-        (keynum= table->file->get_dup_key(error)) < 0 ||
-        !overwrite)
+    if (error == HA_ERR_LOCK_DEADLOCK || error == HA_ERR_LOCK_WAIT_TIMEOUT ||
+        (keynum= table->file->get_dup_key(error)) < 0 || !overwrite)
     {
       DBUG_PRINT("info",("get_dup_key returns %d)", keynum));
       /*
@@ -7412,7 +7405,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     if (table->key_info->flags & HA_NOSAME)
     {
       /* Unique does not have non nullable part */
-      if (!(table->key_info->flags & (HA_NULL_PART_KEY)))
+      if (!(table->key_info->flags & HA_NULL_PART_KEY))
       {
         error= 0;
         goto end;
