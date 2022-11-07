@@ -4898,10 +4898,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     }
     else
     {
-#ifdef HAVE_QUERY_CACHE
       if (thd->variables.query_cache_wlock_invalidate)
-	query_cache.invalidate_locked_for_write(thd, first_table);
-#endif /*HAVE_QUERY_CACHE*/
+	query_cache_invalidate_locked_for_write(thd, first_table);
       my_ok(thd);
     }
     break;
