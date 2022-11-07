@@ -6750,8 +6750,13 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
       for (uint j= 0; j < key_parts; j++, keypart++)
       {
         field= keypart->field;
-        /* Compare fields if they are different then check for duplicates*/
-        if(field->cmp_binary_offset(reclength))
+        /*
+          Compare fields if they are different then check for duplicates
+          cmp_binary_offset cannot differentiate between null and empty string
+          So also check for that too
+        */
+        if((field->is_null(0) != field->is_null(reclength)) ||
+                               field->cmp_binary_offset(reclength))
         {
           if((error= check_duplicate_long_entry_key(table, table->update_handler,
                                                  new_rec, i)))
