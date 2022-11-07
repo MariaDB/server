@@ -9460,6 +9460,11 @@ ha_innobase::ft_init()
 		trx->will_lock = true;
 	}
 
+        /* If there is an FTS scan in progress, stop it */
+        fts_result_t* result =  (reinterpret_cast<NEW_FT_INFO*>(ft_handler))->ft_result;
+        if (result)
+                result->current= NULL;
+
 	DBUG_RETURN(rnd_init(false));
 }
 
