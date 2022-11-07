@@ -5059,8 +5059,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
      if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
-    Rpl_table_data rpl_data{};
-    rgi->get_table_data(table, &rpl_data);
+    Rpl_table_data rpl_data= *(RPL_TABLE_LIST*)table->pos_in_table_list;
 
     /* 
       Set tables write and read sets.
@@ -5127,18 +5126,13 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     THD_STAGE_INFO(thd, stage_executing);
     do
     {
-      /* in_use can have been set to NULL in close_tables_for_reopen */
-      THD* old_thd= table->in_use;
-      if (!table->in_use)
-        table->in_use= thd;
+      DBUG_ASSERT(table->in_use);
 
       error= do_exec_row(rgi);
 
       if (unlikely(error))
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
       DBUG_ASSERT(error != HA_ERR_RECORD_DELETED);
-
-      table->in_use = old_thd;
 
       if (unlikely(error))
       {
