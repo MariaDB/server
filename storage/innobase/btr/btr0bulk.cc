@@ -634,7 +634,7 @@ PageBulk::getSplitRec()
 		 < total_used_size / 2);
 
 	/* Keep at least one record on left page */
-	if (page_rec_is_second(rec, m_page)) {
+	if (page_rec_is_first(rec, m_page)) {
 		rec = page_rec_get_next(rec);
 		ut_ad(page_rec_is_user_rec(rec));
 	}
