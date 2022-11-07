@@ -10498,7 +10498,6 @@ void Column_definition::create_length_to_internal_length_newdecimal()
 
 bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
                       enum_vcol_info_type type, Alter_info *alter_info)
-
 {
   bool ret;
   Item::vcol_func_processor_result res;

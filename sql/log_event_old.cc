@@ -182,9 +182,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
         continue;
       rgi->m_table_map.set_table(ptr->table_id, ptr->table);
     }
-#ifdef HAVE_QUERY_CACHE
-    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#endif
+    query_cache_invalidate_locked_for_write(thd, rgi->tables_to_lock);
   }
 
   TABLE* table= rgi->m_table_map.get_table(ev->m_table_id);
@@ -1482,9 +1480,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     {
       rgi->m_table_map.set_table(ptr->table_id, ptr->table);
     }
-#ifdef HAVE_QUERY_CACHE
-    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-#endif
+    query_cache_invalidate_locked_for_write(thd, rgi->tables_to_lock);
   }
 
   TABLE* 

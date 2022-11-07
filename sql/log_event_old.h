@@ -208,7 +208,7 @@ protected:
     DBUG_ASSERT(m_table);
     ASSERT_OR_RETURN_ERROR(m_curr_row < m_rows_end, HA_ERR_CORRUPT_EVENT);
     return ::unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
-                                   &m_curr_row_end, &m_master_reclength, m_rows_end);
+                        &m_curr_row_end, &m_master_reclength, m_rows_end);
   }
 #endif
 

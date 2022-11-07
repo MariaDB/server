@@ -584,6 +584,8 @@ struct Query_cache_query_flags
   query_cache.send_result_to_client(A, B, C)
 #define query_cache_invalidate_by_MyISAM_filename_ref \
   &query_cache_invalidate_by_MyISAM_filename
+#define query_cache_invalidate_locked_for_write(A, B) \
+  query_cache.invalidate_locked_for_write(A, B)
 /* note the "maybe": it's a read without mutex */
 #define query_cache_maybe_disabled(T)                                 \
   (T->variables.query_cache_type == 0 || query_cache.query_cache_size == 0)
@@ -601,6 +603,7 @@ struct Query_cache_query_flags
 #define query_cache_invalidate1(A,B)      do { } while(0)
 #define query_cache_send_result_to_client(A, B, C) 0
 #define query_cache_invalidate_by_MyISAM_filename_ref NULL
+#define query_cache_invalidate_locked_for_write(A, B) do { } while(0)
 
 #define query_cache_abort(A,B)            do { } while(0)
 #define query_cache_end_of_result(A)      do { } while(0)

@@ -197,8 +197,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   info->table=table;
   info->sort_info= filesort;
   
-  if ((table->s->tmp_table == INTERNAL_TMP_TABLE) &&
-      !using_addon_fields)
+  if ((table->s->tmp_table == INTERNAL_TMP_TABLE) && !using_addon_fields)
     (void) table->file->extra(HA_EXTRA_MMAP);
   
   if (using_addon_fields)
