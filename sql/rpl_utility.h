@@ -249,37 +249,35 @@ private:
    Extend the normal table list with a few new fields needed by the
    slave thread, but nowhere else.
  */
-struct RPL_TABLE_LIST
-  : public TABLE_LIST
+struct RPL_TABLE_LIST : public TABLE_LIST
 {
-  bool m_tabledef_valid;
-  bool master_had_triggers;
   table_def m_tabledef;
   TABLE *m_conv_table;
   const Copy_field *m_online_alter_copy_fields;
   const Copy_field *m_online_alter_copy_fields_end;
+  uint cached_key_nr;                  // [0..MAX_KEY] if set, ~0U if unset
+  bool m_tabledef_valid;
+  bool master_had_triggers;
 
   RPL_TABLE_LIST(const LEX_CSTRING *db_arg, const LEX_CSTRING *table_name_arg,
                  thr_lock_type thr_lock_type,
                  table_def &&tabledef, bool master_had_trigers)
     : TABLE_LIST(db_arg, table_name_arg, NULL, thr_lock_type),
-      m_tabledef_valid(true), master_had_triggers(master_had_trigers),
       m_tabledef(std::move(tabledef)), m_conv_table(NULL),
-      m_online_alter_copy_fields(NULL),
-      m_online_alter_copy_fields_end(NULL)
+      m_online_alter_copy_fields(NULL), m_online_alter_copy_fields_end(NULL),
+      cached_key_nr(~0U), m_tabledef_valid(true),
+      master_had_triggers(master_had_trigers)
   {}
 
   RPL_TABLE_LIST(TABLE *table, thr_lock_type lock_type, TABLE *conv_table,
                  table_def &&tabledef,
                  const Copy_field online_alter_copy_fields[],
                  const Copy_field *online_alter_copy_fields_end)
-    :  TABLE_LIST(table, lock_type),
-       m_tabledef_valid(true),
-       master_had_triggers(false),
-       m_tabledef(std::move(tabledef)),
-       m_conv_table(conv_table),
-       m_online_alter_copy_fields(online_alter_copy_fields),
-       m_online_alter_copy_fields_end(online_alter_copy_fields_end)
+    : TABLE_LIST(table, lock_type),
+      m_tabledef(std::move(tabledef)), m_conv_table(conv_table),
+      m_online_alter_copy_fields(online_alter_copy_fields),
+      m_online_alter_copy_fields_end(online_alter_copy_fields_end),
+      cached_key_nr(~0U), m_tabledef_valid(true), master_had_triggers(false)
   {}
 };
 
