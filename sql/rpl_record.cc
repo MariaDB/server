@@ -223,23 +223,13 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
   // The "current" null bits
   unsigned int null_bits= *null_ptr++;
   uint i= 0;
-  Rpl_table_data rpl_data{};
-  bool table_found= rgi && rgi->get_table_data(table, &rpl_data);
+  Rpl_table_data rpl_data= *(RPL_TABLE_LIST*)table->pos_in_table_list;
   const table_def *tabledef= rpl_data.tabledef;
   const TABLE *conv_table= rpl_data.conv_table;
-  DBUG_PRINT("debug", ("Table data: table_found: %d, tabldef: %p, conv_table: %p",
-                       table_found, tabledef, conv_table));
-  DBUG_ASSERT(table_found);
+  DBUG_PRINT("debug", ("Table data: tabldef: %p, conv_table: %p",
+                       tabledef, conv_table));
 
   DBUG_ASSERT(rgi);
-  /*
-    If rgi is NULL it means that there is no source table and that the
-    row shall just be unpacked without doing any checks. This feature
-    is used by MySQL Backup, but can be used for other purposes as
-    well.
-   */
-  if (rgi && !table_found)
-    DBUG_RETURN(HA_ERR_GENERIC);
 
   for (field_ptr= begin_ptr; field_ptr < end_ptr && *field_ptr; ++field_ptr)
   {
