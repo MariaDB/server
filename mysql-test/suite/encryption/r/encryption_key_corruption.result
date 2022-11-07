@@ -9,5 +9,5 @@ DROP TABLE src;
 CREATE TABLE dst (pk INT PRIMARY KEY, value INT) ENGINE=INNODB;
 ALTER TABLE dst DISCARD TABLESPACE;
 ALTER TABLE dst IMPORT TABLESPACE;
-ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`dst` : Data structure corruption
+ERROR HY000: Internal error: Error importing tablespace for table `test`.`dst` : Data structure corruption
 DROP TABLE dst;
