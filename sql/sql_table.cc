@@ -10963,11 +10963,9 @@ do_continue:;
   DEBUG_SYNC(thd, "alter_table_intermediate_table_created");
 
   /* Open the table since we need to copy the data. */
-  new_table= thd->create_and_open_tmp_table(&frm,
-                                            alter_ctx.get_tmp_path(),
+  new_table= thd->create_and_open_tmp_table(&frm, alter_ctx.get_tmp_path(),
                                             alter_ctx.new_db.str,
-                                            alter_ctx.new_name.str,
-                                            true);
+                                            alter_ctx.new_name.str, true);
   if (!new_table)
     goto err_new_table_cleanup;
 
