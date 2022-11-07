@@ -473,7 +473,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 			my_len= res - buf + 1;
 			my_schema_table= (char *) malloc(my_len);
 			memcpy(my_schema_table, buf, my_len - 1);
-			my_schema_table[my_len] = 0;
+			my_schema_table[my_len - 1] = 0;
 			Query->Append(Quote);
 			Query->Append(my_schema_table);
 			Query->Append(Quote);
@@ -481,7 +481,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 			Query->Append(".");
 			// Parse table
 			my_len= strlen(buf) - my_len + 1;
-			my_schema_table= (char *) malloc(my_len);
+			my_schema_table= (char *) malloc(my_len + 1);
 			memcpy(my_schema_table, ++res, my_len);
 			my_schema_table[my_len] = 0;
 			Query->Append(Quote);
