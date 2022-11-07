@@ -675,13 +675,12 @@ struct Rpl_table_data
   TABLE *conv_table;
   const Copy_field *copy_fields;
   const Copy_field *copy_fields_end;
-  Rpl_table_data& operator =(const RPL_TABLE_LIST &rpl_table_list)
+  Rpl_table_data(const RPL_TABLE_LIST &rpl_table_list)
   {
     tabledef= &rpl_table_list.m_tabledef;
     conv_table= rpl_table_list.m_conv_table;
     copy_fields= rpl_table_list.m_online_alter_copy_fields;
     copy_fields_end= rpl_table_list.m_online_alter_copy_fields_end;
-    return *this;
   }
   bool is_online_alter() const { return copy_fields != NULL; }
 };
@@ -956,25 +955,6 @@ struct rpl_group_info
       delete m_annotate_event;
       m_annotate_event= 0;
     }
-  }
-
-  bool get_table_data(const TABLE *table_arg, Rpl_table_data *table_data) const
-  {
-    DBUG_ASSERT(table_data);
-    for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
-      if (ptr->table == table_arg)
-      {
-        auto *rpl_table_list= static_cast<RPL_TABLE_LIST*>(ptr);
-        DBUG_ASSERT(rpl_table_list->m_tabledef_valid);
-        *table_data= *rpl_table_list;
-
-        DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
-                             " tabledef: %p, conv_table: %p",
-                             table_arg->s->db.str, table_arg->s->table_name.str,
-                             table_data->tabledef, table_data->conv_table));
-        return true;
-      }
-    return false;
   }
 
   void clear_tables_to_lock();
