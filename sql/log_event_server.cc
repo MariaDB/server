@@ -8035,67 +8035,71 @@ record_compare_exit:
 */
 int Rows_log_event::find_key()
 {
-  uint i, best_key_nr, last_part;
-  KEY *key, *UNINIT_VAR(best_key);
+  DBUG_ASSERT(m_table);
+  RPL_TABLE_LIST *tl= (RPL_TABLE_LIST*)m_table->pos_in_table_list;
+  uint i, best_key_nr;
+  KEY *key;
   ulong UNINIT_VAR(best_rec_per_key), tmp;
   DBUG_ENTER("Rows_log_event::find_key");
-  DBUG_ASSERT(m_table);
 
-  best_key_nr= MAX_KEY;
-
-  /*
-    Keys are sorted so that any primary key is first, followed by unique keys,
-    followed by any other. So we will automatically pick the primary key if
-    it exists.
-  */
-  for (i= 0, key= m_table->key_info; i < m_table->s->keys; i++, key++)
+  if ((best_key_nr= tl->cached_key_nr) != ~0U)
+    DBUG_ASSERT(best_key_nr <= MAX_KEY); // use the cached value
+  else
   {
-    if (!m_table->s->keys_in_use.is_set(i))
-      continue;
-    /*
-      We cannot use a unique key with NULL-able columns to uniquely identify
-      a row (but we can still select it for range scan below if nothing better
-      is available).
-    */
-    if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)
-    {
-      best_key_nr= i;
-      best_key= key;
-      break;
-    }
-    /*
-      We can only use a non-unique key if it allows range scans (ie. skip
-      FULLTEXT indexes and such).
-    */
-    last_part= key->user_defined_key_parts - 1;
-    DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
-                        key->name.str, last_part, key->rec_per_key[last_part]));
-    if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
-      continue;
+    best_key_nr= MAX_KEY;
 
-    tmp= key->rec_per_key[last_part];
-    if (best_key_nr == MAX_KEY || (tmp > 0 && tmp < best_rec_per_key))
+    /*
+      Keys are sorted so that any primary key is first, followed by unique keys,
+      followed by any other. So we will automatically pick the primary key if
+      it exists.
+    */
+    for (i= 0, key= m_table->key_info; i < m_table->s->keys; i++, key++)
     {
-      best_key_nr= i;
-      best_key= key;
-      best_rec_per_key= tmp;
+      if (!m_table->s->keys_in_use.is_set(i))
+        continue;
+      /*
+        We cannot use a unique key with NULL-able columns to uniquely identify
+        a row (but we can still select it for range scan below if nothing better
+        is available).
+      */
+      if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME)
+      {
+        best_key_nr= i;
+        break;
+      }
+      /*
+        We can only use a non-unique key if it allows range scans (ie. skip
+        FULLTEXT indexes and such).
+      */
+      uint last_part= key->user_defined_key_parts - 1;
+      DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
+                          key->name.str, last_part, key->rec_per_key[last_part]));
+      if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
+        continue;
+
+      tmp= key->rec_per_key[last_part];
+      if (best_key_nr == MAX_KEY || (tmp > 0 && tmp < best_rec_per_key))
+      {
+        best_key_nr= i;
+        best_rec_per_key= tmp;
+      }
     }
+    tl->cached_key_nr= best_key_nr;
   }
 
-  if (best_key_nr == MAX_KEY)
-  {
-    m_key_info= NULL;
-    DBUG_RETURN(0);
-  }
-
-  // Allocate buffer for key searches
-  m_key= (uchar *) my_malloc(PSI_INSTRUMENT_ME, best_key->key_length, MYF(MY_WME));
-  if (m_key == NULL)
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  m_key_info= best_key;
   m_key_nr= best_key_nr;
+  if (best_key_nr == MAX_KEY)
+    m_key_info= NULL;
+  else
+  {
+    m_key_info= m_table->key_info + best_key_nr;
+    // Allocate buffer for key searches
+    m_key= (uchar *) my_malloc(PSI_INSTRUMENT_ME, m_key_info->key_length, MYF(MY_WME));
+    if (m_key == NULL)
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
 
-  DBUG_RETURN(0);;
+  DBUG_RETURN(0);
 }
 
 
