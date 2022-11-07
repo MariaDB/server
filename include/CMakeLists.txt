@@ -19,6 +19,7 @@ SET(HEADERS_GEN_CONFIGURE
   mysqld_ername.h
   mysqld_error.h
   sql_state.h
+  mysql/service_encryption.h
 )
 
 SET(HEADERS 

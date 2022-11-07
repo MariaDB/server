@@ -490,6 +490,8 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/mysql_version.h.in
                ${CMAKE_BINARY_DIR}/include/mysql_version.h )
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/sql/sql_builtin.cc.in
     ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc)
+CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/mysql/service_encryption.h.in
+               ${CMAKE_BINARY_DIR}/include/mysql/service_encryption.h)
 
 IF(GIT_EXECUTABLE AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
   EXECUTE_PROCESS(

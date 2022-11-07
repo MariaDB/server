@@ -36,6 +36,7 @@ extern "C" {
 #endif
 #else
 #include <stdlib.h>
+#cmakedefine HAVE_ALLOCA_H 1
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
 #endif
