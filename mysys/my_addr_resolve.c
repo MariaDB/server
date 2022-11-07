@@ -202,7 +202,7 @@ int start_addr2line_fork(const char *binary_path)
     close(out[0]);
     close(out[1]);
     execlp("addr2line", "addr2line", "-C", "-f", "-e", binary_path, NULL);
-    exit(1);
+    _exit(1);
   }
 
   close(in[0]);
