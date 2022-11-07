@@ -62,6 +62,7 @@ import_executables.cmake
 include/*.h.tmp
 include/config.h
 include/my_config.h
+include/mysql/service_encryption.h
 include/mysql_version.h
 include/mysqld_ername.h
 include/mysqld_error.h
