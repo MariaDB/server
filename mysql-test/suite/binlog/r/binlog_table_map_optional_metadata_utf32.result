@@ -1,3 +1,4 @@
+RESET MASTER;
 #
 # Verify that SET string values and character sets can be printed correctly
 #
