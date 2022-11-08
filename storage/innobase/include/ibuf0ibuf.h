@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -261,12 +261,12 @@ bitmap page)
 bitmap page if the page is not one of the fixed address ibuf pages, or NULL,
 in which case a new transaction is created.
 @return TRUE if level 2 or level 3 page */
-ibool
+bool
 ibuf_page_low(
 	const page_id_t		page_id,
 	const page_size_t&	page_size,
 #ifdef UNIV_DEBUG
-	ibool			x_latch,
+	bool			x_latch,
 #endif /* UNIV_DEBUG */
 	const char*		file,
 	unsigned		line,
@@ -274,7 +274,6 @@ ibuf_page_low(
 	MY_ATTRIBUTE((warn_unused_result));
 
 #ifdef UNIV_DEBUG
-
 /** Checks if a page is a level 2 or 3 page in the ibuf hierarchy of pages.
 Must not be called when recv_no_ibuf_operations==true.
 @param[in]	page_id		tablespace/page identifier
@@ -284,7 +283,7 @@ Must not be called when recv_no_ibuf_operations==true.
 # define ibuf_page(page_id, page_size, mtr)	\
 	ibuf_page_low(page_id, page_size, TRUE, __FILE__, __LINE__, mtr)
 
-#else /* UVIV_DEBUG */
+#else /* UNIV_DEBUG */
 
 /** Checks if a page is a level 2 or 3 page in the ibuf hierarchy of pages.
 Must not be called when recv_no_ibuf_operations==true.
@@ -295,7 +294,7 @@ Must not be called when recv_no_ibuf_operations==true.
 # define ibuf_page(page_id, page_size, mtr)	\
 	ibuf_page_low(page_id, page_size, __FILE__, __LINE__, mtr)
 
-#endif /* UVIV_DEBUG */
+#endif /* UNIV_DEBUG */
 /***********************************************************************//**
 Frees excess pages from the ibuf free list. This function is called when an OS
 thread calls fsp services to allocate a new file segment, or a new page to a
@@ -418,13 +417,11 @@ ibuf_close(void);
 dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Updates free bits and buffered bits for bulk loaded page.
-@param[in]      block   index page
-@param]in]      reset   flag if reset free val */
-void
-ibuf_set_bitmap_for_bulk_load(
-	buf_block_t*    block,
-	bool		reset);
+/** Update free bits and buffered bits for bulk loaded page.
+@param block   secondary index leaf page
+@param mtr     mini-transaction
+@param reset   whether the page is full */
+void ibuf_set_bitmap_for_bulk_load(buf_block_t *block, mtr_t *mtr, bool reset);
 
 #define IBUF_HEADER_PAGE_NO	FSP_IBUF_HEADER_PAGE_NO
 #define IBUF_TREE_ROOT_PAGE_NO	FSP_IBUF_TREE_ROOT_PAGE_NO
