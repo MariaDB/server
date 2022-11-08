@@ -33,11 +33,19 @@ b bigint unsigned NOT NULL,
 d1 date NOT NULL,
 PRIMARY KEY (b,d1)
 ) ENGINE=InnoDB;
+DROP TABLE b;
+set foreign_key_checks = 1;
+CREATE TABLE b (
+b bigint unsigned NOT NULL,
+d1 date NOT NULL,
+PRIMARY KEY (b,d1)
+) ENGINE=InnoDB;
 ERROR HY000: Can't create table `bug_fk`.`b` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
 Error	1005	Can't create table `bug_fk`.`b` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `b`
+set foreign_key_checks = 0;
 DROP TABLE IF EXISTS d;
 Warnings:
 Note	1051	Unknown table 'bug_fk.d'
