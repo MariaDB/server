@@ -39,7 +39,6 @@ set debug_sync='handler_rowid_filter_check SIGNAL killme WAIT_FOR go';
 send SELECT * FROM t1 WHERE a > 0 AND b=0;
 
 connect (con1, localhost, root,,);
-connection con1;
 let $ignore= `SELECT @id := $ID`;
 set debug_sync='now WAIT_FOR killme';
 kill query @id;
