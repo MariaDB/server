@@ -4,10 +4,7 @@
 
 --source include/have_innodb.inc
 --source include/have_debug.inc
-
---disable_warnings
-drop table if exists t0, t1, t2;
---enable_warnings
+--source include/have_sequence.inc
 
 --echo #
 --echo # MDEV-6735: Range checked for each record used with key
@@ -15,10 +12,6 @@ drop table if exists t0, t1, t2;
 
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-
-create table t1(a int);
-insert into t1 select A.a + B.a* 10 + C.a * 100 + D.a * 1000
-from t0 A, t0 B, t0 C, t0 D;
 
 create table t2 ( 
  a int,
@@ -33,18 +26,18 @@ create table t2 (
 
 insert into t2 
 select 
-   a,a,
+   seq,seq,
   repeat('0123456789', 10), 
   repeat('0123456789', 10), 
   repeat('0123456789', 10),
   repeat('0123456789', 10)
-from t1;
+from seq_0_to_9999;
 
 analyze table t2;
 --echo # The following must not use "Range checked for each record":
 explain select * from t0 left join t2 on t2.a <t0.a and t2.b between 50 and 250;
 
-drop table t0,t1,t2;
+drop table t0,t2;
 
 
 --echo #
@@ -97,15 +90,14 @@ drop table t1,t2;
 
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=off';
-create table t0 (a int)engine=innodb;
+create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (
   a int, b int, c int,
   key(a),key(b),key(c)
 )engine=innodb;
 insert into t1
-select A.a+10*B.a, A.a+10*B.a, A.a+10*B.a+100*C.a
-from t0 A, t0 B, t0 C, t0 D where D.a<5;
+select a.seq/10, a.seq/10, a.seq from seq_0_to_499 a, seq_0_to_4 b;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 set @@global.debug_dbug="+d,ha_index_init_fail";
 explain select * from t1 where a=10 and b=10;
@@ -120,8 +112,6 @@ set @@optimizer_switch= @optimizer_switch_save;
 --echo #
 --echo # MDEV-27262: Index intersection with full scan over an index
 --echo #
-
---source include/have_sequence.inc
 
 CREATE TABLE t1 (
   id int(10) unsigned NOT NULL AUTO_INCREMENT,
