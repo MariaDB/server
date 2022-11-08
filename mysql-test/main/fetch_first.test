@@ -619,7 +619,12 @@ where first_name != 'John'
 order by first_name
 fetch first 2 rows with ties;
 
-
+explain select first_name, last_name
+from t1
+where first_name != 'John'
+group by first_name, last_name
+order by first_name
+fetch first 2 rows with ties;
 
 select first_name, last_name
 from t1

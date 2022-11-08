@@ -99,11 +99,11 @@ sexe	genre
 SELECT nom, prenom, genre FROM t1 NATURAL JOIN t2 order by nom LIMIT 10;
 nom	prenom	genre
 ABBADIE	MONIQUE	Feminin
-ABBAYE	GERALD	Masculin
 ABBAYE	ANNICK	Feminin
-ABBE	KATIA	Feminin
+ABBAYE	GERALD	Masculin
 ABBE	SOPHIE	Feminin
 ABBE	MICHELE	Feminin
+ABBE	KATIA	Feminin
 ABBEVILLE	PASCAL	Masculin
 ABEBERRY	PATRICK	Masculin
 ABEILLES	RENE	Masculin
