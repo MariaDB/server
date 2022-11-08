@@ -225,7 +225,7 @@ SELECT * from pg_in_maria;
 DROP TABLE pg_in_maria;
 
 --echo #
---echo # MDEV-29397 UPDATE with WHERE on part of two-part parimary key causes
+--echo # MDEV-29397 UPDATE with WHERE on part of two-part primary key causes
 --echo # info to turn into error.
 --echo #
 CREATE TABLE t1 (a VARCHAR(6), b VARCHAR(6), PRIMARY KEY(a, b)) ENGINE=CONNECT TABNAME='schema1.t3' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
