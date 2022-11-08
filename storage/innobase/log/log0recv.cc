@@ -57,6 +57,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "trx0roll.h"
 #include "row0merge.h"
 #include "fil0pagecompress.h"
+#include "log.h"
 
 /** Log records are stored in the hash table in chunks at most of this size;
 this must be less than srv_page_size as it is stored in the buffer pool */
@@ -1151,7 +1152,7 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 	byte*		buf = log_sys.buf;
 
 	static const char* NO_UPGRADE_RECOVERY_MSG =
-		"Upgrade after a crash is not supported."
+		"InnoDB: Upgrade after a crash is not supported."
 		" This redo log was created before MariaDB 10.2.2";
 
 	fil_io(IORequestLogRead, true,
@@ -1164,21 +1165,24 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 	if (log_block_calc_checksum_format_0(buf)
 	    != log_block_get_checksum(buf)
 	    && !log_crypt_101_read_block(buf)) {
-		ib::error() << NO_UPGRADE_RECOVERY_MSG
-			<< ", and it appears corrupted.";
-		return(DB_CORRUPTION);
+		sql_print_error("%s, and it appears corrupted.",
+				NO_UPGRADE_RECOVERY_MSG);
+		return DB_CORRUPTION;
 	}
 
 	if (log_block_get_data_len(buf)
 	    == (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
 	} else if (crypt) {
-		ib::error() << "Cannot decrypt log for upgrading."
-			" The encrypted log was created"
-			" before MariaDB 10.2.2.";
+		sql_print_error("InnoDB: Cannot decrypt log for upgrading."
+				" The encrypted log was created"
+				" before MariaDB 10.2.2.");
 		return DB_ERROR;
 	} else {
-		ib::error() << NO_UPGRADE_RECOVERY_MSG << ".";
-		return(DB_ERROR);
+		sql_print_error("%s. You must start up and shut down"
+				" MariaDB 10.1 or MySQL 5.6 or earlier"
+				" on the data directory.",
+				NO_UPGRADE_RECOVERY_MSG);
+		return DB_ERROR;
 	}
 
 	/* Mark the redo log for upgrading. */

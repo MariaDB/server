@@ -1904,10 +1904,7 @@ ibuf_data_too_much_free(void)
 Allocates a new page from the ibuf file segment and adds it to the free
 list.
 @return TRUE on success, FALSE if no space left */
-static
-ibool
-ibuf_add_free_page(void)
-/*====================*/
+static bool ibuf_add_free_page()
 {
 	mtr_t		mtr;
 	page_t*		header_page;
@@ -1916,7 +1913,7 @@ ibuf_add_free_page(void)
 	page_t*		root;
 	page_t*		bitmap_page;
 
-	mtr_start(&mtr);
+	mtr.start();
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
 	mtr_x_lock_space(fil_system.sys_space, &mtr);
@@ -1937,9 +1934,8 @@ ibuf_add_free_page(void)
 		&mtr);
 
 	if (block == NULL) {
-		mtr_commit(&mtr);
-
-		return(FALSE);
+		mtr.commit();
+		return false;
 	}
 
 	ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
@@ -1973,8 +1969,7 @@ ibuf_add_free_page(void)
 				  IBUF_BITMAP_IBUF, TRUE, &mtr);
 
 	ibuf_mtr_commit(&mtr);
-
-	return(TRUE);
+	return true;
 }
 
 /*********************************************************************//**
@@ -2470,6 +2465,7 @@ ibuf_merge_space(
 
 	ut_ad(space < SRV_LOG_SPACE_FIRST_ID);
 
+	log_free_check();
 	ibuf_mtr_start(&mtr);
 
 	/* Position the cursor on the first matching record. */
@@ -2625,6 +2621,8 @@ ibuf_merge_in_background(
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 	while (sum_pages < n_pages) {
+		log_free_check();
+
 		ulint	n_bytes;
 
 		n_bytes = ibuf_merge(&n_pag2, false);
@@ -4684,6 +4682,7 @@ void ibuf_delete_for_discarded_space(ulint space)
 
 	memset(dops, 0, sizeof(dops));
 loop:
+	log_free_check();
 	ibuf_mtr_start(&mtr);
 
 	/* Position pcur in the insert buffer at the first entry for the
@@ -4844,9 +4843,6 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		}
 
 		mtr_start(&mtr);
-
-		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-
 		ibuf_enter(&mtr);
 
 		bitmap_page = ibuf_bitmap_get_map_page(
@@ -4934,36 +4930,24 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 	return(DB_SUCCESS);
 }
 
-/** Updates free bits and buffered bits for bulk loaded page.
-@param[in]	block	index page
-@param[in]	reset	flag if reset free val */
-void
-ibuf_set_bitmap_for_bulk_load(
-	buf_block_t*	block,
-	bool		reset)
+void ibuf_set_bitmap_for_bulk_load(buf_block_t *block, mtr_t *mtr, bool reset)
 {
 	page_t*	bitmap_page;
-	mtr_t	mtr;
 	ulint	free_val;
 
 	ut_a(page_is_leaf(buf_block_get_frame(block)));
 
 	free_val = ibuf_index_page_calc_free(block);
 
-	mtr_start(&mtr);
-	fil_space_t* space = mtr.set_named_space_id(block->page.id.space());
-
 	bitmap_page = ibuf_bitmap_get_map_page(block->page.id,
-                                               space->zip_size(), &mtr);
+                                               block->zip_size(), mtr);
 
 	free_val = reset ? 0 : ibuf_index_page_calc_free(block);
 	ibuf_bitmap_page_set_bits(
 		bitmap_page, block->page.id, block->physical_size(),
-		IBUF_BITMAP_FREE, free_val, &mtr);
+		IBUF_BITMAP_FREE, free_val, mtr);
 
 	ibuf_bitmap_page_set_bits(
 		bitmap_page, block->page.id, block->physical_size(),
-		IBUF_BITMAP_BUFFERED, FALSE, &mtr);
-
-	mtr_commit(&mtr);
+		IBUF_BITMAP_BUFFERED, FALSE, mtr);
 }
