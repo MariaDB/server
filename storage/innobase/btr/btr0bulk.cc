@@ -563,8 +563,9 @@ inline void PageBulk::finish()
 void PageBulk::commit(bool success)
 {
   finish();
-  if (success && !dict_index_is_clust(m_index) && page_is_leaf(m_page))
-    ibuf_set_bitmap_for_bulk_load(m_block, innobase_fill_factor == 100);
+  if (success && !m_index->is_clust() && page_is_leaf(m_page))
+    ibuf_set_bitmap_for_bulk_load(m_block, &m_mtr,
+                                  innobase_fill_factor == 100);
   m_mtr.commit();
 }
 

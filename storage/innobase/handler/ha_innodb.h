@@ -422,15 +422,9 @@ public:
 	@retval	false if pushed (always) */
 	bool rowid_filter_push(Rowid_filter *rowid_filter) override;
 
-	bool
-	can_convert_string(const Field_string* field,
-			   const Column_definition& new_field) const override;
-	bool can_convert_varstring(
-	    const Field_varstring* field,
-	    const Column_definition& new_field) const override;
-	bool
-	can_convert_blob(const Field_blob* field,
-			 const Column_definition& new_field) const override;
+	bool can_convert_nocopy(const Field &field,
+				const Column_definition& new_field) const
+		override;
 
 	/** @return whether innodb_strict_mode is active */
 	static bool is_innodb_strict_mode(THD* thd);
@@ -445,6 +439,16 @@ public:
 			  const KEY_PART_INFO& new_part) const override;
 
 protected:
+	bool
+	can_convert_string(const Field_string* field,
+			   const Column_definition& new_field) const;
+	bool can_convert_varstring(
+	    const Field_varstring* field,
+	    const Column_definition& new_field) const;
+	bool
+	can_convert_blob(const Field_blob* field,
+			 const Column_definition& new_field) const;
+
 	dberr_t innobase_get_autoinc(ulonglong* value);
 	dberr_t innobase_lock_autoinc();
 	ulonglong innobase_peek_autoinc();

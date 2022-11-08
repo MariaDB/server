@@ -397,6 +397,17 @@ update t1 set v2 = 1, v3 = -128;
 update t1,t2 set v1 = v2 , v5 = 0;
 drop table t1, t2;
 
+#
+# MDEV-23264 Unique blobs allow duplicate values upon UPDATE
+#
+
+CREATE TABLE t1 (f TEXT UNIQUE);
+INSERT INTO t1 VALUES (NULL),(NULL);
+--error ER_DUP_ENTRY
+UPDATE t1 SET f = '';
+SELECT * FROM t1;
+DROP TABLE t1;
+
 --echo #
 --echo # MDEV-21540 Initialization of already inited long unique index on reorganize partition
 --echo #

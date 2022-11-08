@@ -54,7 +54,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_bitmap.h>
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
-#include "field.h"
+#include "sql_type_geom.h"
 #include "scope.h"
 #include "srv0srv.h"
 
@@ -20589,6 +20589,26 @@ bool ha_innobase::can_convert_blob(const Field_blob *field,
   return true;
 }
 
+
+bool ha_innobase::can_convert_nocopy(const Field &field,
+                                     const Column_definition &new_type) const
+{
+  if (const Field_string *tf= dynamic_cast<const Field_string *>(&field))
+    return can_convert_string(tf, new_type);
+
+  if (const Field_varstring *tf= dynamic_cast<const Field_varstring *>(&field))
+    return can_convert_varstring(tf, new_type);
+
+  if (dynamic_cast<const Field_geom *>(&field))
+    return false;
+
+  if (const Field_blob *tf= dynamic_cast<const Field_blob *>(&field))
+    return can_convert_blob(tf, new_type);
+
+  return false;
+}
+
+
 Compare_keys ha_innobase::compare_key_parts(
     const Field &old_field, const Column_definition &new_field,
     const KEY_PART_INFO &old_part, const KEY_PART_INFO &new_part) const
@@ -20599,7 +20619,7 @@ Compare_keys ha_innobase::compare_key_parts(
 
   if (!is_equal)
   {
-    if (!old_field.can_be_converted_by_engine(new_field))
+    if (!old_field.table->file->can_convert_nocopy(old_field, new_field))
       return Compare_keys::NotEqual;
 
     if (!Charset(old_cs).eq_collation_specific_names(new_cs))

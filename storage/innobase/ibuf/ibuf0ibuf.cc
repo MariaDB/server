@@ -2464,6 +2464,7 @@ ibuf_merge_space(
 
 	ut_ad(space < SRV_SPACE_ID_UPPER_BOUND);
 
+	log_free_check();
 	ibuf_mtr_start(&mtr);
 
 	/* Position the cursor on the first matching record. */
@@ -2566,6 +2567,7 @@ ulint ibuf_merge_all()
 	ulint	n_pages = srv_io_capacity;
 
 	for (ulint sum_pages = 0; sum_pages < n_pages; ) {
+		log_free_check();
 		ulint n_pag2;
 		ulint n_bytes = ibuf_merge(&n_pag2);
 
@@ -4461,7 +4463,7 @@ reset_bit:
 }
 
 /** Delete all change buffer entries for a tablespace,
-in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.
+in DISCARD TABLESPACE, IMPORT TABLESPACE, or read-ahead.
 @param[in]	space		missing or to-be-discarded tablespace */
 void ibuf_delete_for_discarded_space(ulint space)
 {
@@ -4483,6 +4485,7 @@ void ibuf_delete_for_discarded_space(ulint space)
 
 	memset(dops, 0, sizeof(dops));
 loop:
+	log_free_check();
 	ibuf_mtr_start(&mtr);
 
 	/* Position pcur in the insert buffer at the first entry for the
@@ -4622,9 +4625,6 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		}
 
 		mtr_start(&mtr);
-
-		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-
 		ibuf_enter(&mtr);
 
 		buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(
@@ -4712,29 +4712,18 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 	return(DB_SUCCESS);
 }
 
-/** Updates free bits and buffered bits for bulk loaded page.
-@param[in]	block	index page
-@param[in]	reset	flag if reset free val */
-void
-ibuf_set_bitmap_for_bulk_load(
-	buf_block_t*	block,
-	bool		reset)
+void ibuf_set_bitmap_for_bulk_load(buf_block_t *block, mtr_t *mtr, bool reset)
 {
-  mtr_t	mtr;
-
   ut_a(page_is_leaf(block->page.frame));
-  mtr.start();
-  fil_space_t *space= mtr.set_named_space_id(block->page.id().space());
 
   if (buf_block_t *bitmap_page=
-      ibuf_bitmap_get_map_page(block->page.id(), space->zip_size(), &mtr))
+      ibuf_bitmap_get_map_page(block->page.id(), block->zip_size(), mtr))
   {
     ulint free_val= reset ? 0 : ibuf_index_page_calc_free(block);
     /* FIXME: update the bitmap byte only once! */
     ibuf_bitmap_page_set_bits<IBUF_BITMAP_FREE>
-      (bitmap_page, block->page.id(), block->physical_size(), free_val, &mtr);
+      (bitmap_page, block->page.id(), block->physical_size(), free_val, mtr);
     ibuf_bitmap_page_set_bits<IBUF_BITMAP_BUFFERED>
-      (bitmap_page, block->page.id(), block->physical_size(), false, &mtr);
+      (bitmap_page, block->page.id(), block->physical_size(), false, mtr);
   }
-  mtr.commit();
 }
