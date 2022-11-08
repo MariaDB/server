@@ -92,8 +92,19 @@ SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a), ALGORITHM=COPY;
 INSERT INTO t1 VALUES (1,1);
 LOCK TABLES t1 WRITE;
+SET FOREIGN_KEY_CHECKS=1;
 --error ER_CANNOT_ADD_FOREIGN
 TRUNCATE t1;
+# Whether TRUNCATE succeeds or fails, it will reload FOREIGN KEY constraints.
+# As a result, ha_innobase::referenced_by_foreign_key() will retun TRUE
+# (for the self-referential key), and the statement will fail.
+--error ER_TABLE_NOT_LOCKED
+INSERT INTO t1 VALUES (2,2);
+SELECT * FROM t1;
+UNLOCK TABLES;
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO t1 VALUES (2,2);
+SET FOREIGN_KEY_CHECKS=0;
 INSERT INTO t1 VALUES (2,2);
 SELECT * FROM t1;
 DROP TABLE t1;

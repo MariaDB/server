@@ -190,12 +190,12 @@ public:
 
 	void update_create_info(HA_CREATE_INFO* create_info) override;
 
-	inline int create(
+	int create(
 		const char*		name,
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info,
 		bool			file_per_table,
-		trx_t*			trx = NULL);
+		trx_t*			trx);
 
 	int create(
 		const char*		name,
@@ -225,7 +225,7 @@ public:
 
 	uint referenced_by_foreign_key() override;
 
-	void free_foreign_key_create_info(char* str) override;
+	void free_foreign_key_create_info(char* str) override { my_free(str); }
 
 	uint lock_count(void) const override;
 
@@ -639,8 +639,9 @@ public:
 	@param create_fk	whether to add FOREIGN KEY constraints */
 	int create_table(bool create_fk = true);
 
-	/** Update the internal data dictionary. */
-	int create_table_update_dict();
+  static void create_table_update_dict(dict_table_t* table, THD* thd,
+                                       const HA_CREATE_INFO& info,
+                                       const TABLE& t);
 
 	/** Validates the create options. Checks that the options
 	KEY_BLOCK_SIZE, ROW_FORMAT, DATA DIRECTORY, TEMPORARY & TABLESPACE
@@ -700,12 +701,13 @@ public:
 	trx_t* trx() const
 	{ return(m_trx); }
 
-	/** Return table name. */
-	const char* table_name() const
-	{ return(m_table_name); }
+	/** @return table name */
+	const char* table_name() const { return(m_table_name); }
 
-	THD* thd() const
-	{ return(m_thd); }
+	/** @return the created table */
+	dict_table_t *table() const { return m_table; }
+
+	THD* thd() const { return(m_thd); }
 
 private:
 	/** Parses the table name into normal name and either temp path or
