@@ -1757,12 +1757,6 @@ public:
     Used by the ALTER TABLE
   */
   virtual bool is_equal(const Column_definition &new_field) const= 0;
-  // Used as double dispatch pattern: calls virtual method of handler
-  virtual bool
-  can_be_converted_by_engine(const Column_definition &new_type) const
-  {
-    return false;
-  }
   /* convert decimal to longlong with overflow check */
   longlong convert_decimal2longlong(const my_decimal *val, bool unsigned_flag,
                                     int *err);
@@ -4045,11 +4039,6 @@ public:
   void sql_type(String &str) const override;
   void sql_rpl_type(String*) const override;
   bool is_equal(const Column_definition &new_field) const override;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-    override
-  {
-    return table->file->can_convert_string(this, new_type);
-  }
   uchar *pack(uchar *to, const uchar *from, uint max_length) override;
   const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
                       uint param_data) override;
@@ -4204,11 +4193,6 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
   bool is_equal(const Column_definition &new_field) const override;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-    override
-  {
-    return table->file->can_convert_varstring(this, new_type);
-  }
   void hash(ulong *nr, ulong *nr2) override;
   uint length_size() const override { return length_bytes; }
   void print_key_value(String *out, uint32 length) override;
@@ -4647,11 +4631,6 @@ public:
   uint32 char_length() const override;
   uint32 character_octet_length() const override;
   bool is_equal(const Column_definition &new_field) const override;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-    override
-  {
-    return table->file->can_convert_blob(this, new_type);
-  }
   void print_key_value(String *out, uint32 length) override;
   Binlog_type_info binlog_type_info() const override;
 

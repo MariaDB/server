@@ -791,4 +791,16 @@ ALTER TABLE t FORCE;
 # Cleanup
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-29856 heap-use-after-poison in row_merge_spatial_rows()
+--echo # with PRIMARY KEY on column prefix
+--echo #
+
+CREATE TABLE t (id INT, f TEXT, s POINT NOT NULL,
+                PRIMARY KEY(id,f(1)), SPATIAL(s)) ENGINE=InnoDB;
+INSERT INTO t VALUES
+(1,REPEAT('x',8192),@p:=ST_GeomFromText('POINT(0 0)')),(2,'',@p);
+ALTER TABLE t FORCE;
+DROP TABLE t;
+
 --echo # End of 10.3 tests

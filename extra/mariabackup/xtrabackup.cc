@@ -3736,10 +3736,6 @@ static dberr_t xb_assign_undo_space_start()
 	int		n_retries = 5;
 	ulint		fsp_flags;
 
-	if (srv_undo_tablespaces == 0) {
-		return error;
-	}
-
 	file = os_file_create(0, srv_sys_space.first_datafile()->filepath(),
 		OS_FILE_OPEN, OS_FILE_NORMAL, OS_DATA_FILE, true, &ret);
 
