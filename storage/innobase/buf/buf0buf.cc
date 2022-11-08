@@ -998,7 +998,7 @@ buf_page_is_corrupted(
 		DBUG_EXECUTE_IF(
 			"page_intermittent_checksum_mismatch", {
 			static int page_counter;
-			if (page_counter++ == 2) {
+			if (page_counter++ == 3) {
 				crc32++;
 			}
 		});
