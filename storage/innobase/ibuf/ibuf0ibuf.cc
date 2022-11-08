@@ -4661,7 +4661,7 @@ reset_bit:
 }
 
 /** Delete all change buffer entries for a tablespace,
-in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.
+in DISCARD TABLESPACE, IMPORT TABLESPACE, or read-ahead.
 @param[in]	space		missing or to-be-discarded tablespace */
 void ibuf_delete_for_discarded_space(ulint space)
 {
