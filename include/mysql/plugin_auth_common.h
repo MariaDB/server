@@ -128,4 +128,3 @@ typedef struct st_plugin_vio
 } MYSQL_PLUGIN_VIO;
 
 #endif
-
