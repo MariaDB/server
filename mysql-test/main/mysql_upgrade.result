@@ -1320,10 +1320,6 @@ partition p2008 values less than (2009)
 );
 select length(table_name) from mysql.innodb_table_stats;
 length(table_name)
-79
-79
-79
-79
 drop table extralongname_extralongname_extralongname_extralongname_ext;
 # End of 10.0 tests
 set sql_mode=default;
