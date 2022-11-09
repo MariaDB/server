@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -282,7 +282,7 @@ dict_stats_save_defrag_stats(
 	ulint	n_leaf_pages;
 	ulint	n_leaf_reserved;
 	mtr.start();
-	mtr_s_lock_index(index, &mtr);
+	mtr_sx_lock_index(index, &mtr);
 	n_leaf_reserved = btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
 						    &n_leaf_pages, &mtr);
 	mtr.commit();
