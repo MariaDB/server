@@ -1830,6 +1830,7 @@ static bool register_builtin(struct st_maria_plugin *plugin,
 /*
   called only by plugin_init()
 */
+
 static void plugin_load(MEM_ROOT *tmp_root)
 {
   TABLE_LIST tables;
@@ -1847,6 +1848,8 @@ static void plugin_load(MEM_ROOT *tmp_root)
 
   new_thd->thread_stack= (char*) &tables;
   new_thd->store_globals();
+  new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:plugin_load"),
+                           default_charset_info);
   new_thd->db= MYSQL_SCHEMA_NAME;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_READ);
