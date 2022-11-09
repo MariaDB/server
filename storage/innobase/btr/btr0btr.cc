@@ -614,7 +614,7 @@ btr_get_size(
 
 	ut_ad(srv_read_only_mode
 	      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-				   MTR_MEMO_S_LOCK));
+				   MTR_MEMO_SX_LOCK));
 
 	if (index->page == FIL_NULL
 	    || dict_index_is_online_ddl(index)
@@ -668,7 +668,7 @@ btr_get_size_and_reserved(
 	ulint		dummy;
 
 	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-				MTR_MEMO_S_LOCK));
+				MTR_MEMO_SX_LOCK));
 
 	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
 
