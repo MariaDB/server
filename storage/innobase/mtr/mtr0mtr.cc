@@ -1166,7 +1166,7 @@ static time_t log_close_warn_time;
 
 /** Display a warning that the log tail is overwriting the head,
 making the server crash-unsafe. */
-ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t age, lsn_t capacity)
+ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t checkpoint, lsn_t age, lsn_t capacity)
 {
   time_t t= time(nullptr);
   if (!log_close_warned || difftime(t, log_close_warn_time) > 15)
@@ -1175,8 +1175,11 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t age, lsn_t capacity)
     log_close_warn_time= t;
 
     sql_print_error("InnoDB: The age of the last checkpoint is " LSN_PF
-                    ", which exceeds the log capacity " LSN_PF ".",
+                    ", which exceeds the log capacity " LSN_PF "."
+                    " Shutdown is still in progress.",
                     age, capacity);
+    sql_print_information("InnoDB: Corruption fixed by log checkpoint at LSN=" LSN_PF ".",
+                          checkpoint);
   }
 }
 
@@ -1265,7 +1268,7 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
   if (UNIV_UNLIKELY(checkpoint_age >= log_sys.log_capacity) &&
       /* silence message on create_log_file() after the log had been deleted */
       checkpoint_age != lsn)
-    log_overwrite_warning(checkpoint_age, log_sys.log_capacity);
+    log_overwrite_warning(lsn, checkpoint_age, log_sys.log_capacity);
   else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_modified_age_async))
     return mtr_t::PAGE_FLUSH_NO;
   else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age))
