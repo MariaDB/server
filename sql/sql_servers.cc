@@ -254,6 +254,8 @@ bool servers_init(bool dont_read_servers_table)
     DBUG_RETURN(TRUE);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
+  thd->set_query_inner((char*) STRING_WITH_LEN("intern:servers_init"),
+                       default_charset_info);
   /*
     It is safe to call servers_reload() since servers_* arrays and hashes which
     will be freed there are global static objects and thus are initialized

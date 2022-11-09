@@ -181,6 +181,8 @@ void udf_init()
   initialized = 1;
   new_thd->thread_stack= (char*) &new_thd;
   new_thd->store_globals();
+  new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:udf_init"),
+                           default_charset_info);
   new_thd->set_db(&MYSQL_SCHEMA_NAME);
 
   tables.init_one_table(&new_thd->db, &MYSQL_FUNC_NAME, 0, TL_READ);

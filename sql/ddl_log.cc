@@ -2787,6 +2787,8 @@ int ddl_log_execute_recovery()
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->init();                                  // Needed for error messages
+  thd->set_query_inner((char*) STRING_WITH_LEN("intern:ddl_log_execute_recovery"),
+                       default_charset_info);
 
   thd->log_all_errors= (global_system_variables.log_warnings >= 3);
   recovery_state.drop_table.free();

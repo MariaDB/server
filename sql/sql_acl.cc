@@ -2491,6 +2491,8 @@ bool acl_init(bool dont_read_acl_tables)
     DBUG_RETURN(1); /* purecov: inspected */
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
+  thd->set_query_inner((char*) STRING_WITH_LEN("intern:acl_init"),
+                       default_charset_info);
   /*
     It is safe to call acl_reload() since acl_* arrays and hashes which
     will be freed there are global static objects and thus are initialized
@@ -7888,6 +7890,9 @@ bool grant_init()
     DBUG_RETURN(1);				/* purecov: deadcode */
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
+  thd->set_query_inner((char*) STRING_WITH_LEN("intern:grant_init"),
+                       default_charset_info);
+
   return_val=  grant_reload(thd);
   delete thd;
   DBUG_RETURN(return_val);
