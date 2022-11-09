@@ -37,7 +37,7 @@ C_MODE_START
   LSN of the last checkoint
   (if last_checkpoint_lsn == LSN_IMPOSSIBLE then there was never a checkpoint)
 */
-extern LSN last_checkpoint_lsn;
+extern volatile LSN last_checkpoint_lsn;
 /*
   Last log number (if last_logno == FILENO_IMPOSSIBLE then there is no log
   file yet)

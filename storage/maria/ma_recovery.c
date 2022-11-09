@@ -133,7 +133,7 @@ static void new_transaction(uint16 sid, TrID long_id, LSN undo_lsn,
 static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id);
 static int new_page(uint32 fileid, pgcache_page_no_t pageid, LSN rec_lsn,
                     struct st_dirty_page *dirty_page);
-static int close_all_tables(void);
+static int close_all_tables(my_bool force_end_newline);
 static my_bool close_one_table(const char *name, TRANSLOG_ADDRESS addr);
 static void print_redo_phase_progress(TRANSLOG_ADDRESS addr);
 static void delete_all_transactions();
@@ -467,7 +467,7 @@ int maria_apply_log(LSN from_lsn, LSN end_redo_lsn, LSN end_undo_lsn,
     we don't use maria_panic() because it would maria_end(), and Recovery does
     not want that (we want to keep some modules initialized for runtime).
   */
-  if (close_all_tables())
+  if (close_all_tables(0))
   {
     ma_message_no_user(0, "closing of tables failed");
     goto err;
@@ -495,6 +495,8 @@ int maria_apply_log(LSN from_lsn, LSN end_redo_lsn, LSN end_undo_lsn,
     /* No dirty pages, all tables are closed, no active transactions, save: */
     if (ma_checkpoint_execute(CHECKPOINT_FULL, FALSE))
       goto err;
+    tprint(tracef, "checkpoint done at " LSN_FMT "\n",
+           LSN_IN_PARTS(last_checkpoint_lsn));
   }
 
   goto end;
@@ -505,7 +507,7 @@ err2:
     delete_all_transactions();
   if (!abort_message_printed)
     error= 1;
-  if (close_all_tables())
+  if (close_all_tables(1))
   {
     ma_message_no_user(0, "closing of tables failed");
   }
@@ -3476,7 +3478,7 @@ static int new_page(uint32 fileid, pgcache_page_no_t pageid, LSN rec_lsn,
 }
 
 
-static int close_all_tables(void)
+static int close_all_tables(my_bool force_end_newline)
 {
   int error= 0;
   uint count= 0;
@@ -3541,7 +3543,7 @@ static int close_all_tables(void)
     }
   }
 end:
-  if (recovery_message_printed == REC_MSG_FLUSH)
+  if (recovery_message_printed == REC_MSG_FLUSH && (force_end_newline || error))
   {
     fputc('\n', stderr);
     fflush(stderr);
