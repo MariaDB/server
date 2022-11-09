@@ -208,6 +208,8 @@ source include/wait_condition.inc;
 SELECT n_rows FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
 DROP TABLE t1;
 
+--echo # End of 10.6 tests
+
 --echo #
 --echo # MDEV-26947 UNIQUE column checks fail in InnoDB resulting
 --echo #	in table corruption
@@ -375,3 +377,5 @@ INSERT IGNORE INTO t1 VALUES
 CHECK TABLE t1;
 DROP TABLE t1;
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= @format;
+
+--echo # End of 10.7 tests

@@ -29,3 +29,27 @@ SELECT * FROM t;
 DROP TABLE t;
 rmdir $targetdir;
 
+--echo #
+--echo #  MDEV-27121 mariabackup incompatible with disabled dedicated
+--echo #                  undo log tablespaces
+--echo #
+call mtr.add_suppression("InnoDB: innodb_undo_tablespaces=0 disables dedicated undo log tablespaces");
+
+let $restart_parameters=--innodb_undo_tablespaces=0;
+--source include/restart_mysqld.inc
+
+echo # xtrabackup backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+--echo # Display undo log files from target directory
+list_files $targetdir undo*;
+
+rmdir $targetdir;

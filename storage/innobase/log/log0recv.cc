@@ -1828,8 +1828,8 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   log_sys.set_flushed_lsn(lsn);
   const lsn_t source_offset= log_sys.log.calc_lsn_offset_old(lsn);
 
-  static const char NO_UPGRADE_RECOVERY_MSG[]=
-    "Upgrade after a crash is not supported."
+  static constexpr char NO_UPGRADE_RECOVERY_MSG[]=
+    "InnoDB: Upgrade after a crash is not supported."
     " This redo log was created before MariaDB 10.2.2";
 
   recv_sys.read(source_offset & ~511, {buf, 512});
@@ -1837,8 +1837,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   if (log_block_calc_checksum_format_0(buf) != log_block_get_checksum(buf) &&
       !log_crypt_101_read_block(buf, lsn))
   {
-    sql_print_error("InnoDB: %s, and it appears corrupted.",
-                    NO_UPGRADE_RECOVERY_MSG);
+    sql_print_error("%s, and it appears corrupted.", NO_UPGRADE_RECOVERY_MSG);
     return DB_CORRUPTION;
   }
 
@@ -1858,7 +1857,10 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
     sql_print_error("InnoDB: Cannot decrypt log for upgrading."
                     " The encrypted log was created before MariaDB 10.2.2.");
   else
-    sql_print_error("InnoDB: %s.", NO_UPGRADE_RECOVERY_MSG);
+    sql_print_error("%s. You must start up and shut down"
+                    " MariaDB 10.1 or MySQL 5.6 or earlier"
+                    " on the data directory.",
+                    NO_UPGRADE_RECOVERY_MSG);
 
   return DB_ERROR;
 }
@@ -1964,7 +1966,7 @@ recv_find_max_checkpoint(ulint* max_field)
 	if (log_sys.log.format != log_t::FORMAT_3_23
 	    && !recv_check_log_header_checksum(buf)) {
 		sql_print_error("InnoDB: Invalid redo log header checksum.");
-		return(DB_CORRUPTION);
+		return DB_CORRUPTION;
 	}
 
 	char creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR + 1];
@@ -1988,7 +1990,7 @@ recv_find_max_checkpoint(ulint* max_field)
 	default:
 		sql_print_error("InnoDB: Unsupported redo log format."
 				" The redo log was created with %s.", creator);
-		return(DB_ERROR);
+		return DB_ERROR;
 	}
 
 	for (field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
@@ -2044,7 +2046,7 @@ recv_find_max_checkpoint(ulint* max_field)
 				" (corrupted redo log)."
 				" You can try --innodb-force-recovery=6"
 				" as a last resort.");
-		return(DB_ERROR);
+		return DB_ERROR;
 	}
 
 	switch (log_sys.log.format) {
@@ -2053,12 +2055,15 @@ recv_find_max_checkpoint(ulint* max_field)
 		break;
 	default:
 		if (dberr_t err = recv_log_recover_10_4()) {
-			sql_print_error("InnoDB: Upgrade after a crash"
-					" is not supported."
+			sql_print_error("InnoDB: Upgrade after a crash "
+					"is not supported."
 					" The redo log was created with %s%s.",
 					creator,
-					(err == DB_ERROR
-					 ? "" : ", and it appears corrupted"));
+					err == DB_ERROR
+					? ". You must start up and shut down"
+					" MariaDB 10.4 or earlier"
+					" on the data directory"
+					: ", and it appears corrupted");
 			return err;
 		}
 	}

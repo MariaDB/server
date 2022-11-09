@@ -3934,8 +3934,7 @@ void lock_release(trx_t *trx)
 #ifdef UNIV_DEBUG
   std::set<table_id_t> to_evict;
   if (innodb_evict_tables_on_commit_debug &&
-      !trx->is_recovered && !trx->dict_operation &&
-      !trx->dict_operation_lock_mode)
+      !trx->is_recovered && !dict_sys.locked())
     for (const auto& p : trx->mod_tables)
       if (!p.first->is_temporary())
         to_evict.emplace(p.first->id);

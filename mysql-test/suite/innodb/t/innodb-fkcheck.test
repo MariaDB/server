@@ -46,7 +46,15 @@ show create table c;
 #
 # Note that column b has different type in parent table
 #
---error 1005
+CREATE TABLE b (
+  b bigint unsigned NOT NULL,
+  d1 date NOT NULL,
+  PRIMARY KEY (b,d1)
+) ENGINE=InnoDB;
+DROP TABLE b;
+
+set foreign_key_checks = 1;
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE b (
   b bigint unsigned NOT NULL,
   d1 date NOT NULL,
@@ -54,6 +62,7 @@ CREATE TABLE b (
 ) ENGINE=InnoDB;
 
 show warnings;
+set foreign_key_checks = 0;
 
 DROP TABLE IF EXISTS d;
 
@@ -64,7 +73,7 @@ CREATE TABLE d (
   CONSTRAINT bd_fk FOREIGN KEY (b) REFERENCES b (b)
 ) ENGINE=InnoDB;
 
-show warnings; 
+show warnings;
 
 set foreign_key_checks = 1;
 

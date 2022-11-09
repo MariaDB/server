@@ -1748,7 +1748,8 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
   len= (size_t) my_seek(fd, 0, SEEK_END, MYF(0));
   my_seek(fd, 0, SEEK_SET, MYF(0));
   if (len == (size_t)MY_FILEPOS_ERROR ||
-      !(buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, len + 1, MYF(0))))
+      !(buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, len + 1,
+                               MYF(MY_WME|MY_FAE))))
   {
     my_close(fd, MYF(0));
     return 1;
@@ -2407,7 +2408,7 @@ VAR *var_init(VAR *v, const char *name, size_t name_len, const char *val, size_t
     val_len= 0;
   val_alloc_len = val_len + 16; /* room to grow */
   if (!(tmp_var=v) && !(tmp_var = (VAR*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(*tmp_var)
-                                                  + name_len+2, MYF(MY_WME))))
+                                                  + name_len+2, MYF(MY_WME|MY_FAE))))
     die("Out of memory");
 
   if (name != NULL)
@@ -2421,7 +2422,8 @@ VAR *var_init(VAR *v, const char *name, size_t name_len, const char *val, size_t
 
   tmp_var->alloced = (v == 0);
 
-  if (!(tmp_var->str_val = (char*)my_malloc(PSI_NOT_INSTRUMENTED, val_alloc_len+1, MYF(MY_WME))))
+  if (!(tmp_var->str_val = (char*)my_malloc(PSI_NOT_INSTRUMENTED,
+                                 val_alloc_len+1, MYF(MY_WME|MY_FAE))))
     die("Out of memory");
 
   if (val)
@@ -2969,8 +2971,10 @@ void var_copy(VAR *dest, VAR *src)
   /* Alloc/realloc data for str_val in dest */
   if (dest->alloced_len < src->alloced_len &&
       !(dest->str_val= dest->str_val
-        ? (char*)my_realloc(PSI_NOT_INSTRUMENTED, dest->str_val, src->alloced_len, MYF(MY_WME))
-        : (char*)my_malloc(PSI_NOT_INSTRUMENTED, src->alloced_len, MYF(MY_WME))))
+        ? (char*)my_realloc(PSI_NOT_INSTRUMENTED, dest->str_val, src->alloced_len,
+                            MYF(MY_WME|MY_FAE))
+        : (char*)my_malloc(PSI_NOT_INSTRUMENTED, src->alloced_len,
+                           MYF(MY_WME|MY_FAE))))
     die("Out of memory");
   else
     dest->alloced_len= src->alloced_len;
@@ -3047,8 +3051,10 @@ void eval_expr(VAR *v, const char *p, const char **p_end,
         MIN_VAR_ALLOC : new_val_len + 1;
       if (!(v->str_val =
             v->str_val ?
-            (char*)my_realloc(PSI_NOT_INSTRUMENTED, v->str_val, v->alloced_len+1, MYF(MY_WME)) :
-            (char*)my_malloc(PSI_NOT_INSTRUMENTED, v->alloced_len+1, MYF(MY_WME))))
+            (char*)my_realloc(PSI_NOT_INSTRUMENTED, v->str_val, v->alloced_len+1,
+                              MYF(MY_WME|MY_FAE)) :
+            (char*)my_malloc(PSI_NOT_INSTRUMENTED, v->alloced_len+1,
+                             MYF(MY_WME|MY_FAE))))
         die("Out of memory");
     }
     v->str_val_len = new_val_len;
@@ -4783,7 +4789,8 @@ void do_sync_with_master(struct st_command *command)
       p++;
       while (*p && my_isspace(charset_info, *p))
         p++;
-      start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(p)+1,MYF(MY_WME | MY_FAE));
+      start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(p)+1,
+                                    MYF(MY_WME|MY_FAE));
       get_string(&buff, &p, command);
     }
     command->last_argument= p;
@@ -6923,7 +6930,7 @@ int read_command(struct st_command** command_ptr)
   }
   if (!(*command_ptr= command=
         (struct st_command*) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(*command),
-                                       MYF(MY_WME|MY_ZEROFILL))) ||
+                                       MYF(MY_WME|MY_FAE|MY_ZEROFILL))) ||
       insert_dynamic(&q_lines, &command))
     die("Out of memory");
   command->type= Q_UNKNOWN;
@@ -7631,18 +7638,19 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
 
   /* Allocate array with bind structs, lengths and NULL flags */
   my_bind= (MYSQL_BIND*) my_malloc(PSI_NOT_INSTRUMENTED, num_fields * sizeof(MYSQL_BIND),
-				MYF(MY_WME | MY_FAE | MY_ZEROFILL));
+                                   MYF(MY_WME|MY_FAE|MY_ZEROFILL));
   length= (ulong*) my_malloc(PSI_NOT_INSTRUMENTED, num_fields * sizeof(ulong),
-			     MYF(MY_WME | MY_FAE));
+                             MYF(MY_WME|MY_FAE));
   is_null= (my_bool*) my_malloc(PSI_NOT_INSTRUMENTED, num_fields * sizeof(my_bool),
-				MYF(MY_WME | MY_FAE));
+                                MYF(MY_WME|MY_FAE));
 
   /* Allocate data for the result of each field */
   for (i= 0; i < num_fields; i++)
   {
     uint max_length= fields[i].max_length + 1;
     my_bind[i].buffer_type= MYSQL_TYPE_STRING;
-    my_bind[i].buffer= my_malloc(PSI_NOT_INSTRUMENTED, max_length, MYF(MY_WME | MY_FAE));
+    my_bind[i].buffer= my_malloc(PSI_NOT_INSTRUMENTED, max_length,
+                                 MYF(MY_WME|MY_FAE));
     my_bind[i].buffer_length= max_length;
     my_bind[i].is_null= &is_null[i];
     my_bind[i].length= &length[i];
@@ -8666,7 +8674,7 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
   cn->ps_params=  ps_params = (MYSQL_BIND*)my_malloc(PSI_NOT_INSTRUMENTED,
                                                      sizeof(MYSQL_BIND) *
                                                      stmt->param_count,
-                                                     MYF(MY_WME));
+                                                     MYF(MY_WME|MY_FAE));
   bzero((char *) ps_params, sizeof(MYSQL_BIND) * stmt->param_count);
 
   int i=0;
@@ -8681,7 +8689,8 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
     if (!*c)
     {
       ps_params[i].buffer_type= MYSQL_TYPE_LONG;
-      l= (long*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(long), MYF(MY_WME));
+      l= (long*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(long),
+                          MYF(MY_WME|MY_FAE));
       *l= strtol(p, &c, 10);
       ps_params[i].buffer= (void*)l;
       ps_params[i].buffer_length= 8;
@@ -8693,7 +8702,7 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
       {
         ps_params[i].buffer_type= MYSQL_TYPE_DECIMAL;
         d= (double*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(double),
-                              MYF(MY_WME));
+                              MYF(MY_WME|MY_FAE));
         *d= strtod(p, &c);
         ps_params[i].buffer= (void*)d;
         ps_params[i].buffer_length= 8;
@@ -8701,7 +8710,8 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
       else
       {
         ps_params[i].buffer_type= MYSQL_TYPE_STRING;
-        ps_params[i].buffer= my_strdup(PSI_NOT_INSTRUMENTED, p, MYF(MY_WME));
+        ps_params[i].buffer= my_strdup(PSI_NOT_INSTRUMENTED, p,
+                                       MYF(MY_WME|MY_FAE));
         ps_params[i].buffer_length= (unsigned long)strlen(p);
       }
     }
@@ -9739,7 +9749,7 @@ int main(int argc, char **argv)
   /* Init connections, allocate 1 extra as buffer + 1 for default */
   connections= (struct st_connection*)
     my_malloc(PSI_NOT_INSTRUMENTED, (opt_max_connections+2) * sizeof(struct st_connection),
-              MYF(MY_WME | MY_ZEROFILL));
+              MYF(MY_WME|MY_FAE|MY_ZEROFILL));
   connections_end= connections + opt_max_connections +1;
   next_con= connections + 1;
   
@@ -10461,7 +10471,8 @@ void do_get_replace_column(struct st_command *command)
     die("Missing argument in %s", command->query);
 
   /* Allocate a buffer for results */
-  start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(from)+1,MYF(MY_WME | MY_FAE));
+  start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(from)+1,
+                                MYF(MY_WME|MY_FAE));
   while (*from)
   {
     char *to;
@@ -10474,7 +10485,8 @@ void do_get_replace_column(struct st_command *command)
           command->query);
     to= get_string(&buff, &from, command);
     my_free(replace_column[column_number-1]);
-    replace_column[column_number-1]= my_strdup(PSI_NOT_INSTRUMENTED, to, MYF(MY_WME | MY_FAE));
+    replace_column[column_number-1]= my_strdup(PSI_NOT_INSTRUMENTED, to,
+                                               MYF(MY_WME|MY_FAE));
     set_if_bigger(max_replace_column, column_number);
   }
   my_free(start);
@@ -10541,7 +10553,8 @@ void do_get_replace(struct st_command *command)
   bzero(&from_array,sizeof(from_array));
   if (!*from)
     die("Missing argument in %s", command->query);
-  start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(from)+1,MYF(MY_WME | MY_FAE));
+  start= buff= (char*)my_malloc(PSI_NOT_INSTRUMENTED, strlen(from)+1,
+                                MYF(MY_WME|MY_FAE));
   while (*from)
   {
     char *to= buff;
@@ -11199,7 +11212,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
     DBUG_RETURN(0);
   found_sets=0;
   if (!(found_set= (FOUND_SET*) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(FOUND_SET)*max_length*count,
-					  MYF(MY_WME))))
+					  MYF(MY_WME|MY_FAE))))
   {
     free_sets(&sets);
     DBUG_RETURN(0);
@@ -11209,7 +11222,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
   used_sets=-1;
   word_states=make_new_set(&sets);		/* Start of new word */
   start_states=make_new_set(&sets);		/* This is first state */
-  if (!(follow=(FOLLOWS*) my_malloc(PSI_NOT_INSTRUMENTED, (states+2)*sizeof(FOLLOWS),MYF(MY_WME))))
+  if (!(follow=(FOLLOWS*) my_malloc(PSI_NOT_INSTRUMENTED, (states+2)*sizeof(FOLLOWS),MYF(MY_WME|MY_FAE))))
   {
     free_sets(&sets);
     my_free(found_set);
@@ -11376,7 +11389,7 @@ REPLACE *init_replace(char * *from, char * *to,uint count,
   if ((replace=(REPLACE*) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(REPLACE)*(sets.count)+
 				    sizeof(REPLACE_STRING)*(found_sets+1)+
 				    sizeof(char *)*count+result_len,
-				    MYF(MY_WME | MY_ZEROFILL))))
+				    MYF(MY_WME|MY_FAE|MY_ZEROFILL))))
   {
     rep_str=(REPLACE_STRING*) (replace+sets.count);
     to_array= (char **) (rep_str+found_sets+1);
@@ -11419,10 +11432,10 @@ int init_sets(REP_SETS *sets,uint states)
   bzero(sets, sizeof(*sets));
   sets->size_of_bits=((states+7)/8);
   if (!(sets->set_buffer=(REP_SET*) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(REP_SET)*SET_MALLOC_HUNC,
-					      MYF(MY_WME))))
+					      MYF(MY_WME|MY_FAE))))
     return 1;
   if (!(sets->bit_buffer=(uint*) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(uint)*sets->size_of_bits*
-					   SET_MALLOC_HUNC,MYF(MY_WME))))
+					   SET_MALLOC_HUNC,MYF(MY_WME|MY_FAE))))
   {
     my_free(sets->set);
     return 1;
@@ -11618,10 +11631,10 @@ int insert_pointer_name(POINTER_ARRAY *pa,char * name)
     if (!(pa->typelib.type_names=(const char **)
 	  my_malloc(PSI_NOT_INSTRUMENTED, ((PC_MALLOC-MALLOC_OVERHEAD)/
 		     (sizeof(char *)+sizeof(*pa->flag))*
-		     (sizeof(char *)+sizeof(*pa->flag))),MYF(MY_WME))))
+		     (sizeof(char *)+sizeof(*pa->flag))),MYF(MY_WME|MY_FAE))))
       DBUG_RETURN(-1);
     if (!(pa->str= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED, PS_MALLOC - MALLOC_OVERHEAD,
-                                      MYF(MY_WME))))
+                                      MYF(MY_WME|MY_FAE))))
     {
       my_free(pa->typelib.type_names);
       DBUG_RETURN (-1);

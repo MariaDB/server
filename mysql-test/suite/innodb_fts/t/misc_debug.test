@@ -91,7 +91,6 @@ SET @saved_debug_dbug= @@debug_dbug;
 
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
---error ER_GET_ERRNO
 TRUNCATE t1;
 SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;

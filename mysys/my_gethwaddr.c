@@ -23,7 +23,7 @@
 
 #ifndef MAIN
 
-#if defined(_AIX) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__linux__) || defined(__sun) || defined(_WIN32)
+#if defined(_AIX) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__linux__) || defined(__sun) || defined(_WIN32)
 static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
 {
   uint i, res= 1;
@@ -35,8 +35,14 @@ static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
 }
 #endif
 
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+#ifdef __OpenBSD__
+#include <netinet/in.h>
+#include <net/if_arp.h>
+#include <netinet/if_ether.h>
+#else
 #include <net/ethernet.h>
+#endif
 #include <sys/sysctl.h>
 #include <net/route.h>
 #include <net/if.h>

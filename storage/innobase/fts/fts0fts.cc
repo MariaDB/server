@@ -1373,6 +1373,13 @@ static dberr_t fts_drop_table(trx_t *trx, const char *table_name, bool rename)
       return err;
     }
 
+#ifdef UNIV_DEBUG
+    for (auto &p : trx->mod_tables)
+    {
+      if (p.first == table)
+	p.second.set_aux_table();
+    }
+#endif /* UNIV_DEBUG */
     return DB_SUCCESS;
   }
 

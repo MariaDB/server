@@ -4120,8 +4120,8 @@ static int init_common_variables()
     files= my_set_max_open_files(max_open_files);
     SYSVAR_AUTOSIZE_IF_CHANGED(open_files_limit, files, ulong);
 
-    if (files < wanted_files && global_system_variables.log_warnings)
-      sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
+    if (files < max_open_files && global_system_variables.log_warnings)
+      sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, max_open_files);
 
     /* If we required too much tc_instances than we reduce */
     SYSVAR_AUTOSIZE_IF_CHANGED(tc_instances,

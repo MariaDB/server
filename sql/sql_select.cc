@@ -67,6 +67,7 @@
 #include "select_handler.h"
 #include "my_json_writer.h"
 #include "opt_trace.h"
+#include "derived_handler.h"
 #include "create_tmp_table.h"
 
 /*
@@ -14578,6 +14579,7 @@ void JOIN::cleanup(bool full)
         }
       }
     }
+    free_pushdown_handlers(*join_list);
   }
   /* Restore ref array to original state */
   if (current_ref_ptrs != items0)
@@ -14588,6 +14590,32 @@ void JOIN::cleanup(bool full)
   DBUG_VOID_RETURN;
 }
 
+/**
+  Clean up all derived pushdown handlers in this join.
+
+  @detail
+    Note that dt_handler is picked at the prepare stage (as opposed
+    to optimization stage where one could expect this).
+    Because of that, we have to do cleanups in this function that is called
+    from JOIN::cleanup() and not in JOIN_TAB::cleanup.
+ */
+void JOIN::free_pushdown_handlers(List<TABLE_LIST>& join_list)
+{
+  List_iterator<TABLE_LIST> li(join_list);
+  TABLE_LIST *table_ref;
+  while ((table_ref= li++))
+  {
+    if (table_ref->nested_join)
+      free_pushdown_handlers(table_ref->nested_join->join_list);
+    if (table_ref->pushdown_derived)
+    {
+      delete table_ref->pushdown_derived;
+      table_ref->pushdown_derived= NULL;
+    }
+    delete table_ref->dt_handler;
+    table_ref->dt_handler= NULL;
+  }
+}
 
 /**
   Remove the following expressions from ORDER BY and GROUP BY:
@@ -28067,12 +28095,6 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
                       first->having, thd->lex->proc_list.first,
                       first->options | thd->variables.option_bits | SELECT_DESCRIBE,
                       result, unit, first);
-  }
-
-  if (unit->derived && unit->derived->pushdown_derived)
-  {
-    delete unit->derived->pushdown_derived;
-    unit->derived->pushdown_derived= NULL;
   }
 
   DBUG_RETURN(res || thd->is_error());
