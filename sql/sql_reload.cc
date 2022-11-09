@@ -83,6 +83,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     {
       thd->thread_stack= (char*) &tmp_thd;
       thd->store_globals();
+      thd->set_query_inner((char*) STRING_WITH_LEN("intern:reload_acl"),
+                           default_charset_info);
     }
 
     if (likely(thd))
