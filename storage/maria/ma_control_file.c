@@ -104,7 +104,7 @@ one should increment the control file version number.
    This LSN serves for the two-checkpoint rule, and also to find the
    checkpoint record when doing a recovery.
 */
-LSN    last_checkpoint_lsn= LSN_IMPOSSIBLE;
+volatile LSN  last_checkpoint_lsn= LSN_IMPOSSIBLE;
 uint32 last_logno=          FILENO_IMPOSSIBLE;
 /**
    The maximum transaction id given to a transaction. It is only updated at
