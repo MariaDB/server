@@ -1,0 +1,10 @@
+# Define our crates within a workspace
+
+[workspace]
+
+members = [
+    "bindings",
+    "mariadb",
+    "macros",
+    "examples"
+]

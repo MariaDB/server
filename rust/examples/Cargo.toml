@@ -1,0 +1,11 @@
+[package]
+name = "mariadb-examples"
+version = "0.1.0"
+edition = '2021'
+
+
+[dependencies]
+mariadb-server = { path = "../mariadb" }
+ring = "0.16.20"
+sha2 = "0.10.6"
+rand = "0.8.5"
