@@ -2712,6 +2712,7 @@ sub mysql_server_start($) {
         # Copy datadir from installed system db
         my $path= ($opt_parallel == 1) ? "$opt_vardir" : "$opt_vardir/..";
         my $install_db= "$path/install.db";
+        mtr_verbose("copying $install_db to $datadir");
         copytree($install_db, $datadir) if -d $install_db;
         mtr_error("Failed to copy system db to '$datadir'") unless -d $datadir;
       }

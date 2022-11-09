@@ -25,7 +25,7 @@
 /* minimum possible transaction log size */
 #define TRANSLOG_MIN_FILE_SIZE (8*MB)
 /* transaction log default flags (TODO: make it global variable) */
-#define TRANSLOG_DEFAULT_FLAGS 0
+#define TRANSLOG_DEFAULT_FLAGS IF_DBUG(TRANSLOG_PAGE_CRC,0)
 
 /*
   Transaction log flags.
