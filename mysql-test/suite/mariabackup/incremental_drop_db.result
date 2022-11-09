@@ -1,0 +1,30 @@
+call mtr.add_suppression("InnoDB: New log files created");
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-23335 MariaBackup Incremental Does Not Reflect Dropped/Created Databases
+#
+CREATE DATABASE db1;
+CREATE DATABASE db2;
+CREATE TABLE db1.t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE db1.t2 (a INT) ENGINE=InnoDB;
+# Create base backup
+DROP DATABASE db1;
+# Create incremental backup
+# Remove incremental_dir/db2/db.opt file to make incremental_dir/db2/ empty
+# Prepare base backup, apply incremental one
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+# Expect no 'db1' in the output, because it was really dropped.
+# Expect 'db2' in the ouput, because it was not dropped!
+# (its incremental directory was emptied only)
+SHOW DATABASES LIKE 'db%';
+Database (db%)
+db2
+DROP DATABASE db2;
+#
+# End of 10.3 tests
+#
