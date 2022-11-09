@@ -590,7 +590,7 @@ btr_get_size(
 	ulint		n=0;
 
 	ut_ad(srv_read_only_mode
-	      || mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
+	      || mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
 	ut_ad(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
 
 	if (index->page == FIL_NULL
@@ -636,7 +636,7 @@ btr_get_size_and_reserved(
 {
 	ulint		dummy;
 
-	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
+	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
 	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
 
 	if (index->page == FIL_NULL
