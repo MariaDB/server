@@ -4750,10 +4750,14 @@ public:
    DBUG_ASSERT(pushed_rowid_filter != NULL &&
                save_pushed_rowid_filter == NULL);
    save_pushed_rowid_filter= pushed_rowid_filter;
-   if (rowid_filter_is_active)
-     save_rowid_filter_is_active= rowid_filter_is_active;
+   save_rowid_filter_is_active= rowid_filter_is_active;
    pushed_rowid_filter= NULL;
-   rowid_filter_is_active= false;
+
+   if (rowid_filter_is_active)
+   {
+     rowid_filter_is_active= false;
+     rowid_filter_changed();
+   }
  }
 
  virtual void enable_pushed_rowid_filter()
@@ -4761,12 +4765,17 @@ public:
    DBUG_ASSERT(save_pushed_rowid_filter != NULL &&
                pushed_rowid_filter == NULL);
    pushed_rowid_filter= save_pushed_rowid_filter;
-   if (save_rowid_filter_is_active)
-     rowid_filter_is_active= true;
    save_pushed_rowid_filter= NULL;
+   if (save_rowid_filter_is_active)
+   {
+     rowid_filter_is_active= true;
+     rowid_filter_changed();
+   }
  }
 
  virtual bool rowid_filter_push(Rowid_filter *rowid_filter) { return true; }
+ /* Signal that rowid filter may have been enabled / disabled */
+ virtual void rowid_filter_changed() {}
 
  /* Needed for partition / spider */
   virtual TABLE_LIST *get_next_global_for_child() { return NULL; }

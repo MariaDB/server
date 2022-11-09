@@ -19,6 +19,7 @@
 #include "sql_class.h"
 #include "opt_range.h"
 #include "rowid_filter.h"
+#include "optimizer_defaults.h"
 #include "sql_select.h"
 #include "opt_trace.h"
 
@@ -32,7 +33,7 @@ lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
-    return log(est_elements) * rowid_compare_cost + key_next_find_cost;
+    return log(est_elements) * rowid_compare_cost + base_lookup_cost;
   default:
     DBUG_ASSERT(0);
     return 0;
@@ -127,8 +128,10 @@ void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
   cost_of_building_range_filter= build_cost(container_type);
 
   where_cost= tab->in_use->variables.optimizer_where_cost;
-  key_next_find_cost= tab->file->ROW_NEXT_FIND_COST;
-  rowid_compare_cost= tab->file->ROWID_COMPARE_COST;
+  base_lookup_cost=   (ROWID_FILTER_PER_CHECK_MODIFIER *
+                       tab->file->KEY_COPY_COST);
+  rowid_compare_cost= (ROWID_FILTER_PER_ELEMENT_MODIFIER *
+                       tab->file->ROWID_COMPARE_COST);
   selectivity= est_elements/((double) table->stat_records());
   gain= avg_access_and_eval_gain_per_row(container_type,
                                          tab->file->ROW_LOOKUP_COST);
@@ -589,41 +592,40 @@ bool Range_rowid_filter::fill()
   file->pushed_idx_cond_keyno= MAX_KEY;
   file->in_range_check_pushed_down= false;
 
-  /* We're going to just read rowids / primary keys */
+  /* We're going to just read rowids / clustered primary keys */
   table->prepare_for_position();
 
-  table->file->ha_start_keyread(quick->index);
+  file->ha_start_keyread(quick->index);
 
   if (quick->init() || quick->reset())
-    rc= 1;
+    goto end;
 
-  while (!rc)
+  while (!(rc= quick->get_next()))
   {
-    rc= quick->get_next();
-    if (thd->killed)
-      rc= 1;
-    if (!rc)
+    file->position(quick->record);
+    if (container->add(NULL, (char*) file->ref) || thd->killed)
     {
-      file->position(quick->record);
-      if (container->add(NULL, (char*) file->ref))
-        rc= 1;
-      else
-        tracker->increment_container_elements_count();
+      rc= 1;
+      break;
     }
   }
 
+end:
   quick->range_end();
-  table->file->ha_end_keyread();
+  file->ha_end_keyread();
 
   table->status= table_status_save;
   file->pushed_idx_cond= pushed_idx_cond_save;
   file->pushed_idx_cond_keyno= pushed_idx_cond_keyno_save;
   file->in_range_check_pushed_down= in_range_check_pushed_down_save;
-  tracker->report_container_buff_size(table->file->ref_length);
+
+  tracker->set_container_elements_count(container->elements());
+  tracker->report_container_buff_size(file->ref_length);
 
   if (rc != HA_ERR_END_OF_FILE)
     return 1;
-  table->file->rowid_filter_is_active= true;
+  container->sort(refpos_order_cmp, (void *) file);
+  file->rowid_filter_is_active= container->elements() != 0;
   return 0;
 }
 
@@ -647,18 +649,13 @@ bool Range_rowid_filter::fill()
 
 bool Rowid_filter_sorted_array::check(void *ctxt, char *elem)
 {
-  TABLE *table= (TABLE *) ctxt;
-  if (!is_checked)
-  {
-    refpos_container.sort(refpos_order_cmp, (void *) (table->file));
-    is_checked= true;
-  }
+  handler *file= ((TABLE *) ctxt)->file;
   int l= 0;
   int r= refpos_container.elements()-1;
   while (l <= r)
   {
     int m= (l + r) / 2;
-    int cmp= refpos_order_cmp((void *) (table->file),
+    int cmp= refpos_order_cmp((void *) file,
                               refpos_container.get_pos(m), elem);
     if (cmp == 0)
       return true;
@@ -675,14 +672,6 @@ Range_rowid_filter::~Range_rowid_filter()
 {
   delete container;
   container= 0;
-  if (select)
-  {
-    if (select->quick)
-    {
-      delete select->quick;
-      select->quick= 0;
-    }
-    delete select;
-    select= 0;
-  }
+  delete select;
+  select= 0;
 }

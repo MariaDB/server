@@ -30,7 +30,8 @@ OPTIMIZER_DISK_READ_RATIO	0.020000
 OPTIMIZER_ROW_COPY_COST	0.060866
 OPTIMIZER_ROW_LOOKUP_COST	0.130839
 OPTIMIZER_ROW_NEXT_FIND_COST	0.045916
-OPTIMIZER_ROWID_COMPARE_COST	0.005681
+OPTIMIZER_ROWID_COMPARE_COST	0.002653
+OPTIMIZER_ROWID_COPY_COST	0.002653
 ENGINE	default
 OPTIMIZER_DISK_READ_COST	10.240000
 OPTIMIZER_INDEX_BLOCK_COPY_COST	0.035600
@@ -80,6 +81,8 @@ optimizer_key_next_find_cost	0.082347
 optimizer_row_copy_cost	0.060866
 optimizer_row_lookup_cost	0.130839
 optimizer_row_next_find_cost	0.045916
+optimizer_rowid_compare_cost	0.002653
+optimizer_rowid_copy_cost	0.002653
 optimizer_scan_setup_cost	10.000000
 optimizer_where_cost	0.032000
 show variables like "optimizer_disk_read_ratio";

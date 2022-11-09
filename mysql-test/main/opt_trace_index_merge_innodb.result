@@ -178,7 +178,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 "rowid_filters": [
                   {
                     "key": "key1",
-                    "build_cost": 0.001669448,
+                    "build_cost": 0.000002653,
                     "rows": 1
                   }
                 ]

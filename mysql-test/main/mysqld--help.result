@@ -1726,6 +1726,8 @@ optimizer-prune-level 2
 optimizer-row-copy-cost 6.0866e-05
 optimizer-row-lookup-cost 0.000130839
 optimizer-row-next-find-cost 4.5916e-05
+optimizer-rowid-compare-cost 2.653e-06
+optimizer-rowid-copy-cost 2.653e-06
 optimizer-scan-setup-cost 0.01
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100

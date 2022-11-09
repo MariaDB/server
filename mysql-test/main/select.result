@@ -3521,7 +3521,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN
 SELECT a, c, d, f FROM t1,t2 WHERE a=c AND b BETWEEN 4 AND 6 AND a > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,b	b	5	NULL	3	Using index condition; Using where
+1	SIMPLE	t1	range|filter	PRIMARY,b	b|PRIMARY	5|4	NULL	3 (90%)	Using index condition; Using where; Using rowid filter
 1	SIMPLE	t2	ref	c	c	5	test.t1.a	2	
 DROP TABLE t1, t2;
 create table t1 (
@@ -3682,7 +3682,7 @@ t3.c IN ('bb','ee');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
 1	SIMPLE	t2	range	si	si	5	NULL	2	Using index condition; Using where
-1	SIMPLE	t3	eq_ref	PRIMARY,ci	PRIMARY	4	test.t2.a	1	Using where
+1	SIMPLE	t3	eq_ref|filter	PRIMARY,ci	PRIMARY|ci	4|5	test.t2.a	1 (30%)	Using where; Using rowid filter
 EXPLAIN 
 SELECT t3.a FROM t1,t2,t3
 WHERE t1.id = 8 AND (t2.i=t1.b OR t2.i=t1.e) AND t3.a=t2.a AND
@@ -3690,7 +3690,7 @@ t3.c IN ('bb','ee');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
 1	SIMPLE	t2	range	si,ai	si	5	NULL	2	Using index condition; Using where
-1	SIMPLE	t3	eq_ref	PRIMARY,ci	PRIMARY	4	test.t2.a	1	Using where
+1	SIMPLE	t3	eq_ref|filter	PRIMARY,ci	PRIMARY|ci	4|5	test.t2.a	1 (30%)	Using where; Using rowid filter
 DROP TABLE t1,t2,t3;
 CREATE TABLE t1 ( f1 int primary key, f2 int, f3 int, f4 int, f5 int, f6 int, checked_out int);
 CREATE TABLE t2 ( f11 int PRIMARY KEY );
@@ -3767,11 +3767,11 @@ COUNT(*)
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null IS NULL AND ID2_with_null=3 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	idx1,idx2	idx2,idx1	4,10	NULL	1	Using intersect(idx2,idx1); Using where; Using index
+1	SIMPLE	t1	ref|filter	idx1,idx2	idx2|idx1	4|10	const	2 (6%)	Using where; Using rowid filter
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null=3 AND ID2_with_null=3 IS NULL ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx1,idx2	idx2	4	const	2	Using where
+1	SIMPLE	t1	ref|filter	idx1,idx2	idx2|idx1	4|5	const	2 (27%)	Using where; Using rowid filter
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null IS NULL AND ID2_with_null IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -3781,11 +3781,11 @@ CREATE UNIQUE INDEX idx1 ON t1(ID1_with_null,ID2_with_null);
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null IS NULL AND ID2_with_null=3 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx1,idx2	idx2	4	const	2	Using where
+1	SIMPLE	t1	ref|filter	idx1,idx2	idx2|idx1	4|10	const	2 (7%)	Using where; Using rowid filter
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null=3 AND ID2_with_null IS NULL ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	idx1,idx2	idx2	4	const	2	Using where
+1	SIMPLE	t1	ref|filter	idx1,idx2	idx2|idx1	4|10	const	2 (36%)	Using where; Using rowid filter
 EXPLAIN SELECT * FROM t1
 WHERE ID_better=1 AND ID1_with_null IS NULL AND ID2_with_null IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

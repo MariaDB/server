@@ -414,7 +414,8 @@ public:
      n_positive_checks++;
   }
 
-  inline void increment_container_elements_count() { container_elements++; }
+  inline void set_container_elements_count(uint elements)
+  { container_elements= elements; }
 
   uint get_container_elements() const { return container_elements; }
 

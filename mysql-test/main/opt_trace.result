@@ -2344,12 +2344,12 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "rowid_filters": [
                   {
                     "key": "a_b",
-                    "build_cost": 0.006243462,
+                    "build_cost": 2.606596e-4,
                     "rows": 41
                   },
                   {
                     "key": "a_c",
-                    "build_cost": 0.026549953,
+                    "build_cost": 0.001528534,
                     "rows": 180
                   }
                 ]
@@ -3778,17 +3778,17 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                 "rowid_filters": [
                   {
                     "key": "pk",
-                    "build_cost": 8.140695e-4,
+                    "build_cost": 0.000001,
                     "rows": 1
                   },
                   {
                     "key": "pk_a",
-                    "build_cost": 8.140695e-4,
+                    "build_cost": 0.000001,
                     "rows": 1
                   },
                   {
                     "key": "pk_a_b",
-                    "build_cost": 8.140695e-4,
+                    "build_cost": 0.000001,
                     "rows": 1
                   }
                 ]
@@ -12697,12 +12697,12 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                 "rowid_filters": [
                   {
                     "key": "a",
-                    "build_cost": 0.001839302,
+                    "build_cost": 3.752933e-5,
                     "rows": 9
                   },
                   {
                     "key": "b",
-                    "build_cost": 0.003459502,
+                    "build_cost": 1.132387e-4,
                     "rows": 21
                   }
                 ]
@@ -12745,23 +12745,23 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                           "filter": {
                             "rowid_filter_key": "b",
                             "index_only_cost": 0.001515222,
-                            "filter_startup_cost": 0.003459502,
-                            "find_key_and_filter_lookup_cost": 7.275007e-4,
+                            "filter_startup_cost": 1.132387e-4,
+                            "find_key_and_filter_lookup_cost": 6.832526e-4,
                             "filter_selectivity": 0.021,
                             "orginal_rows": 9,
                             "new_rows": 0.189,
                             "orginal_access_cost": 0.011516778,
-                            "with_filter_access_cost": 0.002452755,
+                            "with_filter_access_cost": 0.002408507,
                             "original_found_rows_cost": 0.010001556,
                             "with_filter_found_rows_cost": 2.100327e-4,
-                            "cost": 0.005918305,
+                            "cost": 0.002527794,
                             "filter_used": true
                           },
                           "access_type": "range",
                           "rows": 9,
                           "rows_after_filter": 0.189,
                           "rows_out": 0.017766,
-                          "cost": 0.005918305,
+                          "cost": 0.002527794,
                           "chosen": true
                         }
                       ],
@@ -12769,7 +12769,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                         "type": "range",
                         "rows_read": 0.189,
                         "rows_out": 0.017766,
-                        "cost": 0.005918305,
+                        "cost": 0.002527794,
                         "uses_join_buffering": false,
                         "rowid_filter_key": "b"
                       }
@@ -12781,7 +12781,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                 "plan_prefix": [],
                 "table": "t1",
                 "rows_for_plan": 0.017766,
-                "cost_for_plan": 0.005918305,
+                "cost_for_plan": 0.002527794,
                 "pushdown_cond_selectivity": 0.094,
                 "filtered": 0.1974,
                 "rows_out": 0.017766
@@ -12791,7 +12791,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
           {
             "best_join_order": ["t1"],
             "rows": 0.017766,
-            "cost": 0.005918305
+            "cost": 0.002527794
           },
           {
             "table": "t1",
@@ -12885,23 +12885,30 @@ EXPLAIN
           "table_name": "three",
           "access_type": "ALL",
           "rows": 3,
-          "filtered": 100
+          "filtered": 100,
+          "attached_condition": "three.a is not null"
         }
       },
       {
-        "block-nl-join": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "possible_keys": ["a", "b"],
-            "rows": 10000,
-            "filtered": 4.311999798,
-            "attached_condition": "t1.b < 5000 and t1.c < 1000"
+        "table": {
+          "table_name": "t1",
+          "access_type": "ref",
+          "possible_keys": ["a", "b"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.three.a"],
+          "rowid_filter": {
+            "range": {
+              "key": "b",
+              "used_key_parts": ["b"]
+            },
+            "rows": 4312,
+            "selectivity_pct": 43.12
           },
-          "buffer_type": "flat",
-          "buffer_size": "65",
-          "join_type": "BNL",
-          "attached_condition": "t1.a = three.a"
+          "rows": 1000,
+          "filtered": 43.11999893,
+          "attached_condition": "t1.b < 5000 and t1.c < 1000"
         }
       }
     ]
@@ -13065,7 +13072,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                 "rowid_filters": [
                   {
                     "key": "b",
-                    "build_cost": 0.701115436,
+                    "build_cost": 0.056375698,
                     "rows": 4312
                   }
                 ]
@@ -13171,20 +13178,20 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                               "filter": {
                                 "rowid_filter_key": "b",
                                 "index_only_cost": 0.092006157,
-                                "filter_startup_cost": 0.701115436,
-                                "find_key_and_filter_lookup_cost": 0.111079997,
+                                "filter_startup_cost": 0.056375698,
+                                "find_key_and_filter_lookup_cost": 0.098962424,
                                 "filter_selectivity": 0.4312,
                                 "orginal_rows": 1000,
                                 "new_rows": 431.2,
                                 "orginal_access_cost": 1.203290157,
-                                "with_filter_access_cost": 0.682271815,
+                                "with_filter_access_cost": 0.670154242,
                                 "original_found_rows_cost": 1.111284,
                                 "with_filter_found_rows_cost": 0.479185661,
-                                "cost": 2.78932608,
+                                "cost": 2.108233625,
                                 "filter_used": true
                               },
                               "rows": 431.2,
-                              "cost": 2.78932608,
+                              "cost": 2.108233625,
                               "chosen": true
                             },
                             {
