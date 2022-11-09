@@ -2583,7 +2583,7 @@ int ODBConn::Rewind(char *sql, ODBCCOL *tocols)
   int rc, rbuf = -1;
 
   if (!m_hstmt)
-    rbuf = -1;
+    rbuf = 0;
   else if (m_Full)
     rbuf = m_Rows;           // No need to "rewind"
   else if (m_Scrollable) {
