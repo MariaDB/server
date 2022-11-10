@@ -154,7 +154,7 @@ id2 int NOT NULL,
 d1 datetime,
 d2 timestamp NOT NULL,
 KEY id2 (id2)
-) engine=innodb;
+) engine=innodb stats_persistent=0;
 insert into t2 values
 (1,2,'2019-03-05 00:00:00','2019-03-06 00:00:00'),
 (2,3,'2019-03-05 00:00:00','2019-03-06 00:00:00'),
