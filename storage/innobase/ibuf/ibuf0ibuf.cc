@@ -3090,7 +3090,7 @@ ibuf_index_page_calc_free_from_bits(ulint physical_size, ulint bits)
 
 /** Buffer an operation in the insert/delete buffer, instead of doing it
 directly to the disk page, if this is possible.
-@param[in]	mode		BTR_MODIFY_PREV or BTR_MODIFY_TREE
+@param[in]	mode		BTR_MODIFY_PREV or BTR_INSERT_TREE
 @param[in]	op		operation type
 @param[in]	no_counter	TRUE=use 5.0.3 format; FALSE=allow delete
 buffering
@@ -3186,7 +3186,7 @@ ibuf_insert_low(
 	the new entry to it without exceeding the free space limit for the
 	page. */
 
-	if (BTR_LATCH_MODE_WITHOUT_INTENTION(mode) == BTR_MODIFY_TREE) {
+	if (mode == BTR_INSERT_TREE) {
 		for (;;) {
 			mysql_mutex_lock(&ibuf_pessimistic_insert_mutex);
 			mysql_mutex_lock(&ibuf_mutex);
@@ -3217,9 +3217,7 @@ func_exit:
 		ut_free(pcur.old_rec_buf);
 		mem_heap_free(heap);
 
-		if (err == DB_SUCCESS
-		    && BTR_LATCH_MODE_WITHOUT_INTENTION(mode)
-		    == BTR_MODIFY_TREE) {
+		if (err == DB_SUCCESS && mode == BTR_INSERT_TREE) {
 			ibuf_contract_after_insert(entry_size);
 		}
 
@@ -3266,7 +3264,7 @@ func_exit:
 		until after the IBUF_OP_DELETE has been buffered. */
 
 fail_exit:
-		if (BTR_LATCH_MODE_WITHOUT_INTENTION(mode) == BTR_MODIFY_TREE) {
+		if (mode == BTR_INSERT_TREE) {
 			mysql_mutex_unlock(&ibuf_mutex);
 			mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
 		}
@@ -3382,8 +3380,7 @@ commit_exit:
 			ibuf.empty = page_is_empty(root);
 		}
 	} else {
-		ut_ad(BTR_LATCH_MODE_WITHOUT_INTENTION(mode)
-		      == BTR_MODIFY_TREE);
+		ut_ad(mode == BTR_INSERT_TREE);
 
 		/* We acquire an sx-latch to the root page before the insert,
 		because a pessimistic insert releases the tree x-latch,
@@ -3558,7 +3555,7 @@ skip_watch:
 			      entry, entry_size,
 			      index, page_id, zip_size, thr);
 	if (err == DB_FAIL) {
-		err = ibuf_insert_low(BTR_MODIFY_TREE | BTR_LATCH_FOR_INSERT,
+		err = ibuf_insert_low(BTR_INSERT_TREE,
 				      op, no_counter, entry, entry_size,
 				      index, page_id, zip_size, thr);
 	}
@@ -3922,13 +3919,12 @@ ibuf_restore_pos(
 	const page_id_t	page_id,/*!< in: page identifier */
 	const dtuple_t*	search_tuple,
 				/*!< in: search tuple for entries of page_no */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
+	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_PURGE_TREE */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor whose
 				position is to be restored */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	ut_ad(mode == BTR_MODIFY_LEAF
-	      || BTR_LATCH_MODE_WITHOUT_INTENTION(mode) == BTR_MODIFY_TREE);
+	ut_ad(mode == BTR_MODIFY_LEAF || mode == BTR_PURGE_TREE);
 
 	if (UNIV_LIKELY(pcur->restore_position(mode, mtr) ==
 	      btr_pcur_t::SAME_ALL)) {

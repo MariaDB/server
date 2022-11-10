@@ -174,7 +174,7 @@ dberr_t
 row_ins_sec_index_entry_by_modify(
 /*==============================*/
 	ulint		flags,	/*!< in: undo logging and locking flags */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_INSERT_TREE,
 				depending on whether mtr holds just a leaf
 				latch or also a tree latch */
 	btr_cur_t*	cursor,	/*!< in: B-tree cursor */
@@ -241,7 +241,7 @@ row_ins_sec_index_entry_by_modify(
 			break;
 		}
 	} else {
-		ut_a(mode == BTR_MODIFY_TREE);
+		ut_ad(mode == BTR_INSERT_TREE);
 		if (buf_pool.running_out()) {
 
 			return(DB_LOCK_TABLE_FULL);
@@ -2825,13 +2825,13 @@ same fields is found, the other record is necessarily marked deleted.
 It is then unmarked. Otherwise, the entry is just inserted to the index.
 @retval DB_SUCCESS on success
 @retval DB_LOCK_WAIT on lock wait when !(flags & BTR_NO_LOCKING_FLAG)
-@retval DB_FAIL if retry with BTR_MODIFY_TREE is needed
+@retval DB_FAIL if retry with BTR_INSERT_TREE is needed
 @return error code */
 dberr_t
 row_ins_sec_index_entry_low(
 /*========================*/
 	ulint		flags,	/*!< in: undo logging and locking flags */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_INSERT_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: secondary index */
@@ -2856,7 +2856,7 @@ row_ins_sec_index_entry_low(
 	rtr_info_t	rtr_info;
 
 	ut_ad(!dict_index_is_clust(index));
-	ut_ad(mode == BTR_MODIFY_LEAF || mode == BTR_MODIFY_TREE);
+	ut_ad(mode == BTR_MODIFY_LEAF || mode == BTR_INSERT_TREE);
 
 	cursor.thr = thr;
 	cursor.rtr_info = NULL;
@@ -3001,7 +3001,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
 			(search_mode
-			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),
+			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),//???
 			&cursor, &mtr);
 		if (err != DB_SUCCESS) {
 			goto func_exit;
@@ -3040,7 +3040,6 @@ row_ins_sec_index_entry_low(
 				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		} else {
-			ut_ad(mode == BTR_MODIFY_TREE);
 			if (buf_pool.running_out()) {
 				err = DB_LOCK_TABLE_FULL;
 				goto func_exit;
@@ -3243,7 +3242,7 @@ row_ins_sec_index_entry(
 		log_free_check();
 
 		err = row_ins_sec_index_entry_low(
-			flags, BTR_MODIFY_TREE, index,
+			flags, BTR_INSERT_TREE, index,
 			offsets_heap, heap, entry, 0, thr);
 	}
 

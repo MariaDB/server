@@ -94,13 +94,13 @@ same fields is found, the other record is necessarily marked deleted.
 It is then unmarked. Otherwise, the entry is just inserted to the index.
 @retval DB_SUCCESS on success
 @retval DB_LOCK_WAIT on lock wait when !(flags & BTR_NO_LOCKING_FLAG)
-@retval DB_FAIL if retry with BTR_MODIFY_TREE is needed
+@retval DB_FAIL if retry with BTR_INSERT_TREE is needed
 @return error code */
 dberr_t
 row_ins_sec_index_entry_low(
 /*========================*/
 	ulint		flags,	/*!< in: undo logging and locking flags */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_INSERT_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: secondary index */

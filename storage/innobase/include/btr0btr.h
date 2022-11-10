@@ -125,8 +125,16 @@ enum btr_latch_mode {
 	block->lock range.*/
 	BTR_LATCH_FOR_DELETE = 512,
 
-	/** Attempt to purge a secondary index record in the tree. */
-	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE
+	/** In the case of BTR_MODIFY_TREE, the caller specifies
+	the intention to delete record only. It is used to optimize
+	block->lock range.*/
+	BTR_LATCH_FOR_INSERT = 1024,
+
+	/** Attempt to delete a record in the tree. */
+	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+
+	/** Attempt to insert a record into the tree. */
+	BTR_INSERT_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_INSERT
 };
 
 /** This flag ORed to BTR_INSERT says that we can ignore possible
@@ -134,13 +142,9 @@ UNIQUE definition on secondary indexes when we decide if we can use
 the insert buffer to speed up inserts */
 #define BTR_IGNORE_SEC_UNIQUE	2048U
 
-/** In the case of BTR_MODIFY_TREE, the caller specifies the intention
-to insert record only. It is used to optimize block->lock range.*/
-#define BTR_LATCH_FOR_INSERT	4096U
-
 /** This flag is for undo insert of rtree. For rtree, we need this flag
 to find proper rec to undo insert.*/
-#define BTR_RTREE_UNDO_INS	8192U
+#define BTR_RTREE_UNDO_INS	4096U
 
 /** In the case of BTR_MODIFY_LEAF, the caller intends to allocate or
 free the pages of externally stored fields. */
@@ -148,7 +152,7 @@ free the pages of externally stored fields. */
 
 /** Try to delete mark the record at the searched position when the
 record is in spatial index */
-#define BTR_RTREE_DELETE_MARK	32768U
+#define BTR_RTREE_DELETE_MARK	16384U
 
 #define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)		\
 	((latch_mode) & ulint(~(BTR_INSERT			\
