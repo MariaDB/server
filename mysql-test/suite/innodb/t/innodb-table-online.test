@@ -413,11 +413,28 @@ SET DEBUG_SYNC = 'now SIGNAL updated';
 
 connection con1;
 reap;
-disconnect con1;
 
 connection default;
 DROP TABLE t1;
-SET DEBUG_SYNC = 'RESET';
+--echo #
+--echo # MDEV-29977  Memory leak in row_log_table_apply_update
+--echo #
+CREATE TABLE t1(f1 longtext, f2 int, KEY(f1(1024)), KEY(f2, f1(20))) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('a', 1);
+connection con1;
+set DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL con_default WAIT_FOR con1_signal";
+send ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR con_default";
+UPDATE t1 SET f1 = NULL;
+UPDATE t1 SET f1 = REPEAT('b', 9000);
+SET DEBUG_SYNC="now SIGNAL con1_signal";
+connection con1;
+reap;
+DROP TABLE t1;
+connection default;
+SET DEBUG_SYNC=RESET;
+disconnect con1;
 
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
