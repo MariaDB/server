@@ -216,7 +216,7 @@ close_and_exit:
 			btr_pcur_get_btr_cur(&node->pcur), 0, &mtr);
 	} else {
 		dberr_t	err;
-		ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
+		ut_ad(mode == BTR_PURGE_TREE);
 		btr_cur_pessimistic_delete(
 			&err, FALSE, btr_pcur_get_btr_cur(&node->pcur), 0,
 			false, &mtr);
@@ -257,8 +257,7 @@ row_purge_remove_clust_if_poss(
 	for (ulint n_tries = 0;
 	     n_tries < BTR_CUR_RETRY_DELETE_N_TIMES;
 	     n_tries++) {
-		if (row_purge_remove_clust_if_poss_low(
-			    node, BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE)) {
+		if (row_purge_remove_clust_if_poss_low(node, BTR_PURGE_TREE)) {
 			return(true);
 		}
 
@@ -349,10 +348,8 @@ row_purge_remove_sec_if_poss_tree(
 	mtr.start();
 	index->set_modified(mtr);
 
-	search_result = row_search_index_entry(
-				index, entry,
-				BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				&pcur, &mtr);
+	search_result = row_search_index_entry(index, entry, BTR_PURGE_TREE,
+					       &pcur, &mtr);
 
 	switch (search_result) {
 	case ROW_NOT_FOUND:

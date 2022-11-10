@@ -1598,8 +1598,7 @@ tree structure may be changed during a pessimistic delete. */
 inline dberr_t IndexPurge::purge_pessimistic_delete() noexcept
 {
   dberr_t err;
-  if (m_pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-                              &m_mtr) != btr_pcur_t::CORRUPTED)
+  if (m_pcur.restore_position(BTR_PURGE_TREE, &m_mtr) != btr_pcur_t::CORRUPTED)
   {
     ut_ad(rec_get_deleted_flag(btr_pcur_get_rec(&m_pcur),
                                m_index->table->not_redundant()));

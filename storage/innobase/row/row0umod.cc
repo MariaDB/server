@@ -356,8 +356,7 @@ row_undo_mod_clust(
 		}
 
 		mtr.start();
-		if (pcur->restore_position(
-			    BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE, &mtr) !=
+		if (pcur->restore_position(BTR_PURGE_TREE, &mtr) !=
 		    btr_pcur_t::SAME_ALL) {
 			goto mtr_commit_exit;
 		}
@@ -504,7 +503,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
 			mtr_s_lock_index(index, &mtr);
 		} else {
-			ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
+			ut_ad(mode == BTR_PURGE_TREE);
 			mtr_sx_lock_index(index, &mtr);
 		}
 	} else {
@@ -634,7 +633,7 @@ row_undo_mod_del_mark_or_remove_sec(
 	}
 
 	err = row_undo_mod_del_mark_or_remove_sec_low(node, thr, index,
-		entry, BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE);
+		entry, BTR_PURGE_TREE);
 	return(err);
 }
 

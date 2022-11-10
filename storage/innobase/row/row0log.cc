@@ -1696,8 +1696,7 @@ err_exit:
 		mtr->start();
 		index->set_modified(*mtr);
 		error = btr_pcur_open(index, entry, PAGE_CUR_LE,
-				      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				      pcur, mtr);
+				      BTR_PURGE_TREE, pcur, mtr);
 		if (error) {
 			goto err_exit;
 		}
@@ -1780,8 +1779,7 @@ row_log_table_apply_delete(
 	mtr_start(&mtr);
 	index->set_modified(mtr);
 	dberr_t err = btr_pcur_open(index, old_pk, PAGE_CUR_LE,
-				    BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				    &pcur, &mtr);
+				    BTR_PURGE_TREE, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 		goto all_done;
 	}

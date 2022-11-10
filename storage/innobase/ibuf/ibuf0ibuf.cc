@@ -4011,8 +4011,7 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 	ibuf_mtr_start(mtr);
 	mysql_mutex_lock(&ibuf_mutex);
 
-	if (!ibuf_restore_pos(page_id, search_tuple,
-			      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+	if (!ibuf_restore_pos(page_id, search_tuple, BTR_PURGE_TREE,
 			      pcur, mtr)) {
 
 		mysql_mutex_unlock(&ibuf_mutex);

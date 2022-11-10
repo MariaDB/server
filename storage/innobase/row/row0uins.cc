@@ -207,9 +207,8 @@ retry:
 	} else {
 		index->set_modified(mtr);
 	}
-	ut_a(
-	    node->pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-	      &mtr) == btr_pcur_t::SAME_ALL);
+	ut_a(node->pcur.restore_position(BTR_PURGE_TREE, &mtr)
+	     == btr_pcur_t::SAME_ALL);
 
 	btr_cur_pessimistic_delete(&err, FALSE, &node->pcur.btr_cur, 0, true,
 				   &mtr);
@@ -272,7 +271,7 @@ row_undo_ins_remove_sec_low(
 		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
 		mtr_s_lock_index(index, &mtr);
 	} else {
-		ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
+		ut_ad(mode == BTR_PURGE_TREE);
 		mtr_sx_lock_index(index, &mtr);
 	}
 
@@ -349,9 +348,7 @@ row_undo_ins_remove_sec(
 
 	/* Try then pessimistic descent to the B-tree */
 retry:
-	err = row_undo_ins_remove_sec_low(
-		BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-		index, entry, thr);
+	err = row_undo_ins_remove_sec_low(BTR_PURGE_TREE, index, entry, thr);
 
 	/* The delete operation may fail if we have little
 	file space left: TODO: easiest to crash the database
