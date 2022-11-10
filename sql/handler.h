@@ -2772,7 +2772,7 @@ typedef struct st_range_seq_if
 
 typedef bool (*SKIP_INDEX_TUPLE_FUNC) (range_seq_t seq, range_id_t range_info);
 
-
+#define MARIADB_NEW_COST_MODEL 1
 /* Separated costs for IO and CPU */
 
 struct IO_AND_CPU_COST
