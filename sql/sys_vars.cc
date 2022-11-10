@@ -6984,6 +6984,20 @@ static Sys_var_engine_optimizer_cost Sys_optimizer_key_cmp_cost(
   CMD_LINE(REQUIRED_ARG, OPT_COSTS_KEY_CMP_COST),
   VALID_RANGE(0, 1000), DEFAULT(DEFAULT_KEY_COMPARE_COST), COST_ADJUST(1000));
 
+static Sys_var_engine_optimizer_cost Sys_optimizer_rowid_cmp_cost(
+  "optimizer_rowid_compare_cost",
+  "Cost of comparing two rowid's",
+  COST_VAR(rowid_cmp_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_ROWID_CMP_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_ROWID_COMPARE_COST), COST_ADJUST(1000));
+
+static Sys_var_engine_optimizer_cost Sys_optimizer_rowid_copy_cost(
+  "optimizer_rowid_copy_cost",
+  "Cost of copying a rowid",
+  COST_VAR(rowid_copy_cost),
+  CMD_LINE(REQUIRED_ARG, OPT_COSTS_ROWID_COPY_COST),
+  VALID_RANGE(0, 1000), DEFAULT(DEFAULT_ROWID_COPY_COST), COST_ADJUST(1000));
+
 /* The following costs are stored in THD and handler */
 
 static Sys_var_optimizer_cost Sys_optimizer_where_cost(
@@ -7000,5 +7014,5 @@ static Sys_var_optimizer_cost Sys_optimizer_scan_cost(
   "index lookups.",
   SESSION_VAR(optimizer_scan_setup_cost),
   CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(0, 100000), DEFAULT(DEFAULT_TABLE_SCAN_SETUP_COST),
+  VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_TABLE_SCAN_SETUP_COST),
   COST_ADJUST(1000));

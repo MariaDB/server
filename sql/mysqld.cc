@@ -8459,6 +8459,8 @@ mysql_getopt_value(const char *name, uint length,
   case OPT_COSTS_ROW_COPY_COST:
   case OPT_COSTS_ROW_LOOKUP_COST:
   case OPT_COSTS_ROW_NEXT_FIND_COST:
+  case OPT_COSTS_ROWID_CMP_COST:
+  case OPT_COSTS_ROWID_COPY_COST:
   {
     OPTIMIZER_COSTS *costs;
     if (unlikely(!(costs= get_or_create_optimizer_costs(name, length))))
@@ -8488,6 +8490,10 @@ mysql_getopt_value(const char *name, uint length,
       return &costs->row_lookup_cost;
     case OPT_COSTS_ROW_NEXT_FIND_COST:
       return &costs->row_next_find_cost;
+    case OPT_COSTS_ROWID_CMP_COST:
+      return &costs->rowid_cmp_cost;
+    case OPT_COSTS_ROWID_COPY_COST:
+      return &costs->rowid_copy_cost;
     default:
       DBUG_ASSERT(0);
     }
@@ -8511,6 +8517,8 @@ mariadb_getopt_adjust_value(const struct my_option *option, void *value)
   case OPT_COSTS_ROW_COPY_COST:
   case OPT_COSTS_ROW_LOOKUP_COST:
   case OPT_COSTS_ROW_NEXT_FIND_COST:
+  case OPT_COSTS_ROWID_CMP_COST:
+  case OPT_COSTS_ROWID_COPY_COST:
     /* Value from command is line given in usec. Convert to ms */
     *(double*) value= *(double*) value/1000.0;
     break;

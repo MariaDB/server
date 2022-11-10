@@ -2,6 +2,10 @@
 --echo # MDEV-27172 Prefix indices on Spider tables may lead to wrong query results
 --echo #
 
+# Disable test for ps-protocol as the general log has different number of
+# commands for --ps
+--source include/no_protocol.inc
+
 --disable_query_log
 --disable_result_log
 --source ../../t/test_init.inc

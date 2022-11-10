@@ -2559,6 +2559,8 @@ void myisam_update_optimizer_costs(OPTIMIZER_COSTS *costs)
   costs->key_next_find_cost=   0.000090585;
   costs->key_lookup_cost=      0.000550142;
   costs->key_copy_cost=        0.000015685;
+  costs->rowid_copy_cost=      0.000001;        // Just a short memcopy
+  costs->rowid_cmp_cost=       0.000001;        // Just a short memcmp
 }
 
 

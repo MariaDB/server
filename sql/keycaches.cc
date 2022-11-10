@@ -243,7 +243,7 @@ void free_all_rpl_filters()
 
 
 /******************************************************************************
- Optimzizer costs functions
+ Optimizer costs functions
 ******************************************************************************/
 
 LEX_CSTRING default_costs_base= {STRING_WITH_LEN("default")};
@@ -261,7 +261,7 @@ OPTIMIZER_COSTS default_optimizer_costs=
   DEFAULT_ROW_LOOKUP_COST,                    // row_lookup_cost
   DEFAULT_ROW_NEXT_FIND_COST,                 // row_next_find_cost
   DEFAULT_ROWID_COMPARE_COST,                 // rowid_compare_cost
-  DEFAULT_ROWID_COPY_COST,
+  DEFAULT_ROWID_COPY_COST,                    // rowid_copy_cost
   1                                           // Cannot be deleted
 };
 

@@ -60,14 +60,15 @@ $opt_grof= undef;
 $opt_all_tests=undef;
 $opt_ratios= undef;
 $opt_mysql= undef;
+$has_force_index=1;
 
 @arguments= @ARGV;
 
 GetOptions("host=s","user=s","password=s", "rows=i","test-runs=i","socket=s",
            "db=s", "table-name=s", "skip-drop","skip-create",
            "init-query=s","engine=s","comment=s",
-           "gprof=s", "mysql",
-           "all-tests", "ratios", "where-check",
+           "gprof", "one-test=s",
+           "mysql", "all-tests", "ratios", "where-check",
            "print-analyze", "verbose") ||
     die "Aborted";
 
@@ -92,18 +93,19 @@ if (defined($opt_engine))
 {
     if (lc($engine) eq "archive")
     {
-        $no_force_index= 1;     # Skip tests with force index
+        $has_force_index= 0;     # Skip tests with force index
     }
 }
 
 
-
-if (defined($opt_gprof))
+if (defined($opt_gprof) || defined($opt_one_test))
 {
-    die "engine must be defined when --gprof is used"
+    die "one_test must be defined when --gprof is used"
+        if (!defined($opt_one_test));
+    die "engine must be defined when --gprof or --one-test is used"
         if (!defined($opt_engine));
-    die "function '$opt_gprof' does not exist\n"
-        if (!defined(&{$opt_gprof}));
+    die "function '$opt_one_test' does not exist\n"
+        if (!defined(&{$opt_one_test}));
 }
 
 # We add engine_name to the table name later
@@ -176,7 +178,7 @@ if ($opt_mysql)
 }
 
 
-if ($opt_engine || defined($opt_gprof))
+if ($opt_engine || defined($opt_one_test))
 {
     test_engine(0, $opt_engine);
 }
@@ -313,28 +315,33 @@ sub test_engine()
     }
 
 
-    if (defined($opt_gprof))
+    if (defined($opt_one_test))
     {
-        # Argument is the name of the test function
-        test_with_gprof($opt_gprof,10);
+        if (defined($opt_gprof))
+        {
+            # Argument is the name of the test function
+            test_with_gprof($opt_one_test, 10);
+            return;
+        }
+        $opt_one_test->();
         return;
     }
 
     if ($opt_where_check)
     {
-        $res[$i][0]= table_scan_without_where();
-        $res[$i][1]= table_scan_with_where();
-        $res[$i][2]= table_scan_with_where_no_match();
-        $res[$i][3]= table_scan_with_complex_where();
+        $res[$i][0]= table_scan_without_where(0);
+        $res[$i][1]= table_scan_with_where(1);
+        $res[$i][2]= table_scan_with_where_no_match(2);
+        $res[$i][3]= table_scan_with_complex_where(3);
     }
-    $res[$i][4]=  table_scan_without_where_analyze();
-    $res[$i][5]=  index_scan();
-    $res[$i][6]=  index_scan_4_parts()  if ($opt_all_tests);
-    $res[$i][7]=  range_scan();
-    $res[$i][8]=  eq_ref_index_join();
-    $res[$i][9]=  eq_ref_clustered_join();
-    $res[$i][10]= eq_ref_join();
-    $res[$i][11]= eq_ref_join_btree();
+    $res[$i][4]=  table_scan_without_where_analyze(4);
+    $res[$i][5]=  index_scan(5);
+    $res[$i][6]=  index_scan_4_parts(6)  if ($opt_all_tests);
+    $res[$i][7]=  range_scan(7);
+    $res[$i][8]=  eq_ref_index_join(8);
+    $res[$i][9]=  eq_ref_clustered_join(9);
+    $res[$i][10]= eq_ref_join(10);
+    $res[$i][11]= eq_ref_join_btree(11);
 
     if ($opt_where_check)
     {
@@ -359,7 +366,7 @@ sub test_engine()
 }
 
 
-sub print_costs()
+sub print_costs($;$)
 {
     my ($name, $cur_res)= @_;
 
@@ -445,27 +452,35 @@ sub create_seq_table
 
 sub table_scan_without_where()
 {
-    return run_query("table_scan", "ALL", $opt_rows,
-                     "select sum(l_quantity) from $table");
+    my ($query_id)= @_;
+    return run_query($test_names[$query_id],
+                     "table_scan", "ALL", $opt_rows,
+"select sum(l_quantity) from $table");
 }
 
 sub table_scan_with_where()
 {
-    return run_query("table_scan", "ALL", $opt_rows,
-                     "select sum(l_quantity) from $table where l_commitDate >= '2000-01-01' and l_tax >= 0.0");
+    my ($query_id)= @_;
+    return run_query($test_names[$query_id],
+                     "table_scan", "ALL", $opt_rows,
+"select sum(l_quantity) from $table where l_commitDate >= '2000-01-01' and l_tax >= 0.0");
 }
 
 sub table_scan_with_where_no_match()
 {
-    return run_query("table_scan", "ALL", $opt_rows,
-                     "select sum(l_quantity) from $table where l_commitDate >= '2000-01-01' and l_tax > 0.0 /* NO MATCH */");
+    my ($query_id)= @_;
+    return run_query($test_names[$query_id],
+                     "table_scan", "ALL", $opt_rows,
+"select sum(l_quantity) from $table where l_commitDate >= '2000-01-01' and l_tax > 0.0 /* NO MATCH */");
 }
 
 
 sub table_scan_with_complex_where()
 {
-    return run_query("table_scan", "ALL", $opt_rows,
- "select sum(l_quantity) from $table where l_commitDate >= '2000-01-01' and l_quantity*l_extendedprice-l_discount+l_tax > 0.0");
+    my ($query_id)= @_;
+    return run_query($test_names[$query_id],
+                     "table_scan", "ALL", $opt_rows,
+"select sum(l_quantity) from $table where l_commitDate >= '2000-01-01' and l_quantity*l_extendedprice-l_discount+l_tax > 0.0");
 }
 
 # Calculate the time spent for table accesses (done with analyze statment)
@@ -474,15 +489,22 @@ sub table_scan_with_complex_where()
 
 sub table_scan_without_where_analyze()
 {
-    return run_query_with_analyze("table_scan", "ALL", $opt_rows, "select sum(l_quantity) from $table");
+    my ($query_id)= @_;
+    return run_query_with_analyze($test_names[$query_id],
+                                  "table_scan", "ALL", $opt_rows,
+"select sum(l_quantity) from $table");
 }
 
 # Index scan with 2 key parts
 
 sub index_scan()
 {
-    return 0 if (!$no_force_index);
-    return run_query_with_analyze("index_scan", "index", $opt_rows, "select count(*) from $table force index (l_suppkey) where l_suppkey >= 0 and l_partkey >=0");
+    my ($query_id)= @_;
+    return 0 if (!$has_force_index);
+    my ($query_id)= @_;
+    return run_query_with_analyze($test_names[$query_id],
+                                  "index_scan", "index", $opt_rows,
+"select count(*) from $table force index (l_suppkey) where l_suppkey >= 0 and l_partkey >=0");
 }
 
 # Index scan with 2 key parts
@@ -490,34 +512,52 @@ sub index_scan()
 
 sub index_scan_4_parts()
 {
-    return 0 if (!$no_force_index);
-    return run_query_with_analyze("index_scan_4_parts", "index", $opt_rows, "select count(*) from $table force index (long_suppkey) where l_linenumber >= 0 and l_extra >0");
+    my ($query_id)= @_;
+    return 0 if (!$has_force_index);
+    return run_query_with_analyze($test_names[$query_id],
+                                  "index_scan_4_parts", "index", $opt_rows,
+"select count(*) from $table force index (long_suppkey) where l_linenumber >= 0 and l_extra >0");
 }
 
 sub range_scan()
 {
-    return 0 if (!$no_force_index);
-    return run_query_with_analyze("range_scan", "range", $opt_rows, "select sum(l_orderkey) from $table force index(l_suppkey) where l_suppkey >= 0 and l_partkey >=0 and l_discount>=0.0");
+    my ($query_id)= @_;
+    return 0 if (!$has_force_index);
+    return run_query_with_analyze($test_names[$query_id],
+                                  "range_scan", "range", $opt_rows,
+"select sum(l_orderkey) from $table force index(l_suppkey) where l_suppkey >= 0 and l_partkey >=0 and l_discount>=0.0");
 }
 
 sub eq_ref_index_join()
 {
-    return run_query_with_analyze("eq_ref_index_join", "eq_ref", 1, "select straight_join count(*) from seq_1_to_$opt_rows,$table where seq=l_linenumber");
+    my ($query_id)= @_;
+    return run_query_with_analyze($test_names[$query_id],
+                                  "eq_ref_index_join", "eq_ref", 1,
+"select straight_join count(*) from seq_1_to_$opt_rows,$table where seq=l_linenumber");
 }
 
 sub eq_ref_clustered_join()
 {
-    return run_query_with_analyze("eq_ref_cluster_join", "eq_ref", 1, "select straight_join count(*) from seq_1_to_$opt_rows,$table where seq=l_orderkey");
+    my ($query_id)= @_;
+    return run_query_with_analyze($test_names[$query_id],
+                                  "eq_ref_cluster_join", "eq_ref", 1,
+"select straight_join count(*) from seq_1_to_$opt_rows,$table where seq=l_orderkey");
 }
 
 sub eq_ref_join()
 {
-    return run_query_with_analyze("eq_ref_join", "eq_ref", 1, "select straight_join count(*) from seq_1_to_$opt_rows,$table where seq=l_linenumber and l_partkey >= 0");
+    my ($query_id)= @_;
+    return run_query_with_analyze($test_names[$query_id],
+                                  "eq_ref_join", "eq_ref", 1,
+"select straight_join count(*) from seq_1_to_$opt_rows,$table where seq=l_linenumber and l_partkey >= 0");
 }
 
 sub eq_ref_join_btree()
 {
-    return run_query_with_analyze("eq_ref_btree", "eq_ref", 1, "select straight_join count(*) from seq_1_to_$opt_rows,$table where seq=l_extra and l_partkey >= 0");
+    my ($query_id)= @_;
+    return run_query_with_analyze($test_names[$query_id],
+                                  "eq_ref_btree", "eq_ref", 1,
+"select straight_join count(*) from seq_1_to_$opt_rows,$table where seq=l_extra and l_partkey >= 0");
 }
 
 
@@ -531,6 +571,37 @@ sub get_where_cost()
     $loop=10000000;
     # Return time in microseconds for one where (= optimizer_where_cost)
     return query_time("select benchmark($loop, l_commitDate >= '2000-01-01' and l_tax >= 0.0) from $table limit 1")/$loop;
+}
+
+
+# Run a query to be able to calculate the costs of filter
+
+sub cost_of_filtering()
+{
+    my ($query, $cost1, $cost2);
+    do_query("set \@\@max_rowid_filter_size=10000000," .
+              "optimizer_switch='rowid_filter=on',".
+              "\@\@optimizer_scan_setup_cost=1000000");
+    do_query("set \@old_cost=\@\@aria.OPTIMIZER_ROW_LOOKUP_COST");
+    do_query("set global aria.OPTIMIZER_ROW_LOOKUP_COST=1");
+    do_query("flush tables");
+    $cost1= run_query_with_analyze("range", "range", "range", 500000,
+                           "select count(l_discount) from check_costs_aria as t1 where t1.l_orderkey between 1 and 500000");
+    $cost2= run_query_with_analyze("range-all", "range-all", "range|filter", 500000,
+                           "select count(l_discount) from check_costs_aria as t1 where t1.l_orderkey between 1 and 500000 and l_linenumber between 1 and 500000");
+    $cost3= run_query_with_analyze("range-none","range-none", "range|filter", 500000,
+                           "select count(l_discount) from check_costs_aria as t1 where t1.l_orderkey between 1 and 500000 and l_linenumber between 500000 and 1000000");
+    do_query("set global aria.OPTIMIZER_ROW_LOOKUP_COST=\@old_cost");
+    do_query("flush tables");
+    print_costs("range", $cost1);
+    print_costs("filter-all",  $cost2);
+    print_costs("filter-none", $cost3);
+}
+
+sub gprof_cost_of_filtering()
+{
+    $cost2= run_query_with_analyze("gprof","range-all", "range|filter", 500000,
+                           "select count(l_discount) from check_costs_aria as t1 where t1.l_orderkey between 1 and 500000 and l_linenumber between 1 and 500000");
 }
 
 
@@ -564,12 +635,12 @@ sub query_time()
 
 sub run_query()
 {
-    my ($name, $type, $expected_rows, $query)= @_;
+    my ($full_name, $name, $type, $expected_rows, $query)= @_;
     my ($start_time,$end_time,$sth,@row,%res,$i,$optimizer_rows);
     my ($extra, $last_type, $adjust_cost, $ms);
     $adjust_cost=1.0;
 
-    print "Timing full query:\n$query\n";
+    print "Timing full query: $full_name\n$query\n";
 
     $sth= $dbh->prepare("explain $query") || die "Got error on 'explain $query': " . $dbh->errstr . "\n";
     $sth->execute || die "Got error on 'explain $query': " . $dbh->errstr . "\n";
@@ -645,7 +716,7 @@ sub run_query()
 
 sub run_query_with_analyze()
 {
-    my ($name, $type, $expected_rows, $query)= @_;
+    my ($full_name,$name, $type, $expected_rows, $query)= @_;
     my ($start_time,$end_time,$sth,@row,%res,$i,$j);
     my ($optimizer_rows, $optimizer_rows_first);
     my ($adjust_cost, $ms, $second_ms, $analyze, $local_where_cost);
@@ -663,7 +734,7 @@ sub run_query_with_analyze()
     }
     $optimizer_rows_first= undef;
 
-    print "Timing table access for query:\n$query\n";
+    print "Timing table access for query: $full_name\n$query\n";
 
     $sth= $dbh->prepare("explain $query") || die "Got error on 'explain $query': " . $dbh->errstr . "\n";
     $sth->execute || die "Got error on 'explain $query': " . $dbh->errstr . "\n";
@@ -747,6 +818,11 @@ sub run_query_with_analyze()
         {
             die "Found too many tables, program needs to be extended!"
         }
+        # Add cost of filtering
+        while ($analyze =~ /r_filling_time_ms": ([0-9.]*)/g)
+        {
+            $tot_ms= $tot_ms+ $1;
+        }
     }
     }
     else
@@ -827,6 +903,13 @@ sub run_query_with_analyze()
     $res{'where_cost'}= $local_where_cost;
     $res{'time'}= $ms;
     return \%res;
+}
+
+
+sub do_query()
+{
+    my ($query)= @_;
+    $dbh->do($query) || die "Got error on '$query': " . $dbh->errstr . "\n";
 }
 
 

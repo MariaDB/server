@@ -9127,6 +9127,7 @@ static int run_fill_optimizer_costs_tables(const LEX_CSTRING *name,
   table->field[9]->store(fix_cost(costs->row_lookup_cost*1000.0));
   table->field[10]->store(fix_cost(costs->row_next_find_cost*1000.0));
   table->field[11]->store(fix_cost(costs->rowid_cmp_cost*1000.0));
+  table->field[12]->store(fix_cost(costs->rowid_copy_cost*1000.0));
 
   DBUG_RETURN(schema_table_store_record(thd, table));
 }
@@ -9784,6 +9785,7 @@ ST_FIELD_INFO optimizer_costs_fields_info[]=
   Column("OPTIMIZER_ROW_LOOKUP_COST",           Decimal(906), NOT_NULL),
   Column("OPTIMIZER_ROW_NEXT_FIND_COST",        Decimal(906), NOT_NULL),
   Column("OPTIMIZER_ROWID_COMPARE_COST",        Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_ROWID_COPY_COST",           Decimal(906), NOT_NULL),
   CEnd()
 };
 

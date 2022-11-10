@@ -62,6 +62,8 @@ static void heap_update_optimizer_costs(OPTIMIZER_COSTS *costs)
   costs->key_lookup_cost= 0;
   costs->key_next_find_cost= 0;
   costs->index_block_copy_cost= 0;
+  costs->rowid_copy_cost= 0.000001;        // Just a short memcopy
+  costs->rowid_cmp_cost=  0.000001;        // Just a short memcmp
 }
 
 int heap_init(void *p)

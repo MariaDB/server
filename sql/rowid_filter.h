@@ -393,7 +393,7 @@ class Range_rowid_filter_cost_info final: public Sql_alloc
   /* The index whose range scan would be used to build the range filter */
   uint key_no;
   double cost_of_building_range_filter;
-  double where_cost, key_next_find_cost, rowid_compare_cost;
+  double where_cost, base_lookup_cost, rowid_compare_cost;
 
   /*
      (gain*row_combinations)-cost_of_building_range_filter yields the gain of
