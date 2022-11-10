@@ -1555,8 +1555,6 @@ retry_page_get:
 	block = buf_page_get_gen(page_id, zip_size, rw_latch, guess,
 				 buf_mode, mtr, &err,
 				 height == 0 && !index->is_clust());
-	tree_blocks[n_blocks] = block;
-
 	if (!block) {
 		switch (err) {
 		case DB_SUCCESS:
@@ -1643,10 +1641,10 @@ retry_page_get:
 		goto retry_page_get;
 	}
 
+	tree_blocks[n_blocks] = block;
+
 	if (height && prev_tree_blocks) {
 		/* also latch left sibling */
-		buf_block_t*	get_block;
-
 		ut_ad(rw_latch == RW_NO_LATCH);
 
 		rw_latch = upper_rw_latch;
@@ -1661,43 +1659,25 @@ retry_page_get:
 
 			prev_tree_savepoints[prev_n_blocks]
 				= mtr_set_savepoint(mtr);
-			get_block = buf_page_get_gen(
+			buf_block_t* get_block = buf_page_get_gen(
 				page_id_t(page_id.space(), left_page_no),
 				zip_size, rw_latch, NULL, buf_mode,
 				mtr, &err);
-			prev_tree_blocks[prev_n_blocks] = get_block;
-			prev_n_blocks++;
-
 			if (!get_block) {
 				if (err == DB_DECRYPTION_FAILED) {
 					btr_decryption_failed(*index);
 				}
-
 				goto func_exit;
 			}
 
+			prev_tree_blocks[prev_n_blocks++] = get_block;
 			/* BTR_MODIFY_TREE doesn't update prev/next_page_no,
 			without their parent page's lock. So, not needed to
 			retry here, because we have the parent page's lock. */
 		}
 
-		/* release RW_NO_LATCH page and lock with RW_S_LATCH */
-		mtr_release_block_at_savepoint(
-			mtr, tree_savepoints[n_blocks],
-			tree_blocks[n_blocks]);
-
-		tree_savepoints[n_blocks] = mtr_set_savepoint(mtr);
-		block = buf_page_get_gen(page_id, zip_size,
-					 rw_latch, NULL, buf_mode, mtr, &err);
-		tree_blocks[n_blocks] = block;
-
-		if (!block) {
-			if (err == DB_DECRYPTION_FAILED) {
-				btr_decryption_failed(*index);
-			}
-
-			goto func_exit;
-		}
+		mtr->s_lock_register(tree_savepoints[n_blocks]);
+		block->page.lock.s_lock();
 	}
 
 	page = buf_block_get_frame(block);

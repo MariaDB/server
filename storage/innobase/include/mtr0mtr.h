@@ -345,6 +345,15 @@ public:
     slot->type= MTR_MEMO_PAGE_SX_FIX;
   }
 
+  /** Register a page latch on a buffer-fixed block was buffer-fixed.
+  @param latch   latch type */
+  void s_lock_register(ulint savepoint)
+  {
+    mtr_memo_slot_t *slot= m_memo.at<mtr_memo_slot_t*>(savepoint);
+    ut_ad(slot->type == MTR_MEMO_BUF_FIX);
+    slot->type= MTR_MEMO_PAGE_S_FIX;
+  }
+
   /** Upgrade U locks on a block to X */
   void page_lock_upgrade(const buf_block_t &block);
   /** Upgrade X lock to X */
