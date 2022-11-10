@@ -1148,6 +1148,7 @@ public:
 		}
 
 		mtr.commit();
+		clear();
 	}
 
 	/** Clear the data structure */
