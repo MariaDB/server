@@ -1340,7 +1340,7 @@ purge_node_t::validate_pcur()
 		return(true);
 	}
 
-	if (!pcur.old_stored) {
+	if (!pcur.old_rec) {
 		return(true);
 	}
 

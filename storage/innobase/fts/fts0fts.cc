@@ -3347,7 +3347,6 @@ fts_add_doc_by_id(
 	is_id_cluster = (clust_index == fts_id_index);
 
 	mtr_start(&mtr);
-	btr_pcur_init(&pcur);
 
 	/* Search based on Doc ID. Here, we'll need to consider the case
 	when there is no primary index on Doc ID */

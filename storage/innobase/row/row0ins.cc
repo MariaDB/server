@@ -1138,6 +1138,7 @@ row_ins_foreign_check_on_constraint(
 
 		ref = row_build_row_ref(ROW_COPY_POINTERS, index, rec,
 					tmp_heap);
+		cascade->pcur->old_rec = nullptr;
 		err = btr_pcur_open_with_no_init(clust_index, ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
 						 cascade->pcur, mtr);

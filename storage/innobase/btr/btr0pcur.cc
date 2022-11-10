@@ -63,7 +63,6 @@ btr_pcur_reset(
 	cursor->old_rec = NULL;
 	cursor->old_n_core_fields = 0;
 	cursor->old_n_fields = 0;
-	cursor->old_stored = false;
 
 	cursor->latch_mode = BTR_NO_LATCHES;
 	cursor->pos_state = BTR_PCUR_NOT_POSITIONED;
@@ -124,8 +123,6 @@ btr_pcur_store_position(
 	      || (index->is_spatial()
 		  && mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
 						| MTR_MEMO_SX_LOCK)));
-
-	cursor->old_stored = true;
 
 	if (page_is_empty(block->page.frame)) {
 		/* It must be an empty index tree; NOTE that in this case
@@ -301,7 +298,6 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, mtr_t *mtr)
 	mem_heap_t*	heap;
 
 	ut_ad(mtr->is_active());
-	//ut_ad(cursor->old_stored);
 	ut_ad(pos_state == BTR_PCUR_WAS_POSITIONED
 	      || pos_state == BTR_PCUR_IS_POSITIONED);
 
@@ -450,7 +446,6 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, mtr_t *mtr)
 			block_when_stored.store(btr_pcur_get_block(this));
 			modify_clock= buf_block_get_modify_clock(
 			    block_when_stored.block());
-			old_stored= true;
 
 			mem_heap_free(heap);
 
@@ -487,7 +482,7 @@ btr_pcur_move_to_next_page(
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 	ut_ad(btr_pcur_is_after_last_on_page(cursor));
 
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 
 	const page_t* page = btr_pcur_get_page(cursor);
 	const uint32_t next_page_no = btr_page_get_next(page);
@@ -594,7 +589,7 @@ btr_pcur_move_backward_from_page(
 	}
 
 	cursor->latch_mode = latch_mode;
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 	return false;
 }
 
@@ -612,7 +607,7 @@ btr_pcur_move_to_prev(
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 
 	if (btr_pcur_is_before_first_on_page(cursor)) {
 		return (!btr_pcur_is_before_first_in_tree(cursor)

@@ -2402,8 +2402,8 @@ ulint ibuf_contract()
 	/* Open a cursor to a randomly chosen leaf of the tree, at a random
 	position within the leaf */
 	pcur.pos_state = BTR_PCUR_IS_POSITIONED;
-	pcur.old_stored = false;
-	pcur.trx_if_known = NULL;
+	pcur.old_rec = nullptr;
+	pcur.trx_if_known = nullptr;
 	pcur.search_mode = PAGE_CUR_G;
 	pcur.latch_mode = BTR_SEARCH_LEAF;
 

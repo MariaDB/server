@@ -1571,7 +1571,7 @@ dberr_t IndexPurge::next() noexcept
 		return DB_CORRUPTION;
 	}
 	/* The following is based on btr_pcur_move_to_next_user_rec(). */
-	m_pcur.old_stored = false;
+	m_pcur.old_rec = nullptr;
 	ut_ad(m_pcur.latch_mode == BTR_MODIFY_LEAF);
 	do {
 		if (btr_pcur_is_after_last_on_page(&m_pcur)) {

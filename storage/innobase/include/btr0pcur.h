@@ -381,8 +381,6 @@ struct btr_pcur_t{
 	we say then that the cursor is detached; it can be restored to
 	attached if the old position was stored in old_rec */
 	ulint		latch_mode;
-	/** true if old_rec is stored */
-	bool		old_stored;
 	/** if cursor position is stored, contains an initial segment of the
 	latest record cursor was positioned either on, before or after */
 	rec_t*		old_rec;
@@ -416,7 +414,7 @@ struct btr_pcur_t{
 
 	btr_pcur_t() :
 		btr_cur(), latch_mode(RW_NO_LATCH),
-		old_stored(false), old_rec(NULL),
+		old_rec(NULL),
 		old_n_fields(0), rel_pos(btr_pcur_pos_t(0)),
 		block_when_stored(),
 		modify_clock(0), pos_state(BTR_PCUR_NOT_POSITIONED),

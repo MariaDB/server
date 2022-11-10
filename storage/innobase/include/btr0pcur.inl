@@ -36,7 +36,6 @@ btr_pcur_get_rel_pos(
 {
 	ut_ad(cursor);
 	ut_ad(cursor->old_rec);
-	ut_ad(cursor->old_stored);
 	ut_ad(cursor->pos_state == BTR_PCUR_WAS_POSITIONED
 	      || cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 
@@ -163,7 +162,7 @@ btr_pcur_move_to_next_on_page(
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 	return page_cur_move_to_next(btr_pcur_get_page_cur(cursor));
 }
 
@@ -177,7 +176,7 @@ btr_pcur_move_to_prev_on_page(
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 
 	return page_cur_move_to_prev(btr_pcur_get_page_cur(cursor));
 }
@@ -196,7 +195,7 @@ btr_pcur_move_to_next_user_rec(
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 loop:
 	if (btr_pcur_is_after_last_on_page(cursor)) {
 		if (btr_pcur_is_after_last_in_tree(cursor)
@@ -230,7 +229,7 @@ btr_pcur_move_to_next(
   ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
   ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
-  cursor->old_stored= false;
+  cursor->old_rec= nullptr;
 
   if (btr_pcur_is_after_last_on_page(cursor))
     return !btr_pcur_is_after_last_in_tree(cursor) &&
@@ -294,7 +293,6 @@ btr_pcur_init(
 /*==========*/
 	btr_pcur_t*	pcur)	/*!< in: persistent cursor */
 {
-	pcur->old_stored = false;
 	pcur->old_rec_buf = NULL;
 	pcur->old_rec = NULL;
 
@@ -363,7 +361,6 @@ dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
   cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode);
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
-  cursor->old_stored= false;
   cursor->trx_if_known= nullptr;
 
   /* Search with the tree cursor */
@@ -402,7 +399,7 @@ btr_pcur_open_at_index_side(
 		btr_pcur_get_btr_cur(pcur), level, mtr);
 	pcur->pos_state = BTR_PCUR_IS_POSITIONED;
 
-	pcur->old_stored = false;
+	pcur->old_rec = nullptr;
 
 	pcur->trx_if_known = NULL;
 
@@ -425,25 +422,21 @@ btr_pcur_close(
 /*===========*/
 	btr_pcur_t*	cursor)	/*!< in: persistent cursor */
 {
-	ut_free(cursor->old_rec_buf);
+  ut_free(cursor->old_rec_buf);
 
-	if (cursor->btr_cur.rtr_info) {
-		rtr_clean_rtr_info(cursor->btr_cur.rtr_info, true);
-		cursor->btr_cur.rtr_info = NULL;
-	}
+  if (cursor->btr_cur.rtr_info)
+    rtr_clean_rtr_info(cursor->btr_cur.rtr_info, true);
 
-	cursor->old_rec = NULL;
-	cursor->old_rec_buf = NULL;
-	cursor->btr_cur.page_cur.rec = NULL;
-	cursor->btr_cur.page_cur.block = NULL;
+  cursor->btr_cur.rtr_info= nullptr;
+  cursor->old_rec = nullptr;
+  cursor->old_rec_buf = nullptr;
+  cursor->btr_cur.page_cur.rec = nullptr;
+  cursor->btr_cur.page_cur.block = nullptr;
 
-	cursor->old_rec = NULL;
-	cursor->old_stored = false;
+  cursor->latch_mode = BTR_NO_LATCHES;
+  cursor->pos_state = BTR_PCUR_NOT_POSITIONED;
 
-	cursor->latch_mode = BTR_NO_LATCHES;
-	cursor->pos_state = BTR_PCUR_NOT_POSITIONED;
-
-	cursor->trx_if_known = NULL;
+  cursor->trx_if_known = nullptr;
 }
 
 /*********************************************************//**
@@ -459,5 +452,5 @@ btr_pcur_move_before_first_on_page(
 	page_cur_set_before_first(btr_pcur_get_block(cursor),
 		btr_pcur_get_page_cur(cursor));
 
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 }

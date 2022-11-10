@@ -1018,7 +1018,7 @@ row_sel_get_clust_rec(
 	row_build_row_ref_fast(plan->clust_ref, plan->clust_map, rec, offsets);
 
 	index = dict_table_get_first_index(plan->table);
-
+	plan->clust_pcur.old_rec = nullptr;
 	dberr_t err = btr_pcur_open_with_no_init(index, plan->clust_ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
 						 &plan->clust_pcur, mtr);
@@ -1410,6 +1410,8 @@ row_sel_open_pcur(
 
 		cond = UT_LIST_GET_NEXT(cond_list, cond);
 	}
+
+	plan->pcur.old_rec = nullptr;
 
 	dberr_t err;
 
@@ -3371,6 +3373,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	rec_t*		old_vers;
 	trx_t*		trx;
 
+	prebuilt->clust_pcur->old_rec = nullptr;
 	*out_rec = NULL;
 	trx = thr_get_trx(thr);
 
@@ -3965,6 +3968,7 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(!index->table->is_temporary());
 	ut_ad(!prebuilt->templ_contains_blob);
 	ut_ad(trx->read_view.is_open());
+	pcur->old_rec = nullptr;
 
 	if (btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
 				       BTR_SEARCH_LEAF, pcur, mtr)
@@ -4767,6 +4771,7 @@ wait_table_again:
 
 	} else if (dtuple_get_n_fields(search_tuple) > 0) {
 		pcur->btr_cur.thr = thr;
+		pcur->old_rec = nullptr;
 
 		if (dict_index_is_spatial(index)) {
 			if (!prebuilt->rtr_info) {
@@ -5020,7 +5025,7 @@ wrong_offs:
 
 			page_cur_set_after_last(btr_pcur_get_block(pcur),
 						btr_pcur_get_page_cur(pcur));
-			pcur->old_stored = false;
+			pcur->old_rec = nullptr;
 			goto next_rec;
 		}
 	}
@@ -5786,7 +5791,7 @@ next_rec_after_check:
 			/* This is based on btr_pcur_move_to_next() */
 			ut_ad(pcur->pos_state == BTR_PCUR_IS_POSITIONED);
 			ut_ad(pcur->latch_mode != BTR_NO_LATCHES);
-			pcur->old_stored = false;
+			pcur->old_rec = nullptr;
 			if (btr_pcur_is_after_last_on_page(pcur)) {
 				if (btr_pcur_is_after_last_in_tree(pcur)) {
 					goto not_moved;
@@ -6197,8 +6202,6 @@ dberr_t row_check_index(row_prebuilt_t *prebuilt, ulint *n_rows)
 
   *n_rows= 0;
   dict_index_t *const index= prebuilt->index;
-
-  prebuilt->fetch_direction= ROW_SEL_NEXT;
 
   if (!index->is_btree())
     return DB_CORRUPTION;
