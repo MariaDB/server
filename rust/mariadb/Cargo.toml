@@ -1,0 +1,8 @@
+[package]
+name = "mariadb-server"
+version = "0.1.0"
+edition = '2021'
+
+
+[dependencies]
+mariadb-server-sys = { path = "../bindings" }

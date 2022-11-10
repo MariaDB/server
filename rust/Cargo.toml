@@ -3,4 +3,8 @@
 [workspace]
 
 members = [
+    "bindings",
+    "mariadb",
+    "macros",
+    "examples"
 ]

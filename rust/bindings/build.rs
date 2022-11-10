@@ -1,3 +1,5 @@
+// extern crate bindgen;
+
 use std::env;
 use std::path::PathBuf;
 
@@ -5,11 +7,11 @@ use bindgen::EnumVariation;
 
 fn main() {
     // Tell cargo to look for shared libraries in the specified directory
-    println!("cargo:rustc-link-search=/path/to/lib");
+    // println!("cargo:rustc-link-search=/path/to/lib");
 
     // Tell cargo to tell rustc to link the system bzip2
     // shared library.
-    println!("cargo:rustc-link-lib=bz2");
+    // println!("cargo:rustc-link-lib=bz2");
 
     // Tell cargo to invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=wrapper.h");
@@ -21,13 +23,19 @@ fn main() {
         // The input header we would like to generate
         // bindings for.
         .header("src/wrapper.h")
+        .clang_arg("-I../../include/")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         // Don't derive copy for structs
         .derive_copy(false)
         // Use rust-style enums labeled with non_exhaustive to represent C enums
-        .default_enum_style(EnumVariation::Rust{non_exhaustive: true})
+        .default_enum_style(EnumVariation::Rust {
+            non_exhaustive: true,
+        })
+        // LLVM has some issues with long dobule and ABI compatibility
+        // disabling the only relevant function here to suppress errors
+        .blocklist_function("strtold")
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.

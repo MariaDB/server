@@ -1,8 +1,8 @@
 use std::time::{Instant, Duration};
 use std::sync::Mutex;
 
-use mariadb::plugin;
-use mariadb::plugin::prelude::*;
+use mariadb_server::plugin;
+// use mariadb_server::plugin::prelude::*;
 
 plugin_encryption!{
     type: RustEncryption,
