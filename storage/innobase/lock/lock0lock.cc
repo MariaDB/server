@@ -6487,6 +6487,7 @@ static my_bool wsrep_BF_lock_waiters_collect(rw_trx_hash_element_t *element,
       catch (const std::bad_alloc &)
       {
         ib::warn() << "WSREP: Failed to alloc memory for bf_waiters";
+        element->mutex.wr_unlock();
         return 1;
       }
     }
@@ -6516,16 +6517,6 @@ void wsrep_run_BF_lock_wait_watchdog()
   {
     lock_wait_wsrep(trx);
     trx->release_reference();
-  }
-
-  if (waiters.max_wait_time >= 60)
-  {
-    ib::warn() << "WSREP: BF lock wait long " << waiters.max_wait_time
-               << " seconds";
-    srv_print_innodb_monitor= true;
-    srv_print_innodb_lock_monitor= true;
-    /* We are currently running in server monitor thread, no need to wake
-       up. */
   }
 
   auto elapsed= (my_hrtime_coarse().val - start_time.val) / HRTIME_RESOLUTION;
