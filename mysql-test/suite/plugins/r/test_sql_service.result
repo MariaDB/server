@@ -1,3 +1,4 @@
+reset master;
 install plugin test_sql_service soname 'test_sql_service';
 show status like 'test_sql_service_passed';
 Variable_name	Value

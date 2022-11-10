@@ -1791,6 +1791,7 @@ private:
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
   bool add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *fields);
+  void free_pushdown_handlers(List<TABLE_LIST>& join_list);
   void init_join_cache_and_keyread();
   bool transform_in_predicates_into_equalities(THD *thd);
   bool transform_all_conds_and_on_exprs(THD *thd,
@@ -2470,8 +2471,6 @@ public:
   derived_handler *handler;
 
   Pushdown_derived(TABLE_LIST *tbl, derived_handler *h);
-
-  ~Pushdown_derived();
 
   int execute(); 
 };

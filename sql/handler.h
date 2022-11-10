@@ -5129,18 +5129,8 @@ public:
     These functions check for such possibility.
     Implementation could be based on Field_xxx::is_equal()
    */
-  virtual bool can_convert_string(const Field_string *field,
-                                  const Column_definition &new_type) const
-  {
-    return false;
-  }
-  virtual bool can_convert_varstring(const Field_varstring *field,
-                                     const Column_definition &new_type) const
-  {
-    return false;
-  }
-  virtual bool can_convert_blob(const Field_blob *field,
-                                const Column_definition &new_type) const
+  virtual bool can_convert_nocopy(const Field &,
+                                  const Column_definition &) const
   {
     return false;
   }

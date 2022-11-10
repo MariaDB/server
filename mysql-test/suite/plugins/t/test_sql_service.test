@@ -1,6 +1,8 @@
 --source include/not_embedded.inc
 --source include/have_log_bin.inc
 
+reset master; # clear binlogs
+
 if (!$TEST_SQL_SERVICE_SO) {
   skip No TEST_SQL_SERVICE plugin;
 }

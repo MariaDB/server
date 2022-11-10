@@ -1835,6 +1835,16 @@ drop tables t1, tp1;
 }
 
 --echo #
+--echo # MDEV-29841 Partition by system_time can be converted into table but not back
+--echo #
+create or replace table t (a int) with system versioning
+partition by system_time limit 10 partitions 3;
+alter table t convert partition p0 to table tp;
+--error ER_ONLY_ON_RANGE_LIST_PARTITION
+alter table t convert table tp to partition p0;
+drop tables t, tp;
+
+--echo #
 --echo # End of 10.7 tests
 --echo #
 

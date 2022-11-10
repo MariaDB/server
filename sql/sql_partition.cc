@@ -5033,6 +5033,13 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
     if ((alter_info->partition_flags & ALTER_PARTITION_ADD) ||
         (alter_info->partition_flags & ALTER_PARTITION_REORGANIZE))
     {
+      if ((alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN) &&
+          !(tab_part_info->part_type == RANGE_PARTITION ||
+            tab_part_info->part_type == LIST_PARTITION))
+      {
+        my_error(ER_ONLY_ON_RANGE_LIST_PARTITION, MYF(0), "CONVERT TABLE TO");
+        goto err;
+      }
       if (thd->work_part_info->part_type != tab_part_info->part_type)
       {
         if (thd->work_part_info->part_type == NOT_A_PARTITION)
@@ -5106,13 +5113,6 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
     }
     if (alter_info->partition_flags & ALTER_PARTITION_ADD)
     {
-      if ((alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN) &&
-          !(tab_part_info->part_type == RANGE_PARTITION ||
-            tab_part_info->part_type == LIST_PARTITION))
-      {
-        my_error(ER_ONLY_ON_RANGE_LIST_PARTITION, MYF(0), "CONVERT TABLE TO");
-        goto err;
-      }
       if (*fast_alter_table && thd->locked_tables_mode)
       {
         MEM_ROOT *old_root= thd->mem_root;

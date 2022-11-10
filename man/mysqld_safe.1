@@ -340,7 +340,9 @@ program to set the server\'s scheduling priority to the given value\&.
 .\}
 .\" mysqld_safe: no-auto-restart option
 .\" no-auto-restart option: mysqld_safe
-\fB\-\-no\-auto\-restart\fR
+\fB\-\-no\-auto\-restart\fR,
+\fB\-\-nowatch\fR,
+\fB\-\-no\-watch\fR
 .sp
 Exit after starting mysqld\&.
 .RE
@@ -358,21 +360,6 @@ Exit after starting mysqld\&.
 \fB\-\-no\-defaults\fR
 .sp
 Do not read any option files\&. This must be the first option on the command line if it is used\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqld_safe: no-watch option
-.\" no-watch option: mysqld_safe
-\fB\-\-no\-auto\-restart\fR
-.sp
-Exit after starting mysqld\&.
 .RE
 .sp
 .RS 4

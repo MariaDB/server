@@ -267,8 +267,7 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
         if (btr_defragment_active)
           btr_defragment_remove_table(table);
         const fil_space_t *space= table->space;
-        ut_ad(!strstr(table->name.m_name, "/FTS_") ||
-              purge_sys.must_wait_FTS());
+        ut_ad(!p.second.is_aux_table() || purge_sys.must_wait_FTS());
         dict_sys.remove(table);
         if (const auto id= space ? space->id : 0)
         {

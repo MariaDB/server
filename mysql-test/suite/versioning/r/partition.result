@@ -2314,6 +2314,15 @@ t1	CREATE TABLE `t1` (
  PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
 drop tables t1, tp1;
 #
+# MDEV-29841 Partition by system_time can be converted into table but not back
+#
+create or replace table t (a int) with system versioning
+partition by system_time limit 10 partitions 3;
+alter table t convert partition p0 to table tp;
+alter table t convert table tp to partition p0;
+ERROR HY000: CONVERT TABLE TO PARTITION can only be used on RANGE/LIST partitions
+drop tables t, tp;
+#
 # End of 10.7 tests
 #
 #

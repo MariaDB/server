@@ -5,6 +5,7 @@
 # recovery process with such numbers.
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/no_valgrind_without_big.inc
 
 --let MYSQLD_DATADIR= `select @@datadir`
 let $MYSQLD_BOOTSTRAP_CMD= $MYSQLD_BOOTSTRAP_CMD --datadir=$MYSQLD_DATADIR --tmpdir=$MYSQL_TMP_DIR --debug-dbug=+d,innodb_small_log_block_no_limit;

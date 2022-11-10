@@ -1598,12 +1598,22 @@ disconnect b;
 
 set foreign_key_checks=0;
 create table t2 (a int primary key, b int, foreign key (b) references t1(a)) engine = innodb;
+create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
+set foreign_key_checks=1;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (1,1);
+set foreign_key_checks=0;
+drop table t1;
+set foreign_key_checks=1;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (1,1);
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLTEST_VARDIR . master-data/ ''
 --error ER_CANT_CREATE_TABLE
 create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
-set foreign_key_checks=1;
 drop table t2;
+create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
+drop table t1;
 
 # test that FKs between different charsets are not accepted in CREATE even
 # when f_k_c is 0

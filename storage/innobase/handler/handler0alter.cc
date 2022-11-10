@@ -7301,13 +7301,10 @@ error_handling_drop_uncached:
 				goto error_handling;
 			}
 
-			ctx->new_table->fts->dict_locked = true;
-
 			error = innobase_fts_load_stopword(
 				ctx->new_table, ctx->trx,
 				ctx->prebuilt->trx->mysql_thd)
 				? DB_SUCCESS : DB_ERROR;
-			ctx->new_table->fts->dict_locked = false;
 
 			if (error != DB_SUCCESS) {
 				goto error_handling;
@@ -9901,7 +9898,7 @@ innobase_update_foreign_cache(
 
 	err = dict_load_foreigns(user_table->name.m_name,
 				 ctx->col_names, 1, true,
-				 DICT_ERR_IGNORE_NONE,
+				 DICT_ERR_IGNORE_FK_NOKEY,
 				 fk_tables);
 
 	if (err == DB_CANNOT_ADD_CONSTRAINT) {

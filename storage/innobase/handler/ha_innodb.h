@@ -190,12 +190,12 @@ public:
 
 	void update_create_info(HA_CREATE_INFO* create_info) override;
 
-	inline int create(
+	int create(
 		const char*		name,
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info,
 		bool			file_per_table,
-		trx_t*			trx = NULL);
+		trx_t*			trx);
 
 	int create(
 		const char*		name,
@@ -225,7 +225,7 @@ public:
 
 	uint referenced_by_foreign_key() override;
 
-	void free_foreign_key_create_info(char* str) override;
+	void free_foreign_key_create_info(char* str) override { my_free(str); }
 
 	uint lock_count(void) const override;
 
@@ -422,15 +422,9 @@ public:
 	@retval	false if pushed (always) */
 	bool rowid_filter_push(Rowid_filter *rowid_filter) override;
 
-	bool
-	can_convert_string(const Field_string* field,
-			   const Column_definition& new_field) const override;
-	bool can_convert_varstring(
-	    const Field_varstring* field,
-	    const Column_definition& new_field) const override;
-	bool
-	can_convert_blob(const Field_blob* field,
-			 const Column_definition& new_field) const override;
+	bool can_convert_nocopy(const Field &field,
+				const Column_definition& new_field) const
+		override;
 
 	/** @return whether innodb_strict_mode is active */
 	static bool is_innodb_strict_mode(THD* thd);
@@ -445,6 +439,16 @@ public:
 			  const KEY_PART_INFO& new_part) const override;
 
 protected:
+	bool
+	can_convert_string(const Field_string* field,
+			   const Column_definition& new_field) const;
+	bool can_convert_varstring(
+	    const Field_varstring* field,
+	    const Column_definition& new_field) const;
+	bool
+	can_convert_blob(const Field_blob* field,
+			 const Column_definition& new_field) const;
+
 	dberr_t innobase_get_autoinc(ulonglong* value);
 	dberr_t innobase_lock_autoinc();
 	ulonglong innobase_peek_autoinc();
@@ -639,8 +643,9 @@ public:
 	@param create_fk	whether to add FOREIGN KEY constraints */
 	int create_table(bool create_fk = true);
 
-	/** Update the internal data dictionary. */
-	int create_table_update_dict();
+  static void create_table_update_dict(dict_table_t* table, THD* thd,
+                                       const HA_CREATE_INFO& info,
+                                       const TABLE& t);
 
 	/** Validates the create options. Checks that the options
 	KEY_BLOCK_SIZE, ROW_FORMAT, DATA DIRECTORY, TEMPORARY & TABLESPACE
@@ -700,12 +705,13 @@ public:
 	trx_t* trx() const
 	{ return(m_trx); }
 
-	/** Return table name. */
-	const char* table_name() const
-	{ return(m_table_name); }
+	/** @return table name */
+	const char* table_name() const { return(m_table_name); }
 
-	THD* thd() const
-	{ return(m_thd); }
+	/** @return the created table */
+	dict_table_t *table() const { return m_table; }
+
+	THD* thd() const { return(m_thd); }
 
 private:
 	/** Parses the table name into normal name and either temp path or

@@ -2391,9 +2391,8 @@ need_opposite_intention:
 		page hash index, while holding search latch. */
 		if (!btr_search_enabled) {
 		} else if (tuple->info_bits & REC_INFO_MIN_REC_FLAG) {
-			ut_ad(index->is_instant());
 			/* This may be a search tuple for
-			btr_pcur_restore_position(). */
+			btr_pcur_t::restore_position(). */
 			ut_ad(tuple->is_metadata()
 			      || (tuple->is_metadata(tuple->info_bits
 						     ^ REC_STATUS_INSTANT)));
