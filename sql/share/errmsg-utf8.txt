@@ -9773,9 +9773,9 @@ ER_UNUSED_23
         spa "Nunca debería vd de ver esto"
 
 ER_PARTITION_WRONG_TYPE
-        chi "错误的分区类型，预期类型：%`s for partitioning by %`s"
-        eng "Wrong partition type %`s for partitioning by %`s"
-        spa "Tipo de partición equivocada, tipo esperado: %`s for partitioning by %`s"
+        chi "错误的分区类型，预期类型：%`s"
+        eng "Wrong partitioning type, expected type: %`s"
+        spa "Tipo de partición equivocada, tipo esperado: %`s"
 
 WARN_VERS_PART_FULL
         chi "版本化表%`s.%`s：partition%`s已满，添加更多历史分区(out of %s)"
