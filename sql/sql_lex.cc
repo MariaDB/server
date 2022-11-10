@@ -9761,7 +9761,7 @@ bool LEX::part_values_current(THD *thd)
   {
     if (unlikely(part_info->part_type != VERSIONING_PARTITION))
     {
-      part_type_error(thd, NULL, "CURRENT", part_info);
+      my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
       return true;
     }
   }
@@ -9788,7 +9788,7 @@ bool LEX::part_values_history(THD *thd)
   {
     if (unlikely(part_info->part_type != VERSIONING_PARTITION))
     {
-      part_type_error(thd, NULL, "HISTORY", part_info);
+      my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
       return true;
     }
   }
