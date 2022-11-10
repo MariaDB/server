@@ -838,29 +838,6 @@ mtr_t::memo_release(const void* object, ulint type)
 	return(false);
 }
 
-/** Release a page latch.
-@param[in]	ptr	pointer to within a page frame
-@param[in]	type	object type: MTR_MEMO_PAGE_X_FIX, ... */
-void
-mtr_t::release_page(const void* ptr, mtr_memo_type_t type)
-{
-	ut_ad(is_active());
-
-	/* We cannot release a page that has been written to in the
-	middle of a mini-transaction. */
-	ut_ad(!m_modifications || type != MTR_MEMO_PAGE_X_FIX);
-
-	Iterate<FindPage> iteration(FindPage(ptr, type));
-
-	if (!m_memo.for_each_block_in_reverse(iteration)) {
-		memo_slot_release(iteration.functor.get_slot());
-		return;
-	}
-
-	/* The page was not found! */
-	ut_ad(0);
-}
-
 static bool log_margin_warned;
 static time_t log_margin_warn_time;
 static bool log_close_warned;

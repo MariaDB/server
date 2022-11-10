@@ -295,10 +295,6 @@ struct mtr_t {
   @param type	object type
   @return bool if lock released */
   bool memo_release(const void *object, ulint type);
-  /** Release a page latch.
-  @param[in]	ptr	pointer to within a page frame
-  @param[in]	type	object type: MTR_MEMO_PAGE_X_FIX, ... */
-  void release_page(const void *ptr, mtr_memo_type_t type);
 
   /** Note that the mini-transaction will modify data. */
   void flag_modified() { m_modifications = true; }
