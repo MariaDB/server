@@ -103,8 +103,8 @@ enum btr_latch_mode {
 	BTR_SEARCH_TREE_ALREADY_S_LATCHED = BTR_SEARCH_TREE
 	| BTR_ALREADY_S_LATCHED,
 	/** Search and X-latch a leaf page, assuming that the
-	dict_index_t::lock S-latch is being held. */
-	BTR_MODIFY_LEAF_ALREADY_S_LATCHED = BTR_MODIFY_LEAF
+	dict_index_t::lock is being held in non-exclusive mode. */
+	BTR_MODIFY_LEAF_ALREADY_LATCHED = BTR_MODIFY_LEAF
 	| BTR_ALREADY_S_LATCHED,
 
 	/** Attempt to delete-mark a secondary index record. */
@@ -146,10 +146,6 @@ the insert buffer to speed up inserts */
 to find proper rec to undo insert.*/
 #define BTR_RTREE_UNDO_INS	4096U
 
-/** In the case of BTR_MODIFY_LEAF, the caller intends to allocate or
-free the pages of externally stored fields. */
-#define BTR_MODIFY_EXTERNAL	16384U
-
 /** Try to delete mark the record at the searched position when the
 record is in spatial index */
 #define BTR_RTREE_DELETE_MARK	16384U
@@ -163,13 +159,11 @@ record is in spatial index */
 				| BTR_IGNORE_SEC_UNIQUE		\
 				| BTR_ALREADY_S_LATCHED		\
 				| BTR_LATCH_FOR_INSERT		\
-				| BTR_LATCH_FOR_DELETE		\
-				| BTR_MODIFY_EXTERNAL)))
+				| BTR_LATCH_FOR_DELETE)))
 
 #define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)		\
 	((latch_mode) & ulint(~(BTR_LATCH_FOR_INSERT		\
-				| BTR_LATCH_FOR_DELETE		\
-				| BTR_MODIFY_EXTERNAL)))
+				| BTR_LATCH_FOR_DELETE)))
 
 /**************************************************************//**
 Checks and adjusts the root node of a tree during IMPORT TABLESPACE.

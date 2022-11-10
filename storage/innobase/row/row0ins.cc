@@ -2574,7 +2574,7 @@ row_ins_clust_index_entry_low(
 		} else {
 			if (mode == BTR_MODIFY_LEAF
 			    && dict_index_is_online_ddl(index)) {
-				mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
+				mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
 				mtr_s_lock_index(index, &mtr);
 			}
 
