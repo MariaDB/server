@@ -23,8 +23,7 @@
 #include "rpl_rli.h"
 #include "log_event.h"
 #include "sql_parse.h"
-#include "mysqld.h"   // start_wsrep_THD();
-#include "wsrep_applier.h"   // start_wsrep_THD();
+#include "wsrep_mysqld.h"   // start_wsrep_THD();
 #include "mysql/service_wsrep.h"
 #include "debug_sync.h"
 #include "slave.h"

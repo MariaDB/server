@@ -2901,7 +2901,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 
 void* start_wsrep_THD(void *arg)
 {
-  THD *thd;
+  THD *thd= NULL;
 
   Wsrep_thd_args* thd_args= (Wsrep_thd_args*) arg;
 
@@ -2939,10 +2939,6 @@ void* start_wsrep_THD(void *arg)
   thd->thr_create_utime=  microsecond_interval_timer();
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init_new_connection_thread, (), 0))
   {
-    close_connection(thd, ER_OUT_OF_RESOURCES);
-    statistic_increment(aborted_connects,&LOCK_status);
-    // This will signal error to wsrep_slave_threads_update
-    wsrep_thread_create_failed.store(true, std::memory_order_relaxed);
     WSREP_DEBUG("start_wsrep_THD: init_new_connection_thread failed");
     goto error;
   }
@@ -2964,11 +2960,6 @@ void* start_wsrep_THD(void *arg)
   wsrep_assign_from_threadvars(thd);
   if (wsrep_store_threadvars(thd))
   {
-    close_connection(thd, ER_OUT_OF_RESOURCES);
-    statistic_increment(aborted_connects,&LOCK_status);
-    MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
-    delete thd;
-    delete thd_args;
     goto error;
   }
 
@@ -3060,6 +3051,18 @@ void* start_wsrep_THD(void *arg)
 
 error:
   WSREP_ERROR("Failed to create/initialize system thread");
+
+  if (thd)
+  {
+    close_connection(thd, ER_OUT_OF_RESOURCES);
+    statistic_increment(aborted_connects, &LOCK_status);
+    server_threads.erase(thd);
+    delete thd;
+    my_thread_end();
+  }
+  delete thd_args;
+  // This will signal error to wsrep_slave_threads_update
+  wsrep_thread_create_failed.store(true, std::memory_order_relaxed);
 
   /* Abort if its the first applier/rollbacker thread. */
   if (!mysqld_server_initialized)
