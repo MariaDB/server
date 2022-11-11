@@ -1,0 +1,43 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/innodb_page_size.inc
+--source include/maybe_debug.inc
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-27214 Import with disabled keys corrupts meta-data like rows, indexes, ...
+--echo #
+
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (id int, a int,PRIMARY KEY (id)) ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO db1.t1 VALUES (1,2),(2,3),(3,4);
+--let $file = $MYSQLTEST_VARDIR/tmp/dump.sql
+--exec $MYSQL_DUMP db1 t1 >$file
+DROP DATABASE IF EXISTS db1;
+
+CREATE DATABASE db1;
+--exec $MYSQL db1  < $file
+--remove_file $file
+--echo # Wait till statistics update after bulk insert operation
+let $wait_condition= select n_rows > 0 from mysql.innodb_table_stats
+where database_name='db1' and table_name='t1';
+source include/wait_condition.inc;
+SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='db1';
+
+OPTIMIZE TABLE db1.t1;
+--echo # Wait till statistics update after bulk insert operation
+let $wait_condition= select n_rows > 0 from mysql.innodb_table_stats
+where database_name='db1' and table_name='t1';
+source include/wait_condition.inc;
+SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='db1';
+DROP DATABASE db1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
