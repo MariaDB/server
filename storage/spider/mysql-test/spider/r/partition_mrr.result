@@ -104,11 +104,47 @@ pkey
 21
 26
 27
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey+0 = b.pkey+0 ORDER BY a.pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
 select a.id,b.`pkey` from auto_test_remote.tmp_spider_bka_xxxx a,`auto_test_remote`.`tbl_b` b where a.c0 <=> b.`pkey`
+select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
+select `pkey` from `auto_test_remote`.`tbl_b` order by `pkey`
+select `pkey` from `auto_test_remote`.`tbl_b` order by `pkey`
+select `pkey` from `auto_test_remote`.`tbl_b` order by `pkey`
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey ;
 SELECT pkey FROM tbl_b ORDER BY pkey;
@@ -139,6 +175,10 @@ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argum
 argument
 select `pkey` from `auto_test_remote2`.`tbl_a` order by `pkey`
 select a.id,b.`pkey` from auto_test_remote2.tmp_spider_bka_xxxx a,`auto_test_remote2`.`tbl_b` b where a.c0 <=> b.`pkey`
+select `pkey` from `auto_test_remote2`.`tbl_a` order by `pkey`
+select `pkey` from `auto_test_remote2`.`tbl_b` order by `pkey`
+select `pkey` from `auto_test_remote2`.`tbl_b` order by `pkey`
+select `pkey` from `auto_test_remote2`.`tbl_b` order by `pkey`
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey ;
 SELECT pkey FROM tbl_b ORDER BY pkey;
@@ -169,6 +209,10 @@ SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argum
 argument
 select `pkey` from `auto_test_remote3`.`tbl_a` order by `pkey`
 select a.id,b.`pkey` from auto_test_remote3.tmp_spider_bka_xxxx a,`auto_test_remote3`.`tbl_b` b where a.c0 <=> b.`pkey`
+select `pkey` from `auto_test_remote3`.`tbl_a` order by `pkey`
+select `pkey` from `auto_test_remote3`.`tbl_b` order by `pkey`
+select `pkey` from `auto_test_remote3`.`tbl_b` order by `pkey`
+select `pkey` from `auto_test_remote3`.`tbl_b` order by `pkey`
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey ;
 SELECT pkey FROM tbl_b ORDER BY pkey;
