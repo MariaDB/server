@@ -28,9 +28,12 @@ stages:
   - test
   - Salsa-CI
 
-# Base image for builds and tests unless otherwise defined
-# @TODO: Fedora 34 is latest, but fails to start on Gitlab.com with error "shell not found"
-image: fedora:33
+default:
+  # Base image for builds and tests unless otherwise defined
+  image: fedora:latest
+  # Extend build jobs to have longer timeout as the default GitLab
+  # timeout (1h) is often not enough
+  timeout: 3h
 
 # Define common CMAKE_FLAGS for all builds. Skim down build by omitting all
 # submodules (a commit in this repo does not affect their builds anyway) and
@@ -427,14 +430,14 @@ fedora upgrade:
   dependencies:
     - fedora
   script:
-    - yum install -y mariadb-server
+    - dnf install -y mariadb-server
     # Fedora does not support running services in Docker (like Debian packages do) so start it manually
-    - /usr/libexec/mysql-check-socket
-    - /usr/libexec/mysql-prepare-db-dir
-    - sudo -u mysql /usr/libexec/mysqld --basedir=/usr & sleep 10
+    - /usr/libexec/mariadb-check-socket
+    - /usr/libexec/mariadb-prepare-db-dir
+    - sudo -u mysql /usr/libexec/mariadbd --basedir=/usr & sleep 10
     # Dump database contents in installed state
     - mariadb-dump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert > old-installed-database.sql
-    - /usr/libexec/mysql-check-upgrade
+    - /usr/libexec/mariadb-check-upgrade
     # Dump database contents in upgraded state
     - mariadb-dump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert > old-upgraded-database.sql
     - mariadb --skip-column-names -e "SELECT @@version, @@version_comment"  # Show version
