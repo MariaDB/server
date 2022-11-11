@@ -128,7 +128,7 @@ ulong wsrep_trx_fragment_unit= WSREP_FRAG_BYTES;
                                                 // unit for fragment size
 ulong wsrep_SR_store_type= WSREP_SR_STORE_TABLE;
 uint  wsrep_ignore_apply_errors= 0;
-
+std::atomic <bool> wsrep_thread_create_failed;
 
 /*
  * End configuration options
@@ -3480,7 +3480,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 
 void* start_wsrep_THD(void *arg)
 {
-  THD *thd;
+  THD *thd= NULL;
 
   Wsrep_thd_args* thd_args= (Wsrep_thd_args*) arg;
 
@@ -3511,6 +3511,7 @@ void* start_wsrep_THD(void *arg)
   mysql_thread_set_psi_id(thd->thread_id);
   thd->thr_create_utime=  microsecond_interval_timer();
 
+  DBUG_EXECUTE_IF("simulate_failed_connection_1", goto error; );
 // </5.1.17>
   /*
     handle_one_connection() is normally the only way a thread would
@@ -3616,6 +3617,18 @@ void* start_wsrep_THD(void *arg)
 
 error:
   WSREP_ERROR("Failed to create/initialize system thread");
+
+  if (thd)
+  {
+    close_connection(thd, ER_OUT_OF_RESOURCES);
+    statistic_increment(aborted_connects, &LOCK_status);
+    server_threads.erase(thd);
+    delete thd;
+    my_thread_end();
+  }
+  delete thd_args;
+  // This will signal error to wsrep_slave_threads_update
+  wsrep_thread_create_failed.store(true, std::memory_order_relaxed);
 
   /* Abort if its the first applier/rollbacker thread. */
   if (!mysqld_server_initialized)

@@ -1,0 +1,24 @@
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_2
+call mtr.add_suppression("WSREP: Failed to create/initialize system thread");
+SET GLOBAL debug_dbug='+d,simulate_failed_connection_1';
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_slave_threads=2;
+SELECT @@wsrep_slave_threads;
+SET GLOBAL debug_dbug='';
+SET GLOBAL wsrep_slave_threads=1;
+SELECT @@wsrep_slave_threads;
+
+# MDEV-29878: this test caused a subsequent test to fail
+# during shutdown. Do a restart here, to make sure the
+# issue is fixed.
+--source include/restart_mysqld.inc
+
+--source ../galera/include/auto_increment_offset_restore.inc
