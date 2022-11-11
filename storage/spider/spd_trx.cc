@@ -3603,7 +3603,7 @@ int spider_check_trx_and_get_conn(
       *spider->conn_keys[0] = first_byte;
       for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
       {
-        spider->conns[roop_count]= NULL;
+          spider->conns[roop_count] = NULL;
       }
       bool search_link_idx_is_checked = FALSE;
       for (

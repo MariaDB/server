@@ -9655,8 +9655,9 @@ int spider_mbase_handler::append_direct_update_set(
   spider_string *str
 ) {
   DBUG_ENTER("spider_mbase_handler::append_direct_update_set");
-  if (spider->wide_handler->direct_update_fields)
-  {
+  if (
+    spider->wide_handler->direct_update_fields
+  ) {
     if (str->reserve(SPIDER_SQL_SET_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_SET_STR, SPIDER_SQL_SET_LEN);
@@ -10779,11 +10780,12 @@ int spider_mbase_handler::append_where_terminator(
 ) {
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   DBUG_ENTER("spider_mbase_handler::append_where_terminator");
-  DBUG_PRINT("info", ("spider this=%p", this));
-
-  str->length(str->length() - SPIDER_SQL_AND_LEN);
-  if (!set_order)
-    result_list->key_order= key_count;
+  DBUG_PRINT("info",("spider this=%p", this));
+  {
+    str->length(str->length() - SPIDER_SQL_AND_LEN);
+    if (!set_order)
+      result_list->key_order = key_count;
+  }
   DBUG_RETURN(0);
 }
 
@@ -12335,18 +12337,19 @@ int spider_mbase_handler::append_from(
   DBUG_ENTER("spider_mbase_handler::append_from");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider link_idx=%d", link_idx));
-  int error_num= 0;
-  if (str->reserve(SPIDER_SQL_FROM_LEN + mysql_share->db_nm_max_length +
-                   SPIDER_SQL_DOT_LEN + mysql_share->table_nm_max_length +
-                   /* SPIDER_SQL_NAME_QUOTE_LEN */ 4 +
-                   SPIDER_SQL_OPEN_PAREN_LEN))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  str->q_append(SPIDER_SQL_FROM_STR, SPIDER_SQL_FROM_LEN);
-  table_name_pos= str->length();
-  append_table_name_with_adjusting(str, link_idx, sql_type);
-  if (spider_param_index_hint_pushdown(spider->wide_handler->trx->thd))
+  int error_num = 0;
   {
-    DBUG_RETURN(error_num);
+    if (str->reserve(SPIDER_SQL_FROM_LEN + mysql_share->db_nm_max_length +
+      SPIDER_SQL_DOT_LEN + mysql_share->table_nm_max_length +
+      /* SPIDER_SQL_NAME_QUOTE_LEN */ 4 + SPIDER_SQL_OPEN_PAREN_LEN))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    str->q_append(SPIDER_SQL_FROM_STR, SPIDER_SQL_FROM_LEN);
+    table_name_pos = str->length();
+    append_table_name_with_adjusting(str, link_idx, sql_type);
+    if(spider_param_index_hint_pushdown(spider->wide_handler->trx->thd))
+    {
+      DBUG_RETURN(error_num);
+    }
   }
   DBUG_RETURN(0);
 }

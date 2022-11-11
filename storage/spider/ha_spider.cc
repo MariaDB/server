@@ -482,7 +482,7 @@ error_wide_handler_alloc:
 
 int ha_spider::close()
 {
-  int error_num= 0, roop_count;
+  int error_num = 0, roop_count;
   THD *thd = ha_thd();
   backup_error_status();
   DBUG_ENTER("ha_spider::close");
@@ -1238,7 +1238,8 @@ int ha_spider::index_init(
       set_select_column_mode();
   }
 
-  if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+  if ((error_num = reset_sql_sql(
+    SPIDER_SQL_TYPE_SELECT_SQL)))
     DBUG_RETURN(error_num);
   result_list.check_direct_order_limit = FALSE;
   prev_index_rnd_init = SPD_INDEX;
@@ -1308,7 +1309,8 @@ int ha_spider::index_read_map_internal(
   start_key.key = key;
   start_key.keypart_map = keypart_map;
   start_key.flag = find_flag;
-  if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+  if ((error_num = reset_sql_sql(
+    SPIDER_SQL_TYPE_SELECT_SQL)))
     DBUG_RETURN(error_num);
   if ((error_num = spider_set_conn_bg_param(this)))
     DBUG_RETURN(error_num);
@@ -1440,8 +1442,10 @@ int ha_spider::index_read_map_internal(
       }
     } else {
       ulong sql_type;
-      conn= conns[roop_count];
-      sql_type= SPIDER_SQL_TYPE_SELECT_SQL;
+        conn = conns[roop_count];
+        {
+          sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+        }
       spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
       pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
       if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -1669,7 +1673,8 @@ int ha_spider::index_read_last_map_internal(
   start_key.key = key;
   start_key.keypart_map = keypart_map;
   start_key.flag = HA_READ_KEY_EXACT;
-  if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+  if ((error_num = reset_sql_sql(
+    SPIDER_SQL_TYPE_SELECT_SQL)))
     DBUG_RETURN(error_num);
   if ((error_num = spider_set_conn_bg_param(this)))
     DBUG_RETURN(error_num);
@@ -1789,8 +1794,10 @@ int ha_spider::index_read_last_map_internal(
       }
     } else {
       ulong sql_type;
-      conn= conns[roop_count];
-      sql_type= SPIDER_SQL_TYPE_SELECT_SQL;
+        conn = conns[roop_count];
+        {
+          sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+        }
       spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
       pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
       if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -2055,14 +2062,16 @@ int ha_spider::index_first_internal(
       pt_clone_source_handler));
     pt_clone_source_handler->pt_clone_last_searcher = this;
   }
-  if (sql_is_empty(SPIDER_SQL_TYPE_SELECT_SQL))
-  {
-    /*
-        spider_db_free_one_result_for_start_next(this);
-    */
+  if (
+    sql_is_empty(SPIDER_SQL_TYPE_SELECT_SQL)
+  ) {
+/*
+    spider_db_free_one_result_for_start_next(this);
+*/
     if ((error_num = spider_db_free_result(this, FALSE)))
       DBUG_RETURN(error_num);
-    if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+    if ((error_num = reset_sql_sql(
+      SPIDER_SQL_TYPE_SELECT_SQL)))
       DBUG_RETURN(error_num);
 
     check_direct_order_limit();
@@ -2185,8 +2194,10 @@ int ha_spider::index_first_internal(
         }
       } else {
         ulong sql_type;
-        conn= conns[roop_count];
-        sql_type= SPIDER_SQL_TYPE_SELECT_SQL;
+          conn = conns[roop_count];
+          {
+            sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+          }
         spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -2399,14 +2410,16 @@ int ha_spider::index_last_internal(
       pt_clone_source_handler));
     pt_clone_source_handler->pt_clone_last_searcher = this;
   }
-  if (sql_is_empty(SPIDER_SQL_TYPE_SELECT_SQL))
-  {
-    /*
-        spider_db_free_one_result_for_start_next(this);
-    */
+  if (
+    sql_is_empty(SPIDER_SQL_TYPE_SELECT_SQL)
+  ) {
+/*
+    spider_db_free_one_result_for_start_next(this);
+*/
     if ((error_num = spider_db_free_result(this, FALSE)))
       DBUG_RETURN(error_num);
-    if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+    if ((error_num = reset_sql_sql(
+      SPIDER_SQL_TYPE_SELECT_SQL)))
       DBUG_RETURN(error_num);
 
     check_direct_order_limit();
@@ -2529,8 +2542,10 @@ int ha_spider::index_last_internal(
         }
       } else {
         ulong sql_type;
-        conn= conns[roop_count];
-        sql_type= SPIDER_SQL_TYPE_SELECT_SQL;
+          conn = conns[roop_count];
+          {
+            sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+          }
         spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -2797,7 +2812,8 @@ int ha_spider::read_range_first_internal(
   }
   spider_db_free_one_result_for_start_next(this);
   check_direct_order_limit();
-  if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+  if ((error_num = reset_sql_sql(
+    SPIDER_SQL_TYPE_SELECT_SQL)))
     DBUG_RETURN(error_num);
   if ((error_num = spider_set_conn_bg_param(this)))
     DBUG_RETURN(error_num);
@@ -2918,8 +2934,10 @@ int ha_spider::read_range_first_internal(
       }
     } else {
       ulong sql_type;
-      conn= conns[roop_count];
-      sql_type= SPIDER_SQL_TYPE_SELECT_SQL;
+        conn = conns[roop_count];
+        {
+          sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+        }
       spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
       pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
       if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -3330,13 +3348,16 @@ int ha_spider::multi_range_read_next_first(
   DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
   result_list.finish_flg = FALSE;
   result_list.record_num = 0;
-  if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+  if ((error_num = reset_sql_sql(
+    SPIDER_SQL_TYPE_SELECT_SQL)))
     DBUG_RETURN(error_num);
   result_list.desc_flg = FALSE;
   result_list.sorted = mrr_is_output_sorted;
   result_list.key_info = &table->key_info[active_index];
-  if (multi_range_num == 1 || result_list.multi_split_read <= 1)
-  {
+  if (
+    multi_range_num == 1 ||
+    result_list.multi_split_read <= 1
+  ) {
     if (wide_handler->keyread)
       result_list.keyread = TRUE;
     else
@@ -3453,8 +3474,10 @@ int ha_spider::multi_range_read_next_first(
           }
         } else {
           ulong sql_type;
-          conn= conns[roop_count];
-          sql_type= SPIDER_SQL_TYPE_SELECT_SQL;
+            conn = conns[roop_count];
+            {
+              sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+            }
           spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
           pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
           if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -4081,8 +4104,10 @@ int ha_spider::multi_range_read_next_first(
           }
         } else {
           ulong sql_type;
-          conn= conns[roop_count];
-          sql_type= SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_TMP_SQL;
+            conn = conns[roop_count];
+            {
+              sql_type = SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_TMP_SQL;
+            }
           spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
           pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
           if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -4356,7 +4381,8 @@ int ha_spider::multi_range_read_next_first(
         DBUG_RETURN(check_error_mode_eof(0));
       }
       multi_range_cnt = 0;
-      if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+      if ((error_num = reset_sql_sql(
+        SPIDER_SQL_TYPE_SELECT_SQL)))
         DBUG_RETURN(error_num);
     } while (!error_num);
   }
@@ -4429,8 +4455,10 @@ int ha_spider::multi_range_read_next_next(
       pt_clone_source_handler));
     pt_clone_source_handler->pt_clone_last_searcher = this;
   }
-  if (multi_range_num == 1 || result_list.multi_split_read <= 1)
-  {
+  if (
+    multi_range_num == 1 ||
+    result_list.multi_split_read <= 1
+  ) {
     if (!(error_num = spider_db_seek_next(table->record[0], this,
       search_link_idx, table)))
     {
@@ -4564,8 +4592,10 @@ int ha_spider::multi_range_read_next_next(
           }
         } else {
           ulong sql_type;
-          conn= conns[roop_count];
-          sql_type= SPIDER_SQL_TYPE_SELECT_SQL;
+            conn = conns[roop_count];
+            {
+              sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+            }
           spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
           pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
           if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -4837,7 +4867,8 @@ int ha_spider::multi_range_read_next_next(
     }
     result_list.record_num = 0;
 
-    if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+    if ((error_num = reset_sql_sql(
+      SPIDER_SQL_TYPE_SELECT_SQL)))
       DBUG_RETURN(error_num);
 
     bool tmp_high_priority = wide_handler->high_priority;
@@ -5185,8 +5216,10 @@ int ha_spider::multi_range_read_next_next(
           }
         } else {
           ulong sql_type;
-          conn= conns[roop_count];
-          sql_type= SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_TMP_SQL;
+            conn = conns[roop_count];
+            {
+              sql_type = SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_TMP_SQL;
+            }
           spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
           pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
           if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -5458,7 +5491,8 @@ int ha_spider::multi_range_read_next_next(
         DBUG_RETURN(check_error_mode_eof(0));
       }
       multi_range_cnt = 0;
-      if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+      if ((error_num = reset_sql_sql(
+        SPIDER_SQL_TYPE_SELECT_SQL)))
         DBUG_RETURN(error_num);
     } while (!error_num);
   }
@@ -5563,7 +5597,8 @@ int ha_spider::rnd_init(
       result_list.keyread = FALSE;
 
       init_rnd_handler = FALSE;
-      if ((error_num= reset_sql_sql(SPIDER_SQL_TYPE_SELECT_SQL)))
+      if ((error_num = reset_sql_sql(
+        SPIDER_SQL_TYPE_SELECT_SQL)))
         DBUG_RETURN(error_num);
       result_list.check_direct_order_limit = FALSE;
     }
@@ -5765,7 +5800,9 @@ int ha_spider::rnd_next_internal(
       } else {
         SPIDER_CONN *conn = conns[roop_count];
         ulong sql_type;
-        sql_type= SPIDER_SQL_TYPE_SELECT_SQL;
+        {
+          sql_type = SPIDER_SQL_TYPE_SELECT_SQL;
+        }
         spider_db_handler *dbton_hdl = dbton_handler[conn->dbton_id];
         pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if (dbton_hdl->need_lock_before_set_sql_for_exec(sql_type))
@@ -8285,8 +8322,9 @@ int ha_spider::direct_update_rows(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-  if ((error_num=
-           spider_db_direct_update(this, table, update_rows, found_rows)))
+  if (
+    (error_num = spider_db_direct_update(this, table, update_rows, found_rows))
+  )
     DBUG_RETURN(check_error_mode(error_num));
 
   DBUG_RETURN(0);
@@ -8428,7 +8466,9 @@ int ha_spider::direct_delete_rows(
       table_share->db.str, table_share->table_name.str);
     DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
   }
-  if ((error_num= spider_db_direct_delete(this, table, delete_rows)))
+  if (
+    (error_num = spider_db_direct_delete(this, table, delete_rows))
+  )
     DBUG_RETURN(check_error_mode(error_num));
 
   DBUG_RETURN(0);
