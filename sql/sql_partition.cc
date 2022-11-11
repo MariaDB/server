@@ -2455,7 +2455,7 @@ end:
     @retval != 0 Failure
 */
 
-static int add_key_with_algorithm(String *str, partition_info *part_info)
+static int add_key_with_algorithm(String *str, const partition_info *part_info)
 {
   int err= 0;
   err+= str->append(STRING_WITH_LEN("KEY "));
@@ -2483,6 +2483,78 @@ char *generate_partition_syntax_for_frm(THD *thd, partition_info *part_info,
                                              system_charset_info).ptr()););
   return res;
 }
+
+
+/*
+  Generate the partition type syntax from the partition data structure.
+
+  @return Operation status.
+    @retval 0    Success
+    @retval > 0  Failure
+    @retval -1   Fatal error
+*/
+
+int partition_info::gen_part_type(THD *thd, String *str) const
+{
+  int err= 0;
+  switch (part_type)
+  {
+    case RANGE_PARTITION:
+      err+= str->append(STRING_WITH_LEN("RANGE "));
+      break;
+    case LIST_PARTITION:
+      err+= str->append(STRING_WITH_LEN("LIST "));
+      break;
+    case HASH_PARTITION:
+      if (linear_hash_ind)
+        err+= str->append(STRING_WITH_LEN("LINEAR "));
+      if (list_of_part_fields)
+      {
+        err+= add_key_with_algorithm(str, this);
+        err+= add_part_field_list(thd, str, part_field_list);
+      }
+      else
+        err+= str->append(STRING_WITH_LEN("HASH "));
+      break;
+    case VERSIONING_PARTITION:
+      err+= str->append(STRING_WITH_LEN("SYSTEM_TIME "));
+      break;
+    default:
+      DBUG_ASSERT(0);
+      /* We really shouldn't get here, no use in continuing from here */
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
+      return -1;
+  }
+  return err;
+}
+
+
+void part_type_error(THD *thd, partition_info *work_part_info,
+                     const char *part_type,
+                     partition_info *tab_part_info)
+{
+  StringBuffer<256> tab_part_type;
+  if (tab_part_info->gen_part_type(thd, &tab_part_type) < 0)
+    return;
+  tab_part_type.length(tab_part_type.length() - 1);
+  if (work_part_info)
+  {
+    DBUG_ASSERT(!part_type);
+    StringBuffer<256> work_part_type;
+    if (work_part_info->gen_part_type(thd, &work_part_type) < 0)
+      return;
+    work_part_type.length(work_part_type.length() - 1);
+    my_error(ER_PARTITION_WRONG_TYPE, MYF(0), work_part_type.c_ptr(),
+             tab_part_type.c_ptr());
+  }
+  else
+  {
+    DBUG_ASSERT(part_type);
+    my_error(ER_PARTITION_WRONG_TYPE, MYF(0), part_type,
+             tab_part_type.c_ptr());
+  }
+}
+
 
 /*
   Generate the partition syntax from the partition data structure.
@@ -2527,34 +2599,10 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
   DBUG_ENTER("generate_partition_syntax");
 
   err+= str.append(STRING_WITH_LEN(" PARTITION BY "));
-  switch (part_info->part_type)
-  {
-    case RANGE_PARTITION:
-      err+= str.append(STRING_WITH_LEN("RANGE "));
-      break;
-    case LIST_PARTITION:
-      err+= str.append(STRING_WITH_LEN("LIST "));
-      break;
-    case HASH_PARTITION:
-      if (part_info->linear_hash_ind)
-        err+= str.append(STRING_WITH_LEN("LINEAR "));
-      if (part_info->list_of_part_fields)
-      {
-        err+= add_key_with_algorithm(&str, part_info);
-        err+= add_part_field_list(thd, &str, part_info->part_field_list);
-      }
-      else
-        err+= str.append(STRING_WITH_LEN("HASH "));
-      break;
-    case VERSIONING_PARTITION:
-      err+= str.append(STRING_WITH_LEN("SYSTEM_TIME "));
-      break;
-    default:
-      DBUG_ASSERT(0);
-      /* We really shouldn't get here, no use in continuing from here */
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
-      DBUG_RETURN(NULL);
-  }
+  int err2= part_info->gen_part_type(thd, &str);
+  if (err2 < 0)
+    DBUG_RETURN(NULL);
+  err+= err2;
   if (part_info->part_type == VERSIONING_PARTITION)
   {
     Vers_part_info *vers_info= part_info->vers_info;
@@ -5051,7 +5099,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
           else if (thd->work_part_info->part_type == VERSIONING_PARTITION ||
                    tab_part_info->part_type == VERSIONING_PARTITION)
           {
-            my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
+            part_type_error(thd, thd->work_part_info, NULL, tab_part_info);
           }
           else
           {

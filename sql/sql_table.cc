@@ -7733,6 +7733,7 @@ void append_drop_column(THD *thd, String *str, Field *field)
 }
 
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 static inline
 void rename_field_in_list(Create_field *field, List<const char> *field_list)
 {
@@ -7745,6 +7746,7 @@ void rename_field_in_list(Create_field *field, List<const char> *field_list)
     it.replace(field->field_name.str);
   }
 }
+#endif
 
 
 /**

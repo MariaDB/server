@@ -4815,13 +4815,17 @@ opt_part_values:
           part_values_in {}
         | CURRENT_SYM
           {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
             if (Lex->part_values_current(thd))
               MYSQL_YYABORT;
+#endif
           }
         | HISTORY_SYM
           {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
             if (Lex->part_values_history(thd))
               MYSQL_YYABORT;
+#endif
           }
         | DEFAULT
          {

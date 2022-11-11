@@ -106,6 +106,18 @@ partition by system_time (
     partition p0 history,
     partition pn current);
 
+--error ER_PARTITION_WRONG_TYPE
+create or replace table t1 (a int)
+partition by range (a) (
+  partition p0 history,
+  partition p1 current);
+
+--error ER_PARTITION_WRONG_TYPE
+create or replace table t1 (b int)
+partition by range (a) (
+  partition p0 current,
+  partition p1 history);
+
 
 --echo ## ALTER TABLE
 
