@@ -72,9 +72,9 @@ impl plugin::Encryption for RustEncryption {
     /// Initialize
     fn update(&mut self, src: &[u8], dst: &mut BufVec);
 
-    fn finish(&mut self, dst: DestBuf)
+    fn finish(&mut self, dst: DestBuf);
 
     fn size(key_id: u32, key_version: u32) -> u32;
 
-    fn encrypted_length(len: u32, )
+    fn encrypted_length(len: u32);
 }
