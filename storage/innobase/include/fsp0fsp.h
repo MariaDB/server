@@ -755,6 +755,20 @@ fsp_flags_match(ulint expected, ulint actual)
 	return(actual == expected);
 }
 
+/** Determine if FSP_SPACE_FLAGS are from an incompatible MySQL format.
+@param	flags	the contents of FSP_SPACE_FLAGS
+@return	MySQL flags shifted.
+@retval	0, if not a MySQL incompatible format. */
+MY_ATTRIBUTE((warn_unused_result, const))
+inline ulint fsp_flags_is_incompatible_mysql(ulint flags)
+{
+  /*
+    MySQL-8.0 SDI flag (bit 14),
+    or MySQL 5.7 Encyption flag (bit 13)
+  */
+  return flags >> 13 & 3;
+}
+
 /** Calculates the descriptor index within a descriptor page.
 @param[in]	page_size	page size
 @param[in]	offset		page offset

@@ -38,7 +38,7 @@ tab	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL			0	N
 ALTER TABLE tab DISCARD TABLESPACE;
 call mtr.add_suppression("InnoDB: Tried to read .* bytes at offset 0");
 ALTER TABLE tab IMPORT TABLESPACE;
-ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`tab` : I/O error
+ERROR HY000: Internal error: Error importing tablespace for table `test`.`tab` : I/O error
 ALTER TABLE tab IMPORT TABLESPACE;
 SELECT * FROM tab;
 a

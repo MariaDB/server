@@ -795,3 +795,19 @@ DROP DATABASE testdb_wl5522;
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'.*");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
+#
+# MDEV-27882 Innodb - recognise MySQL-8.0 innodb flags and give a specific error message
+#
+#
+CREATE TABLE `t1` (`i` int(11) NOT NULL,  PRIMARY KEY (`i`) ) ENGINE=InnoDB;
+FLUSH TABLES t1 FOR EXPORT;
+backup: t1
+UNLOCK TABLES;
+ALTER TABLE t1 DISCARD TABLESPACE;
+call mtr.add_suppression("InnoDB: unsupported MySQL tablespace");
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Error importing tablespace for table `test`.`t1` : Unsupported
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#
