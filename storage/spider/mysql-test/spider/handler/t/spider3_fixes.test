@@ -1,0 +1,297 @@
+# This test tests for Spider 3.0's bug fixes
+source include/have_log_bin.inc;
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--source slave_test_init.inc
+--enable_result_log
+--enable_query_log
+
+--echo
+--echo drop and create databases
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+if ($USE_REPLICATION)
+{
+  --connection slave1_1
+  DROP DATABASE IF EXISTS auto_test_local;
+  CREATE DATABASE auto_test_local;
+  USE auto_test_local;
+}
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  CREATE DATABASE auto_test_remote;
+  USE auto_test_remote;
+  --connection child2_2
+  DROP DATABASE IF EXISTS auto_test_remote2;
+  CREATE DATABASE auto_test_remote2;
+  USE auto_test_remote2;
+}
+--enable_warnings
+
+--echo
+--echo test select 1
+--connection master_1
+SELECT 1;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  SELECT 1;
+  --connection child2_2
+  SELECT 1;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+
+--echo
+--echo 3.1
+--echo auto_increment
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_DROP_INCREMENT_TABLES1;
+    echo CHILD2_1_CREATE_INCREMENT_TABLES1;
+    echo CHILD2_1_AUTO_INCREMENT_INCREMENT2;
+    echo CHILD2_1_AUTO_INCREMENT_OFFSET2;
+  }
+  --disable_warnings
+  eval $CHILD2_1_DROP_INCREMENT_TABLES1;
+  --enable_warnings
+  eval $CHILD2_1_CREATE_INCREMENT_TABLES1;
+  eval $CHILD2_1_AUTO_INCREMENT_INCREMENT2;
+  eval $CHILD2_1_AUTO_INCREMENT_OFFSET2;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SET @original_spider_auto_increment_mode = @@SESSION.spider_auto_increment_mode;
+SET SESSION spider_auto_increment_mode = -1;
+if ($USE_REPLICATION)
+{
+  save_master_pos;
+  --connection slave1_1
+  sync_with_master;
+  --connection master_1
+  --disable_query_log
+  SET SESSION sql_log_bin= 0;
+  --enable_query_log
+}
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE t1 (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_1;
+echo CREATE TABLE t2 (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_1;
+echo MASTER_1_AUTO_INCREMENT_INCREMENT2;
+echo MASTER_1_AUTO_INCREMENT_OFFSET2;
+eval CREATE TABLE t1 (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_INCREMENT1_1;
+eval CREATE TABLE t2 (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_INCREMENT1_1;
+--disable_ps_protocol
+eval $MASTER_1_AUTO_INCREMENT_INCREMENT2;
+eval $MASTER_1_AUTO_INCREMENT_OFFSET2;
+--enable_ps_protocol
+if ($USE_REPLICATION)
+{
+  SET SESSION sql_log_bin= 1;
+  --connection slave1_1
+  --disable_warnings
+  DROP TABLE IF EXISTS t1, t2;
+  --enable_warnings
+  echo CREATE TABLE t1 (
+    id int(11) NOT NULL AUTO_INCREMENT,
+    PRIMARY KEY (id)
+  ) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_1;
+  echo CREATE TABLE t2 (
+    id int(11) NOT NULL AUTO_INCREMENT,
+    PRIMARY KEY (id)
+  ) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_1;
+  eval CREATE TABLE t1 (
+    id int(11) NOT NULL AUTO_INCREMENT,
+    PRIMARY KEY (id)
+  ) $SLAVE1_1_ENGINE $SLAVE1_1_CHARSET $SLAVE1_1_COMMENT_INCREMENT1_1;
+  eval CREATE TABLE t2 (
+    id int(11) NOT NULL AUTO_INCREMENT,
+    PRIMARY KEY (id)
+  ) $SLAVE1_1_ENGINE $SLAVE1_1_CHARSET $SLAVE1_1_COMMENT_INCREMENT1_1;
+  --connection master_1
+}
+--enable_query_log
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+INSERT INTO t2 () VALUES ();
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t2;
+--disable_query_log
+echo MASTER_1_AUTO_INCREMENT_OFFSET3;
+eval $MASTER_1_AUTO_INCREMENT_OFFSET3;
+--enable_query_log
+INSERT INTO t1 (id) VALUES (null);
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+--disable_query_log
+echo MASTER_1_AUTO_INCREMENT_OFFSET4;
+eval $MASTER_1_AUTO_INCREMENT_OFFSET4;
+--enable_query_log
+INSERT INTO t2 (id) VALUES (null);
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t2;
+--disable_query_log
+echo MASTER_1_AUTO_INCREMENT_OFFSET3;
+eval $MASTER_1_AUTO_INCREMENT_OFFSET3;
+--enable_query_log
+INSERT INTO t1 () VALUES (),(),(),();
+SELECT LAST_INSERT_ID();
+SELECT id FROM t1 ORDER BY id;
+--disable_query_log
+echo MASTER_1_AUTO_INCREMENT_OFFSET4;
+eval $MASTER_1_AUTO_INCREMENT_OFFSET4;
+--enable_query_log
+INSERT INTO t2 () VALUES (),(),(),();
+SELECT LAST_INSERT_ID();
+SELECT id FROM t2 ORDER BY id;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+INSERT INTO t1 () VALUES (),(),(),();
+SELECT LAST_INSERT_ID();
+SELECT id FROM t1 ORDER BY id;
+INSERT INTO t2 () VALUES (),(),(),();
+SELECT LAST_INSERT_ID();
+SELECT id FROM t2 ORDER BY id;
+SET INSERT_ID=5000;
+--disable_query_log
+echo MASTER_1_AUTO_INCREMENT_OFFSET3;
+eval $MASTER_1_AUTO_INCREMENT_OFFSET3;
+--enable_query_log
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+--disable_query_log
+echo MASTER_1_AUTO_INCREMENT_OFFSET4;
+eval $MASTER_1_AUTO_INCREMENT_OFFSET4;
+--enable_query_log
+INSERT INTO t2 () VALUES ();
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t2;
+INSERT INTO t1 (id) VALUES (10000);
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t1;
+INSERT INTO t2 (id) VALUES (1000);
+SELECT LAST_INSERT_ID();
+SELECT MAX(id) FROM t2;
+SET SESSION spider_auto_increment_mode = @original_spider_auto_increment_mode;
+if ($USE_REPLICATION)
+{
+  save_master_pos;
+  --connection slave1_1
+  sync_with_master;
+  SELECT id FROM t1 ORDER BY id;
+  --connection master_1
+  --disable_query_log
+  SET SESSION sql_log_bin= 0;
+  --enable_query_log
+}
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
+  }
+  eval $CHILD2_1_SELECT_INCREMENT_TABLES1;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_AUTO_INCREMENT_INCREMENT1;
+    echo CHILD2_1_AUTO_INCREMENT_OFFSET1;
+  }
+  eval $CHILD2_1_AUTO_INCREMENT_INCREMENT1;
+  eval $CHILD2_1_AUTO_INCREMENT_OFFSET1;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+if ($USE_REPLICATION)
+{
+  --connection slave1_1
+  DROP DATABASE IF EXISTS auto_test_local;
+}
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  --connection child2_2
+  DROP DATABASE IF EXISTS auto_test_remote2;
+}
+--disable_query_log
+--disable_result_log
+--source slave_test_deinit.inc
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+--echo
+--echo end of test

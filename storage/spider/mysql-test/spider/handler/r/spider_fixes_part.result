@@ -1,0 +1,246 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+for slave1_1
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection slave1_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+connection master_1;
+DROP TABLE IF EXISTS tb_l;
+CREATE TABLE tb_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE2 MASTER_1_CHARSET2
+INSERT INTO tb_l (a, b, c) VALUES
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
+
+2.17
+partition with sort
+connection master_1;
+CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1
+INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 WHERE a > 1
+ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+
+2.23
+partition update with moving partition
+connection master_1;
+DROP TABLE IF EXISTS ta_l2;
+connection master_1;
+CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1
+INSERT INTO ta_l2 (a, b, c) VALUES (3, 'B', '2010-09-26 00:00:00');
+UPDATE ta_l2 SET a = 4 WHERE a = 3;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+4	B	2010-09-26 00:00:00
+index merge with partition
+connection master_1;
+DROP TABLE IF EXISTS ta_l_int;
+connection master_1;
+CREATE TABLE ta_l_int (
+a INT AUTO_INCREMENT,
+b INT DEFAULT 10,
+c INT DEFAULT 11,
+PRIMARY KEY(a),
+KEY idx1(b),
+KEY idx2(c)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT3_P_2_1
+INSERT INTO ta_l_int (a, b, c) VALUES (1, 2, 3);
+INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
+INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
+INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
+INSERT INTO ta_l_int (a, b, c) SELECT a + 8, b + 8, c + 8 FROM ta_l_int;
+connection master_1;
+SELECT a, b, c FROM ta_l_int force index(primary, idx1, idx2)
+WHERE a = 5 OR b = 5 OR c = 5 ORDER BY a;
+a	b	c
+3	4	5
+4	5	6
+5	6	7
+
+2.26
+auto_increment with partition
+connection master_1;
+SET @original_spider_auto_increment_mode = @@SESSION.spider_auto_increment_mode;
+SET SESSION spider_auto_increment_mode = -1;
+Warnings:
+Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
+connection slave1_1;
+connection master_1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_P_1
+MASTER_1_AUTO_INCREMENT_INCREMENT2
+MASTER_1_AUTO_INCREMENT_OFFSET2
+spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
+'srv "s_2_1"')
+1
+spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
+'srv "s_2_2"')
+1
+spider_bg_direct_sql('SET SESSION AUTO_INCREMENT_OFFSET = 2', '',
+'srv "s_2_1"')
+1
+spider_bg_direct_sql('SET SESSION AUTO_INCREMENT_OFFSET = 3', '',
+'srv "s_2_2"')
+1
+CREATE TABLE t1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_P_1
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+3
+SELECT MAX(id) FROM t1;
+MAX(id)
+3
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+2
+SELECT MAX(id) FROM t1;
+MAX(id)
+3
+INSERT INTO t1 (id) VALUES (null);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+7
+SELECT MAX(id) FROM t1;
+MAX(id)
+7
+INSERT INTO t1 (id) VALUES (null);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+6
+SELECT MAX(id) FROM t1;
+MAX(id)
+7
+INSERT INTO t1 () VALUES (),(),(),();
+Warnings:
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+10
+SELECT id FROM t1 ORDER BY id;
+id
+2
+3
+6
+7
+10
+11
+14
+15
+SET INSERT_ID=5000;
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+18
+SELECT MAX(id) FROM t1;
+MAX(id)
+18
+INSERT INTO t1 (id) VALUES (10000);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+22
+SELECT MAX(id) FROM t1;
+MAX(id)
+22
+INSERT INTO t1 (id) VALUES (1000);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+26
+SELECT MAX(id) FROM t1;
+MAX(id)
+26
+SET SESSION spider_auto_increment_mode = @original_spider_auto_increment_mode;
+connection slave1_1;
+SELECT id FROM t1 ORDER BY id;
+id
+2
+3
+6
+7
+10
+18
+777
+1000
+1554
+2331
+10000
+connection master_1;
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection slave1_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for slave1_1
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

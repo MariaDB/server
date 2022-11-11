@@ -1,0 +1,2699 @@
+# This test tests by executing basic SQL
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+
+--echo
+--echo drop and create databases
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  CREATE DATABASE auto_test_remote;
+  USE auto_test_remote;
+  --connection child2_2
+  DROP DATABASE IF EXISTS auto_test_remote2;
+  CREATE DATABASE auto_test_remote2;
+  USE auto_test_remote2;
+}
+--enable_warnings
+
+--echo
+--echo test select 1
+--connection master_1
+SELECT 1;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  SELECT 1;
+  --connection child2_2
+  SELECT 1;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo create table select test
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_DROP_TABLES;
+    echo CHILD2_1_CREATE_TABLES;
+  }
+  --disable_warnings
+  eval $CHILD2_1_DROP_TABLES;
+  --enable_warnings
+  eval $CHILD2_1_CREATE_TABLES;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS tb_l;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE tb_l (
+  a INT,
+  b CHAR(1),
+  c DATETIME,
+  PRIMARY KEY(a)
+) MASTER_1_ENGINE2 MASTER_1_CHARSET2;
+eval CREATE TABLE tb_l (
+  a INT,
+  b CHAR(1),
+  c DATETIME,
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE2 $MASTER_1_CHARSET2;
+--enable_query_log
+INSERT INTO tb_l (a, b, c) VALUES
+  (1, 'a', '2008-08-01 10:21:39'),
+  (2, 'b', '2000-01-01 00:00:00'),
+  (3, 'e', '2007-06-04 20:03:11'),
+  (4, 'd', '2003-11-30 05:01:03'),
+  (5, 'c', '2001-12-31 23:59:59');
+--disable_warnings
+DROP TABLE IF EXISTS ta_l;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE ta_l (
+  PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+SELECT a, b, c FROM tb_l;
+if ($MASTER_1_MERGE)
+{
+  --error ER_WRONG_OBJECT
+  eval CREATE TABLE ta_l (
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1
+  SELECT a, b, c FROM tb_l;
+  eval CREATE TABLE ta_l (
+    a INT,
+    b CHAR(1),
+    c DATETIME,
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+  INSERT INTO ta_l SELECT a, b, c FROM tb_l;
+}
+if (!$MASTER_1_MERGE)
+{
+  eval CREATE TABLE ta_l (
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1
+  SELECT a, b, c FROM tb_l;
+}
+--enable_query_log
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo create table ignore select test
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_l;
+DROP TABLE IF EXISTS tb_l;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE tb_l (
+  a INT,
+  b CHAR(1),
+  c DATETIME,
+  PRIMARY KEY(a)
+) MASTER_1_ENGINE2 MASTER_1_CHARSET2;
+eval CREATE TABLE tb_l (
+  a INT,
+  b CHAR(1),
+  c DATETIME,
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE2 $MASTER_1_CHARSET2;
+--enable_query_log
+INSERT INTO tb_l (a, b, c) VALUES
+  (1, 'f', '2008-07-01 10:21:39'),
+  (2, 'g', '2000-02-01 00:00:00'),
+  (3, 'j', '2007-05-04 20:03:11'),
+  (4, 'i', '2003-10-30 05:01:03'),
+  (5, 'h', '2001-10-31 23:59:59');
+--disable_query_log
+echo CREATE TABLE ta_l (
+  PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+IGNORE SELECT a, b, c FROM tb_l;
+if ($MASTER_1_MERGE)
+{
+  --error ER_WRONG_OBJECT
+  eval CREATE TABLE ta_l (
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1
+  IGNORE SELECT a, b, c FROM tb_l;
+  eval CREATE TABLE ta_l (
+    a INT,
+    b CHAR(1),
+    c DATETIME,
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+  INSERT IGNORE INTO ta_l SELECT a, b, c FROM tb_l;
+}
+if (!$MASTER_1_MERGE)
+{
+  eval CREATE TABLE ta_l (
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1
+  IGNORE SELECT a, b, c FROM tb_l;
+}
+--enable_query_log
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo create table ignore select test
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_l;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE ta_l (
+  PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+REPLACE SELECT a, b, c FROM tb_l;
+if ($MASTER_1_MERGE)
+{
+  --error ER_WRONG_OBJECT
+  eval CREATE TABLE ta_l (
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1
+  REPLACE SELECT a, b, c FROM tb_l;
+  eval CREATE TABLE ta_l (
+    a INT,
+    b CHAR(1),
+    c DATETIME,
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+  REPLACE INTO ta_l SELECT a, b, c FROM tb_l;
+}
+if (!$MASTER_1_MERGE)
+{
+  eval CREATE TABLE ta_l (
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1
+  REPLACE SELECT a, b, c FROM tb_l;
+}
+--enable_query_log
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%replace %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo create no index table
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_DROP_TABLES3;
+    echo CHILD2_1_CREATE_TABLES3;
+  }
+  --disable_warnings
+  eval $CHILD2_1_DROP_TABLES3;
+  --enable_warnings
+  eval $CHILD2_1_CREATE_TABLES3;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS ta_l_no_idx;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE ta_l_no_idx
+MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT2_2_1
+SELECT a, b, c FROM tb_l;
+if ($MASTER_1_NEEDPK)
+{
+  --error ER_REQUIRES_PRIMARY_KEY
+  eval CREATE TABLE ta_l_no_idx
+  $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT2_2_1
+  SELECT a, b, c FROM tb_l;
+  eval CREATE TABLE ta_l_no_idx (
+    a INT,
+    b CHAR(1),
+    c DATETIME,
+    PRIMARY KEY(a)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT2_2_1;
+  INSERT INTO ta_l_no_idx SELECT a, b, c FROM tb_l;
+}
+if (!$MASTER_1_NEEDPK)
+{
+  if ($MASTER_1_MERGE)
+  {
+    --error ER_WRONG_OBJECT
+    eval CREATE TABLE ta_l_no_idx
+    $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT2_2_1
+    SELECT a, b, c FROM tb_l;
+    eval CREATE TABLE ta_l_no_idx (
+      a INT,
+      b CHAR(1),
+      c DATETIME
+    ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT2_2_1;
+    INSERT INTO ta_l_no_idx SELECT a, b, c FROM tb_l;
+  }
+  if (!$MASTER_1_MERGE)
+  {
+    eval CREATE TABLE ta_l_no_idx
+    $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT2_2_1
+    SELECT a, b, c FROM tb_l;
+  }
+}
+--enable_query_log
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES3;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l_no_idx ORDER BY a;
+
+--echo
+--echo select table
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select table shared mode
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a
+LOCK IN SHARE MODE;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select table for update
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a
+FOR UPDATE;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select table join
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a.a, a.b, date_format(b.c, '%Y-%m-%d %H:%i:%s') FROM ta_l a, tb_l b
+WHERE a.a = b.a ORDER BY a.a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select table straight_join
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT STRAIGHT_JOIN a.a, a.b, date_format(b.c, '%Y-%m-%d %H:%i:%s')
+FROM ta_l a, tb_l b WHERE a.a = b.a ORDER BY a.a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select sql_small_result
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT SQL_SMALL_RESULT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
+ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select sql_big_result
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT SQL_BIG_RESULT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
+ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select sql_buffer_result
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT SQL_BUFFER_RESULT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
+ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select sql_cache
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT SQL_CACHE a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
+ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select sql_no_cache
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT SQL_NO_CACHE a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
+ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select sql_calc_found_rows
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT SQL_CALC_FOUND_ROWS a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
+ORDER BY a LIMIT 4;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT found_rows();
+
+--echo
+--echo select high_priority
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT HIGH_PRIORITY a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
+ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select distinct
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT DISTINCT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l
+ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select count
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT count(*) FROM ta_l ORDER BY a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select table join not use index
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM tb_l a WHERE
+EXISTS (SELECT * FROM ta_l b WHERE b.b = a.b) ORDER BY a.a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select using pushdown
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM ta_l a WHERE
+a.b = 'g' ORDER BY a.a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo select using index and pushdown
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a.a, a.b, date_format(a.c, '%Y-%m-%d %H:%i:%s') FROM ta_l a WHERE
+a.a > 0 AND a.b = 'g' ORDER BY a.a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo insert
+--connection master_1
+TRUNCATE TABLE ta_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo insert select
+--connection master_1
+TRUNCATE TABLE ta_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+INSERT INTO ta_l (a, b, c) SELECT a, b, c FROM tb_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo insert select a
+--connection master_1
+TRUNCATE TABLE ta_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+INSERT INTO ta_l (a, b, c) VALUES ((SELECT a FROM tb_l ORDER BY a LIMIT 1),
+'e', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo insert low_priority
+--connection master_1
+TRUNCATE TABLE ta_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+INSERT LOW_PRIORITY INTO ta_l (a, b, c) values (2, 'e', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo insert high_priority
+--connection master_1
+TRUNCATE TABLE ta_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+INSERT HIGH_PRIORITY INTO ta_l (a, b, c) VALUES (2, 'e',
+'2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo insert ignore
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+INSERT IGNORE INTO ta_l (a, b, c) VALUES (2, 'd', '2009-02-02 01:01:01');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo insert update (insert)
+--connection master_1
+TRUNCATE TABLE ta_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59') ON DUPLICATE
+KEY UPDATE b = 'f', c = '2005-08-08 11:11:11';
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo insert update (update)
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59') ON DUPLICATE
+KEY UPDATE b = 'f', c = '2005-08-08 11:11:11';
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo replace
+--connection master_1
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (2, 'e', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+REPLACE INTO ta_l (a, b, c) VALUES (2, 'f', '2008-02-02 02:02:02');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'replace %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo replace select
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+REPLACE INTO ta_l (a, b, c) SELECT a, b, c FROM tb_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'replace %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo replace select a
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+REPLACE INTO ta_l (a, b, c) VALUES ((SELECT a FROM tb_l ORDER BY a LIMIT 1),
+'e', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'replace %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo replace low_priority
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+REPLACE LOW_PRIORITY INTO ta_l (a, b, c) VALUES (3, 'g',
+'2009-03-03 03:03:03');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'replace %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE ta_l SET b = 'f', c = '2008-02-02 02:02:02' WHERE a = 2;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update select
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE ta_l SET b = 'g', c = '2009-03-03 03:03:03' WHERE a IN (SELECT a FROM
+tb_l);
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update select a
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE ta_l SET b = 'h', c = '2010-04-04 04:04:04' WHERE a = (SELECT a FROM
+tb_l ORDER BY a LIMIT 1);
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update join
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE ta_l a, tb_l b SET a.b = b.b, a.c = b.c WHERE a.a = b.a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update join a
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE ta_l a, tb_l b SET a.b = 'g', a.c = '2009-03-03 03:03:03' WHERE
+a.a = b.a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update low_priority
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE LOW_PRIORITY ta_l SET b = 'f', c = '2008-02-02 02:02:02' WHERE a = 2;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update ignore
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE IGNORE ta_l SET a = 1, b = 'g', c = '2009-03-03 03:03:03' WHERE a = 2;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update pushdown
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+update ta_l set b = 'j', c = '2009-03-03 03:03:03' where b = 'f';
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo update index pushdown
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+UPDATE ta_l SET b = 'g', c = '2009-03-03 03:03:03' WHERE a > 0 AND b = 'j';
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'update %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE FROM ta_l WHERE a = 2;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete all
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE FROM ta_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete select
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE FROM ta_l WHERE a IN (SELECT a FROM tb_l);
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete select a
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE FROM ta_l WHERE a = (SELECT a FROM tb_l ORDER BY a LIMIT 1);
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete join
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE a FROM ta_l a, (SELECT a FROM tb_l ORDER BY a) b WHERE a.a = b.a;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete low_priority
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE LOW_PRIORITY FROM ta_l WHERE a = 2;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete ignore
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE IGNORE FROM ta_l WHERE a = 2;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete quick
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE QUICK FROM ta_l WHERE a = 2;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete pushdown
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE FROM ta_l WHERE b = 'e';
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo delete index pushdown
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l (a, b, c) VALUES (1, 'e', '2008-01-01 23:59:59'),
+(2, 'e', '2008-01-01 23:59:59'), (3, 'e', '2008-01-01 23:59:59'),
+(4, 'e', '2008-01-01 23:59:59'), (5, 'e', '2008-01-01 23:59:59'),
+(6, 'e', '2008-01-01 23:59:59'), (7, 'e', '2008-01-01 23:59:59'),
+(8, 'e', '2008-01-01 23:59:59'), (9, 'e', '2008-01-01 23:59:59'),
+(10, 'j', '2008-01-01 23:59:59');
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+DELETE FROM ta_l WHERE a > 0 AND b = 'e';
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'delete %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo truncate
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+TRUNCATE TABLE ta_l;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE 'truncate %';
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  --connection child2_2
+  DROP DATABASE IF EXISTS auto_test_remote2;
+}
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+--echo
+--echo end of test

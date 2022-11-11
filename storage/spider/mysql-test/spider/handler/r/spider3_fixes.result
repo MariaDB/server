@@ -1,0 +1,245 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+for slave1_1
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection slave1_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+
+3.1
+auto_increment
+connection master_1;
+SET @original_spider_auto_increment_mode = @@SESSION.spider_auto_increment_mode;
+SET SESSION spider_auto_increment_mode = -1;
+Warnings:
+Warning	138	The option value -1 (use table value) is deprecated and will be removed in a future release
+connection slave1_1;
+connection master_1;
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_1
+CREATE TABLE t2 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_INCREMENT1_1
+MASTER_1_AUTO_INCREMENT_INCREMENT2
+MASTER_1_AUTO_INCREMENT_OFFSET2
+spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
+'srv "s_2_1"')
+1
+spider_direct_sql('SET SESSION AUTO_INCREMENT_INCREMENT = 4', '',
+'srv "s_2_2"')
+1
+spider_bg_direct_sql('SET SESSION AUTO_INCREMENT_OFFSET = 2', '',
+'srv "s_2_1"')
+1
+spider_bg_direct_sql('SET SESSION AUTO_INCREMENT_OFFSET = 3', '',
+'srv "s_2_2"')
+1
+CREATE TABLE t1 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_1
+CREATE TABLE t2 (
+id int(11) NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (id)
+) SLAVE1_1_ENGINE SLAVE1_1_CHARSET SLAVE1_1_COMMENT_INCREMENT1_1
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+2
+SELECT MAX(id) FROM t1;
+MAX(id)
+2
+INSERT INTO t2 () VALUES ();
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+6
+SELECT MAX(id) FROM t2;
+MAX(id)
+6
+MASTER_1_AUTO_INCREMENT_OFFSET3
+INSERT INTO t1 (id) VALUES (null);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+10
+SELECT MAX(id) FROM t1;
+MAX(id)
+10
+MASTER_1_AUTO_INCREMENT_OFFSET4
+INSERT INTO t2 (id) VALUES (null);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+14
+SELECT MAX(id) FROM t2;
+MAX(id)
+14
+MASTER_1_AUTO_INCREMENT_OFFSET3
+INSERT INTO t1 () VALUES (),(),(),();
+Warnings:
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+18
+SELECT id FROM t1 ORDER BY id;
+id
+2
+6
+10
+14
+18
+22
+26
+30
+MASTER_1_AUTO_INCREMENT_OFFSET4
+INSERT INTO t2 () VALUES (),(),(),();
+Warnings:
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+34
+SELECT id FROM t2 ORDER BY id;
+id
+2
+6
+10
+14
+18
+22
+26
+30
+34
+38
+42
+46
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+INSERT INTO t1 () VALUES (),(),(),();
+Warnings:
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+2
+SELECT id FROM t1 ORDER BY id;
+id
+2
+6
+10
+14
+INSERT INTO t2 () VALUES (),(),(),();
+Warnings:
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+Note	12520	Binlog's auto-inc value is probably different from linked table's auto-inc value
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+18
+SELECT id FROM t2 ORDER BY id;
+id
+2
+6
+10
+14
+18
+22
+26
+30
+SET INSERT_ID=5000;
+MASTER_1_AUTO_INCREMENT_OFFSET3
+INSERT INTO t1 () VALUES ();
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+34
+SELECT MAX(id) FROM t1;
+MAX(id)
+34
+MASTER_1_AUTO_INCREMENT_OFFSET4
+INSERT INTO t2 () VALUES ();
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+38
+SELECT MAX(id) FROM t2;
+MAX(id)
+38
+INSERT INTO t1 (id) VALUES (10000);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+42
+SELECT MAX(id) FROM t1;
+MAX(id)
+42
+INSERT INTO t2 (id) VALUES (1000);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+46
+SELECT MAX(id) FROM t2;
+MAX(id)
+46
+SET SESSION spider_auto_increment_mode = @original_spider_auto_increment_mode;
+connection slave1_1;
+SELECT id FROM t1 ORDER BY id;
+id
+2
+34
+777
+1554
+2331
+10000
+connection master_1;
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection slave1_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for slave1_1
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test
