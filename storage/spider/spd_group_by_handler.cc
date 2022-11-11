@@ -1237,6 +1237,10 @@ int spider_group_by_handler::init_scan()
 
   spider_db_free_one_result_for_start_next(spider);
 
+  spider->sql_kinds = SPIDER_SQL_KIND_SQL;
+  for (link_idx = 0; link_idx < (int) share->link_count; ++link_idx)
+    spider->sql_kind[link_idx] = SPIDER_SQL_KIND_SQL;
+
   spider->do_direct_update = FALSE;
   spider->direct_update_kinds = 0;
   spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
@@ -1910,6 +1914,16 @@ group_by_handler *spider_create_group_by_handler(
       spider->conn_link_idx, roop_count, share->link_count,
       tgt_link_status)
   ) {
+    if (spider_param_use_handler(thd, share->use_handlers[roop_count]))
+    {
+      DBUG_PRINT("info",("spider direct_join does not support use_handler"));
+      if (lock_mode)
+      {
+        delete fields;
+        DBUG_RETURN(NULL);
+      }
+      continue;
+    }
     conn = spider->conns[roop_count];
     DBUG_PRINT("info",("spider roop_count=%d", roop_count));
     DBUG_PRINT("info",("spider conn=%p", conn));
@@ -1985,6 +1999,16 @@ group_by_handler *spider_create_group_by_handler(
         tgt_link_status)
     ) {
       DBUG_PRINT("info",("spider roop_count=%d", roop_count));
+      if (spider_param_use_handler(thd, share->use_handlers[roop_count]))
+      {
+        DBUG_PRINT("info",("spider direct_join does not support use_handler"));
+        if (lock_mode)
+        {
+          delete fields;
+          DBUG_RETURN(NULL);
+        }
+        continue;
+      }
       conn = spider->conns[roop_count];
       DBUG_PRINT("info",("spider conn=%p", conn));
       if (!fields->check_conn_same_conn(conn))

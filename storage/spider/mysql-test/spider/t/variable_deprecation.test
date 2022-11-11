@@ -12,6 +12,14 @@
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 
+--echo # MDEV-27923 Deprecate spider_use_handler
+SET spider_use_handler = 3;
+SHOW VARIABLES LIKE "spider_use_handler";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='uhd "3"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='use_handler "3"';
+DROP TABLE tbl_a;
+DROP TABLE tbl_b;
+
 --echo # MDEV-28297 Deprecate spider_internal_offset
 SET spider_internal_offset = 1;
 SHOW VARIABLES LIKE "spider_internal_offset";

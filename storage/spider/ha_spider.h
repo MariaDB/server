@@ -59,6 +59,8 @@ public:
   const char         *mem_calc_func_name;
   const char         *mem_calc_file_name;
   ulong              mem_calc_line_no;
+  uint               sql_kinds;
+  uint               *sql_kind;
   ulonglong          *connection_ids;
   uint               conn_kinds;
   uint               *conn_kind;
@@ -136,6 +138,9 @@ public:
 
   ulonglong          *db_request_id;
   uchar              *db_request_phase;
+  uchar              *m_handler_opened;
+  uint               *m_handler_id;
+  char               **m_handler_cid;
   bool               do_direct_update;
   uint               direct_update_kinds;
   spider_index_rnd_init prev_index_rnd_init;
@@ -542,7 +547,25 @@ public:
   bool is_sole_projection_field(
     uint16 field_index
   );
+  int check_ha_range_eof();
   int drop_tmp_tables();
+  bool handler_opened(
+    int link_idx,
+    uint tgt_conn_kind
+  );
+  void set_handler_opened(
+    int link_idx
+  );
+  void clear_handler_opened(
+    int link_idx,
+    uint tgt_conn_kind
+  );
+  int close_opened_handler(
+    int link_idx,
+    bool release_conn
+  );
+  int index_handler_init();
+  int rnd_handler_init();
   void set_error_mode();
   void backup_error_status();
   int check_error_mode(
@@ -785,6 +808,9 @@ public:
     spider_string *str,
     const char *alias,
     uint alias_length
+  );
+  bool support_use_handler_sql(
+    int use_handler
   );
   int init_union_table_name_pos_sql();
   int set_union_table_name_pos_sql();

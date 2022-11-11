@@ -396,6 +396,12 @@ public:
   const char     *lock_table_hash_func_name;
   const char     *lock_table_hash_file_name;
   ulong          lock_table_hash_line_no;
+  DYNAMIC_ARRAY  handler_open_array;
+  bool           handler_open_array_inited;
+  uint           handler_open_array_id;
+  const char     *handler_open_array_func_name;
+  const char     *handler_open_array_file_name;
+  ulong          handler_open_array_line_no;
   spider_db_mbase(
     SPIDER_CONN *conn,
     spider_db_mbase_util *spider_db_mbase_utility
@@ -577,6 +583,8 @@ public:
   );
   uint get_lock_table_hash_count();
   void reset_lock_table_hash();
+  uint get_opened_handler_count();
+  void reset_opened_handler();
   void set_dup_key_idx(
     ha_spider *spider,
     int link_idx
@@ -1184,6 +1192,26 @@ public:
     spider_string *str,
     uint multi_range_cnt
   );
+  int append_open_handler_part(
+    ulong sql_type,
+    uint handler_id,
+    SPIDER_CONN *conn,
+    int link_idx
+  );
+  int append_open_handler(
+    spider_string *str,
+    uint handler_id,
+    SPIDER_CONN *conn,
+    int link_idx
+  );
+  int append_close_handler_part(
+    ulong sql_type,
+    int link_idx
+  );
+  int append_close_handler(
+    spider_string *str,
+    int link_idx
+  );
   int append_insert_terminator_part(
     ulong sql_type
   );
@@ -1450,8 +1478,19 @@ public:
     SPIDER_CONN *conn,
     int link_idx
   );
+  int insert_opened_handler(
+    SPIDER_CONN *conn,
+    int link_idx
+  );
+  int delete_opened_handler(
+    SPIDER_CONN *conn,
+    int link_idx
+  );
   int sync_from_clone_source(
     spider_db_handler *dbton_hdl
+  );
+  bool support_use_handler(
+    int use_handler
   );
   void minimum_select_bitmap_create();
   bool minimum_select_bit_is_set(

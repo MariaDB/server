@@ -38,6 +38,9 @@ create table auto_test_local.t (a int, b char(1), primary key(a desc));
 insert into auto_test_local.t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
 create table ts (a int, b char(1), primary key(a desc))
 engine=spider comment='wrapper "mysql", srv "s_1", table "t"';
+set spider_use_handler=3;
+select a, b from ts where a > 0 and b = 'g' order by a;
+set spider_use_handler=default;
 select a, b from ts where a > 0 and b = 'g' order by a;
 drop table ts, auto_test_local.t;
 

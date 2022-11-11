@@ -390,6 +390,18 @@ bool spider_conn_check_recovery_link(
   SPIDER_SHARE *share
 );
 
+bool spider_conn_use_handler(
+  ha_spider *spider,
+  int lock_mode,
+  int link_idx
+);
+
+bool spider_conn_need_open_handler(
+  ha_spider *spider,
+  uint idx,
+  int link_idx
+);
+
 SPIDER_IP_PORT_CONN *spider_create_ipport_conn(SPIDER_CONN *conn);
 SPIDER_CONN* spider_get_conn_from_idle_connection
 (
