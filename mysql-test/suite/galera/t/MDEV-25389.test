@@ -11,3 +11,8 @@ SELECT @@wsrep_slave_threads;
 SET GLOBAL debug_dbug='';
 SET GLOBAL wsrep_slave_threads=1;
 SELECT @@wsrep_slave_threads;
+
+# MDEV-29878: this test caused a subsequent test to fail
+# during shutdown. Do a restart here, to make sure the
+# issue is fixed.
+--source include/restart_mysqld.inc
