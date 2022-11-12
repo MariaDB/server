@@ -2055,7 +2055,6 @@ int ha_spider::index_first_internal(
       pt_clone_source_handler));
     pt_clone_source_handler->pt_clone_last_searcher = this;
   }
-  if (sql_is_empty(SPIDER_SQL_TYPE_SELECT_SQL))
   {
     /*
         spider_db_free_one_result_for_start_next(this);
@@ -2399,7 +2398,6 @@ int ha_spider::index_last_internal(
       pt_clone_source_handler));
     pt_clone_source_handler->pt_clone_last_searcher = this;
   }
-  if (sql_is_empty(SPIDER_SQL_TYPE_SELECT_SQL))
   {
     /*
         spider_db_free_one_result_for_start_next(this);
