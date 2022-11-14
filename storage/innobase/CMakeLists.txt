@@ -311,8 +311,7 @@ SET(INNOBASE_SOURCES
 	include/hash0hash.h
 	include/ib0mutex.h
 	include/ibuf0ibuf.h
-	include/ibuf0ibuf.inl/
-	include/ibuf0types.h
+	include/ibuf0ibuf.inl
 	include/lock0iter.h
 	include/lock0lock.h
 	include/lock0lock.inl
