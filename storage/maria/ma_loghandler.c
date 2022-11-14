@@ -478,7 +478,7 @@ static my_bool translog_page_validator(int res, PAGECACHE_IO_HOOK_ARGS *args);
 static my_bool translog_get_next_chunk(TRANSLOG_SCANNER_DATA *scanner);
 static uint32 translog_first_file(TRANSLOG_ADDRESS horizon, int is_protected);
 LSN translog_next_LSN(TRANSLOG_ADDRESS addr, TRANSLOG_ADDRESS horizon);
-
+static void translog_free_link(PAGECACHE_BLOCK_LINK *direct_link);
 
 /*
   Initialize log_record_type_descriptors
@@ -3116,7 +3116,10 @@ restart:
                                          PAGECACHE_PLAIN_PAGE,
                                          PAGECACHE_LOCK_LEFT_UNLOCKED,
                                          NULL)))
+            {
+              translog_unlock();
               DBUG_RETURN(NULL);
+            }
           }
           else
             skipped_data= 0;  /* Read after skipped in buffer data */
@@ -3217,6 +3220,11 @@ restart:
                           PAGECACHE_LOCK_READ :
                           PAGECACHE_LOCK_LEFT_UNLOCKED),
                          direct_link);
+  if (!buffer && direct_link)
+  {
+    translog_free_link(*direct_link);
+    *direct_link= 0;
+  }
   DBUG_PRINT("info", ("Direct link is assigned to : %p * %p",
                       direct_link,
                       (direct_link ? *direct_link : NULL)));
@@ -3786,16 +3794,26 @@ my_bool translog_init_with_table(const char *directory,
     }
     else if (LSN_OFFSET(last_page) == 0)
     {
-      if (LSN_FILE_NO(last_page) == 1)
+      if (LSN_FILE_NO(last_page) == 1 ||
+          !translog_is_file(LSN_FILE_NO(last_page-1)))
       {
         logs_found= 0;                          /* file #1 has no pages */
         DBUG_PRINT("info", ("log found. But is is empty => no log assumed"));
       }
       else
       {
-        last_page-= LSN_ONE_FILE;
-        if (translog_get_last_page_addr(&last_page, &pageok, 0))
-          goto err;
+        do
+        {
+          last_page-= LSN_ONE_FILE;
+          if (translog_get_last_page_addr(&last_page, &pageok, 0))
+            goto err;
+        }
+        while (LSN_OFFSET(last_page) == 0 && LSN_FILE_NO(last_page) >= 1);
+        if (LSN_OFFSET(last_page) == 0)
+        {
+          /* All files have a size less than TRANSLOG_PAGE_SIZE */
+          logs_found= 0;
+        }
       }
     }
     if (logs_found)
@@ -3893,36 +3911,38 @@ my_bool translog_init_with_table(const char *directory,
         old_log_was_recovered= 1;
         /* This file is not written till the end so it should be last */
         last_page= current_file_last_page;
-        /* TODO: issue warning */
       }
-      do
+      if (LSN_OFFSET(current_file_last_page) >= TRANSLOG_PAGE_SIZE)
       {
-        TRANSLOG_VALIDATOR_DATA data;
-        TRANSLOG_PAGE_SIZE_BUFF psize_buff;
-        uchar *page;
-        data.addr= &current_page;
-        if ((page= translog_get_page(&data, psize_buff.buffer, NULL)) == NULL)
-          goto err;
-        if (data.was_recovered)
+        do
         {
-          DBUG_PRINT("error", ("file no: %lu (%d)  "
-                               "rec_offset: 0x%lx (%lu) (%d)",
-                               (ulong) LSN_FILE_NO(current_page),
-                               (uint3korr(page + 3) !=
-                                LSN_FILE_NO(current_page)),
-                               (ulong) LSN_OFFSET(current_page),
-                               (ulong) (LSN_OFFSET(current_page) /
-                                        TRANSLOG_PAGE_SIZE),
-                               (uint3korr(page) !=
-                                LSN_OFFSET(current_page) /
-                                TRANSLOG_PAGE_SIZE)));
-          old_log_was_recovered= 1;
-          break;
-        }
-        old_flags= page[TRANSLOG_PAGE_FLAGS];
-        last_valid_page= current_page;
-        current_page+= TRANSLOG_PAGE_SIZE; /* increase offset */
-      } while (current_page <= current_file_last_page);
+          TRANSLOG_VALIDATOR_DATA data;
+          TRANSLOG_PAGE_SIZE_BUFF psize_buff;
+          uchar *page;
+          data.addr= &current_page;
+          if ((page= translog_get_page(&data, psize_buff.buffer, NULL)) == NULL)
+            goto err;
+          if (data.was_recovered)
+          {
+            DBUG_PRINT("error", ("file no: %lu (%d)  "
+                                 "rec_offset: 0x%lx (%lu) (%d)",
+                                 (ulong) LSN_FILE_NO(current_page),
+                                 (uint3korr(page + 3) !=
+                                  LSN_FILE_NO(current_page)),
+                                 (ulong) LSN_OFFSET(current_page),
+                                 (ulong) (LSN_OFFSET(current_page) /
+                                          TRANSLOG_PAGE_SIZE),
+                                 (uint3korr(page) !=
+                                  LSN_OFFSET(current_page) /
+                                  TRANSLOG_PAGE_SIZE)));
+            old_log_was_recovered= 1;
+            break;
+          }
+          old_flags= page[TRANSLOG_PAGE_FLAGS];
+          last_valid_page= current_page;
+          current_page+= TRANSLOG_PAGE_SIZE; /* increase offset */
+        } while (current_page <= current_file_last_page);
+      }
       current_page+= LSN_ONE_FILE;
       current_page= LSN_REPLACE_OFFSET(current_page, TRANSLOG_PAGE_SIZE);
     } while (LSN_FILE_NO(current_page) <= LSN_FILE_NO(last_page) &&
@@ -4014,7 +4034,7 @@ my_bool translog_init_with_table(const char *directory,
   }
   DBUG_PRINT("info", ("Logs found: %d  was recovered: %d",
                       logs_found, old_log_was_recovered));
-  if (!logs_found)
+  if (!logs_found && !readonly)
   {
     TRANSLOG_FILE *file= (TRANSLOG_FILE*)my_malloc(PSI_INSTRUMENT_ME,
                                            sizeof(TRANSLOG_FILE), MYF(MY_WME));
@@ -4063,6 +4083,10 @@ my_bool translog_init_with_table(const char *directory,
     */
     translog_start_buffer(log_descriptor.buffers, &log_descriptor.bc, 0);
     translog_new_page_header(&log_descriptor.horizon, &log_descriptor.bc);
+  }
+  else if (readonly && !logs_found)
+  {
+    log_descriptor.horizon= LSN_IMPOSSIBLE;
   }
 
   /* all LSNs that are on disk are flushed */
@@ -4145,21 +4169,24 @@ my_bool translog_init_with_table(const char *directory,
         uint32 file_no= LSN_FILE_NO(page_addr);
         my_bool last_page_ok;
         /* it is beginning of the current file */
-        if (unlikely(file_no == 1))
+        do
         {
-          /*
-            It is beginning of the log => there is no LSNs in the log =>
-            There is no harm in leaving it "as-is".
+          if (unlikely(file_no == 1))
+          {
+            /*
+              It is beginning of the log => there is no LSNs in the log =>
+              There is no harm in leaving it "as-is".
           */
-          log_descriptor.previous_flush_horizon= log_descriptor.horizon;
-          DBUG_PRINT("info", ("previous_flush_horizon: " LSN_FMT,
-                              LSN_IN_PARTS(log_descriptor.
+            log_descriptor.previous_flush_horizon= log_descriptor.horizon;
+            DBUG_PRINT("info", ("previous_flush_horizon: " LSN_FMT,
+                                LSN_IN_PARTS(log_descriptor.
                                            previous_flush_horizon)));
-          DBUG_RETURN(0);
-        }
-        file_no--;
-        page_addr= MAKE_LSN(file_no, TRANSLOG_PAGE_SIZE);
-        translog_get_last_page_addr(&page_addr, &last_page_ok, 0);
+            DBUG_RETURN(0);
+          }
+          file_no--;
+          page_addr= MAKE_LSN(file_no, TRANSLOG_PAGE_SIZE);
+          translog_get_last_page_addr(&page_addr, &last_page_ok, 0);
+        } while (LSN_OFFSET(page_addr) == 0);
         /* page should be OK as it is not the last file */
         DBUG_ASSERT(last_page_ok);
       }
@@ -6905,17 +6932,19 @@ translog_get_next_chunk(TRANSLOG_SCANNER_DATA *scanner)
       /* if it is log end it have to be caught before */
       DBUG_ASSERT(LSN_FILE_NO(scanner->horizon) >
                   LSN_FILE_NO(scanner->page_addr));
-      scanner->page_addr+= LSN_ONE_FILE;
-      scanner->page_addr= LSN_REPLACE_OFFSET(scanner->page_addr,
-                                             TRANSLOG_PAGE_SIZE);
-      if (translog_scanner_set_last_page(scanner))
-        DBUG_RETURN(1);
+      do
+      {
+        scanner->page_addr+= LSN_ONE_FILE;
+        scanner->page_addr= LSN_REPLACE_OFFSET(scanner->page_addr,
+                                               TRANSLOG_PAGE_SIZE);
+        if (translog_scanner_set_last_page(scanner))
+          DBUG_RETURN(1);
+      } while (!LSN_OFFSET(scanner->last_file_page));
     }
     else
     {
       scanner->page_addr+= TRANSLOG_PAGE_SIZE; /* offset increased */
     }
-
     if (translog_scanner_get_page(scanner))
       DBUG_RETURN(1);
 
@@ -6926,7 +6955,9 @@ translog_get_next_chunk(TRANSLOG_SCANNER_DATA *scanner)
       scanner->page_offset= 0;
       DBUG_RETURN(0);
     }
+#ifdef CHECK_EMPTY_PAGE
     DBUG_ASSERT(scanner->page[scanner->page_offset] != TRANSLOG_FILLER);
+#endif
   }
   DBUG_RETURN(0);
 }
