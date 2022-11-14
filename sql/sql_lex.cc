@@ -11921,9 +11921,18 @@ bool SELECT_LEX_UNIT::explainable() const
                false;
 }
 
+/*
+  Determines whether the derived table was eliminated during
+  the call of eliminate_tables(JOIN *) made at the optimization stage
+  or completely optimized out (for such degenerate statements like
+  "SELECT 1", for example)
+*/
+
 bool SELECT_LEX_UNIT::is_derived_eliminated() const
 {
   if (!derived)
     return false;
+  if (!derived->table)
+    return true;
   return derived->table->map & outer_select()->join->eliminated_tables;
 }

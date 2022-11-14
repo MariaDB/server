@@ -784,3 +784,18 @@ SELECT t1.* FROM t1 LEFT JOIN
  ) dt2 ON dt2.a2 = t1.a2;
 
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-30007: SIGSEGV in st_select_lex_unit::is_derived_eliminated,
+--echo # runtime error: member access within null pointer of type
+--echo # 'struct TABLE' in st_select_lex_unit::is_derived_eliminated()
+--echo #
+CREATE VIEW v AS SELECT 1 AS a;
+SELECT ROUND ((SELECT 1 FROM v)) FROM v GROUP BY ROUND ((SELECT 1 FROM v));
+EXPLAIN
+SELECT ROUND ((SELECT 1 FROM v)) FROM v GROUP BY ROUND ((SELECT 1 FROM v));
+DROP VIEW v;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #
