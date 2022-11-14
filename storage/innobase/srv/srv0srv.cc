@@ -73,6 +73,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "trx0types.h"
 #include <list>
+#include "log.h"
 
 #include <my_service_manager.h>
 /* The following is the maximum allowed duration of a lock wait. */
@@ -1495,38 +1496,42 @@ srv_master_evict_from_table_cache(
 	return(n_tables_evicted);
 }
 
-/*********************************************************************//**
-This function prints progress message every 60 seconds during server
-shutdown, for any activities that master thread is pending on. */
-static
-void
-srv_shutdown_print_master_pending(
-/*==============================*/
-	time_t*		last_print_time,	/*!< last time the function
-						print the message */
-	ulint		n_tables_to_drop,	/*!< number of tables to
-						be dropped */
-	ulint		n_bytes_merged)		/*!< number of change buffer
-						just merged */
+/** Report progress during shutdown.
+@param last   time of last output
+@param n_drop number of tables to be dropped
+@param n_read number of page reads initiated for change buffer merge */
+static void srv_shutdown_print(time_t &last, ulint n_drop, ulint n_read)
 {
-	time_t current_time = time(NULL);
+  time_t now= time(nullptr);
+  if (now - last >= 15)
+  {
+    last= now;
 
-	if (difftime(current_time, *last_print_time) > 60) {
-		*last_print_time = current_time;
+    if (n_drop)
+    {
+      sql_print_information("InnoDB: Waiting for %zu table(s) to be dropped",
+                            n_drop);
+#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                     "InnoDB: Waiting for %zu table(s)"
+                                     " to be dropped", n_drop);
+#endif
+      return;
+    }
 
-		if (n_tables_to_drop) {
-			ib::info() << "Waiting for " << n_tables_to_drop
-				<< " table(s) to be dropped";
-		}
-
-		/* Check change buffer merge, we only wait for change buffer
-		merge if it is a slow shutdown */
-		if (!srv_fast_shutdown && n_bytes_merged) {
-			ib::info() << "Waiting for change buffer merge to"
-				" complete number of bytes of change buffer"
-				" just merged: " << n_bytes_merged;
-		}
-	}
+    const ulint ibuf_size= ibuf.size;
+    sql_print_information("Completing change buffer merge;"
+                          " %zu page reads initiated;"
+                          " %zu change buffer pages remain",
+                          n_read, ibuf_size);
+#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
+    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                   "Completing change buffer merge;"
+                                   " %zu page reads initiated;"
+                                   " %zu change buffer pages remain",
+                                   n_read, ibuf_size);
+#endif
+  }
 }
 
 /*********************************************************************//**
@@ -1654,7 +1659,7 @@ Complete the shutdown tasks such as background DROP TABLE,
 and optionally change buffer merge (on innodb_fast_shutdown=0). */
 void srv_shutdown(bool ibuf_merge)
 {
-	ulint		n_bytes_merged	= 0;
+	ulint		n_read = 0;
 	ulint		n_tables_to_drop;
 	time_t		now = time(NULL);
 
@@ -1670,15 +1675,14 @@ void srv_shutdown(bool ibuf_merge)
 
 		if (ibuf_merge) {
 			srv_main_thread_op_info = "doing insert buffer merge";
-			n_bytes_merged = ibuf_merge_all();
+			log_free_check();
+			n_read = ibuf_contract();
 		}
 
-		/* Print progress message every 60 seconds during shutdown */
-		if (srv_print_verbose_log) {
-			srv_shutdown_print_master_pending(
-				&now, n_tables_to_drop, n_bytes_merged);
+		if (n_tables_to_drop || ibuf_merge) {
+			srv_shutdown_print(now, n_tables_to_drop, n_read);
 		}
-	} while (n_bytes_merged || n_tables_to_drop);
+	} while (n_read || n_tables_to_drop);
 }
 
 /** The periodic master task controlling the server. */

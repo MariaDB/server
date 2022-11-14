@@ -62,9 +62,9 @@ extern ulong		innodb_change_buffering;
 
 /** Insert buffer struct */
 struct ibuf_t{
-	ulint		size;		/*!< current size of the ibuf index
+	Atomic_relaxed<ulint> size;	/*!< current size of the ibuf index
 					tree, in pages */
-	ulint		max_size;	/*!< recommended maximum size of the
+	Atomic_relaxed<ulint> max_size;	/*!< recommended maximum size of the
 					ibuf index tree, in pages */
 	ulint		seg_size;	/*!< allocated pages of the file
 					segment containing ibuf header and
@@ -371,9 +371,9 @@ void ibuf_delete_for_discarded_space(ulint space);
 
 /** Contract the change buffer by reading pages to the buffer pool.
 @return a lower limit for the combined size in bytes of entries which
-will be merged from ibuf trees to the pages read, 0 if ibuf is
-empty */
-ulint ibuf_merge_all();
+will be merged from ibuf trees to the pages read
+@retval 0 if ibuf.empty */
+ulint ibuf_contract();
 
 /** Contracts insert buffer trees by reading pages referring to space_id
 to the buffer pool.
