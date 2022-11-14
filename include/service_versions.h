@@ -44,7 +44,7 @@
 #define VERSION_wsrep                   0x0500
 #define VERSION_json                    0x0100
 #define VERSION_thd_mdl                 0x0100
-#define VERSION_sql_service             0x0101
+#define VERSION_sql_service             0x0102
 
 #define VERSION_provider_bzip2          0x0100
 #define VERSION_provider_lz4            0x0100

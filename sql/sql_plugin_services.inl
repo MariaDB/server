@@ -251,7 +251,11 @@ struct sql_service_st sql_service_handler=
   mysql_fetch_lengths,
   mysql_set_character_set,
   mysql_num_fields,
-  mysql_select_db
+  mysql_select_db,
+  mysql_use_result,
+  mysql_fetch_fields,
+  mysql_real_escape_string,
+  mysql_ssl_set
 };
 
 #define DEFINE_warning_function(name, ret) {                                \
