@@ -1677,13 +1677,8 @@ void srv_shutdown(bool ibuf_merge)
 		n_tables_to_drop = row_drop_tables_for_mysql_in_background();
 
 		if (ibuf_merge) {
-			srv_main_thread_op_info = "checking free log space";
-			log_free_check();
 			srv_main_thread_op_info = "doing insert buffer merge";
 			n_bytes_merged = ibuf_merge_all();
-
-			/* Flush logs if needed */
-			srv_sync_log_buffer_in_background();
 		}
 
 		/* Print progress message every 60 seconds during shutdown */

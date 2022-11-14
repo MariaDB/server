@@ -1096,13 +1096,9 @@ loop:
 	}
 
 	/* We need these threads to stop early in shutdown. */
-	const char* thread_name;
-
-   if (srv_fast_shutdown != 2 && trx_rollback_is_active) {
-		thread_name = "rollback of recovered transactions";
-	} else {
-		thread_name = NULL;
-	}
+	const char* thread_name = srv_fast_shutdown != 2
+		&& trx_rollback_is_active
+		? "rollback of recovered transactions" : nullptr;
 
 	if (thread_name) {
 		ut_ad(!srv_read_only_mode);
