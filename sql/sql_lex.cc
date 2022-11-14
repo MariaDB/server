@@ -239,7 +239,8 @@ bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
     Let us add this item to list of all Item_trigger_field
     objects in trigger.
   */
-  sphead->m_trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
+  sphead->m_cur_instr_trig_field_items.link_in_list(trg_fld,
+                                                    &trg_fld->next_trg_field);
 
   return sphead->add_instr(sp_fld);
 }
@@ -7976,7 +7977,8 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
     in trigger.
   */
   if (likely(trg_fld))
-    sphead->m_trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
+    sphead->m_cur_instr_trig_field_items.link_in_list(trg_fld,
+                                                      &trg_fld->next_trg_field);
 
   return trg_fld;
 }

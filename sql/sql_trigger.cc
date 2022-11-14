@@ -864,6 +864,41 @@ static void build_trig_stmt_query(THD *thd, TABLE_LIST *tables,
 
 
 /**
+  Visit every Item_trigger_field object associated with a trigger
+  and run the code supplied in the last argument, passing
+  the Item_trigger_fgield object being visited.
+
+  @param trg_table_fields  Item_trigger_field objects owned by a trigger
+  @param fn                a function to invoke for every Item_trigger_field
+                           object
+
+  @return false on success, true on failure.
+*/
+
+template <typename FN>
+static
+bool iterate_trigger_fields_and_run_func(
+  SQL_I_List<SQL_I_List<Item_trigger_field> > &trg_table_fields,
+  FN fn
+  )
+{
+  for (SQL_I_List<Item_trigger_field>
+         *trg_fld_lst= trg_table_fields.first;
+       trg_fld_lst;
+       trg_fld_lst= trg_fld_lst->first->next_trig_field_list)
+  {
+    for (Item_trigger_field *trg_field= trg_fld_lst->first;
+         trg_field;
+         trg_field= trg_field->next_trg_field)
+    {
+      if (fn(trg_field))
+        return true;
+    }
+  }
+  return false;
+}
+
+/**
   Create trigger for table.
 
   @param thd           current thread context (including trigger definition in
@@ -899,7 +934,6 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   char trg_definer_holder[USER_HOST_BUFF_SIZE];
   LEX_CSTRING backup_name= { backup_file_buff, 0 };
   LEX_CSTRING file, trigname_file;
-  Item_trigger_field *trg_field;
   struct st_trigname trigname;
   String trigger_definition;
   Trigger *trigger= 0;
@@ -936,18 +970,20 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   */
   old_field= new_field= table->field;
 
-  for (trg_field= lex->sphead->m_trg_table_fields.first;
-       trg_field; trg_field= trg_field->next_trg_field)
-  {
-    /*
-      NOTE: now we do not check privileges at CREATE TRIGGER time. This will
-      be changed in the future.
-    */
-    trg_field->setup_field(thd, table, NULL);
+  if (iterate_trigger_fields_and_run_func(
+        lex->sphead->m_trg_table_fields,
+        [thd, table] (Item_trigger_field* trg_field)
+        {
+          /*
+            NOTE: now we do not check privileges at CREATE TRIGGER time.
+            This will be changed in the future.
+          */
+          trg_field->setup_field(thd, table, nullptr);
 
-    if (trg_field->fix_fields_if_needed(thd, (Item **)0))
-      DBUG_RETURN(true);
-  }
+          return trg_field->fix_fields_if_needed(thd, (Item **)0);
+        }
+     ))
+    DBUG_RETURN(true);
 
   /* Ensure anchor trigger exists */
   if (lex->trg_chistics.ordering_clause != TRG_ORDER_NONE)
@@ -1786,12 +1822,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         }
 
         /*
-          Gather all Item_trigger_field objects representing access to fields
-          in old/new versions of row in trigger into lists containing all such
-          objects for the trigger_list with same action and timing.
-        */
-        trigger->trigger_fields= sp->m_trg_table_fields.first;
-        /*
           Also let us bind these objects to Field objects in table being
           opened.
 
@@ -1800,13 +1830,15 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           SELECT)...
           Anyway some things can be checked only during trigger execution.
         */
-        for (Item_trigger_field *trg_field= sp->m_trg_table_fields.first;
-             trg_field;
-             trg_field= trg_field->next_trg_field)
-        {
-          trg_field->setup_field(thd, table,
-                                 &trigger->subject_table_grants);
-        }
+
+        (void)iterate_trigger_fields_and_run_func(
+          sp->m_trg_table_fields,
+          [thd, table, trigger] (Item_trigger_field* trg_field)
+          {
+            trg_field->setup_field(thd, table, &trigger->subject_table_grants);
+            return false;
+          }
+        );
 
         sp->m_trg= trigger;
         lex_end(&lex);
@@ -2567,7 +2599,6 @@ add_tables_and_routines_for_triggers(THD *thd,
 void Table_triggers_list::mark_fields_used(trg_event_type event)
 {
   int action_time;
-  Item_trigger_field *trg_field;
   DBUG_ENTER("Table_triggers_list::mark_fields_used");
 
   for (action_time= 0; action_time < (int)TRG_ACTION_MAX; action_time++)
@@ -2576,20 +2607,28 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
          trigger ;
          trigger= trigger->next)
     {
-      for (trg_field= trigger->trigger_fields;
-           trg_field;
-           trg_field= trg_field->next_trg_field)
-      {
-        /* We cannot mark fields which does not present in table. */
-        if (trg_field->field_idx != NO_CACHED_FIELD_INDEX)
+      /*
+        Skip a trigger that was parsed with an error.
+      */
+      if (trigger->body == nullptr)
+        continue;
+
+      (void)iterate_trigger_fields_and_run_func(
+        trigger->body->m_trg_table_fields,
+        [this] (Item_trigger_field* trg_field)
         {
-          DBUG_PRINT("info", ("marking field: %u", (uint) trg_field->field_idx));
-          if (trg_field->get_settable_routine_parameter())
-            bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
-          trigger_table->mark_column_with_deps(
-                                  trigger_table->field[trg_field->field_idx]);
+          /* We cannot mark fields which does not present in table. */
+          if (trg_field->field_idx != NO_CACHED_FIELD_INDEX)
+          {
+            DBUG_PRINT("info", ("marking field: %u", (uint) trg_field->field_idx));
+            if (trg_field->get_settable_routine_parameter())
+              bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
+            trigger_table->mark_column_with_deps(
+              trigger_table->field[trg_field->field_idx]);
+          }
+          return false;
         }
-      }
+      );
     }
   }
   trigger_table->file->column_bitmaps_signal();

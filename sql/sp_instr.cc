@@ -551,7 +551,7 @@ void sp_lex_instr::get_query(String *sql_query) const
 }
 
 
-void sp_lex_instr::cleanup_before_parsing()
+void sp_lex_instr::cleanup_before_parsing(enum_sp_type sp_type)
 {
   Item *current= free_list;
 
@@ -563,27 +563,46 @@ void sp_lex_instr::cleanup_before_parsing()
   }
 
   free_list= nullptr;
+
+  if (sp_type == SP_TYPE_TRIGGER)
+    /*
+      Some of deleted items can be referenced from the list
+      m_cur_trigger_stmt_items. Clean up the list content to avoid
+      dangling references.
+    */
+    m_cur_trigger_stmt_items.empty();
 }
 
 
-/**
-  Set up field object for every NEW/OLD item of the trigger.
-
-  @param thd  current thread
-  @param sp   sp_head object of the trigger
-*/
-
-static void setup_table_fields_for_trigger(THD *thd, sp_head *sp)
+bool sp_lex_instr::setup_table_fields_for_trigger(
+  THD *thd, sp_head *sp,
+  SQL_I_List<Item_trigger_field> *next_trig_items_list)
 {
+  bool result= false;
   DBUG_ASSERT(sp->m_trg);
 
-  for (Item_trigger_field *trg_field= sp->m_trg_table_fields.first;
-      trg_field;
-      trg_field= trg_field->next_trg_field)
+  for (Item_trigger_field *trg_field= sp->m_cur_instr_trig_field_items.first;
+       trg_field;
+       trg_field= trg_field->next_trg_field)
   {
     trg_field->setup_field(thd, sp->m_trg->base->get_subject_table(),
                            &sp->m_trg->subject_table_grants);
+    result= trg_field->fix_fields_if_needed(thd, (Item **)0);
   }
+
+  /*
+    Move the list of Item_trigger_field objects, that have just been
+    filled in on parsing the trigger's statement, into the instruction list
+    owned by SP instruction.
+  */
+  if (sp->m_cur_instr_trig_field_items.elements)
+  {
+    sp->m_cur_instr_trig_field_items.save_and_clear(
+      &m_cur_trigger_stmt_items);
+    m_cur_trigger_stmt_items.first->next_trig_field_list= next_trig_items_list;
+  }
+
+  return result;
 }
 
 
@@ -605,7 +624,18 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
     return nullptr;
   }
 
-  cleanup_before_parsing();
+  /*
+    Remember a pointer to the next list of Item_trigger_field objects.
+    The current list of Item_trigger_field objects is cleared up in the
+    method cleanup_before_parsing().
+  */
+  SQL_I_List<Item_trigger_field> *saved_ptr_to_next_trg_items_list= nullptr;
+
+  if (m_cur_trigger_stmt_items.elements)
+    saved_ptr_to_next_trg_items_list=
+      m_cur_trigger_stmt_items.first->next_trig_field_list;
+
+  cleanup_before_parsing(sp->m_handler->type());
 
   Parser_state parser_state;
 
@@ -666,7 +696,8 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
   {
     thd->lex->set_trg_event_type_for_tables();
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)
-      setup_table_fields_for_trigger(thd, sp);
+      setup_table_fields_for_trigger(thd, sp,
+                                     saved_ptr_to_next_trg_items_list);
 
     adjust_sql_command(thd->lex);
     parsing_failed= on_after_expr_parsing(thd);
