@@ -395,9 +395,6 @@ ib_mutex_t	srv_misc_tmpfile_mutex;
 /** Temporary file for miscellanous diagnostic output */
 FILE*	srv_misc_tmpfile;
 
-static ulint	srv_main_thread_process_no;
-static ulint	srv_main_thread_id;
-
 /* The following counts are used by the srv_master_callback. */
 
 /** Iterations of the loop bounded by 'srv_active' label. */
@@ -905,12 +902,7 @@ srv_printf_innodb_monitor(
 			n_reserved);
 	}
 
-	fprintf(file,
-		"Process ID=" ULINTPF
-		", Main thread ID=" ULINTPF
-		", state: %s\n",
-		srv_main_thread_process_no,
-		srv_main_thread_id,
+	fprintf(file, "Process ID=0, Main thread ID=0, state: %s\n",
 		srv_main_thread_op_info);
 	fprintf(file,
 		"Number of rows inserted " ULINTPF
