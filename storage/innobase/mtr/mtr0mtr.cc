@@ -24,18 +24,19 @@ Mini-transaction buffer
 Created 11/26/1995 Heikki Tuuri
 *******************************************************/
 
-#include "mtr0mtr.h"
+#include "mtr0log.h"
 
 #include "buf0buf.h"
 #include "buf0flu.h"
 #include "fsp0sysspace.h"
 #include "page0types.h"
-#include "mtr0log.h"
 #include "log0recv.h"
 #include "my_cpu.h"
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#include "srv0start.h"
+#include "log.h"
 
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
@@ -840,7 +841,6 @@ mtr_t::memo_release(const void* object, ulint type)
 
 static bool log_margin_warned;
 static time_t log_margin_warn_time;
-static bool log_close_warned;
 static time_t log_close_warn_time;
 
 /** Check margin not to overwrite transaction log from the last checkpoint.
@@ -878,8 +878,8 @@ static void log_margin_checkpoint_age(ulint len)
       log_margin_warned= true;
       log_margin_warn_time= t;
 
-      ib::error() << "innodb_log_file_size is too small "
-                     "for mini-transaction size " << len;
+      sql_print_error("InnoDB: innodb_log_file_size is too small "
+                      "for mini-transaction size " ULINTPF, len);
     }
   }
   else if (UNIV_LIKELY(lsn + margin <= log_sys.last_checkpoint_lsn +
@@ -1005,14 +1005,19 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn)
       checkpoint_age != lsn)
   {
     time_t t= time(nullptr);
-    if (!log_close_warned || difftime(t, log_close_warn_time) > 15)
+    if (!log_sys.overwrite_warned || difftime(t, log_close_warn_time) > 15)
     {
-      log_close_warned= true;
+      if (!log_sys.overwrite_warned)
+        log_sys.overwrite_warned= lsn;
       log_close_warn_time= t;
 
-      ib::error() << "The age of the last checkpoint is " << checkpoint_age
-                  << ", which exceeds the log capacity "
-                  << log_sys.log_capacity << ".";
+      sql_print_error("InnoDB: Crash recovery is broken due to"
+                      " insufficient innodb_log_file_size;"
+                      " last checkpoint LSN=" LSN_PF ", current LSN=" LSN_PF
+                      "%s.",
+                      lsn_t{log_sys.last_checkpoint_lsn}, lsn,
+                      srv_shutdown_state != SRV_SHUTDOWN_INITIATED
+                      ? ". Shutdown is in progress" : "");
     }
   }
   else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_modified_age_async))

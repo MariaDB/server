@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -466,6 +466,11 @@ public:
   size_t buf_free;
   /** recommended maximum size of buf, after which the buffer is flushed */
   size_t max_buf_free;
+
+  /** Log sequence number when a log file overwrite (broken crash recovery)
+  was noticed. Protected by mutex. */
+  lsn_t overwrite_warned;
+
   /** mutex to serialize access to the flush list when we are putting
   dirty blocks in the list. The idea behind this mutex is to be able
   to release log_sys.mutex during mtr_commit and still ensure that
