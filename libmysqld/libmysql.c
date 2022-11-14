@@ -1065,11 +1065,6 @@ MYSQL_FIELD * STDCALL mysql_fetch_field_direct(MYSQL_RES *res,uint fieldnr)
   return &(res)->fields[fieldnr];
 }
 
-MYSQL_FIELD * STDCALL mysql_fetch_fields(MYSQL_RES *res)
-{
-  return (res)->fields;
-}
-
 MYSQL_ROW_OFFSET STDCALL mysql_row_tell(MYSQL_RES *res)
 {
   return res->data_cursor;
@@ -1211,15 +1206,6 @@ ulong STDCALL
 mysql_escape_string(char *to,const char *from,ulong length)
 {
   return (uint) escape_string_for_mysql(default_charset_info, to, 0, from, length);
-}
-
-ulong STDCALL
-mysql_real_escape_string(MYSQL *mysql, char *to,const char *from,
-			 ulong length)
-{
-  if (mysql->server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)
-    return (uint) escape_quotes_for_mysql(mysql->charset, to, 0, from, length);
-  return (uint) escape_string_for_mysql(mysql->charset, to, 0, from, length);
 }
 
 void STDCALL
@@ -4935,11 +4921,6 @@ int STDCALL mysql_stmt_next_result(MYSQL_STMT *stmt)
   DBUG_RETURN(0);
 }
 
-
-MYSQL_RES * STDCALL mysql_use_result(MYSQL *mysql)
-{
-  return (*mysql->methods->use_result)(mysql);
-}
 
 my_bool STDCALL mysql_read_query_result(MYSQL *mysql)
 {
