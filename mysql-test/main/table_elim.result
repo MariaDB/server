@@ -1003,3 +1003,23 @@ a1	a2
 5	277
 NULL	278
 DROP TABLE t1, t2;
+#
+# MDEV-30007: SIGSEGV in st_select_lex_unit::is_derived_eliminated,
+# runtime error: member access within null pointer of type
+# 'struct TABLE' in st_select_lex_unit::is_derived_eliminated()
+#
+CREATE VIEW v AS SELECT 1 AS a;
+SELECT ROUND ((SELECT 1 FROM v)) FROM v GROUP BY ROUND ((SELECT 1 FROM v));
+ROUND ((SELECT 1 FROM v))
+1
+EXPLAIN
+SELECT ROUND ((SELECT 1 FROM v)) FROM v GROUP BY ROUND ((SELECT 1 FROM v));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived4>	system	NULL	NULL	NULL	NULL	1	
+4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	<derived5>	system	NULL	NULL	NULL	NULL	1	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+DROP VIEW v;
+#
+# End of 10.10 tests
+#
