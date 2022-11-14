@@ -1162,7 +1162,7 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
     if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
       return false;
   }
-  return true;
+  return tables != NULL;
 }
 
 static bool wsrep_command_no_result(char command)
@@ -3716,6 +3716,8 @@ mysql_execute_command(THD *thd)
           (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0)    &&
         !wsrep_tables_accessible_when_detached(all_tables)                 &&
         lex->sql_command != SQLCOM_SET_OPTION                              &&
+        lex->sql_command != SQLCOM_CHANGE_DB                               &&
+        !(lex->sql_command == SQLCOM_SELECT && !all_tables)                &&
         !wsrep_is_show_query(lex->sql_command))
     {
       my_message(ER_UNKNOWN_COM_ERROR,
