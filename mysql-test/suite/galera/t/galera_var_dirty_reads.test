@@ -31,10 +31,10 @@ SHOW STATUS LIKE 'wsrep_ready';
 # Must return 'Disconnected'
 SHOW STATUS LIKE 'wsrep_cluster_status';
 
---error ER_UNKNOWN_COM_ERROR,1047
+--error ER_UNKNOWN_COM_ERROR
 SELECT * FROM t1;
 
---error ER_UNKNOWN_COM_ERROR,1047
+--error ER_UNKNOWN_COM_ERROR
 SELECT 1 FROM t1;
 
 SET @@session.wsrep_dirty_reads=ON;
@@ -46,7 +46,7 @@ SELECT i, variable_name, variable_value FROM t1, information_schema.session_vari
 
 SET @@session.wsrep_dirty_reads=OFF;
 
---error ER_UNKNOWN_COM_ERROR,1047
+--error ER_UNKNOWN_COM_ERROR
 SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
 
 
