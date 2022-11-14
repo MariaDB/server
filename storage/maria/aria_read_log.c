@@ -139,6 +139,12 @@ int main(int argc, char **argv)
   if (opt_display_only)
     printf("You are using --display-only, NOTHING will be written to disk\n");
 
+  if (translog_get_horizon() == LSN_IMPOSSIBLE)
+  {
+     fprintf(stdout, "The transaction log is empty\n");
+     goto end;
+  }
+
   lsn= translog_first_lsn_in_log();
   if (lsn == LSN_ERROR)
   {
@@ -147,7 +153,8 @@ int main(int argc, char **argv)
   }
   if (lsn == LSN_IMPOSSIBLE)
   {
-     fprintf(stdout, "The transaction log is empty\n");
+    fprintf(stdout, "The transaction log is empty\n");
+    goto end;
   }
   if (opt_start_from_checkpoint && !opt_start_from_lsn &&
       last_checkpoint_lsn != LSN_IMPOSSIBLE)
@@ -300,7 +307,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s Ver 1.5 for %s on %s\n",
+  printf("%s Ver 1.6 for %s on %s\n",
               my_progname_short, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
@@ -308,7 +315,7 @@ static void print_version(void)
 static void usage(void)
 {
   print_version();
-  puts("Copyright (C) 2007 MySQL AB, 2009-2011 Monty Program Ab, 2020 MariaDB Corporation");
+  puts("Copyright (C) 2007 MySQL AB, 2009-2011 Monty Program Ab, 2022 MariaDB Corporation");
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,");
   puts("and you are welcome to modify and redistribute it under the GPL license\n");
 
