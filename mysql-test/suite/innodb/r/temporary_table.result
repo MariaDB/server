@@ -789,4 +789,16 @@ CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TEMPORARY TABLE t;
+#
+# MDEV-29978 Corruption errors upon CHECK on temporary InnoDB table
+#
+CREATE TEMPORARY TABLE t (f INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t (f) VALUES (1),(2);
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TEMPORARY TABLE t;
 # End of 10.6 tests

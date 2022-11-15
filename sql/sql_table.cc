@@ -6436,7 +6436,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       bool is_equal= field->is_equal(*new_field);
       if (!is_equal)
       {
-        if (field->can_be_converted_by_engine(*new_field))
+        if (field->table->file->can_convert_nocopy(*field, *new_field))
         {
           /*
             New column type differs from the old one, but storage engine can
@@ -9982,6 +9982,18 @@ do_continue:;
   }
 
   set_table_default_charset(thd, create_info, alter_ctx.db);
+
+  /*
+    The ALTER related code cannot alter partitions and change column data types
+    at the same time. So in case of partition change statements like:
+      ALTER TABLE t1 DROP PARTITION p1;
+    we skip implicit data type upgrade (such as "MariaDB 5.3 TIME" to
+    "MySQL 5.6 TIME" or vice versa according to mysql56_temporal_format).
+    Note, one can run a separate "ALTER TABLE t1 FORCE;" statement
+    before or after the partition change ALTER statement to upgrade data types.
+  */
+  if (IF_PARTITIONING(!fast_alter_partition, 1))
+    Create_field::upgrade_data_types(alter_info->create_list);
 
   if (create_info->check_fields(thd, alter_info,
                                 table_list->table_name, table_list->db) ||

@@ -4977,6 +4977,15 @@ ERROR HY000: Illegal parameter data type point for operation 'is_free_lock'
 SELECT IS_USED_LOCK(POINT(1,1));
 ERROR HY000: Illegal parameter data type point for operation 'is_used_lock'
 #
+# MDEV-26161 crash in Gis_point::calculate_haversine
+#
+select st_distance_sphere(x'01030000000400000004000000000000', multipoint(point(124,204)), 10);
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+select st_distance_sphere(x'010300000004000000040000', multipoint(point(124,204)), 10);
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+select st_distance_sphere(x'010300000001000000040000', multipoint(point(124,204)), 10);
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+#
 # End of 10.3 tests
 #
 #

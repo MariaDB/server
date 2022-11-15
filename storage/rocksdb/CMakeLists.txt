@@ -191,7 +191,7 @@ ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 
 # MARIAROCKS-TODO: how to properly depend on -lrt ?
 TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
-if (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()
 TARGET_LINK_LIBRARIES(rocksdb_aux_lib ${ATOMIC_EXTRA_LIBS})
@@ -242,7 +242,7 @@ ENDIF()
 #  ADD_SUBDIRECTORY(unittest)
 #ENDIF()
 
-if (UNIX AND NOT APPLE)
+if (UNIX AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
   SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt")
 endif()
 

@@ -6300,14 +6300,16 @@ rec_loop:
     goto next_rec;
   }
 
-  if (index->is_clust())
+  if (prebuilt->table->is_temporary())
+  {
+  count_or_not:
+    if (rec_deleted)
+      goto next_rec;
+  }
+  else if (index->is_clust())
   {
     if (prebuilt->trx->isolation_level == TRX_ISO_READ_UNCOMMITTED)
-    {
-      if (!rec_deleted)
-        goto count_row;
-      goto next_rec;
-    }
+      goto count_or_not;
 
     trx_id_t rec_trx_id= row_get_rec_trx_id(rec, index, offsets);
 
@@ -6371,10 +6373,7 @@ rec_loop:
                           ER_NOT_KEYFILE, "InnoDB: %s", w.m_oss.str().c_str());
     }
 
-    if (!rec_deleted)
-      goto count_row;
-
-    goto next_rec;
+    goto count_or_not;
   }
   else if (const trx_id_t page_trx_id= page_get_max_trx_id(page_align(rec)))
   {

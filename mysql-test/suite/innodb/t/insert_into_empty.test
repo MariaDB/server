@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/innodb_page_size.inc
 --source include/have_sequence.inc
 --source include/maybe_debug.inc
 --source include/have_partition.inc
@@ -198,11 +199,37 @@ DROP TABLE t;
 --echo # MDEV-28327 InnoDB persistent statistics fail to update
 --echo #		after bulk insert
 --echo #
-CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
 INSERT INTO t1 SELECT * FROM seq_1_to_4096;
 --echo # Wait till statistics update after bulk insert operation
 let $wait_condition= select n_rows > 100 from mysql.innodb_table_stats
 where table_name="t1";
 source include/wait_condition.inc;
-SELECT n_rows FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
+SELECT n_rows>=4096 FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-27214 Import with disabled keys corrupts meta-data like rows, indexes, ...
+--echo #
+
+SET UNIQUE_CHECKS=0;
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO `t1` VALUES (1,2),(2,3),(3,4);
+--echo # Wait till statistics update after bulk insert operation
+let $wait_condition= select n_rows > 0 from mysql.innodb_table_stats
+where database_name='test' and table_name='t1';
+source include/wait_condition.inc;
+SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+DROP TABLE t1;
+
+
+--echo # End of 10.6 tests

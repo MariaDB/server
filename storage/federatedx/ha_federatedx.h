@@ -464,6 +464,7 @@ public:
   int reset(void);
   int free_result(void);
 
+  const FEDERATEDX_SHARE *get_federatedx_share() const { return share; }
   friend class ha_federatedx_derived_handler;
   friend class ha_federatedx_select_handler;
 };

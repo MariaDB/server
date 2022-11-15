@@ -591,7 +591,7 @@ buf_page_is_corrupted(
 		DBUG_EXECUTE_IF(
 			"page_intermittent_checksum_mismatch", {
 			static int page_counter;
-			if (page_counter++ == 2) {
+			if (page_counter++ == 3) {
 				crc32++;
 			}
 		});
@@ -726,7 +726,7 @@ buf_page_is_corrupted(
 			DBUG_EXECUTE_IF(
 				"page_intermittent_checksum_mismatch", {
 				static int page_counter;
-				if (page_counter++ == 2) return true;
+				if (page_counter++ == 3) return true;
 			});
 
 			if ((checksum_field1 != crc32

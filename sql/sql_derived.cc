@@ -1016,11 +1016,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     /* Create an object for execution of the query specifying the table */
     if (!(derived->pushdown_derived=
             new (thd->mem_root) Pushdown_derived(derived, derived->dt_handler)))
-    {
-      delete derived->dt_handler;
-      derived->dt_handler= NULL;
       DBUG_RETURN(TRUE);
-    }
   }
 
   lex->current_select= first_select;
@@ -1245,7 +1241,6 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     /* Execute the query that specifies the derived table by a foreign engine */
     res= derived->pushdown_derived->execute();
     unit->executed= true;
-    delete derived->pushdown_derived;
       DBUG_RETURN(res);
   }
 

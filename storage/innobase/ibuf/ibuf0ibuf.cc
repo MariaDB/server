@@ -2385,24 +2385,17 @@ done:
 #endif
 }
 
-/*********************************************************************//**
-Contracts insert buffer trees by reading pages to the buffer pool.
+/** Contract the change buffer by reading pages to the buffer pool.
 @return a lower limit for the combined size in bytes of entries which
-will be merged from ibuf trees to the pages read, 0 if ibuf is
-empty */
-static
-ulint
-ibuf_merge_pages(
-/*=============*/
-	ulint*	n_pages)	/*!< out: number of pages to which merged */
+will be merged from ibuf trees to the pages read
+@retval 0 if ibuf.empty */
+ulint ibuf_contract()
 {
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
 	ulint		sum_sizes;
 	uint32_t	page_nos[IBUF_MAX_N_PAGES_MERGED];
 	uint32_t	space_ids[IBUF_MAX_N_PAGES_MERGED];
-
-	*n_pages = 0;
 
 	ibuf_mtr_start(&mtr);
 
@@ -2436,13 +2429,14 @@ ibuf_merge_pages(
 		return(0);
 	}
 
+	ulint n_pages = 0;
 	sum_sizes = ibuf_get_merge_page_nos(TRUE,
 					    btr_pcur_get_rec(&pcur), &mtr,
 					    space_ids,
-					    page_nos, n_pages);
+					    page_nos, &n_pages);
 	ibuf_mtr_commit(&mtr);
 
-	ibuf_read_merge_pages(space_ids, page_nos, *n_pages);
+	ibuf_read_merge_pages(space_ids, page_nos, n_pages);
 
 	return(sum_sizes + 1);
 }
@@ -2464,6 +2458,7 @@ ibuf_merge_space(
 
 	ut_ad(space < SRV_SPACE_ID_UPPER_BOUND);
 
+	log_free_check();
 	ibuf_mtr_start(&mtr);
 
 	/* Position the cursor on the first matching record. */
@@ -2513,72 +2508,6 @@ ibuf_merge_space(
 	return(n_pages);
 }
 
-/** Contract the change buffer by reading pages to the buffer pool.
-@param[out]	n_pages		number of pages merged
-@param[in]	sync		whether the caller waits for
-the issued reads to complete
-@return a lower limit for the combined size in bytes of entries which
-will be merged from ibuf trees to the pages read, 0 if ibuf is
-empty */
-MY_ATTRIBUTE((warn_unused_result))
-static ulint ibuf_merge(ulint* n_pages)
-{
-	*n_pages = 0;
-
-	/* We perform a dirty read of ibuf.empty, without latching
-	the insert buffer root page. We trust this dirty read except
-	when a slow shutdown is being executed. During a slow
-	shutdown, the insert buffer merge must be completed. */
-
-	if (ibuf.empty && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
-		return(0);
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-	} else if (ibuf_debug) {
-		return(0);
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-	} else {
-		return ibuf_merge_pages(n_pages);
-	}
-}
-
-/** Contract the change buffer by reading pages to the buffer pool.
-@return a lower limit for the combined size in bytes of entries which
-will be merged from ibuf trees to the pages read, 0 if ibuf is empty */
-static ulint ibuf_contract()
-{
-	ulint n_pages;
-	return ibuf_merge_pages(&n_pages);
-}
-
-/** Contract the change buffer by reading pages to the buffer pool.
-@return a lower limit for the combined size in bytes of entries which
-will be merged from ibuf trees to the pages read, 0 if ibuf is
-empty */
-ulint ibuf_merge_all()
-{
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-	if (ibuf_debug) {
-		return(0);
-	}
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-
-	ulint	sum_bytes	= 0;
-	ulint	n_pages = srv_io_capacity;
-
-	for (ulint sum_pages = 0; sum_pages < n_pages; ) {
-		ulint n_pag2;
-		ulint n_bytes = ibuf_merge(&n_pag2);
-
-		if (n_bytes == 0) {
-			break;
-		}
-
-		sum_bytes += n_bytes;
-	}
-
-	return sum_bytes;
-}
-
 /*********************************************************************//**
 Contract insert buffer trees after insert if they are too big. */
 UNIV_INLINE
@@ -2588,13 +2517,7 @@ ibuf_contract_after_insert(
 	ulint	entry_size)	/*!< in: size of a record which was inserted
 				into an ibuf tree */
 {
-	/* Perform dirty reads of ibuf.size and ibuf.max_size, to
-	reduce ibuf_mutex contention. ibuf.max_size remains constant
-	after ibuf_init_at_db_start(), but ibuf.size should be
-	protected by ibuf_mutex. Given that ibuf.size fits in a
-	machine word, this should be OK; at worst we are doing some
-	excessive ibuf_contract() or occasionally skipping a
-	ibuf_contract(). */
+	/* dirty comparison, to avoid contention on ibuf_mutex */
 	if (ibuf.size < ibuf.max_size) {
 		return;
 	}
@@ -3222,16 +3145,17 @@ ibuf_insert_low(
 
 	do_merge = FALSE;
 
-	/* Perform dirty reads of ibuf.size and ibuf.max_size, to
-	reduce ibuf_mutex contention. Given that ibuf.max_size and
-	ibuf.size fit in a machine word, this should be OK; at worst
-	we are doing some excessive ibuf_contract() or occasionally
+	/* Perform dirty comparison of ibuf.max_size and ibuf.size to
+	reduce ibuf_mutex contention. This should be OK; at worst we
+	are doing some excessive ibuf_contract() or occasionally
 	skipping an ibuf_contract(). */
-	if (ibuf.max_size == 0) {
+	const ulint max_size = ibuf.max_size;
+
+	if (max_size == 0) {
 		return(DB_STRONG_FAIL);
 	}
 
-	if (ibuf.size >= ibuf.max_size + IBUF_CONTRACT_DO_NOT_INSERT) {
+	if (ibuf.size >= max_size + IBUF_CONTRACT_DO_NOT_INSERT) {
 		/* Insert buffer is now too big, contract it but do not try
 		to insert */
 
@@ -4461,7 +4385,7 @@ reset_bit:
 }
 
 /** Delete all change buffer entries for a tablespace,
-in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.
+in DISCARD TABLESPACE, IMPORT TABLESPACE, or read-ahead.
 @param[in]	space		missing or to-be-discarded tablespace */
 void ibuf_delete_for_discarded_space(ulint space)
 {
@@ -4483,6 +4407,7 @@ void ibuf_delete_for_discarded_space(ulint space)
 
 	memset(dops, 0, sizeof(dops));
 loop:
+	log_free_check();
 	ibuf_mtr_start(&mtr);
 
 	/* Position pcur in the insert buffer at the first entry for the
@@ -4573,7 +4498,7 @@ ibuf_print(
 	fprintf(file,
 		"Ibuf: size " ULINTPF ", free list len " ULINTPF ","
 		" seg size " ULINTPF ", " ULINTPF " merges\n",
-		ibuf.size,
+		ulint{ibuf.size},
 		ibuf.free_list_len,
 		ibuf.seg_size,
 		ulint{ibuf.n_merges});
@@ -4622,9 +4547,6 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		}
 
 		mtr_start(&mtr);
-
-		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-
 		ibuf_enter(&mtr);
 
 		buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(
@@ -4712,29 +4634,18 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 	return(DB_SUCCESS);
 }
 
-/** Updates free bits and buffered bits for bulk loaded page.
-@param[in]	block	index page
-@param[in]	reset	flag if reset free val */
-void
-ibuf_set_bitmap_for_bulk_load(
-	buf_block_t*	block,
-	bool		reset)
+void ibuf_set_bitmap_for_bulk_load(buf_block_t *block, mtr_t *mtr, bool reset)
 {
-  mtr_t	mtr;
-
   ut_a(page_is_leaf(block->page.frame));
-  mtr.start();
-  fil_space_t *space= mtr.set_named_space_id(block->page.id().space());
 
   if (buf_block_t *bitmap_page=
-      ibuf_bitmap_get_map_page(block->page.id(), space->zip_size(), &mtr))
+      ibuf_bitmap_get_map_page(block->page.id(), block->zip_size(), mtr))
   {
     ulint free_val= reset ? 0 : ibuf_index_page_calc_free(block);
     /* FIXME: update the bitmap byte only once! */
     ibuf_bitmap_page_set_bits<IBUF_BITMAP_FREE>
-      (bitmap_page, block->page.id(), block->physical_size(), free_val, &mtr);
+      (bitmap_page, block->page.id(), block->physical_size(), free_val, mtr);
     ibuf_bitmap_page_set_bits<IBUF_BITMAP_BUFFERED>
-      (bitmap_page, block->page.id(), block->physical_size(), false, &mtr);
+      (bitmap_page, block->page.id(), block->physical_size(), false, mtr);
   }
-  mtr.commit();
 }

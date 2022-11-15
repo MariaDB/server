@@ -67,6 +67,7 @@
 #include "select_handler.h"
 #include "my_json_writer.h"
 #include "opt_trace.h"
+#include "derived_handler.h"
 #include "create_tmp_table.h"
 
 /*
@@ -1324,6 +1325,15 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   /* Fix items that requires the join structure to exist */
   fix_items_after_optimize(thd, select_lex);
 
+  /*
+    It is hack which force creating EXPLAIN object always on runt-time arena
+    (because very top JOIN::prepare executes always with runtime arena, but
+    constant subquery like (SELECT 'x') can be called with statement arena
+    during prepare phase of top SELECT).
+  */
+  if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
+      create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+
   if (select_lex->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(-1);
 
@@ -1811,7 +1821,6 @@ bool JOIN::build_explain()
 int JOIN::optimize()
 {
   int res= 0;
-  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   join_optimization_state init_state= optimization_state;
   if (select_lex->pushdown_select)
   {
@@ -7727,6 +7736,7 @@ best_access_path(JOIN      *join,
   double best=              DBL_MAX;
   double best_time=         DBL_MAX;
   double records=           DBL_MAX;
+  ha_rows records_for_key=   0;
   table_map best_ref_depends_map= 0;
   /*
     key_dependent is 0 if all key parts could be used or if there was an
@@ -7737,6 +7747,7 @@ best_access_path(JOIN      *join,
   table_map key_dependent= 0;
   Range_rowid_filter_cost_info *best_filter= 0;
   double tmp;
+  double keyread_tmp= 0;
   ha_rows rec;
   bool best_uses_jbuf= FALSE;
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
@@ -8021,8 +8032,12 @@ best_access_path(JOIN      *join,
             /* Limit the number of matched rows */
             tmp= cost_for_index_read(thd, table, key, (ha_rows) records,
                                      (ha_rows) s->worst_seeks);
+            records_for_key= (ha_rows) records;
+            set_if_smaller(records_for_key, thd->variables.max_seeks_for_key);
+            keyread_tmp= table->file->keyread_time(key, 1, records_for_key);
         got_cost:
             tmp= COST_MULT(tmp, record_count);
+            keyread_tmp= COST_MULT(keyread_tmp, record_count);
           }
         }
         else
@@ -8196,12 +8211,14 @@ best_access_path(JOIN      *join,
             }
 
             /* Limit the number of matched rows */
-            tmp= records;
-            set_if_smaller(tmp, (double) thd->variables.max_seeks_for_key);
-            tmp= cost_for_index_read(thd, table, key, (ha_rows) tmp,
+            tmp= cost_for_index_read(thd, table, key, (ha_rows) records,
                                      (ha_rows) s->worst_seeks);
+            records_for_key= (ha_rows) records;
+            set_if_smaller(records_for_key, thd->variables.max_seeks_for_key);
+            keyread_tmp= table->file->keyread_time(key, 1, records_for_key);
         got_cost2:
             tmp= COST_MULT(tmp, record_count);
+            keyread_tmp= COST_MULT(keyread_tmp, record_count);
           }
           else
           {
@@ -8220,7 +8237,35 @@ best_access_path(JOIN      *join,
 	  (found_part & 1))   // start_key->key can be used for index access
       {
         double rows= record_count * records;
-        double access_cost_factor= MY_MIN(tmp / rows, 1.0);
+
+        /*
+          If we use filter F with selectivity s the the cost of fetching data
+          by key using this filter will be
+             cost_of_fetching_1_row * rows * s +
+             cost_of_fetching_1_key_tuple * rows * (1 - s) +
+             cost_of_1_lookup_into_filter * rows
+          Without using any filter the cost would be just
+             cost_of_fetching_1_row * rows
+
+          So the gain in access cost per row will be
+             cost_of_fetching_1_row * (1 - s) -
+             cost_of_fetching_1_key_tuple * (1 - s) -
+             cost_of_1_lookup_into_filter
+             =
+             (cost_of_fetching_1_row - cost_of_fetching_1_key_tuple) * (1 - s)
+             - cost_of_1_lookup_into_filter
+
+          Here we have:
+             cost_of_fetching_1_row = tmp/rows
+             cost_of_fetching_1_key_tuple = keyread_tmp/rows
+
+          Note that access_cost_factor may be greater than 1.0. In this case
+          we still can expect a gain of using rowid filter due to smaller number
+          of checks for conditions pushed to the joined table.
+	*/
+        double rows_access_cost= MY_MIN(rows, s->worst_seeks);
+        double access_cost_factor= MY_MIN((rows_access_cost - keyread_tmp) /
+                                           rows, 1.0);
         filter=
           table->best_range_rowid_filter_for_partial_join(start_key->key, rows,
                                                           access_cost_factor);
@@ -8405,6 +8450,10 @@ best_access_path(JOIN      *join,
         double rows= record_count * s->found_records;
         double access_cost_factor= MY_MIN(tmp / rows, 1.0);
         uint key_no= s->quick->index;
+
+        /* See the comment concerning using rowid filter for with ref access */
+        keyread_tmp= s->table->opt_range[key_no].index_only_cost;
+        access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
         filter=
         s->table->best_range_rowid_filter_for_partial_join(key_no, rows,
                                                            access_cost_factor);
@@ -14531,6 +14580,7 @@ void JOIN::cleanup(bool full)
         }
       }
     }
+    free_pushdown_handlers(*join_list);
   }
   /* Restore ref array to original state */
   if (current_ref_ptrs != items0)
@@ -14541,6 +14591,32 @@ void JOIN::cleanup(bool full)
   DBUG_VOID_RETURN;
 }
 
+/**
+  Clean up all derived pushdown handlers in this join.
+
+  @detail
+    Note that dt_handler is picked at the prepare stage (as opposed
+    to optimization stage where one could expect this).
+    Because of that, we have to do cleanups in this function that is called
+    from JOIN::cleanup() and not in JOIN_TAB::cleanup.
+ */
+void JOIN::free_pushdown_handlers(List<TABLE_LIST>& join_list)
+{
+  List_iterator<TABLE_LIST> li(join_list);
+  TABLE_LIST *table_ref;
+  while ((table_ref= li++))
+  {
+    if (table_ref->nested_join)
+      free_pushdown_handlers(table_ref->nested_join->join_list);
+    if (table_ref->pushdown_derived)
+    {
+      delete table_ref->pushdown_derived;
+      table_ref->pushdown_derived= NULL;
+    }
+    delete table_ref->dt_handler;
+    table_ref->dt_handler= NULL;
+  }
+}
 
 /**
   Remove the following expressions from ORDER BY and GROUP BY:
@@ -21257,6 +21333,8 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     DBUG_RETURN(NESTED_LOOP_ERROR);
 
   join_tab->build_range_rowid_filter_if_needed();
+  if (join_tab->rowid_filter && join_tab->rowid_filter->is_empty())
+    rc= NESTED_LOOP_NO_MORE_ROWS;
 
   join->return_tab= join_tab;
 
@@ -28019,12 +28097,6 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
                       first->having, thd->lex->proc_list.first,
                       first->options | thd->variables.option_bits | SELECT_DESCRIBE,
                       result, unit, first);
-  }
-
-  if (unit->derived && unit->derived->pushdown_derived)
-  {
-    delete unit->derived->pushdown_derived;
-    unit->derived->pushdown_derived= NULL;
   }
 
   DBUG_RETURN(res || thd->is_error());

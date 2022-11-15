@@ -52,6 +52,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "buf0dump.h"
 #include "log0sync.h"
+#include "log.h"
 
 /*
 General philosophy of InnoDB redo-logs:
@@ -988,10 +989,19 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 
 	DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF
 			      ", flushed to " LSN_PF,
-			      lsn_t{log_sys.last_checkpoint_lsn},
+			      log_sys.next_checkpoint_lsn,
 			      log_sys.get_flushed_lsn()));
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
+
+	if (log_sys.overwrite_warned) {
+		sql_print_information("InnoDB: Crash recovery was broken "
+				      "between LSN=" LSN_PF
+				      " and checkpoint LSN=" LSN_PF ".",
+				      log_sys.overwrite_warned,
+				      log_sys.next_checkpoint_lsn);
+		log_sys.overwrite_warned = 0;
+        }
 
 	mysql_mutex_unlock(&log_sys.mutex);
 }
@@ -1020,9 +1030,14 @@ func_exit:
     const lsn_t sync_lsn= checkpoint + log_sys.max_checkpoint_age;
     if (lsn <= sync_lsn)
     {
+#ifndef DBUG_OFF
+    skip_checkpoint:
+#endif
       log_sys.set_check_flush_or_checkpoint(false);
       goto func_exit;
     }
+
+    DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", goto skip_checkpoint;);
 
     mysql_mutex_unlock(&log_sys.mutex);
 
@@ -1120,13 +1135,9 @@ loop:
 	}
 
 	/* We need these threads to stop early in shutdown. */
-	const char* thread_name;
-
-   if (srv_fast_shutdown != 2 && trx_rollback_is_active) {
-		thread_name = "rollback of recovered transactions";
-	} else {
-		thread_name = NULL;
-	}
+	const char* thread_name = srv_fast_shutdown != 2
+		&& trx_rollback_is_active
+		? "rollback of recovered transactions" : nullptr;
 
 	if (thread_name) {
 		ut_ad(!srv_read_only_mode);

@@ -31,6 +31,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <my_global.h>
 #include "sql_priv.h"
 #include <mysqld_error.h>
+#include <mysql.h>
 
 #include "ha_federatedx.h"
 

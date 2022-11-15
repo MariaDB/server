@@ -2,7 +2,7 @@
 #define SQL_TYPE_GEOM_H_INCLUDED
 /*
    Copyright (c) 2015 MariaDB Foundation
-   Copyright (c) 2019 MariaDB
+   Copyright (c) 2019, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -397,12 +397,6 @@ public:
            !table->copy_blobs;
   }
   bool is_equal(const Column_definition &new_field) const override;
-  bool can_be_converted_by_engine(const Column_definition &new_type)
-                                  const override
-  {
-    return false; // Override the Field_blob behavior
-  }
-
   int  store(const char *to, size_t length, CHARSET_INFO *charset) override;
   int  store(double nr) override;
   int  store(longlong nr, bool unsigned_val) override;

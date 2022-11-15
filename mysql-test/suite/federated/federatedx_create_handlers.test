@@ -1,6 +1,7 @@
 --source have_federatedx.inc
 --source include/federated.inc
 --source include/no_valgrind_without_big.inc
+--source include/have_partition.inc
 
 connection default;
 
@@ -265,6 +266,110 @@ TRUNCATE TABLE federated.t2;
 INSERT INTO federated.t2
   SELECT * FROM (SELECT * FROM federated.t1 LIMIT 70000) dt;
 SELECT COUNT(DISTINCT a) FROM federated.t2;
+
+--echo #
+--echo # MDEV-29640 FederatedX does not properly handle pushdown
+--echo #             in case of difference in local and remote table names
+--echo #
+connection master;
+--echo # Use tables from the previous test. Make sure pushdown works:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM federated.t2;
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+
+--echo # Link remote table `federated.t1` with the local table named `t1_local`
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1_local ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+--echo # No pushdown here due to table names mismatch, retrieve data as usual:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM federated.t1_local;
+SELECT COUNT(DISTINCT a) FROM federated.t1_local;
+
+
+--echo #
+--echo # MDEV-29863 Server crashes in federatedx_txn::acquire after select from
+--echo #            the Federated table with partitions and federated_pushdown=1
+--echo #            in case of difference in local and remote table names
+--echo #
+connection slave;
+CREATE TABLE federated.t3 (a INT);
+INSERT INTO federated.t3 VALUES (1),(2),(3);
+CREATE TABLE federated.t4 (a INT);
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE SERVER fedlink FOREIGN DATA WRAPPER mysql 
+  OPTIONS (USER 'root', HOST '127.0.0.1', DATABASE 'federated',
+  PORT $SLAVE_MYPORT);
+
+CREATE TABLE federated.t3 (a INT)
+  ENGINE=FEDERATED
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
+  PARTITION BY list (a)
+  (PARTITION p1 VALUES IN (1) CONNECTION='fedlink/t3',
+   PARTITION p2 VALUES IN (2) CONNECTION='fedlink/t4');
+
+EXPLAIN SELECT * FROM federated.t3;
+SELECT * FROM federated.t3;
+
+--echo #
+--echo # MDEV-29655: ASAN heap-use-after-free in
+--echo #             Pushdown_derived::Pushdown_derived
+--echo #
+
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+
+INSERT INTO federated.t1 VALUES
+  (3,'xxx'), (7,'yyy'), (4,'xxx'), (1,'zzz'), (5,'yyy');
+
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+use federated;
+SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
+  WHERE id=2) dt2) dt;
+
+connection slave;
+CREATE TABLE federated.t10 (a INT,b INT);
+CREATE TABLE federated.t11 (a INT, b INT);
+INSERT INTO federated.t10 VALUES (1,1),(2,2);
+INSERT INTO federated.t11 VALUES (1,1),(2,2);
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t10
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t10';
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t11
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t11';
+
+use federated;
+SELECT * FROM t10 LEFT JOIN 
+  (t11, (SELECT * FROM (SELECT * FROM (SELECT * FROM t1 where id=3) dt3
+    WHERE id=2) dt2) dt
+  ) ON t10.a=t11.a;
 
 set global federated_pushdown=0;
 
