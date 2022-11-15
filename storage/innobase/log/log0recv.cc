@@ -745,14 +745,6 @@ inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
 			pages.erase(r);
 		}
 	}
-	if (fil_space_t* space = fil_space_get(page_id.space())) {
-		ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-		fil_node_t* file = UT_LIST_GET_FIRST(space->chain);
-		ut_ad(file->is_open());
-		os_file_truncate(file->name, file->handle,
-				 os_offset_t{page_id.page_no()}
-				 << srv_page_size_shift, true);
-	}
 	DBUG_VOID_RETURN;
 }
 
@@ -2694,7 +2686,17 @@ void recv_sys_t::apply(bool last_batch)
     {
       const trunc& t= truncated_undo_spaces[id];
       if (t.lsn)
-        trim(page_id_t(id + srv_undo_space_id_start, t.pages), t.lsn);
+      {
+        trim(page_id_t(id + srv_undo_space_id_start, 0), t.lsn);
+        if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
+        {
+          ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+          fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
+          ut_ad(file->is_open());
+          os_file_truncate(file->name, file->handle,
+                           os_offset_t{t.pages} << srv_page_size_shift, true);
+        }
+      }
     }
 
     fil_system.extend_to_recv_size();
