@@ -237,7 +237,7 @@ static int process_all_tables_in_db(char *database);
 static int process_one_db(char *database);
 static int use_db(char *database);
 static int handle_request_for_tables(char *, size_t, my_bool, my_bool);
-static int dbConnect(char *host, char *user,char *passwd);
+static int dbConnect(char *host, char *user,char **passwd);
 static void dbDisconnect(char *host);
 static void DBerror(MYSQL *mysql, const char *when);
 static void safe_exit(int error);
@@ -510,8 +510,6 @@ static int get_options(int *argc, char ***argv)
     printf("for more information.\n");
     DBUG_RETURN(1);
   }
-  if (tty_password)
-    opt_password = get_tty_password(NullS);
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
@@ -1138,8 +1136,8 @@ static void print_result()
   DBUG_VOID_RETURN;
 }
 
-
-static int dbConnect(char *host, char *user, char *passwd)
+#include "cli_utils.h"
+static int dbConnect(char *host, char *user, char **passwd)
 {
   my_bool reconnect= 1;
   DBUG_ENTER("dbConnect");
@@ -1175,8 +1173,8 @@ static int dbConnect(char *host, char *user, char *passwd)
   mysql_options(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlcheck");
-  if (!(sock = mysql_real_connect(&mysql_connection, host, user, passwd,
-         NULL, opt_mysql_port, opt_mysql_unix_port, 0)))
+  if (!(sock = cli_connect(&mysql_connection, host, user, passwd,
+         NULL, opt_mysql_port, opt_mysql_unix_port, 0,tty_password)))
   {
     DBerror(&mysql_connection, "when trying to connect");
     DBUG_RETURN(1);
@@ -1251,7 +1249,7 @@ int main(int argc, char **argv)
   sf_leaking_memory=0; /* from now on we cleanup properly */
 
   ret= EX_MYSQLERR;
-  if (dbConnect(current_host, current_user, opt_password))
+  if (dbConnect(current_host, current_user, &opt_password))
     goto end1;
 
   ret= 1;

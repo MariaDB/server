@@ -45,6 +45,7 @@
 #if defined(HAVE_LOCALE_H)
 #include <locale.h>
 #endif
+#include "cli_utils.h"
 
 const char *VER= "15.2";
 
@@ -1490,7 +1491,7 @@ static void maybe_convert_charset(const char **user, const char **password,
   set connection-specific options and call mysql_real_connect
 */
 static bool do_connect(MYSQL *mysql, const char *host, const char *user,
-                       const char *password, const char *database, ulong flags)
+                       char **password, const char *database, ulong flags)
 {
   if (opt_secure_auth)
     mysql_options(mysql, MYSQL_SECURE_AUTH, (char *) &opt_secure_auth);
@@ -1518,11 +1519,11 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysql");
 #ifdef _WIN32
-  maybe_convert_charset(&user, &password, &database,default_charset);
+  maybe_convert_charset(&user, (const char **)password, &database,default_charset);
 #endif
 
-  return mysql_real_connect(mysql, host, user, password, database,
-                            opt_mysql_port, opt_mysql_unix_port, flags);
+  return cli_connect(mysql, host, user, password, database,
+                            opt_mysql_port, opt_mysql_unix_port, flags, tty_password);
 }
 
 
@@ -1546,7 +1547,7 @@ sig_handler handle_sigint(int sig)
   }
 
   kill_mysql= mysql_init(kill_mysql);
-  if (!do_connect(kill_mysql,current_host, current_user, opt_password, "", 0))
+  if (!do_connect(kill_mysql,current_host, current_user, &opt_password, "", 0))
   {
     tee_fprintf(stdout, "Ctrl-C -- sorry, cannot connect to server to kill query, giving up ...\n");
     goto err;
@@ -2166,8 +2167,6 @@ static int get_options(int argc, char **argv)
     my_free(current_db);
     current_db= my_strdup(PSI_NOT_INSTRUMENTED, *argv, MYF(MY_WME));
   }
-  if (tty_password)
-    opt_password= get_tty_password(NullS);
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
@@ -4961,7 +4960,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   my_bool can_handle_expired= opt_connect_expired_password || !status.batch;
   mysql_options(&mysql, MYSQL_OPT_CAN_HANDLE_EXPIRED_PASSWORDS, &can_handle_expired);
 
-  if (!do_connect(&mysql, host, user, password, database,
+  if (!do_connect(&mysql, host, user, &password, database,
                   connect_flag | CLIENT_MULTI_STATEMENTS))
   {
     if (!silent ||

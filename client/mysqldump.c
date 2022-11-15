@@ -59,6 +59,7 @@
 #include "mysql.h"
 #include "mysql_version.h"
 #include "mysqld_error.h"
+#include "cli_utils.h"
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
@@ -1391,8 +1392,6 @@ static int get_options(int *argc, char ***argv)
     short_usage(stderr);
     return EX_USAGE;
   }
-  if (tty_password)
-    opt_password=get_tty_password(NullS);
   return(0);
 } /* get_options */
 
@@ -2006,7 +2005,7 @@ static void maybe_exit(int error)
   db_connect -- connects to the host and selects DB.
 */
 
-static int connect_to_db(char *host, char *user,char *passwd)
+static int connect_to_db(char *host, char *user,char **passwd)
 {
   char buff[20+FN_REFLEN];
   my_bool reconnect;
@@ -2042,8 +2041,8 @@ static int connect_to_db(char *host, char *user,char *passwd)
   mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqldump");
   mysql= &mysql_connection;          /* So we can mysql_close() it properly */
-  if (!mysql_real_connect(&mysql_connection,host,user,passwd,
-                          NULL,opt_mysql_port,opt_mysql_unix_port, 0))
+  if (!cli_connect(&mysql_connection,host,user,passwd,
+                          NULL,opt_mysql_port,opt_mysql_unix_port, 0,tty_password))
   {
     DB_error(&mysql_connection, "when trying to connect");
     DBUG_RETURN(1);
@@ -7117,7 +7116,7 @@ int main(int argc, char **argv)
     }
   }
 
-  if (connect_to_db(current_host, current_user, opt_password))
+  if (connect_to_db(current_host, current_user, &opt_password))
   {
     free_resources();
     exit(EX_MYSQLERR);

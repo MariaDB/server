@@ -173,7 +173,7 @@ static bool opt_print_table_metadata;
 static my_bool opt_flashback_review;
 static char *flashback_review_dbname, *flashback_review_tablename;
 #endif
-
+static my_bool tty_password;
 /**
   Pointer to the Format_description_log_event of the currently active binlog.
 
@@ -2058,7 +2058,6 @@ int parse_gtid_filter_option(
 extern "C" my_bool
 get_one_option(const struct my_option *opt, const char *argument, const char *filename)
 {
-  bool tty_password=0;
 
   /* Track when protocol is set via CLI to not force overrides */
   static my_bool ignore_protocol_override = FALSE;
@@ -2277,8 +2276,6 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     opt_version= 1;
     break;
   }
-  if (tty_password)
-    pass= get_tty_password(NullS);
 
   return 0;
 }
@@ -2353,6 +2350,7 @@ static int parse_args(int *argc, char*** argv)
   @retval ERROR_STOP An error occurred - the program should terminate.
   @retval OK_CONTINUE No error, the program should continue.
 */
+#include "cli_utils.h"
 static Exit_status safe_connect()
 {
   my_bool reconnect= 1;
@@ -2392,7 +2390,8 @@ static Exit_status safe_connect()
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlbinlog");
-  if (!mysql_real_connect(mysql, host, user, pass, 0, port, sock, 0))
+  if (!cli_connect(mysql, host, user, &pass, 0, port, sock,
+         0, tty_password))
   {
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;

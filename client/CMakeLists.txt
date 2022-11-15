@@ -33,18 +33,20 @@ INCLUDE_DIRECTORIES(BEFORE
 ## We will need libeay32.dll and ssleay32.dll when running client executables.
 COPY_OPENSSL_DLLS(copy_openssl_client)
 
-SET(CLIENT_LIB mariadbclient mysys)
+add_library(cli_utils STATIC cli_utils.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
+target_link_libraries(cli_utils mysys mariadbclient)
+
+SET(CLIENT_LIB mariadbclient mysys cli_utils)
 
 ADD_DEFINITIONS(${SSL_DEFINES})
-MYSQL_ADD_EXECUTABLE(mariadb completion_hash.cc mysql.cc readline.cc
-                           ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
+MYSQL_ADD_EXECUTABLE(mariadb completion_hash.cc mysql.cc readline.cc)
 TARGET_LINK_LIBRARIES(mariadb ${CLIENT_LIB})
 IF(UNIX)
   TARGET_LINK_LIBRARIES(mariadb ${MY_READLINE_LIBRARY})
   SET_TARGET_PROPERTIES(mariadb PROPERTIES ENABLE_EXPORTS TRUE)
 ENDIF(UNIX)
 
-MYSQL_ADD_EXECUTABLE(mariadb-test mysqltest.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc COMPONENT Test)
+MYSQL_ADD_EXECUTABLE(mariadb-test mysqltest.cc  COMPONENT Test)
 SET_SOURCE_FILES_PROPERTIES(mysqltest.cc PROPERTIES COMPILE_FLAGS "-DTHREADS ${PCRE2_DEBIAN_HACK}")
 TARGET_LINK_LIBRARIES(mariadb-test  ${CLIENT_LIB} pcre2-posix pcre2-8)
 SET_TARGET_PROPERTIES(mariadb-test PROPERTIES ENABLE_EXPORTS TRUE)

@@ -5740,10 +5740,10 @@ void do_close_connection(struct st_command *command)
   It will only ignore connection errors during these retries.
 
 */
-
+#include "cli_utils.h"
 void safe_connect(MYSQL* mysql, const char *name, const char *host,
-                  const char *user, const char *pass, const char *db,
-                  int port, const char *sock)
+                  const char *user, char **pass, const char *db,
+                  int port, const char *sock, my_bool tty_password)
 {
   int failed_attempts= 0;
 
@@ -5756,8 +5756,8 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqltest");
-  while(!mysql_real_connect(mysql, host,user, pass, db, port, sock,
-                            CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS))
+  while(!cli_connect(mysql, host,user, pass, db, port, sock,
+                            CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS,tty_password))
   {
     /*
       Connect failed
@@ -7374,8 +7374,7 @@ int parse_args(int argc, char **argv)
   }
   if (argc == 1)
     opt_db= *argv;
-  if (tty_password)
-    opt_pass= get_tty_password(NullS);          /* purify tested */
+
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
@@ -9069,8 +9068,8 @@ int util_query(MYSQL* org_mysql, const char* query){
       mysql_options(mysql, MYSQL_OPT_LOCAL_INFILE, 0);
       mysql_options(mysql, MYSQL_OPT_NONBLOCK, 0);
       safe_connect(mysql, "util", org_mysql->host, org_mysql->user,
-          org_mysql->passwd, org_mysql->db, org_mysql->port,
-          org_mysql->unix_socket);
+          &org_mysql->passwd, org_mysql->db, org_mysql->port,
+          org_mysql->unix_socket, 0);
 
       cur_con->util_mysql= mysql;
     }
@@ -9892,8 +9891,8 @@ int main(int argc, char **argv)
     die("Out of memory");
   mysql_options(con->mysql, MYSQL_OPT_NONBLOCK, 0);
 
-  safe_connect(con->mysql, con->name, opt_host, opt_user, opt_pass,
-               opt_db, opt_port, unix_sock);
+  safe_connect(con->mysql, con->name, opt_host, opt_user, &opt_pass, opt_db,
+               opt_port, unix_sock, tty_password);
 
   /* Use all time until exit if no explicit 'start_timer' */
   timer_start= timer_now();

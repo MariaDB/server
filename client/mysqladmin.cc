@@ -28,6 +28,7 @@
 #include <my_rnd.h>
 #include <password.h>
 #include <my_sys.h>
+#include "cli_utils.h"
 
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */
@@ -406,8 +407,6 @@ int main(int argc,char *argv[])
     exit(1);
   }
   commands = temp_argv;
-  if (tty_password)
-    opt_password = get_tty_password(NullS);
 
   (void) signal(SIGINT,endprog);			/* Here if abort */
   (void) signal(SIGTERM,endprog);		/* Here if abort */
@@ -593,8 +592,8 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 
   for (;;)
   {
-    if (mysql_real_connect(mysql,host,user,opt_password,NullS,tcp_port,
-			   unix_port, CLIENT_REMEMBER_OPTIONS))
+    if (cli_connect(mysql,host,user,&opt_password,NullS,tcp_port,
+      unix_port, CLIENT_REMEMBER_OPTIONS, tty_password))
     {
       my_bool reconnect= 1;
       mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);

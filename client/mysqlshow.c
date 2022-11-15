@@ -29,6 +29,7 @@
 #include <stdarg.h>
 #include <sslopt-vars.h>
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
+#include "cli_utils.h"
 
 static char * host=0, *opt_password=0, *user=0;
 static my_bool opt_show_keys= 0, opt_compress= 0, opt_count=0, opt_status= 0;
@@ -159,10 +160,10 @@ int main(int argc, char **argv)
   mysql_options(&mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(&mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlshow");
-  if (!(mysql_real_connect(&mysql,host,user,opt_password,
-			   (first_argument_uses_wildcards) ? "" :
-                           argv[0],opt_mysql_port,opt_mysql_unix_port,
-			   0)))
+  if (!(cli_connect(&mysql,host,user, &opt_password,
+                (first_argument_uses_wildcards) ? "" :
+                    argv[0], opt_mysql_port,opt_mysql_unix_port,
+                  0, tty_password)))
   {
     fprintf(stderr,"%s: %s\n",my_progname,mysql_error(&mysql));
     error= 1;
@@ -414,9 +415,6 @@ get_options(int *argc,char ***argv)
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);
-  
-  if (tty_password)
-    opt_password=get_tty_password(NullS);
   if (opt_count)
   {
     /*
