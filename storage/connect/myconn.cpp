@@ -405,18 +405,20 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
     port = mysqld_port;
 
 	if (!strnicmp(srcdef, "select ", 7) || strstr(srcdef, "%s")) {
-		query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 10);
+		size_t query_sz = strlen(srcdef) + 10;
+		query = (char *)PlugSubAlloc(g, NULL, query_sz);
 
 		if ((p= strstr(srcdef, "%s")))
 		{
 			/* Replace %s with 1=1 */
-			sprintf(query, "%.*s1=1%s", (int) (p - srcdef), srcdef, p + 2); // dummy where clause
+			snprintf(query, query_sz, "%.*s1=1%s",
+			         (int) (p - srcdef), srcdef, p + 2); // dummy where clause
 		}
-		else 
-		  strcpy(query, srcdef);
+		else
+			safe_strcpy(query, query_sz, srcdef);
 
 		if (!strnicmp(srcdef, "select ", 7))
-		  strcat(query, " LIMIT 0");
+			safe_strcat(query, query_sz, " LIMIT 0");
 
 	} else
     query = (char *)srcdef;
