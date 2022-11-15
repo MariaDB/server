@@ -6165,7 +6165,8 @@ int do_done(struct st_command *command)
     if (*cur_block->delim) 
     {
       /* Restore "old" delimiter after false if block */
-      strcpy (delimiter, cur_block->delim);
+      int error_code = 0;
+      safe_strcpy(delimiter, cur_block->delim, sizeof(delimiter), &error_code);
       delimiter_length= strlen(delimiter);
     }
     /* Pop block from stack, goto next line */
@@ -6423,7 +6424,8 @@ void do_block(enum block_cmd cmd, struct st_command* command)
   } else
   {
     /* Remember "old" delimiter if entering a false if block */
-    strcpy (cur_block->delim, delimiter);
+    int error_code = 0;
+    safe_strcpy(cur_block->delim, delimiter, sizeof(cur_block->delim), &error_code);
   }
   
   DBUG_PRINT("info", ("OK: %d", cur_block->ok));
@@ -11278,9 +11280,10 @@ static int setenv(const char *name, const char *value, int overwrite)
   char *envvar= (char *)malloc(buflen);
   if(!envvar)
     return ENOMEM;
-  strcpy(envvar, name);
-  strcat(envvar, "=");
-  strcat(envvar, value);
+  int error_code = 0;
+  safe_strcpy(envvar, name, buflen, &error_code);
+  safe_strcat(envvar, "=", buflen, &error_code);
+  safe_strcat(envvar, value, buflen), &error_code);
   putenv(envvar);
   return 0;
 }

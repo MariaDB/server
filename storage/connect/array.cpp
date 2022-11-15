@@ -980,8 +980,9 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
   for (i = 0; i < Nval;) {
     Value->SetValue_pvblk(Vblp, i);
     Value->Prints(g, tp, z);
-    strcat(p, tp);
-    strcat(p, (++i == Nval) ? ")" : ",");
+    int error_code = 0;
+    safe_strcat(p, tp, len, &error_code);
+    safe_strcat(p, (++i == Nval) ? ")" : ",", len, &error_code);
   } // enfor i
 
   xtrc(1, "Arraylist: newlen=%d\n", strlen(p));

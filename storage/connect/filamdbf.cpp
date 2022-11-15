@@ -442,7 +442,8 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, PTOS topt, bool info)
       hp->Headlen, hp->Filedate[0], hp->Filedate[1],
       hp->Filedate[2]);
 
-    strcat(g->Message, buf);
+    int error_code = 0;
+    safe_strcat(g->Message, buf, sizeof(g->Message), &error_code);
     } // endif info
 #endif // 0
 

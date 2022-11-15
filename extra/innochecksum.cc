@@ -852,10 +852,11 @@ parse_page(
 	ulint size_range_id;
 
 	/* Check whether page is doublewrite buffer. */
+  int error_code = 0;
 	if(skip_page) {
-		strcpy(str, "Double_write_buffer");
+    safe_strcpy(str, "Double_write_buffer", sizeof(str), &error_code);
 	} else {
-		strcpy(str, "-");
+    safe_strcpy(str, "-", sizeof(str), &error_code);
 	}
 
 	switch (mach_read_from_2(page + FIL_PAGE_TYPE)) {

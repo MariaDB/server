@@ -33,6 +33,8 @@
 #include <fcntl.h>
 #endif  // !_WIN32
 
+#include <m_string.h>
+
 /***********************************************************************/
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
@@ -170,13 +172,17 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
   /*  Use specific zlib functions.                                     */
   /*  Treat files as binary.                                           */
   /*********************************************************************/
-  strcat(opmode, "b");
+  int error_code = 0;
+  safe_strcat(opmode, "b", sizeof(opmode), &error_code);
   Zfile = gzopen(PlugSetPath(filename, To_File, Tdbp->GetPath()), opmode);
 
   if (Zfile == NULL) {
     sprintf(g->Message, MSG(GZOPEN_ERROR),
             opmode, (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
+    size_t msg_sz = sizeof(g->Message);
+    int error_code = 0;
+    safe_strcat(g->Message, ": ", msg_sz, &error_code);
+    safe_strcat(g->Message, strerror(errno), msg_sz, &error_code);
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Zfile

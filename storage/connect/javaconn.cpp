@@ -33,6 +33,8 @@
 #define NODW
 #endif  // !_WIN32
 
+#include <m_string.h>
+
 /***********************************************************************/
 /*  Required objects includes.                                         */
 /***********************************************************************/
@@ -230,16 +232,21 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 
 #if defined(_WIN32)
 		for (ntry = 0; !LibJvm && ntry < 3; ntry++) {
+      size_t soname_sz = sizeof(soname);
+      int error_code = 0;
 			if (!ntry && JvmPath) {
-				strcat(strcpy(soname, JvmPath), "\\jvm.dll");
+				safe_strcpy(soname, JvmPath, soname_sz, &error_code);
+				safe_strcat(soname, "\\jvm.dll", soname_sz, &error_code);
+				
 				ntry = 3;		 // No other try
 			} else if (ntry < 2 && getenv("JAVA_HOME")) {
-				strcpy(soname, getenv("JAVA_HOME"));
+				safe_strcpy(soname, getenv("JAVA_HOME"), soname_sz, &error_code);
 
-				if (ntry == 1)
-					strcat(soname, "\\jre");
+				if (ntry == 1) {
+					safe_strcat(soname, "\\jre", soname_sz, &error_code);
+				}
 
-				strcat(soname, "\\bin\\client\\jvm.dll");
+				safe_strcat(soname, "\\bin\\client\\jvm.dll", soname_sz, &error_code);
 			} else {
 				// Try to find it through the registry
 				char version[16];
@@ -247,11 +254,14 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 				LONG  rc;
 				DWORD BufferSize = 16;
 
-				strcpy(soname, "jvm.dll");		// In case it fails
+				safe_strcpy(soname, "jvm.dll", soname_sz, &error_code);		// In case it fails
 
 				if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "CurrentVersion",
 					RRF_RT_ANY, NULL, (PVOID)&version, &BufferSize)) == ERROR_SUCCESS) {
-					strcat(strcat(javaKey, "\\"), version);
+					size_t javaey_sz = sizeof(javaKey);
+          error_code = 0;
+					safe_strcat(javaKey, "\\", javaey_sz, &error_code);
+					safe_strcat(javaKey, version, javaey_sz, &error_code);
 					BufferSize = sizeof(soname);
 
 					if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "RuntimeLib",
@@ -271,12 +281,15 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 		if (!LibJvm) {
 			char  buf[256];
 			DWORD rc = GetLastError();
+      int error_code = 0;
 
 			sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
 			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 										FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 				            (LPTSTR)buf, sizeof(buf), NULL);
-			strcat(strcat(g->Message, ": "), buf);
+			size_t msg_sz = sizeof(g->Message);
+			safe_strcat(g->Message, ": ", msg_sz, &error_code);
+			safe_strcat(g->Message, buf, msg_sz, &error_code);
 		} else if (!(CreateJavaVM = (CRTJVM)GetProcAddress((HINSTANCE)LibJvm,
 			                                       "JNI_CreateJavaVM"))) {
 			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), "JNI_CreateJavaVM");
@@ -300,14 +313,18 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 		const char *error = NULL;
 
 		for (ntry = 0; !LibJvm && ntry < 2; ntry++) {
+			size_t soname_sz = sizeof(soname);
+      int error_code = 0;
 			if (!ntry && JvmPath) {
-				strcat(strcpy(soname, JvmPath), "/libjvm.so");
+				safe_strcpy(soname, JvmPath, soname_sz, &error_code);
+				safe_strcat(soname, "/libjvm.so", soname_sz, &error_code);
 				ntry = 2;
 			} else if (!ntry && getenv("JAVA_HOME")) {
 				// TODO: Replace i386 by a better guess
-				strcat(strcpy(soname, getenv("JAVA_HOME")), "/jre/lib/i386/client/libjvm.so");
+				safe_strcpy(soname, getenv("JAVA_HOME"), soname_sz, &error_code);
+				safe_strcat(soname, "/jre/lib/i386/client/libjvm.so", soname_sz, &error_code);
 			} else {	 // Will need LD_LIBRARY_PATH to be set
-				strcpy(soname, "libjvm.so");
+				safe_strcpy(soname, "libjvm.so", soname_sz, &error_code);
 				ntry = 2;
 			} // endelse
 

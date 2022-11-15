@@ -10,6 +10,7 @@
 /*  Include relevant sections of the MariaDB header file.              */
 /***********************************************************************/
 #include <my_global.h>
+#include <m_string.h>
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -597,8 +598,9 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
   G->Message[0] = 0;
 
   try {
+    int error_code = 0;
     if (!bvp) {
-      strcpy(g->Message, "Null json tree");
+      safe_strcpy(g->Message, "Null json tree", sizeof(g->Message), &error_code);
       throw 1;
     } else if (!fn) {
       // Serialize to a string
@@ -608,7 +610,9 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
       if (!(fs = fopen(fn, "wb"))) {
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
           "w", (int)errno, fn);
-        strcat(strcat(g->Message, ": "), strerror(errno));
+        size_t msg_sz = sizeof(g->Message);
+        safe_strcat(g->Message, ": ", msg_sz, &error_code);
+        safe_strcat(g->Message, strerror(errno), msg_sz, &error_code);
         throw 2;
       } else if (pretty >= 2) {
         // Serialize to a pretty file

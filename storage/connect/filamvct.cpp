@@ -42,6 +42,8 @@
 #include <fcntl.h>
 #endif  // !_WIN32
 
+#include <m_string.h>
+
 /***********************************************************************/
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
@@ -191,8 +193,11 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-  if (Header == 2)
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  if (Header == 2) {
+    PlugRemoveType(filename, filename);
+    int error_code = 0;
+    safe_strcat(filename, ".blk", sizeof(filename), &error_code);
+  }
 
   if ((h = global_open(g, MSGID_CANNOT_OPEN, filename, O_RDONLY)) == -1
       || !_filelength(h)) {
@@ -247,7 +252,9 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
       s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r+b");
 
   } else {      // Header == 2
-    strcat(PlugRemoveType(filename, filename), ".blk");
+    PlugRemoveType(filename, filename);
+    int error_code = 0;
+    safe_strcat(filename, ".blk", sizeof(filename), &error_code);
     s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "wb");
   } // endif Header
 
@@ -885,8 +892,9 @@ bool VCTFAM::OpenTempFile(PGLOBAL g)
   /*  Open the temporary file, Spos is at the beginning of file.       */
   /*********************************************************************/
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
-
+  PlugRemoveType(tempname, tempname);
+  int error_code = 0;
+  safe_strcat(tempname, ".t", sizeof(tempname), &error_code);
   if (MaxBlk) {
     if (MakeEmptyFile(g, tempname))
       return true;
@@ -2079,7 +2087,9 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
         Tempat = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
         strcpy(Tempat, Colfn);
         PlugSetPath(Tempat, Tempat, Tdbp->GetPath());
-        strcat(PlugRemoveType(Tempat, Tempat), ".t");
+        PlugRemoveType(Tempat, Tempat);
+        int error_code = 0;
+        safe_strcat(Tempat, ".t", sizeof(Tempat), &error_code);
         T_Fbs = (PFBLOCK *)PlugSubAlloc(g, NULL, Ncol * sizeof(PFBLOCK));
         } // endif UseTemp
 
@@ -2453,7 +2463,9 @@ int VECFAM::RenameTempFile(PGLOBAL g)
     if (!Abort) {
       sprintf(filename, Colfn, i+1);
       PlugSetPath(filename, filename, Tdbp->GetPath());
-      strcat(PlugRemoveType(filetemp, filename), ".ttt");
+      PlugRemoveType(filetemp, filename);
+      int error_code = 0;
+      safe_strcat(filetemp, ".ttt", sizeof(filetemp), &error_code);
       remove(filetemp);   // May still be there from previous error
   
       if (rename(filename, filetemp)) {    // Save file for security
@@ -3211,8 +3223,11 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-  if (Header == 2)
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  if (Header == 2) {
+    PlugRemoveType(filename, filename);
+    int error_code = 0;
+    safe_strcat(filename, ".blk", sizeof(filename), &error_code);
+  }
 
 #if defined(_WIN32)
   LARGE_INTEGER len;
@@ -3287,8 +3302,11 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
     } else
       b = true;
 
-  } else       // Header == 2
-    strcat(PlugRemoveType(filename, filename), ".blk");
+  } else {      // Header == 2
+    PlugRemoveType(filename, filename);
+    int error_code = 0;
+    safe_strcat(filename, ".blk", sizeof(filename), &error_code);
+  }
 
   if (h == INVALID_HANDLE_VALUE) {
 #if defined(_WIN32)
@@ -3385,7 +3403,8 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                 FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                 (LPTSTR)filename, sizeof(filename), NULL);
-  strcat(g->Message, filename);
+  int error_code = 0;
+  safe_strcat(g->Message, filename, sizeof(g->Message), &error_code);
 
   if (h != INVALID_HANDLE_VALUE)
     CloseHandle(h);
@@ -3521,7 +3540,8 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
-    strcat(g->Message, filename);
+    int error_code = 0;
+    safe_strcat(g->Message, filename, sizeof(g->Message), &error_code);
     } // endif Hfile
 
   if (trace(1))
@@ -3609,8 +3629,10 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = errno;
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, mode, filename);
-    strcat(g->Message, strerror(errno));
+    size_t msg_sz = sizeof(g->Message);
+    snprintf(g->Message, msg_sz, MSG(OPEN_ERROR), rc, mode, filename);
+    int error_code = 0;
+    safe_strcat(g->Message, strerror(errno), msg_sz, &error_code);
     } // endif Hfile
 
   if (trace(1))
@@ -3953,7 +3975,9 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   /*********************************************************************/
   tempname = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  int error_code = 0;
+  safe_strcat(tempname, ".t", _MAX_PATH, &error_code);
 
   if (!MaxBlk)
     remove(tempname);       // Be sure it does not exist yet
@@ -3972,7 +3996,8 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
               FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
               (LPTSTR)tempname, _MAX_PATH, NULL);
-    strcat(g->Message, tempname);
+    error_code = 0;
+    safe_strcat(g->Message, tempname, sizeof(g->Message), &error_code);
     return true;
     } // endif Tfile
 #else    // UNIX
@@ -3982,8 +4007,10 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
 
   if (Tfile == INVALID_HANDLE_VALUE) {
     int rc = errno;
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
-    strcat(g->Message, strerror(errno));
+    size_t msg_sz = sizeof(g->Message);
+    snprintf(g->Message, msg_sz, MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
+    error_code = 0;
+    safe_strcat(g->Message, strerror(errno), msg_sz, &error_code);
     return true;
     } //endif Tfile
 #endif   // UNIX

@@ -29,6 +29,7 @@
 #include <fcntl.h>
 #endif  // !_WIN32
 #include <time.h>
+#include <m_string.h>
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -181,7 +182,11 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 
 	while (true) {
 		if (!(FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-			strcat(strcat(strcpy(filename, drive), direc), FileData.cFileName);
+			size_t filename_sz = sizeof(filename);
+      int error_code = 0;
+			safe_strcpy(filename, drive, filename_sz, &error_code);
+			safe_strcat(filename, direc, filename_sz, &error_code);
+			safe_strcat(filename, FileData.cFileName, filename_sz, &error_code);
 
 			if (ZipFile(g, zutp, filename, FileData.cFileName, buf)) {
 				FindClose(hSearch);
@@ -217,7 +222,8 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 	struct dirent *entry;
 
 	_splitpath(filename, NULL, direc, pattern, ftype);
-	strcat(pattern, ftype);
+  int error_code = 0;
+	safe_strcat(pattern, ftype, sizeof(pattern), &error_code);
 
 	// Start searching files in the target directory.
 	if (!(dir = opendir(direc))) {
@@ -226,7 +232,10 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 	} // endif dir
 
 	while ((entry = readdir(dir))) {
-		strcat(strcpy(fn, direc), entry->d_name);
+    int error_code = 0;
+		size_t fn_sz = sizeof(fn);
+		safe_strcpy(fn, direc, fn_sz, &error_code);
+		safe_strcat(fn, entry->d_name, fn_sz, &error_code);
 
 		if (lstat(fn, &fileinfo) < 0) {
 			sprintf(g->Message, "%s: %s", fn, strerror(errno));
@@ -240,7 +249,10 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 		if (fnmatch(pattern, entry->d_name, 0))
 			continue;      // Not a match
 
-		strcat(strcpy(filename, direc), entry->d_name);
+		size_t filename_sz = sizeof(filename);
+    error_code = 0;
+		safe_strcpy(filename, direc, filename_sz, &error_code);
+		safe_strcat(filename, entry->d_name, filename_sz, &error_code);
 
 		if (ZipFile(g, zutp, filename, entry->d_name, buf)) {
 			closedir(dir);

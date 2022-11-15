@@ -4909,7 +4909,8 @@ char *bbin_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} // endfor i
 
 			if ((bsp = BbinAlloc(bnx.G, initid->max_length, arp))) {
-				strcat(bsp->Msg, " array");
+        int error_code = 0;
+				safe_strcat(bsp->Msg, " array", sizeof(bsp->Msg), &error_code);
 
 				// Keep result of constant function
 				g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5107,8 +5108,10 @@ char *bbin_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 		PUSH_WARNING("Result truncated to json_grp_size values");
 
 	if (arp)
-		if ((bsp = BbinAlloc(g, initid->max_length, arp)))
-			strcat(bsp->Msg, " array");
+		if ((bsp = BbinAlloc(g, initid->max_length, arp))) {
+      int error_code = 0;
+			safe_strcat(bsp->Msg, " array", sizeof(bsp->Msg), &error_code);
+    }
 
 	if (!bsp) {
 		*res_length = 0;
@@ -5154,8 +5157,10 @@ char *bbin_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result,
 		PUSH_WARNING("Result truncated to json_grp_size values");
 
 	if (bop)
-		if ((bsp = BbinAlloc(g, initid->max_length, bop)))
-			strcat(bsp->Msg, " object");
+		if ((bsp = BbinAlloc(g, initid->max_length, bop))) {
+      int error_code = 0;
+			safe_strcat(bsp->Msg, " object", sizeof(bsp->Msg), &error_code);
+		}
 
 	if (!bsp) {
 		*res_length = 0;
@@ -5199,7 +5204,8 @@ char *bbin_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					bnx.SetKeyValue(objp, bnx.MakeValue(args, i), bnx.MakeKey(args, i));
 
 				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp))) {
-					strcat(bsp->Msg, " object");
+          int error_code = 0;
+					safe_strcat(bsp->Msg, " object", sizeof(bsp->Msg), &error_code);
 
 					// Keep result of constant function
 					g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5254,8 +5260,9 @@ char *bbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 						bnx.SetKeyValue(objp, jvp, bnx.MakeKey(args, i));
 
 				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp)))	{
-					strcat(bsp->Msg, " object");
-
+          int error_code = 0;
+					safe_strcat(bsp->Msg, " object", sizeof(bsp->Msg), &error_code);
+					
 					// Keep result of constant function
 					g->Xchk = (initid->const_item) ? bsp : NULL;
 				}	// endif bsp
@@ -5313,8 +5320,9 @@ char *bbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					bnx.SetKeyValue(objp, bnx.MakeValue(args, i + 1), MakePSZ(g, args, i));
 
 				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp))) {
-					strcat(bsp->Msg, " object");
-
+          int error_code = 0;
+					safe_strcat(bsp->Msg, " object", sizeof(bsp->Msg), &error_code);
+					
 					// Keep result of constant function
 					g->Xchk = (initid->const_item) ? bsp : NULL;
 				}	// endif bsp
@@ -6077,7 +6085,8 @@ char *bbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 //		pretty = pty;
 
 	if ((bsp = BbinAlloc(bnx.G, len, jsp))) {
-		strcat(bsp->Msg, " file");
+    int error_code = 0;
+		safe_strcat(bsp->Msg, " file", sizeof(bsp->Msg), &error_code);
 		bsp->Filename = fn;
 		bsp->Pretty = pretty;
 	} else {

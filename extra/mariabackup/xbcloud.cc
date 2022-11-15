@@ -1676,8 +1676,10 @@ container_list_add_object(container_list *list, const char *name,
 		list->object_count += object_count_step;
 	}
 	assert(list->idx <= list->object_count);
-	strcpy(list->objects[list->idx].name, name);
-	strcpy(list->objects[list->idx].hash, hash);
+  int error_code = 0;
+  safe_strcpy(list->objects[list->idx].name, name, sizeof(list->objects[list->idx].name), &error_code);
+  safe_strcpy(list->objects[list->idx].hash, hash, sizeof(list->objects[list->idx].hash), &error_code);
+
 	list->objects[list->idx].bytes = bytes;
 	++list->idx;
 }

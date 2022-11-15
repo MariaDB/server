@@ -10,6 +10,7 @@
 /*  Include relevant sections of the MariaDB header file.              */
 /***********************************************************************/
 #include <my_global.h>
+#include <m_string.h>
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -280,7 +281,10 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty) {
       if (!(fs = fopen(fn, "wb"))) {
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
           "w", (int)errno, fn);
-        strcat(strcat(g->Message, ": "), strerror(errno));
+        size_t msg_sz = sizeof(g->Message);
+        int error_code = 0;
+        safe_strcat(g->Message, ": ", msg_sz, &error_code);
+        safe_strcat(g->Message, strerror(errno), msg_sz, &error_code);
         throw 2;
       } else if (pretty >= 2) {
         // Serialize to a pretty file

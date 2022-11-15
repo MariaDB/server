@@ -225,6 +225,62 @@ static inline void lex_string_set3(LEX_CSTRING *lex_str, const char *c_str,
   lex_str->length= len;
 }
 
+//copies src to dst - max dst_size are copied, returns NULL terminated string
+//in case src is bigger than dst_size - error_code is set to 1
+//check if error code is = 0 to prevent rewrite error_code value if safe_ functions called in tuple
+static inline char *safe_strcpy(char *dst, const char *src, size_t dst_size, int *error_code)
+{
+  if(0 == *error_code)
+  {
+    size_t wrote_sz;
+    size_t cur_len;
+
+    strncpy(dst, src, dst_size);
+    wrote_sz = strlen(dst);
+    //if dst string not null terminated - add '\0'
+    if('\0' != dst[wrote_sz]) {
+      if(wrote_sz >= dst_size) {
+        cur_len = dst_size - 1;
+        *error_code = 1;
+      }
+      else {
+        cur_len = wrote_sz;
+      }
+      dst[cur_len] = '\0';
+    }
+  }
+
+  return dst;
+}
+
+//append src to dst - max (dst_size - strlen(dst) are appended, returns NULL terminated string
+//in case src is bigger than dst_size - error_code is set to 1
+//check if error code is = 0 to prevent rewrite error_code value if safe_ functions called in tuple
+static inline char *safe_strcat(char *dst, const char *src, size_t dst_size, int *error_code)
+{
+  if(0 == *error_code)
+  {
+    size_t wrote_sz;
+    size_t cur_len;
+
+    strncat(dst, src, dst_size - strlen(dst));
+    wrote_sz = strlen(dst);
+    //if dst string not null terminated - add '\0'
+    if('\0' != dst[wrote_sz]) {
+      if(wrote_sz >= dst_size) {
+        cur_len = dst_size - 1;
+        *error_code = 1;
+      }
+      else {
+        cur_len = wrote_sz;
+      }
+      dst[cur_len] = '\0';
+    }
+  }
+
+  return dst;
+}
+
 #ifdef __cplusplus
 static inline char *safe_str(char *str)
 { return str ? str : const_cast<char*>(""); }

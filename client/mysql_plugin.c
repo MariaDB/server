@@ -574,9 +574,12 @@ static int search_dir(const char * base_path, const char *tool_name,
 {
   char new_path[FN_REFLEN];
   char source_path[FN_REFLEN];
-
-  strcpy(source_path, base_path);
-  strcat(source_path, subdir);
+  size_t dest_len;
+  int error_code = 0;
+  
+  dest_len = sizeof(source_path);
+  safe_strcpy(source_path, base_path, dest_len, &error_code);
+  safe_strcat(source_path, subdir, dest_len, &error_code);
   fn_format(new_path, tool_name, source_path, "", MY_UNPACK_FILENAME);
   if (file_exists(new_path))
   {
@@ -683,7 +686,8 @@ static int load_plugin_data(char *plugin_name, char *config_file)
     if (i == -1) /* if first pass, read this line as so_name */
     {
       /* Add proper file extension for soname */
-      strcat(line, FN_SOEXT);
+      int error_code = 0;
+      safe_strcat(line, FN_SOEXT, sizeof(line), &error_code);
       /* save so_name */
       plugin_data.so_name= my_strdup(line, MYF(MY_WME|MY_ZEROFILL));
       i++;
@@ -779,14 +783,17 @@ static int check_options(int argc, char **argv, char *operation)
     /* read the plugin config file and check for match against argument */
     else
     {
+      size_t config_file_sz;
+      int error_code = 0;
       if (strlen(argv[i]) + 4 + 1 > FN_REFLEN)
       {
         fprintf(stderr, "ERROR: argument is too long.\n");
         return 1;
       }
-      strcpy(plugin_name, argv[i]);
-      strcpy(config_file, argv[i]);
-      strcat(config_file, ".ini");
+      config_file_sz = sizeof(config_file);
+      safe_strcpy(plugin_name, argv[i], sizeof(plugin_name), &error_code);
+      safe_strcpy(config_file, argv[i], config_file_sz, &error_code);
+      safe_strcat(config_file, ".ini", config_file_sz, &error_code);
     }
   }
 
@@ -871,19 +878,21 @@ static int process_options(int argc, char *argv[], char *operation)
   /* Add a trailing directory separator if not present */
   if (opt_basedir)
   {
+    size_t buff_sz;
+    int error_code = 0;
     i= (int)strlength(opt_basedir);
     if (opt_basedir[i-1] != FN_LIBCHAR || opt_basedir[i-1] != FN_LIBCHAR2)
     {
       char buff[FN_REFLEN];
       memset(buff, 0, sizeof(buff));
       
-      strncpy(buff, opt_basedir, sizeof(buff) - 1);
+      buff_sz = sizeof(buff);
+      safe_strcpy(buff, opt_basedir, buff_sz, &error_code);
 #ifdef __WIN__
-      strncat(buff, "/", sizeof(buff) - strlen(buff) - 1);
+      safe_strcat(buff, "/", buff_sz, &error_code);
 #else
-      strncat(buff, FN_DIRSEP, sizeof(buff) - strlen(buff) - 1);
+      safe_strcat(buff, FN_DIRSEP, buff_sz, &error_code);
 #endif
-      buff[sizeof(buff) - 1]= 0;
       my_free(opt_basedir);
       opt_basedir= my_strdup(buff, MYF(MY_FAE));
     }

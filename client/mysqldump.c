@@ -2452,6 +2452,8 @@ static uint dump_events_for_db(char *db)
   char       db_cl_name[MY_CS_NAME_SIZE];
   int        db_cl_altered= FALSE;
 
+  int error_code = 0;
+
   DBUG_ENTER("dump_events_for_db");
   DBUG_PRINT("enter", ("db: '%s'", db));
 
@@ -2472,7 +2474,7 @@ static uint dump_events_for_db(char *db)
   if (mysql_query_with_error_report(mysql, &event_list_res, "show events"))
     DBUG_RETURN(0);
 
-  strcpy(delimiter, ";");
+  safe_strcpy(delimiter, ";", sizeof(delimiter), &error_code);
   if (mysql_num_rows(event_list_res) > 0)
   {
     if (opt_xml)

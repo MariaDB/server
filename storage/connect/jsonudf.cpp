@@ -4753,7 +4753,8 @@ char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if ((arp = (PJAR)JsonNew(g, TYPE_JAR)) &&
 					(bsp = JbinAlloc(g, args, initid->max_length, arp))) {
-				strcat(bsp->Msg, " array");
+            int error_code = 0;
+				safe_strcat(bsp->Msg, " array", sizeof(bsp->Msg), &error_code);
 
 				for (uint i = 0; i < args->arg_count; i++)
 					arp->AddArrayValue(g, MakeValue(g, args, i));
@@ -4830,7 +4831,8 @@ char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			arp->InitArray(gb);
 
 			if ((bsp = JbinAlloc(g, args, initid->max_length, top))) {
-				strcat(bsp->Msg, " array");
+        int error_code = 0;
+				safe_strcat(bsp->Msg, " array", sizeof(bsp->Msg), &error_code);
 				bsp->Jsp = arp;
 			}	// endif bsp
 
@@ -5050,8 +5052,10 @@ char *jbin_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					objp->SetKeyValue(g, MakeValue(g, args, i), MakeKey(g, args, i));
 
 
-				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
-					strcat(bsp->Msg, " object");
+				if ((bsp = JbinAlloc(g, args, initid->max_length, objp))) {
+          int error_code = 0;
+					safe_strcat(bsp->Msg, " object", sizeof(bsp->Msg), &error_code);
+				}
 
 			} else
 				bsp = NULL;
@@ -5106,8 +5110,10 @@ char *jbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					if (!(jvp = MakeValue(g, args, i))->IsNull())
 						objp->SetKeyValue(g, jvp, MakeKey(g, args, i));
 
-				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
-					strcat(bsp->Msg, " object");
+				if ((bsp = JbinAlloc(g, args, initid->max_length, objp))) {
+          int error_code = 0;
+					safe_strcat(bsp->Msg, " object", sizeof(bsp->Msg), &error_code);
+				}
 
 			} else
 				bsp = NULL;
@@ -5165,8 +5171,10 @@ char *jbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				for (uint i = 0; i < args->arg_count; i += 2)
 					objp->SetKeyValue(g, MakeValue(g, args, i + 1), MakePSZ(g, args, i));
 
-				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
-					strcat(bsp->Msg, " object");
+				if ((bsp = JbinAlloc(g, args, initid->max_length, objp))) {
+          int error_code = 0;
+					safe_strcat(bsp->Msg, " object", sizeof(bsp->Msg), &error_code);
+				}
 
 			} else
 				bsp = NULL;
@@ -5387,8 +5395,10 @@ char *jbin_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} // endif CheckMemory
 
-		if ((bsp = JbinAlloc(g, args, initid->max_length, jarp)))
-			strcat(bsp->Msg, " array");
+		if ((bsp = JbinAlloc(g, args, initid->max_length, jarp))) {
+      int error_code = 0;
+			safe_strcat(bsp->Msg, " array", sizeof(bsp->Msg), &error_code);
+		}
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5462,8 +5472,10 @@ char *jbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if ((jvp = jsx->GetRowValue(g, jsp, 0, false))) {
 		jsp = (jvp->GetJsp()) ? jvp->GetJsp() : JvalNew(g, TYPE_JVAL, jvp->GetValue(g));
 
-		if ((bsp = JbinAlloc(g, args, initid->max_length, jsp)))
-			strcat(bsp->Msg, " item");
+		if ((bsp = JbinAlloc(g, args, initid->max_length, jsp))) {
+      int error_code = 0;
+			safe_strcat(bsp->Msg, " item", sizeof(bsp->Msg), &error_code);
+		}
 		else
 			*error = 1;
 
@@ -5823,7 +5835,8 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		pretty = pty;
 
 	if ((bsp = JbinAlloc(g, args, len, jsp))) {
-		strcat(bsp->Msg, " file");
+    int error_code = 0;
+		safe_strcat(bsp->Msg, " file", sizeof(bsp->Msg), &error_code);
 		bsp->Filename = fn;
 		bsp->Pretty = pretty;
 	} else {
@@ -6161,7 +6174,10 @@ char* JUP::UnprettyJsonFile(PGLOBAL g, char *fn, char *outfn, int lrecl) {
 	if (!(fs = fopen(outfn, "wb"))) {
 		sprintf(g->Message, MSG(OPEN_MODE_ERROR),
 			"w", (int)errno, outfn);
-		strcat(strcat(g->Message, ": "), strerror(errno));
+		size_t msg_sz = sizeof(g->Message);
+    int error_code = 0;
+		safe_strcat(g->Message, ": ", msg_sz, &error_code);
+		safe_strcat(g->Message, strerror(errno), msg_sz, &error_code);
 		CloseMemMap(mm.memory, len);
 		return NULL;
 	} // endif fs

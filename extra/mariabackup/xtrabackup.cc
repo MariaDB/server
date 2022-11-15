@@ -4253,11 +4253,12 @@ static bool xtrabackup_backup_low()
 
 	dst_log_file = NULL;
 
-	if(!xtrabackup_incremental) {
-		strcpy(metadata_type, "full-backuped");
+	int error_code = 0;
+  if(!xtrabackup_incremental) {
+    safe_strcpy(metadata_type, "full-backuped", sizeof(metadata_type), &error_code);
 		metadata_from_lsn = 0;
 	} else {
-		strcpy(metadata_type, "incremental");
+    safe_strcpy(metadata_type, "incremental", sizeof(metadata_type), &error_code);
 		metadata_from_lsn = incremental_lsn;
 	}
 	metadata_last_lsn = log_copy_scanned_lsn;
@@ -6005,7 +6006,8 @@ static bool xtrabackup_prepare_func(char** argv)
 	if (ok) {
 		char	filename[FN_REFLEN];
 
-		strcpy(metadata_type, "log-applied");
+    int error_code = 0;
+    safe_strcpy(metadata_type, "log-applied", sizeof(metadata_type), &error_code);
 
 		if(xtrabackup_incremental
 		   && metadata_to_lsn < incremental_to_lsn)

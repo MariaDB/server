@@ -36,6 +36,8 @@
 #include <fcntl.h>
 #endif  // !_WIN32
 
+#include <m_string.h>
+
 /***********************************************************************/
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
@@ -884,7 +886,8 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
-    strcat(g->Message, filename);
+    int error_code = 0;
+    safe_strcat(g->Message, filename, sizeof(g->Message), &error_code);
   } else
     rc = 0;
 
@@ -1005,7 +1008,8 @@ int BGXFAM::Cardinality(PGLOBAL g)
           FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                         FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                         (LPTSTR)filename, sizeof(filename), NULL);
-          strcat(g->Message, filename);
+          int error_code = 0;
+          safe_strcat(g->Message, filename, sizeof(g->Message), &error_code);
           return -1;
         } else
           return 0;                     // File does not exist
@@ -1385,7 +1389,9 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
   /*********************************************************************/
   tempname = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  int error_code = 0;
+  safe_strcat(tempname, ".t", _MAX_PATH, &error_code);
   remove(tempname);       // Be sure it does not exist yet
 
 #if defined(_WIN32)
@@ -1398,7 +1404,7 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
               FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
               (LPTSTR)tempname, _MAX_PATH, NULL);
-    strcat(g->Message, tempname);
+    safe_strcat(g->Message, tempname, sizeof(g->Message), &error_code);
     return true;
     } // endif Tfile
 #else    // UNIX
@@ -1406,8 +1412,8 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
 
   if (Tfile == INVALID_HANDLE_VALUE) {
     int rc = errno;
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
-    strcat(g->Message, strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
+    safe_strcat(g->Message, strerror(errno), sizeof(g->Message), &error_code);
     return true;
     } //endif Tfile
 #endif   // UNIX
