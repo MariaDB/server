@@ -20,14 +20,6 @@
 #include <sys/stat.h>
 #endif
 
-	/* Get position to last record */
-
-MARIA_RECORD_POS maria_position(MARIA_HA *info)
-{
-  return info->cur_row.lastpos;
-}
-
-
 uint maria_max_key_length()
 {
   uint tmp= (_ma_max_key_length() - 8 - HA_MAX_KEY_SEG*3);

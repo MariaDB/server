@@ -4040,7 +4040,8 @@ row_search_idx_cond_check(
 	ut_ad(rec_offs_validate(rec, prebuilt->index, offsets));
 
 	if (!prebuilt->idx_cond) {
-		if (!handler_rowid_filter_is_active(prebuilt->pk_filter)) {
+		if (!prebuilt->pk_filter ||
+                    !handler_rowid_filter_is_active(prebuilt->pk_filter)) {
 			return(CHECK_POS);
 		}
 	} else {
@@ -4082,7 +4083,8 @@ row_search_idx_cond_check(
 
 	switch (result) {
 	case CHECK_POS:
-	        if (handler_rowid_filter_is_active(prebuilt->pk_filter)) {
+	        if (prebuilt->pk_filter &&
+                  handler_rowid_filter_is_active(prebuilt->pk_filter)) {
 		        ut_ad(!prebuilt->index->is_primary());
 		        if (prebuilt->clust_index_was_generated) {
                                ulint len;

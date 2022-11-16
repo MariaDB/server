@@ -353,6 +353,14 @@ typedef struct st_dynamic_array
   myf malloc_flags;
 } DYNAMIC_ARRAY;
 
+
+typedef struct st_dynamic_array_append
+{
+  DYNAMIC_ARRAY *array;
+  uchar *pos, *end;
+} DYNAMIC_ARRAY_APPEND;
+
+
 typedef struct st_my_tmpdir
 {
   DYNAMIC_ARRAY full_list;
@@ -856,6 +864,10 @@ extern void freeze_size(DYNAMIC_ARRAY *array);
 #define push_dynamic(A,B) insert_dynamic((A),(B))
 #define reset_dynamic(array) ((array)->elements= 0)
 #define sort_dynamic(A,cmp) my_qsort((A)->buffer, (A)->elements, (A)->size_of_element, (cmp))
+extern void init_append_dynamic(DYNAMIC_ARRAY_APPEND *append,
+                                DYNAMIC_ARRAY *array);
+extern my_bool append_dynamic(DYNAMIC_ARRAY_APPEND *append,
+                              const void * element);
 
 extern my_bool init_dynamic_string(DYNAMIC_STRING *str, const char *init_str,
 				   size_t init_alloc,size_t alloc_increment);
