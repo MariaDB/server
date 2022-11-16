@@ -12239,16 +12239,16 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                             "rowid_filter_index": "b",
                             "index_only_cost": 0.001515222,
                             "filter_startup_cost": 3.004222e-4,
-                            "find_key_and_filter_lookup_cost": 6.445451e-4,
+                            "find_key_and_filter_lookup_cost": 7.827422e-4,
                             "filter_selectivity": 0.021,
                             "original_rows": 9,
                             "new_rows": 0.189,
                             "original_access_cost": 0.011516778,
-                            "with_filter_access_cost": 0.0023698,
+                            "with_filter_access_cost": 0.002507997,
                             "original_found_rows_cost": 0.010001556,
                             "with_filter_found_rows_cost": 2.100327e-4,
                             "org_cost": 0.011804778,
-                            "filter_cost": 0.00267627,
+                            "filter_cost": 0.002814467,
                             "filter_used": true
                           },
                           "access_type": "range",
@@ -12256,7 +12256,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                           "rows": 9,
                           "rows_after_filter": 0.189,
                           "rows_out": 0.017766,
-                          "cost": 0.00267627,
+                          "cost": 0.002814467,
                           "chosen": true
                         }
                       ],
@@ -12264,7 +12264,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                         "type": "range",
                         "rows_read": 0.189,
                         "rows_out": 0.017766,
-                        "cost": 0.00267627,
+                        "cost": 0.002814467,
                         "uses_join_buffering": false,
                         "rowid_filter_index": "b"
                       }
@@ -12276,7 +12276,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                 "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 0.017766,
-                "cost_for_plan": 0.00267627,
+                "cost_for_plan": 0.002814467,
                 "pushdown_cond_selectivity": 0.094,
                 "filtered": 0.1974,
                 "rows_out": 0.017766
@@ -12286,7 +12286,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
           {
             "best_join_order": ["t1"],
             "rows": 0.017766,
-            "cost": 0.00267627
+            "cost": 0.002814467
           },
           {
             "table": "t1",
@@ -12674,20 +12674,20 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                                 "rowid_filter_index": "b",
                                 "index_only_cost": 0.092006157,
                                 "filter_startup_cost": 0.149564727,
-                                "find_key_and_filter_lookup_cost": 0.085742374,
+                                "find_key_and_filter_lookup_cost": 0.129350121,
                                 "filter_selectivity": 0.4312,
                                 "original_rows": 1000,
                                 "new_rows": 431.2,
                                 "original_access_cost": 1.203290157,
-                                "with_filter_access_cost": 0.656934192,
+                                "with_filter_access_cost": 0.700541939,
                                 "original_found_rows_cost": 1.111284,
                                 "with_filter_found_rows_cost": 0.479185661,
                                 "org_cost": 3.705870471,
-                                "filter_cost": 2.161762502,
+                                "filter_cost": 2.292585745,
                                 "filter_used": true
                               },
                               "rows": 431.2,
-                              "cost": 2.161762502,
+                              "cost": 2.292585745,
                               "chosen": true
                             },
                             {

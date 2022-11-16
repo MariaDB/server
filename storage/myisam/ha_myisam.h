@@ -173,8 +173,9 @@ public:
   int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
 
   /* Index condition pushdown implementation */
-  Item *idx_cond_push(uint keyno, Item* idx_cond);
-  bool rowid_filter_push(Rowid_filter* rowid_filter);
+  Item *idx_cond_push(uint keyno, Item* idx_cond) override;
+  bool rowid_filter_push(Rowid_filter* rowid_filter) override;
+  void rowid_filter_changed() override;
 
 private:
   DsMrr_impl ds_mrr;

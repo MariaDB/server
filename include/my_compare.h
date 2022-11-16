@@ -154,6 +154,5 @@ typedef enum check_result {
 
 typedef check_result_t (*index_cond_func_t)(void *param);
 typedef check_result_t (*rowid_filter_func_t)(void *param);
-typedef int (*rowid_filter_is_active_func_t)(void *param);
 
 #endif /* _my_compare_h */
