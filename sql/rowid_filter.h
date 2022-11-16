@@ -185,6 +185,11 @@ public:
   */
   virtual bool check(void *ctxt, char *elem) = 0;
 
+  virtual uint elements() = 0;
+
+  virtual void sort (int (*cmp) (void *ctxt, const void *el1, const void *el2),
+                     void *cmp_arg) = 0;
+
   virtual ~Rowid_filter_container() {}
 };
 
@@ -259,7 +264,7 @@ public:
 
   bool build() { return fill(); }
 
-  bool check(char *elem)
+  bool check(char *elem) override
   {
     bool was_checked= container->check(table, elem);
     tracker->increment_checked_elements_count(was_checked);
@@ -289,48 +294,47 @@ class Refpos_container_sorted_array : public Sql_alloc
   /* Number of bytes allocated for an element */
   uint elem_size;
   /* The dynamic array over which the wrapper is built */
-  Dynamic_array<char> *array;
+  DYNAMIC_ARRAY array;
+  DYNAMIC_ARRAY_APPEND append;
 
 public:
 
  Refpos_container_sorted_array(uint max_elems, uint elem_sz)
-    :  max_elements(max_elems), elem_size(elem_sz), array(0) {}
+    :max_elements(max_elems), elem_size(elem_sz)
+  {
+    bzero(&array, sizeof(array));
+  }
 
   ~Refpos_container_sorted_array()
   {
-    delete array;
-    array= 0;
+    delete_dynamic(&array);
   }
 
   bool alloc()
   {
-    array= new Dynamic_array<char> (PSI_INSTRUMENT_MEM,
-                                    elem_size * max_elements,
-                                    elem_size * max_elements/sizeof(char) + 1);
-    return array == NULL;
+    /* This can never fail as things will be allocated on demand */
+    init_dynamic_array2(PSI_INSTRUMENT_MEM, &array, elem_size, 0,
+                        max_elements, 512, MYF(0));
+    init_append_dynamic(&append, &array);
+    return 0;
   }
 
-  bool add(char *elem)
+  bool add(const char *elem)
   {
-    for (uint i= 0; i < elem_size; i++)
-    {
-      if (array->append(elem[i]))
-	return true;
-    }
-    return false;
+    return append_dynamic(&append, elem);
   }
 
-  char *get_pos(uint n)
+  inline uchar *get_pos(uint n) const
   {
-    return array->get_pos(n * elem_size);
+    return dynamic_array_ptr(&array, n);
   }
 
-  uint elements() { return (uint) (array->elements() / elem_size); }
+  inline uint elements() const { return (uint) array.elements; }
 
   void sort (int (*cmp) (void *ctxt, const void *el1, const void *el2),
                          void *cmp_arg)
   {
-    my_qsort2(array->front(), array->elements()/elem_size,
+    my_qsort2(array.buffer, array.elements,
               elem_size, (qsort2_cmp) cmp, cmp_arg);
   }
 };
@@ -347,21 +351,29 @@ class Rowid_filter_sorted_array: public Rowid_filter_container
 {
   /* The dynamic array to store rowids / primary keys */
   Refpos_container_sorted_array refpos_container;
-  /* Initially false, becomes true after the first call of (check() */
-  bool is_checked;
 
 public:
   Rowid_filter_sorted_array(uint elems, uint elem_size)
-    : refpos_container(elems, elem_size), is_checked(false) {}
+    : refpos_container(elems, elem_size) {}
 
-  Rowid_filter_container_type get_type()
+  Rowid_filter_container_type get_type() override
   { return SORTED_ARRAY_CONTAINER; }
 
-  bool alloc() { return refpos_container.alloc(); }
+  bool alloc() override { return refpos_container.alloc(); }
 
-  bool add(void *ctxt, char *elem) { return refpos_container.add(elem); }
+  bool add(void *ctxt, char *elem) override
+  { return refpos_container.add(elem); }
 
-  bool check(void *ctxt, char *elem);
+  bool check(void *ctxt, char *elem) override;
+
+  uint elements() override { return refpos_container.elements(); }
+
+  void sort (int (*cmp) (void *ctxt, const void *el1, const void *el2),
+                         void *cmp_arg)
+  {
+    return refpos_container.sort(cmp, cmp_arg);
+  }
+
 };
 
 /**
