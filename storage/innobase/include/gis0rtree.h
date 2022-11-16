@@ -298,7 +298,7 @@ rtr_store_parent_path(
 /*==================*/
 	const buf_block_t*	block,	/*!< in: block of the page */
 	btr_cur_t*		btr_cur,/*!< in/out: persistent cursor */
-	ulint			latch_mode,
+	btr_latch_mode		latch_mode,
 					/*!< in: latch_mode */
 	ulint			level,	/*!< in: index level */
 	mtr_t*			mtr);	/*!< in: mtr */
@@ -310,7 +310,7 @@ bool
 rtr_pcur_open(
 	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,	/*!< in: memory buffer for persistent cursor */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((warn_unused_result));

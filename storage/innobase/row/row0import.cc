@@ -1525,8 +1525,9 @@ inline bool IndexPurge::open() noexcept
   m_mtr.start();
   m_mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-  if (btr_pcur_open_at_index_side(true, m_index, BTR_MODIFY_LEAF,
-                                  &m_pcur, true, 0, &m_mtr) != DB_SUCCESS)
+  btr_pcur_init(&m_pcur);
+
+  if (m_pcur.open_leaf(true, m_index, BTR_MODIFY_LEAF, &m_mtr) != DB_SUCCESS)
     return false;
 
   rec_t *rec= page_rec_get_next(btr_pcur_get_rec(&m_pcur));
@@ -2300,8 +2301,8 @@ row_import_set_sys_max_row_id(
 
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF,
-					&pcur, true, 0, &mtr) == DB_SUCCESS) {
+	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr)
+	    == DB_SUCCESS) {
 		rec = btr_pcur_move_to_prev_on_page(&pcur);
 
 		if (!rec) {

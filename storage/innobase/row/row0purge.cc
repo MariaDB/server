@@ -67,7 +67,7 @@ static
 ibool
 row_purge_reposition_pcur(
 /*======================*/
-	ulint		mode,	/*!< in: latching mode */
+	btr_latch_mode	mode,	/*!< in: latching mode */
 	purge_node_t*	node,	/*!< in: row purge node */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
@@ -104,7 +104,7 @@ bool
 row_purge_remove_clust_if_poss_low(
 /*===============================*/
 	purge_node_t*	node,	/*!< in/out: row purge node */
-	ulint		mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
+	btr_latch_mode	mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
 {
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;

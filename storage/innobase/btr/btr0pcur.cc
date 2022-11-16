@@ -253,11 +253,12 @@ otherwise. */
 struct optimistic_latch_leaves
 {
   btr_pcur_t *const cursor;
-  ulint *latch_mode;
+  btr_latch_mode *latch_mode;
   mtr_t *const mtr;
 
-  optimistic_latch_leaves(btr_pcur_t *cursor, ulint *latch_mode, mtr_t *mtr)
-  :cursor(cursor), latch_mode(latch_mode), mtr(mtr) {}
+  optimistic_latch_leaves(btr_pcur_t *cursor, btr_latch_mode *latch_mode,
+                          mtr_t *mtr)
+    : cursor(cursor), latch_mode(latch_mode), mtr(mtr) {}
 
   bool operator() (buf_block_t *hint) const
   {
@@ -289,7 +290,7 @@ record with the same unique field values as in the stored record,
 btr_pcur_t::NOT_SAME cursor position is not on user rec or points on
 the record with not the samebuniq field values as in the stored */
 btr_pcur_t::restore_status
-btr_pcur_t::restore_position(ulint restore_latch_mode, mtr_t *mtr)
+btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 {
 	dict_index_t*	index;
 	dtuple_t*	tuple;
@@ -309,10 +310,9 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, mtr_t *mtr)
 		/* In these cases we do not try an optimistic restoration,
 		but always do a search */
 
-		if (btr_cur_open_at_index_side(
-			rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE,
-			index, restore_latch_mode,
-			&btr_cur, 0, mtr) != DB_SUCCESS) {
+		if (btr_cur.open_leaf(rel_pos == BTR_PCUR_BEFORE_FIRST_IN_TREE,
+				      index, restore_latch_mode, mtr)
+		    != DB_SUCCESS) {
 			return restore_status::CORRUPTED;
 		}
 
@@ -330,6 +330,8 @@ btr_pcur_t::restore_position(ulint restore_latch_mode, mtr_t *mtr)
 	ut_a(old_n_fields);
 
 	switch (restore_latch_mode) {
+	default:
+		break;
 	case BTR_SEARCH_LEAF:
 	case BTR_MODIFY_LEAF:
 	case BTR_SEARCH_PREV:
@@ -553,7 +555,7 @@ btr_pcur_move_backward_from_page(
 	ut_ad(btr_pcur_is_before_first_on_page(cursor));
 	ut_ad(!btr_pcur_is_before_first_in_tree(cursor));
 
-	const ulint latch_mode = cursor->latch_mode;
+	const auto latch_mode = cursor->latch_mode;
 	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
 
 	btr_pcur_store_position(cursor, mtr);
@@ -565,7 +567,8 @@ btr_pcur_move_backward_from_page(
 	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
 	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
 
-	if (UNIV_UNLIKELY(cursor->restore_position(4 | latch_mode, mtr)
+	if (UNIV_UNLIKELY(cursor->restore_position(
+				  btr_latch_mode(4 | latch_mode), mtr)
 			  == btr_pcur_t::CORRUPTED)) {
 		return true;
 	}

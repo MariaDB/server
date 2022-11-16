@@ -215,8 +215,9 @@ dict_startscan_system(
 	mtr_t*		mtr,		/*!< in: the mini-transaction */
 	dict_table_t*	table)		/*!< in: system table */
 {
-  if (btr_pcur_open_at_index_side(true, table->indexes.start, BTR_SEARCH_LEAF,
-                                  pcur, true, 0, mtr) != DB_SUCCESS)
+  btr_pcur_init(pcur);
+  if (pcur->open_leaf(true, table->indexes.start, BTR_SEARCH_LEAF, mtr) !=
+      DB_SUCCESS)
     return nullptr;
   const rec_t *rec;
   do

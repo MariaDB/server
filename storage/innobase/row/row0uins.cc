@@ -253,7 +253,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_undo_ins_remove_sec_low(
 /*========================*/
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: index */
@@ -268,19 +268,20 @@ row_undo_ins_remove_sec_low(
 	row_mtr_start(&mtr, index, !modify_leaf);
 
 	if (modify_leaf) {
-		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+		mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
 		mtr_s_lock_index(index, &mtr);
 	} else {
 		ut_ad(mode == BTR_PURGE_TREE);
 		mtr_sx_lock_index(index, &mtr);
 	}
 
-	if (dict_index_is_spatial(index)) {
-		if (modify_leaf) {
-			mode |= BTR_RTREE_DELETE_MARK;
-		}
+	if (index->is_spatial()) {
+		mode = modify_leaf
+			? btr_latch_mode(BTR_MODIFY_LEAF_ALREADY_LATCHED
+					 | BTR_RTREE_DELETE_MARK
+					 | BTR_RTREE_UNDO_INS)
+			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
 		btr_pcur_get_btr_cur(&pcur)->thr = thr;
-		mode |= BTR_RTREE_UNDO_INS;
 	}
 
 	switch (row_search_index_entry(index, entry, mode, &pcur, &mtr)) {

@@ -1840,7 +1840,7 @@ row_upd_sec_index_entry(
 	btr_cur_t*		btr_cur;
 	dberr_t			err	= DB_SUCCESS;
 	trx_t*			trx	= thr_get_trx(thr);
-	ulint			mode;
+	btr_latch_mode		mode;
 	ulint			flags;
 	enum row_search_result	search_result;
 
@@ -1870,14 +1870,16 @@ row_upd_sec_index_entry(
 			    "before_row_upd_sec_index_entry");
 
 	mtr.start();
+	mode = BTR_MODIFY_LEAF;
 
 	switch (index->table->space_id) {
 	case SRV_TMP_SPACE_ID:
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		flags = BTR_NO_LOCKING_FLAG;
-		mode = index->is_spatial()
-			? ulint(BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK)
-			: ulint(BTR_MODIFY_LEAF);
+		if (index->is_spatial()) {
+			mode = btr_latch_mode(BTR_MODIFY_LEAF
+					      | BTR_RTREE_DELETE_MARK);
+		}
 		break;
 	default:
 		index->set_modified(mtr);
@@ -1887,9 +1889,10 @@ row_upd_sec_index_entry(
 		/* We can only buffer delete-mark operations if there
 		are no foreign key constraints referring to the index. */
 		mode = index->is_spatial()
-			? ulint(BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK)
+			? btr_latch_mode(BTR_MODIFY_LEAF
+					 | BTR_RTREE_DELETE_MARK)
 			: referenced
-			? ulint(BTR_MODIFY_LEAF) : ulint(BTR_DELETE_MARK_LEAF);
+			? BTR_MODIFY_LEAF : BTR_DELETE_MARK_LEAF;
 		break;
 	}
 
@@ -2590,13 +2593,13 @@ row_upd_clust_step(
 
 	ut_a(pcur->rel_pos == BTR_PCUR_ON);
 
-	ulint	mode;
+	btr_latch_mode mode;
 
 	DEBUG_SYNC_C_IF_THD(trx->mysql_thd, "innodb_row_upd_clust_step_enter");
 
 	if (dict_index_is_online_ddl(index)) {
 		ut_ad(node->table->id != DICT_INDEXES_ID);
-		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+		mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
 		mtr_s_lock_index(index, &mtr);
 	} else {
 		mode = BTR_MODIFY_LEAF;

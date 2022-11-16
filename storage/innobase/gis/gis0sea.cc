@@ -102,7 +102,6 @@ rtr_pcur_getnext_from_path(
 	node_visit_t	next_rec;
 	rtr_info_t*	rtr_info = btr_cur->rtr_info;
 	node_seq_t	page_ssn;
-	ulint		my_latch_mode;
 	ulint		skip_parent = false;
 	bool		new_split = false;
 	bool		for_delete = false;
@@ -115,7 +114,7 @@ rtr_pcur_getnext_from_path(
 
 	ut_ad(dtuple_get_n_fields_cmp(tuple));
 
-	my_latch_mode = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
+	const auto my_latch_mode = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
 
 	for_delete = latch_mode & BTR_RTREE_DELETE_MARK;
 	for_undo_ins = latch_mode & BTR_RTREE_UNDO_INS;
@@ -351,17 +350,12 @@ rtr_pcur_getnext_from_path(
 						 BTR_PCUR_IS_POSITIONED;
 					r_cursor->latch_mode = my_latch_mode;
 					btr_pcur_store_position(r_cursor, mtr);
-#ifdef UNIV_DEBUG
-					ulint num_stored =
-						rtr_store_parent_path(
-							block, btr_cur,
-							rw_latch, level, mtr);
-					ut_ad(num_stored > 0);
-#else
+					ut_d(ulint num_stored =)
 					rtr_store_parent_path(
-						block, btr_cur, rw_latch,
+						block, btr_cur,
+						btr_latch_mode(rw_latch),
 						level, mtr);
-#endif /* UNIV_DEBUG */
+					ut_ad(num_stored > 0);
 				}
 			}
 		} else {
@@ -521,7 +515,7 @@ bool
 rtr_pcur_open(
 	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
@@ -1352,7 +1346,7 @@ rtr_store_parent_path(
 /*==================*/
 	const buf_block_t*	block,	/*!< in: block of the page */
 	btr_cur_t*		btr_cur,/*!< in/out: persistent cursor */
-	ulint			latch_mode,
+	btr_latch_mode		latch_mode,
 					/*!< in: latch_mode */
 	ulint			level,	/*!< in: index level */
 	mtr_t*			mtr)	/*!< in: mtr */

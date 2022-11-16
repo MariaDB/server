@@ -2522,7 +2522,7 @@ dberr_t
 row_ins_clust_index_entry_low(
 /*==========================*/
 	ulint		flags,	/*!< in: undo logging and locking flags */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: clustered index */
@@ -2749,8 +2749,8 @@ do_insert:
 		rec_t*	insert_rec;
 
 		if (mode != BTR_MODIFY_TREE) {
-			ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
-			      == BTR_MODIFY_LEAF);
+			ut_ad(mode == BTR_MODIFY_LEAF ||
+			      mode == BTR_MODIFY_LEAF_ALREADY_LATCHED);
 			err = btr_cur_optimistic_insert(
 				flags, cursor, &offsets, &offsets_heap,
 				entry, &insert_rec, &big_rec,
@@ -2832,7 +2832,7 @@ dberr_t
 row_ins_sec_index_entry_low(
 /*========================*/
 	ulint		flags,	/*!< in: undo logging and locking flags */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_INSERT_TREE,
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF or BTR_INSERT_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: secondary index */
@@ -2847,7 +2847,7 @@ row_ins_sec_index_entry_low(
 	DBUG_ENTER("row_ins_sec_index_entry_low");
 
 	btr_cur_t	cursor;
-	ulint		search_mode	= mode;
+	btr_latch_mode	search_mode	= mode;
 	dberr_t		err;
 	ulint		n_unique;
 	mtr_t		mtr;
@@ -2872,9 +2872,6 @@ row_ins_sec_index_entry_low(
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		index->set_modified(mtr);
-		if (!dict_index_is_spatial(index)) {
-			search_mode |= BTR_INSERT;
-		}
 	}
 
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
@@ -2916,8 +2913,12 @@ row_ins_sec_index_entry_low(
 			goto func_exit;});
 
 	} else {
-		if (!thr_get_trx(thr)->check_unique_secondary) {
-			search_mode |= BTR_IGNORE_SEC_UNIQUE;
+		if (!index->table->is_temporary()) {
+			search_mode = btr_latch_mode(
+				search_mode
+				| (thr_get_trx(thr)->check_unique_secondary
+				   ? BTR_INSERT | BTR_IGNORE_SEC_UNIQUE
+				   : BTR_INSERT));
 		}
 
 		err = btr_cur_search_to_nth_level(
@@ -2998,11 +2999,12 @@ row_ins_sec_index_entry_low(
 		locked with s-locks the necessary records to
 		prevent any insertion of a duplicate by another
 		transaction. Let us now reposition the cursor and
-		continue the insertion. */
+		continue the insertion (bypassing the change buffer). */
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
-			(search_mode
-			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),//???
+			btr_latch_mode(search_mode
+				       & ~(BTR_INSERT
+					   | BTR_IGNORE_SEC_UNIQUE)),
 			&cursor, &mtr);
 		if (err != DB_SUCCESS) {
 			goto func_exit;

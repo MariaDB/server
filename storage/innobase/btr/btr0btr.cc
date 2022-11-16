@@ -726,7 +726,7 @@ btr_page_get_father_node_ptr_func(
 	btr_cur_t*	cursor,	/*!< in: cursor pointing to user record,
 				out: cursor on node pointer record,
 				its page x-latched */
-	ulint		latch_mode,/*!< in: BTR_CONT_MODIFY_TREE
+	btr_latch_mode	latch_mode,/*!< in: BTR_CONT_MODIFY_TREE
 				or BTR_CONT_SEARCH_TREE */
 	mtr_t*		mtr)	/*!< in: mtr */
 {

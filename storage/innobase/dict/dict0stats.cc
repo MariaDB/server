@@ -1560,6 +1560,25 @@ empty_table:
 	return err;
 }
 
+/** Open persistent cursor at the first page in a tree level.
+@param index   B-tree index
+@param pcur    persistent cursor
+@param level   level to search for (0=leaf)
+@param mtr     mini-transaction */
+static dberr_t btr_pcur_open_level(dict_index_t *index, btr_pcur_t *pcur,
+                                   ulint level, mtr_t *mtr)
+{
+  btr_pcur_init(pcur);
+  pcur->trx_if_known= nullptr;
+  pcur->latch_mode= BTR_SEARCH_TREE;
+  pcur->search_mode= PAGE_CUR_G;
+  pcur->pos_state= BTR_PCUR_IS_POSITIONED;
+
+  return btr_cur_open_at_index_side(true, index,
+                                    BTR_SEARCH_TREE_ALREADY_S_LATCHED,
+                                    btr_pcur_get_btr_cur(pcur), level, mtr);
+}
+
 /* @{ Pseudo code about the relation between the following functions
 
 let N = N_SAMPLE_PAGES(index)
@@ -1649,9 +1668,7 @@ dict_stats_analyze_index_level(
 	/* Position pcur on the leftmost record on the leftmost page
 	on the desired level. */
 
-	if (btr_pcur_open_at_index_side(
-		    true, index, BTR_SEARCH_TREE_ALREADY_S_LATCHED,
-		    &pcur, true, level, mtr) != DB_SUCCESS
+	if (btr_pcur_open_level(index, &pcur, level, mtr) != DB_SUCCESS
 	    || !btr_pcur_move_to_next_on_page(&pcur)) {
 		goto func_exit;
 	}
@@ -2289,9 +2306,7 @@ dict_stats_analyze_index_for_n_prefix(
 	n_diff_data->n_diff_all_analyzed_pages = 0;
 	n_diff_data->n_external_pages_sum = 0;
 
-	if (btr_pcur_open_at_index_side(true, index,
-					BTR_SEARCH_TREE_ALREADY_S_LATCHED,
-					&pcur, true, n_diff_data->level, mtr)
+	if (btr_pcur_open_level(index, &pcur, n_diff_data->level, mtr)
 	    != DB_SUCCESS
 	    || !btr_pcur_move_to_next_on_page(&pcur)) {
 		return;

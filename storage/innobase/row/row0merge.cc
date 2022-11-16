@@ -1829,8 +1829,7 @@ row_merge_read_clustered_index(
 		? col_map[old_trx_id_col] : old_trx_id_col;
 	uint64_t n_rows = 0;
 
-	err = btr_pcur_open_at_index_side(true, clust_index, BTR_SEARCH_LEAF,
-					  &pcur, true, 0, &mtr);
+	err = pcur.open_leaf(true, clust_index, BTR_SEARCH_LEAF, &mtr);
 	if (err != DB_SUCCESS) {
 err_exit:
 		trx->error_key_num = 0;

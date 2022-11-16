@@ -2051,9 +2051,8 @@ static void drop_garbage_tables_after_restore()
   ut_d(purge_sys.stop_FTS());
 
   mtr.start();
-  if (btr_pcur_open_at_index_side(true, dict_sys.sys_tables->indexes.start,
-                                  BTR_SEARCH_LEAF, &pcur, true, 0, &mtr) !=
-      DB_SUCCESS)
+  if (pcur.open_leaf(true, dict_sys.sys_tables->indexes.start, BTR_SEARCH_LEAF,
+                     &mtr) != DB_SUCCESS)
     goto all_fail;
   for (;;)
   {
@@ -15061,9 +15060,7 @@ inline int ha_innobase::defragment_table()
 
     mtr_t mtr;
     mtr.start();
-    if (dberr_t err= btr_pcur_open_at_index_side(true, index,
-                                                 BTR_SEARCH_LEAF, &pcur,
-                                                 true, 0, &mtr))
+    if (dberr_t err= pcur.open_leaf(true, index, BTR_SEARCH_LEAF, &mtr))
     {
       mtr.commit();
       return convert_error_code_to_mysql(err, 0, m_user_thd);

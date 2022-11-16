@@ -137,7 +137,7 @@ bool
 btr_cur_optimistic_latch_leaves(
 	buf_block_t*	block,
 	ib_uint64_t	modify_clock,
-	ulint*		latch_mode,
+	btr_latch_mode*	latch_mode,
 	btr_cur_t*	cursor,
 	mtr_t*		mtr);
 
@@ -168,7 +168,8 @@ If mode is PAGE_CUR_GE, then up_match will a have a sensible value.
 @return DB_SUCCESS on success or error code otherwise */
 dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
                                     const dtuple_t *tuple,
-                                    page_cur_mode_t mode, ulint latch_mode,
+                                    page_cur_mode_t mode,
+                                    btr_latch_mode latch_mode,
                                     btr_cur_t *cursor, mtr_t *mtr,
                                     ib_uint64_t autoinc= 0);
 
@@ -180,7 +181,7 @@ btr_cur_open_at_index_side(
 	bool		from_left,	/*!< in: true if open to the low end,
 					false if to the high end */
 	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: latch mode */
+	btr_latch_mode	latch_mode,	/*!< in: latch mode */
 	btr_cur_t*	cursor,		/*!< in/out: cursor */
 	ulint		level,		/*!< in: level to search for
 					(0=leaf) */
@@ -194,7 +195,7 @@ if the index is unavailable */
 bool
 btr_cur_open_at_rnd_pos(
 	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
 	mtr_t*		mtr)		/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull,warn_unused_result));
@@ -689,7 +690,7 @@ btr_rec_copy_externally_stored_field(
 void
 btr_cur_latch_leaves(
 	buf_block_t*		block,
-	ulint			latch_mode,
+	btr_latch_mode		latch_mode,
 	btr_cur_t*		cursor,
 	mtr_t*			mtr,
 	btr_latch_leaves_t*	latch_leaves = nullptr);
@@ -839,6 +840,15 @@ struct btr_cur_t {
 		path_arr = NULL;
 		rtr_info = NULL;
 	}
+
+  /** Open the cursor on the first or last record.
+  @param first         true=first record, false=last record
+  @param index         B-tree
+  @param latch_mode    which latches to acquire
+  @param mtr           mini-transaction
+  @return error code */
+  dberr_t open_leaf(bool first, dict_index_t *index, btr_latch_mode latch_mode,
+                    mtr_t *mtr);
 };
 
 /** Modify the delete-mark flag of a record.

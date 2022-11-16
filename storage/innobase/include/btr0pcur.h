@@ -105,7 +105,7 @@ btr_pcur_open_low(
 				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
 				may end up on the previous page from the
 				record! */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
 				(0 if none) */
@@ -127,25 +127,10 @@ cursor.
 @return DB_SUCCESS on success or error code otherwise. */
 inline
 dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
-                                   page_cur_mode_t mode, ulint latch_mode,
+                                   page_cur_mode_t mode,
+                                   btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr);
 
-/*****************************************************************//**
-Opens a persistent cursor at either end of an index. */
-UNIV_INLINE
-dberr_t
-btr_pcur_open_at_index_side(
-/*========================*/
-	bool		from_left,	/*!< in: true if open to the low end,
-					false if to the high end */
-	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: latch mode */
-	btr_pcur_t*	pcur,		/*!< in/out: cursor */
-	bool		init_pcur,	/*!< in: whether to initialize pcur */
-	ulint		level,		/*!< in: level to search for
-					(0=leaf) */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull,warn_unused_result));
 /**************************************************************//**
 Gets the up_match value for a pcur after a search.
 @return number of matched fields at the cursor or to the right if
@@ -356,100 +341,105 @@ enum pcur_pos_t {
 /* The persistent B-tree cursor structure. This is used mainly for SQL
 selects, updates, and deletes. */
 
-struct btr_pcur_t{
-	/** Return value of restore_position() */
-	enum restore_status {
-		/** cursor position on user rec and points on the record with
-		the same field values as in the stored record */
-		SAME_ALL,
-		/** cursor position is on user rec and points on the record with
-		the same unique field values as in the stored record */
-		SAME_UNIQ,
-		/** cursor position is not on user rec or points on the record
-		with not the same uniq field values as in the stored record */
-		NOT_SAME,
-		/** the index tree is corrupted */
-		CORRUPTED
-	};
-	/** a B-tree cursor */
-	btr_cur_t	btr_cur;
-	/** see TODO note below!
-	BTR_SEARCH_LEAF, BTR_MODIFY_LEAF, BTR_MODIFY_TREE or BTR_NO_LATCHES,
-	depending on the latching state of the page and tree where the cursor
-	is positioned; BTR_NO_LATCHES means that the cursor is not currently
-	positioned:
-	we say then that the cursor is detached; it can be restored to
-	attached if the old position was stored in old_rec */
-	ulint		latch_mode;
-	/** if cursor position is stored, contains an initial segment of the
-	latest record cursor was positioned either on, before or after */
-	rec_t*		old_rec;
-	/** btr_cur.index->n_core_fields when old_rec was copied */
-	uint16		old_n_core_fields;
-	/** number of fields in old_rec */
-	uint16		old_n_fields;
-	/** BTR_PCUR_ON, BTR_PCUR_BEFORE, or BTR_PCUR_AFTER, depending on
-	whether cursor was on, before, or after the old_rec record */
-	enum btr_pcur_pos_t	rel_pos;
-	/** buffer block when the position was stored */
-	buf::Block_hint		block_when_stored;
-	/** the modify clock value of the buffer block when the cursor position
-	was stored */
-	ib_uint64_t	modify_clock;
-	/** btr_pcur_store_position() and btr_pcur_restore_position() state. */
-	enum pcur_pos_t	pos_state;
-	/** PAGE_CUR_G, ... */
-	page_cur_mode_t	search_mode;
-	/** the transaction, if we know it; otherwise this field is not defined;
-	can ONLY BE USED in error prints in fatal assertion failures! */
-	trx_t*		trx_if_known;
-	/*-----------------------------*/
-	/* NOTE that the following fields may possess dynamically allocated
-	memory which should be freed if not needed anymore! */
+struct btr_pcur_t
+{
+  /** Return value of restore_position() */
+  enum restore_status {
+    /** cursor position on user rec and points on the record with
+    the same field values as in the stored record */
+    SAME_ALL,
+    /** cursor position is on user rec and points on the record with
+    the same unique field values as in the stored record */
+    SAME_UNIQ,
+    /** cursor position is not on user rec or points on the record
+    with not the same uniq field values as in the stored record */
+    NOT_SAME,
+    /** the index tree is corrupted */
+    CORRUPTED
+  };
+  /** a B-tree cursor */
+  btr_cur_t btr_cur;
+  /** @see BTR_PCUR_WAS_POSITIONED
+  BTR_SEARCH_LEAF, BTR_MODIFY_LEAF, BTR_MODIFY_TREE or BTR_NO_LATCHES,
+  depending on the latching state of the page and tree where the cursor
+  is positioned; BTR_NO_LATCHES means that the cursor is not currently
+  positioned:
+  we say then that the cursor is detached; it can be restored to
+  attached if the old position was stored in old_rec */
+  btr_latch_mode latch_mode= BTR_NO_LATCHES;
+  /** if cursor position is stored, contains an initial segment of the
+  latest record cursor was positioned either on, before or after */
+  rec_t *old_rec= nullptr;
+  /** btr_cur.index->n_core_fields when old_rec was copied */
+  uint16 old_n_core_fields= 0;
+  /** number of fields in old_rec */
+  uint16 old_n_fields= 0;
+  /** BTR_PCUR_ON, BTR_PCUR_BEFORE, or BTR_PCUR_AFTER, depending on
+  whether cursor was on, before, or after the old_rec record */
+  btr_pcur_pos_t rel_pos= btr_pcur_pos_t(0);
+  /** buffer block when the position was stored */
+  buf::Block_hint block_when_stored;
+  /** the modify clock value of the buffer block when the cursor position
+  was stored */
+  ib_uint64_t modify_clock= 0;
+  /** btr_pcur_store_position() and btr_pcur_restore_position() state. */
+  enum pcur_pos_t pos_state= BTR_PCUR_NOT_POSITIONED;
+  page_cur_mode_t search_mode= PAGE_CUR_UNSUPP;
+  /** the transaction, if we know it; otherwise this field is not defined;
+  can ONLY BE USED in error prints in fatal assertion failures! */
+  trx_t *trx_if_known= nullptr;
+  /** a dynamically allocated buffer for old_rec */
+  byte *old_rec_buf= nullptr;
+  /** old_rec_buf size if old_rec_buf is not nullptr */
+  ulint buf_size= 0;
 
-	/** NULL, or a dynamically allocated buffer for old_rec */
-	byte*		old_rec_buf;
-	/** old_rec_buf size if old_rec_buf is not NULL */
-	ulint		buf_size;
+  btr_pcur_t() : btr_cur() { btr_cur.init(); }
 
-	btr_pcur_t() :
-		btr_cur(), latch_mode(RW_NO_LATCH),
-		old_rec(NULL),
-		old_n_fields(0), rel_pos(btr_pcur_pos_t(0)),
-		block_when_stored(),
-		modify_clock(0), pos_state(BTR_PCUR_NOT_POSITIONED),
-		search_mode(PAGE_CUR_UNSUPP), trx_if_known(NULL),
-		old_rec_buf(NULL), buf_size(0)
-	{
-		btr_cur.init();
-	}
+  /** Return the index of this persistent cursor */
+  dict_index_t *index() const { return(btr_cur.index); }
+  MY_ATTRIBUTE((nonnull, warn_unused_result))
+  /** Restores the stored position of a persistent cursor bufferfixing
+  the page and obtaining the specified latches. If the cursor position
+  was saved when the
+  (1) cursor was positioned on a user record: this function restores the
+  position to the last record LESS OR EQUAL to the stored record;
+  (2) cursor was positioned on a page infimum record: restores the
+  position to the last record LESS than the user record which was the
+  successor of the page infimum;
+  (3) cursor was positioned on the page supremum: restores to the first
+  record GREATER than the user record which was the predecessor of the
+  supremum.
+  (4) cursor was positioned before the first or after the last in an
+  empty tree: restores to before first or after the last in the tree.
+  @param restore_latch_mode BTR_SEARCH_LEAF, ...
+  @param mtr mtr
+  @retval SAME_ALL cursor position on user rec and points on
+  the record with the same field values as in the stored record,
+  @retval SAME_UNIQ cursor position is on user rec and points on the
+  record with the same unique field values as in the stored record,
+  @retval NOT_SAME cursor position is not on user rec or points on
+  the record with not the same uniq field values as in the stored
+  @retval CORRUPTED if the index is corrupted */
+  restore_status restore_position(btr_latch_mode latch_mode, mtr_t *mtr);
 
-	/** Return the index of this persistent cursor */
-	dict_index_t*	index() const { return(btr_cur.index); }
-	MY_ATTRIBUTE((nonnull, warn_unused_result))
-	/** Restores the stored position of a persistent cursor bufferfixing
-	the page and obtaining the specified latches. If the cursor position
-	was saved when the
-	(1) cursor was positioned on a user record: this function restores the
-	position to the last record LESS OR EQUAL to the stored record;
-	(2) cursor was positioned on a page infimum record: restores the
-	position to the last record LESS than the user record which was the
-	successor of the page infimum;
-	(3) cursor was positioned on the page supremum: restores to the first
-	record GREATER than the user record which was the predecessor of the
-	supremum.
-	(4) cursor was positioned before the first or after the last in an
-	empty tree: restores to before first or after the last in the tree.
-	@param restore_latch_mode BTR_SEARCH_LEAF, ...
-	@param mtr mtr
-	@retval SAME_ALL cursor position on user rec and points on
-	the record with the same field values as in the stored record,
-	@retval SAME_UNIQ cursor position is on user rec and points on the
-	record with the same unique field values as in the stored record,
-	@retval NOT_SAME cursor position is not on user rec or points on
-	the record with not the same uniq field values as in the stored
-	@retval CORRUPTED if the index is corrupted */
-	restore_status restore_position(ulint latch_mode, mtr_t *mtr);
+  /** Open the cursor on the first or last record.
+  @param first         true=first record, false=last record
+  @param index         B-tree
+  @param latch_mode    which latches to acquire
+  @param mtr           mini-transaction
+  @return error code */
+  dberr_t open_leaf(bool first, dict_index_t *index, btr_latch_mode latch_mode,
+                    mtr_t *mtr)
+
+  {
+    this->latch_mode= BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
+    search_mode= first ? PAGE_CUR_G : PAGE_CUR_L;
+    pos_state= BTR_PCUR_IS_POSITIONED;
+    old_rec= nullptr;
+
+    return btr_cur.open_leaf(first, index,
+                             BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode), mtr);
+  }
 };
 
 inline buf_block_t *btr_pcur_get_block(btr_pcur_t *cursor)
@@ -480,7 +470,7 @@ btr_pcur_open_on_user_rec(
 	dict_index_t*	index,		/*!< in: index */
 	const dtuple_t*	tuple,		/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,		/*!< in: PAGE_CUR_L, ... */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF or
+	btr_latch_mode	latch_mode,	/*!< in: BTR_SEARCH_LEAF or
 					BTR_MODIFY_LEAF */
 	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
 					cursor */

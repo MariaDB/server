@@ -2128,8 +2128,7 @@ static bool innobase_table_is_empty(const dict_table_t *table,
   bool next_page= false;
 
   mtr.start();
-  if (btr_pcur_open_at_index_side(true, clust_index, BTR_SEARCH_LEAF,
-                                  &pcur, true, 0, &mtr) != DB_SUCCESS)
+  if (pcur.open_leaf(true, clust_index, BTR_SEARCH_LEAF, &mtr) != DB_SUCCESS)
   {
 non_empty:
     mtr.commit();
@@ -6023,8 +6022,7 @@ add_all_virtual:
 	mtr.start();
 	index->set_modified(mtr);
 	btr_pcur_t pcur;
-	dberr_t err = btr_pcur_open_at_index_side(true, index, BTR_MODIFY_TREE,
-						  &pcur, true, 0, &mtr);
+	dberr_t err= pcur.open_leaf(true, index, BTR_MODIFY_TREE, &mtr);
 	if (err != DB_SUCCESS) {
 func_exit:
 		mtr.commit();

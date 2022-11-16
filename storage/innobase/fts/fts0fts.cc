@@ -3551,12 +3551,11 @@ fts_get_max_doc_id(
 	ut_ad(innobase_strcasecmp(FTS_DOC_ID_COL_NAME, dfield->name) == 0);
 #endif
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	/* fetch the largest indexes value */
-	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF, &pcur,
-					true, 0, &mtr) != DB_SUCCESS) {
-	} else if (!page_is_empty(btr_pcur_get_page(&pcur))) {
+	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr) == DB_SUCCESS
+	    && !page_is_empty(btr_pcur_get_page(&pcur))) {
 		const rec_t*    rec = NULL;
 
 		do {
@@ -3575,7 +3574,7 @@ fts_get_max_doc_id(
 	}
 
 func_exit:
-	mtr_commit(&mtr);
+	mtr.commit();
 	return(doc_id);
 }
 
