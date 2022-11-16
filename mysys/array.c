@@ -91,7 +91,7 @@ my_bool init_dynamic_array2(PSI_memory_key psi_key, DYNAMIC_ARRAY *array,
 my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void * element)
 {
   void *buffer;
-  if (array->elements == array->max_element)
+  if (unlikely(array->elements == array->max_element))
   {						/* Call only when necessary */
     if (!(buffer=alloc_dynamic(array)))
       return TRUE;
@@ -101,7 +101,42 @@ my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void * element)
     buffer=array->buffer+(array->elements * array->size_of_element);
     array->elements++;
   }
-  memcpy(buffer,element,(size_t) array->size_of_element);
+  memcpy(buffer, element, array->size_of_element);
+  return FALSE;
+}
+
+
+/* Fast version of appending to dynamic array */
+
+void init_append_dynamic(DYNAMIC_ARRAY_APPEND *append,
+                         DYNAMIC_ARRAY *array)
+{
+  append->array= array;
+  append->pos= array->buffer + array->elements * array->size_of_element;
+  append->end= array->buffer + array->max_element * array->size_of_element;
+}
+
+
+my_bool append_dynamic(DYNAMIC_ARRAY_APPEND *append,
+                       const void *element)
+{
+  DYNAMIC_ARRAY *array= append->array;
+  size_t size_of_element= array->size_of_element;
+  if (unlikely(append->pos == append->end))
+  {
+    void *buffer;
+    if (!(buffer=alloc_dynamic(array)))
+      return TRUE;
+    append->pos= (uchar*)buffer + size_of_element;
+    append->end= array->buffer + array->max_element * size_of_element;
+    memcpy(buffer, element, size_of_element);
+  }
+  else
+  {
+    array->elements++;
+    memcpy(append->pos, element, size_of_element);
+    append->pos+= size_of_element;
+  }
   return FALSE;
 }
 
@@ -280,7 +315,7 @@ my_bool allocate_dynamic(DYNAMIC_ARRAY *array, size_t max_elements)
 
 void get_dynamic(DYNAMIC_ARRAY *array, void *element, size_t idx)
 {
-  if (idx >= array->elements)
+  if (unlikely(idx >= array->elements))
   {
     DBUG_PRINT("warning",("To big array idx: %d, array size is %d",
                           idx,array->elements));
@@ -305,7 +340,7 @@ void delete_dynamic(DYNAMIC_ARRAY *array)
   /*
     Just mark as empty if we are using a static buffer
   */
-  if (!(array->malloc_flags & MY_INIT_BUFFER_USED) && array->buffer)
+  if (array->buffer && !(array->malloc_flags & MY_INIT_BUFFER_USED))
     my_free(array->buffer);
 
   array->buffer= 0;

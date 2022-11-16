@@ -184,6 +184,8 @@ public:
 
   /* Index condition pushdown implementation */
   Item *idx_cond_push(uint keyno, Item* idx_cond) override final;
+  bool rowid_filter_push(Rowid_filter* rowid_filter) override;
+  void rowid_filter_changed() override;
 
   int find_unique_row(uchar *record, uint unique_idx) override final;
 

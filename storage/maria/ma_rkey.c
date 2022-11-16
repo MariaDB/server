@@ -120,6 +120,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
 
       /* The key references a concurrently inserted record. */
       if (search_flag == HA_READ_KEY_EXACT &&
+          (keyinfo->flag & HA_NOSAME) &&
           last_used_keyseg == keyinfo->seg + keyinfo->keysegs)
       {
         /* Simply ignore the key if it matches exactly. (Bug #29838) */

@@ -170,10 +170,9 @@ static double get_merge_buffers_cost(THD *thd, uint *buff_elems, uint elem_size,
 
   size_t n_buffers= last - first + 1;
 
-  /* Using log2(n)=log(n)/log(2) formula */
   return (2*((double)total_buf_elems*elem_size) / IO_SIZE *
           default_optimizer_costs.disk_read_cost +
-          total_buf_elems*log((double) n_buffers) * compare_factor / M_LN2);
+          total_buf_elems*log2((double) n_buffers) * compare_factor);
 }
 
 
