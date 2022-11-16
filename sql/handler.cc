@@ -6946,8 +6946,7 @@ check_result_t handler_rowid_filter_check(void *h_arg)
 
 extern "C" int handler_rowid_filter_is_active(void *h_arg)
 {
-  if (!h_arg)
-    return false;
+  DBUG_ASSERT(h_arg);
   handler *h= (handler*) h_arg;
   return h->rowid_filter_is_active;
 }

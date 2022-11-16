@@ -1093,8 +1093,9 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
   }
   else
   {
-    flags= HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
-          HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN;
+    flags= (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
+            HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN |
+            HA_DO_RANGE_FILTER_PUSHDOWN);
   }
   return flags;
 }
@@ -2485,10 +2486,12 @@ int ha_maria::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   end_range= NULL;
   if (index == pushed_idx_cond_keyno)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
 
   error= maria_rkey(file, buf, index, key, keypart_map, find_flag);
 
-  ma_set_index_cond_func(file, NULL, 0);
+  ma_reset_index_filter_functions(file);
   return error;
 }
 
@@ -2562,18 +2565,22 @@ int ha_maria::index_next_same(uchar * buf,
 
 int ha_maria::index_init(uint idx, bool sorted)
 {
-  active_index=idx;
+  active_index= idx;
   if (pushed_idx_cond_keyno == idx)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
   return 0;
 }
 
-
 int ha_maria::index_end()
 {
+  /*
+    in_range_check_pushed_down and index_id_cond_keyno are reset in
+    handler::cancel_pushed_idx_cond()
+  */
   active_index=MAX_KEY;
-  ma_set_index_cond_func(file, NULL, 0);
-  in_range_check_pushed_down= FALSE;
+  ma_reset_index_filter_functions(file);
   ds_mrr.dsmrr_close();
   return 0;
 }
@@ -2761,7 +2768,7 @@ int ha_maria::extra(enum ha_extra_function operation)
 
 int ha_maria::reset(void)
 {
-  ma_set_index_cond_func(file, NULL, 0);
+  ma_reset_index_filter_functions(file);
   ds_mrr.dsmrr_close();
   if (file->trn)
   {
@@ -3821,8 +3828,6 @@ bool ha_maria::is_changed() const
 
 static void aria_update_optimizer_costs(OPTIMIZER_COSTS *costs)
 {
-  costs->rowid_copy_cost=      0.000001;        // Just a short memcopy
-  costs->rowid_cmp_cost=       0.000001;        // Just a short memcmp
 }
 
 
@@ -4218,6 +4223,26 @@ Item *ha_maria::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
   return NULL;
 }
+
+bool ha_maria::rowid_filter_push(Rowid_filter* rowid_filter)
+{
+  /* This will be used in index_init() */
+  pushed_rowid_filter= rowid_filter;
+  return false;
+}
+
+
+/* Enable / disable rowid filter depending if it's active or not */
+
+void ha_maria::rowid_filter_changed()
+{
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
+  else
+    ma_set_rowid_filter_func(file, NULL, this);
+}
+
+
 
 /**
   Find record by unique constrain (used in temporary tables)
