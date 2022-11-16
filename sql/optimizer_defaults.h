@@ -87,6 +87,13 @@
 #define DEFAULT_ROWID_COPY_COST        0.000002653
 
 /*
+  Cost modifiers rowid_filter. These takes into account the overhead of
+  using and calling Rowid_filter_sorted_array::check() from the engine
+*/
+#define ROWID_FILTER_PER_CHECK_MODIFIER 4       /* times key_copy_cost */
+#define ROWID_FILTER_PER_ELEMENT_MODIFIER 3     /* times rowid_compare_cost */
+
+/*
   Average disk seek time on a hard disk is 8-10 ms, which is also
   about the time to read a IO_SIZE (8192) block.
 
