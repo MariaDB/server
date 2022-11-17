@@ -994,7 +994,7 @@ static void btr_free_root(buf_block_t* block, mtr_t* mtr, bool invalidate)
 					| MTR_MEMO_PAGE_SX_FIX));
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	header = buf_block_get_frame(block) + PAGE_HEADER + PAGE_BTR_SEG_TOP;
 #ifdef UNIV_BTR_DEBUG
@@ -1496,7 +1496,7 @@ btr_page_reorganize_low(
 	buf_frame_copy(temp_page, page);
 
 	if (!recovery) {
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 	}
 
 	/* Save the cursor position. */
@@ -1785,7 +1785,7 @@ btr_page_empty(
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
@@ -3410,7 +3410,7 @@ btr_lift_page_up(
 		mem_heap_free(heap);
 	}
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	/* Make the father empty */
 	btr_page_empty(father_block, father_page_zip, index, page_level, mtr);
@@ -3728,7 +3728,7 @@ retry:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 		/* Remove the page from the level list */
 		if (DB_SUCCESS != btr_level_list_remove(index->table->space_id,
@@ -3848,7 +3848,7 @@ retry:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 #ifdef UNIV_BTR_DEBUG
 		if (merge_page_zip && left_page_no == FIL_NULL) {
@@ -4081,7 +4081,7 @@ btr_discard_only_page_on_level(
 		ut_ad(fil_page_index_page_check(page));
 		ut_ad(block->page.id.space() == index->table->space->id);
 		ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 		if (dict_index_is_spatial(index)) {
 			/* Check any concurrent search having this page */
@@ -4221,7 +4221,7 @@ btr_discard_page(
 
 	page = buf_block_get_frame(block);
 	ut_a(page_is_comp(merge_page) == page_is_comp(page));
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	if (left_page_no == FIL_NULL && !page_is_leaf(page)) {
 

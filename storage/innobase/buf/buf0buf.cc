@@ -5414,7 +5414,7 @@ loop:
 		}
 #ifdef BTR_CUR_HASH_ADAPT
 		if (drop_hash_entry) {
-			btr_search_drop_page_hash_index(block);
+			btr_search_drop_page_hash_index(block, false);
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 
