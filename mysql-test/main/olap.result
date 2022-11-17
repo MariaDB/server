@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 set @sav_dpi= @@div_precision_increment;
 set div_precision_increment= 5;
 show variables like 'div_precision_increment';

@@ -1914,11 +1914,7 @@ public:
   enum store_key_result copy()
   {
     enum store_key_result result;
-    THD *thd= to_field->table->in_use;
-    Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
-    Sql_mode_save sql_mode(thd);
-    thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
-    thd->variables.sql_mode|= MODE_INVALID_DATES;
+    Use_relaxed_field_copy urfc(to_field->table->in_use);
     result= copy_inner();
     return result;
   }

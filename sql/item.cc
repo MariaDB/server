@@ -1472,12 +1472,8 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
 {
   int res;
   TABLE *table= field->table;
-  THD *thd= table->in_use;
-  Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
-  Sql_mode_save sql_mode(thd);
-  thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
-  thd->variables.sql_mode|= MODE_INVALID_DATES;
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
+  Use_relaxed_field_copy urfc(table->in_use);
   res= save_in_field(field, no_conversions);
   dbug_tmp_restore_column_map(&table->write_set, old_map);
   return res;

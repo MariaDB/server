@@ -6881,6 +6881,19 @@ public:
 };
 
 
+class Use_relaxed_field_copy: public Sql_mode_save,
+                              public Check_level_instant_set
+{
+public:
+  Use_relaxed_field_copy(THD *thd) :
+      Sql_mode_save(thd), Check_level_instant_set(thd, CHECK_FIELD_IGNORE)
+  {
+    thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
+    thd->variables.sql_mode|= MODE_INVALID_DATES;
+  }
+};
+
+
 /**
   This class resembles the SQL Standard schema qualified object name:
   <schema qualified name> ::= [ <schema name> <period> ] <qualified identifier>
