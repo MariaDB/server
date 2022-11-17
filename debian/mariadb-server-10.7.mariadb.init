@@ -21,9 +21,18 @@ test -x /usr/sbin/mariadbd || exit 0
 
 . /lib/lsb/init-functions
 
-SELF=$(cd $(dirname $0); pwd -P)/$(basename $0)
+SELF=$(cd "$(dirname $0)"; pwd -P)/$(basename $0)
 
-MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
+if [ -f /usr/bin/mariadb-admin ]
+then
+  MYADMIN="/usr/bin/mariadb-admin --defaults-file=/etc/mysql/debian.cnf"
+elif [ -f /usr/bin/mysqladmin ]
+then
+  MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
+else
+  log_failure_msg "Command mariadb-admin/mysqladmin not found! This SysV init script depends on it."
+  exit -1
+fi
 
 # priority can be overridden and "-s" adds output to stderr
 ERR_LOGGER="logger -p daemon.err -t /etc/init.d/mariadb -i"

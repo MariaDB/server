@@ -752,11 +752,12 @@ dict_create_index_tree_step(
 
 	search_tuple = dict_create_search_tuple(node->ind_row, node->heap);
 	node->page_no = FIL_NULL;
+	pcur.btr_cur.page_cur.index =
+		UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes);
 
 	dberr_t err =
-		btr_pcur_open(UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes),
-			      search_tuple, PAGE_CUR_L, BTR_MODIFY_LEAF,
-			      &pcur, &mtr);
+		btr_pcur_open(search_tuple, PAGE_CUR_L, BTR_MODIFY_LEAF,
+			      &pcur, 0, &mtr);
 
 	if (err != DB_SUCCESS) {
 func_exit:

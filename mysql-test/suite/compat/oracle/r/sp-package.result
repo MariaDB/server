@@ -3268,3 +3268,78 @@ a
 This is db1.pkg1.p1
 DROP DATABASE db1;
 DROP DATABASE db2;
+#
+# MDEV-29370 Functions in packages are slow and seems to ignore deterministic
+#
+SET SQL_MODE=ORACLE;
+CREATE TABLE t1 (c1 CHAR(1));
+CREATE FUNCTION f1_deterministic()
+RETURN CHAR(1)
+DETERMINISTIC
+IS
+BEGIN
+RETURN 'X';
+END;
+//
+CREATE FUNCTION f2_not_deterministic()
+RETURN CHAR(1)
+IS
+BEGIN
+RETURN 'X';
+END;
+//
+CREATE PACKAGE pkg1
+IS
+PROCEDURE t1_populate(numrows INTEGER);
+FUNCTION f3_deterministic() RETURN CHAR(1) DETERMINISTIC;
+FUNCTION f4_not_deterministic() RETURN CHAR(1);
+END;
+//
+CREATE PACKAGE BODY pkg1
+IS
+PROCEDURE t1_populate(numrounds INTEGER)
+IS
+i INTEGER;
+BEGIN
+INSERT INTO t1 VALUES('Y');
+FOR i IN 1..numrounds LOOP
+INSERT INTO t1 SELECT * FROM t1;
+END LOOP;
+END;
+FUNCTION f3_deterministic() RETURN CHAR(1) DETERMINISTIC COMMENT 'xxx'
+  IS
+BEGIN
+RETURN 'X';
+END;
+FUNCTION f4_not_deterministic() RETURN CHAR(1)
+IS
+BEGIN
+RETURN 'X';
+END;
+END;
+//
+CALL pkg1.t1_populate(3);
+EXPLAIN EXTENDED SELECT 'Deterministic function', COUNT(*) FROM t1 WHERE c1 = f1_deterministic();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+Warnings:
+Note	1003	select 'Deterministic function' AS "Deterministic function",count(0) AS "COUNT(*)" from "test"."t1" where "test"."t1"."c1" = <cache>("f1_deterministic"())
+EXPLAIN EXTENDED SELECT 'Non-deterministic function', COUNT(*) FROM t1 WHERE c1 = f2_not_deterministic();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+Warnings:
+Note	1003	select 'Non-deterministic function' AS "Non-deterministic function",count(0) AS "COUNT(*)" from "test"."t1" where "test"."t1"."c1" = "f2_not_deterministic"()
+EXPLAIN EXTENDED SELECT 'Deterministic package function', COUNT(*) FROM t1 WHERE c1 = pkg1.f3_deterministic();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+Warnings:
+Note	1003	select 'Deterministic package function' AS "Deterministic package function",count(0) AS "COUNT(*)" from "test"."t1" where "test"."t1"."c1" = <cache>("test"."pkg1"."f3_deterministic"())
+EXPLAIN EXTENDED SELECT 'Non-deterministic package function', COUNT(*) FROM t1 WHERE c1 = pkg1.f4_not_deterministic();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+Warnings:
+Note	1003	select 'Non-deterministic package function' AS "Non-deterministic package function",count(0) AS "COUNT(*)" from "test"."t1" where "test"."t1"."c1" = "test"."pkg1"."f4_not_deterministic"()
+DROP TABLE t1;
+DROP FUNCTION f1_deterministic;
+DROP FUNCTION f2_not_deterministic;
+DROP PACKAGE pkg1;

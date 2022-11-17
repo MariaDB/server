@@ -1831,7 +1831,6 @@ fil_crypt_rotate_page(
 	} else {
 		/* If block read failed mtr memo and log should be empty. */
 		ut_ad(!mtr.has_modifications());
-		ut_ad(!mtr.is_dirty());
 		ut_ad(mtr.is_empty());
 		mtr.commit();
 	}

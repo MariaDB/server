@@ -1548,7 +1548,8 @@ static void innodb_drop_database(handlerton*, char *path)
     std::vector<pfs_os_file_t> to_close;
     mtr_t mtr;
     mtr.start();
-    err= btr_pcur_open_on_user_rec(sys_index, &tuple, PAGE_CUR_GE,
+    pcur.btr_cur.page_cur.index = sys_index;
+    err= btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
                                    BTR_SEARCH_LEAF, &pcur, &mtr);
     if (err != DB_SUCCESS)
       goto err_exit;
@@ -2046,9 +2047,8 @@ static void drop_garbage_tables_after_restore()
   ut_d(purge_sys.stop_FTS());
 
   mtr.start();
-  if (btr_pcur_open_at_index_side(true, dict_sys.sys_tables->indexes.start,
-                                  BTR_SEARCH_LEAF, &pcur, true, 0, &mtr) !=
-      DB_SUCCESS)
+  if (pcur.open_leaf(true, dict_sys.sys_tables->indexes.start, BTR_SEARCH_LEAF,
+                     &mtr) != DB_SUCCESS)
     goto all_fail;
   for (;;)
   {
@@ -15037,14 +15037,10 @@ inline int ha_innobase::defragment_table()
     }
 
     btr_pcur_t pcur;
-    pcur.btr_cur.index = nullptr;
-    btr_pcur_init(&pcur);
 
     mtr_t mtr;
     mtr.start();
-    if (dberr_t err= btr_pcur_open_at_index_side(true, index,
-                                                 BTR_SEARCH_LEAF, &pcur,
-                                                 true, 0, &mtr))
+    if (dberr_t err= pcur.open_leaf(true, index, BTR_SEARCH_LEAF, &mtr))
     {
       mtr.commit();
       return convert_error_code_to_mysql(err, 0, m_user_thd);
@@ -15058,9 +15054,9 @@ inline int ha_innobase::defragment_table()
     btr_pcur_move_to_next(&pcur, &mtr);
     btr_pcur_store_position(&pcur, &mtr);
     mtr.commit();
-    ut_ad(pcur.btr_cur.index == index);
+    ut_ad(pcur.index() == index);
     const bool interrupted= btr_defragment_add_index(&pcur, m_user_thd);
-    btr_pcur_free(&pcur);
+    ut_free(pcur.old_rec_buf);
     if (interrupted)
       return ER_QUERY_INTERRUPTED;
   }

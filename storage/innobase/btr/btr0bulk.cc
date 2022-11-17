@@ -827,7 +827,6 @@ PageBulk::storeExt(
 	btr_pcur_t	btr_pcur;
 	btr_pcur.pos_state = BTR_PCUR_IS_POSITIONED;
 	btr_pcur.latch_mode = BTR_MODIFY_LEAF;
-	btr_pcur.btr_cur.index = m_index;
 	btr_pcur.btr_cur.page_cur.index = m_index;
 	btr_pcur.btr_cur.page_cur.rec = m_cur_rec;
 	btr_pcur.btr_cur.page_cur.offsets = offsets;
