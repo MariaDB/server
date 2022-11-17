@@ -145,13 +145,13 @@ public:
 			mtr.start();
 			index->set_modified(mtr);
 
-			ins_cur.index = index;
+			ins_cur.page_cur.index = index;
 			rtr_init_rtr_info(&rtr_info, false, &ins_cur, index,
 					  false);
 			rtr_info_update_btr(&ins_cur, &rtr_info);
 
 			error = btr_cur_search_to_nth_level(
-				index, 0, dtuple, PAGE_CUR_RTREE_INSERT,
+				0, dtuple, PAGE_CUR_RTREE_INSERT,
 				BTR_MODIFY_LEAF, &ins_cur, &mtr);
 
 			/* It need to update MBR in parent entry,
@@ -165,7 +165,7 @@ public:
 				mtr.start();
 				index->set_modified(mtr);
 				error = btr_cur_search_to_nth_level(
-					index, 0, dtuple,
+					0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE, &ins_cur, &mtr);
 			}
@@ -190,7 +190,7 @@ public:
 
 				rtr_info_update_btr(&ins_cur, &rtr_info);
 				error = btr_cur_search_to_nth_level(
-					index, 0, dtuple,
+					0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE,
 					&ins_cur, &mtr);
@@ -1999,8 +1999,7 @@ row_merge_read_clustered_index(
 		? col_map[old_trx_id_col] : old_trx_id_col;
 	uint64_t n_rows = 0;
 
-	err = btr_pcur_open_at_index_side(true, clust_index, BTR_SEARCH_LEAF,
-					  &pcur, true, 0, &mtr);
+	err = pcur.open_leaf(true, clust_index, BTR_SEARCH_LEAF, &mtr);
 	if (err != DB_SUCCESS) {
 err_exit:
 		trx->error_key_num = 0;
@@ -2232,13 +2231,15 @@ end_of_index:
 				if (!block) {
 					goto err_exit;
 				}
-				btr_leaf_page_release(page_cur_get_block(cur),
-						      BTR_SEARCH_LEAF, &mtr);
+
 				page_cur_set_before_first(block, cur);
 				if (!page_cur_move_to_next(cur)
 				    || page_cur_is_after_last(cur)) {
 					goto corrupted_rec;
 				}
+
+				const auto s = mtr.get_savepoint();
+				mtr.rollback_to_savepoint(s - 2, s - 1);
 			}
 		} else {
 			mem_heap_empty(row_heap);

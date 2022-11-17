@@ -214,6 +214,11 @@ public:
   /** number of std::swap(buf, flush_buf) and writes from buf to log;
   protected by latch.wr_lock() */
   ulint write_to_log;
+
+  /** Log sequence number when a log file overwrite (broken crash recovery)
+  was noticed. Protected by latch.wr_lock(). */
+  lsn_t overwrite_warned;
+
   /** innodb_log_buffer_size (size of buf and flush_buf, in bytes) */
   size_t buf_size;
 

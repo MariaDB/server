@@ -1712,6 +1712,14 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
   DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
                         next_checkpoint_lsn, get_flushed_lsn()));
+  if (overwrite_warned)
+  {
+    sql_print_information("InnoDB: Crash recovery was broken "
+                          "between LSN=" LSN_PF
+                          " and checkpoint LSN=" LSN_PF ".",
+                          overwrite_warned, next_checkpoint_lsn);
+    overwrite_warned= 0;
+  }
 
   latch.wr_unlock();
 }
@@ -1884,6 +1892,7 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
     record from a previous fil_names_clear() call, which we must
     write out before we can advance the checkpoint. */
     log_write_up_to(sync_lsn, true);
+    DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
     log_checkpoint();
   }
 }
@@ -1897,6 +1906,8 @@ ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious)
 
   if (recv_recovery_is_on())
     recv_sys.apply(true);
+
+  DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", return;);
 
   Atomic_relaxed<lsn_t> &limit= furious
     ? buf_flush_sync_lsn : buf_flush_async_lsn;
@@ -2252,6 +2263,7 @@ unemployed:
       buf_pool.page_cleaner_set_idle(true);
 
       DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", continue;);
+      DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", continue;);
 
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
@@ -2335,6 +2347,7 @@ do_checkpoint:
         here should not affect correctness, because log_free_check()
         should still be invoking checkpoints when needed. */
         DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", goto next;);
+        DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", goto next;);
 
         if (!recv_recovery_is_on() && srv_operation == SRV_OPERATION_NORMAL)
           log_checkpoint();

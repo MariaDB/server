@@ -253,9 +253,10 @@ public:
 	}
 
 	/** Position the cursor on the first user record. */
-	rec_t* open(buf_block_t* block) noexcept
+	rec_t* open(buf_block_t* block, const dict_index_t* index) noexcept
 		MY_ATTRIBUTE((warn_unused_result))
 	{
+		m_cur.index = const_cast<dict_index_t*>(index);
 		page_cur_set_before_first(block, &m_cur);
 		return next();
 	}
@@ -285,10 +286,9 @@ public:
 
 	/** Remove the current record
 	@return true on success */
-	bool remove(
-		const dict_index_t*	index,
-		rec_offs*		offsets) UNIV_NOTHROW
+	bool remove(rec_offs* offsets) UNIV_NOTHROW
 	{
+		const dict_index_t* const index = m_cur.index;
 		ut_ad(page_is_leaf(m_cur.block->page.frame));
 		/* We can't end up with an empty page unless it is root. */
 		if (page_get_n_recs(m_cur.block->page.frame) <= 1) {
@@ -311,7 +311,7 @@ public:
 			     page_zip, m_cur.block->page.frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-		page_cur_delete_rec(&m_cur, index, offsets, &m_mtr);
+		page_cur_delete_rec(&m_cur, offsets, &m_mtr);
 
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(
@@ -1513,8 +1513,9 @@ inline bool IndexPurge::open() noexcept
   m_mtr.start();
   m_mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-  if (btr_pcur_open_at_index_side(true, m_index, BTR_MODIFY_LEAF,
-                                  &m_pcur, true, 0, &m_mtr) != DB_SUCCESS)
+  btr_pcur_init(&m_pcur);
+
+  if (m_pcur.open_leaf(true, m_index, BTR_MODIFY_LEAF, &m_mtr) != DB_SUCCESS)
     return false;
 
   rec_t *rec= page_rec_get_next(btr_pcur_get_rec(&m_pcur));
@@ -1559,7 +1560,7 @@ dberr_t IndexPurge::next() noexcept
 		return DB_CORRUPTION;
 	}
 	/* The following is based on btr_pcur_move_to_next_user_rec(). */
-	m_pcur.old_stored = false;
+	m_pcur.old_rec = nullptr;
 	ut_ad(m_pcur.latch_mode == BTR_MODIFY_LEAF);
 	do {
 		if (btr_pcur_is_after_last_on_page(&m_pcur)) {
@@ -1586,8 +1587,7 @@ tree structure may be changed during a pessimistic delete. */
 inline dberr_t IndexPurge::purge_pessimistic_delete() noexcept
 {
   dberr_t err;
-  if (m_pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-                              &m_mtr) != btr_pcur_t::CORRUPTED)
+  if (m_pcur.restore_position(BTR_PURGE_TREE, &m_mtr) != btr_pcur_t::CORRUPTED)
   {
     ut_ad(rec_get_deleted_flag(btr_pcur_get_rec(&m_pcur),
                                m_index->table->not_redundant()));
@@ -1722,10 +1722,8 @@ re-organising the B+tree.
 @return true if purge succeeded */
 inline bool PageConverter::purge() UNIV_NOTHROW
 {
-	const dict_index_t*	index = m_index->m_srv_index;
-
 	/* We can't have a page that is empty and not root. */
-	if (m_rec_iter.remove(index, m_offsets)) {
+	if (m_rec_iter.remove(m_offsets)) {
 
 		++m_index->m_stats.m_n_purged;
 
@@ -1789,7 +1787,7 @@ PageConverter::update_records(
 
 	/* This will also position the cursor on the first user record. */
 
-	if (!m_rec_iter.open(block)) {
+	if (!m_rec_iter.open(block, m_index->m_srv_index)) {
 		return DB_CORRUPTION;
 	}
 
@@ -2289,8 +2287,8 @@ row_import_set_sys_max_row_id(
 
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF,
-					&pcur, true, 0, &mtr) == DB_SUCCESS) {
+	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr)
+	    == DB_SUCCESS) {
 		rec = btr_pcur_move_to_prev_on_page(&pcur);
 
 		if (!rec) {

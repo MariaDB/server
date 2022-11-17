@@ -1,6 +1,7 @@
 call mtr.add_suppression("InnoDB: Expected tablespace id .*");
 # Mariabackup --backup with page0 INIT_PAGE redo record
 # and there is no FILE_CREATE for the tablespace t1
+SET @save_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG="+d,checkpoint_after_file_create";
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
@@ -14,7 +15,7 @@ SELECT * FROM t1;
 f1
 1
 DROP TABLE t1;
-SET DEBUG_DBUG="-d,checkpoint_after_file_create";
+SET @@SESSION.DEBUG_DBUG= @save_debug;
 # Mariabackup fails after corrupting the page0 in disk
 # and there is no INIT_PAGE for page0
 CREATE TABLE t1(c INT) ENGINE=INNODB;
