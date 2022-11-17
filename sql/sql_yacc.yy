@@ -19204,6 +19204,7 @@ package_implementation_function_body:
             sp_head *sp= pkg->m_current_routine->sphead;
             thd->lex= pkg->m_current_routine;
             sp->reset_thd_mem_root(thd);
+            sp->set_c_chistics(thd->lex->sp_chistics);
             sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_body opt_package_routine_end_name
@@ -19222,6 +19223,7 @@ package_implementation_procedure_body:
             sp_head *sp= pkg->m_current_routine->sphead;
             thd->lex= pkg->m_current_routine;
             sp->reset_thd_mem_root(thd);
+            sp->set_c_chistics(thd->lex->sp_chistics);
             sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_body opt_package_routine_end_name
