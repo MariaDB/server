@@ -18415,7 +18415,9 @@ innodb_enable_monitor_at_startup(
 /****************************************************************//**
 Callback function for accessing the InnoDB variables from MySQL:
 SHOW VARIABLES. */
-static int show_innodb_vars(THD*, SHOW_VAR* var, char*)
+static int show_innodb_vars(THD*, SHOW_VAR* var, void *,
+                            struct system_status_var *status_var,
+                            enum enum_var_type var_type)
 {
 	innodb_export_status();
 	var->type = SHOW_ARRAY;
@@ -18861,7 +18863,7 @@ innobase_debug_sync_set(THD *thd, st_mysql_sys_var*, void *, const void *value)
 #endif
 
 static SHOW_VAR innodb_status_variables_export[]= {
-	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
+	SHOW_FUNC_ENTRY("Innodb", &show_innodb_vars),
 	{NullS, NullS, SHOW_LONG}
 };
 

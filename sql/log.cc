@@ -10501,7 +10501,7 @@ static int show_binlog_vars(THD *thd, SHOW_VAR *var, void *,
 }
 
 static SHOW_VAR binlog_status_vars_top[]= {
-  {"Binlog", (char *) &show_binlog_vars, SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Binlog", &show_binlog_vars),
   {NullS, NullS, SHOW_LONG}
 };
 

@@ -11073,6 +11073,8 @@ bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item)
 Column_definition::Column_definition(THD *thd, Field *old_field,
                                                Field *orig_field)
 {
+  geom_type= Field::GEOM_GEOMETRY;
+  srid= 0;
   on_update=  NULL;
   field_name= old_field->field_name;
   length=     old_field->field_length;

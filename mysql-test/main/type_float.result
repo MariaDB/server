@@ -964,5 +964,12 @@ id	a
 DELETE FROM t1 WHERE a=CAST(0.671437 AS FLOAT);
 DROP TABLE t1;
 #
+# MDEV-29473 UBSAN: Signed integer overflow: X * Y cannot be represented in type 'int' in strings/dtoa.c
+#
+CREATE TABLE t1 (c DOUBLE);
+INSERT INTO t1 VALUES ('1e4294967297');
+ERROR 22003: Out of range value for column 'c' at row 1
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #
