@@ -1548,7 +1548,8 @@ static void innodb_drop_database(handlerton*, char *path)
     std::vector<pfs_os_file_t> to_close;
     mtr_t mtr;
     mtr.start();
-    err= btr_pcur_open_on_user_rec(sys_index, &tuple, PAGE_CUR_GE,
+    pcur.btr_cur.page_cur.index = sys_index;
+    err= btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
                                    BTR_SEARCH_LEAF, &pcur, &mtr);
     if (err != DB_SUCCESS)
       goto err_exit;
@@ -15055,8 +15056,6 @@ inline int ha_innobase::defragment_table()
     }
 
     btr_pcur_t pcur;
-    pcur.btr_cur.index = nullptr;
-    btr_pcur_init(&pcur);
 
     mtr_t mtr;
     mtr.start();
@@ -15074,9 +15073,9 @@ inline int ha_innobase::defragment_table()
     btr_pcur_move_to_next(&pcur, &mtr);
     btr_pcur_store_position(&pcur, &mtr);
     mtr.commit();
-    ut_ad(pcur.btr_cur.index == index);
+    ut_ad(pcur.index() == index);
     const bool interrupted= btr_defragment_add_index(&pcur, m_user_thd);
-    btr_pcur_free(&pcur);
+    ut_free(pcur.old_rec_buf);
     if (interrupted)
       return ER_QUERY_INTERRUPTED;
   }

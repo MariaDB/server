@@ -2335,9 +2335,11 @@ work_around:
 			space_id, page_nos[i], heap);
 loop:
 		btr_pcur_t pcur;
+		pcur.btr_cur.page_cur.index = ibuf.index;
+
 		ibuf_mtr_start(&mtr);
-		if (btr_pcur_open(ibuf.index, tuple, PAGE_CUR_GE,
-				  BTR_MODIFY_LEAF, &pcur, &mtr)
+		if (btr_pcur_open(tuple, PAGE_CUR_GE,
+				  BTR_MODIFY_LEAF, &pcur, 0, &mtr)
 		    != DB_SUCCESS) {
 			goto done;
 		}
@@ -2462,8 +2464,9 @@ ibuf_merge_space(
 
 	/* Position the cursor on the first matching record. */
 
-	dberr_t err = btr_pcur_open(ibuf.index, tuple, PAGE_CUR_GE,
-				    BTR_SEARCH_LEAF, &pcur, &mtr);
+	pcur.btr_cur.page_cur.index = ibuf.index;
+	dberr_t err = btr_pcur_open(tuple, PAGE_CUR_GE,
+				    BTR_SEARCH_LEAF, &pcur, 0, &mtr);
 	ut_ad(err != DB_SUCCESS || page_validate(btr_pcur_get_page(&pcur),
 						 ibuf.index));
 
@@ -3207,9 +3210,9 @@ ibuf_insert_low(
 	}
 
 	ibuf_mtr_start(&mtr);
+	pcur.btr_cur.page_cur.index = ibuf.index;
 
-	err = btr_pcur_open(ibuf.index, ibuf_entry, PAGE_CUR_LE, mode, &pcur,
-			    &mtr);
+	err = btr_pcur_open(ibuf_entry, PAGE_CUR_LE, mode, &pcur, 0, &mtr);
 	if (err != DB_SUCCESS) {
 func_exit:
 		ibuf_mtr_commit(&mtr);
@@ -3575,30 +3578,27 @@ dberr_t
 ibuf_insert_to_index_page_low(
 /*==========================*/
 	const dtuple_t*	entry,	/*!< in: buffered entry to insert */
-	buf_block_t*	block,	/*!< in/out: index page where the buffered
-				entry should be placed */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t*	heap,	/*!< in/out: memory heap */
 	mtr_t*		mtr,	/*!< in/out: mtr */
 	page_cur_t*	page_cur)/*!< in/out: cursor positioned on the record
 				after which to insert the buffered entry */
 {
-  if (page_cur_tuple_insert(page_cur, entry, index, offsets, &heap, 0, mtr))
+  if (page_cur_tuple_insert(page_cur, entry, offsets, &heap, 0, mtr))
     return DB_SUCCESS;
 
   /* Page reorganization or recompression should already have been
   attempted by page_cur_tuple_insert(). Besides, per
   ibuf_index_page_calc_free_zip() the page should not have been
   recompressed or reorganized. */
-  ut_ad(!is_buf_block_get_page_zip(block));
+  ut_ad(!is_buf_block_get_page_zip(page_cur->block));
 
   /* If the record did not fit, reorganize */
-  if (dberr_t err= btr_page_reorganize(page_cur, index, mtr))
+  if (dberr_t err= btr_page_reorganize(page_cur, mtr))
     return err;
 
   /* This time the record must fit */
-  if (page_cur_tuple_insert(page_cur, entry, index, offsets, &heap, 0, mtr))
+  if (page_cur_tuple_insert(page_cur, entry, offsets, &heap, 0, mtr))
     return DB_SUCCESS;
 
   return DB_CORRUPTION;
@@ -3655,8 +3655,10 @@ ibuf_insert_to_index_page(
 	}
 
 	ulint up_match = 0, low_match = 0;
+	page_cur.index = index;
+	page_cur.block = block;
 
-	if (page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+	if (page_cur_search_with_match(entry, PAGE_CUR_LE,
 				       &up_match, &low_match, &page_cur,
 				       nullptr)) {
 		return DB_CORRUPTION;
@@ -3703,7 +3705,7 @@ ibuf_insert_to_index_page(
 		if (!row_upd_changes_field_size_or_external(index, offsets,
 							    update)
 		    && (!page_zip || btr_cur_update_alloc_zip(
-				page_zip, &page_cur, index, offsets,
+				page_zip, &page_cur, offsets,
 				rec_offs_size(offsets), false, mtr))) {
 			/* This is the easy case. Do something similar
 			to btr_cur_update_in_place(). */
@@ -3744,7 +3746,7 @@ ibuf_insert_to_index_page(
 		/* Delete the different-length record, and insert the
 		buffered one. */
 
-		page_cur_delete_rec(&page_cur, index, offsets, mtr);
+		page_cur_delete_rec(&page_cur, offsets, mtr);
 		if (!(page_cur_move_to_prev(&page_cur))) {
 			err = DB_CORRUPTION;
 			goto updated_in_place;
@@ -3753,8 +3755,8 @@ ibuf_insert_to_index_page(
 		offsets = NULL;
 	}
 
-	err = ibuf_insert_to_index_page_low(entry, block, index,
-					    &offsets, heap, mtr, &page_cur);
+	err = ibuf_insert_to_index_page_low(entry, &offsets, heap, mtr,
+                                            &page_cur);
 updated_in_place:
 	mem_heap_free(heap);
 
@@ -3770,16 +3772,18 @@ ibuf_set_del_mark(
 /*==============*/
 	const dtuple_t*		entry,	/*!< in: entry */
 	buf_block_t*		block,	/*!< in/out: block */
-	const dict_index_t*	index,	/*!< in: record descriptor */
+	dict_index_t*		index,	/*!< in: record descriptor */
 	mtr_t*			mtr)	/*!< in: mtr */
 {
 	page_cur_t	page_cur;
+	page_cur.block = block;
+	page_cur.index = index;
 	ulint		up_match = 0, low_match = 0;
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
 
-	if (!page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+	if (!page_cur_search_with_match(entry, PAGE_CUR_LE,
 					&up_match, &low_match, &page_cur,
 					nullptr)
 	    && low_match == dtuple_get_n_fields(entry)) {
@@ -3831,6 +3835,8 @@ ibuf_delete(
 				before latching any further pages */
 {
 	page_cur_t	page_cur;
+	page_cur.block = block;
+	page_cur.index = index;
 	ulint		up_match = 0, low_match = 0;
 
 	ut_ad(ibuf_inside(mtr));
@@ -3838,7 +3844,7 @@ ibuf_delete(
 	ut_ad(!index->is_spatial());
 	ut_ad(!index->is_clust());
 
-	if (!page_cur_search_with_match(block, index, entry, PAGE_CUR_LE,
+	if (!page_cur_search_with_match(entry, PAGE_CUR_LE,
 					&up_match, &low_match, &page_cur,
 					nullptr)
 	    && low_match == dtuple_get_n_fields(entry)) {
@@ -3891,7 +3897,7 @@ ibuf_delete(
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-		page_cur_delete_rec(&page_cur, index, offsets, mtr);
+		page_cur_delete_rec(&page_cur, offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
@@ -4193,13 +4199,14 @@ dberr_t ibuf_merge_or_delete_for_page(buf_block_t *block,
 
 	memset(mops, 0, sizeof(mops));
 	memset(dops, 0, sizeof(dops));
+	pcur.btr_cur.page_cur.index = ibuf.index;
 
 loop:
 	ibuf_mtr_start(&mtr);
 
 	/* Position pcur in the insert buffer at the first entry for this
 	index page */
-	if (btr_pcur_open_on_user_rec(ibuf.index, search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_on_user_rec(search_tuple, PAGE_CUR_GE,
 				      BTR_MODIFY_LEAF, &pcur, &mtr)
 	    != DB_SUCCESS) {
 		err = DB_CORRUPTION;
@@ -4352,7 +4359,6 @@ loop:
 			goto loop;
 		} else if (btr_pcur_is_after_last_on_page(&pcur)) {
 			ibuf_mtr_commit(&mtr);
-			ut_free(pcur.old_rec_buf);
 			goto loop;
 		}
 	}
@@ -4400,13 +4406,15 @@ void ibuf_delete_for_discarded_space(ulint space)
 	search_tuple = ibuf_search_tuple_build(space, 0, heap);
 
 	memset(dops, 0, sizeof(dops));
+	pcur.btr_cur.page_cur.index = ibuf.index;
+
 loop:
 	log_free_check();
 	ibuf_mtr_start(&mtr);
 
 	/* Position pcur in the insert buffer at the first entry for the
 	space */
-	if (btr_pcur_open_on_user_rec(ibuf.index, search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_on_user_rec(search_tuple, PAGE_CUR_GE,
 				      BTR_MODIFY_LEAF, &pcur, &mtr)
 	    != DB_SUCCESS) {
 		goto leave_loop;

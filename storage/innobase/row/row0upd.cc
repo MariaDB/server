@@ -1899,9 +1899,9 @@ row_upd_sec_index_entry(
 	/* Set the query thread, so that ibuf_insert_low() will be
 	able to invoke thd_get_trx(). */
 	btr_pcur_get_btr_cur(&pcur)->thr = thr;
+	pcur.btr_cur.page_cur.index = index;
 
-	search_result = row_search_index_entry(index, entry, mode,
-					       &pcur, &mtr);
+	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
 
 	btr_cur = btr_pcur_get_btr_cur(&pcur);
 

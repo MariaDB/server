@@ -1196,11 +1196,12 @@ row_search_on_row_ref(
 	ut_ad(dtuple_check_typed(ref));
 
 	dict_index_t *index = dict_table_get_first_index(table);
+	btr_pcur_init(pcur);
+	pcur->btr_cur.page_cur.index = index;
 
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
 		ut_ad(ref->is_metadata());
 		ut_ad(ref->n_fields <= index->n_uniq);
-		btr_pcur_init(pcur);
 		if (pcur->open_leaf(true, index, mode, mtr) != DB_SUCCESS
 		    || !btr_pcur_move_to_next_user_rec(pcur, mtr)) {
 			return false;
@@ -1215,7 +1216,7 @@ row_search_on_row_ref(
 			& REC_INFO_MIN_REC_FLAG;
 	} else {
 		ut_a(ref->n_fields == index->n_uniq);
-		if (btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr)
+		if (btr_pcur_open(ref, PAGE_CUR_LE, mode, pcur, 0, mtr)
 		    != DB_SUCCESS) {
 			return false;
 		}
@@ -1265,7 +1266,6 @@ Searches an index record.
 enum row_search_result
 row_search_index_entry(
 /*===================*/
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	entry,	/*!< in: index entry */
 	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor, which must
@@ -1278,12 +1278,12 @@ row_search_index_entry(
 
 	ut_ad(dtuple_check_typed(entry));
 
-	if (index->is_spatial()) {
-		if (rtr_pcur_open(index, entry, mode, pcur, mtr)) {
+	if (pcur->index()->is_spatial()) {
+		if (rtr_pcur_open(pcur->index(), entry, mode, pcur, mtr)) {
 			return ROW_NOT_FOUND;
 		}
 	} else {
-		if (btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr)
+		if (btr_pcur_open(entry, PAGE_CUR_LE, mode, pcur, 0, mtr)
 		    != DB_SUCCESS) {
 			return ROW_NOT_FOUND;
 		}
@@ -1292,7 +1292,7 @@ row_search_index_entry(
 	switch (btr_pcur_get_btr_cur(pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
 		ut_ad(!(~mode & BTR_DELETE));
-		ut_ad(!index->is_spatial());
+		ut_ad(!pcur->index()->is_spatial());
 		return(ROW_NOT_DELETED_REF);
 
 	case BTR_CUR_DEL_MARK_IBUF:

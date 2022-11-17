@@ -2158,10 +2158,11 @@ next_page:
                          &mtr);
     if (!block)
       goto non_empty;
-    btr_leaf_page_release(page_cur_get_block(cur), BTR_SEARCH_LEAF, &mtr);
     page_cur_set_before_first(block, cur);
     if (UNIV_UNLIKELY(!page_cur_move_to_next(cur)))
       goto non_empty;
+    const auto s= mtr.get_savepoint();
+    mtr.rollback_to_savepoint(s - 2, s - 1);
   }
 
   rec= page_cur_get_rec(cur);

@@ -46,13 +46,6 @@ of a scroll cursor easier */
 };
 
 /**************************************************************//**
-Allocates memory for a persistent cursor object and initializes the cursor.
-@return own: persistent cursor */
-btr_pcur_t*
-btr_pcur_create_for_mysql(void);
-/*============================*/
-
-/**************************************************************//**
 Resets a persistent cursor object, freeing ::old_rec_buf if it is
 allocated and resetting the other members to their initial values. */
 void
@@ -60,12 +53,6 @@ btr_pcur_reset(
 /*===========*/
 	btr_pcur_t*	cursor);/*!< in, out: persistent cursor */
 
-/**************************************************************//**
-Frees the memory for a persistent cursor object. */
-void
-btr_pcur_free_for_mysql(
-/*====================*/
-	btr_pcur_t*	cursor);	/*!< in, own: persistent cursor */
 /**************************************************************//**
 Copies the stored position of a pcur to another pcur. */
 void
@@ -83,21 +70,11 @@ btr_pcur_init(
 /*==========*/
 	btr_pcur_t*	pcur);	/*!< in: persistent cursor */
 
-/** Free old_rec_buf.
-@param[in]	pcur	Persistent cursor holding old_rec to be freed. */
-UNIV_INLINE
-void
-btr_pcur_free(
-	btr_pcur_t*	pcur);
-
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. */
 inline
 dberr_t
-btr_pcur_open_low(
-/*==============*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: level in the btree */
+btr_pcur_open(
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
 				NOTE that if the search is made using a unique
@@ -111,11 +88,8 @@ btr_pcur_open_low(
 				(0 if none) */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#define btr_pcur_open(i,t,md,l,c,m)				\
-	btr_pcur_open_low(i,0,t,md,l,c,0,m)
 /** Opens an persistent cursor to an index tree without initializing the
 cursor.
-@param index      index
 @param tuple      tuple on which search done
 @param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
                   unique prefix of a record, mode should be PAGE_CUR_LE, not
@@ -126,7 +100,7 @@ cursor.
 @param mtr        mini-transaction
 @return DB_SUCCESS on success or error code otherwise. */
 inline
-dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
+dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple,
                                    page_cur_mode_t mode,
                                    btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr);
@@ -370,7 +344,7 @@ struct btr_pcur_t
   /** if cursor position is stored, contains an initial segment of the
   latest record cursor was positioned either on, before or after */
   rec_t *old_rec= nullptr;
-  /** btr_cur.index->n_core_fields when old_rec was copied */
+  /** btr_cur.index()->n_core_fields when old_rec was copied */
   uint16 old_n_core_fields= 0;
   /** number of fields in old_rec */
   uint16 old_n_fields= 0;
@@ -390,13 +364,11 @@ struct btr_pcur_t
   trx_t *trx_if_known= nullptr;
   /** a dynamically allocated buffer for old_rec */
   byte *old_rec_buf= nullptr;
-  /** old_rec_buf size if old_rec_buf is not nullptr */
+  /** old_rec_buf size if old_rec_buf is not NULL */
   ulint buf_size= 0;
 
-  btr_pcur_t() : btr_cur() { btr_cur.init(); }
-
   /** Return the index of this persistent cursor */
-  dict_index_t *index() const { return(btr_cur.index); }
+  dict_index_t *index() const { return(btr_cur.index()); }
   MY_ATTRIBUTE((nonnull, warn_unused_result))
   /** Restores the stored position of a persistent cursor bufferfixing
   the page and obtaining the specified latches. If the cursor position
@@ -467,7 +439,6 @@ MY_ATTRIBUTE((nonnull, warn_unused_result))
 inline
 dberr_t
 btr_pcur_open_on_user_rec(
-	dict_index_t*	index,		/*!< in: index */
 	const dtuple_t*	tuple,		/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,		/*!< in: PAGE_CUR_L, ... */
 	btr_latch_mode	latch_mode,	/*!< in: BTR_SEARCH_LEAF or
@@ -478,7 +449,7 @@ btr_pcur_open_on_user_rec(
 {
   ut_ad(mode == PAGE_CUR_GE || mode == PAGE_CUR_G);
   ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
-  if (dberr_t err= btr_pcur_open(index, tuple, mode, latch_mode, cursor, mtr))
+  if (dberr_t err= btr_pcur_open(tuple, mode, latch_mode, cursor, 0, mtr))
     return err;
   if (!btr_pcur_is_after_last_on_page(cursor) ||
       btr_pcur_is_after_last_in_tree(cursor))

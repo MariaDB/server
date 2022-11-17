@@ -299,7 +299,6 @@ SET(INNOBASE_SOURCES
 	include/mem0mem.inl
 	include/mtr0log.h
 	include/mtr0mtr.h
-	include/mtr0mtr.inl
 	include/mtr0types.h
 	include/os0file.h
 	include/os0file.inl

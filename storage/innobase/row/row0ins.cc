@@ -194,8 +194,8 @@ row_ins_sec_index_entry_by_modify(
 
 	rec = btr_cur_get_rec(cursor);
 
-	ut_ad(!dict_index_is_clust(cursor->index));
-	ut_ad(rec_offs_validate(rec, cursor->index, *offsets));
+	ut_ad(!cursor->index()->is_clust());
+	ut_ad(rec_offs_validate(rec, cursor->index(), *offsets));
 	ut_ad(!entry->info_bits);
 
 	/* We know that in the alphabetical ordering, entry and rec are
@@ -204,7 +204,7 @@ row_ins_sec_index_entry_by_modify(
 	difference. */
 
 	update = row_upd_build_sec_rec_difference_binary(
-		rec, cursor->index, *offsets, entry, heap);
+		rec, cursor->index(), *offsets, entry, heap);
 
 	if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))) {
 		/* We should never insert in place of a record that
@@ -218,8 +218,8 @@ row_ins_sec_index_entry_by_modify(
 		returns. After that point, set_committed(true)
 		would be invoked in commit_inplace_alter_table(). */
 		ut_a(update->n_fields == 0);
-		ut_a(!cursor->index->is_committed());
-		ut_ad(!dict_index_is_online_ddl(cursor->index));
+		ut_a(!cursor->index()->is_committed());
+		ut_ad(!dict_index_is_online_ddl(cursor->index()));
 		return(DB_SUCCESS);
 	}
 
@@ -288,15 +288,15 @@ row_ins_clust_index_entry_by_modify(
 	dberr_t		err = DB_SUCCESS;
 	btr_cur_t*	cursor	= btr_pcur_get_btr_cur(pcur);
 	TABLE*		mysql_table = NULL;
-	ut_ad(dict_index_is_clust(cursor->index));
+	ut_ad(cursor->index()->is_clust());
 
 	rec = btr_cur_get_rec(cursor);
 
 	ut_ad(rec_get_deleted_flag(rec,
-				   dict_table_is_comp(cursor->index->table)));
+				   cursor->index()->table->not_redundant()));
 	/* In delete-marked records, DB_TRX_ID must
 	always refer to an existing undo log record. */
-	ut_ad(rec_get_trx_id(rec, cursor->index));
+	ut_ad(rec_get_trx_id(rec, cursor->index()));
 
 	/* Build an update vector containing all the fields to be modified;
 	NOTE that this vector may NOT contain system columns trx_id or
@@ -307,7 +307,7 @@ row_ins_clust_index_entry_by_modify(
 	}
 
 	update = row_upd_build_difference_binary(
-		cursor->index, entry, rec, NULL, true, true,
+		cursor->index(), entry, rec, NULL, true, true,
 		thr_get_trx(thr), heap, mysql_table, &err);
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -1115,7 +1115,7 @@ row_ins_foreign_check_on_constraint(
 		goto nonstandard_exit_func;
 	}
 
-	index = btr_pcur_get_btr_cur(pcur)->index;
+	index = pcur->index();
 
 	ut_a(index == foreign->foreign_index);
 
@@ -1139,7 +1139,8 @@ row_ins_foreign_check_on_constraint(
 		ref = row_build_row_ref(ROW_COPY_POINTERS, index, rec,
 					tmp_heap);
 		cascade->pcur->old_rec = nullptr;
-		err = btr_pcur_open_with_no_init(clust_index, ref,
+		cascade->pcur->btr_cur.page_cur.index = clust_index;
+		err = btr_pcur_open_with_no_init(ref,
 						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
 						 cascade->pcur, mtr);
 		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
@@ -1623,9 +1624,9 @@ row_ins_check_foreign_constraint(
 	n_fields_cmp = dtuple_get_n_fields_cmp(entry);
 
 	dtuple_set_n_fields_cmp(entry, foreign->n_fields);
-
-	err = btr_pcur_open(check_index, entry, PAGE_CUR_GE,
-			    BTR_SEARCH_LEAF, &pcur, &mtr);
+	pcur.btr_cur.page_cur.index = check_index;
+	err = btr_pcur_open(entry, PAGE_CUR_GE, BTR_SEARCH_LEAF, &pcur, 0,
+			    &mtr);
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		goto end_scan;
 	}
@@ -2065,9 +2066,9 @@ row_ins_scan_sec_index_for_duplicate(
 
 	dtuple_set_n_fields_cmp(entry, n_unique);
 	const auto allow_duplicates = thr_get_trx(thr)->duplicates;
-
-	dberr_t err = btr_pcur_open(index, entry, PAGE_CUR_GE, BTR_SEARCH_LEAF,
-				    &pcur, mtr);
+	pcur.btr_cur.page_cur.index = index;
+	dberr_t err = btr_pcur_open(entry, PAGE_CUR_GE, BTR_SEARCH_LEAF,
+				    &pcur, 0, mtr);
 	if (err != DB_SUCCESS) {
 		goto end_scan;
 	}
@@ -2219,11 +2220,11 @@ row_ins_duplicate_error_in_clust_online(
 	dberr_t		err	= DB_SUCCESS;
 	const rec_t*	rec	= btr_cur_get_rec(cursor);
 
-	ut_ad(!cursor->index->is_instant());
+	ut_ad(!cursor->index()->is_instant());
 
 	if (cursor->low_match >= n_uniq && !page_rec_is_infimum(rec)) {
-		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
-					   cursor->index->n_fields,
+		*offsets = rec_get_offsets(rec, cursor->index(), *offsets,
+					   cursor->index()->n_fields,
 					   ULINT_UNDEFINED, heap);
 		err = row_ins_duplicate_online(n_uniq, entry, rec, *offsets);
 		if (err != DB_SUCCESS) {
@@ -2236,8 +2237,8 @@ row_ins_duplicate_error_in_clust_online(
 	}
 
 	if (cursor->up_match >= n_uniq && !page_rec_is_supremum(rec)) {
-		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
-					   cursor->index->n_fields,
+		*offsets = rec_get_offsets(rec, cursor->index(), *offsets,
+					   cursor->index()->n_fields,
 					   ULINT_UNDEFINED, heap);
 		err = row_ins_duplicate_online(n_uniq, entry, rec, *offsets);
 	}
@@ -2270,7 +2271,7 @@ row_ins_duplicate_error_in_clust(
 	rec_offs* offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(dict_index_is_clust(cursor->index));
+	ut_ad(cursor->index()->is_clust());
 
 	/* NOTE: For unique non-clustered indexes there may be any number
 	of delete marked records with the same value for the non-clustered
@@ -2285,15 +2286,17 @@ row_ins_duplicate_error_in_clust(
 	user records on the leaf level. So, even if low_match would suggest
 	that a duplicate key violation may occur, this may not be the case. */
 
-	n_unique = dict_index_get_n_unique(cursor->index);
+	n_unique = dict_index_get_n_unique(cursor->index());
 
 	if (cursor->low_match >= n_unique) {
 
 		rec = btr_cur_get_rec(cursor);
 
 		if (!page_rec_is_infimum(rec)) {
-			offsets = rec_get_offsets(rec, cursor->index, offsets,
-						  cursor->index->n_core_fields,
+			offsets = rec_get_offsets(rec, cursor->index(),
+						  offsets,
+						  cursor->index()
+						  ->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 
 			/* We set a lock on the possible duplicate: this
@@ -2314,13 +2317,13 @@ row_ins_duplicate_error_in_clust(
 				err = row_ins_set_exclusive_rec_lock(
 					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor),
-					rec, cursor->index, offsets, thr);
+					rec, cursor->index(), offsets, thr);
 			} else {
 
 				err = row_ins_set_shared_rec_lock(
 					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor), rec,
-					cursor->index, offsets, thr);
+					cursor->index(), offsets, thr);
 			}
 
 			switch (err) {
@@ -2332,11 +2335,11 @@ row_ins_duplicate_error_in_clust(
 			}
 
 			if (row_ins_dupl_error_with_rec(
-				    rec, entry, cursor->index, offsets)) {
+				    rec, entry, cursor->index(), offsets)) {
 duplicate:
-				trx->error_info = cursor->index;
+				trx->error_info = cursor->index();
 				err = DB_DUPLICATE_KEY;
-				if (cursor->index->table->versioned()
+				if (cursor->index()->table->versioned()
 				    && entry->vers_history_row())
 				{
 					ulint trx_id_len;
@@ -2360,8 +2363,10 @@ duplicate:
 		rec = page_rec_get_next(btr_cur_get_rec(cursor));
 
 		if (rec && !page_rec_is_supremum(rec)) {
-			offsets = rec_get_offsets(rec, cursor->index, offsets,
-						  cursor->index->n_core_fields,
+			offsets = rec_get_offsets(rec, cursor->index(),
+						  offsets,
+						  cursor->index()
+						  ->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 
 			if (trx->duplicates) {
@@ -2374,13 +2379,13 @@ duplicate:
 				err = row_ins_set_exclusive_rec_lock(
 					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor),
-					rec, cursor->index, offsets, thr);
+					rec, cursor->index(), offsets, thr);
 			} else {
 
 				err = row_ins_set_shared_rec_lock(
 					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor),
-					rec, cursor->index, offsets, thr);
+					rec, cursor->index(), offsets, thr);
 			}
 
 			switch (err) {
@@ -2391,7 +2396,7 @@ duplicate:
 				/* fall through */
 			case DB_SUCCESS:
 				if (row_ins_dupl_error_with_rec(
-					    rec, entry, cursor->index,
+					    rec, entry, cursor->index(),
 					    offsets)) {
 					goto duplicate;
 				}
@@ -2433,7 +2438,7 @@ row_ins_must_modify_rec(
 	and a secondary index node pointer contains all index fields. */
 
 	return(cursor->low_match
-	       >= dict_index_get_n_unique_in_tree(cursor->index)
+	       >= dict_index_get_n_unique_in_tree(cursor->index())
 	       && !page_rec_is_infimum(btr_cur_get_rec(cursor)));
 }
 
@@ -2462,6 +2467,7 @@ row_ins_index_entry_big_rec(
 	btr_pcur_t	pcur;
 	rec_t*		rec;
 
+	pcur.btr_cur.page_cur.index = index;
 	ut_ad(index->is_primary());
 
 	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern_latch");
@@ -2473,8 +2479,8 @@ row_ins_index_entry_big_rec(
 		index->set_modified(mtr);
 	}
 
-	dberr_t error = btr_pcur_open(index, entry, PAGE_CUR_LE,
-				      BTR_MODIFY_TREE, &pcur, &mtr);
+	dberr_t error = btr_pcur_open(entry, PAGE_CUR_LE,
+				      BTR_MODIFY_TREE, &pcur, 0, &mtr);
 	if (error != DB_SUCCESS) {
 		return error;
 	}
@@ -2600,8 +2606,8 @@ row_ins_clust_index_entry_low(
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
- 	err = btr_pcur_open_low(index, 0, entry, PAGE_CUR_LE, mode, &pcur,
-				auto_inc, &mtr);
+	pcur.btr_cur.page_cur.index = index;
+	err = btr_pcur_open(entry, PAGE_CUR_LE, mode, &pcur, auto_inc, &mtr);
 	if (err != DB_SUCCESS) {
 		index->table->file_unreadable = true;
 commit_exit:
@@ -2712,7 +2718,7 @@ skip_bulk_insert:
 				/* fall through */
 			case DB_SUCCESS_LOCKED_REC:
 			case DB_DUPLICATE_KEY:
-				trx->error_info = cursor->index;
+				trx->error_info = cursor->index();
 			}
 		} else {
 			/* Note that the following may return also
@@ -2861,6 +2867,7 @@ row_ins_sec_index_entry_low(
 
 	cursor.thr = thr;
 	cursor.rtr_info = NULL;
+	cursor.page_cur.index = index;
 	ut_ad(thr_get_trx(thr)->id != 0);
 
 	mtr.start();
@@ -2878,15 +2885,13 @@ row_ins_sec_index_entry_low(
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
 
-	if (dict_index_is_spatial(index)) {
-		cursor.index = index;
+	if (index->is_spatial()) {
 		rtr_init_rtr_info(&rtr_info, false, &cursor, index, false);
 		rtr_info_update_btr(&cursor, &rtr_info);
 
-		err = btr_cur_search_to_nth_level(
-			index, 0, entry, PAGE_CUR_RTREE_INSERT,
-			search_mode,
-			&cursor, &mtr);
+		err = btr_cur_search_to_nth_level(0, entry,
+						  PAGE_CUR_RTREE_INSERT,
+						  search_mode, &cursor, &mtr);
 
 		if (err == DB_SUCCESS && search_mode == BTR_MODIFY_LEAF
 		    && rtr_info.mbr_adj) {
@@ -2903,9 +2908,8 @@ row_ins_sec_index_entry_low(
 				index->set_modified(mtr);
 			}
 			err = btr_cur_search_to_nth_level(
-				index, 0, entry, PAGE_CUR_RTREE_INSERT,
-				search_mode,
-				&cursor, &mtr);
+				0, entry, PAGE_CUR_RTREE_INSERT,
+				search_mode, &cursor, &mtr);
 		}
 
 		DBUG_EXECUTE_IF(
@@ -2921,10 +2925,8 @@ row_ins_sec_index_entry_low(
 				   : BTR_INSERT));
 		}
 
-		err = btr_cur_search_to_nth_level(
-			index, 0, entry, PAGE_CUR_LE,
-			search_mode,
-			&cursor, &mtr);
+		err = btr_cur_search_to_nth_level(0, entry, PAGE_CUR_LE,
+						  search_mode, &cursor, &mtr);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -3001,7 +3003,7 @@ row_ins_sec_index_entry_low(
 		transaction. Let us now reposition the cursor and
 		continue the insertion (bypassing the change buffer). */
 		err = btr_cur_search_to_nth_level(
-			index, 0, entry, PAGE_CUR_LE,
+			0, entry, PAGE_CUR_LE,
 			btr_latch_mode(search_mode
 				       & ~(BTR_INSERT
 					   | BTR_IGNORE_SEC_UNIQUE)),

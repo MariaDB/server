@@ -96,7 +96,7 @@ btr_cur_get_page(
 Returns the index of a cursor.
 @param cursor b-tree cursor
 @return index */
-#define btr_cur_get_index(cursor) ((cursor)->index)
+#define btr_cur_get_index(cursor) ((cursor)->index())
 /*********************************************************//**
 Positions a tree cursor at a given record. */
 UNIV_INLINE
@@ -148,7 +148,6 @@ to node pointer page number fields on the upper levels of the tree!
 Note that if mode is PAGE_CUR_LE, which is used in inserts, then
 cursor->up_match and cursor->low_match both will have sensible values.
 If mode is PAGE_CUR_GE, then up_match will a have a sensible value.
-@param index      index
 @param level      the tree level of search
 @param tuple      data tuple; NOTE: n_fields_cmp in tuple must be set so that
                   it cannot get compared to the node ptr page number field!
@@ -166,27 +165,12 @@ If mode is PAGE_CUR_GE, then up_match will a have a sensible value.
 @param mtr        mini-transaction
 @param autoinc    PAGE_ROOT_AUTO_INC to be written (0 if none)
 @return DB_SUCCESS on success or error code otherwise */
-dberr_t btr_cur_search_to_nth_level(dict_index_t *index, ulint level,
+dberr_t btr_cur_search_to_nth_level(ulint level,
                                     const dtuple_t *tuple,
                                     page_cur_mode_t mode,
                                     btr_latch_mode latch_mode,
                                     btr_cur_t *cursor, mtr_t *mtr,
                                     ib_uint64_t autoinc= 0);
-
-/*****************************************************************//**
-Opens a cursor at either end of an index.
-@return DB_SUCCESS or error code */
-dberr_t
-btr_cur_open_at_index_side(
-	bool		from_left,	/*!< in: true if open to the low end,
-					false if to the high end */
-	dict_index_t*	index,		/*!< in: index */
-	btr_latch_mode	latch_mode,	/*!< in: latch mode */
-	btr_cur_t*	cursor,		/*!< in/out: cursor */
-	ulint		level,		/*!< in: level to search for
-					(0=leaf) */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
@@ -282,7 +266,6 @@ btr_cur_update_alloc_zip_func(
 /*==========================*/
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	page_cur_t*	cursor,	/*!< in/out: B-tree page cursor */
-	dict_index_t*	index,	/*!< in: the index corresponding to cursor */
 #ifdef UNIV_DEBUG
 	rec_offs*	offsets,/*!< in/out: offsets of the cursor record */
 #endif /* UNIV_DEBUG */
@@ -292,11 +275,11 @@ btr_cur_update_alloc_zip_func(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #ifdef UNIV_DEBUG
-# define btr_cur_update_alloc_zip(page_zip,cursor,index,offsets,len,cr,mtr) \
-	btr_cur_update_alloc_zip_func(page_zip,cursor,index,offsets,len,cr,mtr)
+# define btr_cur_update_alloc_zip(page_zip,cursor,offsets,len,cr,mtr) \
+	btr_cur_update_alloc_zip_func(page_zip,cursor,offsets,len,cr,mtr)
 #else /* UNIV_DEBUG */
-# define btr_cur_update_alloc_zip(page_zip,cursor,index,offsets,len,cr,mtr) \
-	btr_cur_update_alloc_zip_func(page_zip,cursor,index,len,cr,mtr)
+# define btr_cur_update_alloc_zip(page_zip,cursor,offsets,len,cr,mtr) \
+	btr_cur_update_alloc_zip_func(page_zip,cursor,len,cr,mtr)
 #endif /* UNIV_DEBUG */
 
 /** Apply an update vector to a record. No field size changes are allowed.
@@ -753,7 +736,6 @@ enum btr_cur_method {
 /** The tree cursor: the definition appears here only for the compiler
 to know struct size! */
 struct btr_cur_t {
-	dict_index_t*	index;		/*!< index where positioned */
 	page_cur_t	page_cur;	/*!< page cursor */
 	purge_node_t*	purge_node;	/*!< purge node, for BTR_DELETE */
 	buf_block_t*	left_block;	/*!< this field is used to store
@@ -818,28 +800,10 @@ struct btr_cur_t {
 					information of the path through
 					the tree */
 	rtr_info_t*	rtr_info;	/*!< rtree search info */
-	btr_cur_t():thr(NULL), rtr_info(NULL) {}
-					/* default values */
-	/** Zero-initialize all fields */
-	void init()
-	{
-		index = NULL;
-		memset(&page_cur, 0, sizeof page_cur);
-		purge_node = NULL;
-		left_block = NULL;
-		thr = NULL;
-		flag = btr_cur_method(0);
-		tree_height = 0;
-		up_match = 0;
-		up_bytes = 0;
-		low_match = 0;
-		low_bytes = 0;
-		n_fields = 0;
-		n_bytes = 0;
-		fold = 0;
-		path_arr = NULL;
-		rtr_info = NULL;
-	}
+  btr_cur_t() { memset((void*) this, 0, sizeof *this); }
+
+  dict_index_t *index() const { return page_cur.index; }
+  buf_block_t *block() const { return page_cur.block; }
 
   /** Open the cursor on the first or last record.
   @param first         true=first record, false=last record

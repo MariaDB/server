@@ -257,9 +257,10 @@ public:
 	}
 
 	/** Position the cursor on the first user record. */
-	rec_t* open(buf_block_t* block) noexcept
+	rec_t* open(buf_block_t* block, const dict_index_t* index) noexcept
 		MY_ATTRIBUTE((warn_unused_result))
 	{
+		m_cur.index = const_cast<dict_index_t*>(index);
 		page_cur_set_before_first(block, &m_cur);
 		return next();
 	}
@@ -289,10 +290,9 @@ public:
 
 	/** Remove the current record
 	@return true on success */
-	bool remove(
-		const dict_index_t*	index,
-		rec_offs*		offsets) UNIV_NOTHROW
+	bool remove(rec_offs* offsets) UNIV_NOTHROW
 	{
+		const dict_index_t* const index = m_cur.index;
 		ut_ad(page_is_leaf(m_cur.block->page.frame));
 		/* We can't end up with an empty page unless it is root. */
 		if (page_get_n_recs(m_cur.block->page.frame) <= 1) {
@@ -315,7 +315,7 @@ public:
 			     page_zip, m_cur.block->page.frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-		page_cur_delete_rec(&m_cur, index, offsets, &m_mtr);
+		page_cur_delete_rec(&m_cur, offsets, &m_mtr);
 
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(
@@ -1734,10 +1734,8 @@ re-organising the B+tree.
 @return true if purge succeeded */
 inline bool PageConverter::purge() UNIV_NOTHROW
 {
-	const dict_index_t*	index = m_index->m_srv_index;
-
 	/* We can't have a page that is empty and not root. */
-	if (m_rec_iter.remove(index, m_offsets)) {
+	if (m_rec_iter.remove(m_offsets)) {
 
 		++m_index->m_stats.m_n_purged;
 
@@ -1801,7 +1799,7 @@ PageConverter::update_records(
 
 	/* This will also position the cursor on the first user record. */
 
-	if (!m_rec_iter.open(block)) {
+	if (!m_rec_iter.open(block, m_index->m_srv_index)) {
 		return DB_CORRUPTION;
 	}
 

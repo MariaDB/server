@@ -30,25 +30,6 @@ Created 2/23/1996 Heikki Tuuri
 #include "trx0trx.h"
 
 /**************************************************************//**
-Allocates memory for a persistent cursor object and initializes the cursor.
-@return own: persistent cursor */
-btr_pcur_t*
-btr_pcur_create_for_mysql(void)
-/*============================*/
-{
-	btr_pcur_t*	pcur;
-	DBUG_ENTER("btr_pcur_create_for_mysql");
-
-	pcur = (btr_pcur_t*) ut_malloc_nokey(sizeof(btr_pcur_t));
-
-	pcur->btr_cur.index = NULL;
-	btr_pcur_init(pcur);
-
-	DBUG_PRINT("btr_pcur_create_for_mysql", ("pcur: %p", pcur));
-	DBUG_RETURN(pcur);
-}
-
-/**************************************************************//**
 Resets a persistent cursor object, freeing ::old_rec_buf if it is
 allocated and resetting the other members to their initial values. */
 void
@@ -56,31 +37,15 @@ btr_pcur_reset(
 /*===========*/
 	btr_pcur_t*	cursor)	/*!< in, out: persistent cursor */
 {
-	btr_pcur_free(cursor);
+	ut_free(cursor->old_rec_buf);
+	memset(&cursor->btr_cur.page_cur, 0, sizeof(page_cur_t));
 	cursor->old_rec_buf = NULL;
-	cursor->btr_cur.index = NULL;
-	cursor->btr_cur.page_cur.rec = NULL;
 	cursor->old_rec = NULL;
 	cursor->old_n_core_fields = 0;
 	cursor->old_n_fields = 0;
 
 	cursor->latch_mode = BTR_NO_LATCHES;
 	cursor->pos_state = BTR_PCUR_NOT_POSITIONED;
-}
-
-/**************************************************************//**
-Frees the memory for a persistent cursor object. */
-void
-btr_pcur_free_for_mysql(
-/*====================*/
-	btr_pcur_t*	cursor)	/*!< in, own: persistent cursor */
-{
-	DBUG_ENTER("btr_pcur_free_for_mysql");
-	DBUG_PRINT("btr_pcur_free_for_mysql", ("pcur: %p", cursor));
-
-	btr_pcur_free(cursor);
-	ut_free(cursor);
-	DBUG_VOID_RETURN;
 }
 
 /**************************************************************//**
@@ -329,11 +294,10 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 	ut_a(old_n_core_fields <= index->n_core_fields);
 	ut_a(old_n_fields);
 
-	switch (restore_latch_mode) {
-	default:
-		break;
-	case BTR_SEARCH_LEAF:
-	case BTR_MODIFY_LEAF:
+	static_assert(BTR_SEARCH_PREV == (4 | BTR_SEARCH_LEAF), "");
+	static_assert(BTR_MODIFY_PREV == (4 | BTR_MODIFY_LEAF), "");
+
+	switch (restore_latch_mode | 4) {
 	case BTR_SEARCH_PREV:
 	case BTR_MODIFY_PREV:
 		/* Try optimistic restoration. */
@@ -418,7 +382,7 @@ btr_pcur_t::restore_position(btr_latch_mode restore_latch_mode, mtr_t *mtr)
 		mode = PAGE_CUR_UNSUPP;
 	}
 
-	if (btr_pcur_open_with_no_init(index, tuple, mode, restore_latch_mode,
+	if (btr_pcur_open_with_no_init(tuple, mode, restore_latch_mode,
 				       this, mtr) != DB_SUCCESS) {
 		mem_heap_free(heap);
 		return restore_status::CORRUPTED;
@@ -512,7 +476,7 @@ btr_pcur_move_to_next_page(
 
 	dberr_t err;
 	buf_block_t* next_block = btr_block_get(
-		*btr_pcur_get_btr_cur(cursor)->index, next_page_no, mode,
+		*cursor->index(), next_page_no, mode,
 		page_is_leaf(page), mtr, &err);
 
 	if (UNIV_UNLIKELY(!next_block)) {
@@ -526,12 +490,13 @@ btr_pcur_move_to_next_page(
 		return DB_CORRUPTION;
 	}
 
-	btr_leaf_page_release(btr_pcur_get_block(cursor), mode, mtr);
-
 	page_cur_set_before_first(next_block, btr_pcur_get_page_cur(cursor));
 
 	ut_d(page_check_dir(next_page));
-	return err;
+
+	const auto s = mtr->get_savepoint();
+	mtr->rollback_to_savepoint(s - 2, s - 1);
+	return DB_SUCCESS;
 }
 
 MY_ATTRIBUTE((nonnull,warn_unused_result))
@@ -573,26 +538,26 @@ btr_pcur_move_backward_from_page(
 		return true;
 	}
 
-	buf_block_t* prev_block = btr_pcur_get_btr_cur(cursor)->left_block;
+	buf_block_t* release_block = nullptr;
 
 	if (!page_has_prev(btr_pcur_get_page(cursor))) {
 	} else if (btr_pcur_is_before_first_on_page(cursor)) {
-		btr_leaf_page_release(btr_pcur_get_block(cursor),
-				      latch_mode, mtr);
-
-		page_cur_set_after_last(prev_block,
+		release_block = btr_pcur_get_block(cursor);
+		page_cur_set_after_last(cursor->btr_cur.left_block,
 					btr_pcur_get_page_cur(cursor));
 	} else {
 		/* The repositioned cursor did not end on an infimum
 		record on a page. Cursor repositioning acquired a latch
 		also on the previous page, but we do not need the latch:
 		release it. */
-		prev_block = btr_pcur_get_btr_cur(cursor)->left_block;
-		btr_leaf_page_release(prev_block, latch_mode, mtr);
+		release_block = cursor->btr_cur.left_block;
 	}
 
 	cursor->latch_mode = latch_mode;
 	cursor->old_rec = nullptr;
+	if (release_block) {
+		mtr->release(*release_block);
+	}
 	return false;
 }
 

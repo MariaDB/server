@@ -3357,9 +3357,10 @@ fts_add_doc_by_id(
 
 	mach_write_to_8((byte*) &temp_doc_id, doc_id);
 	dfield_set_data(dfield, &temp_doc_id, sizeof(temp_doc_id));
+	pcur.btr_cur.page_cur.index = fts_id_index;
 
 	/* If we have a match, add the data to doc structure */
-	if (btr_pcur_open_with_no_init(fts_id_index, tuple, PAGE_CUR_LE,
+	if (btr_pcur_open_with_no_init(tuple, PAGE_CUR_LE,
 				       BTR_SEARCH_LEAF, &pcur, &mtr)
 	    == DB_SUCCESS
 	    && btr_pcur_get_low_match(&pcur) == 1) {
@@ -3386,7 +3387,6 @@ fts_add_doc_by_id(
 			dtuple_t*	clust_ref;
 			ulint		n_fields;
 
-			btr_pcur_init(&clust_pcur);
 			n_fields = dict_index_get_n_unique(clust_index);
 
 			clust_ref = dtuple_create(heap, n_fields);
@@ -3394,8 +3394,9 @@ fts_add_doc_by_id(
 
 			row_build_row_ref_in_tuple(
 				clust_ref, rec, fts_id_index, NULL);
+			clust_pcur.btr_cur.page_cur.index = clust_index;
 
-			if (btr_pcur_open_with_no_init(clust_index, clust_ref,
+			if (btr_pcur_open_with_no_init(clust_ref,
 						       PAGE_CUR_LE,
 						       BTR_SEARCH_LEAF,
 						       &clust_pcur, &mtr)

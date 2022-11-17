@@ -132,17 +132,6 @@ inline uint32_t btr_page_get_prev(const page_t* page)
 }
 
 /**************************************************************//**
-Releases the latch on a leaf page and bufferunfixes it. */
-UNIV_INLINE
-void
-btr_leaf_page_release(
-/*==================*/
-	buf_block_t*	block,		/*!< in: buffer block */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF or
-					BTR_MODIFY_LEAF */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
-/**************************************************************//**
 Gets the child node file address in a node pointer.
 NOTE: the offsets array must contain all offsets for the record since
 we read the last field according to offsets and assume that it contains
@@ -262,15 +251,12 @@ be done either within the same mini-transaction, or by invoking
 ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
 IBUF_BITMAP_FREE is unaffected by reorganization.
 
+@param cursor  page cursor
+@param mtr     mini-transaction
 @return error code
 @retval DB_FAIL if reorganizing a ROW_FORMAT=COMPRESSED page failed */
-dberr_t
-btr_page_reorganize(
-/*================*/
-	page_cur_t*	cursor,	/*!< in/out: page cursor */
-	dict_index_t*	index,	/*!< in: the index tree of the page */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+dberr_t btr_page_reorganize(page_cur_t *cursor, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Decide if the page should be split at the convergence point of inserts
 converging to the left.
 @param[in]	cursor	insert position
@@ -348,13 +334,10 @@ inline void btr_set_min_rec_mark(rec_t *rec, const buf_block_t &block,
 }
 
 /** Seek to the parent page of a B-tree page.
-@param[in,out]	index	b-tree
-@param[in]	block	child page
 @param[in,out]	mtr	mini-transaction
-@param[out]	cursor	cursor pointing to the x-latched parent page
+@param[in,out]	cursor	cursor pointing to the x-latched parent page
 @return whether the cursor was successfully positioned */
-bool btr_page_get_father(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
-			 btr_cur_t* cursor)
+bool btr_page_get_father(mtr_t* mtr, btr_cur_t* cursor)
 	MY_ATTRIBUTE((nonnull,warn_unused_result));
 #ifdef UNIV_DEBUG
 /************************************************************//**

@@ -363,7 +363,6 @@ Searches an index record.
 enum row_search_result
 row_search_index_entry(
 /*===================*/
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	entry,	/*!< in: index entry */
 	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor, which must

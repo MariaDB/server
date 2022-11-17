@@ -299,24 +299,11 @@ btr_pcur_init(
 	pcur->btr_cur.rtr_info = NULL;
 }
 
-/** Free old_rec_buf.
-@param[in]	pcur	Persistent cursor holding old_rec to be freed. */
-UNIV_INLINE
-void
-btr_pcur_free(
-	btr_pcur_t*	pcur)
-{
-	ut_free(pcur->old_rec_buf);
-}
-
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. */
 inline
 dberr_t
-btr_pcur_open_low(
-/*==============*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: level in the btree */
+btr_pcur_open(
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
 				NOTE that if the search is made using a unique
@@ -330,20 +317,18 @@ btr_pcur_open_low(
 				(0 if none) */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-  ut_ad(!index->is_spatial());
-  btr_pcur_init(cursor);
+  ut_ad(!cursor->index()->is_spatial());
   cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
   cursor->trx_if_known= nullptr;
-  return btr_cur_search_to_nth_level(index, level, tuple, mode, latch_mode,
+  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode,
                                      btr_pcur_get_btr_cur(cursor),
                                      mtr, autoinc);
 }
 
 /** Opens an persistent cursor to an index tree without initializing the
 cursor.
-@param index      index
 @param tuple      tuple on which search done
 @param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
                   unique prefix of a record, mode should be PAGE_CUR_LE, not
@@ -354,7 +339,7 @@ cursor.
 @param mtr        mini-transaction
 @return DB_SUCCESS on success or error code otherwise. */
 inline
-dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
+dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple,
                                    page_cur_mode_t mode,
                                    btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr)
@@ -365,7 +350,7 @@ dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
   cursor->trx_if_known= nullptr;
 
   /* Search with the tree cursor */
-  return btr_cur_search_to_nth_level(index, 0, tuple, mode, latch_mode,
+  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode,
                                      btr_pcur_get_btr_cur(cursor), mtr);
 }
 

@@ -167,14 +167,12 @@ page_cur_tuple_insert(
 /*==================*/
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	rec_t*		rec;
-	ulint		size = rec_get_converted_size(index, tuple, n_ext);
+	ulint size = rec_get_converted_size(cursor->index, tuple, n_ext);
 
 	if (!*heap) {
 		*heap = mem_heap_create(size
@@ -183,21 +181,20 @@ page_cur_tuple_insert(
 					* sizeof **offsets);
 	}
 
-	rec = rec_convert_dtuple_to_rec((byte*) mem_heap_alloc(*heap, size),
-					index, tuple, n_ext);
+	rec_t* rec = rec_convert_dtuple_to_rec(
+		static_cast<byte*>(mem_heap_alloc(*heap, size)),
+		cursor->index, tuple, n_ext);
 
-	*offsets = rec_get_offsets(rec, index, *offsets,
+	*offsets = rec_get_offsets(rec, cursor->index, *offsets,
 				   page_is_leaf(cursor->block->page.frame)
-				   ? index->n_core_fields : 0,
+				   ? cursor->index->n_core_fields : 0,
 				   ULINT_UNDEFINED, heap);
 	ut_ad(size == rec_offs_size(*offsets));
 
 	if (is_buf_block_get_page_zip(cursor->block)) {
-		rec = page_cur_insert_rec_zip(
-			cursor, index, rec, *offsets, mtr);
+		rec = page_cur_insert_rec_zip(cursor, rec, *offsets, mtr);
 	} else {
-		rec = page_cur_insert_rec_low(cursor,
-					      index, rec, *offsets, mtr);
+		rec = page_cur_insert_rec_low(cursor, rec, *offsets, mtr);
 	}
 
 	ut_ad(!rec || !cmp_dtuple_rec(tuple, rec, *offsets));

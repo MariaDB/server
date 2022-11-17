@@ -594,7 +594,7 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
 
       if (undo_block != block)
       {
-        mtr.memo_release(undo_block, MTR_MEMO_PAGE_S_FIX);
+        mtr.release(*undo_block);
         undo_block= block;
       }
       trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info,
