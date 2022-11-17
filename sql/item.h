@@ -1868,6 +1868,11 @@ public:
   }
 
   virtual Item* transform(THD *thd, Item_transformer transformer, uchar *arg);
+  virtual Item* top_level_transform(THD *thd, Item_transformer transformer,
+                                    uchar *arg)
+  {
+    return transform(thd, transformer, arg);
+  }
 
   /*
     This function performs a generic "compilation" of the Item tree.
@@ -1891,6 +1896,11 @@ public:
     if ((this->*analyzer) (arg_p))
       return ((this->*transformer) (thd, arg_t));
     return 0;
+  }
+  virtual Item* top_level_compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                                  Item_transformer transformer, uchar *arg_t)
+  {
+    return compile(thd, analyzer, arg_p, transformer, arg_t);
   }
 
    virtual void traverse_cond(Cond_traverser traverser,

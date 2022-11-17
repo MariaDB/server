@@ -5032,7 +5032,8 @@ bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
+Item *Item_cond::do_transform(THD *thd, Item_transformer transformer, uchar *arg,
+                              bool toplevel)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
@@ -5040,7 +5041,8 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
   Item *item;
   while ((item= li++))
   {
-    Item *new_item= item->transform(thd, transformer, arg);
+    Item *new_item= toplevel ? item->top_level_transform(thd, transformer, arg)
+                             : item->transform(thd, transformer, arg);
     if (!new_item)
       return 0;
 
@@ -5050,7 +5052,9 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
       Otherwise we'll be allocating a lot of unnecessary memory for
       change records at each execution.
     */
-    if (new_item != item)
+    if (toplevel)
+      *li.ref()= new_item;
+    else if (new_item != item)
       thd->change_item_tree(li.ref(), new_item);
   }
   return Item_func::transform(thd, transformer, arg);
@@ -5081,8 +5085,8 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
-                         Item_transformer transformer, uchar *arg_t)
+Item *Item_cond::do_compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                      Item_transformer transformer, uchar *arg_t, bool toplevel)
 {
   if (!(this->*analyzer)(arg_p))
     return 0;
@@ -5097,7 +5101,11 @@ Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
     */   
     uchar *arg_v= *arg_p;
     Item *new_item= item->compile(thd, analyzer, &arg_v, transformer, arg_t);
-    if (new_item && new_item != item)
+    if (!new_item || new_item == item)
+      continue;
+    if (toplevel)
+      *li.ref()= new_item;
+    else
       thd->change_item_tree(li.ref(), new_item);
   }
   return Item_func::transform(thd, transformer, arg_t);
