@@ -19035,8 +19035,10 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       {
         /*
           Copy default value. We have to use field_conv() for copy, instead of
-          memcpy(), because bit_fields may be stored differently
+          memcpy(), because bit_fields may be stored differently.
+          But otherwise we copy as is, in particular, ignore NO_ZERO_DATE, etc
         */
+        Use_relaxed_field_copy urfc(thd);
         my_ptrdiff_t ptr_diff= (orig_field->table->s->default_values -
                                 orig_field->table->record[0]);
         field->set_notnull();

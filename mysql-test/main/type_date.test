@@ -785,5 +785,22 @@ DROP TABLE t2;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-29890 Update with inner join false row count result
+--echo #
+set sql_mode='NO_ZERO_DATE';
+create table t1 (a1 bigint primary key, a2 date not null, a3 bigint not null);
+create table t2 (b1 bigint primary key);
+insert into t2 (b1) values (1);
+insert into t1 (a1, a2, a3) values (1, current_date, 1),( 2, current_date, 1);
+update t1 inner join t2 on t1.a3 = t2.b1 set t1.a2 = t1.a2 + interval 1 day;
+select row_count();
+set sql_mode='';
+alter table t1 modify a2 date not null default '0000-00-00';
+set sql_mode='NO_ZERO_DATE';
+update t1 inner join t2 on t1.a3 = t2.b1 set t1.a2 = t1.a2 + interval 1 day;
+drop table t1, t2;
+set sql_mode=default;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
