@@ -7225,7 +7225,7 @@ bool Item_null::send(Protocol *protocol, st_value *buffer)
 
 bool Item::cache_const_expr_analyzer(uchar **arg)
 {
-  bool *cache_flag= (bool*)*arg;
+  uchar *cache_flag= *arg;
   if (!*cache_flag)
   {
     Item *item= real_item();
@@ -7264,9 +7264,9 @@ bool Item::cache_const_expr_analyzer(uchar **arg)
 
 Item* Item::cache_const_expr_transformer(THD *thd, uchar *arg)
 {
-  if (*(bool*)arg)
+  if (*arg)
   {
-    *((bool*)arg)= FALSE;
+    *arg= FALSE;
     Item_cache *cache= get_cache(thd);
     if (!cache)
       return NULL;
