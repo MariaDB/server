@@ -337,12 +337,22 @@ EOF
 --echo # MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
 --echo #
 
+# take 2rd number of version and change to 0. If the 2rd number is already 0,
+# change the first number
 let DATADIR= $MYSQLD_DATADIR;
 
 perl;
   my $ver= $ENV{'MYSQL_SERVER_VERSION'} or die "MYSQL_SERVER_VERSION not set";
   my $file= $ENV{'DATADIR'} or die "MYSQLD_DATADIR not set";
-  $ver =~ s/^(\d*)\.(\d*).(\d*)(.*)/10.11.2$4/;
+  if ($ver =~ m/(\d*)\.0\.(\d*)(.*)/)
+  {
+     my $prev= $1-1;
+     $ver= $prev . '.0.' . $2 . $3;
+  }
+  else
+  {
+    $ver =~ s/^(\d*)\.(\d*)\.(\d*)(.*)/$1.0.$3$4/;
+  }
   open(FILE, ">$file/mysql_upgrade_info") or die "Failed to open $file";
   print FILE "$ver\n";
   close(FILE);
