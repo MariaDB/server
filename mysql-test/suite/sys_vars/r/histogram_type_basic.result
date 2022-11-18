@@ -10,7 +10,7 @@ SET @@global.histogram_type = 1;
 SET @@global.histogram_type = DEFAULT;
 SELECT @@global.histogram_type;
 @@global.histogram_type
-DOUBLE_PREC_HB
+JSON_HB
 SET @@global.histogram_type = 0;
 SELECT @@global.histogram_type;
 @@global.histogram_type
