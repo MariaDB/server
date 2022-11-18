@@ -2800,9 +2800,10 @@ bool sp_process_definer(THD *thd)
   }
   else
   {
-    LEX_USER *d= lex->definer= get_current_user(thd, lex->definer);
+    LEX_USER *d= get_current_user(thd, lex->definer);
     if (!d)
       DBUG_RETURN(TRUE);
+    thd->change_item_tree((Item**)&lex->definer, (Item*)d);
 
     /*
       If the specified definer differs from the current user or role, we
