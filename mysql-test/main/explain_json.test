@@ -11,10 +11,13 @@ drop table if exists t0,t1,t2;
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
+--source include/explain-no-costs.inc
 explain format=json select * from t0;
 
+--source include/explain-no-costs.inc
 explain format=json select * from t0 where 1>2;
 
+--source include/explain-no-costs.inc
 explain format=json select * from t0 where a<3;
 
 --echo # Try a basic join
@@ -26,22 +29,28 @@ select
   'filler'
 from t0 a, t0 b, t0 c;
 
+--source include/explain-no-costs.inc
 explain format=json select * from t0,t1 where t1.a=t0.a;
 
 --echo # Try range and index_merge
 create table t2 (a1 int, a2 int, b1 int, b2 int, key(a1,a2), key(b1,b2)); 
 insert into t2 select a,a,a,a from t1;
 
+--source include/explain-no-costs.inc
 explain format=json select * from t2 where a1<5;
 
+--source include/explain-no-costs.inc
 explain format=json select * from t2 where a1=1 or b1=2;
+--source include/explain-no-costs.inc
 explain format=json select * from t2 where a1=1 or (b1=2 and b2=3);
 
+--source include/explain-no-costs.inc
 explain format=json select * from t2 where (a1=1 and a2=1) or 
                                            (b1=2 and b2=1);
 
 --echo # Try ref access on two key components
 
+--source include/explain-no-costs.inc
 explain format=json select * from t0,t2 where t2.b1=t0.a and t2.b2=4;
 
 drop table t1,t2;
@@ -49,7 +58,9 @@ drop table t1,t2;
 --echo #
 --echo # Try a UNION
 --echo #
+--source include/explain-no-costs.inc
 explain format=json select * from t0 A union     select * from t0 B;
+--source include/explain-no-costs.inc
 explain format=json select * from t0 A union all select * from t0 B;
 
 --echo #
@@ -57,8 +68,10 @@ explain format=json select * from t0 A union all select * from t0 B;
 --echo #
 create table t1 (a int, b int);
 insert into t1 select a,a from t0;
+--source include/explain-no-costs.inc
 explain format=json select a, a > (select max(b) from t1 where t1.b=t0.a) from t0;
 
+--source include/explain-no-costs.inc
 explain format=json 
 select * from t0 where 
   a > (select max(b) from t1 where t1.b=t0.a) or a < 3 ;
@@ -71,6 +84,7 @@ drop table t1;
 create table t1 (a int, b int);
 insert into t1 select tbl1.a+10*tbl2.a, tbl1.a+10*tbl2.a from t0 tbl1, t0 tbl2;
 
+--source include/explain-no-costs.inc
 explain format=json
 select * from t1 tbl1, t1 tbl2 where tbl1.a=tbl2.a and tbl1.b < 3 and tbl2.b < 5;
 
@@ -79,16 +93,22 @@ drop table t1;
 --echo #
 --echo # Single-table UPDATE/DELETE, INSERT
 --echo #
+--source include/explain-no-costs.inc
 explain format=json delete from t0;
+--source include/explain-no-costs.inc
 explain format=json delete from t0 where 1 > 2;
 
+--source include/explain-no-costs.inc
 explain format=json delete from t0 where a < 3;
 
+--source include/explain-no-costs.inc
 explain format=json update t0 set a=3 where a in (2,3,4);
 
+--source include/explain-no-costs.inc
 explain format=json insert into t0 values (1);
 
 create table t1 like t0;
+--source include/explain-no-costs.inc
 explain format=json insert into t1 values ((select max(a) from t0));
 
 drop table t1;
@@ -98,10 +118,12 @@ drop table t1;
 --echo #
 create table t1 (a int, b int);
 insert into t1 select a,a from t0;
+--source include/explain-no-costs.inc
 explain format=json
 select * from (select a, count(*) as cnt from t1 group by a) as tbl
 where cnt>0;
 
+--source include/explain-no-costs.inc
 explain format=json
 select * from (select a, count(*) as cnt from t1 group by a) as tbl1, t1 as
 tbl2 where cnt=tbl2.a;
@@ -109,6 +131,7 @@ tbl2 where cnt=tbl2.a;
 --echo #
 --echo # Non-merged semi-join (aka JTBM)
 --echo #
+--source include/explain-no-costs.inc
 explain format=json 
 select * from t1 where a in (select max(a) from t1 group by b);
 
@@ -117,6 +140,7 @@ select * from t1 where a in (select max(a) from t1 group by b);
 --echo #
 create table t2 like t1;
 insert into t2 select * from t1;
+--source include/explain-no-costs.inc
 explain format=json
 select * from t1,t2 where t1.a in ( select seq+0 from seq_1_to_100);
 
@@ -125,6 +149,7 @@ select * from t1,t2 where t1.a in ( select seq+0 from seq_1_to_100);
 --echo # 
 explain
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+--source include/explain-no-costs.inc
 explain format=json
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
 
@@ -135,6 +160,7 @@ set @tmp= @@optimizer_switch;
 set optimizer_switch='firstmatch=off';
 explain
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+--source include/explain-no-costs.inc
 explain format=json
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
 set optimizer_switch=@tmp;
@@ -149,10 +175,12 @@ insert into t1 select tbl1.a+10*tbl2.a, 12345 from t0 tbl1, t0 tbl2;
 set @tmp= @@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on';
 
+--source include/explain-no-costs.inc
 explain format=json select * from t1 where a < 3;
 
 --echo # 'Range checked for each record'
 set optimizer_switch=@tmp;
+--source include/explain-no-costs.inc
 explain format=json
 select * from t1 tbl1, t1 tbl2 where tbl2.a < tbl1.b;
 
@@ -169,6 +197,7 @@ INSERT INTO t1 VALUES (1),(2),(5),(6),(7);
 CREATE TABLE t2 (b INT);
 INSERT INTO t2 VALUES (3),(4),(9),(10),(11);
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON SELECT * FROM t1 AS outer_t1 WHERE a <> ALL ( SELECT a FROM t1, t2 WHERE b <> outer_t1.a );
 
 DROP TABLE t1,t2;
@@ -182,6 +211,7 @@ insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1(a int, b int);
 insert into t1 select tbl1.a+10*tbl2.a, 1234 from t0 tbl1, t0 tbl2;
 
+--source include/explain-no-costs.inc
 explain format=json 
 select * from t0 
 where 
@@ -200,6 +230,7 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t2 (b INT);
 INSERT INTO t2 VALUES (3),(4);
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a <> ALL ( SELECT b FROM t2 );
 DROP TABLE t1, t2;
 
@@ -221,6 +252,7 @@ insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, c int, d int, key(a,b,c));
 insert into t1 select  A.a, B.a, C.a, D.a from t2 A, t2 B, t2 C, t2 D;
 explain select count(distinct b) from t1 group by a;
+--source include/explain-no-costs.inc
 explain format=json select count(distinct b) from t1 group by a;
 --source include/analyze-format.inc
 analyze format=json select count(distinct b) from t1 group by a;
@@ -278,10 +310,13 @@ explain select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 explain select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
 explain select count(distinct a1,a2,b) from t1 where a1 >= "" and (a2 >= 'b') and (b = 'a');
 
+--source include/explain-no-costs.inc
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 
+--source include/explain-no-costs.inc
 explain format=json select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
 
+--source include/explain-no-costs.inc
 explain format=json select count(distinct a1,a2,b) from t1 where a1 >= "" and (a2 >= 'b') and (b = 'a');
 drop table t1;
 
@@ -290,6 +325,7 @@ drop table t1;
 --echo #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES ('a'),('b');
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a=_latin1 0xDF;
 DROP TABLE t1;
 
@@ -298,6 +334,7 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES ('a'),('A');
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE NULLIF(a,_utf8'a' COLLATE utf8_bin);
 DROP TABLE t1;
 
@@ -315,12 +352,16 @@ create table t2 (
 );
 insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
 --echo # normal HAVING
+--source include/explain-no-costs.inc
 explain format=json select a, max(b) as TOP from t2 group by a having TOP > a;
 --echo # HAVING is always TRUE (not printed)
+--source include/explain-no-costs.inc
 explain format=json select a, max(b) as TOP from t2 group by a having 1<>2;
 --echo # HAVING is always FALSE (intercepted by message)
+--source include/explain-no-costs.inc
 explain format=json select a, max(b) as TOP from t2 group by a having 1=2;
 --echo # HAVING is absent
+--source include/explain-no-costs.inc
 explain format=json select a, max(b) as TOP from t2 group by a;
 drop table t0, t1, t2;
 
@@ -332,6 +373,7 @@ drop table t0, t1, t2;
 create table t1 (i int) engine=myisam;
 explain 
 select * from t1;
+--source include/explain-no-costs.inc
 explain format=json
 select * from t1;
 --source include/analyze-format.inc
@@ -348,6 +390,7 @@ insert into t2 values (1),(2);
 
 explain 
 select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
+--source include/explain-no-costs.inc
 explain format=json
 select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
 --source include/analyze-format.inc
@@ -357,6 +400,7 @@ select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
 --echo # Check ET_NOT_EXISTS:
 explain
 select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
+--source include/explain-no-costs.inc
 explain format=json
 select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
 --source include/analyze-format.inc
@@ -366,6 +410,7 @@ select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
 --echo # Check ET_DISTINCT
 explain
 select distinct t1.a from t1 join t2 on t2.pk=t1.a;
+--source include/explain-no-costs.inc
 explain format=json
 select distinct t1.a from t1 join t2 on t2.pk=t1.a;
 --source include/analyze-format.inc
@@ -392,6 +437,7 @@ set optimizer_switch='mrr=on';
 set join_cache_level=6;
 explain
 select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
+--source include/explain-no-costs.inc
 explain format=json
 select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
 --source include/analyze-format.inc
@@ -410,6 +456,7 @@ insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int);
 insert into t1 select a,a from t0;
 
+--source include/explain-no-costs.inc
 explain format=json 
 select a, (select max(a) from t1 where t0.a<5 and t1.b<t0.a) from t0;
 drop table t0,t1;
@@ -420,8 +467,11 @@ drop table t0,t1;
 
 create table t1 (a int, b int);
 insert into t1 values (1,2),(3,4),(2,3);
+--source include/explain-no-costs.inc
 explain format=json select * from t1 order by a, b desc;
+--source include/explain-no-costs.inc
 explain format=json select * from t1 order by a desc, b desc;
+--source include/explain-no-costs.inc
 explain format=json select * from t1 order by a desc, b ;
 drop table t1;
 
@@ -431,6 +481,7 @@ drop table t1;
 
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2); 
+--source include/explain-no-costs.inc
 explain FORMAT=JSON 
 SELECT * FROM t1 t0 
 WHERE t0.a IN (SELECT t2.a FROM t1 t2 WHERE t0.a IN (SELECT t3.a FROM t1 t3));

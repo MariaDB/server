@@ -265,7 +265,7 @@
  drop table t0,t1,t2;
  #
  # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
-@@ -769,11 +769,12 @@
+@@ -770,11 +770,12 @@
        {
          "table": {
            "table_name": "t1",
@@ -279,9 +279,9 @@
 +          "used_key_parts": ["f2"],
 +          "ref": ["const"],
            "rows": 1,
+           "cost": "COST_REPLACED",
            "filtered": 100,
-           "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
-@@ -806,8 +807,8 @@
+@@ -809,8 +810,8 @@
            "access_type": "range",
            "possible_keys": ["k1"],
            "key": "k1",
@@ -290,5 +290,5 @@
 +          "key_length": "3007",
 +          "used_key_parts": ["pk1", "f2"],
            "rows": 1,
+           "cost": "COST_REPLACED",
            "filtered": 100,
-           "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",

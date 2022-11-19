@@ -2427,6 +2427,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2437,6 +2438,7 @@ EXPLAIN
           "key_length": "10",
           "used_key_parts": ["a", "b"],
           "rows": 6,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t1.b) in (<cache>((2,3)),<cache>((3,3)),<cache>((8,8)),<cache>((7,7)))",
           "mrr_type": "Rowid-ordered scan"
@@ -2492,6 +2494,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2502,6 +2505,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "rows": 5,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t1.b + t1.a) in (<cache>((4,9)),<cache>((8,8)),<cache>((7,7)))",
           "mrr_type": "Rowid-ordered scan"
@@ -2523,6 +2527,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2533,6 +2538,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "rows": 5,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t1.b) in ((4,t1.a - 1),(8,t1.a + 8),(7,t1.a + 7))",
           "mrr_type": "Rowid-ordered scan"
@@ -2568,6 +2574,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2578,6 +2585,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["d"],
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 60,
           "index_condition": "t2.d is not null",
           "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((2,2)))",
@@ -2594,6 +2602,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
           "rows": 8,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -2647,6 +2656,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2657,6 +2667,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["d"],
           "rows": 8,
+          "cost": "COST_REPLACED",
           "filtered": 14.42307663,
           "index_condition": "t2.d is not null",
           "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
@@ -2673,6 +2684,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
           "rows": 8,
+          "cost": "COST_REPLACED",
           "filtered": 73.17073059
         }
       }
@@ -2751,6 +2763,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2761,6 +2774,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["d"],
           "rows": 7,
+          "cost": "COST_REPLACED",
           "filtered": 6.730769157,
           "index_condition": "t2.d is not null",
           "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
@@ -2777,6 +2791,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
           "rows": 11,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -2808,6 +2823,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2818,6 +2834,7 @@ EXPLAIN
           "key_length": "10",
           "used_key_parts": ["d", "e"],
           "rows": 5,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t2.d is not null",
           "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
@@ -2834,6 +2851,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
           "rows": 11,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -2864,6 +2882,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2874,6 +2893,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "rows": 15,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.a is not null",
           "mrr_type": "Rowid-ordered scan"
@@ -2889,6 +2909,7 @@ EXPLAIN
           "used_key_parts": ["d"],
           "ref": ["test.t1.a"],
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t2.e) in ((4,t1.a + 1),(7,t1.a + 1),(8,t1.a + 1)) and octet_length(t2.f) = 1"
         }
@@ -2928,6 +2949,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2935,6 +2957,7 @@ EXPLAIN
           "access_type": "ALL",
           "possible_keys": ["idx"],
           "rows": 144,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t1.a is not null"
         }
@@ -2949,6 +2972,7 @@ EXPLAIN
           "used_key_parts": ["d"],
           "ref": ["test.t1.a"],
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t2.e) in ((t2.e,t1.a + 1),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
         }
@@ -2982,6 +3006,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2992,6 +3017,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "rows": 12,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.a is not null",
           "attached_condition": "(t1.a,2) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and octet_length(t1.c) = 1",
@@ -3008,6 +3034,7 @@ EXPLAIN
           "used_key_parts": ["d"],
           "ref": ["test.t1.a"],
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "octet_length(t2.f) = 1"
         }
@@ -3066,6 +3093,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -3089,6 +3117,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "rows": 12,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.a is not null",
           "attached_condition": "(t1.a,1 + 1) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and octet_length(t1.c) = 1",
@@ -3105,6 +3134,7 @@ EXPLAIN
           "used_key_parts": ["d"],
           "ref": ["test.t1.a"],
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "octet_length(t2.f) = 1"
         }

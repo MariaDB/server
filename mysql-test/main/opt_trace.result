@@ -10693,6 +10693,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": 1.235599899,
     "nested_loop": [
       {
         "table": {
@@ -10703,6 +10704,7 @@ EXPLAIN
           "key_length": "8",
           "used_key_parts": ["start_date", "end_date"],
           "rows": 1000,
+          "cost": 1.235599899,
           "filtered": 100,
           "index_condition": "t1.start_date >= '2019-02-10' and t1.end_date < '2019-04-01'"
         }
@@ -12374,12 +12376,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": 2.30309056,
     "nested_loop": [
       {
         "table": {
           "table_name": "three",
           "access_type": "ALL",
           "rows": 3,
+          "cost": 0.010504815,
           "filtered": 100,
           "attached_condition": "three.a is not null"
         }
@@ -12402,6 +12406,7 @@ EXPLAIN
             "selectivity_pct": 43.12
           },
           "rows": 1000,
+          "cost": 2.292585745,
           "filtered": 43.11999893,
           "attached_condition": "t1.b < 5000 and t1.c < 1000"
         }
@@ -12415,12 +12420,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": 1.712236739,
     "nested_loop": [
       {
         "table": {
           "table_name": "three",
           "access_type": "ALL",
           "rows": 3,
+          "cost": 0.010504815,
           "filtered": 100
         }
       },
@@ -12431,6 +12438,7 @@ EXPLAIN
             "access_type": "ALL",
             "possible_keys": ["a", "b"],
             "rows": 10000,
+            "cost": 1.701731924,
             "filtered": 4.307688236,
             "attached_condition": "t1.b < 5000 and t1.c < 1000"
           },

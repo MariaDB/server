@@ -1402,6 +1402,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
       "sorts": [
         {
@@ -1417,6 +1418,7 @@ EXPLAIN
               "table_name": "t0",
               "access_type": "ALL",
               "rows": 10,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -1437,6 +1439,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "filesort": {
       "sort_key": "t1.a",
       "window_functions_computation": {
@@ -1454,6 +1457,7 @@ EXPLAIN
                 "table_name": "t1",
                 "access_type": "ALL",
                 "rows": 10,
+                "cost": "COST_REPLACED",
                 "filtered": 100
               }
             }
@@ -1474,6 +1478,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
       "sorts": [
         {
@@ -1489,6 +1494,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 10,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -1511,6 +1517,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "having_condition": "MX in (3,5,7)",
     "filesort": {
       "sort_key": "t1.b",
@@ -1529,6 +1536,7 @@ EXPLAIN
                 "table_name": "t1",
                 "access_type": "ALL",
                 "rows": 10,
+                "cost": "COST_REPLACED",
                 "filtered": 100
               }
             }
@@ -1665,6 +1673,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
       "sorts": [
         {
@@ -1680,6 +1689,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 3,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -1697,6 +1707,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
       "sorts": [
         {
@@ -1712,6 +1723,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 3,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -1729,6 +1741,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
       "sorts": [
         {
@@ -1744,6 +1757,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 3,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -1761,6 +1775,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
       "sorts": [
         {
@@ -1776,6 +1791,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 3,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -1821,6 +1837,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "filesort": {
       "sort_key": "row_number() over ( order by t1.s1,t1.s2) desc",
       "window_functions_computation": {
@@ -1838,6 +1855,7 @@ EXPLAIN
                 "table_name": "t1",
                 "access_type": "ALL",
                 "rows": 6,
+                "cost": "COST_REPLACED",
                 "filtered": 100
               }
             }
@@ -1981,6 +1999,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "duplicate_removal": {
       "window_functions_computation": {
         "sorts": [
@@ -1997,6 +2016,7 @@ EXPLAIN
                 "table_name": "t1",
                 "access_type": "ALL",
                 "rows": 9,
+                "cost": "COST_REPLACED",
                 "filtered": 100
               }
             }
@@ -2161,6 +2181,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
       "sorts": [
         {
@@ -2176,6 +2197,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 11,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -2228,6 +2250,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
       "sorts": [
         {
@@ -2243,6 +2266,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 6,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -3827,6 +3851,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "window_functions_computation": {
@@ -3852,6 +3877,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 3,
               "r_rows": 3,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "filtered": 100,

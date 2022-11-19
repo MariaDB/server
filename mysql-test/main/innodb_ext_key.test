@@ -614,7 +614,8 @@ CREATE TABLE t1 (
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+--source include/explain-no-costs.inc
+explain format=json
 select * from t1 force index(f2)  where pk1 <= 5 and pk2 <=5 and f2 = 'abc' and f1 <= '3';
 drop table t1;
 
@@ -627,7 +628,8 @@ PRIMARY KEY (pk1,pk2),
 KEY k1(pk1,f2)
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+--source include/explain-no-costs.inc
+explain format=json
 select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
 drop table t1;
 

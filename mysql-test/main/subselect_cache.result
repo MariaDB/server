@@ -49,6 +49,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -59,6 +60,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -73,6 +75,7 @@ ANALYZE
           "r_hit_ratio": 60,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 4,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -83,6 +86,7 @@ ANALYZE
                   "r_loops": 4,
                   "rows": 4,
                   "r_rows": 4,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -106,6 +110,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -116,6 +121,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -138,6 +144,7 @@ ANALYZE
                 {
                   "query_block": {
                     "select_id": 3,
+                    "cost": "REPLACED",
                     "r_loops": 4,
                     "r_total_time_ms": "REPLACED",
                     "nested_loop": [
@@ -148,6 +155,7 @@ ANALYZE
                           "r_loops": 4,
                           "rows": 4,
                           "r_rows": 4,
+                          "cost": "REPLACED",
                           "r_table_time_ms": "REPLACED",
                           "r_other_time_ms": "REPLACED",
                           "filtered": 100,
@@ -178,6 +186,7 @@ ANALYZE
           "r_hit_ratio": 60,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 4,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -188,6 +197,7 @@ ANALYZE
                   "r_loops": 4,
                   "rows": 4,
                   "r_rows": 4,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -208,12 +218,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -224,12 +236,14 @@ EXPLAIN
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",
                   "rows": 4,
+                  "cost": "COST_REPLACED",
                   "filtered": 100,
                   "attached_condition": "t1.b = t2.c"
                 }
@@ -247,12 +261,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -269,12 +285,14 @@ EXPLAIN
                 {
                   "query_block": {
                     "select_id": 3,
+                    "cost": "COST_REPLACED",
                     "nested_loop": [
                       {
                         "table": {
                           "table_name": "t2",
                           "access_type": "ALL",
                           "rows": 4,
+                          "cost": "COST_REPLACED",
                           "filtered": 100,
                           "attached_condition": "t1.b = t2.c"
                         }
@@ -301,12 +319,14 @@ EXPLAIN
           "state": "uninitialized",
           "query_block": {
             "select_id": 2,
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",
                   "rows": 4,
+                  "cost": "COST_REPLACED",
                   "filtered": 100,
                   "attached_condition": "t1.b = t2.c"
                 }
