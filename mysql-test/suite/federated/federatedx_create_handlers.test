@@ -75,6 +75,7 @@ SELECT id FROM federated.t1 WHERE id < 5;
 EXPLAIN EXTENDED
 SELECT id FROM federated.t1 WHERE id < 5;
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT id FROM federated.t1 WHERE id < 5;
 
@@ -102,6 +103,7 @@ SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
 WHERE federated.t3.name=t.name;
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON
 SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
@@ -176,6 +178,7 @@ explain
 select * from federated.t1
 where name in (select name from federated.t2);
 
+--source include/explain-no-costs.inc
 explain format=json
 select * from federated.t1
 where name in (select name from federated.t2);
@@ -195,6 +198,7 @@ select * from t5,
  where name in (select name from federated.t2) or name like 'foo%') as TQ;
 
 --echo # Must not show elements with select_id=3
+--source include/explain-no-costs.inc
 explain format=json
 select * from t5, 
 (select id from federated.t1

@@ -189,12 +189,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "tt",
           "access_type": "ALL",
           "rows": 40,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "table_function": "json_table"
         }

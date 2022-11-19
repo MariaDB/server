@@ -47,6 +47,7 @@ let $q=
 
 eval $q;
 eval explain $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 drop table t1;

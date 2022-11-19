@@ -261,6 +261,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "read_sorted_file": {
@@ -270,6 +271,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 3,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -291,6 +293,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "read_sorted_file": {
@@ -300,6 +303,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "rows": 3,
+              "cost": "COST_REPLACED",
               "filtered": 100
             }
           }
@@ -329,12 +333,14 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
                   "table_name": "t1",
                   "access_type": "ALL",
                   "rows": 3,
+                  "cost": "COST_REPLACED",
                   "filtered": 100,
                   "attached_condition": "t1.a = 20"
                 }
@@ -346,12 +352,14 @@ EXPLAIN
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
                   "table_name": "t1",
                   "access_type": "ALL",
                   "rows": 3,
+                  "cost": "COST_REPLACED",
                   "filtered": 100
                 }
               }
@@ -383,12 +391,14 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
                   "table_name": "t1",
                   "access_type": "ALL",
                   "rows": 3,
+                  "cost": "COST_REPLACED",
                   "filtered": 100,
                   "attached_condition": "t1.a = 20"
                 }
@@ -400,12 +410,14 @@ EXPLAIN
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
                   "table_name": "t1",
                   "access_type": "ALL",
                   "rows": 3,
+                  "cost": "COST_REPLACED",
                   "filtered": 100
                 }
               }
@@ -445,6 +457,7 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "read_sorted_file": {
@@ -454,6 +467,7 @@ EXPLAIN
                       "table_name": "t1",
                       "access_type": "ALL",
                       "rows": 5,
+                      "cost": "COST_REPLACED",
                       "filtered": 100
                     }
                   }
@@ -466,12 +480,14 @@ EXPLAIN
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
                   "table_name": "t1",
                   "access_type": "ALL",
                   "rows": 5,
+                  "cost": "COST_REPLACED",
                   "filtered": 100,
                   "attached_condition": "t1.pk > 4"
                 }

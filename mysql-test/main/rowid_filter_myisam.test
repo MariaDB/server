@@ -1735,6 +1735,7 @@ SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
 
 eval $q;
 eval EXPLAIN EXTENDED $q;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $q;
 
 DROP TABLE t1,t2;

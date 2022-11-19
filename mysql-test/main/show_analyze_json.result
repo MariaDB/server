@@ -44,6 +44,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "nested_loop": [
       {
@@ -53,6 +54,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 1000,
           "r_rows": 1000,
+          "cost": "REPLACED",
           "filtered": 50,
           "r_filtered": 50,
           "attached_condition": "t1.c < 500"
@@ -77,6 +79,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "nested_loop": [
       {
@@ -86,6 +89,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 1000,
           "r_rows": 1000,
+          "cost": "REPLACED",
           "filtered": 10,
           "r_filtered": 10,
           "attached_condition": "t1.c < 10"
@@ -111,6 +115,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -122,6 +127,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 1000,
           "r_rows": 1000,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 99.90000153,
@@ -160,6 +166,7 @@ SHOW ANALYZE
         {
           "query_block": {
             "select_id": 1,
+            "cost": "REPLACED",
             "r_loops": 1,
             "nested_loop": [
               {
@@ -169,6 +176,7 @@ SHOW ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": 60,
                   "attached_condition": "a.a <= 5"
@@ -181,6 +189,7 @@ SHOW ANALYZE
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "REPLACED",
             "nested_loop": [
               {
                 "table": {
@@ -189,6 +198,7 @@ SHOW ANALYZE
                   "r_loops": 0,
                   "rows": 10,
                   "r_rows": null,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": null,
                   "attached_condition": "b.a >= 9"
@@ -229,6 +239,7 @@ SHOW ANALYZE
         {
           "query_block": {
             "select_id": 1,
+            "cost": "REPLACED",
             "r_loops": 1,
             "nested_loop": [
               {
@@ -238,6 +249,7 @@ SHOW ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": 60,
                   "attached_condition": "a.a <= 5"
@@ -250,6 +262,7 @@ SHOW ANALYZE
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "REPLACED",
             "r_loops": 1,
             "nested_loop": [
               {
@@ -259,6 +272,7 @@ SHOW ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": 10,
                   "attached_condition": "b.a >= 9"
@@ -299,6 +313,7 @@ SHOW ANALYZE
         {
           "query_block": {
             "select_id": 1,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -309,6 +324,7 @@ SHOW ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -323,6 +339,7 @@ SHOW ANALYZE
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "REPLACED",
             "nested_loop": [
               {
                 "table": {
@@ -331,6 +348,7 @@ SHOW ANALYZE
                   "r_loops": 0,
                   "rows": 10,
                   "r_rows": null,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": null,
                   "attached_condition": "b.a >= 9"
@@ -371,6 +389,7 @@ SHOW ANALYZE
         {
           "query_block": {
             "select_id": 1,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -381,6 +400,7 @@ SHOW ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -395,6 +415,7 @@ SHOW ANALYZE
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -405,6 +426,7 @@ SHOW ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -441,6 +463,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "nested_loop": [
       {
@@ -450,6 +473,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "filtered": 100,
           "r_filtered": 20,
           "attached_condition": "a.a < 2"
@@ -460,6 +484,7 @@ SHOW ANALYZE
       {
         "query_block": {
           "select_id": 2,
+          "cost": "REPLACED",
           "r_loops": 1,
           "nested_loop": [
             {
@@ -469,6 +494,7 @@ SHOW ANALYZE
                 "r_loops": 1,
                 "rows": 10,
                 "r_rows": 10,
+                "cost": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 30,
                 "attached_condition": "b.a > 6"
@@ -501,6 +527,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -511,6 +538,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -523,6 +551,7 @@ SHOW ANALYZE
       {
         "query_block": {
           "select_id": 2,
+          "cost": "REPLACED",
           "r_loops": 1,
           "r_total_time_ms": "REPLACED",
           "nested_loop": [
@@ -533,6 +562,7 @@ SHOW ANALYZE
                 "r_loops": 1,
                 "rows": 10,
                 "r_rows": 10,
+                "cost": "REPLACED",
                 "r_table_time_ms": "REPLACED",
                 "r_other_time_ms": "REPLACED",
                 "filtered": 100,
@@ -567,6 +597,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -575,6 +606,7 @@ SHOW ANALYZE
           "r_loops": 0,
           "rows": 10,
           "r_rows": null,
+          "cost": "REPLACED",
           "filtered": 100,
           "r_filtered": null,
           "attached_condition": "a.a < 2"
@@ -588,6 +620,7 @@ SHOW ANALYZE
           "r_loops": 0,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "nested_loop": [
               {
                 "table": {
@@ -596,6 +629,7 @@ SHOW ANALYZE
                   "r_loops": 0,
                   "rows": 10,
                   "r_rows": null,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": null,
                   "attached_condition": "b.a + a.a < 10"
@@ -629,6 +663,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "nested_loop": [
       {
@@ -638,6 +673,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "filtered": 100,
           "r_filtered": 20,
           "attached_condition": "a.a < 2"
@@ -651,6 +687,7 @@ SHOW ANALYZE
           "r_hit_ratio": 0,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 2,
             "nested_loop": [
               {
@@ -660,6 +697,7 @@ SHOW ANALYZE
                   "r_loops": 2,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": 95,
                   "attached_condition": "b.a + a.a < 10"
@@ -693,6 +731,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -703,6 +742,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -718,6 +758,7 @@ SHOW ANALYZE
           "r_hit_ratio": 0,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 2,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -728,6 +769,7 @@ SHOW ANALYZE
                   "r_loops": 2,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -791,6 +833,7 @@ SHOW ANALYZE
       {
         "query_block": {
           "select_id": 2,
+          "cost": "REPLACED",
           "nested_loop": [
             {
               "table": {
@@ -799,6 +842,7 @@ SHOW ANALYZE
                 "r_loops": 0,
                 "rows": 10,
                 "r_rows": null,
+                "cost": "REPLACED",
                 "filtered": 100,
                 "r_filtered": null,
                 "attached_condition": "t2.a + t0.a < 3"
@@ -834,6 +878,7 @@ SHOW ANALYZE
       {
         "query_block": {
           "select_id": 2,
+          "cost": "REPLACED",
           "r_loops": 1,
           "nested_loop": [
             {
@@ -843,6 +888,7 @@ SHOW ANALYZE
                 "r_loops": 1,
                 "rows": 10,
                 "r_rows": 10,
+                "cost": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 30,
                 "attached_condition": "t2.a + t0.a < 3"
@@ -889,6 +935,7 @@ SHOW ANALYZE
       {
         "query_block": {
           "select_id": 2,
+          "cost": "REPLACED",
           "nested_loop": [
             {
               "table": {
@@ -897,6 +944,7 @@ SHOW ANALYZE
                 "r_loops": 0,
                 "rows": 10,
                 "r_rows": null,
+                "cost": "REPLACED",
                 "filtered": 100,
                 "r_filtered": null,
                 "attached_condition": "t2.a + t0.a < 3"
@@ -932,6 +980,7 @@ SHOW ANALYZE
       {
         "query_block": {
           "select_id": 2,
+          "cost": "REPLACED",
           "r_loops": 1,
           "nested_loop": [
             {
@@ -941,6 +990,7 @@ SHOW ANALYZE
                 "r_loops": 1,
                 "rows": 10,
                 "r_rows": 10,
+                "cost": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 30,
                 "attached_condition": "t2.a + t0.a < 3"
@@ -974,6 +1024,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "nested_loop": [
       {
@@ -983,6 +1034,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 3,
           "r_rows": 1,
+          "cost": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -995,6 +1047,7 @@ SHOW ANALYZE
           "r_hit_ratio": 0,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "nested_loop": [
               {
                 "table": {
@@ -1003,6 +1056,7 @@ SHOW ANALYZE
                   "r_loops": 0,
                   "rows": 10,
                   "r_rows": null,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": null,
                   "attached_condition": "t2.a + t0.a < 3"
@@ -1026,6 +1080,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "nested_loop": [
       {
@@ -1035,6 +1090,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 3,
           "r_rows": 2,
+          "cost": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -1047,6 +1103,7 @@ SHOW ANALYZE
           "r_hit_ratio": 0,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 1,
             "nested_loop": [
               {
@@ -1056,6 +1113,7 @@ SHOW ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": 30,
                   "attached_condition": "t2.a + t0.a < 3"
@@ -1079,6 +1137,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "nested_loop": [
       {
@@ -1088,6 +1147,7 @@ SHOW ANALYZE
           "r_loops": 1,
           "rows": 3,
           "r_rows": 3,
+          "cost": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -1100,6 +1160,7 @@ SHOW ANALYZE
           "r_hit_ratio": 0,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "r_loops": 2,
             "nested_loop": [
               {
@@ -1109,6 +1170,7 @@ SHOW ANALYZE
                   "r_loops": 2,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "filtered": 100,
                   "r_filtered": 25,
                   "attached_condition": "t2.a + t0.a < 3"
@@ -1146,6 +1208,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "nested_loop": [
       {
@@ -1164,6 +1227,7 @@ SHOW ANALYZE
               "r_loops": 1,
               "rows": 10,
               "r_rows": 10,
+              "cost": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             }
@@ -1205,6 +1269,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "temporary_table": {
       "nested_loop": [
@@ -1215,6 +1280,7 @@ SHOW ANALYZE
             "r_loops": 1,
             "rows": 10,
             "r_rows": 10,
+            "cost": "REPLACED",
             "filtered": 100,
             "r_filtered": 100
           }
@@ -1254,6 +1320,7 @@ SHOW ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "temporary_table": {
       "nested_loop": [
@@ -1264,6 +1331,7 @@ SHOW ANALYZE
             "r_loops": 1,
             "rows": 10,
             "r_rows": 10,
+            "cost": "REPLACED",
             "filtered": 100,
             "r_filtered": 100
           }

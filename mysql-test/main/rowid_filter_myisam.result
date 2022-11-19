@@ -136,12 +136,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
           "rows": 101,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t2.a2 <> t2.pk2 and t2.a2 is not null"
         }
@@ -164,6 +166,7 @@ EXPLAIN
             "selectivity_pct": 87
           },
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 87,
           "attached_condition": "t1.b1 <= (subquery#2)"
         }
@@ -173,6 +176,7 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 2,
+          "cost": "COST_REPLACED",
           "nested_loop": [
             {
               "table": {
@@ -183,6 +187,7 @@ EXPLAIN
                 "key_length": "4",
                 "used_key_parts": ["pk2"],
                 "rows": 1,
+                "cost": "COST_REPLACED",
                 "filtered": 100,
                 "index_condition": "t2.pk2 <= 1"
               }

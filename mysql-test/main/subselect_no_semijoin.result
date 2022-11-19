@@ -7427,12 +7427,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
           "rows": 2,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -7441,6 +7443,7 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 2,
+          "cost": "COST_REPLACED",
           "pseudo_bits_condition": "1 = t1.a or <in_optimizer>(1,<exists>(subquery#3))",
           "nested_loop": [
             {
@@ -7456,12 +7459,14 @@ EXPLAIN
             {
               "query_block": {
                 "select_id": 3,
+                "cost": "COST_REPLACED",
                 "nested_loop": [
                   {
                     "table": {
                       "table_name": "t3",
                       "access_type": "ALL",
                       "rows": 2,
+                      "cost": "COST_REPLACED",
                       "filtered": 100,
                       "attached_condition": "1 = t3.c"
                     }

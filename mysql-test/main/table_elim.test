@@ -680,6 +680,7 @@ group by t11.a;
 explain select t1.* from t1 left join v2b on v2b.a=t1.a;
 
 --echo # Check format JSON as well
+--source include/explain-no-costs.inc
 explain format=JSON select t1.* from t1 left join v2b on t1.a=v2b.a;
 
 --echo # Elimination of a whole subquery 
@@ -692,6 +693,7 @@ explain select t1.* from t1 left join
 explain select t1.* from t1 left join v2b on t1.a=v2b.b;
 
 --echo # Check format JSON as well
+--source include/explain-no-costs.inc
 explain format=JSON select t1.* from t1 left join v2b on t1.a=v2b.b;
 
 create view v2c as 
@@ -703,12 +705,14 @@ group by t11.a;
 explain select t1.* from t1 left join v2c on v2c.a=t1.a;
 
 --echo # Check format JSON as well
+--source include/explain-no-costs.inc
 explain format=JSON select t1.* from t1 left join v2c on v2c.a=t1.a;
 
 --echo # In this case v2c cannot be eliminated (since v2c.b is not unique)!
 explain select t1.* from t1 left join v2c on t1.a=v2c.b;
 
 --echo # Check format JSON as well
+--source include/explain-no-costs.inc
 explain format=JSON select t1.* from t1 left join v2c on t1.a=v2c.b;
 
 --echo # Create a view with multiple fields in the GROUP BY clause:

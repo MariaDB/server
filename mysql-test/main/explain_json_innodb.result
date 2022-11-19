@@ -16,12 +16,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
           "rows": 2,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -30,12 +32,14 @@ EXPLAIN
       {
         "query_block": {
           "select_id": 2,
+          "cost": "COST_REPLACED",
           "nested_loop": [
             {
               "table": {
                 "table_name": "tbl_alias1",
                 "access_type": "ALL",
                 "rows": 1,
+                "cost": "COST_REPLACED",
                 "filtered": 100,
                 "attached_condition": "tbl_alias1.column_name_2 is not null and tbl_alias1.column_name_1 is not null"
               }
@@ -53,6 +57,7 @@ EXPLAIN
                   "test.tbl_alias1.column_name_1"
                 ],
                 "rows": 1,
+                "cost": "COST_REPLACED",
                 "filtered": 100,
                 "attached_condition": "tbl_alias2.c = tbl_alias1.column_name_2"
               }

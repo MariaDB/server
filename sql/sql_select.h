@@ -350,6 +350,12 @@ typedef struct st_join_table {
   /* Copy of POSITION::records_out, set by get_best_combination() */
   double        records_out;
 
+  /*
+    Copy of POSITION::read_time, set by get_best_combination(). The cost of
+    accessing the table in course of the join execution.
+  */
+  double        join_read_time;
+
   /* The selectivity of the conditions that can be pushed to the table */ 
   double        cond_selectivity;  
   
