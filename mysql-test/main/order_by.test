@@ -2692,6 +2692,7 @@ let $query= SELECT t1.a
             ORDER BY t1.a DESC;
 
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 
@@ -2701,6 +2702,7 @@ let $query= SELECT t1.a, group_concat(t1.b)
             GROUP BY t1.a DESC;
 
 eval EXPLAIN $query;
+--source include/explain-no-costs.inc
 eval EXPLAIN FORMAT=JSON $query;
 eval $query;
 DROP TABLE t1, t2;

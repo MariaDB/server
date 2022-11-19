@@ -216,6 +216,7 @@ public:
     message(NULL),
     having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
+    cost(0.0),
     time_tracker(is_analyze),
     aggr_tree(NULL)
   {}
@@ -249,9 +250,10 @@ public:
   bool using_temporary;
   bool using_filesort;
 
+  double cost;
   /* ANALYZE members */
   Time_and_counter_tracker time_tracker;
-  
+
   /* 
     Part of query plan describing sorting, temp.table usage, and duplicate 
     removal
@@ -823,6 +825,9 @@ public:
 
   ha_rows rows;
   double filtered;
+
+  /* Total cost incurred during one execution of this select */
+  double cost;
 
   /* 
     Contents of the 'Extra' column. Some are converted into strings, some have
