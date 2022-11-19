@@ -16,6 +16,7 @@ select * from t1 except all select * from t1 union all select * from t1 union al
 select * from (select * from t1 except all select * from t2) q1 except all select * from (select * from t1 except all select * from t2) q2;
 
 EXPLAIN select * from t1 except all select * from t2;
+--source include/explain-no-costs.inc
 EXPLAIN format=json select * from t1 except all select * from t2;
 EXPLAIN extended (select * from t1) except all (select * from t2);
 EXPLAIN extended select * from ((select * from t1) except all (select * from t2)) a;
@@ -53,6 +54,7 @@ select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4
 EXPLAIN (select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4);
 EXPLAIN select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4)) t;
 EXPLAIN extended select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4)) t;
+--source include/explain-no-costs.inc
 EXPLAIN format=json select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4)) t;
 
 --source include/analyze-format.inc

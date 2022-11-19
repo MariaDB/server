@@ -154,6 +154,7 @@ drop table t0, t1;
 
 --echo #
 --echo # MDEV-7970: EXPLAIN FORMAT=JSON does not print HAVING
+--source include/explain-no-costs.inc
 --echo #
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3);

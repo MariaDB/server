@@ -8338,12 +8338,14 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
           "rows": 18,
+          "cost": "COST_REPLACED",
           "filtered": 5.555555344,
           "attached_condition": "t1.a > 'y'"
         }
