@@ -10,6 +10,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -20,6 +21,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -46,6 +48,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -56,6 +59,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -75,6 +79,7 @@ ANALYZE
           "r_loops": 0,
           "rows": 1,
           "r_rows": null,
+          "cost": "REPLACED",
           "filtered": 100,
           "r_filtered": null
         }
@@ -96,6 +101,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -106,6 +112,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -125,6 +132,7 @@ ANALYZE
           "r_loops": 10,
           "rows": 1,
           "r_rows": 1,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -149,6 +157,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -159,6 +168,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 100,
           "r_rows": 100,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -174,6 +184,7 @@ ANALYZE
             "r_loops": 1,
             "rows": 100,
             "r_rows": 100,
+            "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
             "filtered": 100,
@@ -199,6 +210,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -209,6 +221,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 100,
           "r_rows": 100,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -224,6 +237,7 @@ ANALYZE
             "r_loops": 1,
             "rows": 100,
             "r_rows": 100,
+            "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
             "filtered": 100,
@@ -258,6 +272,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -268,6 +283,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -287,6 +303,7 @@ ANALYZE
           "r_loops": 10,
           "rows": 2,
           "r_rows": 0.2,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -319,6 +336,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -329,6 +347,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -383,6 +402,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -397,6 +417,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -463,6 +484,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -473,6 +495,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 5,
           "r_rows": 5,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -499,6 +522,7 @@ ANALYZE
             "r_loops": 5,
             "rows": 1010,
             "r_rows": 203.8,
+            "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
             "filtered": 100,
@@ -533,6 +557,7 @@ ANALYZE
         {
           "query_block": {
             "select_id": 1,
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -543,6 +568,7 @@ ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -557,6 +583,7 @@ ANALYZE
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -567,6 +594,7 @@ ANALYZE
                   "r_loops": 1,
                   "rows": 10,
                   "r_rows": 10,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -604,6 +632,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "having_condition": "TOP > t2.a",
@@ -624,6 +653,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 256,
               "r_rows": 256,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "filtered": 100,
@@ -644,6 +674,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -663,6 +694,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 256,
               "r_rows": 256,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "filtered": 100,
@@ -697,6 +729,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -716,6 +749,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 256,
               "r_rows": 256,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "filtered": 100,
@@ -743,6 +777,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -753,6 +788,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 2,
           "r_rows": 2,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -767,6 +803,7 @@ ANALYZE
             "r_loops": 1,
             "rows": 2,
             "r_rows": 2,
+            "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
             "filtered": 100,
@@ -786,6 +823,7 @@ ANALYZE
       {
         "query_block": {
           "select_id": 2,
+          "cost": "REPLACED",
           "r_loops": 1,
           "r_total_time_ms": "REPLACED",
           "nested_loop": [
@@ -796,6 +834,7 @@ ANALYZE
                 "r_loops": 1,
                 "rows": 2,
                 "r_rows": 2,
+                "cost": "REPLACED",
                 "r_table_time_ms": "REPLACED",
                 "r_other_time_ms": "REPLACED",
                 "filtered": 100,
@@ -832,6 +871,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "filesort": {
@@ -860,6 +900,7 @@ ANALYZE
                   "r_loops": 1,
                   "rows": 2,
                   "r_rows": 2,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -874,6 +915,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 2,
                     "r_rows": 2,
+                    "cost": "REPLACED",
                     "r_table_time_ms": "REPLACED",
                     "r_other_time_ms": "REPLACED",
                     "filtered": 100,
@@ -895,6 +937,7 @@ ANALYZE
                   "r_loops": 0,
                   "query_block": {
                     "select_id": 2,
+                    "cost": "REPLACED",
                     "nested_loop": [
                       {
                         "table": {
@@ -903,6 +946,7 @@ ANALYZE
                           "r_loops": 0,
                           "rows": 2,
                           "r_rows": null,
+                          "cost": "REPLACED",
                           "filtered": 100,
                           "r_filtered": null
                         }
@@ -915,6 +959,7 @@ ANALYZE
                             "r_loops": 0,
                             "rows": 2,
                             "r_rows": null,
+                            "cost": "REPLACED",
                             "filtered": 100,
                             "r_filtered": null
                           },
@@ -954,6 +999,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -964,6 +1010,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -979,6 +1026,7 @@ ANALYZE
           "r_loops": 0,
           "query_block": {
             "select_id": 2,
+            "cost": "REPLACED",
             "nested_loop": [
               {
                 "read_sorted_file": {
@@ -996,6 +1044,7 @@ ANALYZE
                       "r_loops": 0,
                       "rows": 10,
                       "r_rows": null,
+                      "cost": "REPLACED",
                       "filtered": 100,
                       "r_filtered": null,
                       "attached_condition": "t2.a < t1.a"

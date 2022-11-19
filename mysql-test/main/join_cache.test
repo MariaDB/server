@@ -4245,6 +4245,7 @@ analyze table t3;
 
 --echo # The following must have "B.col1 + 1 < 33333" attached to table B
 --echo # and not to the block-nl-join node:
+--source include/explain-no-costs.inc
 explain format=json
 select *
 from t1 a, t3 b

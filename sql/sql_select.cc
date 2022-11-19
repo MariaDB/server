@@ -11976,6 +11976,7 @@ bool JOIN::get_best_combination()
       j->records_init= j->records_out= j->records_read;
       j->records= (ha_rows) j->records_read;
       j->cond_selectivity= 1.0;
+      j->join_read_time= 0.0; /* Not saved currently */
       JOIN_TAB *jt;
       JOIN_TAB_RANGE *jt_range;
       if (!(jt= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*sjm->tables)) ||
@@ -12036,6 +12037,7 @@ bool JOIN::get_best_combination()
     j->records_init= cur_pos->records_init;
     j->records_read= cur_pos->records_read;
     j->records_out=  cur_pos->records_out;
+    j->join_read_time= cur_pos->read_time;
 
   loop_end:
     j->cond_selectivity= cur_pos->cond_selectivity;
@@ -28535,6 +28537,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   explain_plan= eta;
   eta->key.clear();
   eta->quick_info= NULL;
+  eta->cost= join_read_time;
 
   SQL_SELECT *tab_select;
   /* 
@@ -29148,6 +29151,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     table_map used_tables=0;
 
     join->select_lex->set_explain_type(true);
+    xpl_sel->cost= best_read;
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
     xpl_sel->linkage= select_lex->get_linkage();
