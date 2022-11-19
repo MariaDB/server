@@ -737,13 +737,16 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "const_condition": "1",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -769,13 +772,16 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "const_condition": "1",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       },
@@ -788,12 +794,15 @@ EXPLAIN
           "key_length": "8",
           "used_key_parts": ["b"],
           "ref": ["test.t1.a"],
+          "loops": 10,
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "trigcond(t1.a = v2b.b and trigcond(t1.a is not null))",
           "materialized": {
             "query_block": {
               "select_id": 2,
+              "cost": "COST_REPLACED",
               "const_condition": "1",
               "filesort": {
                 "sort_key": "t11.a",
@@ -803,7 +812,9 @@ EXPLAIN
                       "table": {
                         "table_name": "t11",
                         "access_type": "ALL",
+                        "loops": 1,
                         "rows": 1000,
+                        "cost": "COST_REPLACED",
                         "filtered": 100
                       }
                     }
@@ -831,13 +842,16 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "const_condition": "1",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -857,13 +871,16 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "const_condition": "1",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       },
@@ -876,12 +893,15 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["test.t1.a"],
+          "loops": 10,
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "trigcond(trigcond(t1.a is not null))",
           "materialized": {
             "query_block": {
               "select_id": 2,
+              "cost": "COST_REPLACED",
               "const_condition": "1",
               "filesort": {
                 "sort_key": "t11.a",
@@ -891,7 +911,9 @@ EXPLAIN
                       "table": {
                         "table_name": "t11",
                         "access_type": "ALL",
+                        "loops": 1,
                         "rows": 1000,
+                        "cost": "COST_REPLACED",
                         "filtered": 100
                       }
                     },
@@ -904,7 +926,9 @@ EXPLAIN
                         "key_length": "4",
                         "used_key_parts": ["pk"],
                         "ref": ["test.t11.b"],
+                        "loops": 1000,
                         "rows": 1,
+                        "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "trigcond(trigcond(t11.b is not null))"
                       }

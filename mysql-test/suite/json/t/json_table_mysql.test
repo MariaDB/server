@@ -167,6 +167,7 @@ select * from
 
 #eval $query;
 #eval explain $query;
+--source include/explain-no-costs.inc
 explain format=json 
 select * from
   json_table(

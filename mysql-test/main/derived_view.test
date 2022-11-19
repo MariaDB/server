@@ -118,6 +118,7 @@ select * from t1 join v2 on f1=f2;
 show status like 'Handler_read%';
 
 explain extended select * from v1 join v4 on f1=f2;
+--source include/explain-no-costs.inc
 explain format=json select * from v1 join v4 on f1=f2; 
 select * from v1 join v4 on f1=f2;
 
@@ -142,6 +143,7 @@ select * from (select * from
 --echo materialized derived in materialized derived
 explain extended  select * from (select * from 
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) zz;
+--source include/explain-no-costs.inc
 explain format=json  select * from (select * from 
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) zz;
 select * from (select * from 
@@ -153,6 +155,7 @@ explain extended  select * from
 join 
  (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) z
  on x.f1 = z.f1;
+--source include/explain-no-costs.inc
 explain format=json  select * from 
  (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) x
 join 
@@ -194,6 +197,7 @@ join
  (select * from 
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) z
  on x.f1 = z.f1;
+--source include/explain-no-costs.inc
 explain format=json select * from 
  (select * from 
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) x
@@ -218,6 +222,7 @@ select * from (select * from v4 group by 1) tt;
 --echo materialized view in merged derived
 explain extended 
 select * from ( select * from v1 where f1 < 7) tt;
+--source include/explain-no-costs.inc
 explain format=json 
 select * from ( select * from v1 where f1 < 7) tt;
 select * from ( select * from v1 where f1 < 7) tt;
@@ -234,6 +239,7 @@ select * from (select * from v7 group by 1) tt;
 
 --echo join of above two
 explain extended select * from v6 join v7 on f2=f1;
+--source include/explain-no-costs.inc
 explain format=json select * from v6 join v7 on f2=f1;
 select * from v6 join v7 on f2=f1;
 

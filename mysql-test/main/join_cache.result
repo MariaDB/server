@@ -6254,6 +6254,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -6263,7 +6264,9 @@ EXPLAIN
           "key": "PRIMARY",
           "key_length": "4",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "a.a <= 10",
           "using_index": true
@@ -6278,7 +6281,9 @@ EXPLAIN
             "key": "kp1",
             "key_length": "10",
             "used_key_parts": ["kp1", "kp2"],
+            "loops": 10,
             "rows": 836,
+            "cost": "COST_REPLACED",
             "filtered": 9.090909004,
             "index_condition": "b.kp2 <= 10",
             "attached_condition": "b.kp2 <= 10 and b.col1 + 1 < 33333"

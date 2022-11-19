@@ -759,12 +759,13 @@ PRIMARY KEY (pk1,pk2),
 KEY(f2)
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+explain format=json
 select * from t1 force index(f2)  where pk1 <= 5 and pk2 <=5 and f2 = 'abc' and f1 <= '3';
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -774,7 +775,9 @@ EXPLAIN
           "key": "f2",
           "key_length": "3070",
           "used_key_parts": ["f2", "pk1"],
+          "loops": 1,
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
           "attached_condition": "t1.f1 <= '3'"
@@ -793,12 +796,13 @@ PRIMARY KEY (pk1,pk2),
 KEY k1(pk1,f2)
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+explain format=json
 select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -808,7 +812,9 @@ EXPLAIN
           "key": "k1",
           "key_length": "3011",
           "used_key_parts": ["pk1", "f2", "pk2"],
+          "loops": 1,
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
           "attached_condition": "t1.f1 <= '3'"

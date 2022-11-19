@@ -118,6 +118,7 @@ send select count(*) from t1 where a < 100000;
 
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain FORMAT=JSON for $thr2;
 connection con1;
 reap;
@@ -126,6 +127,7 @@ reap;
 send select max(c) from t1 where a < 10;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain FORMAT=JSON for connection $thr2;
 connection con1;
 reap;
@@ -134,6 +136,7 @@ reap;
 send select max(c) from t1 where a < 10;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 connection con1;
 reap;
@@ -145,6 +148,7 @@ set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
 send explain select max(c) from t1 where a < 10;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=json for $thr2;
 connection con1;
 reap;
@@ -153,6 +157,7 @@ reap;
 send explain select max(c) from t1 where a < 10;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 connection con1;
 reap;
@@ -165,6 +170,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send explain select a from t0 A union select a+1 from t0 B;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format = JSON for $thr2;
 connection con1;
 reap;
@@ -177,6 +183,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send explain select a from t0 A union select a+1 from t0 B;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 connection con1;
 reap;
@@ -234,6 +241,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 connection con1;
 reap;
@@ -245,6 +253,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 connection con1;
 reap;
@@ -256,6 +265,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_end';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 connection con1;
 reap;
@@ -293,8 +303,10 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 connection con1;
 reap;
@@ -308,8 +320,10 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 connection con1;
 reap;
@@ -326,8 +340,10 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 connection con1;
 reap;
@@ -343,8 +359,10 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 connection con1;
 reap;
@@ -360,10 +378,13 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=json for $thr2;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=json for $thr2;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=json for $thr2;
 connection con1;
 reap;
@@ -380,10 +401,13 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp explain format=JSON for connection $thr2;
 connection con1;
 reap;
@@ -400,6 +424,7 @@ set @show_explain_probe_select_id=1;
 send select * from t0 order by a; 
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=json for $thr2;
 connection con1;
 reap;
@@ -417,6 +442,7 @@ set @show_explain_probe_select_id=1;
 send select distinct a from t0;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=json for $thr2;
 connection con1;
 reap;
@@ -435,6 +461,7 @@ set @show_explain_probe_select_id=1;
 send select distinct a from t0;
 connection default;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=json for $thr2;
 connection con1;
 reap;
@@ -461,6 +488,7 @@ select * from t0 where length('ãû') = a;
 connection default;
 set names utf8;
 --source include/wait_condition.inc
+--source include/explain-no-costs.inc
 evalp show explain format=JSON for $thr2;
 set names default;
 

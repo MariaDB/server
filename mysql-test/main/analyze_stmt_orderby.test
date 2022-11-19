@@ -21,6 +21,7 @@ insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
 --echo #
 explain 
 update t2 set b=b+1 order by b limit 5;
+--source include/explain-no-costs.inc
 explain format=json
 update t2 set b=b+1 order by b limit 5;
 --source include/analyze-format.inc
@@ -32,6 +33,7 @@ update t2 set b=b+1 order by b limit 5;
 --echo #
 explain
 update t2 set a=a+1 where a<10;
+--source include/explain-no-costs.inc
 explain format=json
 update t2 set a=a+1 where a<10;
 --source include/analyze-format.inc
@@ -43,6 +45,7 @@ update t2 set a=a+1 where a<10;
 --echo #
 explain 
 delete from t2 order by b limit 5;
+--source include/explain-no-costs.inc
 explain format=json
 delete from t2 order by b limit 5;
 --source include/analyze-format.inc
@@ -54,6 +57,7 @@ delete from t2 order by b limit 5;
 --echo #
 explain
 select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+--source include/explain-no-costs.inc
 explain format=json
 select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
 --source include/analyze-format.inc
@@ -66,6 +70,7 @@ select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
 --echo #
 explain
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+--source include/explain-no-costs.inc
 explain format=json
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
 --source include/analyze-format.inc
@@ -143,6 +148,7 @@ select count(distinct t5.b) as sum from t5, t6
                      where t5.a=t6.a and t6.b > 0 and t5.a <= 5
                      group by t5.a order by sum limit 1;
 
+--source include/explain-no-costs.inc
 explain format=json
 select count(distinct t5.b) as sum from t5, t6
                      where t5.a=t6.a and t6.b > 0 and t5.a <= 5

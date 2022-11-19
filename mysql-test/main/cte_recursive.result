@@ -1339,12 +1339,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "<derived4>",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 24,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
             "query_block": {
@@ -1355,12 +1358,15 @@ EXPLAIN
                   {
                     "query_block": {
                       "select_id": 4,
+                      "cost": "COST_REPLACED",
                       "nested_loop": [
                         {
                           "table": {
                             "table_name": "folks",
                             "access_type": "ALL",
+                            "loops": 1,
                             "rows": 12,
+                            "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "folks.`name` = 'Me2'"
                           }
@@ -1372,12 +1378,15 @@ EXPLAIN
                     "query_block": {
                       "select_id": 6,
                       "operation": "UNION",
+                      "cost": "COST_REPLACED",
                       "nested_loop": [
                         {
                           "table": {
                             "table_name": "<derived3>",
                             "access_type": "ALL",
+                            "loops": 1,
                             "rows": 12,
+                            "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "prev_gen.`id` < 345",
                             "materialized": {
@@ -1389,12 +1398,15 @@ EXPLAIN
                                     {
                                       "query_block": {
                                         "select_id": 3,
+                                        "cost": "COST_REPLACED",
                                         "nested_loop": [
                                           {
                                             "table": {
                                               "table_name": "folks",
                                               "access_type": "ALL",
+                                              "loops": 1,
                                               "rows": 12,
+                                              "cost": "COST_REPLACED",
                                               "filtered": 100,
                                               "attached_condition": "folks.`name` = 'Me'"
                                             }
@@ -1406,13 +1418,16 @@ EXPLAIN
                                       "query_block": {
                                         "select_id": 2,
                                         "operation": "UNION",
+                                        "cost": "COST_REPLACED",
                                         "nested_loop": [
                                           {
                                             "table": {
                                               "table_name": "folks",
                                               "access_type": "ALL",
                                               "possible_keys": ["PRIMARY"],
+                                              "loops": 1,
                                               "rows": 12,
+                                              "cost": "COST_REPLACED",
                                               "filtered": 100
                                             }
                                           },
@@ -1421,7 +1436,9 @@ EXPLAIN
                                               "table": {
                                                 "table_name": "<derived3>",
                                                 "access_type": "ALL",
+                                                "loops": 12,
                                                 "rows": 12,
+                                                "cost": "COST_REPLACED",
                                                 "filtered": 100
                                               },
                                               "buffer_type": "flat",
@@ -1446,12 +1463,15 @@ EXPLAIN
                     "query_block": {
                       "select_id": 5,
                       "operation": "UNION",
+                      "cost": "COST_REPLACED",
                       "nested_loop": [
                         {
                           "table": {
                             "table_name": "<derived4>",
                             "access_type": "ALL",
+                            "loops": 1,
                             "rows": 24,
+                            "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "ancestors.`id` < 234"
                           }
@@ -1499,12 +1519,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "<derived3>",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 12,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
             "query_block": {
@@ -1515,12 +1538,15 @@ EXPLAIN
                   {
                     "query_block": {
                       "select_id": 3,
+                      "cost": "COST_REPLACED",
                       "nested_loop": [
                         {
                           "table": {
                             "table_name": "v",
                             "access_type": "ALL",
+                            "loops": 1,
                             "rows": 12,
+                            "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "v.`name` = 'Me' and v.father is not null and v.mother is not null"
                           }
@@ -1534,7 +1560,9 @@ EXPLAIN
                             "key_length": "4",
                             "used_key_parts": ["id"],
                             "ref": ["test.v.father"],
+                            "loops": 12,
                             "rows": 1,
+                            "cost": "COST_REPLACED",
                             "filtered": 100
                           }
                         },
@@ -1547,7 +1575,9 @@ EXPLAIN
                             "key_length": "4",
                             "used_key_parts": ["id"],
                             "ref": ["test.v.mother"],
+                            "loops": 12,
                             "rows": 1,
+                            "cost": "COST_REPLACED",
                             "filtered": 100
                           }
                         }
@@ -1558,12 +1588,15 @@ EXPLAIN
                     "query_block": {
                       "select_id": 2,
                       "operation": "UNION",
+                      "cost": "COST_REPLACED",
                       "nested_loop": [
                         {
                           "table": {
                             "table_name": "<derived4>",
                             "access_type": "ALL",
+                            "loops": 1,
                             "rows": 2,
+                            "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "a.father is not null and a.mother is not null"
                           }
@@ -1577,7 +1610,9 @@ EXPLAIN
                             "key_length": "4",
                             "used_key_parts": ["id"],
                             "ref": ["a.father"],
+                            "loops": 2,
                             "rows": 1,
+                            "cost": "COST_REPLACED",
                             "filtered": 100
                           }
                         },
@@ -1590,7 +1625,9 @@ EXPLAIN
                             "key_length": "4",
                             "used_key_parts": ["id"],
                             "ref": ["a.mother"],
+                            "loops": 2,
                             "rows": 1,
+                            "cost": "COST_REPLACED",
                             "filtered": 100
                           }
                         }
@@ -1824,12 +1861,15 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "<derived2>",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
             "query_block": {
@@ -1840,12 +1880,15 @@ EXPLAIN
                   {
                     "query_block": {
                       "select_id": 2,
+                      "cost": "COST_REPLACED",
                       "nested_loop": [
                         {
                           "table": {
                             "table_name": "t1",
                             "access_type": "ALL",
+                            "loops": 1,
                             "rows": 10,
+                            "cost": "COST_REPLACED",
                             "filtered": 100
                           }
                         }
@@ -1856,12 +1899,15 @@ EXPLAIN
                     "query_block": {
                       "select_id": 3,
                       "operation": "UNION",
+                      "cost": "COST_REPLACED",
                       "nested_loop": [
                         {
                           "table": {
                             "table_name": "<derived2>",
                             "access_type": "ALL",
+                            "loops": 1,
                             "rows": 10,
+                            "cost": "COST_REPLACED",
                             "filtered": 100,
                             "attached_condition": "t.a < 1000"
                           }
@@ -2460,6 +2506,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -2467,9 +2514,11 @@ ANALYZE
         "table": {
           "table_name": "<derived2>",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 2,
           "r_rows": 10,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -2494,6 +2543,7 @@ ANALYZE
                     "query_block": {
                       "select_id": 3,
                       "operation": "UNION",
+                      "cost": "REPLACED",
                       "r_loops": 10,
                       "r_total_time_ms": "REPLACED",
                       "nested_loop": [
@@ -2501,9 +2551,11 @@ ANALYZE
                           "table": {
                             "table_name": "<derived2>",
                             "access_type": "ALL",
+                            "loops": 1,
                             "r_loops": 10,
                             "rows": 2,
                             "r_rows": 1,
+                            "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
                             "filtered": 100,
@@ -3869,6 +3921,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -3876,9 +3929,11 @@ ANALYZE
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 3,
           "r_rows": 3,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -3895,9 +3950,11 @@ ANALYZE
           "key_length": "23",
           "used_key_parts": ["a2"],
           "ref": ["test.t1.a1"],
+          "loops": 3,
           "r_loops": 3,
           "rows": 1,
           "r_rows": 0.333333333,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -3941,6 +3998,7 @@ ANALYZE
                     "query_block": {
                       "select_id": 4,
                       "operation": "UNION",
+                      "cost": "REPLACED",
                       "r_loops": 1,
                       "r_total_time_ms": "REPLACED",
                       "nested_loop": [
@@ -3949,9 +4007,11 @@ ANALYZE
                             "table_name": "tt2",
                             "access_type": "ALL",
                             "possible_keys": ["b1"],
+                            "loops": 1,
                             "r_loops": 1,
                             "rows": 14,
                             "r_rows": 14,
+                            "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
                             "filtered": 100,
@@ -3968,9 +4028,11 @@ ANALYZE
                             "key_length": "23",
                             "used_key_parts": ["a2"],
                             "ref": ["test.tt2.b1"],
+                            "loops": 14,
                             "r_loops": 14,
                             "rows": 1,
                             "r_rows": 0.071428571,
+                            "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
                             "filtered": 100,
@@ -4145,6 +4207,7 @@ ANALYZE
           "query_block": {
             "select_id": 4,
             "operation": "UNION",
+            "cost": "REPLACED",
             "r_loops": 1,
             "r_total_time_ms": "REPLACED",
             "nested_loop": [
@@ -4152,9 +4215,11 @@ ANALYZE
                 "table": {
                   "table_name": "<derived2>",
                   "access_type": "ALL",
+                  "loops": 1,
                   "r_loops": 1,
                   "rows": 4,
                   "r_rows": 4,
+                  "cost": "REPLACED",
                   "r_table_time_ms": "REPLACED",
                   "r_other_time_ms": "REPLACED",
                   "filtered": 100,
@@ -4170,6 +4235,7 @@ ANALYZE
                           {
                             "query_block": {
                               "select_id": 2,
+                              "cost": "REPLACED",
                               "r_loops": 1,
                               "r_total_time_ms": "REPLACED",
                               "nested_loop": [
@@ -4177,9 +4243,11 @@ ANALYZE
                                   "table": {
                                     "table_name": "s",
                                     "access_type": "ALL",
+                                    "loops": 1,
                                     "r_loops": 1,
                                     "rows": 4,
                                     "r_rows": 4,
+                                    "cost": "REPLACED",
                                     "r_table_time_ms": "REPLACED",
                                     "r_other_time_ms": "REPLACED",
                                     "filtered": 100,
@@ -4193,6 +4261,7 @@ ANALYZE
                             "query_block": {
                               "select_id": 3,
                               "operation": "UNION",
+                              "cost": "REPLACED",
                               "r_loops": 1,
                               "r_total_time_ms": "REPLACED",
                               "nested_loop": [
@@ -4200,9 +4269,11 @@ ANALYZE
                                   "table": {
                                     "table_name": "t1",
                                     "access_type": "ALL",
+                                    "loops": 1,
                                     "r_loops": 1,
                                     "rows": 4,
                                     "r_rows": 4,
+                                    "cost": "REPLACED",
                                     "r_table_time_ms": "REPLACED",
                                     "r_other_time_ms": "REPLACED",
                                     "filtered": 100,
@@ -4219,9 +4290,11 @@ ANALYZE
                                     "key_length": "9",
                                     "used_key_parts": ["a"],
                                     "ref": ["test.t1.c"],
+                                    "loops": 4,
                                     "r_loops": 4,
                                     "rows": 2,
                                     "r_rows": 0.5,
+                                    "cost": "REPLACED",
                                     "r_table_time_ms": "REPLACED",
                                     "r_other_time_ms": "REPLACED",
                                     "filtered": 100,
@@ -4300,6 +4373,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -4307,9 +4381,11 @@ ANALYZE
         "table": {
           "table_name": "tt",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 4,
           "r_rows": 4,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,

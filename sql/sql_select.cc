@@ -8116,6 +8116,7 @@ best_access_path(JOIN      *join,
   best.uses_jbuf= FALSE;
   best.spl_plan= 0;
 
+  pos->loops=        record_count;
   disable_jbuf= disable_jbuf || idx == join->const_tables;
 
   trace_wrapper.add_table_name(s);
@@ -9191,7 +9192,7 @@ best_access_path(JOIN      *join,
   pos->key_dependent= (best.type == JT_EQ_REF ? (table_map) 0 :
                        key_dependent & remaining_tables);
 
-  loose_scan_opt.save_to_position(s, loose_scan_pos);
+  loose_scan_opt.save_to_position(s, record_count, loose_scan_pos);
 
   if (!best.key &&
       idx == join->const_tables &&              // First table
@@ -11973,6 +11974,8 @@ bool JOIN::get_best_combination()
       j->records_init= j->records_out= j->records_read;
       j->records= (ha_rows) j->records_read;
       j->cond_selectivity= 1.0;
+      j->join_read_time= 0.0; /* Not saved currently */
+      j->join_loops= 0.0;
       JOIN_TAB *jt;
       JOIN_TAB_RANGE *jt_range;
       if (!(jt= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*sjm->tables)) ||
@@ -12033,6 +12036,8 @@ bool JOIN::get_best_combination()
     j->records_init= cur_pos->records_init;
     j->records_read= cur_pos->records_read;
     j->records_out=  cur_pos->records_out;
+    j->join_read_time= cur_pos->read_time;
+    j->join_loops=     cur_pos->loops;
 
   loop_end:
     j->cond_selectivity= cur_pos->cond_selectivity;
@@ -28537,6 +28542,8 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   explain_plan= eta;
   eta->key.clear();
   eta->quick_info= NULL;
+  eta->cost= join_read_time;
+  eta->loops= join_loops;
 
   SQL_SELECT *tab_select;
   /* 
@@ -29150,6 +29157,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     table_map used_tables=0;
 
     join->select_lex->set_explain_type(true);
+    xpl_sel->cost= best_read;
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
     xpl_sel->linkage= select_lex->get_linkage();

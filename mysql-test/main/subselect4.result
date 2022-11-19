@@ -2927,6 +2927,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "duplicate_removal": {
@@ -2936,9 +2937,11 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "filtered": 100,
@@ -2953,6 +2956,7 @@ ANALYZE
               "r_loops": 0,
               "query_block": {
                 "select_id": 2,
+                "cost": "REPLACED",
                 "r_loops": 1,
                 "r_total_time_ms": "REPLACED",
                 "nested_loop": [
@@ -2960,9 +2964,11 @@ ANALYZE
                     "table": {
                       "table_name": "t1",
                       "access_type": "ALL",
+                      "loops": 1,
                       "r_loops": 1,
                       "rows": 2,
                       "r_rows": 2,
+                      "cost": "REPLACED",
                       "r_table_time_ms": "REPLACED",
                       "r_other_time_ms": "REPLACED",
                       "filtered": 100,
@@ -2975,6 +2981,7 @@ ANALYZE
                   {
                     "query_block": {
                       "select_id": 3,
+                      "cost": "REPLACED",
                       "r_loops": 1,
                       "r_total_time_ms": "REPLACED",
                       "nested_loop": [
@@ -2982,9 +2989,11 @@ ANALYZE
                           "table": {
                             "table_name": "t1",
                             "access_type": "ALL",
+                            "loops": 1,
                             "r_loops": 1,
                             "rows": 2,
                             "r_rows": 2,
+                            "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
                             "filtered": 100,
