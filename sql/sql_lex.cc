@@ -9408,7 +9408,8 @@ sp_package *LEX::create_package_start(THD *thd,
       return 0;
     }
   }
-  if (unlikely(!(pkg= sp_package::create(this, name_arg, sph))))
+  if (unlikely(!(pkg= sp_package::create(this, name_arg, sph,
+                                         sp_mem_root_ptr))))
     return NULL;
   pkg->reset_thd_mem_root(thd);
   pkg->init(this);

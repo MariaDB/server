@@ -1063,7 +1063,7 @@ private:
   ~sp_package();
 public:
   static sp_package *create(LEX *top_level_lex, const sp_name *name,
-                            const Sp_handler *sph);
+                            const Sp_handler *sph, MEM_ROOT *sp_mem_root);
 
   bool add_routine_declaration(LEX *lex)
   {

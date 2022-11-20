@@ -606,14 +606,18 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
 
 
 sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
-                               const Sp_handler *sph)
+                               const Sp_handler *sph, MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
-  init_sql_alloc(key_memory_sp_head_main_root, &own_root, MEM_ROOT_BLOCK_SIZE,
-                 MEM_ROOT_PREALLOC, MYF(0));
+  if (!sp_mem_root)
+  {
+    init_sql_alloc(key_memory_sp_head_main_root, &own_root, MEM_ROOT_BLOCK_SIZE,
+                   MEM_ROOT_PREALLOC, MYF(0));
+    sp_mem_root= &own_root;
+  }
   sp_package *sp;
-  if (!(sp= new (&own_root) sp_package(&own_root, top_level_lex, name, sph)))
-    free_root(&own_root, MYF(0));
+  if (!(sp= new (sp_mem_root) sp_package(sp_mem_root, top_level_lex, name, sph)))
+    free_root(sp_mem_root, MYF(0));
 
   return sp;
 }
