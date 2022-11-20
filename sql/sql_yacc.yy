@@ -5103,7 +5103,6 @@ server_part_option:
           {
             partition_info *part_info= Lex->part_info;
             part_info->curr_part_elem->engine_type= $4;
-            part_info->default_engine_type= $4;
           }
         | CONNECTION_SYM opt_equal TEXT_STRING_sys
           {

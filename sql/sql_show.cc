@@ -1855,7 +1855,7 @@ static void add_table_options(THD *thd, TABLE *table,
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table->part_info)
-    hton= table->part_info->default_engine_type;
+    hton= table->part_info->main_engine_ht;
   else
 #endif
     hton= table->file->ht;
@@ -2094,7 +2094,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table->part_info)
-    hton= table->part_info->default_engine_type;
+    hton= table->part_info->main_engine_ht;
   else
 #endif
     hton= table->file->ht;

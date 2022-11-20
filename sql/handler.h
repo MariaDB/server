@@ -5140,6 +5140,7 @@ extern ulong total_ha, total_ha_2pc;
 /* lookups */
 plugin_ref ha_resolve_by_name(THD *thd, const LEX_CSTRING *name, bool tmp_table);
 plugin_ref ha_lock_engine(THD *thd, const handlerton *hton);
+plugin_ref engine_by_legacy_type(THD *thd, enum legacy_db_type db_type);
 handlerton *ha_resolve_by_legacy_type(THD *thd, enum legacy_db_type db_type);
 handler *get_new_handler(TABLE_SHARE *share, MEM_ROOT *alloc,
                          handlerton *db_type);

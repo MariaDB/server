@@ -393,7 +393,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     extra2_size+= 1 + extra2_str_size(options_len);
 
   if (part_info)
-    extra2_size+= 1 + extra2_str_size(hton_name(part_info->default_engine_type)->length);
+    extra2_size+= 1 + extra2_str_size(hton_name(part_info->main_engine_ht)->length);
 
   if (gis_extra2_len)
     extra2_size+= 1 + extra2_str_size(gis_extra2_len);
@@ -465,7 +465,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (part_info)
     pos= extra2_write(pos, EXTRA2_DEFAULT_PART_ENGINE,
-                      *hton_name(part_info->default_engine_type));
+                      *hton_name(part_info->main_engine_ht));
 
   if (options_len)
   {
@@ -568,7 +568,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (part_info)
   {
-    fileinfo[61]= (uchar) ha_legacy_type(part_info->default_engine_type);
+    fileinfo[61]= (uchar) ha_legacy_type(part_info->main_engine_ht);
     DBUG_PRINT("info", ("part_db_type = %d", fileinfo[61]));
   }
 

@@ -817,7 +817,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     strxnmov(frm_name, sizeof(frm_name) - 1, new_path.str, reg_ext, NullS);
     create_info->alias= alter_ctx->table_name;
     thd->work_part_info= NULL;
-    create_info->db_type= work_part_info->default_engine_type;
+    create_info->db_type= work_part_info->main_engine_ht;
     /* NOTE: partitioned temporary tables are not supported. */
     DBUG_ASSERT(!create_info->tmp_table());
     if (ddl_log_create_table(part_info, create_info->db_type, &new_path,
@@ -4071,7 +4071,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
       goto err;
 
     file->set_auto_partitions(part_info);
-    part_info->default_engine_type= create_info->db_type;
+    part_info->main_engine_ht= create_info->db_type;
     part_info->is_auto_partitioned= TRUE;
   }
   if (part_info)
@@ -4135,11 +4135,11 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
       goto err;
     }
     if ((part_engine_type == partition_hton) &&
-        part_info->default_engine_type)
+        part_info->main_engine_ht)
     {
       /*
         This only happens at ALTER TABLE.
-        default_engine_type was assigned from the engine set in the ALTER
+        main_engine_ht was assigned from the engine set in the ALTER
         TABLE command.
       */
       ;
@@ -4148,23 +4148,23 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
     {
       if (create_info->used_fields & HA_CREATE_USED_ENGINE)
       {
-        part_info->default_engine_type= create_info->db_type;
+        part_info->main_engine_ht= create_info->db_type;
       }
       else
       {
-        if (part_info->default_engine_type == NULL)
+        if (part_info->main_engine_ht == NULL)
         {
-          part_info->default_engine_type= ha_default_handlerton(thd);
+          part_info->main_engine_ht= ha_default_handlerton(thd);
         }
       }
     }
     DBUG_PRINT("info", ("db_type = %s create_info->db_type = %s",
-             ha_resolve_storage_engine_name(part_info->default_engine_type),
+             ha_resolve_storage_engine_name(part_info->main_engine_ht),
              ha_resolve_storage_engine_name(create_info->db_type)));
     if (part_info->check_partition_info(thd, &engine_type, file,
                                         create_info, FALSE))
       goto err;
-    part_info->default_engine_type= engine_type;
+    part_info->main_engine_ht= engine_type;
 
     if (part_info->vers_info && !create_info->versioned())
     {
@@ -10151,11 +10151,11 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       /*
         This case happens when the user specified
         ENGINE = x where x is a non-existing storage engine
-        We set create_info->db_type to default_engine_type
+        We set create_info->db_type to main_engine_ht
         to ensure we don't change underlying engine type
         due to a erroneously given engine name.
       */
-      create_info->db_type= table->part_info->default_engine_type;
+      create_info->db_type= table->part_info->main_engine_ht;
     }
     else
 #endif
