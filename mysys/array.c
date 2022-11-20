@@ -127,7 +127,7 @@ my_bool append_dynamic(DYNAMIC_ARRAY_APPEND *append,
     void *buffer;
     if (!(buffer=alloc_dynamic(array)))
       return TRUE;
-    append->pos= buffer + size_of_element;
+    append->pos= (uchar*)buffer + size_of_element;
     append->end= array->buffer + array->max_element * size_of_element;
     memcpy(buffer, element, size_of_element);
   }
