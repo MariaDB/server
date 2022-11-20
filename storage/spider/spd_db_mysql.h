@@ -195,13 +195,13 @@ public:
     spider_string *str
   ) override;
 #endif
-  bool tables_on_different_db_are_joinable();
-  bool socket_has_default_value();
-  bool database_has_default_value();
-  bool default_file_has_default_value();
-  bool host_has_default_value();
-  bool port_has_default_value();
-  bool append_charset_name_before_string();
+  bool tables_on_different_db_are_joinable() override;
+  bool socket_has_default_value() override;
+  bool database_has_default_value() override;
+  bool default_file_has_default_value() override;
+  bool host_has_default_value() override;
+  bool port_has_default_value() override;
+  bool append_charset_name_before_string() override;
 };
 
 class spider_db_mysql_util: public spider_db_mbase_util
