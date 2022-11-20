@@ -128,7 +128,7 @@ uchar *spider_conn_get_key(
   DBUG_ENTER("spider_conn_get_key");
   *length = conn->conn_key_length;
   DBUG_PRINT("info",("spider conn_kind=%u", conn->conn_kind));
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   spider_print_keys(conn->conn_key, conn->conn_key_length);
 #endif
   DBUG_RETURN((uchar*) conn->conn_key);
@@ -829,19 +829,19 @@ SPIDER_CONN *spider_get_conn(
   if (conn_kind == SPIDER_CONN_KIND_MYSQL)
   {
 #endif
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     spider_print_keys(conn_key, share->conn_keys_lengths[link_idx]);
 #endif
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else if (conn_kind == SPIDER_CONN_KIND_HS_READ)
   {
     conn_key = share->hs_read_conn_keys[link_idx];
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     spider_print_keys(conn_key, share->hs_read_conn_keys_lengths[link_idx]);
 #endif
   } else {
     conn_key = share->hs_write_conn_keys[link_idx];
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     spider_print_keys(conn_key, share->hs_write_conn_keys_lengths[link_idx]);
 #endif
   }
