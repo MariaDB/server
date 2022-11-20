@@ -195,7 +195,7 @@ public:
     spider_string *str
   ) override;
 #endif
-  bool append_charset_name_before_string();
+  bool append_charset_name_before_string() override;
 };
 
 class spider_db_mysql_util: public spider_db_mbase_util
