@@ -17,6 +17,7 @@ EXPLAIN
           "key": "col1",
           "key_length": "21",
           "used_key_parts": ["col1"],
+          "loops": 1,
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,

@@ -57,6 +57,7 @@ EXPLAIN
           "key": "kp1",
           "key_length": "5",
           "used_key_parts": ["kp1"],
+          "loops": 1,
           "rows": 1000,
           "cost": "COST_REPLACED",
           "filtered": 100,

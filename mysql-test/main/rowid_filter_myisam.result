@@ -142,6 +142,7 @@ EXPLAIN
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 101,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -165,6 +166,7 @@ EXPLAIN
             "rows": 87,
             "selectivity_pct": 87
           },
+          "loops": 101,
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 87,
@@ -186,6 +188,7 @@ EXPLAIN
                 "key": "PRIMARY",
                 "key_length": "4",
                 "used_key_parts": ["pk2"],
+                "loops": 1,
                 "rows": 1,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -356,6 +359,7 @@ ANALYZE
           "key": "idx1",
           "key_length": "35",
           "used_key_parts": ["nm"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 1,
           "r_rows": 1,
@@ -411,6 +415,7 @@ ANALYZE
           "key": "idx1",
           "key_length": "35",
           "used_key_parts": ["nm"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 1,
           "r_rows": 1,
@@ -505,6 +510,7 @@ ANALYZE
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
           },
+          "loops": 1,
           "r_loops": 1,
           "rows": 55,
           "r_rows": 2,
@@ -620,6 +626,7 @@ ANALYZE
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
           },
+          "loops": 1,
           "r_loops": 1,
           "rows": 44,
           "r_rows": 0,
@@ -688,6 +695,7 @@ ANALYZE
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
           },
+          "loops": 1,
           "r_loops": 1,
           "rows": 44,
           "r_rows": 0,
