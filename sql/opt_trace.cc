@@ -562,13 +562,10 @@ void Opt_trace_stmt::set_allowed_mem_size(size_t mem_size)
   current_json->set_size_limit(mem_size);
 }
 
-/*
-  Prefer this when you are iterating over JOIN_TABs
-*/
 
-void Json_writer::add_table_name(const JOIN_TAB *tab)
+void get_table_name_for_trace(const JOIN_TAB *tab, String *out)
 {
-  char table_name_buffer[SAFE_NAME_LEN];
+  char table_name_buffer[64];
   DBUG_ASSERT(tab != NULL);
   DBUG_ASSERT(tab->join->thd->trace_started());
 
@@ -578,7 +575,7 @@ void Json_writer::add_table_name(const JOIN_TAB *tab)
     size_t len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
                             "<derived%u>",
                             tab->table->derived_select_number);
-    add_str(table_name_buffer, len);
+    out->copy(table_name_buffer, len, &my_charset_bin);
   }
   else if (tab->bush_children)
   {
@@ -587,14 +584,26 @@ void Json_writer::add_table_name(const JOIN_TAB *tab)
                             sizeof(table_name_buffer)-1,
                             "<subquery%d>",
                             ctab->emb_sj_nest->sj_subq_pred->get_identifier());
-    add_str(table_name_buffer, len);
+    out->copy(table_name_buffer, len, &my_charset_bin);
   }
   else
   {
     TABLE_LIST *real_table= tab->table->pos_in_table_list;
-    add_str(real_table->alias.str, real_table->alias.length);
+    out->set(real_table->alias.str, real_table->alias.length, &my_charset_bin);
   }
 }
+
+/*
+  Prefer this when you are iterating over JOIN_TABs
+*/
+
+void Json_writer::add_table_name(const JOIN_TAB *tab)
+{
+  String sbuf;
+  get_table_name_for_trace(tab, &sbuf);
+  add_str(sbuf.ptr(), sbuf.length());
+}
+
 
 void Json_writer::add_table_name(const TABLE *table)
 {
@@ -642,18 +651,27 @@ void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
     analysis of the various join orders.
 */
 
-void trace_plan_prefix(JOIN *join, uint idx, table_map join_tables)
+void trace_plan_prefix(Json_writer_object *jsobj, JOIN *join, uint idx,
+                       table_map join_tables)
 {
   THD *const thd= join->thd;
   DBUG_ASSERT(thd->trace_started());
 
-  Json_writer_array plan_prefix(thd, "plan_prefix");
+  String prefix_str;
+  prefix_str.length(0);
   for (uint i= 0; i < idx; i++)
   {
     TABLE_LIST *const tr= join->positions[i].table->tab_list;
     if (!(tr->map & join_tables))
-      plan_prefix.add_table_name(join->positions[i].table);
+    {
+      String str;
+      get_table_name_for_trace(join->positions[i].table, &str);
+      if (prefix_str.length() != 0)
+        prefix_str.append(',');
+      prefix_str.append(str);
+    }
   }
+  jsobj->add("plan_prefix", prefix_str.ptr(), prefix_str.length());
 }
 
 

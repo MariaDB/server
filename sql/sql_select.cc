@@ -9671,7 +9671,7 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
     double original_record_count, current_record_count;
 
     if (unlikely(thd->trace_started()))
-      trace_plan_prefix(join, idx, remaining_tables);
+      trace_plan_prefix(&trace_one_table, join, idx, remaining_tables);
     /* Find the best access method from 's' to the current partial plan */
     best_access_path(join, s, remaining_tables, join->positions, idx,
                      disable_jbuf, record_count,
@@ -10878,7 +10878,7 @@ best_extension_by_limited_search(JOIN      *join,
     Json_writer_object trace_one_table(thd);
     JOIN_TAB **best_ref= join->best_ref + idx;
     if (unlikely(thd->trace_started()))
-      trace_plan_prefix(join, idx, remaining_tables);
+      trace_plan_prefix(&trace_one_table, join, idx, remaining_tables);
 
     Json_writer_array arr(thd, "get_costs_for_tables");
 
@@ -10945,7 +10945,7 @@ best_extension_by_limited_search(JOIN      *join,
 
       if (unlikely(thd->trace_started()))
       {
-        trace_plan_prefix(join, idx, remaining_tables);
+        trace_plan_prefix(&trace_one_table, join, idx, remaining_tables);
         trace_one_table.add_table_name(s);
       }
 

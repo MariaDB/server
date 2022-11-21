@@ -89,7 +89,7 @@ select * from db1.t1	{
           {
             "considered_execution_plans": [
               {
-                "plan_prefix": [],
+                "plan_prefix": "",
                 "get_costs_for_tables": [
                   {
                     "best_access_path": {
@@ -120,7 +120,7 @@ select * from db1.t1	{
                 ]
               },
               {
-                "plan_prefix": [],
+                "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 3,
                 "cost_for_plan": 0.010504815
@@ -228,7 +228,7 @@ select * from db1.v1	{
           {
             "considered_execution_plans": [
               {
-                "plan_prefix": [],
+                "plan_prefix": "",
                 "get_costs_for_tables": [
                   {
                     "best_access_path": {
@@ -259,7 +259,7 @@ select * from db1.v1	{
                 ]
               },
               {
-                "plan_prefix": [],
+                "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 3,
                 "cost_for_plan": 0.010504815
