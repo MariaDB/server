@@ -2591,9 +2591,16 @@ static bool add_line(String &buffer, char *line, size_t line_length,
           buffer.append(line, (uint) (out-line));
           out= line;
         }
-        
-        if ((*com->func)(&buffer,pos-1) > 0)
-          DBUG_RETURN(1);                       // Quit
+        /* Check which buffer to use as an argument for the call
+           to the function pointer of command. Buffer shouldn't have delimiter.
+           By default check if command processed is `go` which doesn't take any
+           parameter (`takes_params`) or if server side comment is applied.
+           If so use `pos` buffer, otherwise create buffer without delimiter.
+       */
+        if (*pos == 'g' || *pos == 'G' || (com->takes_params && ss_comment))
+          if ((*com->func)(&buffer, pos-1) > 0)
+            DBUG_RETURN(1);                       // Quit
+
         if (com->takes_params)
         {
           if (ss_comment)
@@ -2609,14 +2616,22 @@ static bool add_line(String &buffer, char *line, size_t line_length,
           }
           else
           {
-            for (pos++ ;
+            for (pos++;
                  *pos && (*pos != *delimiter ||
-                          !is_prefix(pos + 1, delimiter + 1)) ; pos++)
+                          !is_prefix(pos + 1, delimiter + 1)); pos++)
               ;	// Remove parameters
             if (!*pos)
               pos--;
             else 
               pos+= delimiter_length - 1; // Point at last delim char
+
+            if (*pos == *delimiter)
+              buffer.append(line, (uint32) (pos-line));
+            else
+              buffer.append(line, strlen(line));
+            if ((*com->func)(&buffer, buffer.c_ptr()) > 0)
+              DBUG_RETURN(1);                       // Quit
+            buffer.length(0);
           }
         }
       }
