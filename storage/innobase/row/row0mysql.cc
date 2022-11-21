@@ -1580,6 +1580,8 @@ void
 init_fts_doc_id_for_ref(
 /*====================*/
 	dict_table_t*	table,		/*!< in: table */
+	bool		is_delete,	/*!< Is fts initialized for delete or
+					for update */
 	ulint*		depth)		/*!< in: recusive call depth */
 {
 	table->fk_max_recusive_level = 0;
@@ -1592,7 +1594,10 @@ init_fts_doc_id_for_ref(
 	/* Loop through this table's referenced list and also
 	recursively traverse each table's foreign table list */
 	for (dict_foreign_t* foreign : table->referenced_set) {
+		if (!foreign->modifies_child(is_delete))
+			continue;
 		ut_ad(foreign->foreign_table);
+		ut_ad(foreign->foreign_table->get_ref_count() != 0);
 
 		if (foreign->foreign_table->fts) {
 			fts_init_doc_id(foreign->foreign_table);
@@ -1600,8 +1605,10 @@ init_fts_doc_id_for_ref(
 
 		if (foreign->foreign_table != table
 		    && !foreign->foreign_table->referenced_set.empty()) {
+			bool child_is_delete= (is_delete && (foreign->type &
+					       DICT_FOREIGN_ON_DELETE_CASCADE));
 			init_fts_doc_id_for_ref(
-				foreign->foreign_table, depth);
+				foreign->foreign_table, child_is_delete, depth);
 		}
 	}
 }
@@ -1643,13 +1650,14 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	row_mysql_delay_if_needed();
 
-	init_fts_doc_id_for_ref(table, &fk_depth);
+	node = prebuilt->upd_node;
+
+	init_fts_doc_id_for_ref(table, node->is_delete, &fk_depth);
 
 	if (!table->no_rollback()) {
 		trx_start_if_not_started_xa(trx, true);
 	}
 
-	node = prebuilt->upd_node;
 	const bool is_delete = node->is_delete == PLAIN_DELETE;
 	ut_ad(node->table == table);
 

@@ -1502,6 +1502,19 @@ key constraint. */
 typedef std::set<dict_v_col_t*, std::less<dict_v_col_t*>,
 		ut_allocator<dict_v_col_t*> >		dict_vcol_set;
 
+
+/** The following flags are used as dict_foreign_t::type bits.
+Flags for ON_UPDATE and ON_DELETE can be ORed; the default is that
+a foreign key constraint is enforced, therefore RESTRICT just means no flag */
+/* @{ */
+#define DICT_FOREIGN_ON_DELETE_CASCADE    1U    /*!< ON DELETE CASCADE */
+#define DICT_FOREIGN_ON_DELETE_SET_NULL   2U    /*!< ON UPDATE SET NULL */
+#define DICT_FOREIGN_ON_UPDATE_CASCADE    4U    /*!< ON DELETE CASCADE */
+#define DICT_FOREIGN_ON_UPDATE_SET_NULL   8U    /*!< ON UPDATE SET NULL */
+#define DICT_FOREIGN_ON_DELETE_NO_ACTION  16U   /*!< ON DELETE NO ACTION */
+#define DICT_FOREIGN_ON_UPDATE_NO_ACTION  32U   /*!< ON UPDATE NO ACTION */
+/* @} */
+
 /** Data structure for a foreign key constraint; an example:
 FOREIGN KEY (A, B) REFERENCES TABLE2 (C, D).  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_foreign_create(). */
@@ -1544,6 +1557,19 @@ struct dict_foreign_t{
 	/** Check whether the fulltext index gets affected by
 	foreign key constraint */
 	bool affects_fulltext() const;
+
+	bool modifies_child_on_delete() const {
+		return type & (DICT_FOREIGN_ON_DELETE_CASCADE |
+			       DICT_FOREIGN_ON_DELETE_SET_NULL);
+	}
+	bool modifies_child_on_update() const {
+		return type & (DICT_FOREIGN_ON_UPDATE_CASCADE |
+			       DICT_FOREIGN_ON_UPDATE_SET_NULL);
+	}
+	bool modifies_child(bool is_delete) const {
+		return is_delete ? modifies_child_on_delete()
+				 : modifies_child_on_update();
+	}
 };
 
 std::ostream&
@@ -1702,17 +1728,6 @@ struct dict_foreign_set_free {
 
 	const dict_foreign_set&	m_foreign_set;
 };
-
-/** The flags for ON_UPDATE and ON_DELETE can be ORed; the default is that
-a foreign key constraint is enforced, therefore RESTRICT just means no flag */
-/* @{ */
-#define DICT_FOREIGN_ON_DELETE_CASCADE	1U	/*!< ON DELETE CASCADE */
-#define DICT_FOREIGN_ON_DELETE_SET_NULL	2U	/*!< ON UPDATE SET NULL */
-#define DICT_FOREIGN_ON_UPDATE_CASCADE	4U	/*!< ON DELETE CASCADE */
-#define DICT_FOREIGN_ON_UPDATE_SET_NULL	8U	/*!< ON UPDATE SET NULL */
-#define DICT_FOREIGN_ON_DELETE_NO_ACTION 16U	/*!< ON DELETE NO ACTION */
-#define DICT_FOREIGN_ON_UPDATE_NO_ACTION 32U	/*!< ON UPDATE NO ACTION */
-/* @} */
 
 /** Display an identifier.
 @param[in,out]	s	output stream

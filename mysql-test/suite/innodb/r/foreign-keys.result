@@ -235,3 +235,15 @@ INSERT INTO t2 VALUES('G', 3);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
 DROP TABLE t2, t1;
 SET FOREIGN_KEY_CHECKS=DEFAULT;
+#
+# MDEV-29181 Potential corruption on Foreign key update on a table with
+# vcol index.
+#
+CREATE TABLE parent (a INT PRIMARY KEY)
+ENGINE=InnoDB;
+CREATE TABLE child (a INT PRIMARY KEY REFERENCES parent(a) ON UPDATE CASCADE)
+ENGINE=InnoDB ;
+INSERT INTO parent (a) VALUES (1);
+DELETE FROM parent;
+DROP TABLE child;
+DROP TABLE parent;

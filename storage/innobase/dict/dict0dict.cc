@@ -1818,10 +1818,11 @@ dict_table_change_id_in_cache(
 /** Evict a table definition from the InnoDB data dictionary cache.
 @param[in,out]	table	cached table definition to be evicted
 @param[in]	lru	whether this is part of least-recently-used eviction
-@param[in]	keep	whether to keep (not free) the object */
+@param[in]	keep	whether to keep (not free) the object
+@tparam		drop	indicates whether the intention is to drop the table */
+template <bool drop>
 void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 {
-	dict_foreign_t*	foreign;
 	dict_index_t*	index;
 
 	ut_ad(dict_lru_validate());
@@ -1831,18 +1832,30 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	/* Remove the foreign constraints from the cache */
-	std::for_each(table->foreign_set.begin(), table->foreign_set.end(),
-		      dict_foreign_remove_partial());
+	if (drop) {
+		std::for_each(table->foreign_set.begin(),
+			      table->foreign_set.end(),
+			      dict_foreign_remove_partial());
+	}
+	else {
+		for (auto *fk: table->foreign_set) {
+			if (fk->referenced_table) {
+				fk->foreign_table = nullptr;
+				fk->foreign_index = nullptr;
+			} else {
+				dict_foreign_free(fk);
+			}
+		}
+	}
 	table->foreign_set.clear();
-
 	/* Reset table field in referencing constraints */
-	for (dict_foreign_set::iterator it = table->referenced_set.begin();
-	     it != table->referenced_set.end();
-	     ++it) {
-
-		foreign = *it;
-		foreign->referenced_table = NULL;
-		foreign->referenced_index = NULL;
+	for (auto *fk: table->referenced_set) {
+		if (fk->foreign_table) {
+			fk->referenced_table = nullptr;
+			fk->referenced_index = nullptr;
+		} else {
+			dict_foreign_free(fk);
+		}
 	}
 
 	/* Remove the indexes from the cache */
@@ -1909,6 +1922,11 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 	table->autoinc_mutex.destroy();
 	dict_mem_table_free(table);
 }
+
+template
+void dict_sys_t::remove<false>(dict_table_t* table, bool lru, bool keep);
+template
+void dict_sys_t::remove<true>(dict_table_t* table, bool lru, bool keep);
 
 /****************************************************************//**
 If the given column name is reserved for InnoDB system columns, return

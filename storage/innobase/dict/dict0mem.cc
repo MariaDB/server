@@ -1183,6 +1183,7 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 key constraint. */
 bool dict_foreign_t::affects_fulltext() const
 {
+  ut_ad(foreign_table);
   if (foreign_table == referenced_table || !foreign_table->fts)
     return false;
 

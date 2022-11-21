@@ -1030,9 +1030,7 @@ row_ins_foreign_check_on_constraint(
 
 	node = static_cast<upd_node_t*>(thr->run_node);
 
-	if (node->is_delete && 0 == (foreign->type
-				     & (DICT_FOREIGN_ON_DELETE_CASCADE
-					| DICT_FOREIGN_ON_DELETE_SET_NULL))) {
+	if (node->is_delete && !foreign->modifies_child_on_delete()) {
 
 		row_ins_foreign_report_err("Trying to delete",
 					   thr, foreign,
@@ -1041,9 +1039,7 @@ row_ins_foreign_check_on_constraint(
 		DBUG_RETURN(DB_ROW_IS_REFERENCED);
 	}
 
-	if (!node->is_delete && 0 == (foreign->type
-				      & (DICT_FOREIGN_ON_UPDATE_CASCADE
-					 | DICT_FOREIGN_ON_UPDATE_SET_NULL))) {
+	if (!node->is_delete && !foreign->modifies_child_on_update()) {
 
 		/* This is an UPDATE */
 
@@ -1950,6 +1946,7 @@ row_ins_check_foreign_constraints(
 			dict_table_t*	referenced_table
 						= foreign->referenced_table;
 
+			DEBUG_SYNC_C("row_ins_check_fk_ref_table_loaded");
 			if (referenced_table == NULL) {
 
 				ref_table = dict_table_open_on_name(
