@@ -2353,34 +2353,24 @@ o_orderkey	o_totalprice
 5607	24660.06
 drop table t;
 # LooseScan
-# ==========
-create table t1 (a1 char(8), a2 char(8));
-create table t2 (b1 char(8), b2 char(8));
-insert into t1 values ('1 - 00', '2 - 00');
-insert into t1 values ('1 - 01', '2 - 01');
-insert into t1 values ('1 - 02', '2 - 02');
-insert into t2 values ('1 - 01', '2 - 01');
-insert into t2 values ('1 - 01', '2 - 01');
-insert into t2 values ('1 - 02', '2 - 02');
-insert into t2 values ('1 - 02', '2 - 02');
-insert into t2 values ('1 - 03', '2 - 03');
-create table t1i (a1 char(8), a2 char(8));
-create table t2i (b1 char(8), b2 char(8));
-create index it1i1 on t1i (a1);
-create index it1i2 on t1i (a2);
-create index it1i3 on t1i (a1, a2);
-create index it2i1 on t2i (b1);
-create index it2i2 on t2i (b2);
-create index it2i3 on t2i (b1, b2);
-insert into t1i select * from t1;
-insert into t2i select * from t2;
+# =============
+create index i_l_sup_part on lineitem(l_suppkey, l_partkey);
+create index i_ps_sup_part on partsupp(ps_suppkey, ps_partkey);
+analyze table lineitem;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.lineitem	analyze	status	Engine-independent statistics collected
+dbt3_s001.lineitem	analyze	status	Table is already up to date
+analyze table partsupp;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.partsupp	analyze	status	Engine-independent statistics collected
+dbt3_s001.partsupp	analyze	status	Table is already up to date
 explain
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	Using where; Using index; LooseScan
-1	PRIMARY	t1i	ref	it1i1,it1i2,it1i3	it1i3	18	dbt3_s001.t2i.b1,dbt3_s001.t2i.b2	1	Using index
+1	PRIMARY	partsupp	index	PRIMARY,i_ps_partkey,i_ps_suppkey,i_ps_sup_part	i_ps_sup_part	8	NULL	700	Using where; Using index; LooseScan
+1	PRIMARY	lineitem	ref	i_l_suppkey,i_l_sup_part	i_l_suppkey	5	dbt3_s001.partsupp.ps_suppkey	600	Using index
 explain format=json
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 EXPLAIN
 {
   "query_block": {
@@ -2388,29 +2378,34 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2i",
+          "table_name": "partsupp",
           "access_type": "index",
-          "possible_keys": ["it2i1", "it2i2", "it2i3"],
-          "key": "it2i3",
-          "key_length": "18",
-          "used_key_parts": ["b1", "b2"],
-          "rows": 5,
-          "filtered": 50,
-          "attached_condition": "t2i.b1 is not null and t2i.b2 is not null",
+          "possible_keys": [
+            "PRIMARY",
+            "i_ps_partkey",
+            "i_ps_suppkey",
+            "i_ps_sup_part"
+          ],
+          "key": "i_ps_sup_part",
+          "key_length": "8",
+          "used_key_parts": ["ps_suppkey", "ps_partkey"],
+          "rows": 700,
+          "filtered": 1.428571463,
+          "attached_condition": "partsupp.ps_partkey in (1,2,3)",
           "using_index": true,
           "loose_scan": true
         }
       },
       {
         "table": {
-          "table_name": "t1i",
+          "table_name": "lineitem",
           "access_type": "ref",
-          "possible_keys": ["it1i1", "it1i2", "it1i3"],
-          "key": "it1i3",
-          "key_length": "18",
-          "used_key_parts": ["a1", "a2"],
-          "ref": ["dbt3_s001.t2i.b1", "dbt3_s001.t2i.b2"],
-          "rows": 1,
+          "possible_keys": ["i_l_suppkey", "i_l_sup_part"],
+          "key": "i_l_suppkey",
+          "key_length": "5",
+          "used_key_parts": ["l_suppkey"],
+          "ref": ["dbt3_s001.partsupp.ps_suppkey"],
+          "rows": 600,
           "filtered": 100,
           "using_index": true
         }
@@ -2418,19 +2413,18 @@ EXPLAIN
     ]
   }
 }
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-1 - 01	2 - 01
-1 - 02	2 - 02
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+5373
 create table t as
-select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select * from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 explain
-delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+delete from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2i	index	it2i1,it2i2,it2i3	it2i3	18	NULL	5	Using where; Using index; LooseScan
-1	PRIMARY	t1i	ref	it1i1,it1i2,it1i3	it1i3	18	dbt3_s001.t2i.b1,dbt3_s001.t2i.b2	1	
+1	PRIMARY	partsupp	index	PRIMARY,i_ps_partkey,i_ps_suppkey,i_ps_sup_part	i_ps_sup_part	8	NULL	700	Using where; Using index; LooseScan
+1	PRIMARY	lineitem	ref	i_l_suppkey,i_l_sup_part	i_l_suppkey	5	dbt3_s001.partsupp.ps_suppkey	600	
 explain format=json
-delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+delete from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 EXPLAIN
 {
   "query_block": {
@@ -2438,217 +2432,204 @@ EXPLAIN
     "nested_loop": [
       {
         "table": {
-          "table_name": "t2i",
+          "table_name": "partsupp",
           "access_type": "index",
-          "possible_keys": ["it2i1", "it2i2", "it2i3"],
-          "key": "it2i3",
-          "key_length": "18",
-          "used_key_parts": ["b1", "b2"],
-          "rows": 5,
-          "filtered": 50,
-          "attached_condition": "t2i.b1 is not null and t2i.b2 is not null",
+          "possible_keys": [
+            "PRIMARY",
+            "i_ps_partkey",
+            "i_ps_suppkey",
+            "i_ps_sup_part"
+          ],
+          "key": "i_ps_sup_part",
+          "key_length": "8",
+          "used_key_parts": ["ps_suppkey", "ps_partkey"],
+          "rows": 700,
+          "filtered": 1.428571463,
+          "attached_condition": "partsupp.ps_partkey in (1,2,3)",
           "using_index": true,
           "loose_scan": true
         }
       },
       {
         "table": {
-          "table_name": "t1i",
+          "table_name": "lineitem",
           "access_type": "ref",
-          "possible_keys": ["it1i1", "it1i2", "it1i3"],
-          "key": "it1i3",
-          "key_length": "18",
-          "used_key_parts": ["a1", "a2"],
-          "ref": ["dbt3_s001.t2i.b1", "dbt3_s001.t2i.b2"],
-          "rows": 1,
+          "possible_keys": ["i_l_suppkey", "i_l_sup_part"],
+          "key": "i_l_suppkey",
+          "key_length": "5",
+          "used_key_parts": ["l_suppkey"],
+          "ref": ["dbt3_s001.partsupp.ps_suppkey"],
+          "rows": 600,
           "filtered": 100
         }
       }
     ]
   }
 }
-delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-insert into t1i select * from t;
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-1 - 01	2 - 01
-1 - 02	2 - 02
+delete from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+0
+insert into lineitem select * from t;
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+5373
 drop table t;
 # LooseScan PS
 # =============
 prepare stmt from "
-delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+delete from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 ";
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-1 - 01	2 - 01
-1 - 02	2 - 02
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+5373
 create table t as
-select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select * from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 execute stmt;
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-insert into t1i select * from t;
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-1 - 01	2 - 01
-1 - 02	2 - 02
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+0
+insert into lineitem select * from t;
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+5373
 create table r as
-select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select * from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 execute stmt;
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-insert into t1i select * from r;
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-1 - 01	2 - 01
-1 - 02	2 - 02
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+0
+insert into lineitem select * from r;
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+5373
 drop tables r, t;
 deallocate prepare stmt;
 # LooseScan SP
 # ==================
 create procedure p()
-delete from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-1 - 01	2 - 01
-1 - 02	2 - 02
+delete from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+5373
 create table t as
-select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select * from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 call p();
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-insert into t1i select * from t;
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-1 - 01	2 - 01
-1 - 02	2 - 02
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+0
+insert into lineitem select * from t;
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+5373
 create table r as
-select * from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+select * from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 call p();
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-insert into t1i select * from r;
-select a1, a2 from t1i where (a1, a2) in (select b1, b2 from t2i order by b1, b2);
-a1	a2
-1 - 01	2 - 01
-1 - 02	2 - 02
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+0
+insert into lineitem select * from r;
+select count(*) from lineitem where l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
+count(*)
+5373
 drop tables r, t;
 drop procedure p;
-drop tables t1,t2,t1i,t2i;
+drop index i_l_sup_part on lineitem;
+drop index i_ps_sup_part on partsupp;
 # DuplicateWeedout
-# ==========
-create table t0 (a int);
-create table t1 (a int);
-create table t2 (a int);
-insert into t0 values (1),(2),(4),(5);
-insert into t1 values (1),(1),(2),(2);
-insert into t2 values (1);
+# =============
 set @tmp_optimizer_switch= @@optimizer_switch;
-set optimizer_switch='firstmatch=off,loosescan=off,materialization=off';
+set optimizer_switch='materialization=off';
+analyze table lineitem;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.lineitem	analyze	status	Engine-independent statistics collected
+dbt3_s001.lineitem	analyze	status	Table is already up to date
+analyze table orders;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.orders	analyze	status	Engine-independent statistics collected
+dbt3_s001.orders	analyze	status	OK
 explain
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Start temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; End temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	supplier	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index; Start temporary
+1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	70	Using where
+1	PRIMARY	lineitem	ref	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	dbt3_s001.partsupp.ps_partkey	30	Using index
+1	PRIMARY	lineitem	ref	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	dbt3_s001.partsupp.ps_partkey	30	Using index; End temporary
 explain format=json
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
     "nested_loop": [
       {
-        "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100
-        }
-      },
-      {
-        "duplicates_removal": [
-          {
-            "block-nl-join": {
-              "table": {
-                "table_name": "t1",
-                "access_type": "ALL",
-                "rows": 4,
-                "filtered": 100
-              },
-              "buffer_type": "flat",
-              "buffer_size": "152",
-              "join_type": "BNL",
-              "attached_condition": "t1.a = t0.a"
-            }
-          },
-          {
-            "block-nl-join": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 1,
-                "filtered": 100
-              },
-              "buffer_type": "incremental",
-              "buffer_size": "203",
-              "join_type": "BNL",
-              "attached_condition": "trigcond(t1.a = t2.a)"
-            }
-          }
-        ]
-      }
-    ]
-  }
-}
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-1
-2
-create table t as
-select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-explain
-delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Start temporary
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; End temporary
-explain format=json
-delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "rows": 4,
-          "filtered": 100
-        }
-      },
-      {
         "duplicates_removal": [
           {
             "table": {
-              "table_name": "t1",
-              "access_type": "ALL",
-              "rows": 4,
-              "filtered": 100,
-              "attached_condition": "t1.a = t0.a"
-            }
-          },
-          {
-            "table": {
-              "table_name": "t2",
-              "access_type": "ALL",
+              "table_name": "supplier",
+              "access_type": "range",
+              "possible_keys": ["PRIMARY"],
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["s_suppkey"],
               "rows": 1,
               "filtered": 100,
-              "attached_condition": "trigcond(t1.a = t2.a)"
+              "attached_condition": "supplier.s_suppkey < 2",
+              "using_index": true
+            }
+          },
+          {
+            "table": {
+              "table_name": "partsupp",
+              "access_type": "ref",
+              "possible_keys": ["PRIMARY", "i_ps_partkey", "i_ps_suppkey"],
+              "key": "i_ps_suppkey",
+              "key_length": "4",
+              "used_key_parts": ["ps_suppkey"],
+              "ref": ["dbt3_s001.supplier.s_suppkey"],
+              "rows": 70,
+              "filtered": 100,
+              "attached_condition": "partsupp.ps_partkey is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "lineitem",
+              "access_type": "ref",
+              "possible_keys": ["i_l_suppkey_partkey", "i_l_partkey"],
+              "key": "i_l_partkey",
+              "key_length": "5",
+              "used_key_parts": ["l_partkey"],
+              "ref": ["dbt3_s001.partsupp.ps_partkey"],
+              "rows": 30,
+              "filtered": 100,
+              "using_index": true
+            }
+          },
+          {
+            "table": {
+              "table_name": "lineitem",
+              "access_type": "ref",
+              "possible_keys": ["i_l_suppkey_partkey", "i_l_partkey"],
+              "key": "i_l_partkey",
+              "key_length": "5",
+              "used_key_parts": ["l_partkey"],
+              "ref": ["dbt3_s001.partsupp.ps_partkey"],
+              "rows": 30,
+              "filtered": 100,
+              "using_index": true
             }
           }
         ]
@@ -2656,76 +2637,292 @@ EXPLAIN
     ]
   }
 }
-delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-insert into t0 select * from t;
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-1
-2
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+2126
+create table t as
+select * from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+explain
+delete from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	supplier	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index; Start temporary
+1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	70	Using where
+1	PRIMARY	lineitem	ref	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	dbt3_s001.partsupp.ps_partkey	30	
+1	PRIMARY	lineitem	ref	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	dbt3_s001.partsupp.ps_partkey	30	Using index; End temporary
+explain format=json
+delete from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "duplicates_removal": [
+          {
+            "table": {
+              "table_name": "supplier",
+              "access_type": "range",
+              "possible_keys": ["PRIMARY"],
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["s_suppkey"],
+              "rows": 1,
+              "filtered": 100,
+              "attached_condition": "supplier.s_suppkey < 2",
+              "using_index": true
+            }
+          },
+          {
+            "table": {
+              "table_name": "partsupp",
+              "access_type": "ref",
+              "possible_keys": ["PRIMARY", "i_ps_partkey", "i_ps_suppkey"],
+              "key": "i_ps_suppkey",
+              "key_length": "4",
+              "used_key_parts": ["ps_suppkey"],
+              "ref": ["dbt3_s001.supplier.s_suppkey"],
+              "rows": 70,
+              "filtered": 100,
+              "attached_condition": "partsupp.ps_partkey is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "lineitem",
+              "access_type": "ref",
+              "possible_keys": ["i_l_suppkey_partkey", "i_l_partkey"],
+              "key": "i_l_partkey",
+              "key_length": "5",
+              "used_key_parts": ["l_partkey"],
+              "ref": ["dbt3_s001.partsupp.ps_partkey"],
+              "rows": 30,
+              "filtered": 100
+            }
+          },
+          {
+            "table": {
+              "table_name": "lineitem",
+              "access_type": "ref",
+              "possible_keys": ["i_l_suppkey_partkey", "i_l_partkey"],
+              "key": "i_l_partkey",
+              "key_length": "5",
+              "used_key_parts": ["l_partkey"],
+              "ref": ["dbt3_s001.partsupp.ps_partkey"],
+              "rows": 30,
+              "filtered": 100,
+              "using_index": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+delete from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+0
+insert into lineitem select * from t;
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+2126
 drop table t;
 # DuplicateWeedout PS
 # =============
 prepare stmt from "
-delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+delete from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
 ";
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-1
-2
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+2126
 create table t as
-select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+select * from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
 execute stmt;
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-insert into t0 select * from t;
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-1
-2
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+0
+insert into lineitem select * from t;
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+2126
 create table r as
-select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+select * from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
 execute stmt;
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-insert into t0 select * from r;
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-1
-2
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+0
+insert into lineitem select * from r;
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+2126
 drop tables r, t;
 deallocate prepare stmt;
 # DuplicateWeedout SP
 # ==================
 create procedure p()
-delete from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-1
-2
+delete from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+2126
 create table t as
-select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+select * from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
 call p();
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-insert into t0 select * from t;
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-1
-2
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+0
+insert into lineitem select * from t;
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+2126
 create table r as
-select * from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+select * from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
 call p();
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-insert into t0 select * from r;
-select a from t0 where a in (select t1.a from t1 left join t2 on t1.a=t2.a);
-a
-1
-2
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+0
+insert into lineitem select * from r;
+select count(*) from lineitem where l_partkey in (
+select ps_partkey 
+from partsupp join lineitem on ps_partkey=l_partkey 
+where ps_suppkey in (
+select s_suppkey from supplier  where  s_suppkey < 2
+)
+);
+count(*)
+2126
 drop tables r, t;
 drop procedure p;
-drop tables t1,t2,t0;
 set @@optimizer_switch=@tmp_optimizer_switch;
 DROP DATABASE dbt3_s001;

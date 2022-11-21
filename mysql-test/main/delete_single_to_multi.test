@@ -795,269 +795,225 @@ select o_orderkey, o_totalprice from orders where $c11;
 drop table t;
 
 --echo # LooseScan
---echo # ==========
+--echo # =========
 
-create table t1 (a1 char(8), a2 char(8));
-create table t2 (b1 char(8), b2 char(8));
+create index i_l_sup_part on lineitem(l_suppkey, l_partkey);
+create index i_ps_sup_part on partsupp(ps_suppkey, ps_partkey);
 
-insert into t1 values ('1 - 00', '2 - 00');
-insert into t1 values ('1 - 01', '2 - 01');
-insert into t1 values ('1 - 02', '2 - 02');
+analyze table lineitem;
+analyze table partsupp;
 
-insert into t2 values ('1 - 01', '2 - 01');
-insert into t2 values ('1 - 01', '2 - 01');
-insert into t2 values ('1 - 02', '2 - 02');
-insert into t2 values ('1 - 02', '2 - 02');
-insert into t2 values ('1 - 03', '2 - 03');
-
-# Indexed columns
-create table t1i (a1 char(8), a2 char(8));
-create table t2i (b1 char(8), b2 char(8));
-
-create index it1i1 on t1i (a1);
-create index it1i2 on t1i (a2);
-create index it1i3 on t1i (a1, a2);
-
-create index it2i1 on t2i (b1);
-create index it2i2 on t2i (b2);
-create index it2i3 on t2i (b1, b2);
-
-insert into t1i select * from t1;
-insert into t2i select * from t2;
-
-let $c = (a1, a2) in (select b1, b2 from t2i order by b1, b2);
+let $c12 = l_suppkey in (select ps_suppkey from partsupp where ps_partkey in (1,2,3));
 
 eval
 explain
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 eval
 explain format=json
-select a1, a2 from t1i where $c;
---sorted_result
+select count(*) from lineitem where $c12;
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 eval
 create table t as
-select * from t1i where $c;
+select * from lineitem where $c12;
 
 eval
 explain
-delete from t1i where $c;
+delete from lineitem where $c12;
 eval
 explain format=json
-delete from t1i where $c;
+delete from lineitem where $c12;
 eval
-delete from t1i where $c;
+delete from lineitem where $c12;
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 
-insert into t1i select * from t;
---sorted_result
+insert into lineitem select * from t;
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 
 drop table t;
 
 --echo # LooseScan PS
---echo # =============
+--echo # ============
 
 eval
 prepare stmt from "
-delete from t1i where $c;
+delete from lineitem where $c12;
 ";
 
---sorted_result
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 eval
 create table t as
-select * from t1i where $c;
+select * from lineitem where $c12;
 execute stmt;
---sorted_result
 eval
-select a1, a2 from t1i where $c;
-insert into t1i select * from t;
---sorted_result
+select count(*) from lineitem where $c12;
+insert into lineitem select * from t;
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 
 eval
 create table r as
-select * from t1i where $c;
+select * from lineitem where $c12;
 execute stmt;
---sorted_result
 eval
-select a1, a2 from t1i where $c;
-insert into t1i select * from r;
---sorted_result
+select count(*) from lineitem where $c12;
+insert into lineitem select * from r;
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 
 drop tables r, t;
 deallocate prepare stmt;
 
 --echo # LooseScan SP
---echo # ==================
+--echo # ============
 
 eval
 create procedure p()
-delete from t1i where $c;
+delete from lineitem where $c12;
 
---sorted_result
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 eval
 create table t as
-select * from t1i where $c;
+select * from lineitem where $c12;
 call p();
---sorted_result
 eval
-select a1, a2 from t1i where $c;
-insert into t1i select * from t;
---sorted_result
+select count(*) from lineitem where $c12;
+insert into lineitem select * from t;
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 
 eval
 create table r as
-select * from t1i where $c;
+select * from lineitem where $c12;
 call p();
---sorted_result
 eval
-select a1, a2 from t1i where $c;
-insert into t1i select * from r;
---sorted_result
+select count(*) from lineitem where $c12;
+insert into lineitem select * from r;
 eval
-select a1, a2 from t1i where $c;
+select count(*) from lineitem where $c12;
 
 drop tables r, t;
 drop procedure p;
-drop tables t1,t2,t1i,t2i;
+
+drop index i_l_sup_part on lineitem;
+drop index i_ps_sup_part on partsupp;
 
 --echo # DuplicateWeedout
---echo # ==========
-
-create table t0 (a int);
-create table t1 (a int);
-create table t2 (a int);
-
-insert into t0 values (1),(2),(4),(5);
-insert into t1 values (1),(1),(2),(2);
-insert into t2 values (1);
+--echo # ================
 
 set @tmp_optimizer_switch= @@optimizer_switch;
-set optimizer_switch='firstmatch=off,loosescan=off,materialization=off';
+set optimizer_switch='materialization=off';
 
-let $c = a in (select t1.a from t1 left join t2 on t1.a=t2.a);
+analyze table lineitem;
+analyze table orders;
+
+let $c13 = l_partkey in (
+   select ps_partkey 
+   from partsupp join lineitem on ps_partkey=l_partkey 
+   where ps_suppkey in (
+    select s_suppkey from supplier  where  s_suppkey < 2
+  )
+);
 
 eval
 explain
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 eval
 explain format=json
-select a from t0 where $c;
---sorted_result
+select count(*) from lineitem where $c13;
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 eval
 create table t as
-select * from t0 where $c;
+select * from lineitem where $c13;
 
 eval
 explain
-delete from t0 where $c;
+delete from lineitem where $c13;
 eval
 explain format=json
-delete from t0 where $c;
+delete from lineitem where $c13;
 eval
-delete from t0 where $c;
---sorted_result
+delete from lineitem where $c13;
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 
-insert into t0 select * from t;
---sorted_result
+insert into lineitem select * from t;
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 
 drop table t;
 
 --echo # DuplicateWeedout PS
---echo # =============
+--echo # ===================
 
 eval
 prepare stmt from "
-delete from t0 where $c;
+delete from lineitem where $c13;
 ";
 
---sorted_result
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 eval
 create table t as
-select * from t0 where $c;
+select * from lineitem where $c13;
 execute stmt;
---sorted_result
 eval
-select a from t0 where $c;
-insert into t0 select * from t;
---sorted_result
+select count(*) from lineitem where $c13;
+insert into lineitem select * from t;
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 
 eval
 create table r as
-select * from t0 where $c;
+select * from lineitem where $c13;
 execute stmt;
---sorted_result
 eval
-select a from t0 where $c;
-insert into t0 select * from r;
---sorted_result
+select count(*) from lineitem where $c13;
+insert into lineitem select * from r;
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 
 drop tables r, t;
 deallocate prepare stmt;
 
 --echo # DuplicateWeedout SP
---echo # ==================
+--echo # ===================
 
 eval
 create procedure p()
-delete from t0 where $c;
+delete from lineitem where $c13;
 
---sorted_result
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 eval
 create table t as
-select * from t0 where $c;
+select * from lineitem where $c13;
 call p();
---sorted_result
 eval
-select a from t0 where $c;
-insert into t0 select * from t;
---sorted_result
+select count(*) from lineitem where $c13;
+insert into lineitem select * from t;
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 
 eval
 create table r as
-select * from t0 where $c;
+select * from lineitem where $c13;
 call p();
---sorted_result
 eval
-select a from t0 where $c;
-insert into t0 select * from r;
---sorted_result
+select count(*) from lineitem where $c13;
+insert into lineitem select * from r;
 eval
-select a from t0 where $c;
+select count(*) from lineitem where $c13;
 
 drop tables r, t;
 drop procedure p;
-drop tables t1,t2,t0;
 
 set @@optimizer_switch=@tmp_optimizer_switch;
+
 
 DROP DATABASE dbt3_s001;
