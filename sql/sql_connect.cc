@@ -1109,9 +1109,8 @@ static int check_connection(THD *thd)
 void setup_connection_thread_globals(THD *thd)
 {
   DBUG_EXECUTE_IF("CONNECT_wait", {
-    extern Dynamic_array<MYSQL_SOCKET> listen_sockets;
-    DBUG_ASSERT(listen_sockets.size());
-    while (listen_sockets.size())
+    extern MYSQL_SOCKET unix_sock;
+    while (unix_sock.fd >= 0)
       my_sleep(1000);
   });
   thd->store_globals();
