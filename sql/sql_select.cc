@@ -8600,7 +8600,7 @@ best_access_path(JOIN      *join,
             }
 
             set_if_smaller(records, (double) s->records);
-            tmp= cost_for_index_read(thd, table, key, records);
+            tmp= cost_for_index_read(thd, table, key, (ha_rows)records);
             tmp.copy_cost+= extra_cost;
           }
           else
@@ -10132,7 +10132,7 @@ double JOIN::get_examined_rows()
                COST_MULT((double) (tab->get_examined_rows()), prev_fanout));
     prev_tab= tab;
   }
-  examined_rows= double_to_rows(records);
+  examined_rows= records;
   return examined_rows;
 }
 
