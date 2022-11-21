@@ -1181,6 +1181,7 @@ public:
         continue;
       if (t.second.get_first() < low_limit)
         low_limit= t.second.get_first();
+      delete t.second.bulk_store;
     }
 
     trx_savept_t bulk_save{low_limit};
