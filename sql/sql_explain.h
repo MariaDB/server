@@ -758,6 +758,8 @@ public:
   Explain_table_access(MEM_ROOT *root, bool timed) :
     derived_select_number(0),
     non_merged_sjm_number(0),
+    cost(0.0),
+    loops(0.0),
     extra_tags(root),
     range_checked_fer(NULL),
     full_scan_on_null_key(false),
@@ -829,6 +831,7 @@ public:
   /* Total cost incurred during one execution of this select */
   double cost;
 
+  double loops;
   /* 
     Contents of the 'Extra' column. Some are converted into strings, some have
     parameters, values for which are stored below.

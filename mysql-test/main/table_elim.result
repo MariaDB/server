@@ -744,6 +744,7 @@ EXPLAIN
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -778,6 +779,7 @@ EXPLAIN
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -792,6 +794,7 @@ EXPLAIN
           "key_length": "8",
           "used_key_parts": ["b"],
           "ref": ["test.t1.a"],
+          "loops": 10,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -809,6 +812,7 @@ EXPLAIN
                       "table": {
                         "table_name": "t11",
                         "access_type": "ALL",
+                        "loops": 1,
                         "rows": 1000,
                         "cost": "COST_REPLACED",
                         "filtered": 100
@@ -845,6 +849,7 @@ EXPLAIN
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -873,6 +878,7 @@ EXPLAIN
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -887,6 +893,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["test.t1.a"],
+          "loops": 10,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -904,6 +911,7 @@ EXPLAIN
                       "table": {
                         "table_name": "t11",
                         "access_type": "ALL",
+                        "loops": 1,
                         "rows": 1000,
                         "cost": "COST_REPLACED",
                         "filtered": 100
@@ -918,6 +926,7 @@ EXPLAIN
                         "key_length": "4",
                         "used_key_parts": ["pk"],
                         "ref": ["test.t11.b"],
+                        "loops": 1000,
                         "rows": 1,
                         "cost": "COST_REPLACED",
                         "filtered": 100,

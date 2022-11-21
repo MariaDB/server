@@ -355,6 +355,7 @@ typedef struct st_join_table {
     accessing the table in course of the join execution.
   */
   double        join_read_time;
+  double        join_loops;
 
   /* The selectivity of the conditions that can be pushed to the table */ 
   double        cond_selectivity;  
@@ -1017,6 +1018,8 @@ public:
     number the access method will be invoked and checking the WHERE clause.
   */
   double read_time;
+
+  double loops;
 
   double    prefix_record_count;
 

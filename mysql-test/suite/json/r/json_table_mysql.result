@@ -195,6 +195,7 @@ EXPLAIN
         "table": {
           "table_name": "tt",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 40,
           "cost": "COST_REPLACED",
           "filtered": 100,
