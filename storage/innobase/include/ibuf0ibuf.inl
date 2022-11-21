@@ -65,37 +65,6 @@ ibuf_mtr_commit(
 	mtr_commit(mtr);
 }
 
-/** Insert buffer struct */
-struct ibuf_t{
-	ulint		size;		/*!< current size of the ibuf index
-					tree, in pages */
-	ulint		max_size;	/*!< recommended maximum size of the
-					ibuf index tree, in pages */
-	ulint		seg_size;	/*!< allocated pages of the file
-					segment containing ibuf header and
-					tree */
-	bool		empty;		/*!< Protected by the page
-					latch of the root page of the
-					insert buffer tree
-					(FSP_IBUF_TREE_ROOT_PAGE_NO). true
-					if and only if the insert
-					buffer tree is empty. */
-	ulint		free_list_len;	/*!< length of the free list */
-	ulint		height;		/*!< tree height */
-	dict_index_t*	index;		/*!< insert buffer index */
-
-	/** number of pages merged */
-	Atomic_counter<ulint> n_merges;
-	Atomic_counter<ulint> n_merged_ops[IBUF_OP_COUNT];
-					/*!< number of operations of each type
-					merged to index pages */
-	Atomic_counter<ulint> n_discarded_ops[IBUF_OP_COUNT];
-					/*!< number of operations of each type
-					discarded without merging due to the
-					tablespace being deleted or the
-					index being dropped */
-};
-
 /************************************************************************//**
 Sets the free bit of the page in the ibuf bitmap. This is done in a separate
 mini-transaction, hence this operation does not restrict further work to only

@@ -1,5 +1,5 @@
 --source include/have_innodb.inc
-
+--source include/innodb_page_size.inc
 --source include/have_sequence.inc
 --source include/maybe_debug.inc
 --source include/have_partition.inc
@@ -199,14 +199,42 @@ DROP TABLE t;
 --echo # MDEV-28327 InnoDB persistent statistics fail to update
 --echo #		after bulk insert
 --echo #
-CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
 INSERT INTO t1 SELECT * FROM seq_1_to_4096;
 --echo # Wait till statistics update after bulk insert operation
 let $wait_condition= select n_rows > 100 from mysql.innodb_table_stats
 where table_name="t1";
 source include/wait_condition.inc;
-SELECT n_rows FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
+# At innodb_page_size=4k this will be only 4075, not 4096. Add some slack.
+# This is related to MDEV-24621 and possibly MDEV-26740.
+SELECT n_rows>=4000 FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-27214 Import with disabled keys corrupts meta-data like rows, indexes, ...
+--echo #
+
+SET UNIQUE_CHECKS=0;
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO `t1` VALUES (1,2),(2,3),(3,4);
+--echo # Wait till statistics update after bulk insert operation
+let $wait_condition= select n_rows > 0 from mysql.innodb_table_stats
+where database_name='test' and table_name='t1';
+source include/wait_condition.inc;
+SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+DROP TABLE t1;
+
+
+--echo # End of 10.6 tests
 
 --echo #
 --echo # MDEV-26947 UNIQUE column checks fail in InnoDB resulting
@@ -361,13 +389,14 @@ DROP TABLE t1, t2;
 --echo #   MDEV-29801  Inconsistent ER_TOO_BIG_ROWSIZE during bulk
 --echo #			insert operation
 --echo #
-call mtr.add_suppression("InnoDB: Cannot add field `c11` in table");
+call mtr.add_suppression("InnoDB: Cannot add field `(c0[36]|c11)` in table");
 
 SET @format= @@innodb_default_row_format;
 CREATE TABLE t1 (pk int primary key, c01 text, c02 text, c03 text,
                  c04 text, c05 text, c06 text, c07 text, c08 text,
                  c09 text, c10 text, c11 text, c12 text) ENGINE=InnoDB;
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= COMPACT;
+--replace_result 1982 8126 4030 8126
 ALTER TABLE t1 FORCE;
 INSERT IGNORE INTO t1 VALUES
 (1, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107)),
@@ -375,3 +404,5 @@ INSERT IGNORE INTO t1 VALUES
 CHECK TABLE t1;
 DROP TABLE t1;
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= @format;
+
+--echo # End of 10.7 tests

@@ -1,0 +1,30 @@
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-27214 Import with disabled keys corrupts meta-data like rows, indexes, ...
+#
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (id int, a int,PRIMARY KEY (id)) ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO db1.t1 VALUES (1,2),(2,3),(3,4);
+DROP DATABASE IF EXISTS db1;
+CREATE DATABASE db1;
+# Wait till statistics update after bulk insert operation
+SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='db1';
+TABLE_ROWS	AVG_ROW_LENGTH>0
+3	1
+OPTIMIZE TABLE db1.t1;
+Table	Op	Msg_type	Msg_text
+db1.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+db1.t1	optimize	status	OK
+# Wait till statistics update after bulk insert operation
+SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='db1';
+TABLE_ROWS	AVG_ROW_LENGTH>0
+3	1
+DROP DATABASE db1;
+#
+# End of 10.6 tests
+#

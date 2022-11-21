@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/no_valgrind_without_big.inc
 
 call mtr.add_suppression("Table `test`.`t2` should have 2 indexes but the tablespace has 1 indexes");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");

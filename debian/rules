@@ -5,7 +5,13 @@ export DEB_BUILD_HARDENING=1
 
 # enable Debian Hardening
 # see: https://wiki.debian.org/Hardening
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all optimize=-lto
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# Disable LTO on Ubuntu, see LP: #1970634 and https://jira.mariadb.org/browse/MDEV-25633
+ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
+    export DEB_BUILD_MAINT_OPTIONS += optimize=-lto
+endif
+
 DPKG_EXPORT_BUILDFLAGS = 1
 # Include all defaults, including buildflags.mk
 include /usr/share/dpkg/default.mk
@@ -48,11 +54,6 @@ ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
 endif
 
-# ColumnStore can build only on amd64 and arm64
-ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64))
-    CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=NO
-endif
-
 # Cross building requires stack direction instruction
 ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
     ifneq (,$(filter $(DEB_HOST_ARCH_CPU),alpha amd64 arm arm64 i386 ia64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64))
@@ -66,7 +67,7 @@ endif
 # Only attempt to build with PMEM on archs that have package libpmem-dev available
 # See https://packages.debian.org/search?searchon=names&keywords=libpmem-dev
 ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64 ppc64el riscv64))
-		CMAKEFLAGS += -DWITH_PMEM=yes
+    CMAKEFLAGS += -DWITH_PMEM=YES
 endif
 
 # Add support for verbose builds
@@ -111,9 +112,9 @@ endif
 	    -DBUILD_CONFIG=mysql_release \
 	    -DCONC_DEFAULT_CHARSET=utf8mb4 \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
-			-DPLUGIN_COLUMNSTORE=NO \
+	    -DPLUGIN_COLUMNSTORE=NO \
 	    -DIGNORE_AIO_CHECK=YES \
-	    -DWITH_URING=yes \
+	    -DWITH_URING=YES \
 	    -DDEB=$(DEB_VENDOR)
 
 # This is needed, otherwise 'make test' will run before binaries have been built
@@ -126,6 +127,7 @@ override_dh_auto_build:
 override_dh_auto_test:
 	@echo "RULES.$@"
 	dh_testdir
+	# Ensure at least an empty file exists
 	touch mysql-test/unstable-tests
 	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
 	# Run testsuite
@@ -207,6 +209,7 @@ override_dh_installinit-arch:
 	dh_installinit --name=mariadb --no-start -- defaults 19 21
 	dh_systemd_start --restart-after-upgrade
 
+# Use custom server version string variable
 override_dh_gencontrol:
 	dh_gencontrol -- -Tdebian/substvars
 

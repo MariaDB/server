@@ -6579,7 +6579,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       bool is_equal= field->is_equal(*new_field);
       if (!is_equal)
       {
-        if (field->can_be_converted_by_engine(*new_field))
+        if (field->table->file->can_convert_nocopy(*field, *new_field))
         {
           /*
             New column type differs from the old one, but storage engine can
@@ -7898,6 +7898,7 @@ void append_drop_column(THD *thd, String *str, Field *field)
 }
 
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 static inline
 void rename_field_in_list(Create_field *field, List<const char> *field_list)
 {
@@ -7910,6 +7911,7 @@ void rename_field_in_list(Create_field *field, List<const char> *field_list)
     it.replace(field->field_name.str);
   }
 }
+#endif
 
 
 /**

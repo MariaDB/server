@@ -36,7 +36,6 @@ btr_pcur_get_rel_pos(
 {
 	ut_ad(cursor);
 	ut_ad(cursor->old_rec);
-	ut_ad(cursor->old_stored);
 	ut_ad(cursor->pos_state == BTR_PCUR_WAS_POSITIONED
 	      || cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 
@@ -163,7 +162,7 @@ btr_pcur_move_to_next_on_page(
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 	return page_cur_move_to_next(btr_pcur_get_page_cur(cursor));
 }
 
@@ -177,7 +176,7 @@ btr_pcur_move_to_prev_on_page(
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 
 	return page_cur_move_to_prev(btr_pcur_get_page_cur(cursor));
 }
@@ -196,7 +195,7 @@ btr_pcur_move_to_next_user_rec(
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 loop:
 	if (btr_pcur_is_after_last_on_page(cursor)) {
 		if (btr_pcur_is_after_last_in_tree(cursor)
@@ -230,7 +229,7 @@ btr_pcur_move_to_next(
   ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
   ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 
-  cursor->old_stored= false;
+  cursor->old_rec= nullptr;
 
   if (btr_pcur_is_after_last_on_page(cursor))
     return !btr_pcur_is_after_last_in_tree(cursor) &&
@@ -294,31 +293,17 @@ btr_pcur_init(
 /*==========*/
 	btr_pcur_t*	pcur)	/*!< in: persistent cursor */
 {
-	pcur->old_stored = false;
 	pcur->old_rec_buf = NULL;
 	pcur->old_rec = NULL;
 
 	pcur->btr_cur.rtr_info = NULL;
 }
 
-/** Free old_rec_buf.
-@param[in]	pcur	Persistent cursor holding old_rec to be freed. */
-UNIV_INLINE
-void
-btr_pcur_free(
-	btr_pcur_t*	pcur)
-{
-	ut_free(pcur->old_rec_buf);
-}
-
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. */
 inline
 dberr_t
-btr_pcur_open_low(
-/*==============*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: level in the btree */
+btr_pcur_open(
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
 				NOTE that if the search is made using a unique
@@ -326,26 +311,24 @@ btr_pcur_open_low(
 				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
 				may end up on the previous page from the
 				record! */
-	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
 				(0 if none) */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-  ut_ad(!index->is_spatial());
-  btr_pcur_init(cursor);
+  ut_ad(!cursor->index()->is_spatial());
   cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
   cursor->trx_if_known= nullptr;
-  return btr_cur_search_to_nth_level(index, level, tuple, mode, latch_mode,
+  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode,
                                      btr_pcur_get_btr_cur(cursor),
                                      mtr, autoinc);
 }
 
 /** Opens an persistent cursor to an index tree without initializing the
 cursor.
-@param index      index
 @param tuple      tuple on which search done
 @param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
                   unique prefix of a record, mode should be PAGE_CUR_LE, not
@@ -356,57 +339,19 @@ cursor.
 @param mtr        mini-transaction
 @return DB_SUCCESS on success or error code otherwise. */
 inline
-dberr_t btr_pcur_open_with_no_init(dict_index_t *index, const dtuple_t *tuple,
-                                   page_cur_mode_t mode, ulint latch_mode,
+dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple,
+                                   page_cur_mode_t mode,
+                                   btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr)
 {
   cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode);
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
-  cursor->old_stored= false;
   cursor->trx_if_known= nullptr;
 
   /* Search with the tree cursor */
-  return btr_cur_search_to_nth_level(index, 0, tuple, mode, latch_mode,
+  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode,
                                      btr_pcur_get_btr_cur(cursor), mtr);
-}
-
-/*****************************************************************//**
-Opens a persistent cursor at either end of an index. */
-UNIV_INLINE
-dberr_t
-btr_pcur_open_at_index_side(
-/*========================*/
-	bool		from_left,	/*!< in: true if open to the low end,
-					false if to the high end */
-	dict_index_t*	index,		/*!< in: index */
-	ulint		latch_mode,	/*!< in: latch mode */
-	btr_pcur_t*	pcur,		/*!< in/out: cursor */
-	bool		init_pcur,	/*!< in: whether to initialize pcur */
-	ulint		level,		/*!< in: level to search for
-					(0=leaf) */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-{
-	dberr_t		err = DB_SUCCESS;
-
-	pcur->latch_mode = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
-
-	pcur->search_mode = from_left ? PAGE_CUR_G : PAGE_CUR_L;
-
-	if (init_pcur) {
-		btr_pcur_init(pcur);
-	}
-
-	err = btr_cur_open_at_index_side(
-		from_left, index, latch_mode,
-		btr_pcur_get_btr_cur(pcur), level, mtr);
-	pcur->pos_state = BTR_PCUR_IS_POSITIONED;
-
-	pcur->old_stored = false;
-
-	pcur->trx_if_known = NULL;
-
-	return (err);
 }
 
 /**************************************************************//**
@@ -425,25 +370,21 @@ btr_pcur_close(
 /*===========*/
 	btr_pcur_t*	cursor)	/*!< in: persistent cursor */
 {
-	ut_free(cursor->old_rec_buf);
+  ut_free(cursor->old_rec_buf);
 
-	if (cursor->btr_cur.rtr_info) {
-		rtr_clean_rtr_info(cursor->btr_cur.rtr_info, true);
-		cursor->btr_cur.rtr_info = NULL;
-	}
+  if (cursor->btr_cur.rtr_info)
+    rtr_clean_rtr_info(cursor->btr_cur.rtr_info, true);
 
-	cursor->old_rec = NULL;
-	cursor->old_rec_buf = NULL;
-	cursor->btr_cur.page_cur.rec = NULL;
-	cursor->btr_cur.page_cur.block = NULL;
+  cursor->btr_cur.rtr_info= nullptr;
+  cursor->old_rec = nullptr;
+  cursor->old_rec_buf = nullptr;
+  cursor->btr_cur.page_cur.rec = nullptr;
+  cursor->btr_cur.page_cur.block = nullptr;
 
-	cursor->old_rec = NULL;
-	cursor->old_stored = false;
+  cursor->latch_mode = BTR_NO_LATCHES;
+  cursor->pos_state = BTR_PCUR_NOT_POSITIONED;
 
-	cursor->latch_mode = BTR_NO_LATCHES;
-	cursor->pos_state = BTR_PCUR_NOT_POSITIONED;
-
-	cursor->trx_if_known = NULL;
+  cursor->trx_if_known = nullptr;
 }
 
 /*********************************************************//**
@@ -459,5 +400,5 @@ btr_pcur_move_before_first_on_page(
 	page_cur_set_before_first(btr_pcur_get_block(cursor),
 		btr_pcur_get_page_cur(cursor));
 
-	cursor->old_stored = false;
+	cursor->old_rec = nullptr;
 }

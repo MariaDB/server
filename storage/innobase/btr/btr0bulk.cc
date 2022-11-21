@@ -563,8 +563,9 @@ inline void PageBulk::finish()
 void PageBulk::commit(bool success)
 {
   finish();
-  if (success && !dict_index_is_clust(m_index) && page_is_leaf(m_page))
-    ibuf_set_bitmap_for_bulk_load(m_block, innobase_fill_factor == 100);
+  if (success && !m_index->is_clust() && page_is_leaf(m_page))
+    ibuf_set_bitmap_for_bulk_load(m_block, &m_mtr,
+                                  innobase_fill_factor == 100);
   m_mtr.commit();
 }
 
@@ -634,7 +635,7 @@ PageBulk::getSplitRec()
 		 < total_used_size / 2);
 
 	/* Keep at least one record on left page */
-	if (page_rec_is_second(rec, m_page)) {
+	if (page_rec_is_first(rec, m_page)) {
 		rec = page_rec_get_next(rec);
 		ut_ad(page_rec_is_user_rec(rec));
 	}
@@ -826,7 +827,6 @@ PageBulk::storeExt(
 	btr_pcur_t	btr_pcur;
 	btr_pcur.pos_state = BTR_PCUR_IS_POSITIONED;
 	btr_pcur.latch_mode = BTR_MODIFY_LEAF;
-	btr_pcur.btr_cur.index = m_index;
 	btr_pcur.btr_cur.page_cur.index = m_index;
 	btr_pcur.btr_cur.page_cur.rec = m_cur_rec;
 	btr_pcur.btr_cur.page_cur.offsets = offsets;

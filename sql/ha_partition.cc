@@ -12125,35 +12125,12 @@ int ha_partition::info_push(uint info_type, void *info)
 
 
 bool
-ha_partition::can_convert_string(const Field_string* field,
-		                 const Column_definition& new_type) const
+ha_partition::can_convert_nocopy(const Field &field,
+                                 const Column_definition &new_type) const
 {
   for (uint index= 0; index < m_tot_parts; index++)
   {
-    if (!m_file[index]->can_convert_string(field, new_type))
-      return false;
-  }
-  return true;
-}
-
-bool
-ha_partition::can_convert_varstring(const Field_varstring* field,
-		                    const Column_definition& new_type) const{
-  for (uint index= 0; index < m_tot_parts; index++)
-  {
-    if (!m_file[index]->can_convert_varstring(field, new_type))
-      return false;
-  }
-  return true;
-}
-
-bool
-ha_partition::can_convert_blob(const Field_blob* field,
-		               const Column_definition& new_type) const
-{
-  for (uint index= 0; index < m_tot_parts; index++)
-  {
-    if (!m_file[index]->can_convert_blob(field, new_type))
+    if (!m_file[index]->can_convert_nocopy(field, new_type))
       return false;
   }
   return true;

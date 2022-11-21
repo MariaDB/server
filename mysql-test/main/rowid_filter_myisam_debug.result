@@ -1,10 +1,8 @@
 #
 # MDEV-22761 KILL QUERY during rowid_filter, crashes
 #
-create table t0(a int);
-insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2(a int);
-insert into t2 select A.a + B.a* 10 from t0 A, t0 B;
+insert into t2 select * from seq_0_to_99;
 CREATE TABLE t3 (
 key1 int ,
 key2 int,
@@ -18,11 +16,10 @@ engine
 MyISAM
 insert into t3
 select
-A.a,
-B.a,
+A.seq,
+B.seq,
 'filler-data-filler-data'
-from
-t2 A, t2 B;
+from seq_0_to_99 A, seq_0_to_99 B;
 analyze table t2,t3;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -41,7 +38,6 @@ select * from t2, t3
 where 
 t3.key1=t2.a and t3.key2 in (2,3);
 connect  con1, localhost, root,,;
-connection con1;
 set debug_sync='now WAIT_FOR at_rowid_filter_check';
 kill query $target_id;
 set debug_sync='now SIGNAL go';
@@ -49,4 +45,4 @@ connection default;
 disconnect con1;
 ERROR 70100: Query execution was interrupted
 set debug_sync='RESET';
-drop table t0,t2,t3;
+drop table t2,t3;

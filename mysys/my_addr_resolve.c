@@ -202,7 +202,7 @@ int start_addr2line_fork(const char *binary_path)
     close(out[0]);
     close(out[1]);
     execlp("addr2line", "addr2line", "-C", "-f", "-e", binary_path, NULL);
-    exit(1);
+    _exit(1);
   }
 
   close(in[0]);
@@ -319,12 +319,20 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
     /* Save result for future comparisons. */
     strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
 
+#ifdef _AIX
+    /*
+      info.dli_fbase is a char on AIX and casting it doesn't fool gcc.
+      leave backtracing broken on AIX until a real solution can be found.
+    */
+    addr_offset= NULL;
+#else
     /*
       Check if we should use info.dli_fbase as an offset or not
       for the base program. This is depending on if the compilation is
       done with PIE or not.
     */
-    addr_offset= (void*) info.dli_fbase;
+    addr_offset= info.dli_fbase;
+#endif
 #ifndef __PIE__
     if (strcmp(info.dli_fname, my_progname) == 0 &&
         addr_resolve((void*) my_addr_resolve, loc) == 0 &&

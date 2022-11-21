@@ -34,13 +34,15 @@ ROLLBACK;
 InnoDB		0 transactions not purged
 INSERT INTO t2 VALUES
 (16,1551,'Omnium enim rerum'),(128,1571,' principia parva sunt');
+BEGIN;
+UPDATE t1 SET c2=c2+1;
 connect ddl, localhost, root;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
 ALTER TABLE t2 DROP COLUMN c3, ADD COLUMN c5 TEXT DEFAULT 'naturam abhorrere';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-UPDATE t1 SET c2=c2+1;
+COMMIT;
 # Kill the server
 disconnect ddl;
 # restart
@@ -61,6 +63,8 @@ DELETE FROM t2;
 ROLLBACK;
 InnoDB		0 transactions not purged
 INSERT INTO t2 VALUES (64,42,'De finibus bonorum'), (347,33101,' et malorum');
+BEGIN;
+DELETE FROM t1;
 connect ddl, localhost, root;
 ALTER TABLE t2 DROP COLUMN c3;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
@@ -68,7 +72,7 @@ ALTER TABLE t2 ADD COLUMN (c4 TEXT NOT NULL DEFAULT ' et malorum');
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-DELETE FROM t1;
+COMMIT;
 # Kill the server
 disconnect ddl;
 # restart
@@ -138,6 +142,8 @@ InnoDB		0 transactions not purged
 #
 # MDEV-24323 Crash on recovery after kill during instant ADD COLUMN
 #
+BEGIN;
+INSERT INTO t1 VALUES(0,0);
 connect ddl, localhost, root;
 CREATE TABLE t3(id INT PRIMARY KEY, c2 INT, v2 INT AS(c2) VIRTUAL, UNIQUE(v2))
 ENGINE=InnoDB;
@@ -147,7 +153,7 @@ ALTER TABLE t3 ADD COLUMN c3 TEXT NOT NULL DEFAULT 'sic transit gloria mundi';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-INSERT INTO t1 VALUES(0,0);
+COMMIT;
 # Kill the server
 disconnect ddl;
 # restart
@@ -183,13 +189,15 @@ DROP TABLE t2,t3;
 #
 CREATE TABLE t2(a INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6);
+BEGIN;
+DELETE FROM t1;
 connect ddl, localhost, root;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
 ALTER TABLE t2 ADD COLUMN b TINYINT UNSIGNED NOT NULL DEFAULT 42 FIRST;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-DELETE FROM t1;
+COMMIT;
 # Kill the server
 disconnect ddl;
 # restart

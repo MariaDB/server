@@ -23,7 +23,7 @@
 
 #ifndef MAIN
 
-#if defined(_AIX) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__linux__) || defined(__sun) || defined(_WIN32)
+#if defined(_AIX) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__linux__) || defined(__sun) || defined(_WIN32)
 static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
 {
   uint i, res= 1;
@@ -35,8 +35,14 @@ static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
 }
 #endif
 
-#if defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+#ifdef __OpenBSD__
+#include <netinet/in.h>
+#include <net/if_arp.h>
+#include <netinet/if_ether.h>
+#else
 #include <net/ethernet.h>
+#endif
 #include <sys/sysctl.h>
 #include <net/route.h>
 #include <net/if.h>
@@ -110,7 +116,7 @@ my_bool my_gethwaddr(uchar *to)
     uint i;
     for (i= 0; res && i < ifc.ifc_len / sizeof(ifr[0]); i++)
     {
-#if !defined(_AIX) || !defined(__linux__)
+#if defined(_AIX) || defined(__linux__)
 #if defined(__linux__)
 #define HWADDR_DATA ifr[i].ifr_hwaddr.sa_data
 #else

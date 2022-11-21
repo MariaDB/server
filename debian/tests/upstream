@@ -10,6 +10,8 @@ echo "Running test 'testsuite'"
 set -e
 
 SKIP_TEST_LST="/tmp/skip-test.lst"
+ARCH=$(dpkg --print-architecture)
+
 WORKDIR=$(mktemp -d)
 trap 'rm -rf $WORKDIR $SKIP_TEST_LST' 0 INT QUIT ABRT PIPE TERM
 cd "$WORKDIR"
@@ -22,16 +24,15 @@ echo "using tmpdir: $WORKDIR/tmp"
 
 echo "Setting up skip-tests-list"
 
-touch $SKIP_TEST_LST
+# Use unstable-tests list as base to skip all tests  considered unstable
+# or create an empty file if that upstream file does not exists on this branch
+cp /usr/share/mysql/mysql-test/unstable-tests $SKIP_TEST_LST || touch $SKIP_TEST_LST
 
-# Also use arch specific skiplists if such files exist
-for filename in /usr/share/mysql/mysql-test/unstable-tests.*
-do
-  # Check for case that no files matched and glob is returned
-  [ -e "$filename" ] || continue
-  # Append file to the main skip test list file
-  cat "$filename" >> $SKIP_TEST_LST
-done
+# Also use the arch specific skiplists if exist
+if [ -f /usr/share/mysql/mysql-test/unstable-tests.$ARCH ]
+then
+  cat /usr/share/mysql/mysql-test/unstable-tests.$ARCH >> $SKIP_TEST_LST
+fi
 
 # Skip tests that cannot run properly on ci.debian.net / autopkgtests.ubuntu.com
 cat >> $SKIP_TEST_LST << EOF
@@ -48,7 +49,6 @@ main.mysqld--help : For unknown reason table-cache is 4000 instead of default 42
 EOF
 fi
 
-ARCH=$(dpkg --print-architecture)
 if [ "$ARCH" = "s390x" ]
 then
   echo "main.func_regexp_pcre : recursion fails on s390x https://bugs.launchpad.net/ubuntu/+source/mariadb-10.1/+bug/1723947" >> $SKIP_TEST_LST
@@ -56,6 +56,10 @@ elif [ "$ARCH" = "armhf" ] || [ "$ARCH" = "i386" ]
 then
   echo "main.failed_auth_unixsocket : Test returns wrong exit code on armhf and i386 (but only in debci) https://jira.mariadb.org/browse/MDEV-23933" >> $SKIP_TEST_LST
 fi
+
+# Store skipped test list in artifacts so it can be viewed while debugging
+# failed autopkgtest runs
+cp -v $SKIP_TEST_LST $AUTOPKGTEST_ARTIFACTS
 
 cd /usr/share/mysql/mysql-test
 echo "starting mysql-test-tun.pl..."

@@ -1450,11 +1450,8 @@ row_create_update_node_for_mysql(
 
 	node->in_mysql_interface = true;
 	node->is_delete = NO_DELETE;
-	node->searched_update = FALSE;
-	node->select = NULL;
-	node->pcur = btr_pcur_create_for_mysql();
-
-	DBUG_PRINT("info", ("node: %p, pcur: %p", node, node->pcur));
+	node->pcur = new (mem_heap_alloc(heap, sizeof(btr_pcur_t)))
+		btr_pcur_t();
 
 	node->table = table;
 
@@ -1466,10 +1463,6 @@ row_create_update_node_for_mysql(
 	UT_LIST_INIT(node->columns, &sym_node_t::col_var_list);
 
 	node->has_clust_rec_x_lock = TRUE;
-	node->cmpl_info = 0;
-
-	node->table_sym = NULL;
-	node->col_assign_list = NULL;
 
 	DBUG_RETURN(node);
 }
@@ -1644,8 +1637,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	clust_index = dict_table_get_first_index(table);
 
 	btr_pcur_copy_stored_position(node->pcur,
-				      prebuilt->pcur->btr_cur.index
-				      == clust_index
+				      prebuilt->pcur->index() == clust_index
 				      ? prebuilt->pcur
 				      : prebuilt->clust_pcur);
 
@@ -1786,7 +1778,7 @@ row_unlock_for_mysql(
 		}
 
 		rec = btr_pcur_get_rec(pcur);
-		index = btr_pcur_get_btr_cur(pcur)->index;
+		index = pcur->index();
 
 		/* If the record has been modified by this
 		transaction, do not unlock it. */
