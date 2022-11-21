@@ -5362,3 +5362,40 @@ dberr_t row_merge_bulk_t::write_to_table(dict_table_t *table, trx_t *trx)
 
   return DB_SUCCESS;
 }
+
+dberr_t trx_mod_table_time_t::write_bulk(dict_table_t *table, trx_t *trx)
+{
+  if (!bulk_store)
+    return DB_SUCCESS;
+  dberr_t err= bulk_store->write_to_table(table, trx);
+  delete bulk_store;
+  bulk_store= nullptr;
+  return err;
+}
+
+dberr_t trx_t::bulk_insert_apply_low()
+{
+  ut_ad(bulk_insert);
+  ut_ad(!check_unique_secondary);
+  ut_ad(!check_foreigns);
+  dberr_t err;
+  for (auto& t : mod_tables)
+    if (t.second.is_bulk_insert())
+      if ((err= t.second.write_bulk(t.first, this)) != DB_SUCCESS)
+        goto bulk_rollback;
+  return DB_SUCCESS;
+bulk_rollback:
+  undo_no_t low_limit= UINT64_MAX;
+  for (auto& t : mod_tables)
+  {
+    if (t.second.is_bulk_insert())
+    {
+      if (t.second.get_first() < low_limit)
+        low_limit= t.second.get_first();
+      delete t.second.bulk_store;
+    }
+  }
+  trx_savept_t bulk_save{low_limit};
+  rollback(&bulk_save);
+  return err;
+}
