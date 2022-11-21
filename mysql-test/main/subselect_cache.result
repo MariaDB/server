@@ -57,6 +57,7 @@ ANALYZE
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
@@ -83,6 +84,7 @@ ANALYZE
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",
+                  "loops": 1,
                   "r_loops": 4,
                   "rows": 4,
                   "r_rows": 4,
@@ -118,6 +120,7 @@ ANALYZE
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
@@ -152,6 +155,7 @@ ANALYZE
                         "table": {
                           "table_name": "t2",
                           "access_type": "ALL",
+                          "loops": 1,
                           "r_loops": 4,
                           "rows": 4,
                           "r_rows": 4,
@@ -194,6 +198,7 @@ ANALYZE
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",
+                  "loops": 1,
                   "r_loops": 4,
                   "rows": 4,
                   "r_rows": 4,
@@ -224,6 +229,7 @@ EXPLAIN
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -242,6 +248,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 4,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -267,6 +274,7 @@ EXPLAIN
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -291,6 +299,7 @@ EXPLAIN
                         "table": {
                           "table_name": "t2",
                           "access_type": "ALL",
+                          "loops": 1,
                           "rows": 4,
                           "cost": "COST_REPLACED",
                           "filtered": 100,
@@ -325,6 +334,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 4,
                   "cost": "COST_REPLACED",
                   "filtered": 100,

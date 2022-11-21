@@ -1916,6 +1916,9 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     rowid_filter->print_explain_json(query, writer, is_analyze);
   }
 
+  if (loops != 0.0)
+    writer->add_member("loops").add_double(loops);
+
   /* r_loops (not present in tabular output) */
   if (is_analyze)
   {

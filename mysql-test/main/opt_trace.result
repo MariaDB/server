@@ -10763,6 +10763,7 @@ EXPLAIN
           "key": "start_date",
           "key_length": "8",
           "used_key_parts": ["start_date", "end_date"],
+          "loops": 1,
           "rows": 1000,
           "cost": 1.235599899,
           "filtered": 100,
@@ -12545,6 +12546,7 @@ EXPLAIN
         "table": {
           "table_name": "three",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 3,
           "cost": 0.010504815,
           "filtered": 100,
@@ -12568,6 +12570,7 @@ EXPLAIN
             "rows": 4312,
             "selectivity_pct": 43.12
           },
+          "loops": 3,
           "rows": 1000,
           "cost": 2.292585745,
           "filtered": 43.11999893,
@@ -12589,6 +12592,7 @@ EXPLAIN
         "table": {
           "table_name": "three",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 3,
           "cost": 0.010504815,
           "filtered": 100
@@ -12600,6 +12604,7 @@ EXPLAIN
             "table_name": "t1",
             "access_type": "ALL",
             "possible_keys": ["a", "b"],
+            "loops": 3,
             "rows": 10000,
             "cost": 1.701731924,
             "filtered": 4.307688236,

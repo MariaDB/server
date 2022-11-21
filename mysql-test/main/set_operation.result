@@ -577,6 +577,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t1",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 5,
                   "cost": "REPLACED",
                   "filtered": 100
@@ -595,6 +596,7 @@ EXPLAIN
                 "table": {
                   "table_name": "<derived2>",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 5,
                   "cost": "REPLACED",
                   "filtered": 100,
@@ -613,6 +615,7 @@ EXPLAIN
                                   "table": {
                                     "table_name": "t2",
                                     "access_type": "ALL",
+                                    "loops": 1,
                                     "rows": 6,
                                     "cost": "REPLACED",
                                     "filtered": 100
@@ -640,6 +643,7 @@ EXPLAIN
                                   "table": {
                                     "table_name": "<derived5>",
                                     "access_type": "ALL",
+                                    "loops": 1,
                                     "rows": 10,
                                     "cost": "REPLACED",
                                     "filtered": 100,
@@ -656,6 +660,7 @@ EXPLAIN
                                                     "table": {
                                                       "table_name": "t1",
                                                       "access_type": "ALL",
+                                                      "loops": 1,
                                                       "rows": 5,
                                                       "cost": "REPLACED",
                                                       "filtered": 100
@@ -674,6 +679,7 @@ EXPLAIN
                                                     "table": {
                                                       "table_name": "t1",
                                                       "access_type": "ALL",
+                                                      "loops": 1,
                                                       "rows": 5,
                                                       "cost": "REPLACED",
                                                       "filtered": 100
@@ -710,6 +716,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t3",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 5,
                   "cost": "REPLACED",
                   "filtered": 100
@@ -728,6 +735,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t2",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 6,
                   "cost": "REPLACED",
                   "filtered": 100
@@ -746,6 +754,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t3",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 5,
                   "cost": "REPLACED",
                   "filtered": 100
@@ -764,6 +773,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t1",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 5,
                   "cost": "REPLACED",
                   "filtered": 100
@@ -774,6 +784,7 @@ EXPLAIN
                   "table": {
                     "table_name": "t2",
                     "access_type": "ALL",
+                    "loops": 5,
                     "rows": 6,
                     "cost": "REPLACED",
                     "filtered": 100
@@ -796,6 +807,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t1",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 5,
                   "cost": "REPLACED",
                   "filtered": 100,
@@ -807,6 +819,7 @@ EXPLAIN
                   "table": {
                     "table_name": "t2",
                     "access_type": "ALL",
+                    "loops": 5,
                     "rows": 6,
                     "cost": "REPLACED",
                     "filtered": 100
@@ -829,6 +842,7 @@ EXPLAIN
                 "table": {
                   "table_name": "t3",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 5,
                   "cost": "REPLACED",
                   "filtered": 100
