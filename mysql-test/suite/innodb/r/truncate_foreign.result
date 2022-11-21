@@ -80,8 +80,18 @@ SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a), ALGORITHM=COPY;
 INSERT INTO t1 VALUES (1,1);
 LOCK TABLES t1 WRITE;
+SET FOREIGN_KEY_CHECKS=1;
 TRUNCATE t1;
 ERROR HY000: Cannot add foreign key constraint for `t1`
+INSERT INTO t1 VALUES (2,2);
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+SELECT * FROM t1;
+pk	a
+1	1
+UNLOCK TABLES;
+INSERT INTO t1 VALUES (2,2);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
+SET FOREIGN_KEY_CHECKS=0;
 INSERT INTO t1 VALUES (2,2);
 SELECT * FROM t1;
 pk	a

@@ -1,10 +1,12 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/not_embedded.inc
+--source include/no_valgrind_without_big.inc
 
 call mtr.add_suppression("InnoDB: Expected tablespace id .*");
 --echo # Mariabackup --backup with page0 INIT_PAGE redo record
 --echo # and there is no FILE_CREATE for the tablespace t1
+SET @save_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG="+d,checkpoint_after_file_create";
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
@@ -25,7 +27,7 @@ exec $XTRABACKUP  --prepare --target-dir=$targetdir;
 SELECT * FROM t1;
 DROP TABLE t1;
 rmdir $targetdir;
-SET DEBUG_DBUG="-d,checkpoint_after_file_create";
+SET @@SESSION.DEBUG_DBUG= @save_debug;
 
 --echo # Mariabackup fails after corrupting the page0 in disk
 --echo # and there is no INIT_PAGE for page0
@@ -38,16 +40,13 @@ let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 --echo # Corrupt the table
 
 perl;
-use strict;
-use warnings;
-use Fcntl qw(:DEFAULT :seek);
-my $page_size = $ENV{INNODB_PAGE_SIZE};
+my $ps = $ENV{INNODB_PAGE_SIZE};
 
-sysopen FILE, "$ENV{MYSQLD_DATADIR}/test/t1.ibd", O_RDWR
-|| die "Cannot open t1.ibd\n";
-sysseek(FILE, 0, SEEK_SET) || die "Cannot seek t1.ibd\n";
-my $page=chr(0) x $page_size;
-syswrite(FILE, $page, $page_size)==$page_size;
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+seek (FILE, 0, SEEK_SET) or die "seek";
+print FILE chr(0x00) x $ps;
 close FILE or die "close";
 EOF
 

@@ -12,3 +12,18 @@ SELECT * FROM t;
 i
 1
 DROP TABLE t;
+#
+#  MDEV-27121 mariabackup incompatible with disabled dedicated
+#                  undo log tablespaces
+#
+call mtr.add_suppression("InnoDB: innodb_undo_tablespaces=0 disables dedicated undo log tablespaces");
+# restart: --innodb_undo_tablespaces=0
+# xtrabackup backup
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart: --innodb_undo_tablespaces=0
+# Display undo log files from target directory
+undo001
+undo002

@@ -862,7 +862,7 @@ srv_printf_innodb_monitor(
 			n_reserved);
 	}
 
-	fprintf(file, ", state: %s\n", srv_main_thread_op_info);
+	fprintf(file, "state: %s\n", srv_main_thread_op_info);
 
 	fputs("----------------------------\n"
 	      "END OF INNODB MONITOR OUTPUT\n"
@@ -1343,31 +1343,29 @@ static void srv_sync_log_buffer_in_background()
 	}
 }
 
-/*********************************************************************//**
-This function prints progress message every 60 seconds during server
-shutdown, for any activities that master thread is pending on. */
-static
-void
-srv_shutdown_print_master_pending(
-/*==============================*/
-	time_t*		last_print_time,	/*!< last time the function
-						print the message */
-	ulint		n_bytes_merged)		/*!< number of change buffer
-						just merged */
+/** Report progress during shutdown.
+@param last   time of last output
+@param n_read number of page reads initiated for change buffer merge */
+static void srv_shutdown_print(time_t &last, ulint n_read)
 {
-	time_t current_time = time(NULL);
+  time_t now= time(nullptr);
+  if (now - last >= 15)
+  {
+    last= now;
 
-	if (difftime(current_time, *last_print_time) > 60) {
-		*last_print_time = current_time;
-
-		/* Check change buffer merge, we only wait for change buffer
-		merge if it is a slow shutdown */
-		if (!srv_fast_shutdown && n_bytes_merged) {
-			ib::info() << "Waiting for change buffer merge to"
-				" complete number of bytes of change buffer"
-				" just merged: " << n_bytes_merged;
-		}
-	}
+    const ulint ibuf_size= ibuf.size;
+    sql_print_information("Completing change buffer merge;"
+                          " %zu page reads initiated;"
+                          " %zu change buffer pages remain",
+                          n_read, ibuf_size);
+#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
+    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                   "Completing change buffer merge;"
+                                   " %zu page reads initiated;"
+                                   " %zu change buffer pages remain",
+                                   n_read, ibuf_size);
+#endif
+  }
 }
 
 /** Perform periodic tasks whenever the server is active.
@@ -1412,7 +1410,7 @@ Complete the shutdown tasks such as background DROP TABLE,
 and optionally change buffer merge (on innodb_fast_shutdown=0). */
 void srv_shutdown(bool ibuf_merge)
 {
-	ulint		n_bytes_merged	= 0;
+	ulint		n_read = 0;
 	time_t		now = time(NULL);
 
 	do {
@@ -1421,21 +1419,12 @@ void srv_shutdown(bool ibuf_merge)
 		++srv_main_shutdown_loops;
 
 		if (ibuf_merge) {
-			srv_main_thread_op_info = "checking free log space";
-			log_free_check();
 			srv_main_thread_op_info = "doing insert buffer merge";
-			n_bytes_merged = ibuf_merge_all();
-
-			/* Flush logs if needed */
-			srv_sync_log_buffer_in_background();
+			log_free_check();
+			n_read = ibuf_contract();
+			srv_shutdown_print(now, n_read);
 		}
-
-		/* Print progress message every 60 seconds during shutdown */
-		if (srv_print_verbose_log) {
-			srv_shutdown_print_master_pending(&now,
-							  n_bytes_merged);
-		}
-	} while (n_bytes_merged);
+	} while (n_read);
 }
 
 /** The periodic master task controlling the server. */

@@ -6197,7 +6197,9 @@ static int i_s_sys_tablespaces_fill_table(THD *thd, TABLE_LIST *tables, Item*)
     {
       space.reacquire();
       mysql_mutex_unlock(&fil_system.mutex);
+      space.s_lock();
       err= i_s_sys_tablespaces_fill(thd, space, tables->table);
+      space.s_unlock();
       mysql_mutex_lock(&fil_system.mutex);
       space.release();
       if (err)
@@ -6414,8 +6416,10 @@ i_s_tablespaces_encryption_fill_table(
 		    && !space.is_stopping()) {
 			space.reacquire();
 			mysql_mutex_unlock(&fil_system.mutex);
+			space.s_lock();
 			err = i_s_dict_fill_tablespaces_encryption(
 				thd, &space, tables->table);
+			space.s_unlock();
 			mysql_mutex_lock(&fil_system.mutex);
 			space.release();
 			if (err) {

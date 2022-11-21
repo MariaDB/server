@@ -63,7 +63,7 @@ very-long-line-length-in-source-file mysql-test/std_data/init_file_longline_3816
 very-long-line-length-in-source-file scripts/fill_help_tables.sql *
 very-long-line-length-in-source-file scripts/mysql_system_tables.sql *
 very-long-line-length-in-source-file scripts/mysql_test_data_timezone.sql *
-# Machine formated HTML
+# Machine formatted HTML
 very-long-line-length-in-source-file sql/share/charsets/languages.html *
 very-long-line-length-in-source-file sql/share/errmsg-utf8.txt *
 # Very long test string

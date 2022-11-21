@@ -430,6 +430,10 @@ class trx_mod_table_time_t
   /** First modification of a system versioned column
   (NONE= no versioning, BULK= the table was dropped) */
   undo_no_t first_versioned= NONE;
+#ifdef UNIV_DEBUG
+  /** Whether the modified table is a FTS auxiliary table */
+  bool fts_aux_table= false;
+#endif /* UNIV_DEBUG */
 
   /** Buffer to store insert opertion */
   row_merge_bulk_t *bulk_store= nullptr;
@@ -496,6 +500,12 @@ public:
     return false;
   }
 
+#ifdef UNIV_DEBUG
+  void set_aux_table() { fts_aux_table= true; }
+
+  bool is_aux_table() const { return fts_aux_table; }
+#endif /* UNIV_DEBUG */
+
   /** @return the first undo record that modified the table */
   undo_no_t get_first() const
   {
@@ -515,15 +525,7 @@ public:
 
   /** Do bulk insert operation present in the buffered operation
   @return DB_SUCCESS or error code */
-  dberr_t write_bulk(dict_table_t *table, trx_t *trx)
-  {
-    if (!bulk_store)
-      return DB_SUCCESS;
-    dberr_t err= bulk_store->write_to_table(table, trx);
-    delete bulk_store;
-    bulk_store= nullptr;
-    return err;
-  }
+  dberr_t write_bulk(dict_table_t *table, trx_t *trx);
 
   /** @return whether the buffer storage exist */
   bool bulk_buffer_exist() const
@@ -1161,42 +1163,18 @@ public:
     return &it->second;
   }
 
-  /** Rollback all bulk insert operations */
-  void bulk_rollback()
-  {
-    undo_no_t low_limit= UINT64_MAX;
-    for (auto& t : mod_tables)
-    {
-      if (!t.second.is_bulk_insert())
-        continue;
-      if (t.second.get_first() < low_limit)
-        low_limit= t.second.get_first();
-    }
-
-    trx_savept_t bulk_save{low_limit};
-    rollback(&bulk_save);
-  }
-
   /** Do the bulk insert for the buffered insert operation
   for the transaction.
   @return DB_SUCCESS or error code */
   dberr_t bulk_insert_apply()
   {
-    if (UNIV_LIKELY(!bulk_insert))
-      return DB_SUCCESS;
-    ut_ad(!check_unique_secondary);
-    ut_ad(!check_foreigns);
-    for (auto& t : mod_tables)
-      if (t.second.is_bulk_insert())
-        if (dberr_t err= t.second.write_bulk(t.first, this))
-        {
-          bulk_rollback();
-          return err;
-        }
-    return DB_SUCCESS;
+    return UNIV_UNLIKELY(bulk_insert) ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
 private:
+  /** Apply the buffered bulk inserts. */
+  dberr_t bulk_insert_apply_low();
+
   /** Assign a rollback segment for modifying temporary tables.
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();

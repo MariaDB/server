@@ -795,34 +795,12 @@ page_rec_is_first(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /************************************************************//**
-true if the record is the second user record on a page.
-@return true if the second user record */
-UNIV_INLINE
-bool
-page_rec_is_second(
-/*===============*/
-	const rec_t*	rec,	/*!< in: record */
-	const page_t*	page)	/*!< in: page */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/************************************************************//**
 true if the record is the last user record on a page.
 @return true if the last user record */
 UNIV_INLINE
 bool
 page_rec_is_last(
 /*=============*/
-	const rec_t*	rec,	/*!< in: record */
-	const page_t*	page)	/*!< in: page */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/************************************************************//**
-true if the record is the second last user record on a page.
-@return true if the second last user record */
-UNIV_INLINE
-bool
-page_rec_is_second_last(
-/*====================*/
 	const rec_t*	rec,	/*!< in: record */
 	const page_t*	page)	/*!< in: page */
 	MY_ATTRIBUTE((warn_unused_result));

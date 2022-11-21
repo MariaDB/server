@@ -129,7 +129,6 @@ page_cur_tuple_insert(
 /*==================*/
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
@@ -143,7 +142,6 @@ rec_t*
 page_cur_insert_rec_low(
 /*====================*/
 	const page_cur_t*cur,	/*!< in: page cursor */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: record to insert after cur */
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
@@ -165,7 +163,6 @@ page_cur_insert_rec_zip(
 /*====================*/
 	page_cur_t*	cursor,	/*!< in/out: page cursor,
 				logical position unchanged  */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
@@ -177,7 +174,6 @@ void
 page_cur_delete_rec(
 /*================*/
 	page_cur_t*		cursor,	/*!< in/out: a page cursor */
-	const dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_offs*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr)	/*!< in/out: mini-transaction */
@@ -239,8 +235,6 @@ Searches the right position for a page cursor. */
 bool
 page_cur_search_with_match(
 /*=======================*/
-	const buf_block_t*	block,	/*!< in: buffer block */
-	const dict_index_t*	index,	/*!< in: record descriptor */
 	const dtuple_t*		tuple,	/*!< in: data tuple */
 	page_cur_mode_t		mode,	/*!< in: PAGE_CUR_L,
 					PAGE_CUR_LE, PAGE_CUR_G, or
@@ -251,13 +245,11 @@ page_cur_search_with_match(
 	ulint*			ilow_matched_fields,
 					/*!< in/out: already matched
 					fields in lower limit record */
-	page_cur_t*		cursor,	/*!< out: page cursor */
+	page_cur_t*		cursor,	/*!< in/out: page cursor */
 	rtr_info_t*		rtr_info);/*!< in/out: rtree search stack */
 #ifdef BTR_CUR_HASH_ADAPT
 MY_ATTRIBUTE((warn_unused_result))
 /** Search the right position for a page cursor.
-@param[in]	block			buffer block
-@param[in]	index			index tree
 @param[in]	tuple			key to be searched for
 @param[in]	mode			search mode
 @param[in,out]	iup_matched_fields	already matched fields in the
@@ -268,11 +260,9 @@ first partially matched field in the upper limit record
 lower limit record
 @param[in,out]	ilow_matched_bytes	already matched bytes in the
 first partially matched field in the lower limit record
-@param[out]	cursor			page cursor */
+@param[in,out]	cursor			page cursor */
 bool
 page_cur_search_with_match_bytes(
-	const buf_block_t*	block,
-	const dict_index_t*	index,
 	const dtuple_t*		tuple,
 	page_cur_mode_t		mode,
 	ulint*			iup_matched_fields,
@@ -284,16 +274,12 @@ page_cur_search_with_match_bytes(
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
 are no user records, sets the cursor on the infimum record. */
-void
-page_cur_open_on_rnd_user_rec(
-/*==========================*/
-	buf_block_t*	block,	/*!< in: page */
-	page_cur_t*	cursor);/*!< out: page cursor */
+void page_cur_open_on_rnd_user_rec(page_cur_t *cursor);
 
 /** Index page cursor */
 
 struct page_cur_t{
-	const dict_index_t*	index;
+	dict_index_t*	index;
 	rec_t*		rec;	/*!< pointer to a record on page */
 	rec_offs*	offsets;
 	buf_block_t*	block;	/*!< pointer to the block containing rec */

@@ -611,7 +611,7 @@ rec_init_offsets(
 	ulint	i	= 0;
 	rec_offs	offs;
 
-	/* This assertion was relaxed for the btr_cur_open_at_index_side()
+	/* This assertion was relaxed for the btr_cur_t::open_leaf()
 	call in btr_cur_instant_init_low(). We cannot invoke
 	index->is_instant(), because the same assertion would fail there
 	until btr_cur_instant_init_low() has invoked
@@ -839,7 +839,7 @@ rec_get_offsets_func(
 	bool	alter_metadata = false;
 
 	ut_ad(index->n_core_fields >= n_core);
-	/* This assertion was relaxed for the btr_cur_open_at_index_side()
+	/* This assertion was relaxed for the btr_cur_t::open_leaf()
 	call in btr_cur_instant_init_low(). We cannot invoke
 	index->is_instant(), because the same assertion would fail there
 	until btr_cur_instant_init_low() has invoked

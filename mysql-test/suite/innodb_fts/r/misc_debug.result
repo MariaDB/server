@@ -62,7 +62,6 @@ SET @saved_debug_dbug= @@debug_dbug;
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
 TRUNCATE t1;
-ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine InnoDB
 SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 # End of 10.3 tests

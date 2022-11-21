@@ -1583,7 +1583,7 @@ row_log_table_apply_insert_low(
 
 		entry = row_build_index_entry(row, NULL, index, heap);
 		error = row_ins_sec_index_entry_low(
-			flags, BTR_MODIFY_TREE,
+			flags, BTR_INSERT_TREE,
 			index, offsets_heap, heap, entry,
 			thr_get_trx(thr)->id, thr);
 
@@ -1658,7 +1658,7 @@ row_log_table_apply_delete_low(
 	dberr_t		error;
 	row_ext_t*	ext;
 	dtuple_t*	row;
-	dict_index_t*	index	= btr_pcur_get_btr_cur(pcur)->index;
+	dict_index_t*	index	= pcur->index();
 
 	ut_ad(dict_index_is_clust(index));
 
@@ -1695,9 +1695,9 @@ err_exit:
 			row, ext, index, heap);
 		mtr->start();
 		index->set_modified(*mtr);
-		error = btr_pcur_open(index, entry, PAGE_CUR_LE,
-				      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				      pcur, mtr);
+		pcur->btr_cur.page_cur.index = index;
+		error = btr_pcur_open(entry, PAGE_CUR_LE,
+				      BTR_PURGE_TREE, pcur, 0, mtr);
 		if (error) {
 			goto err_exit;
 		}
@@ -1761,6 +1761,7 @@ row_log_table_apply_delete(
 	btr_pcur_t	pcur;
 	rec_offs*	offsets;
 
+	pcur.btr_cur.page_cur.index = index;
 	ut_ad(rec_offs_n_fields(moffsets) == index->first_user_field());
 	ut_ad(!rec_offs_any_extern(moffsets));
 
@@ -1779,9 +1780,8 @@ row_log_table_apply_delete(
 
 	mtr_start(&mtr);
 	index->set_modified(mtr);
-	dberr_t err = btr_pcur_open(index, old_pk, PAGE_CUR_LE,
-				    BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				    &pcur, &mtr);
+	dberr_t err = btr_pcur_open(old_pk, PAGE_CUR_LE,
+				    BTR_PURGE_TREE, &pcur, 0, &mtr);
 	if (err != DB_SUCCESS) {
 		goto all_done;
 	}
@@ -1893,6 +1893,8 @@ row_log_table_apply_update(
 	dberr_t		error;
 	ulint		n_index = 0;
 
+	pcur.btr_cur.page_cur.index = index;
+
 	ut_ad(dtuple_get_n_fields_cmp(old_pk)
 	      == dict_index_get_n_unique(index));
 	ut_ad(dtuple_get_n_fields(old_pk) - (log->same_pk ? 0 : 2)
@@ -1915,8 +1917,8 @@ row_log_table_apply_update(
 
 	mtr.start();
 	index->set_modified(mtr);
-	error = btr_pcur_open(index, old_pk, PAGE_CUR_LE,
-			      BTR_MODIFY_TREE, &pcur, &mtr);
+	error = btr_pcur_open(old_pk, PAGE_CUR_LE,
+			      BTR_MODIFY_TREE, &pcur, 0, &mtr);
 	if (error != DB_SUCCESS) {
 func_exit:
 		mtr.commit();
@@ -2061,7 +2063,7 @@ func_exit_committed:
 
 	for (n_index += index->type != DICT_CLUSTERED;
 	     (index = dict_table_get_next_index(index)); n_index++) {
-		if (index->type & DICT_FTS) {
+		if (!index->is_btree()) {
 			continue;
 		}
 
@@ -2089,9 +2091,10 @@ func_exit_committed:
 
 		mtr.start();
 		index->set_modified(mtr);
+		pcur.btr_cur.page_cur.index = index;
 
 		if (ROW_FOUND != row_search_index_entry(
-			    index, entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
+			    entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
 			ut_ad(0);
 			error = DB_CORRUPTION;
 			break;
@@ -2111,7 +2114,7 @@ func_exit_committed:
 		error = row_ins_sec_index_entry_low(
 			BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
-			BTR_MODIFY_TREE, index, offsets_heap, heap,
+			BTR_INSERT_TREE, index, offsets_heap, heap,
 			entry, thr_get_trx(thr)->id, thr);
 
 		/* Report correct index name for duplicate key error. */
@@ -3071,13 +3074,14 @@ row_log_apply_op_low(
 
 	mtr_start(&mtr);
 	index->set_modified(mtr);
+	cursor.page_cur.index = index;
 
 	/* We perform the pessimistic variant of the operations if we
 	already hold index->lock exclusively. First, search the
 	record. The operation may already have been performed,
 	depending on when the row in the clustered index was
 	scanned. */
-	*error = btr_cur_search_to_nth_level(index, 0, entry, PAGE_CUR_LE,
+	*error = btr_cur_search_to_nth_level(0, entry, PAGE_CUR_LE,
 					     has_index_lock
 					     ? BTR_MODIFY_TREE
 					     : BTR_MODIFY_LEAF,
@@ -3132,7 +3136,7 @@ row_log_apply_op_low(
 				mtr_start(&mtr);
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
-					index, 0, entry, PAGE_CUR_LE,
+					0, entry, PAGE_CUR_LE,
 					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 					goto func_exit;
@@ -3236,7 +3240,7 @@ insert_the_rec:
 				mtr_start(&mtr);
 				index->set_modified(mtr);
 				*error = btr_cur_search_to_nth_level(
-					index, 0, entry, PAGE_CUR_LE,
+					0, entry, PAGE_CUR_LE,
 					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (*error != DB_SUCCESS) {
 					break;
@@ -3951,8 +3955,8 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
     }
 
     bool success= true;
-    dict_index_t *index= dict_table_get_next_index(clust_index);
-    while (index)
+    for (dict_index_t *index= clust_index;
+         (index= dict_table_get_next_index(index)) != nullptr; )
     {
       index->lock.s_lock(SRW_LOCK_CALL);
       if (index->online_log &&
@@ -3971,7 +3975,6 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
         row_log_mark_other_online_index_abort(index->table);
         return;
       }
-      index= dict_table_get_next_index(index);
     }
   }
 }

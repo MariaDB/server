@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,7 +72,7 @@ btr_cur_position(
 	btr_cur_t*	cursor)	/*!< out: cursor */
 {
 	page_cur_position(rec, block, btr_cur_get_page_cur(cursor));
-	cursor->index = index;
+	cursor->page_cur.index = index;
 }
 
 /*********************************************************************//**
@@ -98,14 +98,14 @@ btr_cur_compress_recommendation(
 
 	if (!page_has_siblings(page)
 	    || page_get_data_size(page)
-	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index)) {
+	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index())) {
 
 		/* The page fillfactor has dropped below a predefined
 		minimum value OR the level in the B-tree contains just
 		one page: we recommend compression if this is not the
 		root page. */
 
-		return cursor->index->page
+		return cursor->index()->page
 			!= btr_cur_get_block(cursor)->page.id().page_no();
 	}
 
@@ -133,14 +133,14 @@ btr_cur_can_delete_without_compress(
 
 	if (!page_has_siblings(page) || page_get_n_recs(page) < 2
 	    || page_get_data_size(page) - rec_size
-	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index)) {
+	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index())) {
 
 		/* The page fillfactor will drop below a predefined
 		minimum value, OR the level in the B-tree contains just
 		one page, OR the page will become empty: we recommend
 		compression if this is not the root page. */
 
-		return cursor->index->page
+		return cursor->index()->page
 			== btr_cur_get_block(cursor)->page.id().page_no();
 	}
 

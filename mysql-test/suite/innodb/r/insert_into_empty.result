@@ -186,13 +186,33 @@ DROP TABLE t;
 # MDEV-28327 InnoDB persistent statistics fail to update
 #		after bulk insert
 #
-CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
 INSERT INTO t1 SELECT * FROM seq_1_to_4096;
 # Wait till statistics update after bulk insert operation
-SELECT n_rows FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
-n_rows
-4096
+SELECT n_rows>=4000 FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
+n_rows>=4000
+1
 DROP TABLE t1;
+#
+# MDEV-27214 Import with disabled keys corrupts meta-data like rows, indexes, ...
+#
+SET UNIQUE_CHECKS=0;
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `t1` (
+`id` int(11) NOT NULL,
+`a` int(11) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO `t1` VALUES (1,2),(2,3),(3,4);
+# Wait till statistics update after bulk insert operation
+SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+TABLE_ROWS	AVG_ROW_LENGTH>0
+3	1
+DROP TABLE t1;
+# End of 10.6 tests
 #
 # MDEV-26947 UNIQUE column checks fail in InnoDB resulting
 #	in table corruption
@@ -350,7 +370,7 @@ DROP TABLE t1, t2;
 #   MDEV-29801  Inconsistent ER_TOO_BIG_ROWSIZE during bulk
 #			insert operation
 #
-call mtr.add_suppression("InnoDB: Cannot add field `c11` in table");
+call mtr.add_suppression("InnoDB: Cannot add field `(c0[36]|c11)` in table");
 SET @format= @@innodb_default_row_format;
 CREATE TABLE t1 (pk int primary key, c01 text, c02 text, c03 text,
 c04 text, c05 text, c06 text, c07 text, c08 text,
@@ -367,3 +387,4 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= @format;
+# End of 10.7 tests
