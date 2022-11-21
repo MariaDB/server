@@ -246,7 +246,7 @@ public:
   int open(const char *name, int mode, uint test_if_locked) override
   { return 0; }
   int close(void) override { return 0; }
-  void update_optimizer_costs(OPTIMIZER_COSTS *costs)
+  void update_optimizer_costs(OPTIMIZER_COSTS *costs) override
   {
     memcpy(costs, &heap_optimizer_costs, sizeof(*costs));
   }

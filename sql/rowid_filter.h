@@ -265,7 +265,7 @@ public:
 
   ~Range_rowid_filter();
 
-  bool build() { return fill(); }
+  bool build() override { return fill(); }
 
   bool check(char *elem) override
   {
@@ -374,7 +374,7 @@ public:
   uint elements() override { return refpos_container.elements(); }
 
   void sort (int (*cmp) (void *ctxt, const void *el1, const void *el2),
-                         void *cmp_arg)
+                         void *cmp_arg) override
   {
     return refpos_container.sort(cmp, cmp_arg);
   }
