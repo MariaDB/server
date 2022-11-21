@@ -202,7 +202,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
           {
             "considered_execution_plans": [
               {
-                "plan_prefix": [],
+                "plan_prefix": "",
                 "get_costs_for_tables": [
                   {
                     "best_access_path": {
@@ -237,7 +237,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 ]
               },
               {
-                "plan_prefix": [],
+                "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 1,
                 "cost_for_plan": 0.00274516
