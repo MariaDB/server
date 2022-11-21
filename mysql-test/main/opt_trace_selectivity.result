@@ -36,9 +36,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
     [
         
         {
-            "plan_prefix": 
-            [
-            ],
+            "plan_prefix": "",
             "get_costs_for_tables": 
             [
                 
@@ -105,9 +103,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
         },
         
         {
-            "plan_prefix": 
-            [
-            ],
+            "plan_prefix": "",
             "table": "t1",
             "rows_for_plan": 7,
             "cost_for_plan": 0.045367017
@@ -141,9 +137,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
     [
         
         {
-            "plan_prefix": 
-            [
-            ],
+            "plan_prefix": "",
             "get_costs_for_tables": 
             [
                 
@@ -207,9 +201,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
         },
         
         {
-            "plan_prefix": 
-            [
-            ],
+            "plan_prefix": "",
             "table": "t1",
             "rows_for_plan": 0.6,
             "cost_for_plan": 0.005306142,
