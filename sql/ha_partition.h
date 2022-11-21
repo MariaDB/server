@@ -1642,7 +1642,7 @@ public:
   bool can_convert_blob(
       const Field_blob* field,
       const Column_definition& new_field) const override;
-  void set_optimizer_costs(THD *thd);
+  void set_optimizer_costs(THD *thd) override;
   void update_optimizer_costs(OPTIMIZER_COSTS *costs);
 };
 #endif /* HA_PARTITION_INCLUDED */

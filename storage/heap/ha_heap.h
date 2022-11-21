@@ -37,7 +37,7 @@ class ha_heap final : public handler
 public:
   ha_heap(handlerton *hton, TABLE_SHARE *table);
   ~ha_heap() {}
-  handler *clone(const char *name, MEM_ROOT *mem_root);
+  handler *clone(const char *name, MEM_ROOT *mem_root) override final;
   const char *index_type(uint inx)
   {
     return ((table_share->key_info[inx].algorithm == HA_KEY_ALG_BTREE) ?

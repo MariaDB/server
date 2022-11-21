@@ -2870,7 +2870,7 @@ public:
 
   void add(Cost_estimate *cost)
   {
-    DBUG_ASSERT(cost->avg_io_cost || (index_cost.io + row_cost.io == 0));
+    DBUG_ASSERT(cost->avg_io_cost != 0 || (index_cost.io + row_cost.io == 0));
     avg_io_cost=     cost->avg_io_cost;
     index_cost.io+=  cost->index_cost.io;
     index_cost.cpu+= cost->index_cost.cpu;
