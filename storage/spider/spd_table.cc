@@ -4247,7 +4247,7 @@ int spider_set_connect_info_default_dbtable(
   ));
 }
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
 void spider_print_keys(
   const char *key,
   uint length

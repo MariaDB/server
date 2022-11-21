@@ -118,7 +118,7 @@ uchar *spider_conn_get_key(
   DBUG_ENTER("spider_conn_get_key");
   *length = conn->conn_key_length;
   DBUG_PRINT("info",("spider conn_kind=%u", conn->conn_kind));
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
   spider_print_keys(conn->conn_key, conn->conn_key_length);
 #endif
   DBUG_RETURN((uchar*) conn->conn_key);
@@ -736,7 +736,7 @@ SPIDER_CONN *spider_get_conn(
   DBUG_PRINT("info",("spider link_idx=%u", link_idx));
   DBUG_PRINT("info",("spider base_link_idx=%u", base_link_idx));
 
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     spider_print_keys(conn_key, share->conn_keys_lengths[link_idx]);
 #endif
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
