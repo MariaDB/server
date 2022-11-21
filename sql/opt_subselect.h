@@ -294,11 +294,12 @@ public:
     }
   }
 
-  void save_to_position(JOIN_TAB *tab, POSITION *pos)
+  void save_to_position(JOIN_TAB *tab, double record_count, POSITION *pos)
   {
     pos->read_time=       best_loose_scan_cost;
     if (best_loose_scan_cost != DBL_MAX)
     {
+      pos->loops= record_count;
       pos->records_read=    best_loose_scan_records;
       pos->records_init= pos->records_out= pos->records_read;
       pos->key=             best_loose_scan_start_key;

@@ -57,6 +57,7 @@ SHOW EXPLAIN
           "key": "a",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 999,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -89,6 +90,7 @@ SHOW EXPLAIN
           "key": "a",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -120,6 +122,7 @@ SHOW EXPLAIN
           "key": "a",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -154,6 +157,7 @@ SHOW EXPLAIN
           "key": "a",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -187,6 +191,7 @@ SHOW EXPLAIN
           "key": "a",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -226,6 +231,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "A",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100
@@ -244,6 +250,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "B",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100
@@ -286,6 +293,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "A",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100
@@ -304,6 +312,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "B",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100
@@ -402,6 +411,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "a",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -420,6 +430,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "b",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -455,6 +466,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "a",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -473,6 +485,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "b",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -508,6 +521,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "a",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -526,6 +540,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "b",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -588,6 +603,7 @@ SHOW EXPLAIN
               "table": {
                 "table_name": "t0",
                 "access_type": "ALL",
+                "loops": 1,
                 "rows": 10,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -624,6 +640,7 @@ SHOW EXPLAIN
               "table": {
                 "table_name": "t0",
                 "access_type": "ALL",
+                "loops": 1,
                 "rows": 10,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -668,6 +685,7 @@ SHOW EXPLAIN
               "table": {
                 "table_name": "t0",
                 "access_type": "ALL",
+                "loops": 1,
                 "rows": 10,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -704,6 +722,7 @@ SHOW EXPLAIN
               "table": {
                 "table_name": "t0",
                 "access_type": "ALL",
+                "loops": 1,
                 "rows": 10,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -751,6 +770,7 @@ SHOW EXPLAIN
               "table": {
                 "table_name": "t0",
                 "access_type": "ALL",
+                "loops": 1,
                 "rows": 10,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -787,6 +807,7 @@ SHOW EXPLAIN
               "table": {
                 "table_name": "t0",
                 "access_type": "ALL",
+                "loops": 1,
                 "rows": 10,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -834,6 +855,7 @@ SHOW EXPLAIN
               "table": {
                 "table_name": "t0",
                 "access_type": "ALL",
+                "loops": 1,
                 "rows": 10,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -870,6 +892,7 @@ SHOW EXPLAIN
               "table": {
                 "table_name": "t0",
                 "access_type": "ALL",
+                "loops": 1,
                 "rows": 10,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
@@ -906,6 +929,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -923,6 +947,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "t0",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -949,6 +974,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -966,6 +992,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "t0",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -992,6 +1019,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -1009,6 +1037,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "t0",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -1050,6 +1079,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -1067,6 +1097,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "t0",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -1093,6 +1124,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -1110,6 +1142,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "t0",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -1136,6 +1169,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 3,
           "cost": "COST_REPLACED",
           "filtered": 100
@@ -1153,6 +1187,7 @@ SHOW EXPLAIN
                 "table": {
                   "table_name": "t0",
                   "access_type": "ALL",
+                  "loops": 1,
                   "rows": 10,
                   "cost": "COST_REPLACED",
                   "filtered": 100,
@@ -1199,6 +1234,7 @@ SHOW EXPLAIN
             "table": {
               "table_name": "t0",
               "access_type": "ALL",
+              "loops": 1,
               "rows": 10,
               "cost": "COST_REPLACED",
               "filtered": 100
@@ -1248,6 +1284,7 @@ SHOW EXPLAIN
           "table": {
             "table_name": "t0",
             "access_type": "ALL",
+            "loops": 1,
             "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
@@ -1296,6 +1333,7 @@ SHOW EXPLAIN
           "table": {
             "table_name": "t0",
             "access_type": "ALL",
+            "loops": 1,
             "rows": 10,
             "cost": "COST_REPLACED",
             "filtered": 100
@@ -1346,6 +1384,7 @@ SHOW EXPLAIN
         "table": {
           "table_name": "t0",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,

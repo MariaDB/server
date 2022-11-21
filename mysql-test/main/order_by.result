@@ -1587,6 +1587,7 @@ ANALYZE
               "key_length": "10",
               "used_key_parts": ["a", "c"],
               "ref": ["const", "const"],
+              "loops": 1,
               "r_loops": 1,
               "rows": 2,
               "r_rows": 1,
@@ -3475,6 +3476,7 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 100,
               "r_rows": 100,
@@ -3826,6 +3828,7 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 100,
               "r_rows": 100,
@@ -3994,6 +3997,7 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 5,
               "r_rows": 5,
@@ -4045,6 +4049,7 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 6,
               "r_rows": 6,
@@ -4102,6 +4107,7 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 6,
               "r_rows": 6,
@@ -4173,6 +4179,7 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 10,
               "r_rows": 10,
@@ -4347,6 +4354,7 @@ ANALYZE
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
+          "loops": 1,
           "r_loops": 1,
           "rows": 50,
           "r_rows": 50,
@@ -4382,6 +4390,7 @@ ANALYZE
                     "table": {
                       "table_name": "t2",
                       "access_type": "ALL",
+                      "loops": 1,
                       "r_loops": 50,
                       "rows": 50,
                       "r_rows": 50,
@@ -4494,6 +4503,7 @@ EXPLAIN
           "key": "PRIMARY",
           "key_length": "4",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -4520,6 +4530,7 @@ EXPLAIN
                   "table": {
                     "table_name": "t2",
                     "access_type": "ALL",
+                    "loops": 1,
                     "rows": 97,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
@@ -4568,6 +4579,7 @@ EXPLAIN
               "table_name": "t1",
               "access_type": "ALL",
               "possible_keys": ["PRIMARY"],
+              "loops": 1,
               "rows": 10,
               "cost": "COST_REPLACED",
               "filtered": 100
@@ -4595,6 +4607,7 @@ EXPLAIN
                   "table": {
                     "table_name": "t2",
                     "access_type": "ALL",
+                    "loops": 1,
                     "rows": 97,
                     "cost": "COST_REPLACED",
                     "filtered": 100,

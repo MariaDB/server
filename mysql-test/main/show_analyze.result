@@ -422,6 +422,7 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
