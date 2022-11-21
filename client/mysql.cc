@@ -6076,29 +6076,15 @@ static char *handle_next_unalias(char *line, bool *error)
   else
   {
     if ((record= my_hash_search(&aliases, (const uchar *) name, strlen(name))))
-    {
       my_hash_delete(&aliases, record);
-    }
     else
-    {
       tee_fprintf(stdout, "unalias: '%s': not found\n", name);
-    }
     *error= false;
   }
   return pos;
 }
 static int init_alias()
 {
-  FILE *file= 0;
-  char *mariadbrc_file;
-  char *line= 0;
-  char *ptr;
-  size_t len= 0;
-  ssize_t read;
-  MY_STAT stat_arg;
-  bool error;
-  int pos;
-
   /* Initialize the hash structure to store aliases. */
   if (my_hash_init2(&aliases, 64, charset_info,
                     64, 0, 0, get_alias_key, 0,
@@ -6109,128 +6095,6 @@ static int init_alias()
     my_end(0);
     exit(1);
   }
-
-  /*
-    Read alias commands from mariadbrc file.
-  */
-  if (getenv("MARIADBRC_FILE"))
-  {
-    mariadbrc_file= my_strdup(getenv("MARIADBRC_FILE"), MYF(MY_WME));
-  }
-  else if (getenv("HOME"))
-  {
-    mariadbrc_file= (char*) my_malloc((uint) strlen(getenv("HOME"))
-                                      + (uint) strlen("/.mariadbrc")
-                                      + 2, MYF(MY_WME));
-    if (mariadbrc_file)
-      sprintf(mariadbrc_file, "%s/.mariadbrc", getenv("HOME"));
-  }
-
-  if (mariadbrc_file == 0)
-  {
-    put_info("out-of-memory!", INFO_ERROR);
-    free_defaults(defaults_argv);
-    my_end(0);
-    exit(1);
-  }
-
-  /* Check if mariadbrc file exists. */
-  if (!my_stat(mariadbrc_file, &stat_arg, MYF(ME_JUST_WARNING)))
-    goto cleanup;                               /* Do nothing */
-
-  if (!(file= my_fopen(mariadbrc_file, O_RDONLY, MYF(MY_WME))))
-  {
-    put_info("Failed to open .mariadbrc file: ", INFO_ERROR);
-    put_info(strerror(errno), INFO_ERROR, errno);
-    free_defaults(defaults_argv);
-    my_end(0);
-    exit(1);
-  }
-
-  while ((read= getline(&line, &len, file)))
-  {
-    if (read == -1)                             /* EOF/Error */
-    {
-      if (errno == 0)
-        break;
-
-      put_info("Failed to read from .mariadbrc file: ", INFO_ERROR);
-      put_info(strerror(errno), INFO_ERROR, errno);
-      free_defaults(defaults_argv);
-      my_end(0);
-      exit(1);
-    }
-
-    /* Remove trailing newline character. */
-    pos= read;
-    while (--pos && pos > 0 && my_iscntrl(charset_info, line[pos]))
-      line[pos]= 0;
-
-    ptr= line;
-
-    /* Remove leading whitespaces. */
-    while (*ptr && my_isspace(charset_info, *ptr))
-      ptr ++;
-
-    if (strncasecmp(ptr, "alias", 5) == 0)
-    {
-
-      /* Move past "alias" */
-      ptr += 5;
-      while (*ptr && my_isspace(charset_info, *ptr))
-        ptr ++;
-
-      /* There are more arguments to handle. */
-      while (*ptr)
-      {
-        ptr= handle_next_alias(ptr, &error);
-
-        if (error)
-        {
-          free_defaults(defaults_argv);
-          my_end(0);
-          exit(1);
-        }
-
-        /* Bypass the spaces. */
-        while (*ptr && my_isspace(charset_info, *ptr)) ptr ++;
-      }
-
-    }
-    else if (strncasecmp(ptr, "unalias", 7) == 0)
-    {
-      /* Move past "unalias" */
-      ptr += 7;
-      while (*ptr && my_isspace(charset_info, *ptr))
-        ptr ++;
-
-      /* There are more arguments to handle. */
-      while (*ptr)
-      {
-        ptr= handle_next_unalias(ptr, &error);
-
-        if (error)
-        {
-          free_defaults(defaults_argv);
-          my_end(0);
-          exit(1);
-        }
-
-        /* Bypass the spaces. */
-        while (*ptr && my_isspace(charset_info, *ptr)) ptr ++;
-      }
-    }
-  }
-
-  if (line)
-    free(line);
-
-  if (file)
-    my_fclose(file, MYF(0));
-
-cleanup:
-  if (mariadbrc_file)
-    my_free(mariadbrc_file);
 
   return 0;
 }
@@ -6249,10 +6113,9 @@ static int com_alias(String *buffer __attribute__((unused)),
 
   /* Move past "alias" and spaces. */
   if (!(ptr= strstr(line, "alias")))
-  {
     // Bad syntax, missing "alias" keyword
     return 1;
-  }
+
   ptr+= 5;
   while (*ptr && my_isspace(charset_info, *ptr)) ptr++;
 
