@@ -82,8 +82,8 @@ public:
 
   ha_myisammrg(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_myisammrg();
-  const char *index_type(uint key_number);
-  ulonglong table_flags() const
+  const char *index_type(uint key_number) override;
+  ulonglong table_flags() const override
   {
     return (HA_REC_NOT_IN_SEQ | HA_AUTO_PART_KEY | HA_NO_TRANSACTIONS |
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
@@ -93,15 +93,16 @@ public:
             HA_NO_COPY_ON_ALTER |
             HA_DUPLICATE_POS | HA_CAN_MULTISTEP_MERGE);
   }
-  ulong index_flags(uint inx, uint part, bool all_parts) const
+  ulong index_flags(uint inx, uint part, bool all_parts) const override
   {
     return ((table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT) ?
             0 : HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
             HA_READ_ORDER | HA_KEYREAD_ONLY);
   }
-  uint max_supported_keys()          const { return MI_MAX_KEY; }
-  uint max_supported_key_length()    const { return HA_MAX_KEY_LENGTH; }
-  uint max_supported_key_part_length() const { return HA_MAX_KEY_LENGTH; }
+  uint max_supported_keys()          const override { return MI_MAX_KEY; }
+  uint max_supported_key_length()    const override { return HA_MAX_KEY_LENGTH; }
+  uint max_supported_key_part_length() const override
+  { return HA_MAX_KEY_LENGTH; }
   IO_AND_CPU_COST scan_time() override
   {
     IO_AND_CPU_COST cost;
@@ -113,58 +114,60 @@ public:
   IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
   IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
                                 ulonglong blocks) override;
-  int open(const char *name, int mode, uint test_if_locked);
-  int add_children_list(void);
-  int attach_children(void);
-  int detach_children(void);
-  virtual handler *clone(const char *name, MEM_ROOT *mem_root);
-  int close(void);
-  int write_row(const uchar * buf);
-  int update_row(const uchar * old_data, const uchar * new_data);
-  int delete_row(const uchar * buf);
+  int open(const char *name, int mode, uint test_if_locked) override;
+  handler *clone(const char *name, MEM_ROOT *mem_root) override;
+  int close(void) override;
+  int write_row(const uchar * buf) override;
+  int update_row(const uchar * old_data, const uchar * new_data) override;
+  int delete_row(const uchar * buf) override;
   int index_read_map(uchar *buf, const uchar *key, key_part_map keypart_map,
-                     enum ha_rkey_function find_flag);
+                     enum ha_rkey_function find_flag) override;
   int index_read_idx_map(uchar *buf, uint index, const uchar *key,
                          key_part_map keypart_map,
-                         enum ha_rkey_function find_flag);
-  int index_read_last_map(uchar *buf, const uchar *key, key_part_map keypart_map);
-  int index_next(uchar * buf);
-  int index_prev(uchar * buf);
-  int index_first(uchar * buf);
-  int index_last(uchar * buf);
-  int index_next_same(uchar *buf, const uchar *key, uint keylen);
-  int rnd_init(bool scan);
-  int rnd_next(uchar *buf);
-  int rnd_pos(uchar * buf, uchar *pos);
-  void position(const uchar *record);
+                         enum ha_rkey_function find_flag) override;
+  int index_read_last_map(uchar *buf, const uchar *key, key_part_map keypart_map) override;
+  int index_next(uchar * buf) override;
+  int index_prev(uchar * buf) override;
+  int index_first(uchar * buf) override;
+  int index_last(uchar * buf) override;
+  int index_next_same(uchar *buf, const uchar *key, uint keylen) override;
+  int rnd_init(bool scan) override;
+  int rnd_next(uchar *buf) override;
+  int rnd_pos(uchar * buf, uchar *pos) override;
+  void position(const uchar *record) override;
   ha_rows records_in_range(uint inx, const key_range *start_key,
-                           const key_range *end_key, page_range *pages);
-  int delete_all_rows();
-  int info(uint);
-  int reset(void);
-  int extra(enum ha_extra_function operation);
-  int extra_opt(enum ha_extra_function operation, ulong cache_size);
-  int external_lock(THD *thd, int lock_type);
-  uint lock_count(void) const;
-  int create_mrg(const char *name, HA_CREATE_INFO *create_info);
-  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);
+                           const key_range *end_key, page_range *pages) override;
+  int delete_all_rows() override;
+  int info(uint) override;
+  int reset(void) override;
+  int extra(enum ha_extra_function operation) override;
+  int extra_opt(enum ha_extra_function operation, ulong cache_size) override;
+  int external_lock(THD *thd, int lock_type) override;
+  uint lock_count(void) const override;
+  int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info) override;
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-			     enum thr_lock_type lock_type);
-  void update_create_info(HA_CREATE_INFO *create_info);
-  void append_create_info(String *packet);
-  MYRG_INFO *myrg_info() { return file; }
-  TABLE *table_ptr() { return table; }
+			     enum thr_lock_type lock_type) override;
+  void update_create_info(HA_CREATE_INFO *create_info) override;
+  void append_create_info(String *packet) override;
   enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *,
-                                                Alter_inplace_info *);
+                                                Alter_inplace_info *) override;
   bool inplace_alter_table(TABLE *altered_table,
-                           Alter_inplace_info *ha_alter_info);
-  int check(THD* thd, HA_CHECK_OPT* check_opt);
-  ha_rows records();
-  virtual uint count_query_cache_dependant_tables(uint8 *tables_type);
+                           Alter_inplace_info *ha_alter_info) override;
+  int check(THD* thd, HA_CHECK_OPT* check_opt) override;
+  ha_rows records() override;
+  virtual uint count_query_cache_dependant_tables(uint8 *tables_type) override;
   virtual my_bool
     register_query_cache_dependant_tables(THD *thd,
                                           Query_cache *cache,
                                           Query_cache_block_table **block,
-                                          uint *n);
-  virtual void set_lock_type(enum thr_lock_type lock);
+                                          uint *n) override;
+  virtual void set_lock_type(enum thr_lock_type lock) override;
+
+  /* Internal interface functions, not part of the normal handler interface */
+  int add_children_list(void);
+  int attach_children(void);
+  int detach_children(void);
+  int create_mrg(const char *name, HA_CREATE_INFO *create_info);
+  MYRG_INFO *myrg_info() { return file; }
+  TABLE *table_ptr()  { return table; }
 };
