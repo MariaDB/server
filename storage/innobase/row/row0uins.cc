@@ -68,7 +68,7 @@ row_undo_ins_remove_clust_rec(
 	dberr_t		err;
 	ulint		n_tries	= 0;
 	mtr_t		mtr;
-	dict_index_t*	index	= node->pcur.btr_cur.index;
+	dict_index_t*	index	= node->pcur.index();
 	table_id_t table_id = 0;
 	const bool dict_locked = node->trx->dict_operation_lock_mode;
 restart:
@@ -207,9 +207,8 @@ retry:
 	} else {
 		index->set_modified(mtr);
 	}
-	ut_a(
-	    node->pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-	      &mtr) == btr_pcur_t::SAME_ALL);
+	ut_a(node->pcur.restore_position(BTR_PURGE_TREE, &mtr)
+	     == btr_pcur_t::SAME_ALL);
 
 	btr_cur_pessimistic_delete(&err, FALSE, &node->pcur.btr_cur, 0, true,
 				   &mtr);
@@ -254,7 +253,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_undo_ins_remove_sec_low(
 /*========================*/
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: index */
@@ -266,25 +265,27 @@ row_undo_ins_remove_sec_low(
 	mtr_t			mtr;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
+	pcur.btr_cur.page_cur.index = index;
 	row_mtr_start(&mtr, index, !modify_leaf);
 
 	if (modify_leaf) {
-		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+		mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
 		mtr_s_lock_index(index, &mtr);
 	} else {
-		ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
+		ut_ad(mode == BTR_PURGE_TREE);
 		mtr_sx_lock_index(index, &mtr);
 	}
 
-	if (dict_index_is_spatial(index)) {
-		if (modify_leaf) {
-			mode |= BTR_RTREE_DELETE_MARK;
-		}
+	if (index->is_spatial()) {
+		mode = modify_leaf
+			? btr_latch_mode(BTR_MODIFY_LEAF_ALREADY_LATCHED
+					 | BTR_RTREE_DELETE_MARK
+					 | BTR_RTREE_UNDO_INS)
+			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
 		btr_pcur_get_btr_cur(&pcur)->thr = thr;
-		mode |= BTR_RTREE_UNDO_INS;
 	}
 
-	switch (row_search_index_entry(index, entry, mode, &pcur, &mtr)) {
+	switch (row_search_index_entry(entry, mode, &pcur, &mtr)) {
 	case ROW_BUFFERED:
 	case ROW_NOT_DELETED_REF:
 		/* These are invalid outcomes, because the mode passed
@@ -349,9 +350,7 @@ row_undo_ins_remove_sec(
 
 	/* Try then pessimistic descent to the B-tree */
 retry:
-	err = row_undo_ins_remove_sec_low(
-		BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-		index, entry, thr);
+	err = row_undo_ins_remove_sec_low(BTR_PURGE_TREE, index, entry, thr);
 
 	/* The delete operation may fail if we have little
 	file space left: TODO: easiest to crash the database

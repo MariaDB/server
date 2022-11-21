@@ -892,7 +892,7 @@ int spider_db_mbase_result::fetch_table_status(
         &not_used_long, &not_used_uint);
     } else
       stat.create_time = (time_t) 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     {
       struct tm *ts, tmp_ts;
       char buf[80];
@@ -932,7 +932,7 @@ int spider_db_mbase_result::fetch_table_status(
         &not_used_long, &not_used_uint);
     } else
       stat.check_time = (time_t) 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     {
       struct tm *ts, tmp_ts;
       char buf[80];
@@ -1006,7 +1006,7 @@ int spider_db_mbase_result::fetch_table_status(
         &not_used_long, &not_used_uint);
     } else
       stat.create_time = (time_t) 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     {
       struct tm *ts, tmp_ts;
       char buf[80];
@@ -1026,7 +1026,7 @@ int spider_db_mbase_result::fetch_table_status(
         &not_used_long, &not_used_uint);
     } else
       stat.update_time = (time_t) 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     {
       struct tm *ts, tmp_ts;
       char buf[80];
@@ -1046,7 +1046,7 @@ int spider_db_mbase_result::fetch_table_status(
         &not_used_long, &not_used_uint);
     } else
       stat.check_time = (time_t) 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
     {
       struct tm *ts, tmp_ts;
       char buf[80];
@@ -4036,7 +4036,7 @@ int spider_db_mariadb_util::append_column_value(ha_spider *spider,
       ptr = tmp_str.get_str();
     } else if (field->type() == MYSQL_TYPE_GEOMETRY)
     {
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
       double xmin, xmax, ymin, ymax;
       float8get(xmin, new_ptr);
       float8get(xmax, new_ptr + 8);
@@ -4193,7 +4193,7 @@ int spider_db_mysql_util::append_column_value(
       }
       tmp_str.length(SIZEOF_STORED_DOUBLE * lcnt);
 */
-#ifndef DBUG_OFF
+#ifdef DBUG_TRACE
       double xmin, xmax, ymin, ymax;
 /*
       float8store(buf,xmin);

@@ -9740,6 +9740,7 @@ bool Lex_ident_sys_st::to_size_number(ulonglong *to) const
 }
 
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 bool LEX::part_values_current(THD *thd)
 {
   partition_element *elem= part_info->curr_part_elem;
@@ -9747,7 +9748,7 @@ bool LEX::part_values_current(THD *thd)
   {
     if (unlikely(part_info->part_type != VERSIONING_PARTITION))
     {
-      my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
+      part_type_error(thd, NULL, "SYSTEM_TIME", part_info);
       return true;
     }
   }
@@ -9774,7 +9775,7 @@ bool LEX::part_values_history(THD *thd)
   {
     if (unlikely(part_info->part_type != VERSIONING_PARTITION))
     {
-      my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
+      part_type_error(thd, NULL, "SYSTEM_TIME", part_info);
       return true;
     }
   }
@@ -9799,6 +9800,7 @@ bool LEX::part_values_history(THD *thd)
   elem->type= partition_element::HISTORY;
   return false;
 }
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
 
 bool LEX::last_field_generated_always_as_row_start_or_end(Lex_ident *p,

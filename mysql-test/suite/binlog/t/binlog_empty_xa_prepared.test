@@ -4,7 +4,7 @@
 --source include/have_binlog_format_mixed.inc
 --source include/have_innodb.inc
 
-
+RESET MASTER; # clear binlogs
 # MDEV-22420 DDL on temporary object is prohibited when XA is in prepare state
 
 # Temporary sequnce may not be created within a transaction

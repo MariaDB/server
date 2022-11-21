@@ -277,8 +277,6 @@ Searches the right position for a page cursor. */
 bool
 page_cur_search_with_match(
 /*=======================*/
-	const buf_block_t*	block,	/*!< in: buffer block */
-	const dict_index_t*	index,	/*!< in/out: record descriptor */
 	const dtuple_t*		tuple,	/*!< in: data tuple */
 	page_cur_mode_t		mode,	/*!< in: PAGE_CUR_L,
 					PAGE_CUR_LE, PAGE_CUR_G, or
@@ -303,6 +301,8 @@ page_cur_search_with_match(
 	ulint		low_matched_fields;
 	ulint		cur_matched_fields;
 	int		cmp;
+	const dict_index_t* const index = cursor->index;
+	const buf_block_t* const block = cursor->block;
 #ifdef UNIV_ZIP_DEBUG
 	const page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
 #endif /* UNIV_ZIP_DEBUG */
@@ -552,8 +552,6 @@ first partially matched field in the lower limit record
 @param[out]	cursor			page cursor */
 bool
 page_cur_search_with_match_bytes(
-	const buf_block_t*	block,
-	const dict_index_t*	index,
 	const dtuple_t*		tuple,
 	page_cur_mode_t		mode,
 	ulint*			iup_matched_fields,
@@ -575,6 +573,8 @@ page_cur_search_with_match_bytes(
 	ulint		cur_matched_fields;
 	ulint		cur_matched_bytes;
 	int		cmp;
+	const dict_index_t* const index = cursor->index;
+	const buf_block_t* const block = cursor->block;
 #ifdef UNIV_ZIP_DEBUG
 	const page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
 #endif /* UNIV_ZIP_DEBUG */
@@ -802,18 +802,13 @@ up_rec_match:
 /***********************************************************//**
 Positions a page cursor on a randomly chosen user record on a page. If there
 are no user records, sets the cursor on the infimum record. */
-void
-page_cur_open_on_rnd_user_rec(
-/*==========================*/
-	buf_block_t*	block,	/*!< in: page */
-	page_cur_t*	cursor)	/*!< out: page cursor */
+void page_cur_open_on_rnd_user_rec(page_cur_t *cursor)
 {
-  cursor->block= block;
-  if (const ulint n_recs= page_get_n_recs(block->page.frame))
-    if ((cursor->rec= page_rec_get_nth(block->page.frame,
+  if (const ulint n_recs= page_get_n_recs(cursor->block->page.frame))
+    if ((cursor->rec= page_rec_get_nth(cursor->block->page.frame,
                                        ut_rnd_interval(n_recs) + 1)))
       return;
-  cursor->rec= page_get_infimum_rec(block->page.frame);
+  cursor->rec= page_get_infimum_rec(cursor->block->page.frame);
 }
 
 /**
@@ -1361,12 +1356,12 @@ rec_t*
 page_cur_insert_rec_low(
 /*====================*/
 	const page_cur_t*cur,	/*!< in: page cursor */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: record to insert after cur */
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-  buf_block_t* block= cur->block;
+  buf_block_t *block= cur->block;
+  dict_index_t * const index= cur->index;
 
   ut_ad(rec_offs_validate(rec, index, offsets));
   ut_ad(rec_offs_n_fields(offsets) > 0);
@@ -1786,13 +1781,13 @@ page_cur_insert_rec_zip(
 /*====================*/
 	page_cur_t*	cursor,	/*!< in/out: page cursor,
 				logical position unchanged  */
-	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
   page_zip_des_t * const page_zip= page_cur_get_page_zip(cursor);
   page_t * const page= cursor->block->page.frame;
+  dict_index_t * const index = cursor->index;
 
   ut_ad(page_zip);
   ut_ad(rec_offs_validate(rec, index, offsets));
@@ -1894,8 +1889,7 @@ page_cur_insert_rec_zip(
 
     /* Try compressing the whole page afterwards. */
     const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NONE);
-    rec_t *insert_rec= page_cur_insert_rec_low(cursor, index, rec, offsets,
-                                               mtr);
+    rec_t *insert_rec= page_cur_insert_rec_low(cursor, rec, offsets, mtr);
     mtr->set_log_mode(log_mode);
 
     if (insert_rec)
@@ -2243,7 +2237,6 @@ void
 page_cur_delete_rec(
 /*================*/
 	page_cur_t*		cursor,	/*!< in/out: a page cursor */
-	const dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_offs*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr)	/*!< in/out: mini-transaction */
@@ -2265,6 +2258,7 @@ page_cur_delete_rec(
 	in the smallest user record, it cannot be used here either. */
 
 	current_rec = cursor->rec;
+	const dict_index_t* const index = cursor->index;
 	buf_block_t* const block = cursor->block;
 	ut_ad(rec_offs_validate(current_rec, index, offsets));
 	ut_ad(!!page_is_comp(block->page.frame)

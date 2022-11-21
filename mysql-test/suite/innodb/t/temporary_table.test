@@ -624,4 +624,15 @@ UPDATE t SET a=2;
 CHECK TABLE t;
 CHECK TABLE t EXTENDED;
 DROP TEMPORARY TABLE t;
+
+--echo #
+--echo # MDEV-29978 Corruption errors upon CHECK on temporary InnoDB table
+--echo #
+
+CREATE TEMPORARY TABLE t (f INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t (f) VALUES (1),(2);
+CHECK TABLE t;
+CHECK TABLE t EXTENDED;
+DROP TEMPORARY TABLE t;
+
 --echo # End of 10.6 tests

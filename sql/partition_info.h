@@ -435,7 +435,12 @@ public:
     return NULL;
   }
   uint next_part_no(uint new_parts) const;
+
+  int gen_part_type(THD *thd, String *str) const;
 };
+
+void part_type_error(THD *thd, partition_info *work_part_info,
+                     const char *part_type, partition_info *tab_part_info);
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
 bool check_partition_dirs(partition_info *part_info);
