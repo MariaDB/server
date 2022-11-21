@@ -1,0 +1,50 @@
+--echo # 
+--echo # MDEV-12192: Shell-style alias/unalias commands for MariaDB client
+--echo #
+
+# Empty alias name, return not found
+--exec $MYSQL -e "alias =;"
+# multiple occurence of not found
+--exec $MYSQL -e "alias = =;"
+--exec $MYSQL -e "alias =a;"
+--exec $MYSQL -e "alias =a=b;"
+
+# no numeric allowed in names -> wip
+# --exec $MYSQL -e "alias s1;"
+# --exec $MYSQL -e "alias s1='select 2''"
+
+# Handle empty name and alias chaining
+--error 1 # ER_EMPTY_QUERY
+--exec $MYSQL -e "alias a=''; alias; a;"
+--error 1 # ER_EMPTY_QUERY
+--exec $MYSQL -e "alias a=;    alias; a;"
+
+# Wrong query
+--error 1 # ER_PARSE_ERROR
+--exec $MYSQL -e "alias a='select '; a;"
+
+# Chaining with valid alias,
+# Wrong alias
+--exec $MYSQL -e "alias =x=y z='select 1'; alias;"
+# Alias substituion
+--exec $MYSQL -e "alias x='select 1' y='select 2' x; alias;"
+
+--echo # Handle non existing alias
+# Should return not found
+--exec $MYSQL -e "alias abc";
+--exec $MYSQL -e "alias xyz zxy";
+
+--echo # Handle alias NAME=VALUE
+--exec $MYSQL -e "alias sx='select 1 as sx'; alias; sx; alias sy='select 2 as sy'; alias; sy;"
+
+--echo # Handle unalias NAME=VALUE
+--exec $MYSQL -e "alias sx='select 1 as sx'; alias sy='select 2 as sy'; alias; unalias sx; alias; unalias sy; alias;"
+
+--echo # Handle chaining of valid alias
+# Handle chaining of names
+--exec $MYSQL -e "alias c='select 1'; alias; alias c; alias c c; alias c c c;"
+# Handle chaining of names with wrong name
+--exec $MYSQL -e "alias x='select 1'; alias x; alias unknown x;"
+--exec $MYSQL -e "alias y='select 1'; alias y; alias y unknown;"
+
+# end of 10.3 (should be 10.11 after review)

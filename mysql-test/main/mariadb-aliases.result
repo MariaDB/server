@@ -1,0 +1,43 @@
+# 
+# MDEV-12192: Shell-style alias/unalias commands for MariaDB client
+#
+alias: '=': not found
+alias: '= =': not found
+alias: '=a': not found
+alias: '=a=b': not found
+alias a = ''
+alias a = ''
+alias: '=x=y z='select 1'': not found
+alias  x = 'select 1'
+alias y = 'select 2'
+alias x = 'select 1'
+# Handle non existing alias
+alias: 'abc': not found
+alias: 'xyz': not found
+alias: 'zxy': not found
+# Handle alias NAME=VALUE
+alias sx = 'select 1 as sx'
+sx
+1
+alias sx = 'select 1 as sx'
+alias sy = 'select 2 as sy'
+sy
+2
+# Handle unalias NAME=VALUE
+alias sx = 'select 1 as sx'
+alias sy = 'select 2 as sy'
+alias sy = 'select 2 as sy'
+# Handle chaining of valid alias
+alias c = 'select 1'
+alias  c = 'select 1'
+alias  c = 'select 1'
+alias  c = 'select 1'
+alias  c = 'select 1'
+alias  c = 'select 1'
+alias  c = 'select 1'
+alias  x = 'select 1'
+alias: 'unknown': not found
+alias  x = 'select 1'
+alias  y = 'select 1'
+alias  y = 'select 1'
+alias: 'unknown': not found
