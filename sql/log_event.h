@@ -4798,7 +4798,9 @@ protected:
     friend class Rows_log_event;
   };
 
-  int find_key(); // Find a best key to use in find_row()
+  int find_key(const rpl_group_info *); // Find a best key to use in find_row()
+  bool is_key_usable(const KEY *key) const;
+  bool use_pk_position() const;
   int find_row(rpl_group_info *);
   int write_row(rpl_group_info *, const bool);
   int update_sequence();
@@ -4864,8 +4866,8 @@ private:
       The member function will return 0 if all went OK, or a non-zero
       error code otherwise.
   */
-  virtual 
-  int do_before_row_operations(const Slave_reporting_capability *const log) = 0;
+  virtual
+  int do_before_row_operations(const rpl_group_info *) = 0;
 
   /*
     Primitive to clean up after a sequence of row executions.
@@ -4954,7 +4956,7 @@ private:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
+  virtual int do_before_row_operations(const rpl_group_info *);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
 #endif
@@ -5044,7 +5046,7 @@ protected:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
+  virtual int do_before_row_operations(const rpl_group_info *);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
@@ -5131,7 +5133,7 @@ protected:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_before_row_operations(const Slave_reporting_capability *const);
+  virtual int do_before_row_operations(const rpl_group_info *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
 #endif
