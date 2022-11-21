@@ -25,7 +25,6 @@ json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
         "(2) <= (key1) <= (2)",
         "(3) <= (key1) <= (3)"
     ],
-    
     [
         "(1) <= (key1) <= (1)",
         "(2) <= (key1) <= (2)",

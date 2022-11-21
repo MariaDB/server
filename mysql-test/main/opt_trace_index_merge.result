@@ -208,7 +208,7 @@ explain select * from t1 where a=1 or b=1	{
           {
             "considered_execution_plans": [
               {
-                "plan_prefix": [],
+                "plan_prefix": "",
                 "get_costs_for_tables": [
                   {
                     "best_access_path": {
@@ -238,7 +238,7 @@ explain select * from t1 where a=1 or b=1	{
                 ]
               },
               {
-                "plan_prefix": [],
+                "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 2,
                 "cost_for_plan": 0.005004612
@@ -424,17 +424,13 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
         "analyzing_index_merge_union": 
         []
     },
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "key2",
                 "ranges": 
-                [
-                    "(100) <= (key2) <= (100)"
-                ],
+                ["(100) <= (key2) <= (100)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": true,
@@ -478,7 +474,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
         "cost_for_plan": 0.572490756,
         "chosen": true
     },
-    
     {
         "range_access_plan": 
         {
@@ -486,9 +481,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
             "index": "key2",
             "rows": 2243,
             "ranges": 
-            [
-                "(100) <= (key2) <= (100)"
-            ]
+            ["(100) <= (key2) <= (100)"]
         },
         "rows_for_plan": 2243,
         "cost_for_plan": 0.312832109,
