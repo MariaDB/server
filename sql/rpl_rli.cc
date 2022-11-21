@@ -2483,7 +2483,7 @@ rpl_group_info::mark_start_commit()
   If no GTID is available, then NULL is returned.
 */
 char *
-rpl_group_info::gtid_info()
+rpl_group_info::gtid_info() const
 {
   if (!gtid_sub_id || !current_gtid.seq_no)
     return NULL;

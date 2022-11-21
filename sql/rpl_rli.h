@@ -830,7 +830,7 @@ struct rpl_group_info
   longlong row_stmt_start_timestamp;
   bool long_find_row_note_printed;
   /* Needs room for "Gtid D-S-N\x00". */
-  char gtid_info_buf[5+10+1+10+1+20+1];
+  mutable char gtid_info_buf[5+10+1+10+1+20+1];
 
   /*
     The timestamp, from the master, of the commit event.
@@ -962,7 +962,7 @@ struct rpl_group_info
   void slave_close_thread_tables(THD *);
   void mark_start_commit_no_lock();
   void mark_start_commit();
-  char *gtid_info();
+  char *gtid_info() const;
   void unmark_start_commit();
 
   longlong get_row_stmt_start_timestamp()
