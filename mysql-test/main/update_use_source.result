@@ -1,4 +1,6 @@
-create table t1 (old_c1 integer, old_c2 integer,c1 integer, c2 integer, c3 integer) engine=InnoDB STATS_PERSISTENT=0;
+set @save_default_engine= @@default_storage_engine;
+set default_storage_engine=InnoDB;
+create table t1 (old_c1 integer, old_c2 integer,c1 integer, c2 integer, c3 integer);
 create view v1 as select * from t1 where c2=2;
 create trigger trg_t1 before update on t1 for each row
 begin
@@ -14,7 +16,10 @@ insert into t1(c1,c2,c3) values (2,2,5);
 insert into t1(c1,c2,c3) values (2,3,6);
 insert into t1(c1,c2,c3) values (2,4,7);
 insert into t1(c1,c2,c3) values (2,5,8);
-commit;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 select * from t1;
 old_c1	old_c2	c1	c2	c3
 NULL	NULL	1	1	1
@@ -25,15 +30,16 @@ NULL	NULL	2	2	5
 NULL	NULL	2	3	6
 NULL	NULL	2	4	7
 NULL	NULL	2	5	8
+create table tmp as select * from t1;
 Test without any index
 #
 # Update a with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3);
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
 affected rows: 8
 info: Rows matched: 8  Changed: 8  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -46,17 +52,16 @@ concat(old_c1,'->',c1)	c3	Changed
 2->6	6	*
 2->7	7	*
 2->8	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update with search clause on the same table
 #
-start transaction;
-update t1
-set c1=10
-where c1 <2
-and exists (select 'X'
-                 from t1 a
-where a.c1 = t1.c1);
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
 affected rows: 3
 info: Rows matched: 3  Changed: 3  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -69,15 +74,15 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update via RANGE or INDEX access if an index or a primary key exists
 #
-explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
-start transaction;
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
 info: Rows matched: 4  Changed: 4  Warnings: 0
@@ -91,12 +96,18 @@ NULL	5
 2->12	6	*
 2->12	7	*
 2->12	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update with order by
 #
-start transaction;
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
 concat(old_c1,'->',c1)	c3	Changed
 NULL	1	 
@@ -107,15 +118,16 @@ NULL	5
 2->12	6	*
 2->12	7	*
 2->12	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
-Update using a view in subquery
+# Update using a view in subquery
 #
-start transaction;
-update t1
-set c1=c1 +(select max(a.c2)
-from v1 a
-where a.c1 = t1.c1) ;
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
 affected rows: 8
 info: Rows matched: 8  Changed: 8  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -128,16 +140,16 @@ concat(old_c1,'->',c1)	c3	Changed
 2->4	6	*
 2->4	7	*
 2->4	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update throw a view
 #
-start transaction;
-update v1
-set c1=c1 + (select max(a.c2)
-from t1 a
-where a.c1 = v1.c1) +10
-where c3 > 3;
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -150,17 +162,16 @@ NULL	4
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update through a view and using the view in subquery
 #
-start transaction;
-update v1
-set c1=c1 + 1
-where c1 <2
-and exists (select 'X'
-                 from v1 a
-where a.c1 = v1.c1);
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -173,19 +184,19 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update through  a view and using the view in subquery
 #
-start transaction;
-update v1
-set c1=(select max(a.c1)+10
-from v1 a
-where a.c1 = v1.c1)
-where c1 <10
-and exists (select 'X'
-                 from v1 a
-where a.c2 = v1.c2);
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -198,11 +209,11 @@ NULL	4
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update of the index or primary key (c3)
 #
-start transaction;
 explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
@@ -220,16 +231,16 @@ c3
 16
 17
 18
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # update with a limit
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3)
-limit 2;
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -242,16 +253,12 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # update with a limit and an order by
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3)
-order by c3 desc limit 2;
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -264,17 +271,22 @@ NULL	5
 NULL	6	 
 2->7	7	*
 2->8	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 Test with an index on updated columns
 create index t1_c2 on t1 (c2,c1);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 #
 # Update a with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3);
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
 affected rows: 8
 info: Rows matched: 8  Changed: 8  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -287,17 +299,16 @@ concat(old_c1,'->',c1)	c3	Changed
 2->6	6	*
 2->7	7	*
 2->8	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update with search clause on the same table
 #
-start transaction;
-update t1
-set c1=10
-where c1 <2
-and exists (select 'X'
-                 from t1 a
-where a.c1 = t1.c1);
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
 affected rows: 3
 info: Rows matched: 3  Changed: 3  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -310,15 +321,15 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update via RANGE or INDEX access if an index or a primary key exists
 #
-explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition; Using where
-2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	4	Using index
-start transaction;
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
 info: Rows matched: 4  Changed: 4  Warnings: 0
@@ -332,12 +343,18 @@ NULL	5
 2->12	6	*
 2->12	7	*
 2->12	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update with order by
 #
-start transaction;
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
 concat(old_c1,'->',c1)	c3	Changed
 NULL	1	 
@@ -348,15 +365,16 @@ NULL	5
 2->12	6	*
 2->12	7	*
 2->12	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
-Update using a view in subquery
+# Update using a view in subquery
 #
-start transaction;
-update t1
-set c1=c1 +(select max(a.c2)
-from v1 a
-where a.c1 = t1.c1) ;
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
 affected rows: 8
 info: Rows matched: 8  Changed: 8  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -369,16 +387,16 @@ concat(old_c1,'->',c1)	c3	Changed
 2->4	6	*
 2->4	7	*
 2->4	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update throw a view
 #
-start transaction;
-update v1
-set c1=c1 + (select max(a.c2)
-from t1 a
-where a.c1 = v1.c1) +10
-where c3 > 3;
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	const	2	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -391,17 +409,16 @@ NULL	4
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update through a view and using the view in subquery
 #
-start transaction;
-update v1
-set c1=c1 + 1
-where c1 <2
-and exists (select 'X'
-                 from v1 a
-where a.c1 = v1.c1);
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -414,19 +431,19 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update through  a view and using the view in subquery
 #
-start transaction;
-update v1
-set c1=(select max(a.c1)+10
-from v1 a
-where a.c1 = v1.c1)
-where c1 <10
-and exists (select 'X'
-                 from v1 a
-where a.c2 = v1.c2);
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -439,11 +456,11 @@ NULL	4
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update of the index or primary key (c3)
 #
-start transaction;
 explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
@@ -461,16 +478,16 @@ c3
 16
 17
 18
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # update with a limit
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3)
-limit 2;
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -483,16 +500,12 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # update with a limit and an order by
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3)
-order by c3 desc limit 2;
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -505,17 +518,22 @@ NULL	5
 NULL	6	 
 2->7	7	*
 2->8	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 Test with an index on updated columns
 create index t1_c3 on t1 (c3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 #
 # Update a with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3);
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ref	t1_c3	t1_c3	5	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
 affected rows: 8
 info: Rows matched: 8  Changed: 8  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -528,17 +546,16 @@ concat(old_c1,'->',c1)	c3	Changed
 2->6	6	*
 2->7	7	*
 2->8	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update with search clause on the same table
 #
-start transaction;
-update t1
-set c1=10
-where c1 <2
-and exists (select 'X'
-                 from t1 a
-where a.c1 = t1.c1);
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
 affected rows: 3
 info: Rows matched: 3  Changed: 3  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -551,15 +568,15 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update via RANGE or INDEX access if an index or a primary key exists
 #
-explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition; Using where
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
 2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
-start transaction;
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
 info: Rows matched: 4  Changed: 4  Warnings: 0
@@ -573,12 +590,18 @@ NULL	5
 2->12	6	*
 2->12	7	*
 2->12	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update with order by
 #
-start transaction;
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
 concat(old_c1,'->',c1)	c3	Changed
 NULL	1	 
@@ -589,15 +612,16 @@ NULL	5
 2->12	6	*
 2->12	7	*
 2->12	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
-Update using a view in subquery
+# Update using a view in subquery
 #
-start transaction;
-update t1
-set c1=c1 +(select max(a.c2)
-from v1 a
-where a.c1 = t1.c1) ;
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
 affected rows: 8
 info: Rows matched: 8  Changed: 8  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -610,16 +634,16 @@ concat(old_c1,'->',c1)	c3	Changed
 2->4	6	*
 2->4	7	*
 2->4	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update throw a view
 #
-start transaction;
-update v1
-set c1=c1 + (select max(a.c2)
-from t1 a
-where a.c1 = v1.c1) +10
-where c3 > 3;
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref|filter	t1_c2,t1_c3	t1_c2|t1_c3	5|5	const	2 (63%)	Using where; Using rowid filter
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -632,17 +656,16 @@ NULL	4
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update through a view and using the view in subquery
 #
-start transaction;
-update v1
-set c1=c1 + 1
-where c1 <2
-and exists (select 'X'
-                 from v1 a
-where a.c1 = v1.c1);
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -655,19 +678,19 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update through  a view and using the view in subquery
 #
-start transaction;
-update v1
-set c1=(select max(a.c1)+10
-from v1 a
-where a.c1 = v1.c1)
-where c1 <10
-and exists (select 'X'
-                 from v1 a
-where a.c2 = v1.c2);
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -680,11 +703,11 @@ NULL	4
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update of the index or primary key (c3)
 #
-start transaction;
 explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
@@ -702,16 +725,16 @@ c3
 16
 17
 18
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # update with a limit
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3)
-limit 2;
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ref	t1_c3	t1_c3	5	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -724,16 +747,12 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # update with a limit and an order by
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3)
-order by c3 desc limit 2;
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -746,18 +765,23 @@ NULL	5
 NULL	6	 
 2->7	7	*
 2->8	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 Test with a primary key on updated columns
 drop index t1_c3 on t1;
 alter table t1 add primary key (c3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 #
 # Update a with value from subquery on the same table, no search clause. ALL access
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3);
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
 affected rows: 8
 info: Rows matched: 8  Changed: 8  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -770,17 +794,16 @@ concat(old_c1,'->',c1)	c3	Changed
 2->6	6	*
 2->7	7	*
 2->8	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update with search clause on the same table
 #
-start transaction;
-update t1
-set c1=10
-where c1 <2
-and exists (select 'X'
-                 from t1 a
-where a.c1 = t1.c1);
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
 affected rows: 3
 info: Rows matched: 3  Changed: 3  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -793,15 +816,15 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update via RANGE or INDEX access if an index or a primary key exists
 #
-explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition; Using where
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
 2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
-start transaction;
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
 info: Rows matched: 4  Changed: 4  Warnings: 0
@@ -815,12 +838,18 @@ NULL	5
 2->12	6	*
 2->12	7	*
 2->12	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update with order by
 #
-start transaction;
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
 concat(old_c1,'->',c1)	c3	Changed
 NULL	1	 
@@ -831,15 +860,16 @@ NULL	5
 2->12	6	*
 2->12	7	*
 2->12	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
-Update using a view in subquery
+# Update using a view in subquery
 #
-start transaction;
-update t1
-set c1=c1 +(select max(a.c2)
-from v1 a
-where a.c1 = t1.c1) ;
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
 affected rows: 8
 info: Rows matched: 8  Changed: 8  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -852,16 +882,16 @@ concat(old_c1,'->',c1)	c3	Changed
 2->4	6	*
 2->4	7	*
 2->4	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update throw a view
 #
-start transaction;
-update v1
-set c1=c1 + (select max(a.c2)
-from t1 a
-where a.c1 = v1.c1) +10
-where c3 > 3;
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	PRIMARY,t1_c2	PRIMARY	4	NULL	5	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -874,17 +904,16 @@ NULL	4
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update through a view and using the view in subquery
 #
-start transaction;
-update v1
-set c1=c1 + 1
-where c1 <2
-and exists (select 'X'
-                 from v1 a
-where a.c1 = v1.c1);
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
 affected rows: 1
 info: Rows matched: 1  Changed: 1  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -897,19 +926,19 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update through  a view and using the view in subquery
 #
-start transaction;
-update v1
-set c1=(select max(a.c1)+10
-from v1 a
-where a.c1 = v1.c1)
-where c1 <10
-and exists (select 'X'
-                 from v1 a
-where a.c2 = v1.c2);
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
@@ -922,11 +951,11 @@ NULL	4
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Update of the index or primary key (c3)
 #
-start transaction;
 explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
@@ -937,23 +966,23 @@ info: Rows matched: 8  Changed: 8  Warnings: 0
 select c3 from t1;
 c3
 11
-14
 12
-15
 13
+14
+15
 16
 17
 18
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # update with a limit
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3)
-limit 2;
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -966,16 +995,12 @@ NULL	5
 NULL	6	 
 NULL	7	 
 NULL	8	 
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # update with a limit and an order by
 #
-start transaction;
-update t1
-set c1=(select a.c3
-from t1 a
-where a.c3 = t1.c3)
-order by c3 desc limit 2;
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
 select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
@@ -988,56 +1013,129 @@ NULL	5
 NULL	6	 
 2->7	7	*
 2->8	8	*
-rollback;
+truncate table t1;
+insert into t1 select * from tmp;
 # Update with error "Subquery returns more than 1 row"
 update t1 set c2=(select c2 from t1);
 ERROR 21000: Subquery returns more than 1 row
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
 # Update with error "Subquery returns more than 1 row" and order by
 update t1 set c2=(select c2 from t1) order by c3;
 ERROR 21000: Subquery returns more than 1 row
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
 Duplicate value on update a primary key
-start transaction;
 update t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
-rollback;
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 Duplicate value on update a primary key with ignore
-start transaction;
 update ignore t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
 info: Rows matched: 4  Changed: 4  Warnings: 0
-rollback;
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 Duplicate value on update a primary key and limit
-start transaction;
 update t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 limit 2;
 ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
-rollback;
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 Duplicate value on update a primary key with ignore and limit
-start transaction;
 update ignore t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 limit 2;
 affected rows: 2
 info: Rows matched: 2  Changed: 2  Warnings: 0
-rollback;
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 # Update no rows found
-update t1
-set c1=10
-where c1 <2
-and exists (select 'X'
-                 from t1 a
-where a.c1 = t1.c1 + 10);
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1 + 10);
 affected rows: 0
 info: Rows matched: 0  Changed: 0  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 # Update no rows changed
 drop trigger trg_t1;
-start transaction;
-update t1
-set c1=c1
-where c1 <2
-and exists (select 'X'
-                 from t1 a
-where a.c1 = t1.c1);
+update t1 set c1=c1 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
 affected rows: 0
 info: Rows matched: 3  Changed: 0  Warnings: 0
-rollback;
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Check call of after trigger
 #
@@ -1052,33 +1150,88 @@ end;
 /
 update t1 set c1=2 where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1);
 ERROR 45000: in after update trigger on 5
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 #
 # Check update with order by and after trigger
 #
 update t1 set c1=2 where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1) order by t1.c2;
 ERROR 45000: in after update trigger on 5
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 drop view v1;
 #
 # Check update on view with check option
 #
 create view v1 as select * from t1 where c2=2 with check option;
-start transaction;
 update v1 set c2=3 where c1=1;
 ERROR 44000: CHECK OPTION failed `test`.`v1`
-rollback;
-start transaction;
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 update v1 set c2=(select max(c3) from v1) where c1=1;
 ERROR 44000: CHECK OPTION failed `test`.`v1`
-rollback;
-start transaction;
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
 update v1 set c2=(select min(va.c3) from v1 va), c1=0 where c1=1;
-rollback;
+select c1,c2,c3 from t1;
+c1	c2	c3
+0	2	2
+1	1	1
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+drop table tmp;
 drop view v1;
 drop table t1;
 #
 # Test with a temporary table
 #
-create temporary table t1 (c1 integer, c2 integer, c3 integer) engine=InnoDb;
+create temporary table t1 (c1 integer, c2 integer, c3 integer);
 insert into t1(c1,c2,c3) values (1,1,1);
 insert into t1(c1,c2,c3) values (1,2,2);
 insert into t1(c1,c2,c3) values (1,3,3);
@@ -1087,7 +1240,6 @@ insert into t1(c1,c2,c3) values (2,2,5);
 insert into t1(c1,c2,c3) values (2,3,6);
 insert into t1(c1,c2,c3) values (2,4,7);
 insert into t1(c1,c2,c3) values (2,5,8);
-start transaction;
 update t1
 set c1=(select a.c2
 from t1 a
@@ -1104,7 +1256,6 @@ c1	c2	c3
 2	3	6
 2	4	7
 2	5	8
-rollback;
 drop table t1;
 #
 # Test on dynamic columns (blob)
@@ -1143,7 +1294,7 @@ drop table assets ;
 #
 # Test on fulltext columns
 #
-CREATE TABLE ft2(copy TEXT,FULLTEXT(copy)) ENGINE=MyISAM;
+CREATE TABLE ft2(copy TEXT,FULLTEXT(copy));
 INSERT INTO ft2(copy) VALUES
 ('MySQL vs MariaDB database'),
 ('Oracle vs MariaDB database'),
@@ -1166,6 +1317,2643 @@ copy
 mykeyword Postg
 mykeyword Postg
 drop table ft2;
+set default_storage_engine=Aria;
+create table t1 (old_c1 integer, old_c2 integer,c1 integer, c2 integer, c3 integer);
+create view v1 as select * from t1 where c2=2;
+create trigger trg_t1 before update on t1 for each row
+begin
+set new.old_c1=old.c1;
+set new.old_c2=old.c2;
+end;
+/
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select * from t1;
+old_c1	old_c2	c1	c2	c3
+NULL	NULL	1	1	1
+NULL	NULL	1	2	2
+NULL	NULL	1	3	3
+NULL	NULL	2	1	4
+NULL	NULL	2	2	5
+NULL	NULL	2	3	6
+NULL	NULL	2	4	7
+NULL	NULL	2	5	8
+create table tmp as select * from t1;
+Test without any index
+#
+# Update a with value from subquery on the same table, no search clause. ALL access
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+1->3	3	*
+2->4	4	*
+2->5	5	*
+2->6	6	*
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with search clause on the same table
+#
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->10	1	*
+1->10	2	*
+1->10	3	*
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update via RANGE or INDEX access if an index or a primary key exists
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with order by
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update using a view in subquery
+#
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+1->3	1	*
+1->3	2	*
+1->3	3	*
+2->4	4	*
+2->4	5	*
+2->4	6	*
+2->4	7	*
+2->4	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update throw a view
+#
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+2->17	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through a view and using the view in subquery
+#
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through  a view and using the view in subquery
+#
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->11	2	*
+NULL	3	 
+NULL	4	 
+2->12	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update of the index or primary key (c3)
+#
+explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select c3 from t1;
+c3
+11
+12
+13
+14
+15
+16
+17
+18
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit and an order by
+#
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+Test with an index on updated columns
+create index t1_c2 on t1 (c2,c1);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+#
+# Update a with value from subquery on the same table, no search clause. ALL access
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+1->3	3	*
+2->4	4	*
+2->5	5	*
+2->6	6	*
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with search clause on the same table
+#
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->10	1	*
+1->10	2	*
+1->10	3	*
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update via RANGE or INDEX access if an index or a primary key exists
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with order by
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update using a view in subquery
+#
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+1->3	1	*
+1->3	2	*
+1->3	3	*
+2->4	4	*
+2->4	5	*
+2->4	6	*
+2->4	7	*
+2->4	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update throw a view
+#
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	const	2	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+2->17	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through a view and using the view in subquery
+#
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through  a view and using the view in subquery
+#
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->11	2	*
+NULL	3	 
+NULL	4	 
+2->12	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update of the index or primary key (c3)
+#
+explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c1	1	Using index; FirstMatch(t1)
+update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select c3 from t1;
+c3
+11
+12
+13
+14
+15
+16
+17
+18
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit and an order by
+#
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+Test with an index on updated columns
+create index t1_c3 on t1 (c3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+#
+# Update a with value from subquery on the same table, no search clause. ALL access
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ref	t1_c3	t1_c3	5	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+1->3	3	*
+2->4	4	*
+2->5	5	*
+2->6	6	*
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with search clause on the same table
+#
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->10	1	*
+1->10	2	*
+1->10	3	*
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update via RANGE or INDEX access if an index or a primary key exists
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with order by
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update using a view in subquery
+#
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+1->3	1	*
+1->3	2	*
+1->3	3	*
+2->4	4	*
+2->4	5	*
+2->4	6	*
+2->4	7	*
+2->4	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update throw a view
+#
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	t1_c2,t1_c3	t1_c2	5	const	2	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+2->17	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through a view and using the view in subquery
+#
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through  a view and using the view in subquery
+#
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->11	2	*
+NULL	3	 
+NULL	4	 
+2->12	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update of the index or primary key (c3)
+#
+explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c1	1	Using index; FirstMatch(t1)
+update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select c3 from t1;
+c3
+11
+12
+13
+14
+15
+16
+17
+18
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ref	t1_c3	t1_c3	5	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit and an order by
+#
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+Test with a primary key on updated columns
+drop index t1_c3 on t1;
+alter table t1 add primary key (c3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+#
+# Update a with value from subquery on the same table, no search clause. ALL access
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+1->3	3	*
+2->4	4	*
+2->5	5	*
+2->6	6	*
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with search clause on the same table
+#
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->10	1	*
+1->10	2	*
+1->10	3	*
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update via RANGE or INDEX access if an index or a primary key exists
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with order by
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	5	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update using a view in subquery
+#
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+1->3	1	*
+1->3	2	*
+1->3	3	*
+2->4	4	*
+2->4	5	*
+2->4	6	*
+2->4	7	*
+2->4	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update throw a view
+#
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	PRIMARY,t1_c2	t1_c2	5	const	2	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+2->17	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through a view and using the view in subquery
+#
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through  a view and using the view in subquery
+#
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->11	2	*
+NULL	3	 
+NULL	4	 
+2->12	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update of the index or primary key (c3)
+#
+explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c1	1	Using index; FirstMatch(t1)
+update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select c3 from t1;
+c3
+11
+12
+13
+14
+15
+16
+17
+18
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit and an order by
+#
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+# Update with error "Subquery returns more than 1 row"
+update t1 set c2=(select c2 from t1);
+ERROR 21000: Subquery returns more than 1 row
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+# Update with error "Subquery returns more than 1 row" and order by
+update t1 set c2=(select c2 from t1) order by c3;
+ERROR 21000: Subquery returns more than 1 row
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+Duplicate value on update a primary key
+update t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+Duplicate value on update a primary key with ignore
+update ignore t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+Duplicate value on update a primary key and limit
+update t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 limit 2;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+Duplicate value on update a primary key with ignore and limit
+update ignore t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+# Update no rows found
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1 + 10);
+affected rows: 0
+info: Rows matched: 0  Changed: 0  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+# Update no rows changed
+drop trigger trg_t1;
+update t1 set c1=c1 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 0
+info: Rows matched: 3  Changed: 0  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Check call of after trigger
+#
+create or replace trigger trg_t2 after update on t1 for each row
+begin
+declare msg varchar(100);
+if (new.c3 = 5) then
+set msg=concat('in after update trigger on ',new.c3);
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+end if;
+end;
+/
+update t1 set c1=2 where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1);
+ERROR 45000: in after update trigger on 5
+select c1,c2,c3 from t1;
+c1	c2	c3
+2	1	1
+2	1	4
+2	2	2
+2	2	5
+2	3	3
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Check update with order by and after trigger
+#
+update t1 set c1=2 where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1) order by t1.c2;
+ERROR 45000: in after update trigger on 5
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	3	3
+2	1	1
+2	1	4
+2	2	2
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+drop view v1;
+#
+# Check update on view with check option
+#
+create view v1 as select * from t1 where c2=2 with check option;
+update v1 set c2=3 where c1=1;
+ERROR 44000: CHECK OPTION failed `test`.`v1`
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+update v1 set c2=(select max(c3) from v1) where c1=1;
+ERROR 44000: CHECK OPTION failed `test`.`v1`
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+update v1 set c2=(select min(va.c3) from v1 va), c1=0 where c1=1;
+select c1,c2,c3 from t1;
+c1	c2	c3
+0	2	2
+1	1	1
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+drop table tmp;
+drop view v1;
+drop table t1;
+#
+# Test with a temporary table
+#
+create temporary table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+update t1
+set c1=(select a.c2
+from t1 a
+where a.c3 = t1.c3) limit 3;
+affected rows: 2
+info: Rows matched: 3  Changed: 2  Warnings: 0
+select * from t1 ;
+c1	c2	c3
+1	1	1
+2	2	2
+3	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+drop table t1;
+#
+# Test on dynamic columns (blob)
+#
+create table assets (
+item_name varchar(32) primary key, -- A common attribute for all items
+dynamic_cols  blob  -- Dynamic columns will be stored here
+);
+INSERT INTO assets VALUES ('MariaDB T-shirt', COLUMN_CREATE('color', 'blue', 'size', 'XL'));
+INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500));
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets;
+item_name	color
+MariaDB T-shirt	blue
+Thinkpad Laptop	black
+UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', '3 years') WHERE item_name='Thinkpad Laptop';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
+item_name	color
+MariaDB T-shirt	NULL
+Thinkpad Laptop	3 years
+UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', '4 years')
+WHERE item_name in (select b.item_name
+from assets b
+where COLUMN_GET(b.dynamic_cols, 'color' as char) ='black');
+SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
+item_name	color
+MariaDB T-shirt	NULL
+Thinkpad Laptop	4 years
+UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', (select COLUMN_GET(b.dynamic_cols, 'color' as char)
+from assets b
+where assets.item_name = item_name));
+SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
+item_name	color
+MariaDB T-shirt	blue
+Thinkpad Laptop	black
+drop table assets ;
+#
+# Test on fulltext columns
+#
+CREATE TABLE ft2(copy TEXT,FULLTEXT(copy));
+INSERT INTO ft2(copy) VALUES
+('MySQL vs MariaDB database'),
+('Oracle vs MariaDB database'),
+('PostgreSQL vs MariaDB database'),
+('MariaDB overview'),
+('Foreign keys'),
+('Primary keys'),
+('Indexes'),
+('Transactions'),
+('Triggers');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
+copy
+MySQL vs MariaDB database
+Oracle vs MariaDB database
+PostgreSQL vs MariaDB database
+update ft2 set copy = (select max(concat('mykeyword ',substr(b.copy,1,5))) from ft2 b WHERE MATCH(b.copy) AGAINST('database'))
+where MATCH(copy) AGAINST('keys');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('mykeyword');
+copy
+mykeyword Postg
+mykeyword Postg
+drop table ft2;
+set default_storage_engine=MyISAM;
+create table t1 (old_c1 integer, old_c2 integer,c1 integer, c2 integer, c3 integer);
+create view v1 as select * from t1 where c2=2;
+create trigger trg_t1 before update on t1 for each row
+begin
+set new.old_c1=old.c1;
+set new.old_c2=old.c2;
+end;
+/
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select * from t1;
+old_c1	old_c2	c1	c2	c3
+NULL	NULL	1	1	1
+NULL	NULL	1	2	2
+NULL	NULL	1	3	3
+NULL	NULL	2	1	4
+NULL	NULL	2	2	5
+NULL	NULL	2	3	6
+NULL	NULL	2	4	7
+NULL	NULL	2	5	8
+create table tmp as select * from t1;
+Test without any index
+#
+# Update a with value from subquery on the same table, no search clause. ALL access
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+1->3	3	*
+2->4	4	*
+2->5	5	*
+2->6	6	*
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with search clause on the same table
+#
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->10	1	*
+1->10	2	*
+1->10	3	*
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update via RANGE or INDEX access if an index or a primary key exists
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with order by
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using filesort
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update using a view in subquery
+#
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+1->3	1	*
+1->3	2	*
+1->3	3	*
+2->4	4	*
+2->4	5	*
+2->4	6	*
+2->4	7	*
+2->4	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update throw a view
+#
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+2->17	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through a view and using the view in subquery
+#
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through  a view and using the view in subquery
+#
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->11	2	*
+NULL	3	 
+NULL	4	 
+2->12	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update of the index or primary key (c3)
+#
+explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t1)
+update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select c3 from t1;
+c3
+11
+12
+13
+14
+15
+16
+17
+18
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit and an order by
+#
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+Test with an index on updated columns
+create index t1_c2 on t1 (c2,c1);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+#
+# Update a with value from subquery on the same table, no search clause. ALL access
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+1->3	3	*
+2->4	4	*
+2->5	5	*
+2->6	6	*
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with search clause on the same table
+#
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->10	1	*
+1->10	2	*
+1->10	3	*
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update via RANGE or INDEX access if an index or a primary key exists
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with order by
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update using a view in subquery
+#
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+1->3	1	*
+1->3	2	*
+1->3	3	*
+2->4	4	*
+2->4	5	*
+2->4	6	*
+2->4	7	*
+2->4	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update throw a view
+#
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	const	2	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+2->17	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through a view and using the view in subquery
+#
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through  a view and using the view in subquery
+#
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->11	2	*
+NULL	3	 
+NULL	4	 
+2->12	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update of the index or primary key (c3)
+#
+explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c1	1	Using index; FirstMatch(t1)
+update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select c3 from t1;
+c3
+11
+12
+13
+14
+15
+16
+17
+18
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit and an order by
+#
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+Test with an index on updated columns
+create index t1_c3 on t1 (c3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+#
+# Update a with value from subquery on the same table, no search clause. ALL access
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ref	t1_c3	t1_c3	5	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+1->3	3	*
+2->4	4	*
+2->5	5	*
+2->6	6	*
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with search clause on the same table
+#
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->10	1	*
+1->10	2	*
+1->10	3	*
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update via RANGE or INDEX access if an index or a primary key exists
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with order by
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update using a view in subquery
+#
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+1->3	1	*
+1->3	2	*
+1->3	3	*
+2->4	4	*
+2->4	5	*
+2->4	6	*
+2->4	7	*
+2->4	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update throw a view
+#
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref|filter	t1_c2,t1_c3	t1_c2|t1_c3	5|5	const	2 (63%)	Using where; Using rowid filter
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+2->17	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through a view and using the view in subquery
+#
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through  a view and using the view in subquery
+#
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->11	2	*
+NULL	3	 
+NULL	4	 
+2->12	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update of the index or primary key (c3)
+#
+explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c1	1	Using index; FirstMatch(t1)
+update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select c3 from t1;
+c3
+11
+12
+13
+14
+15
+16
+17
+18
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	ref	t1_c3	t1_c3	5	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit and an order by
+#
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+Test with a primary key on updated columns
+drop index t1_c3 on t1;
+alter table t1 add primary key (c3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+#
+# Update a with value from subquery on the same table, no search clause. ALL access
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+1->3	3	*
+2->4	4	*
+2->5	5	*
+2->6	6	*
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with search clause on the same table
+#
+explain update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 3
+info: Rows matched: 3  Changed: 3  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->10	1	*
+1->10	2	*
+1->10	3	*
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update via RANGE or INDEX access if an index or a primary key exists
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update with order by
+#
+explain update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	4	Using index condition; Using where
+2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 order by c2;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+1->11	3	*
+NULL	4	 
+NULL	5	 
+2->12	6	*
+2->12	7	*
+2->12	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update using a view in subquery
+#
+explain update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update t1 set c1=c1 +(select max(a.c2) from v1 a where a.c1 = t1.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+1->3	1	*
+1->3	2	*
+1->3	3	*
+2->4	4	*
+2->4	5	*
+2->4	6	*
+2->4	7	*
+2->4	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update throw a view
+#
+explain update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref|filter	PRIMARY,t1_c2	t1_c2|PRIMARY	5|4	const	2 (63%)	Using where; Using rowid filter
+2	DEPENDENT SUBQUERY	a	index	NULL	t1_c2	10	NULL	8	Using where; Using index
+update v1 set c1=c1 + (select max(a.c2) from t1 a where a.c1 = v1.c1) +10 where c3 > 3;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+2->17	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through a view and using the view in subquery
+#
+explain update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	1	Using index condition; Using where
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=c1 + 1 where c1 <2 and exists (select 'X' from v1 a where a.c1 = v1.c1);
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update through  a view and using the view in subquery
+#
+explain update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	t1_c2	t1_c2	10	NULL	2	Using index condition; Using where
+3	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	5	const	2	Using index
+2	DEPENDENT SUBQUERY	t1	ref	t1_c2	t1_c2	10	const,test.t1.c1	1	Using index
+update v1 set c1=(select max(a.c1)+10 from v1 a where a.c1 = v1.c1) 
+where c1 <10 and exists (select 'X' from v1 a where a.c2 = v1.c2);
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+1->11	2	*
+NULL	3	 
+NULL	4	 
+2->12	5	*
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Update of the index or primary key (c3)
+#
+explain update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	t1_c2	NULL	NULL	NULL	8	Using where
+1	PRIMARY	a	ref	t1_c2	t1_c2	10	test.t1.c2,test.t1.c1	1	Using index; FirstMatch(t1)
+update t1 set c3=c3+10 where c2 in (select distinct a.c2 from t1 a where t1.c1=a.c1);
+affected rows: 8
+info: Rows matched: 8  Changed: 8  Warnings: 0
+select c3 from t1;
+c3
+11
+12
+13
+14
+15
+16
+17
+18
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit
+#
+explain update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	
+2	DEPENDENT SUBQUERY	a	eq_ref	PRIMARY	PRIMARY	4	test.t1.c3	1	Using index
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+1->1	1	 
+1->2	2	*
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+NULL	7	 
+NULL	8	 
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# update with a limit and an order by
+#
+update t1 set c1=(select a.c3 from t1 a where a.c3 = t1.c3) order by c3 desc limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select concat(old_c1,'->',c1),c3, case when c1 != old_c1 then '*' else ' ' end "Changed" from t1 ;
+concat(old_c1,'->',c1)	c3	Changed
+NULL	1	 
+NULL	2	 
+NULL	3	 
+NULL	4	 
+NULL	5	 
+NULL	6	 
+2->7	7	*
+2->8	8	*
+truncate table t1;
+insert into t1 select * from tmp;
+# Update with error "Subquery returns more than 1 row"
+update t1 set c2=(select c2 from t1);
+ERROR 21000: Subquery returns more than 1 row
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+# Update with error "Subquery returns more than 1 row" and order by
+update t1 set c2=(select c2 from t1) order by c3;
+ERROR 21000: Subquery returns more than 1 row
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+Duplicate value on update a primary key
+update t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+Duplicate value on update a primary key with ignore
+update ignore t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
+affected rows: 4
+info: Rows matched: 4  Changed: 4  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+Duplicate value on update a primary key and limit
+update t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 limit 2;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+Duplicate value on update a primary key with ignore and limit
+update ignore t1 set c3=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3 limit 2;
+affected rows: 2
+info: Rows matched: 2  Changed: 2  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	0
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+# Update no rows found
+update t1 set c1=10 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1 + 10);
+affected rows: 0
+info: Rows matched: 0  Changed: 0  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+# Update no rows changed
+drop trigger trg_t1;
+update t1 set c1=c1 where c1 <2 and exists (select 'X' from t1 a where a.c1 = t1.c1);
+affected rows: 0
+info: Rows matched: 3  Changed: 0  Warnings: 0
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Check call of after trigger
+#
+create or replace trigger trg_t2 after update on t1 for each row
+begin
+declare msg varchar(100);
+if (new.c3 = 5) then
+set msg=concat('in after update trigger on ',new.c3);
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+end if;
+end;
+/
+update t1 set c1=2 where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1);
+ERROR 45000: in after update trigger on 5
+select c1,c2,c3 from t1;
+c1	c2	c3
+2	1	1
+2	1	4
+2	2	2
+2	2	5
+2	3	3
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+#
+# Check update with order by and after trigger
+#
+update t1 set c1=2 where c3 in (select distinct a.c3 from t1 a where a.c1=t1.c1) order by t1.c2;
+ERROR 45000: in after update trigger on 5
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	3	3
+2	1	1
+2	1	4
+2	2	2
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+drop view v1;
+#
+# Check update on view with check option
+#
+create view v1 as select * from t1 where c2=2 with check option;
+update v1 set c2=3 where c1=1;
+ERROR 44000: CHECK OPTION failed `test`.`v1`
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+update v1 set c2=(select max(c3) from v1) where c1=1;
+ERROR 44000: CHECK OPTION failed `test`.`v1`
+select c1,c2,c3 from t1;
+c1	c2	c3
+1	1	1
+1	2	2
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+update v1 set c2=(select min(va.c3) from v1 va), c1=0 where c1=1;
+select c1,c2,c3 from t1;
+c1	c2	c3
+0	2	2
+1	1	1
+1	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+truncate table t1;
+insert into t1 select * from tmp;
+drop table tmp;
+drop view v1;
+drop table t1;
+#
+# Test with a temporary table
+#
+create temporary table t1 (c1 integer, c2 integer, c3 integer);
+insert into t1(c1,c2,c3) values (1,1,1);
+insert into t1(c1,c2,c3) values (1,2,2);
+insert into t1(c1,c2,c3) values (1,3,3);
+insert into t1(c1,c2,c3) values (2,1,4);
+insert into t1(c1,c2,c3) values (2,2,5);
+insert into t1(c1,c2,c3) values (2,3,6);
+insert into t1(c1,c2,c3) values (2,4,7);
+insert into t1(c1,c2,c3) values (2,5,8);
+update t1
+set c1=(select a.c2
+from t1 a
+where a.c3 = t1.c3) limit 3;
+affected rows: 2
+info: Rows matched: 3  Changed: 2  Warnings: 0
+select * from t1 ;
+c1	c2	c3
+1	1	1
+2	2	2
+3	3	3
+2	1	4
+2	2	5
+2	3	6
+2	4	7
+2	5	8
+drop table t1;
+#
+# Test on dynamic columns (blob)
+#
+create table assets (
+item_name varchar(32) primary key, -- A common attribute for all items
+dynamic_cols  blob  -- Dynamic columns will be stored here
+);
+INSERT INTO assets VALUES ('MariaDB T-shirt', COLUMN_CREATE('color', 'blue', 'size', 'XL'));
+INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500));
+SELECT item_name, COLUMN_GET(dynamic_cols, 'color' as char) AS color FROM assets;
+item_name	color
+MariaDB T-shirt	blue
+Thinkpad Laptop	black
+UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', '3 years') WHERE item_name='Thinkpad Laptop';
+SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
+item_name	color
+MariaDB T-shirt	NULL
+Thinkpad Laptop	3 years
+UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', '4 years')
+WHERE item_name in (select b.item_name
+from assets b
+where COLUMN_GET(b.dynamic_cols, 'color' as char) ='black');
+SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
+item_name	color
+MariaDB T-shirt	NULL
+Thinkpad Laptop	4 years
+UPDATE assets SET dynamic_cols=COLUMN_ADD(dynamic_cols, 'warranty', (select COLUMN_GET(b.dynamic_cols, 'color' as char)
+from assets b
+where assets.item_name = item_name));
+SELECT item_name, COLUMN_GET(dynamic_cols, 'warranty' as char) AS color FROM assets;
+item_name	color
+MariaDB T-shirt	blue
+Thinkpad Laptop	black
+drop table assets ;
+#
+# Test on fulltext columns
+#
+CREATE TABLE ft2(copy TEXT,FULLTEXT(copy));
+INSERT INTO ft2(copy) VALUES
+('MySQL vs MariaDB database'),
+('Oracle vs MariaDB database'),
+('PostgreSQL vs MariaDB database'),
+('MariaDB overview'),
+('Foreign keys'),
+('Primary keys'),
+('Indexes'),
+('Transactions'),
+('Triggers');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('database');
+copy
+MySQL vs MariaDB database
+Oracle vs MariaDB database
+PostgreSQL vs MariaDB database
+update ft2 set copy = (select max(concat('mykeyword ',substr(b.copy,1,5))) from ft2 b WHERE MATCH(b.copy) AGAINST('database'))
+where MATCH(copy) AGAINST('keys');
+SELECT * FROM ft2 WHERE MATCH(copy) AGAINST('mykeyword');
+copy
+mykeyword Postg
+mykeyword Postg
+drop table ft2;
+set @@default_storage_engine= @save_default_engine;
 #
 # Test with MyISAM
 #
