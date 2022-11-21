@@ -6123,16 +6123,12 @@ static int deinit_alias()
 static int com_alias(String *buffer __attribute__((unused)),
                      char *line)
 {
-  char *ptr;
+  char *ptr= strchr(line,' ');
   bool unused;
 
   /* Move past "alias" and spaces. */
-  if (!(ptr= strstr(line, "alias")))
-    // Bad syntax, missing "alias" keyword
-    return 1;
-
-  ptr+= 5;
-  while (*ptr && my_isspace(charset_info, *ptr)) ptr++;
+  if (ptr)
+    while (my_isspace(charset_info, *ptr)) ptr++;
 
   if ((!ptr) || (*ptr == 0))
   {
@@ -6145,11 +6141,12 @@ static int com_alias(String *buffer __attribute__((unused)),
     return 0;
   }
 
-    if (*ptr == '=')
-    {
-      tee_fprintf(stdout, "alias: '%s': not found\n", ptr);
-      return 0;
-    }
+  if (*ptr == '=')
+  {
+    tee_fprintf(stdout, "alias: '%s': not found\n", ptr);
+    return 0;
+  }
+
   /* There are more arguments to handle. */
   while (*ptr)
   {
