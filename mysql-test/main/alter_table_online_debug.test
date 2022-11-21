@@ -1153,5 +1153,143 @@ drop table t;
 set debug_sync= reset;
 
 --echo #
+--echo # MDEV-29069 ER_KEY_NOT_FOUND upon online autoinc addition and
+--echo # concurrent DELETE
+--echo #
+set @old_dbug=@@debug_dbug;
+set debug_dbug="+d,rpl_report_chosen_key";
+
+create table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add pk int auto_increment primary key, algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+select * from t;
+
+--echo #
+--echo # Add clumsy DEFAULT
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b int default(RAND() * 20), add key(b),
+              algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+--connection default
+--reap
+select a from t;
+
+--echo # CURRENT_TIMESTAMP
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b timestamp default CURRENT_TIMESTAMP, add key(b),
+              algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+--connection default
+--reap
+select a from t;
+
+--echo # CURRENT_TIMESTAMP, mixed key
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b timestamp default CURRENT_TIMESTAMP, add key(a, b),
+              algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+select a from t;
+
+--echo # Mixed primary key
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b int default (a+1), add primary key(b, a),
+              algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+select a from t;
+
+--echo #
+--echo # Normal row, could be used as a key
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add b int as (a * 10) unique, algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+
+--echo #
+--echo # Add key for old row
+--echo #
+create or replace table t (a int);
+insert into t values (10),(20),(30);
+
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+--send
+alter table t add unique(a), algorithm=copy, lock=none;
+--connection con2
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 1 where a = 10;
+set debug_sync= 'now signal goforit';
+
+--connection default
+--reap
+
+
+# Cleanup
+drop table t;
+set debug_sync= reset;
+set debug_dbug= @old_debug;
+--connection default
+
+--echo #
 --echo # End of 11.2 tests
 --echo #
