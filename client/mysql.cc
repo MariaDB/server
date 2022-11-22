@@ -2643,7 +2643,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
             if (*pos == *delimiter)
               buffer.append(tmp_buffer, (uint32) (pos-tmp_buffer));
             else
-              buffer.append(tmp_buffer, strlen(tmp_buffer));
+              buffer.append(line, strlen(line));
             if ((*com->func)(&buffer, buffer.c_ptr()) > 0)
               DBUG_RETURN(1);                       // Quit
             buffer.length(0);
