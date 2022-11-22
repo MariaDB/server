@@ -3293,7 +3293,8 @@ dict_stats_update(
 			or is corrupted, calculate the transient stats */
 
 			if (innodb_table_stats_not_found == false &&
-			    table->stats_error_printed == false) {
+			    table->stats_error_printed == false &&
+			    !opt_bootstrap) {
 				ib::error() << "Fetch of persistent statistics"
 					" requested for table "
 					<< table->name
