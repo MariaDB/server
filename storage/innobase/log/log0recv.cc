@@ -986,6 +986,20 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
         DB_SUCCESS == os_file_punch_hole(node->handle, 0, 4096) &&
         !my_test_if_thinly_provisioned(node->handle);
 #endif
+      /* Mimic fil_node_t::read_page0() in case the file exists and
+      has already been extended to a larger size. */
+      ut_ad(node->size == size);
+      const os_offset_t file_size= os_file_get_size(node->handle);
+      if (file_size != os_offset_t(-1))
+      {
+        const uint32_t n_pages=
+          uint32_t(file_size / fil_space_t::physical_size(flags));
+        if (n_pages > size)
+        {
+          space->size= node->size= n_pages;
+          space->set_committed_size();
+        }
+      }
       if (!os_file_set_size(node->name, node->handle,
                             (size * fil_space_t::physical_size(flags)) &
                             ~4095ULL, is_sparse))
