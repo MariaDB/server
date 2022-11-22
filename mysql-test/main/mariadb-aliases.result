@@ -5,6 +5,8 @@ alias: '=': not found
 alias: '= =': not found
 alias: '=a': not found
 alias: '=a=b': not found
+alias: 's1': not found
+alias s1 = 'select 2'
 alias a = ''
 alias a = ''
 alias: '=x=y z='select 1'': not found

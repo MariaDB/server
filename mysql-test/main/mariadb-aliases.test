@@ -10,8 +10,8 @@
 --exec $MYSQL -e "alias =a=b;"
 
 # no numeric allowed in names -> wip
-# --exec $MYSQL -e "alias s1;"
-# --exec $MYSQL -e "alias s1='select 2''"
+--exec $MYSQL -e "alias s1; alias;"
+--exec $MYSQL -e "alias s1='select 2'; alias;"
 
 # Handle empty name and alias chaining
 --error 1 # ER_EMPTY_QUERY

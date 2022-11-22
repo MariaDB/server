@@ -5820,7 +5820,7 @@ static char *parse_alias_name(char *line, char **out, bool *is_valid)
     beg= pos;
   }
 
-  while ((my_isalpha(charset_info, *pos))           ||
+  while ((my_isalnum(charset_info, *pos))           ||
          (quoted && my_isspace(charset_info, *pos)) ||
          *pos == '-'                                ||
          *pos == '_')
