@@ -47,4 +47,8 @@
 --exec $MYSQL -e "alias x='select 1'; alias x; alias unknown x;"
 --exec $MYSQL -e "alias y='select 1'; alias y; alias y unknown;"
 
+--echo # Use alias shortcut command
+--exec $MYSQL -e "\a xy= 'select 3'; \a; "
+--echo # Use unalias shortcut command
+--exec $MYSQL -e "\a xy= 'select 3'; \a; \A; \a; \a xy;"
 # end of 10.3 (should be 10.11 after review)
