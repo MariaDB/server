@@ -1006,6 +1006,36 @@ alter table t2 add foreign key(a) references t1;
 show create table t2;
 drop tables t2, t1;
 
+
+--echo #
+--echo # MDEV-30065 "mariadb-install-db --enforce-storage-engine=InnoDB" fails with InnoDB errors
+--echo #
+
+use mysql;
+
+rename table help_topic    to ht;
+rename table help_keyword  to hk;
+rename table help_category to hc;
+rename table help_relation to hr;
+
+CREATE TABLE help_topic ( help_topic_id int unsigned not null, name char(64) not null, help_category_id smallint unsigned not null, description text not null, example text not null, url text not null, primary key (help_topic_id), unique index (name) ) engine=InnoDB CHARACTER SET utf8 comment='help topics';
+CREATE TABLE help_category ( help_category_id smallint unsigned not null, name  char(64) not null, parent_category_id smallint unsigned null, url text not null, primary key (help_category_id), unique index (name) ) engine=InnoDB CHARACTER SET utf8 comment='help categories';
+CREATE TABLE help_keyword (   help_keyword_id  int unsigned not null, name char(64) not null, primary key (help_keyword_id), unique index (name) ) engine=InnoDB CHARACTER SET utf8 comment='help keywords';
+CREATE TABLE help_relation ( help_topic_id int unsigned not null references help_topic, help_keyword_id  int unsigned not null references help_keyword, primary key (help_keyword_id, help_topic_id) ) engine=InnoDB CHARACTER SET utf8 comment='keyword-topic relation';
+
+lock table mysql.help_category write, mysql.help_keyword write;
+unlock tables;
+
+drop table help_relation;
+drop table help_topic;
+drop table help_keyword;
+drop table help_category;
+rename table ht to help_topic;
+rename table hk to help_keyword;
+rename table hc to help_category;
+rename table hr to help_relation;
+use test;
+
 --echo # End of 10.5 tests
 
 --source include/wait_until_count_sessions.inc
