@@ -30497,6 +30497,13 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
       add("fanout", fanout);
   }
 
+  /*
+    Force using an index for sorting if there was no ref key
+    and FORCE INDEX was used.
+  */
+  if (table->force_index && ref_key < 0)
+    read_time= DBL_MAX;
+
   Json_writer_array possible_keys(thd,"possible_keys");
   for (nr=0; nr < table->s->keys ; nr++)
   {
@@ -30649,8 +30656,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
             there is either a group by or a FORCE_INDEX
           - If the new cost is better than read_time
         */
-        if (((table->force_index || group) && best_key < 0 && ref_key < 0) ||
-            range_cost < read_time)
+        if (range_cost < read_time)
         {
           read_time= range_cost;
           possible_key.add("chosen", true);
