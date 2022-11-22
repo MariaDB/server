@@ -9719,7 +9719,6 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
     {
       /* Adjust records_out to contain the final number of rows */
       double ratio= current_record_count / original_record_count;
-      /* QQQ This is just to stop an assert later */
       if (ratio < 1)
       {
         position->records_out*= ratio;
@@ -11002,7 +11001,6 @@ best_extension_by_limited_search(JOIN      *join,
       {
         /* Adjust records_out and current_record_count after semi join */
         double ratio= current_record_count / original_record_count;
-        /* QQQ This is just to stop an assert later */
         if (ratio < 1.0)
           position->records_out*= ratio;
         if (unlikely(trace_one_table.trace_started()))
@@ -25571,8 +25569,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
          !(table->file->index_flags(best_key, 0, 1) & HA_CLUSTERED_INDEX)))
       goto use_filesort;
 
-    if (select && // psergey:  why doesn't this use a quick?
-        table->opt_range_keys.is_set(best_key) && best_key != ref_key)
+    if (table->opt_range_keys.is_set(best_key) && best_key != ref_key)
     {
       key_map tmp_map;
       tmp_map.clear_all();       // Force the creation of quick select
