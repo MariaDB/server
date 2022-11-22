@@ -1193,7 +1193,7 @@ INSERT INTO t1 SELECT  a + 32, MOD(a + 32, 20), 1 FROM t1;
 INSERT INTO t1 SELECT  a + 64, MOD(a + 64, 20), 1 FROM t1;
 EXPLAIN SELECT b, SUM(c) FROM t1 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	5	NULL	128	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	128	Using temporary; Using filesort
 EXPLAIN SELECT SQL_BIG_RESULT b, SUM(c) FROM t1 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	128	Using filesort
