@@ -879,35 +879,22 @@ same_space:
 		case FIL_LOAD_INVALID:
 			ut_ad(space == NULL);
 			if (srv_force_recovery == 0) {
-				ib::warn() << "We do not continue the crash"
-					" recovery, because the table may"
-					" become corrupt if we cannot apply"
-					" the log records in the InnoDB log to"
-					" it. To fix the problem and start"
-					" mysqld:";
-				ib::info() << "1) If there is a permission"
-					" problem in the file and mysqld"
-					" cannot open the file, you should"
-					" modify the permissions.";
-				ib::info() << "2) If the tablespace is not"
-					" needed, or you can restore an older"
-					" version from a backup, then you can"
-					" remove the .ibd file, and use"
-					" --innodb_force_recovery=1 to force"
-					" startup without this file.";
-				ib::info() << "3) If the file system or the"
-					" disk is broken, and you cannot"
-					" remove the .ibd file, you can set"
-					" --innodb_force_recovery.";
+				sql_print_error("InnoDB: Recovery cannot access"
+						" file %s (tablespace "
+						ULINTPF ")", name, space_id);
+				sql_print_information("InnoDB: You may set "
+						      "innodb_force_recovery=1"
+						      " to ignore this and"
+						      " possibly get a"
+						      " corrupted database.");
 				recv_sys.found_corrupt_fs = true;
 				break;
 			}
 
-			ib::info() << "innodb_force_recovery was set to "
-				<< srv_force_recovery << ". Continuing crash"
-				" recovery even though we cannot access the"
-				" files for tablespace " << space_id << ".";
-			break;
+			sql_print_warning("InnoDB: Ignoring changes to"
+					  " file %s (tablespace " ULINTPF ")"
+					  " due to innodb_force_recovery",
+					  name, space_id);
 		}
 	}
 }
