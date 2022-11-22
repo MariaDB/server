@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -743,7 +743,7 @@ handle_new_error:
 			" table. You have to dump + drop + reimport the"
 			" table or, in a case of widespread corruption,"
 			" dump all InnoDB tables and recreate the whole"
-			" tablespace. If the mysqld server crashes after"
+			" tablespace. If the mariadbd server crashes after"
 			" the startup or when you dump the tables. "
 			<< FORCE_RECOVERY_MSG;
 		goto rollback_to_savept;

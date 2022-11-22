@@ -1180,10 +1180,12 @@ wait_suspend_loop:
 
 	if (srv_fast_shutdown == 2 || !srv_was_started) {
 		if (!srv_read_only_mode && srv_was_started) {
-			ib::info() << "MySQL has requested a very fast"
-				" shutdown without flushing the InnoDB buffer"
-				" pool to data files. At the next mysqld"
-				" startup InnoDB will do a crash recovery!";
+			sql_print_information(
+				"InnoDB: Executing innodb_fast_shutdown=2 "
+				"(without flushing the InnoDB buffer pool"
+				" to data files)."
+				" The next mariadbd"
+				" invocation will perform crash recovery!");
 
 			/* In this fastest shutdown we do not flush the
 			buffer pool:
