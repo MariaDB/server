@@ -6124,6 +6124,9 @@ static int deinit_alias()
 static int com_alias(String *buffer __attribute__((unused)),
                      char *line)
 {
+  while (my_isspace(charset_info,*line))
+    line++;
+
   char *ptr= strchr(line,' ');
   bool unused;
 
