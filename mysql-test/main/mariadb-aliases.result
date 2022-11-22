@@ -16,6 +16,15 @@ alias: 'abc': not found
 alias: 'xyz': not found
 alias: 'zxy': not found
 # Handle alias NAME=VALUE
+invalid value, space in select value
+alias: 'select 1': invalid alias name
+alias: 'as': not found
+alias: 'sx'': invalid alias name
+alias: 'in': not found
+alias: 'select': not found
+alias: 'value'': invalid alias name
+alias: 'q)V': invalid alias name
+alias: 'Wp)V': invalid alias name
 alias sx = 'select 1 as sx'
 sx
 1
@@ -41,3 +50,21 @@ alias  x = 'select 1'
 alias  y = 'select 1'
 alias  y = 'select 1'
 alias: 'unknown': not found
+# Use alias shortcut command
+test command without spaces
+test command with spaces
+create alias
+show alias
+alias xy = 'select 3'
+# Use unalias shortcut command
+unalias empty argument
+unalias: no alias specified
+create alias
+alias: 'select 3'': invalid alias name
+show alias
+alias xy = ''
+unalias alias
+unalias: no alias specified
+show alias again
+alias xy = ''
+alias  xy = ''

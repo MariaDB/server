@@ -35,6 +35,7 @@
 --exec $MYSQL -e "alias xyz zxy";
 
 --echo # Handle alias NAME=VALUE
+--exec $MYSQL -Ne "select 'invalid value, space in select value';alias sx= 'select 1 as sx';" # Do we want to prevent this or allow ? Vicentiu
 --exec $MYSQL -e "alias sx='select 1 as sx'; alias; sx; alias sy='select 2 as sy'; alias; sy;"
 
 --echo # Handle unalias NAME=VALUE
@@ -48,7 +49,10 @@
 --exec $MYSQL -e "alias y='select 1'; alias y; alias y unknown;"
 
 --echo # Use alias shortcut command
---exec $MYSQL -e "\a xy= 'select 3'; \a; "
+--exec $MYSQL -Ne "select 'test command without spaces';\a; select 'test command with spaces';  \a ;" 
+--exec $MYSQL -Ne "select 'create alias';\a xy='select 3'; select 'show alias'; \a; "
+
 --echo # Use unalias shortcut command
---exec $MYSQL -e "\a xy= 'select 3'; \a; \A; \a; \a xy;"
+--exec $MYSQL -Ne "select 'unalias empty argument'; \A;";
+--exec $MYSQL -Ne "select 'create alias'; \a xy= 'select 3'; select 'show alias'; \a; select 'unalias alias'; \A; select 'show alias again'; \a; \a xy;"
 # end of 10.3 (should be 10.11 after review)
