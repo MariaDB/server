@@ -1366,6 +1366,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         remember_tok_start
         remember_cpp_ptr
         wild_and_where
+        remember_start_opt
 
 %type <const_simple_string>
         field_length_str
@@ -3854,7 +3855,7 @@ expr_lex:
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
-          remember_cpp_ptr expr remember_end
+          remember_start_opt expr remember_end
           {
             $$= $<expr_lex>1;
             $$->sp_lex_in_use= true;
@@ -9053,6 +9054,15 @@ remember_end:
 remember_cpp_ptr:
           {
             $$= (char*) YYLIP->get_cpp_ptr();
+          }
+        ;
+
+remember_start_opt:
+          {
+            if (yychar == YYEMPTY)
+              $$= (char*) YYLIP->get_cpp_ptr();
+            else
+              $$= (char*) YYLIP->get_cpp_tok_start();
           }
         ;
 
