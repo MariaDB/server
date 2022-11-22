@@ -2630,6 +2630,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
           }
           else
           {
+            char *tmp_buffer= pos;
             for (pos++;
                  *pos && (*pos != *delimiter ||
                           !is_prefix(pos + 1, delimiter + 1)); pos++)
@@ -2640,9 +2641,9 @@ static bool add_line(String &buffer, char *line, size_t line_length,
               pos+= delimiter_length - 1; // Point at last delim char
 
             if (*pos == *delimiter)
-              buffer.append(line, (uint32) (pos-line));
+              buffer.append(tmp_buffer, (uint32) (pos-tmp_buffer));
             else
-              buffer.append(line, strlen(line));
+              buffer.append(tmp_buffer, strlen(tmp_buffer));
             if ((*com->func)(&buffer, buffer.c_ptr()) > 0)
               DBUG_RETURN(1);                       // Quit
             buffer.length(0);
