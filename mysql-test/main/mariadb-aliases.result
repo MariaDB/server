@@ -16,21 +16,15 @@ alias: 'abc': not found
 alias: 'xyz': not found
 alias: 'zxy': not found
 # Handle alias NAME=VALUE
-invalid value, space in select value
-alias: 'select 1': invalid alias name
-alias: 'as': not found
-alias: 'sx'': invalid alias name
-alias: 'in': not found
-alias: 'select': not found
-alias: 'value'': invalid alias name
-alias: 'q)V': invalid alias name
-alias: 'Wp)V': invalid alias name
+space in value - ok
+show value
 alias sx = 'select 1 as sx'
-sx
+no space in value - ok
+show value
+alias sx = 'select 1 as sx'
 1
 alias sx = 'select 1 as sx'
 alias sy = 'select 2 as sy'
-sy
 2
 # Handle unalias NAME=VALUE
 alias sx = 'select 1 as sx'
@@ -60,11 +54,10 @@ alias xy = 'select 3'
 unalias empty argument
 unalias: no alias specified
 create alias
-alias: 'select 3'': invalid alias name
 show alias
-alias xy = ''
+alias xy = 'select 3'
 unalias alias
 unalias: no alias specified
 show alias again
-alias xy = ''
-alias  xy = ''
+alias xy = 'select 3'
+alias  xy = 'select 3'

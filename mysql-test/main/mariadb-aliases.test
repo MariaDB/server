@@ -35,8 +35,8 @@
 --exec $MYSQL -e "alias xyz zxy";
 
 --echo # Handle alias NAME=VALUE
---exec $MYSQL -Ne "select 'invalid value, space in select value';alias sx= 'select 1 as sx';" # Do we want to prevent this or allow ? Vicentiu
---exec $MYSQL -e "alias sx='select 1 as sx'; alias; sx; alias sy='select 2 as sy'; alias; sy;"
+--exec $MYSQL -Ne "select 'space in value - ok';    alias sx= 'select 1 as sx'; select 'show value'; alias;"
+--exec $MYSQL -Ne "select 'no space in value - ok'; alias sx='select 1 as sx';  select 'show value'; alias; sx; alias sy='select 2 as sy'; alias; sy;"
 
 --echo # Handle unalias NAME=VALUE
 --exec $MYSQL -e "alias sx='select 1 as sx'; alias sy='select 2 as sy'; alias; unalias sx; alias; unalias sy; alias;"

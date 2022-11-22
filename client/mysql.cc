@@ -6031,7 +6031,8 @@ static char *handle_next_alias(char *line, bool *error)
 
     if (*pos == '=')
     {
-      pos ++;
+      pos++;
+      while (my_isspace(charset_info,*pos)) pos++;
       pos= parse_alias_value(pos, &value, &is_valid);
 
       if (!is_valid)
