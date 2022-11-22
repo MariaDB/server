@@ -2748,5 +2748,20 @@ a	b	c	d
 3	4	2	197
 drop table t1,t2;
 #
+# MDEV-30066 (limit + offset) union all (...) limit = incorrect result
+#
+create table t1(id int primary key auto_increment, c1 int);
+insert into t1(c1) values(1),(2),(3);
+(select * from t1 where c1>=1 order by c1 desc limit 2,1) union all (select * from t1 where c1>1 order by c1 desc);
+id	c1
+1	1
+2	2
+3	3
+(select * from t1 where c1>=1 order by c1 desc limit 2,1) union all (select * from t1 where c1>1 order by c1 desc) limit 2;
+id	c1
+1	1
+2	2
+drop table t1;
+#
 # End of 10.3 tests
 #

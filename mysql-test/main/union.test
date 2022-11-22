@@ -1983,5 +1983,14 @@ union (select 0 as a, 99 as b,
 drop table t1,t2;
 
 --echo #
+--echo # MDEV-30066 (limit + offset) union all (...) limit = incorrect result
+--echo #
+create table t1(id int primary key auto_increment, c1 int);
+insert into t1(c1) values(1),(2),(3);
+(select * from t1 where c1>=1 order by c1 desc limit 2,1) union all (select * from t1 where c1>1 order by c1 desc);
+(select * from t1 where c1>=1 order by c1 desc limit 2,1) union all (select * from t1 where c1>1 order by c1 desc) limit 2;
+drop table t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
