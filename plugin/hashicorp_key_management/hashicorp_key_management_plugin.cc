@@ -175,6 +175,11 @@ static clock_t ms_to_ticks (long ms)
   return ticks + ((clock_t) (ticks_1000 % 1000) >= 500);
 }
 
+static unsigned long stat_data_reads;
+static unsigned long stat_data_hits;
+static unsigned long stat_version_reads;
+static unsigned long stat_version_hits;
+
 void HCData::cache_add (const KEY_INFO& info, bool update_version)
 {
   unsigned int key_id = info.key_id;
@@ -190,9 +195,9 @@ void HCData::cache_add (const KEY_INFO& info, bool update_version)
 #if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_add: key_id = %u, key_version = %u, "
-                  "timestamp = %u, update_version = %u, new version = %u",
+                  "timestamp = %lu, update_version = %u, new version = %u",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
-                  ver_info.timestamp, (int) update_version,
+                  (unsigned long) ver_info.timestamp, (int) update_version,
                   ver_info.key_version);
 #endif
   mtx.unlock();
@@ -206,6 +211,7 @@ unsigned int
   unsigned int version = key_version;
   clock_t current_time = clock();
   mtx.lock();
+  stat_data_reads++;
   if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
   {
     clock_t timestamp;
@@ -233,11 +239,12 @@ unsigned int
 #if HASHICORP_DEBUG_LOGGING
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "cache_get: key_id = %u, key_version = %u, "
-                    "last version = %u, version timestamp = %u, "
-                    "current time = %u, diff = %u",
+                    "last version = %u, version timestamp = %lu, "
+                    "current time = %lu, diff = %lu",
                     ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
-                    version, timestamp, current_time,
-                    current_time - timestamp);
+                    version, (unsigned long) timestamp,
+                    (unsigned long) current_time,
+                    (unsigned long) (current_time - timestamp));
 #endif
     if (with_timeouts && current_time - timestamp > cache_max_ver_time)
     {
@@ -265,21 +272,30 @@ unsigned int
     mtx.unlock();
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
+  if (with_timeouts && current_time - info.timestamp <= cache_max_time)
+  {
+    stat_data_hits++;
+  }
+  else
+  {
+    version = ENCRYPTION_KEY_VERSION_INVALID;
+  }
   mtx.unlock();
 #if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_get: key_id = %u, key_version = %u, "
-                  "effective version = %u, key data timestamp = %u, "
-                  "current time = %u, diff = %u",
+                  "effective version = %u, key data timestamp = %lu, "
+                  "current time = %lu, diff = %lu",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
-                  version, info.timestamp, current_time,
-                  current_time - info.timestamp);
+                  version, (unsigned long) info.timestamp,
+                  (unsigned long) current_time,
+                  (unsigned long) (current_time - info.timestamp));
 #endif
-  unsigned int length= info.length;
-  if (with_timeouts && current_time - info.timestamp > cache_max_time)
+  if (version == ENCRYPTION_KEY_VERSION_INVALID)
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
+  unsigned int length = info.length;
   unsigned int max_length = *buflen;
   *buflen = length;
   if (max_length >= length)
@@ -305,6 +321,7 @@ unsigned int HCData::cache_get_version (unsigned int key_id)
 {
   unsigned int version;
   mtx.lock();
+  stat_version_reads++;
 #if HASHICORP_HAVE_EXCEPTIONS
   try
   {
@@ -322,6 +339,7 @@ unsigned int HCData::cache_get_version (unsigned int key_id)
   {
     version = ENCRYPTION_KEY_VERSION_INVALID;
   }
+  stat_version_hits++;
   mtx.unlock();
   return version;
 }
@@ -363,11 +381,12 @@ unsigned int HCData::cache_check_version (unsigned int key_id)
 #if HASHICORP_DEBUG_LOGGING
   my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                   "cache_check_version: key_id = %u, "
-                  "last version = %u, version timestamp = %u, "
-                  "current time = %u, diff = %u",
+                  "last version = %u, version timestamp = %lu, "
+                  "current time = %lu, diff = %lu",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, version,
-                  version, timestamp, current_time,
-                  current_time - timestamp);
+                  version, (unsigned long) timestamp,
+                  (unsigned long) current_time,
+                  (unsigned long) (current_time - timestamp));
 #endif
   if (current_time - timestamp <= cache_max_ver_time)
   {
@@ -466,6 +485,26 @@ static MYSQL_SYSVAR_BOOL(use_cache_on_timeout, use_cache_on_timeout,
   "use the value taken from the cache",
   NULL, NULL, 0);
 
+static MYSQL_SYSVAR_ULONG(stat_data_reads, stat_data_reads,
+  PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
+  "Number of calls to read the key data",
+  NULL, NULL, 0, 0, ULONG_MAX, 1);
+
+static MYSQL_SYSVAR_ULONG(stat_data_hits, stat_data_hits,
+  PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
+  "Number of key data reads from the cache",
+  NULL, NULL, 0, 0, ULONG_MAX, 1);
+
+static MYSQL_SYSVAR_ULONG(stat_version_reads, stat_version_reads,
+  PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
+  "Number of calls to read the key version",
+  NULL, NULL, 0, 0, ULONG_MAX, 1);
+
+static MYSQL_SYSVAR_ULONG(stat_version_hits, stat_version_hits,
+  PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
+  "Number of key version reads from the cache",
+  NULL, NULL, 0, 0, ULONG_MAX, 1);
+
 static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(vault_url),
   MYSQL_SYSVAR(token),
@@ -477,6 +516,10 @@ static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(cache_version_timeout),
   MYSQL_SYSVAR(use_cache_on_timeout),
   MYSQL_SYSVAR(check_kv_version),
+  MYSQL_SYSVAR(stat_data_reads),
+  MYSQL_SYSVAR(stat_data_hits),
+  MYSQL_SYSVAR(stat_version_reads),
+  MYSQL_SYSVAR(stat_version_hits),
   NULL
 };
 

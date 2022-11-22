@@ -5,7 +5,7 @@
 --source hashicorp_init.inc
 
 replace_result $VAULT_ADDR VAULT_ADDR;
-SHOW GLOBAL variables LIKE "hashicorp%";
+SHOW GLOBAL variables WHERE (Variable_name LIKE "hashicorp%" AND Variable_name NOT LIKE "hashicorp_key_management_stat_%");
 
 --echo # Restart the server with encryption
 let $default_parameters="--innodb-tablespaces-encryption --innodb_encrypt_tables=ON";

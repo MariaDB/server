@@ -1,4 +1,4 @@
-SHOW GLOBAL variables LIKE "hashicorp%";
+SHOW GLOBAL variables WHERE (Variable_name LIKE "hashicorp%" AND Variable_name NOT LIKE "hashicorp_key_management_stat_%");
 Variable_name	Value
 hashicorp_key_management_cache_timeout	60000
 hashicorp_key_management_cache_version_timeout	0
