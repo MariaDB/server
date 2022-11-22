@@ -1214,6 +1214,7 @@ test_strnncollsp_char()
 
 #ifdef HAVE_CHARSET_tis620
   failed+= strnncollsp_char_mbminlen1("tis620_thai_ci", NULL);
+  failed+= strnncollsp_char_mbminlen1("tis620_thai_nopad_ci", NULL);
 #endif
 
 #ifdef HAVE_CHARSET_big5
