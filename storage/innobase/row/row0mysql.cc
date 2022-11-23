@@ -704,7 +704,7 @@ handle_new_error:
 			" table. You have to dump + drop + reimport the"
 			" table or, in a case of widespread corruption,"
 			" dump all InnoDB tables and recreate the whole"
-			" tablespace. If the mysqld server crashes after"
+			" tablespace. If the mariadbd server crashes after"
 			" the startup or when you dump the tables. "
 			<< FORCE_RECOVERY_MSG;
 		goto rollback_to_savept;
