@@ -640,7 +640,7 @@ my_bool print_aria_log_control()
                              open_flags, MYF(MY_WME))) < 0)
   {
     errmsg= "Can't open file";
-    goto err;
+    goto err2;
   }
 
   file_size= mysql_file_seek(file, 0, SEEK_END, MYF(MY_WME));
@@ -723,10 +723,12 @@ my_bool print_aria_log_control()
       (buffer + new_cf_create_time_size + CF_RECOV_FAIL_OFFSET)[0];
     printf("recovery_failures:   %u\n", recovery_fails);
   }
-
+  mysql_file_close(file, MYF(0));
   DBUG_RETURN(0);
 
 err:
+  mysql_file_close(file, MYF(0));
+err2:
   my_printf_error(HA_ERR_INITIALIZATION,
                   "Got error '%s' when trying to use aria control file "
                   "'%s'", 0, errmsg, name);
