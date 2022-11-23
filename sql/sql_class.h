@@ -6513,7 +6513,12 @@ inline int handler::ha_ft_read(uchar *buf)
 {
   int error= ft_read(buf);
   if (!error)
+  {
     update_rows_read();
+
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+  }
 
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
