@@ -5148,8 +5148,11 @@ static int replace_column_table(GRANT_TABLE *g_t,
         error= 0;
       grant_column= column_hash_search(g_t, column->column.ptr(),
                                        column->column.length());
-      if (grant_column)				// Should always be true
-	grant_column->rights= privileges;	// Update hash
+      if (grant_column)  // Should always be true
+      {
+        grant_column->rights= privileges;	// Update hash
+        grant_column->init_rights= privileges;
+      }
     }
     else					// new grant
     {
