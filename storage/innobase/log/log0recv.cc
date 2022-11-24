@@ -986,6 +986,20 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
         DB_SUCCESS == os_file_punch_hole(node->handle, 0, 4096) &&
         !my_test_if_thinly_provisioned(node->handle);
 #endif
+      /* Mimic fil_node_t::read_page0() in case the file exists and
+      has already been extended to a larger size. */
+      ut_ad(node->size == size);
+      const os_offset_t file_size= os_file_get_size(node->handle);
+      if (file_size != os_offset_t(-1))
+      {
+        const uint32_t n_pages=
+          uint32_t(file_size / fil_space_t::physical_size(flags));
+        if (n_pages > size)
+        {
+          space->size= node->size= n_pages;
+          space->set_committed_size();
+        }
+      }
       if (!os_file_set_size(node->name, node->handle,
                             (size * fil_space_t::physical_size(flags)) &
                             ~4095ULL, is_sparse))
@@ -1336,40 +1350,22 @@ same_space:
 		case FIL_LOAD_INVALID:
 			ut_ad(space == NULL);
 			if (srv_force_recovery == 0) {
-				sql_print_warning(
-					"InnoDB: We do not continue the crash"
-					" recovery, because the table may"
-					" become corrupt if we cannot apply"
-					" the log records in the InnoDB log to"
-					" it. To fix the problem and start"
-					" mariadbd:");
-				sql_print_information(
-					"InnoDB: 1) If there is a permission"
-					" problem in the file and mysqld"
-					" cannot open the file, you should"
-					" modify the permissions.");
-				sql_print_information(
-					"InnoDB: 2) If the tablespace is not"
-					" needed, or you can restore an older"
-					" version from a backup, then you can"
-					" remove the .ibd file, and use"
-					" --innodb_force_recovery=1 to force"
-					" startup without this file.");
-				sql_print_information(
-					"InnoDB: 3) If the file system or the"
-					" disk is broken, and you cannot"
-					" remove the .ibd file, you can set"
-					" --innodb_force_recovery.");
+				sql_print_error("InnoDB: Recovery cannot access"
+						" file %s (tablespace "
+						UINT32PF ")", name, space_id);
+				sql_print_information("InnoDB: You may set "
+						      "innodb_force_recovery=1"
+						      " to ignore this and"
+						      " possibly get a"
+						      " corrupted database.");
 				recv_sys.set_corrupt_fs();
 				break;
 			}
 
-			sql_print_information(
-				"InnoDB: innodb_force_recovery was set to %lu."
-				" Continuing crash recovery even though"
-				" we cannot access the files for tablespace "
-				UINT32PF ".", srv_force_recovery, space_id);
-			break;
+			sql_print_warning("InnoDB: Ignoring changes to"
+					  " file %s (tablespace " UINT32PF ")"
+					  " due to innodb_force_recovery",
+					  name, space_id);
 		}
 	}
 }

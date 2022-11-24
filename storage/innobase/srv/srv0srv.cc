@@ -1556,6 +1556,10 @@ void srv_shutdown(bool ibuf_merge)
 
 		if (ibuf_merge) {
 			srv_main_thread_op_info = "doing insert buffer merge";
+			/* Disallow the use of change buffer to
+			avoid a race condition with
+			ibuf_read_merge_pages() */
+			ibuf_max_size_update(0);
 			log_free_check();
 			n_read = ibuf_contract();
 			srv_shutdown_print(now, n_read);
