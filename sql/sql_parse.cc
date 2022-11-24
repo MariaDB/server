@@ -2206,6 +2206,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     my_eof(thd);
     kill_mysql(thd);
     error=TRUE;
+    DBUG_EXECUTE_IF("simulate_slow_client_at_shutdown", my_sleep(2000000););
     break;
   }
 #endif
