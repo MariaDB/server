@@ -7994,7 +7994,7 @@ apply_filter(THD *thd, TABLE *table, ALL_READ_COST *cost,
   if (unlikely(thd->trace_started()))
   {
     Json_writer_object trace_filter(thd, "filter");
-    trace_filter.add("rowid_filter_key",
+    trace_filter.add("rowid_filter_index",
                      table->key_info[get_key_no()].name).
       add("index_only_cost", file->cost(cost->index_cost)).
       add("filter_startup_cost", filter_startup_cost).
@@ -9105,7 +9105,11 @@ best_access_path(JOIN      *join,
     {
       trace_access_scan.
         add("access_type",
-            type == JT_ALL ? scan_type : join_type_str[type]).
+            type == JT_ALL ? scan_type : join_type_str[type]);
+      if (type == JT_RANGE)
+        trace_access_scan.
+          add("range_index", table->key_info[s->quick->index].name);
+      trace_access_scan.
         add("rows",               org_records).
         add("rows_after_filter",  records_after_filter).
         add("rows_out",           best.records_out).
