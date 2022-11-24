@@ -576,14 +576,17 @@ uint bitmap_bits_set(const MY_BITMAP *map)
 void bitmap_copy(MY_BITMAP *map, const MY_BITMAP *map2)
 {
   my_bitmap_map *to= map->bitmap, *from= map2->bitmap, *end;
+  uint len= no_words_in_map(map), len2 = no_words_in_map(map2);
 
   DBUG_ASSERT(map->bitmap);
   DBUG_ASSERT(map2->bitmap);
-  DBUG_ASSERT(map->n_bits == map2->n_bits);
-  end= map->last_word_ptr;
 
-  while (to <= end)
+  end= to + MY_MIN(len, len2 - 1);
+  while (to < end)
     *to++ = *from++;
+
+  if (len2 <= len)
+    *to= (*from & ~map2->last_word_mask) | (*to & map2->last_word_mask);
 }
 
 
