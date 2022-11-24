@@ -703,7 +703,7 @@ void print_best_access_for_table(THD *thd, POSITION *pos)
   if (pos->range_rowid_filter_info)
   {
     uint key_no= pos->range_rowid_filter_info->get_key_no();
-    obj.add("rowid_filter_key",
+    obj.add("rowid_filter_index",
             pos->table->table->key_info[key_no].name);
   }
 }
