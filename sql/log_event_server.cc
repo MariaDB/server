@@ -5042,6 +5042,9 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
      if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
+    Rpl_table_data rpl_data{};
+    if (rgi) rgi->get_table_data(table, &rpl_data);
+
     /* 
       Set tables write and read sets.
       
@@ -5055,35 +5058,27 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
     
     bitmap_set_all(table->read_set);
-    if (get_general_type_code() == DELETE_ROWS_EVENT ||
-        get_general_type_code() == UPDATE_ROWS_EVENT)
+    bitmap_set_all(table->write_set);
+    table->rpl_write_set= table->write_set;
+
+    if (rpl_data.copy_fields)
+      /* always full rows, all bits set */;
+    else
+    if (get_general_type_code() == WRITE_ROWS_EVENT)
+      bitmap_copy(table->write_set, &m_cols); // for sequences
+    else
     {
       bitmap_intersect(table->read_set,&m_cols);
+      bitmap_intersect(table->write_set, &m_cols_ai);
       table->mark_columns_per_binlog_row_image();
       if (table->vfield)
         table->mark_virtual_columns_for_write(0);
     }
 
-    bitmap_set_all(table->write_set);
-    table->rpl_write_set= table->write_set;
-
-    /* WRITE ROWS EVENTS store the bitmap in m_cols instead of m_cols_ai */
-    MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
-                             &m_cols_ai : &m_cols);
-    bitmap_intersect(table->write_set, after_image);
-
     if (table->versioned())
     {
       bitmap_set_bit(table->write_set, table->s->vers.start_fieldno);
       bitmap_set_bit(table->write_set, table->s->vers.end_fieldno);
-    }
-
-    /* Mark extra replica columns for write */
-    for (Field **field_ptr= table->field; *field_ptr; ++field_ptr)
-    {
-      Field *field= *field_ptr;
-      if (field->field_index >= m_cols.n_bits && field->stored_in_db())
-        bitmap_set_bit(table->write_set, field->field_index);
     }
 
     this->slave_exec_mode= slave_exec_mode_options; // fix the mode
@@ -5099,8 +5094,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       extra columns on the slave. In that case, do not force
       MODE_NO_AUTO_VALUE_ON_ZERO.
     */
-    Rpl_table_data rpl_data{};
-    if (rgi) rgi->get_table_data(table, &rpl_data);
     sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
       thd->variables.sql_mode= (rpl_data.copy_fields ? saved_sql_mode : 0)
