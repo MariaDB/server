@@ -390,7 +390,8 @@ int unpack_row(rpl_group_info *rgi, TABLE *table, uint const colcnt,
     }
   }
 
-  if (table->default_field)
+  if (table->default_field && (rpl_data.is_online_alter() ||
+      LOG_EVENT_IS_WRITE_ROW(rgi->current_event->get_type_code())))
   {
     error= table->update_default_fields(table->in_use->lex->ignore);
     if (unlikely(error))
