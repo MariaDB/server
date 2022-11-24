@@ -2687,7 +2687,7 @@ wait_for_unfix:
 re_evict:
 	if (mode != BUF_GET_IF_IN_POOL
 	    && mode != BUF_GET_IF_IN_POOL_OR_WATCH) {
-	} else if (!ibuf_debug) {
+	} else if (!ibuf_debug || recv_recovery_is_on()) {
 	} else if (fil_space_t* space = fil_space_t::get(page_id.space())) {
 		/* Try to evict the block from the buffer pool, to use the
 		insert buffer (change buffer) as much as possible. */
