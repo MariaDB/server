@@ -967,8 +967,9 @@ wait_suspend_loop:
 
 	if (srv_fast_shutdown == 2 || !srv_was_started) {
 		if (!srv_read_only_mode && srv_was_started) {
-			ib::info() << "Executing innodb_fast_shutdown=2."
-				" Next startup will execute crash recovery!";
+			sql_print_information(
+				"InnoDB: Executing innodb_fast_shutdown=2."
+				" Next startup will execute crash recovery!");
 
 			/* In this fastest shutdown we do not flush the
 			buffer pool:

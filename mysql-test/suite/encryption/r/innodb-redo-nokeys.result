@@ -1,6 +1,6 @@
-call mtr.add_suppression("mariadbd.*: File .*");
-call mtr.add_suppression("Plugin 'file_key_management' .*");
-call mtr.add_suppression("InnoDB: We do not continue the crash recovery");
+call mtr.add_suppression("mariadbd.*: File ");
+call mtr.add_suppression("Plugin 'file_key_management' ");
+call mtr.add_suppression("InnoDB: Recovery cannot access file");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error\\.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
