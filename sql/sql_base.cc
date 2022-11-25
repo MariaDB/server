@@ -6037,7 +6037,10 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   if (cached_field_index < table->s->fields &&
       !my_strcasecmp(system_charset_info,
                      table->field[cached_field_index]->field_name.str, name))
+  {
     field= table->field[cached_field_index];
+    DEBUG_SYNC(thd, "table_field_cached");
+  }
   else
   {
     LEX_CSTRING fname= {name, length};
@@ -6485,6 +6488,13 @@ find_field_in_tables(THD *thd, Item_ident *item,
   if (last_table)
     last_table= last_table->next_name_resolution_table;
 
+  uint fake_index_for_duplicate_search= NO_CACHED_FIELD_INDEX;
+  /*
+    For the field search it will point to field cache, but for duplicate
+    search it will point to fake_index_for_duplicate_search (no cache
+    present).
+  */
+  uint *current_cache= &(item->cached_field_index);
   for (; cur_table != last_table ;
        cur_table= cur_table->next_name_resolution_table)
   {
@@ -6494,7 +6504,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                                SQLCOM_SHOW_FIELDS)
                                               ? false : check_privileges,
                                               allow_rowid,
-                                              &(item->cached_field_index),
+                                              current_cache,
                                               register_tree_change,
                                               &actual_table);
     if (cur_field)
@@ -6509,7 +6519,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                            item->name.str, db, table_name, ref,
                                            false,
                                            allow_rowid,
-                                           &(item->cached_field_index),
+                                           current_cache,
                                            register_tree_change,
                                            &actual_table);
         if (cur_field)
@@ -6526,8 +6536,19 @@ find_field_in_tables(THD *thd, Item_ident *item,
         Store the original table of the field, which may be different from
         cur_table in the case of NATURAL/USING join.
       */
-      item->cached_table= (!actual_table->cacheable_table || found) ?
-                          0 : actual_table;
+      if (actual_table->cacheable_table /*(1)*/ && !found /*(2)*/)
+      {
+        /*
+          We have just found a field allowed to cache (1) and
+          it is not dublicate search (2).
+        */
+        item->cached_table= actual_table;
+      }
+      else
+      {
+        item->cached_table= NULL;
+        item->cached_field_index= NO_CACHED_FIELD_INDEX;
+      }
 
       DBUG_ASSERT(thd->where);
       /*
@@ -6546,6 +6567,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
         return (Field*) 0;
       }
       found= cur_field;
+      current_cache= &fake_index_for_duplicate_search;
     }
   }
 
