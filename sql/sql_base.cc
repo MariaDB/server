@@ -6361,8 +6361,19 @@ find_field_in_tables(THD *thd, Item_ident *item,
         Store the original table of the field, which may be different from
         cur_table in the case of NATURAL/USING join.
       */
-      item->cached_table= (!actual_table->cacheable_table || found) ?
-                          0 : actual_table;
+      if (actual_table->cacheable_table /*(1)*/ && !found /*(2)*/)
+      {
+        /*
+          We have just found a field allowed to cache (1) and
+          it is not dublicate search (2).
+        */
+        item->cached_table= actual_table;
+      }
+      else
+      {
+        item->cached_table= NULL;
+        item->cached_field_index= NO_CACHED_FIELD_INDEX;
+      }
 
       DBUG_ASSERT(thd->where);
       /*
