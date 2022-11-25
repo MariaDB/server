@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -851,7 +851,7 @@ dict_stats_update_transient_for_index(
 		ulint	size;
 
 		mtr.start();
-		mtr_s_lock_index(index, &mtr);
+		mtr_sx_lock_index(index, &mtr);
 		size = btr_get_size(index, BTR_TOTAL_SIZE, &mtr);
 
 		if (size != ULINT_UNDEFINED) {
@@ -1944,7 +1944,7 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 	DEBUG_PRINTF("  %s(index=%s)\n", __func__, index->name());
 
 	mtr.start();
-	mtr_s_lock_index(index, &mtr);
+	mtr_sx_lock_index(index, &mtr);
 	size = btr_get_size(index, BTR_TOTAL_SIZE, &mtr);
 
 	if (size != ULINT_UNDEFINED) {

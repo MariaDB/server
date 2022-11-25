@@ -1110,7 +1110,6 @@ bool setup_connection_thread_globals(THD *thd)
 
   DBUG_EXECUTE_IF("CONNECT_wait", {
     extern MYSQL_SOCKET unix_sock;
-    DBUG_ASSERT(unix_sock.fd >= 0);
     while (unix_sock.fd >= 0)
       my_sleep(1000);
   });

@@ -314,6 +314,15 @@ ERROR 23000: Duplicate entry '1' for key 'v2'
 update t1,t2 set v1 = v2 , v5 = 0;
 ERROR 23000: Duplicate entry '-128' for key 'v1'
 drop table t1, t2;
+CREATE TABLE t1 (f TEXT UNIQUE);
+INSERT INTO t1 VALUES (NULL),(NULL);
+UPDATE t1 SET f = '';
+ERROR 23000: Duplicate entry '' for key 'f'
+SELECT * FROM t1;
+f
+
+NULL
+DROP TABLE t1;
 #
 # MDEV-21540 Initialization of already inited long unique index on reorganize partition
 #
