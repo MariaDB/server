@@ -410,7 +410,7 @@ int Item::save_str_value_in_field(Field *field, String *result)
 
 
 Item::Item(THD *thd):
-  name(null_clex_str), orig_name(0), is_expensive_cache(-1)
+  name(null_clex_str), orig_name(null_clex_str), is_expensive_cache(-1)
 {
   DBUG_ASSERT(thd);
   base_flags= item_base_t::FIXED;
@@ -443,7 +443,7 @@ Item::Item(THD *thd):
 */
 
 Item::Item():
-  name(null_clex_str), orig_name(0), is_expensive_cache(-1)
+  name(null_clex_str), orig_name(null_clex_str), is_expensive_cache(-1)
 {
   DBUG_ASSERT(!mysqld_server_started);          // Created early
   base_flags= item_base_t::FIXED;
@@ -551,11 +551,8 @@ void Item::cleanup()
   DBUG_PRINT("enter", ("this: %p", this));
   marker= MARKER_UNUSED;
   join_tab_idx= MAX_TABLES;
-  if (orig_name)
-  {
-    name.str=    orig_name;
-    name.length= strlen(orig_name);
-  }
+  if (orig_name.str)
+    name= orig_name;
   DBUG_VOID_RETURN;
 }
 

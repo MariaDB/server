@@ -1035,7 +1035,7 @@ public:
 
   LEX_CSTRING name;			/* Name of item */
   /* Original item name (if it was renamed)*/
-  const char *orig_name;
+  LEX_CSTRING orig_name;
 
   /* All common bool variables for an Item is stored here */
   item_base_t base_flags;
