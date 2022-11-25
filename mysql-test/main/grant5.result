@@ -304,12 +304,12 @@ GRANT INSERT (col1) ON db.test_getcolpriv TO foo;
 SHOW GRANTS FOR foo;
 Grants for foo@%
 GRANT USAGE ON *.* TO `foo`@`%`
-GRANT SELECT (col2, col1), INSERT (col1) ON `db`.`test_getcolpriv` TO `foo`@`%`
+GRANT SELECT (`col2`, `col1`), INSERT (`col1`) ON `db`.`test_getcolpriv` TO `foo`@`%`
 REVOKE SELECT (col1,col2) ON db.test_getcolpriv FROM foo;
 SHOW GRANTS FOR foo;
 Grants for foo@%
 GRANT USAGE ON *.* TO `foo`@`%`
-GRANT INSERT (col1) ON `db`.`test_getcolpriv` TO `foo`@`%`
+GRANT INSERT (`col1`) ON `db`.`test_getcolpriv` TO `foo`@`%`
 REVOKE INSERT (col1) ON db.test_getcolpriv FROM foo;
 SHOW GRANTS FOR foo;
 Grants for foo@%

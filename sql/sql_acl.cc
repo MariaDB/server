@@ -9196,9 +9196,8 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
                     }
                     else
                       global.append(STRING_WITH_LEN(", "));
-                    global.append(grant_column->column,
-                                  grant_column->key_length,
-                                  system_charset_info);
+                    append_identifier(thd, &global, grant_column->column,
+                                      grant_column->key_length);
                   }
                 }
                 if (found_col)

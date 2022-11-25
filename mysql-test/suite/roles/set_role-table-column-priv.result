@@ -30,7 +30,7 @@ current_user()	current_role()
 test_user@localhost	test_role1
 show grants;
 Grants for test_user@localhost
-GRANT SELECT (Role) ON `mysql`.`roles_mapping` TO `test_role2`
+GRANT SELECT (`Role`) ON `mysql`.`roles_mapping` TO `test_role2`
 GRANT USAGE ON *.* TO `test_role1`
 GRANT USAGE ON *.* TO `test_role2`
 GRANT USAGE ON *.* TO `test_user`@`localhost`
@@ -46,7 +46,7 @@ test_role2
 test_role2
 show grants;
 Grants for test_user@localhost
-GRANT SELECT (Role) ON `mysql`.`roles_mapping` TO `test_role2`
+GRANT SELECT (`Role`) ON `mysql`.`roles_mapping` TO `test_role2`
 GRANT USAGE ON *.* TO `test_role1`
 GRANT USAGE ON *.* TO `test_role2`
 GRANT USAGE ON *.* TO `test_user`@`localhost`

@@ -1480,8 +1480,8 @@ show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
 GRANT USAGE ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
 GRANT TRIGGER ON `priv_db`.* TO `test_yesprivs`@`localhost`
-GRANT SELECT (f1), INSERT ON `priv_db`.`t2` TO `test_yesprivs`@`localhost`
-GRANT SELECT (f1), INSERT, UPDATE (f1) ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
+GRANT SELECT (`f1`), INSERT ON `priv_db`.`t2` TO `test_yesprivs`@`localhost`
+GRANT SELECT (`f1`), INSERT, UPDATE (`f1`) ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
 connection yes_privs;
 select current_user;
 current_user
@@ -1631,8 +1631,8 @@ to test_yesprivs@localhost;
 show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
 GRANT USAGE ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT SELECT (f1), INSERT, UPDATE ON `priv_db`.`t2` TO `test_yesprivs`@`localhost`
-GRANT SELECT, SELECT (f1), INSERT, UPDATE (f3, f2), TRIGGER ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
+GRANT SELECT (`f1`), INSERT, UPDATE ON `priv_db`.`t2` TO `test_yesprivs`@`localhost`
+GRANT SELECT, SELECT (`f1`), INSERT, UPDATE (`f3`, `f2`), TRIGGER ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
 connection yes_privs;
 select current_user;
 current_user
@@ -1674,8 +1674,8 @@ to test_yesprivs@localhost;
 show grants for test_yesprivs@localhost;
 Grants for test_yesprivs@localhost
 GRANT USAGE ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT SELECT (f1), INSERT, UPDATE ON `priv_db`.`t2` TO `test_yesprivs`@`localhost`
-GRANT SELECT, SELECT (f1), INSERT, UPDATE (f3, f2, f1) ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
+GRANT SELECT (`f1`), INSERT, UPDATE ON `priv_db`.`t2` TO `test_yesprivs`@`localhost`
+GRANT SELECT, SELECT (`f1`), INSERT, UPDATE (`f3`, `f2`, `f1`) ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
 connection no_privs;
 select current_user;
 current_user

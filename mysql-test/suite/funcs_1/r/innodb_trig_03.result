@@ -391,7 +391,7 @@ connection no_privs_424d;
 show grants;
 Grants for test_noprivs@localhost
 GRANT TRIGGER ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT SELECT (f1), INSERT (f1) ON `priv_db`.`t1` TO `test_noprivs`@`localhost`
+GRANT SELECT (`f1`), INSERT (`f1`) ON `priv_db`.`t1` TO `test_noprivs`@`localhost`
 use priv_db;
 create trigger trg4d_1 before INSERT on t1 for each row
 set new.f1 = 'trig 3.5.3.7-1d';
@@ -413,7 +413,7 @@ connection yes_privs_424d;
 show grants;
 Grants for test_yesprivs@localhost
 GRANT TRIGGER ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT UPDATE (f1) ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
+GRANT UPDATE (`f1`) ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
 use priv_db;
 create trigger trg4d_2 before INSERT  on t1 for each row
 set new.f1 = 'trig 3.5.3.7-2d';
@@ -618,14 +618,14 @@ grant UPDATE (f1), INSERT (f1) on priv_db.t1 to test_noprivs@localhost;
 show grants for test_noprivs@localhost;
 Grants for test_noprivs@localhost
 GRANT TRIGGER ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT INSERT (f1), UPDATE (f1) ON `priv_db`.`t1` TO `test_noprivs`@`localhost`
+GRANT INSERT (`f1`), UPDATE (`f1`) ON `priv_db`.`t1` TO `test_noprivs`@`localhost`
 revoke ALL PRIVILEGES, GRANT OPTION FROM test_yesprivs@localhost;
 grant TRIGGER on *.* to test_yesprivs@localhost;
 grant SELECT (f1) on priv_db.t1 to test_yesprivs@localhost;
 show grants for test_noprivs@localhost;
 Grants for test_noprivs@localhost
 GRANT TRIGGER ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT INSERT (f1), UPDATE (f1) ON `priv_db`.`t1` TO `test_noprivs`@`localhost`
+GRANT INSERT (`f1`), UPDATE (`f1`) ON `priv_db`.`t1` TO `test_noprivs`@`localhost`
 connect  no_privs_425d,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connect  yes_privs_425d,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection default;
@@ -633,7 +633,7 @@ connection no_privs_425d;
 show grants;
 Grants for test_noprivs@localhost
 GRANT TRIGGER ON *.* TO `test_noprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT INSERT (f1), UPDATE (f1) ON `priv_db`.`t1` TO `test_noprivs`@`localhost`
+GRANT INSERT (`f1`), UPDATE (`f1`) ON `priv_db`.`t1` TO `test_noprivs`@`localhost`
 use priv_db;
 create trigger trg5d_1 before INSERT on t1 for each row
 set @test_var= new.f1;
@@ -649,7 +649,7 @@ connection yes_privs_425d;
 show grants;
 Grants for test_yesprivs@localhost
 GRANT TRIGGER ON *.* TO `test_yesprivs`@`localhost` IDENTIFIED BY PASSWORD '*C49735D016A099C0CF104EF9183F374A54CA2576'
-GRANT SELECT (f1) ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
+GRANT SELECT (`f1`) ON `priv_db`.`t1` TO `test_yesprivs`@`localhost`
 use priv_db;
 create trigger trg5d_2 before INSERT  on t1 for each row
 set @test_var= new.f1;
