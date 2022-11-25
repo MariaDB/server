@@ -67,8 +67,8 @@ static void make_unique_view_field_name(THD *thd, Item *target,
                                         List<Item> &item_list,
                                         Item *last_element)
 {
-  const char *name= (target->orig_name ?
-                     target->orig_name :
+  const char *name= (target->orig_name.str ?
+                     target->orig_name.str :
                      target->name.str);
   size_t name_len;
   uint attempt;
@@ -100,8 +100,8 @@ static void make_unique_view_field_name(THD *thd, Item *target,
     itc.rewind();
   }
 
-  if (!target->orig_name)
-    target->orig_name= target->name.str;
+  if (!target->orig_name.str)
+    target->orig_name= target->name;
   target->set_name(thd, buff, name_len, system_charset_info);
 }
 
@@ -186,7 +186,7 @@ void make_valid_column_names(THD *thd, List<Item> &item_list)
     if (item->is_explicit_name() || !check_column_name(item->name.str))
       continue;
     name_len= my_snprintf(buff, NAME_LEN, "Name_exp_%u", column_no);
-    item->orig_name= item->name.str;
+    item->orig_name= item->name;
     item->set_name(thd, buff, name_len, system_charset_info);
   }
 
