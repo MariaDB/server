@@ -103,8 +103,11 @@ drop table t;
 # MDEV-29387: Period name with more than 32 symbols crashes the server
 #
 # test 34 symbols
-create table t2 (s date, e date, period for `abcd123456789012345678901234567890` (s,e));
+create table t2 (s date, e date, 
+period for `abcd123456789012345678901234567890` (s,e));
 drop table t2;
 # test 64 symbols
-create table t2 (s date, e date, period for `abcd123456789012345678901234567890123456789012345678901234567890` (s,e));
+create table t2 (s date, e date, period for 
+`abcd123456789012345678901234567890123456789012345678901234567890`
+                 (s,e));
 drop table t2;

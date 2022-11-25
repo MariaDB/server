@@ -90,9 +90,12 @@ drop table t;
 --echo #
 
 --echo # test 34 symbols
-create table t2 (s date, e date, period for `abcd123456789012345678901234567890` (s,e)); 
+create table t2 (s date, e date, 
+                 period for `abcd123456789012345678901234567890` (s,e)); 
 drop table t2;
 
 --echo # test 64 symbols
-create table t2 (s date, e date, period for `abcd123456789012345678901234567890123456789012345678901234567890` (s,e)); 
+create table t2 (s date, e date, period for 
+                 `abcd123456789012345678901234567890123456789012345678901234567890`
+                 (s,e)); 
 drop table t2;
