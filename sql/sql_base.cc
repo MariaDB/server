@@ -6313,6 +6313,13 @@ find_field_in_tables(THD *thd, Item_ident *item,
   if (last_table)
     last_table= last_table->next_name_resolution_table;
 
+  uint fake_index_for_duplicate_search= NO_CACHED_FIELD_INDEX;
+  /*
+    For the field searc it will point to field cache, but for duplicate
+    search it will be switched to fake_index_for_duplicate_search (no cache
+    present).
+  */
+  uint *current_cache= &(item->cached_field_index);
   for (; cur_table != last_table ;
        cur_table= cur_table->next_name_resolution_table)
   {
@@ -6322,7 +6329,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                                SQLCOM_SHOW_FIELDS)
                                               ? false : check_privileges,
                                               allow_rowid,
-                                              &(item->cached_field_index),
+                                              current_cache,
                                               register_tree_change,
                                               &actual_table);
     if (cur_field)
@@ -6337,7 +6344,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                            item->name.str, db, table_name, ref,
                                            false,
                                            allow_rowid,
-                                           &(item->cached_field_index),
+                                           current_cache,
                                            register_tree_change,
                                            &actual_table);
         if (cur_field)
@@ -6374,6 +6381,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
         return (Field*) 0;
       }
       found= cur_field;
+      current_cache= &fake_index_for_duplicate_search;
     }
   }
 
