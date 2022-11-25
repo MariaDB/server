@@ -5865,7 +5865,10 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   if (cached_field_index < table->s->fields &&
       !my_strcasecmp(system_charset_info,
                      table->field[cached_field_index]->field_name.str, name))
+  {
     field= table->field[cached_field_index];
+    DEBUG_SYNC(thd, "table_field_cached");
+  }
   else
   {
     LEX_CSTRING fname= {name, length};
