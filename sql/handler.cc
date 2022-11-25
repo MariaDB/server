@@ -6562,7 +6562,7 @@ bool Discovered_table_list::add_file(const char *fname)
 {
   bool is_temp= strncmp(fname, STRING_WITH_LEN(tmp_file_prefix)) == 0;
 
-  if (is_temp && !with_temps)
+  if ((is_temp && !with_temps) || !strncmp(fname,STRING_WITH_LEN(ROCKSDB_DIRECTORY_NAME)))
     return 0;
 
   char tname[SAFE_NAME_LEN + 1];
