@@ -4085,7 +4085,14 @@ bool JOIN::make_aggr_tables_info()
   */
   if (unit->lim.is_with_ties())
   {
-    if (alloc_order_fields(this, order, with_ties_order_count))
+    /*
+      When ORDER BY is eliminated, we make use of the GROUP BY list.
+      We've already counted how many elements from ORDER BY
+      must be evaluated as part of WITH TIES so we use that.
+    */
+    ORDER *order_src = order ? order : group_list;
+    if (alloc_order_fields(this, order_src,
+                           with_ties_order_count))
       DBUG_RETURN(true);
   }
 
