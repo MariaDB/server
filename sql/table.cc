@@ -3172,10 +3172,17 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
       pointer at that time
     */
     myf warn= table->s->frm_version < FRM_VER_EXPRESSSIONS ? ME_JUST_WARNING : 0;
-    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
              "AUTO_INCREMENT", get_vcol_type_name(), res.name);
     if (!warn)
       DBUG_RETURN(1);
+  }
+  else if (vcol_type != VCOL_GENERATED_VIRTUAL && vcol_type != VCOL_DEFAULT &&
+           res.errors & VCOL_NOT_STRICTLY_DETERMINISTIC)
+  {
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0),
+             res.name, get_vcol_type_name(), name.str);
+    DBUG_RETURN(1);
   }
   flags= res.errors;
 
