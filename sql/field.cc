@@ -10525,8 +10525,8 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
   uint filter= VCOL_IMPOSSIBLE;
   if (type != VCOL_GENERATED_VIRTUAL && type != VCOL_DEFAULT)
     filter|= VCOL_NOT_STRICTLY_DETERMINISTIC;
-  if (type == VCOL_GENERATED_VIRTUAL)
-    filter|= VCOL_NOT_VIRTUAL;
+  if (type != VCOL_DEFAULT)
+    filter|= VCOL_NEXTVAL;
 
   if (unlikely(ret || (res.errors & filter)))
   {

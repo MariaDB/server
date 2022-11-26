@@ -528,10 +528,10 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
 #define VCOL_FIELD_REF         1
 #define VCOL_NON_DETERMINISTIC 2
 #define VCOL_SESSION_FUNC      4  /* uses session data, e.g. USER or DAYNAME */
-#define VCOL_TIME_FUNC         8
+#define VCOL_TIME_FUNC         8  /* safe for SBR */
 #define VCOL_AUTO_INC         16
 #define VCOL_IMPOSSIBLE       32
-#define VCOL_NOT_VIRTUAL      64  /* Function can't be virtual */
+#define VCOL_NEXTVAL          64  /* NEXVAL is not implemented for vcols */
 
 #define VCOL_NOT_STRICTLY_DETERMINISTIC                       \
   (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC | VCOL_SESSION_FUNC)
@@ -4964,6 +4964,5 @@ ulonglong TABLE::vers_start_id() const
   DBUG_ASSERT(versioned(VERS_TRX_ID));
   return static_cast<ulonglong>(vers_start_field()->val_int());
 }
-
 
 #endif /* FIELD_INCLUDED */
