@@ -1586,12 +1586,14 @@ bool Item_field::check_vcol_func_processor(void *arg)
       }
     }
   }
-  if (field && (field->unireg_check == Field::NEXT_NUMBER))
-  {
-    // Auto increment fields are unsupported
-    return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
-  }
-  return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
+
+  uint r= VCOL_FIELD_REF;
+  if (field && field->unireg_check == Field::NEXT_NUMBER)
+    r|= VCOL_AUTO_INC;
+  if (field && field->vcol_info &&
+      field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
+    r|= VCOL_NON_DETERMINISTIC;
+  return mark_unsupported_function(field_name.str, arg, r);
 }
 
 
