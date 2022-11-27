@@ -2629,6 +2629,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         share->stored_fields--;
         if (reg_field->flags & BLOB_FLAG)
           share->virtual_not_stored_blob_fields++;
+        if (reg_field->flags & PART_KEY_FLAG)
+          vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL_INDEXED);
         /* Correct stored_rec_length as non stored fields are last */
         recpos= (uint) (reg_field->ptr - record);
         if (share->stored_rec_length >= recpos)
@@ -3159,7 +3161,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
              get_vcol_type_name(), name.str);
     DBUG_RETURN(1);
   }
-  else if (unlikely(res.errors & VCOL_AUTO_INC))
+  else if (res.errors & VCOL_AUTO_INC && vcol_type != VCOL_GENERATED_VIRTUAL)
   {
     /*
       An auto_increment field may not be used in an expression for
