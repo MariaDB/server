@@ -70,7 +70,7 @@ disable_pmem()
 
 disable_libfmt()
 {
-  # 0.7+ required
+  # 7.0+ required
   sed '/libfmt-dev/d' -i debian/control
 }
 

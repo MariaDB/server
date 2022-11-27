@@ -271,8 +271,7 @@ Depends: libmariadb3 (>= 10.5.4),
          mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Conflicts: mariadb-client (<< ${source:Version}),
-           mariadb-client-10.0,
+Conflicts: mariadb-client-10.0,
            mariadb-client-10.1,
            mariadb-client-10.2,
            mariadb-client-10.3,
@@ -308,7 +307,8 @@ Conflicts: mariadb-client (<< ${source:Version}),
            mysql-client-core-5.7,
            mysql-client-core-8.0,
            virtual-mysql-client-core
-Breaks: mariadb-server-10.0,
+Breaks: mariadb-client (<< ${source:Version}),
+        mariadb-server-10.0,
         mariadb-server-10.1,
         mariadb-server-core (<< ${source:Version}),
         mariadb-server-core-10.0,
@@ -384,7 +384,6 @@ Replaces: mariadb-client (<< ${source:Version}),
           percona-xtradb-cluster-server-5.7,
           virtual-mysql-client-core
 Provides: default-mysql-client-core,
-          mariadb-client-core-10.11,
           virtual-mysql-client-core
 Description: MariaDB database core client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -403,8 +402,7 @@ Depends: debianutils (>=1.6),
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
-Conflicts: mariadb-client (<< ${source:Version}),
-           mariadb-client-10.0,
+Conflicts: mariadb-client-10.0,
            mariadb-client-10.1,
            mariadb-client-10.2,
            mariadb-client-10.3,
@@ -473,8 +471,7 @@ Breaks: mariadb-client-core (<< ${source:Version}),
         percona-server-server-5.6,
         percona-xtradb-cluster-server-5.6,
         percona-xtradb-cluster-server-5.7
-Replaces: mariadb-client (<< ${source:Version}),
-          mariadb-client-10.0,
+Replaces: mariadb-client-10.0,
           mariadb-client-10.1,
           mariadb-client-10.2,
           mariadb-client-10.3,
@@ -544,7 +541,6 @@ Replaces: mariadb-client (<< ${source:Version}),
           percona-xtradb-cluster-server-5.7,
           virtual-mysql-client
 Provides: default-mysql-client,
-          mariadb-client-10.11,
           virtual-mysql-client
 Recommends: libdbd-mariadb-perl | libdbd-mysql-perl,
             libdbi-perl,
@@ -563,8 +559,7 @@ Architecture: any
 Depends: mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Conflicts: mariadb-server-core (<< ${source:Version}),
-           mariadb-server-core-10.0,
+Conflicts: mariadb-server-core-10.0,
            mariadb-server-core-10.1,
            mariadb-server-core-10.2,
            mariadb-server-core-10.3,
@@ -658,7 +653,6 @@ Replaces: mariadb-client (<< ${source:Version}),
           percona-xtradb-cluster-server-5.7,
           virtual-mysql-server-core
 Provides: default-mysql-server-core,
-          mariadb-server-core-10.11,
           virtual-mysql-server-core
 Description: MariaDB database core server files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -695,8 +689,7 @@ Depends: galera-4 (>= 26.4),
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
-Conflicts: mariadb-server (<< ${source:Version}),
-           mariadb-server-10.0,
+Conflicts: mariadb-server-10.0,
            mariadb-server-10.1,
            mariadb-server-10.2,
            mariadb-server-10.3,
@@ -739,7 +732,6 @@ Replaces: handlersocket-mysql-5.5,
           mariadb-client-10.6,
           mariadb-client-10.7,
           mariadb-client-10.8,
-          mariadb-server (<< ${source:Version}),
           mariadb-server-10.0,
           mariadb-server-10.1,
           mariadb-server-10.2,
@@ -771,7 +763,6 @@ Replaces: handlersocket-mysql-5.5,
           percona-xtradb-cluster-server-5.7,
           virtual-mysql-server
 Provides: default-mysql-server,
-          mariadb-server-10.11,
           virtual-mysql-server
 Description: MariaDB database server binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
