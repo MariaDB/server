@@ -5980,19 +5980,19 @@ opt_generated_always:
 vcol_opt_specifier:
           /* empty */
           {
-            Lex->last_field->vcol_info->set_stored_in_db_flag(FALSE);
+            Lex->last_field->vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL);
           }
         | VIRTUAL_SYM
           {
-            Lex->last_field->vcol_info->set_stored_in_db_flag(FALSE);
+            Lex->last_field->vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL);
           }
         | PERSISTENT_SYM
           {
-            Lex->last_field->vcol_info->set_stored_in_db_flag(TRUE);
+            Lex->last_field->vcol_info->set_vcol_type(VCOL_GENERATED_STORED);
           }
         | STORED_SYM
           {
-            Lex->last_field->vcol_info->set_stored_in_db_flag(TRUE);
+            Lex->last_field->vcol_info->set_vcol_type(VCOL_GENERATED_STORED);
           }
         ;
 
