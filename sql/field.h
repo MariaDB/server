@@ -519,6 +519,8 @@ enum enum_vcol_info_type
   VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE,
   VCOL_USING_HASH,
   /* Additional types should be added here */
+
+  VCOL_GENERATED_VIRTUAL_INDEXED, // this is never written in .frm
   /* Following is the highest value last   */
   VCOL_TYPE_NONE = 127 // Since the 0 value is already in use
 };
@@ -528,6 +530,7 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   switch (type)
   {
   case VCOL_GENERATED_VIRTUAL:
+  case VCOL_GENERATED_VIRTUAL_INDEXED:
   case VCOL_GENERATED_STORED:
     return "GENERATED ALWAYS AS";
   case VCOL_DEFAULT:
