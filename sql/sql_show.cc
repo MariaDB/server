@@ -2218,7 +2218,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ("));
       packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
-      if (field->vcol_info->stored_in_db)
+      if (field->vcol_info->is_stored())
         packet->append(STRING_WITH_LEN(" STORED"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
@@ -6174,7 +6174,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       table->field[21]->set_notnull();
       table->field[20]->store(STRING_WITH_LEN("ALWAYS"), cs);
 
-      if (field->vcol_info->stored_in_db)
+      if (field->vcol_info->is_stored())
         buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
       else
         buf.set(STRING_WITH_LEN("VIRTUAL GENERATED"), cs);
