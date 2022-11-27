@@ -2378,11 +2378,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	comment_pos+=   comment_length;
       }
 
-      if ((uchar) strpos[13] == (uchar) MYSQL_TYPE_VIRTUAL
-          && likely(share->mysql_version >= 100000))
+      if (strpos[13] == MYSQL_TYPE_VIRTUAL &&
+          (share->mysql_version < 50600 || share->mysql_version >= 100000))
       {
         /*
-          MariaDB version 10.0 version.
+          MariaDB 5.5 or 10.0 version.
           The interval_id byte in the .frm file stores the length of the
           expression statement for a virtual column.
         */
