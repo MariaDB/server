@@ -1192,7 +1192,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         open_table_error(table->s, OPEN_FRM_CORRUPTED, 1);
         goto end;
       }
-      type= (*field_ptr)->vcol_info->stored_in_db
+      type= (*field_ptr)->vcol_info->is_stored()
             ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL;
       expr_length= uint2korr(pos+1);
       if (table->s->mysql_version > 50700 && table->s->mysql_version < 100000)
@@ -2489,7 +2489,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         else if ((uint)vcol_screen_pos[0] != 1)
           goto err;
         bool stored= vcol_screen_pos[2] & 1;
-        vcol_info->stored_in_db= stored;
         vcol_info->set_vcol_type(stored ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL);
         uint vcol_expr_length= vcol_info_length -
                               (uint)(FRM_VCOL_OLD_HEADER_SIZE(opt_interval_id));
@@ -2570,7 +2569,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         uint vcol_info_length= uint2korr(vcol_screen_pos + 1);
         if (!vcol_info_length) // Expect non-empty expression
           goto err;
-        vcol_info->stored_in_db= vcol_screen_pos[3];
+        vcol_info->set_vcol_type(vcol_screen_pos[3] ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL);
         vcol_info->utf8= 0;
         vcol_screen_pos+= vcol_info_length + MYSQL57_GCOL_HEADER_SIZE;;
         share->virtual_fields++;
@@ -2670,7 +2669,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 #endif
 
-    if (mysql57_null_bits && vcol_info && !vcol_info->stored_in_db)
+    if (mysql57_null_bits && vcol_info && !vcol_info->is_stored())
     {
       swap_variables(uchar*, null_pos, mysql57_vcol_null_pos);
       swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
@@ -2727,7 +2726,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     {
       reg_field->default_value= new (&share->mem_root) Virtual_column_info();
       reg_field->default_value->set_vcol_type(VCOL_DEFAULT);
-      reg_field->default_value->stored_in_db= 1;
       share->default_expressions++;
     }
 
@@ -2766,7 +2764,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (vcol_info)
     {
       vcol_info->name= reg_field->field_name;
-      if (mysql57_null_bits && !vcol_info->stored_in_db)
+      if (mysql57_null_bits && !vcol_info->is_stored())
       {
         /* MySQL 5.7 has null bits last */
         swap_variables(uchar*, null_pos, mysql57_vcol_null_pos);
@@ -3341,13 +3339,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         break;
       }
       case VCOL_GENERATED_STORED:
-        vcol_info->stored_in_db= 1;
         DBUG_ASSERT(!reg_field->vcol_info);
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
         break;
       case VCOL_DEFAULT:
-        vcol_info->stored_in_db= 1;
         DBUG_ASSERT(!reg_field->default_value);
         reg_field->default_value=    vcol_info;
         share->default_expressions++;
@@ -4014,7 +4010,6 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
   }
 
   vcol_storage.vcol_info->set_vcol_type(vcol->get_vcol_type());
-  vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;
   if (!vcol_storage.vcol_info->fix_and_check_expr(thd, table))
@@ -7999,7 +7994,7 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
     tmp_vfield= *vfield_ptr;
     if (bitmap_is_set(write_set, tmp_vfield->field_index))
       bitmap_updated|= mark_virtual_column_with_deps(tmp_vfield);
-    else if (tmp_vfield->vcol_info->stored_in_db ||
+    else if (tmp_vfield->vcol_info->is_stored() ||
              (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG |
                                    PART_INDIRECT_KEY_FLAG)))
     {
@@ -8030,7 +8025,7 @@ bool TABLE::check_virtual_columns_marked_for_read()
     {
       Field *tmp_vfield= *vfield_ptr;
       if (bitmap_is_set(read_set, tmp_vfield->field_index) &&
-          !tmp_vfield->vcol_info->stored_in_db)
+          !tmp_vfield->vcol_info->is_stored())
         return TRUE;
     }
   }
@@ -8057,7 +8052,7 @@ bool TABLE::check_virtual_columns_marked_for_write()
     {
       Field *tmp_vfield= *vfield_ptr;
       if (bitmap_is_set(write_set, tmp_vfield->field_index) &&
-                        tmp_vfield->vcol_info->stored_in_db)
+                        tmp_vfield->vcol_info->is_stored())
         return TRUE;
     }
   }
@@ -8187,7 +8182,7 @@ void TABLE::remember_blob_values(String *blob_storage)
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
     if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
-        !(*vfield_ptr)->vcol_info->stored_in_db)
+        !(*vfield_ptr)->vcol_info->is_stored())
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
       memcpy((void*) blob_storage, (void*) &blob->value, sizeof(blob->value));
@@ -8210,7 +8205,7 @@ void TABLE::restore_blob_values(String *blob_storage)
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
     if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
-        !(*vfield_ptr)->vcol_info->stored_in_db)
+        !(*vfield_ptr)->vcol_info->is_stored())
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
       blob->value.free();
@@ -9035,7 +9030,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      update= (!vcol_info->stored_in_db &&
+      update= (!vcol_info->is_stored() &&
                bitmap_is_set(read_set, vf->field_index));
       swap_values= 1;
       break;
@@ -9044,7 +9039,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       update= bitmap_is_set(read_set, vf->field_index);
       break;
     case VCOL_UPDATE_FOR_REPLACE:
-      update= ((!vcol_info->stored_in_db &&
+      update= ((!vcol_info->is_stored() &&
                 (vf->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
                 bitmap_is_set(read_set, vf->field_index)) ||
                update_all_columns);
@@ -9064,7 +9059,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     case VCOL_UPDATE_INDEXED:
     case VCOL_UPDATE_INDEXED_FOR_UPDATE:
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
-      update= (!vcol_info->stored_in_db &&
+      update= (!vcol_info->is_stored() &&
                (vf->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
                !bitmap_is_set(read_set, vf->field_index));
       swap_values= 1;

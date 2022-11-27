@@ -730,7 +730,7 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
   for (; kp < end; kp++)
   {
     Field *f= table->field[kp->fieldnr - 1];
-    if (f->vcol_info && !f->vcol_info->stored_in_db)
+    if (f->vcol_info && !f->vcol_info->is_stored())
       table->update_virtual_field(f, false);
   }
   mysql_mutex_unlock(&info->s->intern_lock);
