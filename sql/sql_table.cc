@@ -2605,7 +2605,7 @@ static Create_field * add_hash_field(THD * thd, List<Create_field> *create_list,
   cf->invisible= INVISIBLE_FULL;
   cf->pack_flag|= FIELDFLAG_MAYBE_NULL;
   cf->vcol_info= new (thd->mem_root) Virtual_column_info();
-  cf->vcol_info->stored_in_db= false;
+  cf->vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL);
   uint num= 1;
   LEX_CSTRING field_name;
   field_name.str= (char *)thd->alloc(LONG_HASH_FIELD_NAME_LENGTH);

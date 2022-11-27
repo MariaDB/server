@@ -586,7 +586,6 @@ private:
 
 public:
   /* Flag indicating  that the field is physically stored in the database */
-  bool stored_in_db;
   bool utf8;                                    /* Already in utf8 */
   bool automatic_name;
   bool if_not_exists;
@@ -598,7 +597,7 @@ public:
   Virtual_column_info()
    :Type_handler_hybrid_field_type(&type_handler_null),
     vcol_type((enum_vcol_info_type)VCOL_TYPE_NONE),
-    in_partitioning_expr(FALSE), stored_in_db(FALSE),
+    in_partitioning_expr(FALSE),
     utf8(TRUE), automatic_name(FALSE), expr(NULL), flags(0)
   {
     name.str= NULL;
@@ -627,11 +626,8 @@ public:
   }
   bool is_stored() const
   {
-    return stored_in_db;
-  }
-  void set_stored_in_db_flag(bool stored)
-  {
-    stored_in_db= stored;
+    /* after reading the row vcol value is already in the buffer */
+    return vcol_type == VCOL_GENERATED_STORED;
   }
   bool is_in_partitioning_expr() const
   {
@@ -1433,7 +1429,7 @@ public:
     null_bit= static_cast<uchar>(p_null_bit);
   }
 
-  bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
+  bool stored_in_db() const { return !vcol_info || vcol_info->is_stored(); }
   bool check_vcol_sql_mode_dependency(THD *, vcol_init_mode mode) const;
 
   virtual sql_mode_t value_depends_on_sql_mode() const
@@ -5423,7 +5419,7 @@ public:
   bool check(THD *thd);
   bool validate_check_constraint(THD *thd);
 
-  bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
+  bool stored_in_db() const { return !vcol_info || vcol_info->is_stored(); }
 
   ha_storage_media field_storage_type() const
   {
