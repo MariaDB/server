@@ -802,7 +802,7 @@ static bool pack_vcols(String *buf, List<Create_field> &create_fields,
   {
     if (field->vcol_info && field->vcol_info->expr)
       if (pack_expression(buf, field->vcol_info, field_nr,
-                          field->vcol_info->stored_in_db
+                          field->vcol_info->is_stored()
                           ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
         return 1;
     if (field->has_default_expression() && !field->has_default_now_unireg_check())
