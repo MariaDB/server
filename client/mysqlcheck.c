@@ -70,6 +70,7 @@ const char *do_views_opts[]= {"NO", "YES", "UPGRADE_FROM_MYSQL", NullS};
 TYPELIB do_views_typelib= { array_elements(do_views_opts) - 1, "",
     do_views_opts, NULL };
 static ulong opt_do_views= DO_VIEWS_NO;
+#include "credmgr-var.h"
 
 static struct my_option my_long_options[] =
 {
@@ -220,6 +221,7 @@ static struct my_option my_long_options[] =
    &do_views_typelib, GET_ENUM, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"process-tables", 0, "Perform the requested operation on tables.",
    &opt_do_tables, &opt_do_tables, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -1174,7 +1176,8 @@ static int dbConnect(char *host, char *user, char **passwd)
   mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlcheck");
   if (!(sock = cli_connect(&mysql_connection, host, user, passwd,
-         NULL, opt_mysql_port, opt_mysql_unix_port, 0,tty_password)))
+         NULL, opt_mysql_port, opt_mysql_unix_port, 0,tty_password,
+           opt_credential_manager)))
   {
     DBerror(&mysql_connection, "when trying to connect");
     DBUG_RETURN(1);

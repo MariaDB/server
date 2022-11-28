@@ -133,6 +133,7 @@ static const char *command_names[]= {
 
 static TYPELIB command_typelib=
 { array_elements(command_names)-1,"commands", command_names, NULL};
+#include "credmgr-var.h"
 
 static struct my_option my_long_options[] =
 {
@@ -235,6 +236,7 @@ static struct my_option my_long_options[] =
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -593,7 +595,7 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
   for (;;)
   {
     if (cli_connect(mysql,host,user,&opt_password,NullS,tcp_port,
-      unix_port, CLIENT_REMEMBER_OPTIONS, tty_password))
+      unix_port, CLIENT_REMEMBER_OPTIONS, tty_password,opt_credential_manager))
     {
       my_bool reconnect= 1;
       mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);

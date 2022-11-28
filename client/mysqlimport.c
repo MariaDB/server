@@ -69,6 +69,7 @@ static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
 #include <sslopt-vars.h>
 
 static char **argv_to_free;
+#include "credmgr-var.h"
 
 static struct my_option my_long_options[] =
 {
@@ -185,6 +186,7 @@ static struct my_option my_long_options[] =
    &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -520,7 +522,7 @@ static MYSQL *db_connect(char *host, char *database,
                  "program_name", "mysqlimport");
   if (!(cli_connect(mysql,host,user,passwd,
                            database,opt_mysql_port,opt_mysql_unix_port,
-                           0, tty_password)))
+                           0, tty_password,opt_credential_manager)))
   {
     ignore_errors=0;	  /* NO RETURN FROM db_error */
     db_error(mysql);

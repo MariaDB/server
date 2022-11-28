@@ -46,6 +46,7 @@
 #include <locale.h>
 #endif
 #include "cli_utils.h"
+#include "credmgr-var.h"
 
 const char *VER= "15.2";
 
@@ -1522,8 +1523,9 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
   maybe_convert_charset(&user, (const char **)password, &database,default_charset);
 #endif
 
-  return cli_connect(mysql, host, user, password, database,
-                            opt_mysql_port, opt_mysql_unix_port, flags, tty_password);
+  return cli_connect(mysql, host, user, password, database, opt_mysql_port,
+                     opt_mysql_unix_port, flags, tty_password,
+                     opt_credential_manager);
 }
 
 
@@ -1847,6 +1849,7 @@ static struct my_option my_long_options[] =
    "password sandbox mode even if --batch was specified.",
    &opt_connect_expired_password, &opt_connect_expired_password, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 

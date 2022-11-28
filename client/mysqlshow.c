@@ -30,6 +30,7 @@
 #include <sslopt-vars.h>
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 #include "cli_utils.h"
+#include "credmgr-var.h"
 
 static char * host=0, *opt_password=0, *user=0;
 static my_bool opt_show_keys= 0, opt_compress= 0, opt_count=0, opt_status= 0;
@@ -163,7 +164,7 @@ int main(int argc, char **argv)
   if (!(cli_connect(&mysql,host,user, &opt_password,
                 (first_argument_uses_wildcards) ? "" :
                     argv[0], opt_mysql_port,opt_mysql_unix_port,
-                  0, tty_password)))
+                  0, tty_password,opt_credential_manager)))
   {
     fprintf(stderr,"%s: %s\n",my_progname,mysql_error(&mysql));
     error= 1;
@@ -267,6 +268,7 @@ static struct my_option my_long_options[] =
   {"user", 'u', "User for login if not current user.", &user,
    &user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
+#include "credmgr-opt.h"
   {"verbose", 'v',
    "More verbose output; you can use this multiple times to get even more "
    "verbose output.",

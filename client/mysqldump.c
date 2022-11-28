@@ -248,7 +248,7 @@ TYPELIB compatible_mode_typelib= {array_elements(compatible_mode_names) - 1,
 static HASH ignore_table, ignore_data;
 
 static HASH ignore_database;
-
+#include "credmgr-var.h"
 static struct my_option my_long_options[] =
 {
   {"all-databases", 'A',
@@ -619,6 +619,7 @@ static struct my_option my_long_options[] =
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -2041,8 +2042,9 @@ static int connect_to_db(char *host, char *user,char **passwd)
   mysql_options4(&mysql_connection, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqldump");
   mysql= &mysql_connection;          /* So we can mysql_close() it properly */
-  if (!cli_connect(&mysql_connection,host,user,passwd,
-                          NULL,opt_mysql_port,opt_mysql_unix_port, 0,tty_password))
+  if (!cli_connect(&mysql_connection, host, user, passwd, NULL, opt_mysql_port,
+                   opt_mysql_unix_port, 0, tty_password,
+                   opt_credential_manager))
   {
     DB_error(&mysql_connection, "when trying to connect");
     DBUG_RETURN(1);

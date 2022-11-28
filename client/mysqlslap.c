@@ -86,6 +86,7 @@ TODO:
 #include <my_dir.h>
 #include <signal.h>
 #include <sslopt-vars.h>
+#include "credmgr-var.h"
 #ifndef _WIN32
 #include <sys/wait.h>
 #endif
@@ -716,6 +717,7 @@ static struct my_option my_long_options[] =
    0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -2336,7 +2338,7 @@ slap_connect(MYSQL *mysql)
                            create_schema_string,
                            opt_mysql_port,
                            opt_mysql_unix_port,
-                           connect_flags,tty_password))
+                           connect_flags,tty_password, opt_credential_manager))
     {
       /* Connect succeeded */
       connect_error= 0;

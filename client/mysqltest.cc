@@ -57,6 +57,8 @@
 #include <my_stacktrace.h>
 
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
+#include "credmgr-var.h"
+
 
 #ifdef _WIN32
 #include <crtdbg.h>
@@ -5756,8 +5758,9 @@ void safe_connect(MYSQL* mysql, const char *name, const char *host,
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqltest");
-  while(!cli_connect(mysql, host,user, pass, db, port, sock,
-                            CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS,tty_password))
+  while (!cli_connect(mysql, host, user, pass, db, port, sock,
+                      CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS,
+                      tty_password, opt_credential_manager))
   {
     /*
       Connect failed
@@ -7188,6 +7191,7 @@ static struct my_option my_long_options[] =
     &opt_overlay_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"suite-dir", 0, "Suite directory.", &opt_suite_dir,
     &opt_suite_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
