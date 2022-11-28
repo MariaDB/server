@@ -7513,13 +7513,14 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
 
 void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
 {
-  clear_extraction_flag();
   if (type() == Item::COND_ITEM)
   {
     bool and_cond= ((Item_cond*) this)->functype() == Item_func::COND_AND_FUNC;
     List_iterator<Item> li(*((Item_cond*) this)->argument_list());
     uint count= 0;
     Item *item;
+
+    clear_extraction_flag();
     while ((item=li++))
     {
       item->check_pushable_cond(checker, arg);
@@ -7537,8 +7538,8 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
         item->clear_extraction_flag();
     }
   }
-  else if (!((this->*checker) (arg)))
-    set_extraction_flag(MARKER_NO_EXTRACTION);
+  else if (!basic_const_item())
+    set_extraction_flag(!((this->*checker) (arg)) ? MARKER_NO_EXTRACTION : 0);
 }
 
 
@@ -10907,11 +10908,9 @@ bool Item::cleanup_excluding_immutables_processor (void *arg)
 {
   if (!(get_extraction_flag() == MARKER_IMMUTABLE))
     return cleanup_processor(arg);
-  else
-  {
+  if (!basic_const_item())
     clear_extraction_flag();
-    return false;
-  }
+  return false;
 }
 
 

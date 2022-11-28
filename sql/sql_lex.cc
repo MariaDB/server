@@ -8807,7 +8807,7 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
 
 /**
   @brief
-   For a condition check possibility of exraction a formula over grouping fields 
+   For a condition check possibility of extraction a formula over grouping fields
 
   @param thd      The thread handle
   @param cond     The condition whose subformulas are to be analyzed
@@ -8836,7 +8836,6 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
 {
   if (cond->get_extraction_flag() == MARKER_NO_EXTRACTION)
     return;
-  cond->clear_extraction_flag();
   if (cond->type() == Item::COND_ITEM)
   {
     Item_cond_and *and_cond=
@@ -8848,6 +8847,8 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
     uint count= 0;         // to count items not containing MARKER_NO_EXTRACTION
     uint count_full= 0;    // to count items with MARKER_FULL_EXTRACTION
     Item *item;
+
+    cond->clear_extraction_flag();
     while ((item=li++))
     {
       check_cond_extraction_for_grouping_fields(thd, item);
@@ -11045,7 +11046,8 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
   /* Nothing to extract */
   if (cond->get_extraction_flag() == MARKER_NO_EXTRACTION)
   {
-    cond->clear_extraction_flag();
+    if (!cond->basic_const_item())
+      cond->clear_extraction_flag();
     return cond;
   }
   /* cond can be pushed in WHERE entirely */

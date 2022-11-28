@@ -2683,8 +2683,9 @@ public:
     marker &= ~MARKER_EXTRACTION_MASK;
     marker|= flags;
   }
-  void clear_extraction_flag()
+  virtual void clear_extraction_flag()
   {
+    DBUG_ASSERT(!basic_const_item());
     marker &= ~MARKER_EXTRACTION_MASK;
   }
   void check_pushable_cond(Pushdown_checker excl_dep_func, uchar *arg);
@@ -4447,12 +4448,18 @@ class Item_bool_static :public Item_bool
 {
 public:
   Item_bool_static(const char *str_arg, longlong i):
-    Item_bool(str_arg, i) {};
+    Item_bool(str_arg, i)
+    {
+      set_extraction_flag(MARKER_NO_EXTRACTION);
+    };
 
   /* Don't mark static items as top level item */
   virtual void top_level_item() override {}
   void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { DBUG_ASSERT(0); }
+  virtual void clear_extraction_flag() override
+  {
+  }
 
   void cleanup() override {}
 };

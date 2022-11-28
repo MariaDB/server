@@ -1,0 +1,11 @@
+#
+# usage of flags within a constant Item (in thread read only memory)
+# See MDEV-28958 for more details
+#
+#
+DROP TABLE IF EXISTS c;
+CREATE TABLE c(c INT);
+SELECT * FROM(SELECT * FROM c GROUP BY NOT c=c) AS c NATURAL JOIN c AS c GROUP BY c HAVING c=c OR c=c;
+INSERT INTO c VALUES (1);
+SELECT * FROM(SELECT * FROM c GROUP BY NOT c=c) AS c NATURAL JOIN c AS c GROUP BY c HAVING c=c OR c=c;
+DROP TABLE c;
