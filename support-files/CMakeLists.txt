@@ -51,7 +51,11 @@ ENDIF()
 
 IF(UNIX)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
-  FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
+  SET(SCRIPTS mysqld_multi.server mysql-log-rotate binary-configure)
+  IF(WITH_WSREP)
+    SET(SCRIPTS ${SCRIPTS} wsrep_notify)
+  ENDIF()
+  FOREACH(script ${SCRIPTS})
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh 
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
@@ -126,7 +130,11 @@ IF(UNIX)
     COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysqld.service
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
-    INSTALL(FILES use_galera_new_cluster.conf
+    IF(WITH_WSREP)
+      INSTALL(FILES use_galera_new_cluster.conf
+              DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
+    ENDIF()
+    INSTALL(FILES
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
             ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
             ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
