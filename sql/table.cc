@@ -8822,15 +8822,16 @@ bool TABLE_LIST::change_refs_to_fields()
   List_iterator<Item> li(used_items);
   Item_direct_ref *ref;
   Field_iterator_view field_it;
+  Name_resolution_context *ctx;
   THD *thd= table->in_use;
+  Item **materialized_items;
   DBUG_ASSERT(is_merged_derived());
 
   if (!used_items.elements)
     return FALSE;
 
-  Item **materialized_items=
-      (Item **)thd->calloc(sizeof(void *) * table->s->fields);
-  Name_resolution_context *ctx= new Name_resolution_context(this);
+  materialized_items= (Item **)thd->calloc(sizeof(void *) * table->s->fields);
+  ctx= new (thd->mem_root) Name_resolution_context(this);
   if (!materialized_items || !ctx)
     return TRUE;
 
