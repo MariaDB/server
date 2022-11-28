@@ -19,6 +19,7 @@ call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 fa
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
 call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfile0 to start up the database\\? Log sequence number in the ib_logfile0 is 1213964,");
 call mtr.add_suppression("InnoDB: Log file .*ib_logfile1 is of different size 1048576 bytes than other log files 2097152 bytes!");
+call mtr.add_suppression("InnoDB: The change buffer is corrupted");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;

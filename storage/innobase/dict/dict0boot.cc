@@ -313,9 +313,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "NAME", 0);
 
 	index->id = DICT_TABLES_ID;
-	dberr_t error = dict_index_add_to_cache(
+	dberr_t err = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLES));
-	ut_a(error == DB_SUCCESS);
+	ut_a(err == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
 		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
@@ -325,9 +325,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_TABLE_IDS_ID;
-	error = dict_index_add_to_cache(
+	err = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLE_IDS));
-	ut_a(error == DB_SUCCESS);
+	ut_a(err == DB_SUCCESS);
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_COLUMNS", fil_system.sys_space,
@@ -355,9 +355,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_COLUMNS_ID;
-	error = dict_index_add_to_cache(
+	err = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_COLUMNS));
-	ut_a(error == DB_SUCCESS);
+	ut_a(err == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
 		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
@@ -398,9 +398,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_INDEXES_ID;
-	error = dict_index_add_to_cache(
+	err = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_INDEXES));
-	ut_a(error == DB_SUCCESS);
+	ut_a(err == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
 		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
@@ -427,9 +427,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_FIELDS_ID;
-	error = dict_index_add_to_cache(
+	err = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_FIELDS));
-	ut_a(error == DB_SUCCESS);
+	ut_a(err == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
 		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
@@ -440,9 +440,11 @@ dict_boot(void)
 
 	/* Initialize the insert buffer table and index for each tablespace */
 
-	dberr_t	err = ibuf_init_at_db_start();
+	err = ibuf_init_at_db_start();
 
-	if (err == DB_SUCCESS) {
+	if (err == DB_SUCCESS
+	    || srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
+		err = DB_SUCCESS;
 		/* Load definitions of other indexes on system tables */
 
 		dict_load_sys_table(dict_sys.sys_tables);

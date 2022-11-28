@@ -50,6 +50,7 @@ Created 7/19/1997 Heikki Tuuri
 #include "que0que.h"
 #include "srv0start.h" /* srv_shutdown_state */
 #include "rem0cmp.h"
+#include "log.h"
 
 /*	STRUCTURE OF AN INSERT BUFFER RECORD
 
@@ -408,21 +409,54 @@ ibuf_init_at_db_start(void)
 	ulint		n_used;
 
 	ut_ad(!ibuf.index);
+	dberr_t err;
 	mtr_t mtr;
 	mtr.start();
 	compile_time_assert(IBUF_SPACE_ID == TRX_SYS_SPACE);
 	compile_time_assert(IBUF_SPACE_ID == 0);
 	mtr_x_lock_space(fil_system.sys_space, &mtr);
-	buf_block_t* header_page = buf_page_get(
+	buf_block_t* header_page = buf_page_get_gen(
 		page_id_t(IBUF_SPACE_ID, FSP_IBUF_HEADER_PAGE_NO),
-		0, RW_X_LATCH, &mtr);
+		0, RW_X_LATCH, nullptr, BUF_GET,
+		__FILE__, __LINE__, &mtr, &err);
 
 	if (!header_page) {
+err_exit:
+		sql_print_error("InnoDB: The change buffer is corrupted");
 		mtr.commit();
-		return DB_DECRYPTION_FAILED;
+		return err;
 	}
 
-	/* At startup we intialize ibuf to have a maximum of
+	fseg_n_reserved_pages(*header_page,
+			      IBUF_HEADER + IBUF_TREE_SEG_HEADER
+			      + header_page->frame, &n_used, &mtr);
+
+	ut_ad(n_used >= 2);
+
+	ibuf.seg_size = n_used;
+
+	{
+		buf_block_t*	block;
+
+		block = buf_page_get_gen(
+			page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO),
+			0, RW_X_LATCH, nullptr, BUF_GET,
+			__FILE__, __LINE__, &mtr, &err);
+
+		if (!block) goto err_exit;
+
+		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
+
+		root = buf_block_get_frame(block);
+	}
+
+	if (page_is_comp(root) || fil_page_get_type(root) != FIL_PAGE_INDEX
+	    || btr_page_get_index_id(root) != DICT_IBUF_ID_MIN) {
+		err = DB_CORRUPTION;
+		goto err_exit;
+	}
+
+	/* At startup we initialize ibuf to have a maximum of
 	CHANGE_BUFFER_DEFAULT_SIZE in terms of percentage of the
 	buffer pool size. Once ibuf struct is initialized this
 	value is updated with the user supplied size by calling
@@ -436,26 +470,6 @@ ibuf_init_at_db_start(void)
 		     &ibuf_pessimistic_insert_mutex);
 
 	mutex_enter(&ibuf_mutex);
-
-	fseg_n_reserved_pages(*header_page,
-			      IBUF_HEADER + IBUF_TREE_SEG_HEADER
-			      + header_page->frame, &n_used, &mtr);
-
-	ut_ad(n_used >= 2);
-
-	ibuf.seg_size = n_used;
-
-	{
-		buf_block_t*	block;
-
-		block = buf_page_get(
-			page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO),
-			0, RW_X_LATCH, &mtr);
-
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
-
-		root = buf_block_get_frame(block);
-	}
 
 	ibuf_size_update(root);
 	mutex_exit(&ibuf_mutex);
@@ -507,6 +521,7 @@ ibuf_max_size_update(
 	ulint	new_val)	/*!< in: new value in terms of
 				percentage of the buffer pool size */
 {
+	if (UNIV_UNLIKELY(!ibuf.index)) return;
 	ulint	new_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
 			    * new_val) / 100;
 	mutex_enter(&ibuf_mutex);
