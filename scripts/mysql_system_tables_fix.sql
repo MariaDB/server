@@ -27,7 +27,7 @@
 set sql_mode='';
 set storage_engine=MyISAM;
 set enforce_storage_engine=NULL;
-set alter_algorithm=DEFAULT;
+set alter_algorithm='DEFAULT';
 
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
