@@ -1,13 +1,12 @@
---source include/not_embedded.inc
---source include/have_innodb.inc
---source include/have_symlink.inc
-
 --disable_query_log
-CALL mtr.add_suppression(".*Failed to set O_DIRECT on file.*");
-
+call mtr.add_suppression("InnoDB: Failed to set .*DIRECT");
 # The below mtr suppression to avoid failure in solaris platform.
 CALL mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to set DIRECTIO_ON on file.*");
 --enable_query_log
+
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_symlink.inc
 
 SHOW VARIABLES LIKE 'innodb_flush_method';
 
