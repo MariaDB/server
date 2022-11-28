@@ -82,15 +82,6 @@ HAVE_PSI_INTERFACE is defined. */
 #  define UNIV_PFS_MEMORY
 # endif /* HAVE_PSI_MEMORY_INTERFACE */
 
-/* There are mutexes/rwlocks that we want to exclude from
-instrumentation even if their corresponding performance schema
-define is set. And this PFS_NOT_INSTRUMENTED is used
-as the key value to identify those objects that would
-be excluded from instrumentation. */
-# define PFS_NOT_INSTRUMENTED		ULINT32_UNDEFINED
-
-# define PFS_IS_INSTRUMENTED(key)	((key) != PFS_NOT_INSTRUMENTED)
-
 #ifdef HAVE_PFS_THREAD_PROVIDER_H
 /* For PSI_MUTEX_CALL() and similar. */
 #include "pfs_thread_provider.h"
