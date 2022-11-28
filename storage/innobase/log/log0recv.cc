@@ -1888,7 +1888,7 @@ static dberr_t recv_log_recover_10_4()
 		return DB_CORRUPTION;
 	}
 
-	recv_sys.read(source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1),
+	recv_sys.read(source_offset & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1),
 		      {buf, OS_FILE_LOG_BLOCK_SIZE});
 
 	ulint crc = log_block_calc_checksum_crc32(buf);

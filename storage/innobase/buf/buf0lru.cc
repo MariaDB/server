@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -190,8 +190,6 @@ LRU list.  The compressed page is preserved, and it need not be clean.
 @return true if freed */
 static bool buf_LRU_free_from_unzip_LRU_list(ulint limit)
 {
-	mysql_mutex_assert_owner(&buf_pool.mutex);
-
 	if (!buf_LRU_evict_from_unzip_LRU()) {
 		return(false);
 	}
@@ -210,6 +208,7 @@ static bool buf_LRU_free_from_unzip_LRU_list(ulint limit)
 
 		freed = buf_LRU_free_page(&block->page, false);
 		if (freed) {
+			scanned++;
 			break;
 		}
 
@@ -254,17 +253,16 @@ static bool buf_LRU_free_from_common_LRU_list(ulint limit)
 			}
 
 			freed = true;
+			scanned++;
 			break;
 		}
 	}
 
-	if (scanned) {
-		MONITOR_INC_VALUE_CUMULATIVE(
-			MONITOR_LRU_SEARCH_SCANNED,
-			MONITOR_LRU_SEARCH_SCANNED_NUM_CALL,
-			MONITOR_LRU_SEARCH_SCANNED_PER_CALL,
-			scanned);
-	}
+	MONITOR_INC_VALUE_CUMULATIVE(
+		MONITOR_LRU_SEARCH_SCANNED,
+		MONITOR_LRU_SEARCH_SCANNED_NUM_CALL,
+		MONITOR_LRU_SEARCH_SCANNED_PER_CALL,
+		scanned);
 
 	return(freed);
 }

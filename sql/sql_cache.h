@@ -319,7 +319,7 @@ private:
   Cache_staus m_cache_status;
 
   void free_query_internal(Query_cache_block *point);
-  void invalidate_table_internal(THD *thd, uchar *key, size_t key_length);
+  void invalidate_table_internal(uchar *key, size_t key_length);
 
 protected:
   /*
@@ -375,8 +375,7 @@ protected:
   void invalidate_table(THD *thd, TABLE *table);
   void invalidate_table(THD *thd, uchar *key, size_t  key_length);
   void invalidate_table(THD *thd, Query_cache_block *table_block);
-  void invalidate_query_block_list(THD *thd, 
-                                   Query_cache_block_table *list_root);
+  void invalidate_query_block_list(Query_cache_block_table *list_root);
 
   TABLE_COUNTER_TYPE
     register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
