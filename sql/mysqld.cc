@@ -5004,12 +5004,12 @@ static int init_server_components()
   /* need to configure logging before initializing storage engines */
   if (!opt_bin_log_used && !WSREP_ON)
   {
-    if (opt_log_slave_updates && (global_system_variables.log_warnings > 1))
-      sql_print_warning("You need to use --log-bin to make "
-                        "--log-slave-updates work.");
-    if (binlog_format_used && (global_system_variables.log_warnings > 1))
-      sql_print_warning("You need to use --log-bin to make "
-                        "--binlog-format work.");
+    if (opt_log_slave_updates && (global_system_variables.log_warnings >= 4))
+      sql_print_information("You need to use --log-bin to make "
+                            "--log-slave-updates work.");
+    if (binlog_format_used && (global_system_variables.log_warnings >= 4))
+      sql_print_information("You need to use --log-bin to make "
+                            "--binlog-format work.");
   }
 
   /* Check that we have not let the format to unspecified at this point */
@@ -5497,9 +5497,9 @@ static int init_server_components()
   }
   else
   {
-    if (binlog_expire_logs_seconds && (global_system_variables.log_warnings > 1))
-      sql_print_warning("You need to use --log-bin to make --expire-logs-days "
-                        "or --binlog-expire-logs-seconds work.");
+    if (binlog_expire_logs_seconds && (global_system_variables.log_warnings >= 4))
+      sql_print_information("You need to use --log-bin to make --expire-logs-days "
+                             "or --binlog-expire-logs-seconds work.");
   }
 #endif
 
