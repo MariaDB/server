@@ -1689,13 +1689,16 @@ err:
   }
   error= thd->is_error();
 
+  if (non_temp_tables_count)
+    query_cache_invalidate3(thd, tables, 0);
+
   /*
     We are always logging drop of temporary tables.
     The reason is to handle the following case:
     - Use statement based replication
     - CREATE TEMPORARY TABLE foo (logged)
     - set row based replication
-    - DROP TEMPORAY TABLE foo    (needs to be logged)
+    - DROP TEMPORARY TABLE foo   (needs to be logged)
     This should be fixed so that we remember if creation of the
     temporary table was logged and only log it if the creation was
     logged.
@@ -1707,7 +1710,6 @@ err:
     if (non_trans_tmp_table_deleted || trans_tmp_table_deleted)
       thd->transaction->stmt.mark_dropped_temp_table();
 
-    query_cache_invalidate3(thd, tables, 0);
     if (!dont_log_query && mysql_bin_log.is_open())
     {
       debug_crash_here("ddl_log_drop_before_binlog");

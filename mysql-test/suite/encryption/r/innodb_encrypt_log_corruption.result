@@ -69,6 +69,14 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
 FOUND 3 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+# Empty large multi-file redo log from after MariaDB 10.2.2
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+COUNT(*)
+1
+FOUND 4 /InnoDB: Upgrading redo log:/ in mysqld.1.err
 # redo log from "after" MariaDB 10.2.2, but with invalid header checksum
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -179,7 +187,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
-FOUND 5 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+FOUND 6 /InnoDB: Upgrading redo log:/ in mysqld.1.err
 # Minimal MariaDB 10.1.21 encrypted redo log
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
