@@ -18,6 +18,7 @@ call mtr.add_suppression("InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE bef
 call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 failed");
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
 call mtr.add_suppression("InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files (1048576|4194304) bytes!");
+call mtr.add_suppression("InnoDB: The change buffer is corrupted");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
@@ -605,6 +606,42 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --source include/shutdown_mysqld.inc
 --let SEARCH_PATTERN= InnoDB: Upgrading redo log:
 --source include/search_pattern_in_file.inc
+
+--echo # Empty large multi-file redo log from after MariaDB 10.2.2
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+$_= pack("Nx[5]nx[5]", 1, 0x1286) . "BogoDB 4.3.2.1" . chr(0) x 478;
+print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
+# checkpoint page 1 and all-zero checkpoint 2
+$_= pack("x[13]nCNNx[484]", 0x1286, 12, 2, 0x80c);
+print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
+print OUT chr(0) x 1024;
+die unless seek(OUT, 0x1FFFFFFFF, 0);
+print OUT chr(0);
+close OUT or die;
+die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
+binmode OUT;
+die unless seek(OUT, 0x800, 0); # the first 2048 bytes are unused!
+$_= pack("Nnnx[500]", 0x80000944, 12, 12);
+print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
+die unless seek(OUT, 0x1FFFFFFFF, 0);
+print OUT chr(0);
+close OUT or die;
+EOF
+
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
+--source include/start_mysqld.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Upgrading redo log:
+--source include/search_pattern_in_file.inc
+--let $restart_parameters= $dirs
 
 --echo # Minimal MariaDB 10.1.21 encrypted redo log
 perl;
