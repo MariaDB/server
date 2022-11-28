@@ -1,3 +1,5 @@
+-- source include/not_embedded.inc
+
 --echo # 
 --echo # MDEV-12192: Shell-style alias/unalias commands for MariaDB client
 --echo #
