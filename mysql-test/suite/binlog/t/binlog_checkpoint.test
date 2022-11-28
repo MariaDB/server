@@ -212,7 +212,23 @@ XA END 'xa1';
 --source include/start_mysqld.inc
 
 --echo ** Proof of shutdown caused ROLLBACK-completed transaction
---source include/show_binlog_events.inc
+
+--let assert_file=$MYSQLTEST_VARDIR/tmp/binlog_decoded.out
+--let datadir=`select @@datadir`
+
+--echo # MYSQL_BINLOG datadir/binlog_file --result-file=assert_file
+--exec $MYSQL_BINLOG $datadir/$binlog_file --result-file=$assert_file
+
+--let $assert_text= No XA statements should be written into the binary log
+--let $assert_count= 0
+--let assert_select= XA START|XA END|XA PREPARE|XA COMMIT|XA ROLLBACK
+--source include/assert_grep.inc
+
+--let $assert_text= The transaction should be rolled back
+--let $assert_count= 1
+--let assert_select= ^ROLLBACK\$
+--source include/assert_grep.inc
+
 SELECT * FROM tm;
 --eval SELECT * FROM t1 WHERE a = $a
 
