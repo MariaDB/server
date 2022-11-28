@@ -381,4 +381,17 @@ SHOW GRANTS FOR 'user3'@'%';
 DROP USER 'user3'@'%';
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
 
+--echo #
+--echo # MDEV-16735 Upgrades only work if 'alter_algorithm' is 'DEFAULT'
+--echo # or 'COPY'. Test that the session value 'DEFAULT' in mysql_upgrade
+--echo # properly overrides the potentially incompatible global value.
+--echo #
+
+SET GLOBAL alter_algorithm='INPLACE';
+SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
+--exec $MYSQL_UPGRADE --force 2>&1
+SET GLOBAL alter_algorithm=DEFAULT;
+SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
 --echo End of 10.3 tests
