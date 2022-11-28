@@ -1287,14 +1287,14 @@ bool mtr_t::have_x_latch(const buf_block_t &block) const
   if (!m_memo)
     return false;
 
-  const mtr_memo_slot_t *found= nullptr;
+  ut_d(const mtr_memo_slot_t *found= nullptr);
 
   for (const mtr_memo_slot_t &slot : *m_memo)
   {
     if (slot.object != &block)
       continue;
 
-    found= &slot;
+    ut_d(found= &slot);
 
     if (!(slot.type & MTR_MEMO_PAGE_X_FIX))
       continue;

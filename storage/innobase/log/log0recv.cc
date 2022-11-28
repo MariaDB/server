@@ -651,22 +651,12 @@ static struct
     {
       /* Replace absolute DATA DIRECTORY file paths with
       short names relative to the backup directory. */
-      const char *name= strrchr(filename, '/');
-#ifdef _WIN32
-      if (const char *last= strrchr(filename, '\\'))
-        if (last > name)
-          name= last;
-#endif
-      if (name)
+      if (const char *name= strrchr(filename, '/'))
       {
-        while (--name > filename &&
-#ifdef _WIN32
-               *name != '\\' &&
-#endif
-               *name != '/');
+        while (--name > filename && *name != '/');
         if (name > filename)
           filename= name + 1;
-       }
+      }
     }
 
     char *fil_path= fil_make_filepath(nullptr, {filename, strlen(filename)},
@@ -832,21 +822,9 @@ processed:
     const char *filename= name.c_str();
     if (srv_operation == SRV_OPERATION_RESTORE)
     {
-      const char* tbl_name = strrchr(filename, '/');
-#ifdef _WIN32
-      if (const char *last = strrchr(filename, '\\'))
+      if (const char *tbl_name= strrchr(filename, '/'))
       {
-        if (last > tbl_name)
-          tbl_name = last;
-      }
-#endif
-      if (tbl_name)
-      {
-        while (--tbl_name > filename &&
-#ifdef _WIN32
-               *tbl_name != '\\' &&
-#endif
-               *tbl_name != '/');
+        while (--tbl_name > filename && *tbl_name != '/');
         if (tbl_name > filename)
           filename= tbl_name + 1;
       }
@@ -1671,7 +1649,7 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
   if (lsn_offset < (log_sys.is_pmem() ? log_sys.file_size : 4096))
     memcpy_aligned<512>(buf, &log_sys.buf[lsn_offset & ~511], 512);
   else
-    recv_sys.read(lsn_offset & ~511, {buf, 512});
+    recv_sys.read(lsn_offset & ~lsn_t{511}, {buf, 512});
 
   if (!recv_check_log_block(buf))
   {

@@ -49,6 +49,7 @@ Created 7/19/1997 Heikki Tuuri
 #include "que0que.h"
 #include "srv0start.h" /* srv_shutdown_state */
 #include "rem0cmp.h"
+#include "log.h"
 
 /*	STRUCTURE OF AN INSERT BUFFER RECORD
 
@@ -402,23 +403,10 @@ ibuf_init_at_db_start(void)
 
 	if (!header_page) {
 err_exit:
+		sql_print_error("InnoDB: The change buffer is corrupted");
 		mtr.commit();
 		return err;
 	}
-
-	/* At startup we intialize ibuf to have a maximum of
-	CHANGE_BUFFER_DEFAULT_SIZE in terms of percentage of the
-	buffer pool size. Once ibuf struct is initialized this
-	value is updated with the user supplied size by calling
-	ibuf_max_size_update(). */
-	ibuf.max_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
-			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
-
-	mysql_mutex_init(ibuf_mutex_key, &ibuf_mutex, nullptr);
-	mysql_mutex_init(ibuf_pessimistic_insert_mutex_key,
-			 &ibuf_pessimistic_insert_mutex, nullptr);
-
-	mysql_mutex_lock(&ibuf_mutex);
 
 	fseg_n_reserved_pages(*header_page,
 			      IBUF_HEADER + IBUF_TREE_SEG_HEADER
@@ -438,6 +426,25 @@ err_exit:
 		goto err_exit;
 	}
 
+	if (page_is_comp(root) || fil_page_get_type(root) != FIL_PAGE_INDEX
+	    || btr_page_get_index_id(root) != DICT_IBUF_ID_MIN) {
+		err = DB_CORRUPTION;
+		goto err_exit;
+	}
+
+	/* At startup we intialize ibuf to have a maximum of
+	CHANGE_BUFFER_DEFAULT_SIZE in terms of percentage of the
+	buffer pool size. Once ibuf struct is initialized this
+	value is updated with the user supplied size by calling
+	ibuf_max_size_update(). */
+	ibuf.max_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
+			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
+
+	mysql_mutex_init(ibuf_mutex_key, &ibuf_mutex, nullptr);
+	mysql_mutex_init(ibuf_pessimistic_insert_mutex_key,
+			 &ibuf_pessimistic_insert_mutex, nullptr);
+
+	mysql_mutex_lock(&ibuf_mutex);
 	ibuf_size_update(root);
 	mysql_mutex_unlock(&ibuf_mutex);
 
@@ -487,6 +494,7 @@ ibuf_max_size_update(
 	ulint	new_val)	/*!< in: new value in terms of
 				percentage of the buffer pool size */
 {
+	if (UNIV_UNLIKELY(!ibuf.index)) return;
 	ulint	new_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
 			    * new_val) / 100;
 	mysql_mutex_lock(&ibuf_mutex);
