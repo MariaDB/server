@@ -817,9 +817,11 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_undo,
   {
      char name[OS_FILE_MAX_PATH];
      snprintf(name, sizeof name, "%s/undo%03u", srv_undo_dir, i);
-     if (!srv_undo_tablespace_open(create_new_undo, name, i))
+     uint32_t space_id= srv_undo_tablespace_open(create_new_undo, name, i);
+     if (!space_id)
        break;
-     ++srv_undo_tablespaces_open;
+     if (0 == srv_undo_tablespaces_open++)
+       srv_undo_space_id_start= space_id;
   }
 
   return DB_SUCCESS;
