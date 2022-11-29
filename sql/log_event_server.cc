@@ -7077,6 +7077,51 @@ record_compare_exit:
 record_compare_differ:
   return true;
 }
+/**
+  Traverses default item expr of a field, and underlying field's default values.
+  If it is an extra field and has no value replicated, then its default expr
+  should be also checked.
+ */
+class Rpl_key_part_checker: public Field_enumerator
+{
+  bool online_alter;
+  Field *next_number_field;
+  bool field_usable;
+public:
+
+
+  void visit_field(Item_field *item) override
+  {
+    if (!field_usable)
+      return;
+    field_usable= check_field(item->field);
+  }
+
+  bool check_field(Field *f)
+  {
+    if (f->has_explicit_value())
+      return true;
+
+    if ((!f->vcol_info && !online_alter) || f == next_number_field)
+      return false;
+
+    Virtual_column_info *computed= f->vcol_info ? f->vcol_info
+                                   : f->default_value;
+
+    if (computed == NULL)
+      return true; // No DEFAULT, or constant DEFAULT
+
+    // Deterministic DEFAULT or vcol expression
+    return !(computed->flags & VCOL_NOT_STRICTLY_DETERMINISTIC)
+           && !computed->expr->walk(&Item::enumerate_field_refs_processor,
+                                    false, this)
+           && field_usable;
+  }
+
+  Rpl_key_part_checker(bool online_alter, Field *next_number_field):
+    online_alter(online_alter), next_number_field(next_number_field),
+    field_usable(true) {}
+};
 
 
 /**
@@ -7107,19 +7152,11 @@ uint Rows_log_event::find_key_parts(const KEY *key) const
     }
   }
 
+  Rpl_key_part_checker key_part_checker(online_alter,
+                                        m_table->found_next_number_field);
   for (p= 0; p < key->user_defined_key_parts; p++)
   {
-    Field *f= key->key_part[p].field;
-    /*
-      in the online alter case (but not in replication) we don't have
-      to reject an index if it includes new columns, as long as
-      their values are deterministic.
-    */
-    bool non_deterministic_default= f->default_value &&
-                     f->default_value->flags & VCOL_NOT_STRICTLY_DETERMINISTIC;
-    bool next_number_field= f == f->table->next_number_field;
-    if (!bitmap_is_set(&m_table->has_value_set, f->field_index) &&
-        (!online_alter || non_deterministic_default || next_number_field))
+    if (!key_part_checker.check_field(key->key_part[p].field))
       break;
   }
   return p;
