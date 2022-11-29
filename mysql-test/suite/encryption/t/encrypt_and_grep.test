@@ -1,4 +1,5 @@
 -- source include/have_innodb.inc
+-- source include/innodb_undo_tablespaces.inc
 -- source include/have_file_key_management_plugin.inc
 
 #
@@ -59,7 +60,8 @@ SET GLOBAL innodb_encrypt_tables = off;
 
 --echo # Wait max 10 min for key encryption threads to decrypt all spaces
 --let $wait_timeout= 600
---let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
+
 --let $wait_condition=SELECT COUNT(*) = $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND CURRENT_KEY_VERSION = 0;
 --source include/wait_condition.inc
 

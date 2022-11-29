@@ -6632,7 +6632,6 @@ i_s_dict_fill_tablespaces_encryption(
 {
 	Field**	fields;
 	struct fil_space_crypt_status_t status;
-
 	DBUG_ENTER("i_s_dict_fill_tablespaces_encryption");
 
 	fields = table_to_fill->field;
@@ -6652,6 +6651,14 @@ i_s_dict_fill_tablespaces_encryption(
 		if (name.data()) {
 			OK(fields[TABLESPACES_ENCRYPTION_NAME]->store(
 				   name.data(), name.size(),
+				   system_charset_info));
+			fields[TABLESPACES_ENCRYPTION_NAME]->set_notnull();
+		} else if (srv_is_undo_tablespace(space->id)) {
+			char undo_name[sizeof "innodb_undo000"];
+			snprintf(undo_name, sizeof(undo_name),
+			         "innodb_undo%03zu",space->id);
+			OK(fields[TABLESPACES_ENCRYPTION_NAME]->store(
+				   undo_name, strlen(undo_name),
 				   system_charset_info));
 			fields[TABLESPACES_ENCRYPTION_NAME]->set_notnull();
 		} else {
