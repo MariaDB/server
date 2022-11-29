@@ -531,6 +531,7 @@ void sp_head::destroy(sp_head *sp)
     MEM_ROOT own_root= sp->main_mem_root;
     DBUG_PRINT("info", ("mem_root %p moved to %p",
                         &sp->mem_root, &own_root));
+    sp->m_thd= nullptr;
     delete sp;
 
     free_root(&own_root, MYF(0));
@@ -566,6 +567,7 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
    m_sp_cache_version(0),
    m_creation_ctx(0),
    unsafe_flags(0),
+   new_query_arena_is_set(false),
    m_created(0),
    m_modified(0),
    m_recursion_level(0),
@@ -2791,6 +2793,7 @@ sp_head::reset_thd_mem_root(THD *thd)
   free_list= thd->free_list; // Keep the old list
   thd->free_list= NULL; // Start a new one
   m_thd= thd;
+  new_query_arena_is_set= true;
   DBUG_VOID_RETURN;
 }
 
@@ -2810,7 +2813,7 @@ sp_head::restore_thd_mem_root(THD *thd)
    skip restoration of old arena/mem_root if this method has been
    already called for this routine.
   */
-  if (!m_thd)
+  if (!new_query_arena_is_set)
     DBUG_VOID_RETURN;
 
   Item *flist= free_list;	// The old list
@@ -2821,7 +2824,8 @@ sp_head::restore_thd_mem_root(THD *thd)
                       &mem_root, &thd->mem_root));
   thd->free_list= flist;        // Restore the old one
   thd->mem_root= m_thd_root;
-  m_thd= NULL;
+  new_query_arena_is_set= false;
+
   DBUG_VOID_RETURN;
 }
 
