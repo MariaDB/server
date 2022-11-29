@@ -3572,24 +3572,13 @@ TABLE *spider_mk_sys_tmp_table(
   TABLE *tmp_table;
   DBUG_ENTER("spider_mk_sys_tmp_table");
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(field = new (thd->mem_root) Field_blob(
     4294967295U, FALSE, field_name, cs, TRUE)))
     goto error_alloc_field;
-#else
-  if (!(field = new Field_blob(
-    4294967295U, FALSE, field_name, cs, TRUE)))
-    goto error_alloc_field;
-#endif
   field->init(table);
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field = new (thd->mem_root) Item_field(thd, (Field *) field)))
     goto error_alloc_item_field;
-#else
-  if (!(i_field = new Item_field((Field *) field)))
-    goto error_alloc_item_field;
-#endif
 
   if (i_list.push_back(i_field))
     goto error_push_item;
@@ -3650,68 +3639,35 @@ TABLE *spider_mk_sys_tmp_table_for_result(
   TABLE *tmp_table;
   DBUG_ENTER("spider_mk_sys_tmp_table_for_result");
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(field1 = new (thd->mem_root) Field_blob(
     4294967295U, FALSE, field_name1, cs, TRUE)))
     goto error_alloc_field1;
-#else
-  if (!(field1 = new Field_blob(
-    4294967295U, FALSE, field_name1, cs, TRUE)))
-    goto error_alloc_field1;
-#endif
   field1->init(table);
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field1 = new (thd->mem_root) Item_field(thd, (Field *) field1)))
     goto error_alloc_item_field1;
-#else
-  if (!(i_field1 = new Item_field((Field *) field1)))
-    goto error_alloc_item_field1;
-#endif
 
   if (i_list.push_back(i_field1))
     goto error_push_item1;
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(field2 = new (thd->mem_root) Field_blob(
     4294967295U, FALSE, field_name2, cs, TRUE)))
     goto error_alloc_field2;
-#else
-  if (!(field2 = new Field_blob(
-    4294967295U, FALSE, field_name2, cs, TRUE)))
-    goto error_alloc_field2;
-#endif
   field2->init(table);
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field2 = new (thd->mem_root) Item_field(thd, (Field *) field2)))
     goto error_alloc_item_field2;
-#else
-  if (!(i_field2 = new Item_field((Field *) field2)))
-    goto error_alloc_item_field2;
-#endif
 
   if (i_list.push_back(i_field2))
     goto error_push_item2;
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(field3 = new (thd->mem_root) Field_blob(
     4294967295U, FALSE, field_name3, cs, TRUE)))
     goto error_alloc_field3;
-#else
-  if (!(field3 = new Field_blob(
-    4294967295U, FALSE, field_name3, cs, TRUE)))
-    goto error_alloc_field3;
-#endif
   field3->init(table);
 
-#ifdef SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
   if (!(i_field3 = new (thd->mem_root) Item_field(thd, (Field *) field3)))
     goto error_alloc_item_field3;
-#else
-  if (!(i_field3 = new Item_field((Field *) field3)))
-    goto error_alloc_item_field3;
-#endif
 
   if (i_list.push_back(i_field3))
     goto error_push_item3;
