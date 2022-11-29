@@ -4213,6 +4213,7 @@ JOIN::destroy()
       if (tab->aggr)
       {
         free_tmp_table(thd, tab->table);
+        tab->table= NULL;
         delete tab->tmp_table_param;
         tab->tmp_table_param= NULL;
         tab->aggr= NULL;
@@ -19224,6 +19225,7 @@ free_tmp_table(THD *thd, TABLE *entry)
     else
       entry->file->ha_delete_table(entry->s->path.str);
     delete entry->file;
+    entry->file= NULL;
   }
 
   /* free blobs */
