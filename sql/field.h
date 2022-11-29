@@ -1196,7 +1196,7 @@ public:
   {
     bitmap_set_bit(&table->has_value_set, field_index);
   }
-  bool has_explicit_value()
+  bool has_explicit_value() const
   {
     return bitmap_is_set(&table->has_value_set, field_index);
   }

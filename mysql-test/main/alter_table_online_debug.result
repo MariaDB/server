@@ -1101,6 +1101,48 @@ connection default;
 Warnings:
 Note	1105	Key chosen: 0
 Note	1105	Key chosen: 0
+#
+# Useful UNIQUE, though a virtual column on another extra field
+#
+create or replace table t (a int primary key, b int default (a+1));
+insert into t values (10, 10),(20, 20),(30, 30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t drop primary key, add c int default(a),
+add d int as (c) stored unique, algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 2 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: 0
+Note	1105	Key chosen: 0
+select * from t;
+a	b	c	d
+12	10	12	12
+30	30	30	30
+#
+# Now this index is not usable (missing DEFAULT on field c)
+#
+create or replace table t (a int primary key, b int);
+insert into t values (10, 10),(20, 20),(30, 30);
+set debug_sync= 'alter_table_online_downgraded signal downgraded wait_for goforit';
+alter table t drop primary key, add c real default(rand(a)),
+add d real as (c) stored unique, algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for downgraded';
+delete from t where a = 20;
+update t set a = a + 2 where a = 10;
+set debug_sync= 'now signal goforit';
+connection default;
+Warnings:
+Note	1105	Key chosen: -1
+Note	1105	Key chosen: -1
+select a, b from t;
+a	b
+12	10
+30	30
 drop table t;
 set debug_sync= reset;
 set debug_dbug= @old_debug;
