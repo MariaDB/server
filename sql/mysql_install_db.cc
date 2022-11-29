@@ -62,6 +62,7 @@ static my_bool opt_skip_networking;
 static my_bool opt_verbose_bootstrap;
 static my_bool verbose_errors;
 static my_bool opt_large_pages;
+static my_bool opt_allow_credential_manager;
 static char *opt_config;
 
 #define DEFAULT_INNODB_PAGE_SIZE 16*1024
@@ -100,6 +101,9 @@ static struct my_option my_long_options[]=
    &opt_large_pages, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"config",'c', "my.ini config template file", &opt_config,
    &opt_config,  0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"allow-credential-manager", 'C', "Allows storing passwords in the credential manager (for client programs)",
+   &opt_allow_credential_manager, &opt_allow_credential_manager, 0, GET_BOOL,
+   OPT_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -427,6 +431,8 @@ static int create_myini()
   else if (opt_port)
     write_myini_int("port",opt_port,"client");
 
+  if(opt_allow_credential_manager)
+    write_myini_str("credential-manager", "1", "client");
   char *plugin_dir = get_plugindir();
   if (plugin_dir)
     write_myini_str("plugin-dir", plugin_dir, "client");

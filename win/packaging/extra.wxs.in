@@ -39,6 +39,8 @@
     <Property Id="PORT" Value="3306" Secure="yes"/>
     <!-- Whether to allow remote access for root user -->
     <Property Id="ALLOWREMOTEROOTACCESS" Secure="yes" />
+    <!-- Whether to allow remote access for root user -->
+    <Property Id="CREDENTIALMANAGER" Secure="yes" Value="1"/>
     <!-- Skip networking. This will switch configuration to use named pipe-->
     <Property Id="SKIPNETWORKING" Secure="yes"/>
     <!-- Whether to keep default (unauthenticated) user. Default is no-->
@@ -230,10 +232,15 @@
         <Control Id="CheckBoxUTF8" Type="CheckBox" X="8" Y="154" Width="250" Height="18" Property="UTF8" CheckBoxValue="1" TabSkip="no">
           <Text>{\Font1}Use UTF8 as default server's character set</Text>
         </Control>
-        <Control Type="Text" Id="Text11" Width="67" Height="17" X="8" Y="190" Text="{\Font1}Data directory" />
-        <Control Type="PathEdit" Id="TxtDir" Width="175" Height="18" X="80" Y="190" Property="DATADIR">
+         <Control Id="CheckBoxCREDENTIALMANAGER" Type="CheckBox" X="8" Y="180" Width="300" Height="18"
+                  Property="CREDENTIALMANAGER"
+                  CheckBoxValue="1" TabSkip="no">
+          <Text>{\Font1}Command line clients : allow storing passwords with credential manager</Text>
         </Control>
-        <Control Id="btnDirBrowse" Type="PushButton" Width="56" Height="17" X="278" Y="190" Text="Browse...">
+        <Control Type="Text" Id="Text11" Width="67" Height="17" X="8" Y="205" Text="{\Font1}Data directory" />
+        <Control Type="PathEdit" Id="TxtDir" Width="175" Height="18" X="80" Y="205" Property="DATADIR">
+        </Control>
+        <Control Id="btnDirBrowse" Type="PushButton" Width="56" Height="17" X="278" Y="205" Text="Browse...">
          <Publish Property="_BrowseProperty" Value="DATADIR" Order="1">1</Publish>
          <Publish Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
         </Control>
@@ -617,12 +624,13 @@
     <!-- Custom action, call mysql_install_db -->
     <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="SKIPNETWORKING" Value="--skip-networking" >SKIPNETWORKING</SetProperty>
     <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="CREDENTIALMANAGER" Value="--allow-credential-manager">CREDENTIALMANAGER</SetProperty>
     <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="DEFAULTUSER" Value="--default-user">DEFAULTUSER</SetProperty>
     <CustomAction Id='CheckDatabaseProperties' BinaryKey='wixca.dll' DllEntry='CheckDatabaseProperties' />
     <CustomAction Id='PresetDatabaseProperties' BinaryKey='wixca.dll' DllEntry='PresetDatabaseProperties' />
     <CustomAction Id="CreateDatabaseCommand" Property="CreateDatabase"
     Value=
-    "&quot;[#F.bin.mysql_install_db.exe]&quot;  &quot;--service=[SERVICENAME]&quot; --port=[PORT] --innodb-page-size=[PAGESIZE] &quot;--password=[ESCAPEDPASSWORD]&quot; &quot;--datadir=[DATADIR]\&quot; [SKIPNETWORKING] [ALLOWREMOTEROOTACCESS] [DEFAULTUSER] --verbose-bootstrap"
+    "&quot;[#F.bin.mysql_install_db.exe]&quot; &quot;--service=[SERVICENAME]&quot; --port=[PORT] --innodb-page-size=[PAGESIZE] &quot;--password=[ESCAPEDPASSWORD]&quot; &quot;--datadir=[DATADIR]\&quot; [SKIPNETWORKING] [ALLOWREMOTEROOTACCESS] [DEFAULTUSER] [CREDENTIALMANAGER] --verbose-bootstrap"
      Execute="immediate"
      HideTarget="yes"
      />
