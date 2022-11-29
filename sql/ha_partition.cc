@@ -396,7 +396,6 @@ void ha_partition::init_handler_variables()
   m_index_scan_type= partition_no_index_scan;
   m_start_key.key= NULL;
   m_start_key.length= 0;
-  m_myisam= FALSE;
   m_innodb= FALSE;
   m_extra_cache= FALSE;
   m_extra_cache_size= 0;
@@ -3028,13 +3027,8 @@ bool ha_partition::create_handlers(MEM_ROOT *mem_root)
   }
   /* For the moment we only support partition over the same table engine */
   hton0= plugin_data(m_engine_array[0], handlerton*);
-  if (hton0 == myisam_hton)
-  {
-    DBUG_PRINT("info", ("MyISAM"));
-    m_myisam= TRUE;
-  }
   /* INNODB may not be compiled in... */
-  else if (ha_legacy_type(hton0) == DB_TYPE_INNODB)
+  if (ha_legacy_type(hton0) == DB_TYPE_INNODB)
   {
     DBUG_PRINT("info", ("InnoDB"));
     m_innodb= TRUE;
@@ -3099,11 +3093,6 @@ bool ha_partition::new_handlers_from_part_info(MEM_ROOT *mem_root)
                  (uint) ha_legacy_type(part_elem->engine_type)));
     }
   } while (++i < m_part_info->num_parts);
-  if (part_elem->engine_type == myisam_hton)
-  {
-    DBUG_PRINT("info", ("MyISAM"));
-    m_myisam= TRUE;
-  }
   DBUG_RETURN(FALSE);
 error:
   DBUG_RETURN(TRUE);
@@ -9250,8 +9239,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_NO_IGNORE_DUP_KEY:
   case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
   {
-    if (!m_myisam)
-      DBUG_RETURN(loop_partitions(extra_cb, &operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   break;
 

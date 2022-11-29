@@ -388,12 +388,6 @@ private:
   MEM_ROOT *m_clone_mem_root;
 
   /*
-    We keep track if all underlying handlers are MyISAM since MyISAM has a
-    great number of extra flags not needed by other handlers.
-  */
-  bool m_myisam;                         // Are all underlying handlers
-                                         // MyISAM
-  /*
     We keep track of InnoDB handlers below since it requires proper setting
     of query_id in fields at index_init and index_read calls.
   */
