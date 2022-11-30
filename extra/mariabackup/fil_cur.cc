@@ -420,7 +420,7 @@ read_retry:
 		goto func_exit;
 	}
 
-	defer = space->is_deferred();
+	defer = UT_LIST_GET_FIRST(space->chain)->deferred;
 	/* check pages for corruption and re-read if necessary. i.e. in case of
 	partially written pages */
 	for (page = cursor->buf, i = 0; i < npages;
