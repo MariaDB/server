@@ -188,18 +188,15 @@ log_online_read_bitmap_page(
 {
 	ulint	checksum;
 	ulint	actual_checksum;
-	ibool	success;
 
 	ut_a(bitmap_file->size >= MODIFIED_PAGE_BLOCK_SIZE);
 	ut_a(bitmap_file->offset
 	     <= bitmap_file->size - MODIFIED_PAGE_BLOCK_SIZE);
 	ut_a(bitmap_file->offset % MODIFIED_PAGE_BLOCK_SIZE == 0);
-	success = os_file_read(IORequestRead,
-			       bitmap_file->file, page, bitmap_file->offset,
-			       MODIFIED_PAGE_BLOCK_SIZE) == DB_SUCCESS;
-
-	if (UNIV_UNLIKELY(!success)) {
-
+	if (DB_SUCCESS !=
+	    os_file_read(IORequestRead, bitmap_file->file, page,
+			 bitmap_file->offset, MODIFIED_PAGE_BLOCK_SIZE,
+			 nullptr)) {
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
 		msg("InnoDB: Warning: failed reading changed page bitmap "

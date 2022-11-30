@@ -508,10 +508,6 @@ public:
   /** @return whether the storage device is rotational (HDD, not SSD) */
   inline bool is_rotational() const;
 
-  /** whether the tablespace discovery is being deferred during crash
-  recovery due to incompletely written page 0 */
-  inline bool is_deferred() const;
-
   /** Open each file. Never invoked on .ibd files.
   @param create_new_db    whether to skip the call to fil_node_t::read_page0()
   @return whether all files were opened */
@@ -1128,11 +1124,6 @@ inline bool fil_space_t::is_rotational() const
     if (!node->on_ssd)
       return true;
   return false;
-}
-
-inline bool fil_space_t::is_deferred() const
-{
-  return UT_LIST_GET_FIRST(chain)->deferred;
 }
 
 /** Common InnoDB file extensions */

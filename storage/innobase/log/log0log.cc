@@ -152,7 +152,8 @@ dberr_t log_file_t::close() noexcept
 dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
 {
   ut_ad(is_opened());
-  return os_file_read(IORequestRead, m_file, buf.data(), offset, buf.size());
+  return os_file_read(IORequestRead, m_file, buf.data(), offset, buf.size(),
+                      nullptr);
 }
 
 void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
