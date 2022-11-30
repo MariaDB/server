@@ -518,7 +518,8 @@ static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
   {
     page_t *page= static_cast<byte*>(aligned_malloc(srv_page_size,
                                                     srv_page_size));
-    dberr_t err= os_file_read(IORequestRead, fh, page, 0, srv_page_size);
+    dberr_t err= os_file_read(IORequestRead, fh, page, 0, srv_page_size,
+                              nullptr);
     if (err != DB_SUCCESS)
     {
 err_exit:

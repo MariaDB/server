@@ -223,7 +223,7 @@ xb_fil_cur_open(
 	if (!node->space->crypt_data
 	    && os_file_read(IORequestRead,
 			    node->handle, cursor->buf, 0,
-			    cursor->page_size) == DB_SUCCESS) {
+			    cursor->page_size, nullptr) == DB_SUCCESS) {
 		mysql_mutex_lock(&fil_system.mutex);
 		if (!node->space->crypt_data) {
 			node->space->crypt_data = fil_space_read_crypt_data(
@@ -415,7 +415,7 @@ read_retry:
 	cursor->buf_page_no = static_cast<unsigned>(offset / page_size);
 
 	if (os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
-			  (ulint) to_read) != DB_SUCCESS) {
+			 (ulint) to_read, nullptr) != DB_SUCCESS) {
 		ret = XB_FIL_CUR_ERROR;
 		goto func_exit;
 	}

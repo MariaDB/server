@@ -2750,10 +2750,6 @@ io_error:
 			     buf, offset, len);
 	}
 
-	/* We an try to recover the page from the double write buffer if
-	the decompression fails or the page is corrupt. */
-
-	ut_a(type.type == IORequest::DBLWR_RECOVER || err == DB_SUCCESS);
 	if (!type.is_async()) {
 		if (type.is_write()) {
 release_sync_write:
