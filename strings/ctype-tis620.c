@@ -587,6 +587,18 @@ ret:
 }
 
 
+static int
+my_strnncollsp_nchars_tis620(CHARSET_INFO * cs,
+                             const uchar *a, size_t a_length,
+                             const uchar *b, size_t b_length,
+                             size_t nchars)
+{
+  set_if_smaller(a_length, nchars);
+  set_if_smaller(b_length, nchars);
+  return my_strnncollsp_tis620(cs, a, a_length, b, b_length);
+}
+
+
 static
 int my_strnncollsp_tis620_nopad(CHARSET_INFO * cs __attribute__((unused)),
 			        const uchar *a0, size_t a_length,
@@ -854,7 +866,7 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     NULL,		/* init */
     my_strnncoll_tis620,
     my_strnncollsp_tis620,
-    my_strnncollsp_nchars_generic_8bit,
+    my_strnncollsp_nchars_tis620,
     my_strnxfrm_tis620,
     my_strnxfrmlen_simple,
     my_like_range_simple,
@@ -870,7 +882,7 @@ static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
     NULL,		/* init */
     my_strnncoll_tis620,
     my_strnncollsp_tis620_nopad,
-    my_strnncollsp_nchars_generic_8bit,
+    my_strnncollsp_nchars_tis620,
     my_strnxfrm_tis620_nopad,
     my_strnxfrmlen_simple,
     my_like_range_simple,

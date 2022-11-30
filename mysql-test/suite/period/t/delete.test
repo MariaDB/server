@@ -1,5 +1,6 @@
 source suite/period/engines.inc;
 source include/have_log_bin.inc;
+source include/have_partition.inc;
 
 create table t (id int, s date, e date, period for apptime(s,e));
 
@@ -235,3 +236,30 @@ delete from t1 for portion of se from '2020-01-30' to '2020-01-31';
 drop table t1;
 
 --echo # End of 10.5 tests
+--echo #
+--echo # MDEV-19190 Assertion `part_share->auto_inc_initialized` failed in
+--echo # ha_partition::get_auto_increment
+--echo #
+create table t1 (id int, s date, e date, period for app(s,e))
+                partition by key(id);
+insert into t1 (s,e) values ('2023-07-21','2024-06-07');
+alter table t1 modify id int auto_increment key;
+delete from t1 for portion of app from '2023-07-20' to '2024-05-23';
+select * from t1;
+drop table t1;
+
+create table t1 (id int, s date, e date, period for app(s,e))
+                partition by key(id);
+insert into t1 (s,e) values ('2023-07-21','2024-06-07');
+alter table t1 modify id int auto_increment key;
+--let $trig_table=t1
+--let $trig_cols=id, s, e
+--disable_query_log
+--source suite/period/create_triggers.inc
+--enable_query_log
+
+delete from t1 for portion of app from '2023-07-20' to '2024-05-23';
+select * from t1;
+drop table t1;
+drop table log_tbl;
+drop procedure log;
