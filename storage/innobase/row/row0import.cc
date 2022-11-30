@@ -3087,9 +3087,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       static_cast<byte *>(aligned_malloc(srv_page_size, srv_page_size)),
       &aligned_free);
 
-  if (dberr_t err= os_file_read_no_error_handling(IORequestReadPartial,
-                                                  file, first_page.get(), 0,
-                                                  srv_page_size, nullptr))
+  if (dberr_t err= os_file_read(IORequestReadPartial, file, first_page.get(),
+                                0, srv_page_size, nullptr))
     return err;
 
   auto space_flags= fsp_header_get_flags(first_page.get());
@@ -3127,7 +3126,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
           aligned_malloc(UNIV_PAGE_SIZE_MAX, UNIV_PAGE_SIZE_MAX)),
       &aligned_free);
 
-  if (dberr_t err= os_file_read_no_error_handling(
+  if (dberr_t err= os_file_read(
           IORequestReadPartial, file, page.get(), 3 * physical_size,
           physical_size, nullptr))
     return err;
@@ -3184,10 +3183,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       uint64_t child_page_no= btr_node_ptr_get_child_page_no(rec, offsets);
 
       if (dberr_t err=
-          os_file_read_no_error_handling(IORequestReadPartial, file,
-                                         page.get(),
-                                         child_page_no * physical_size,
-                                         physical_size, nullptr))
+          os_file_read(IORequestReadPartial, file, page.get(),
+                       child_page_no * physical_size, physical_size, nullptr))
         return err;
 
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
@@ -3266,11 +3263,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
                     &aligned_free);
 
       if (dberr_t err=
-          os_file_read_no_error_handling(IORequestReadPartial, file,
-                                         second_page.get(), physical_size *
-                                         mach_read_from_4(ptr +
-                                                          BTR_EXTERN_PAGE_NO),
-                                         srv_page_size, nullptr))
+          os_file_read(IORequestReadPartial, file, second_page.get(),
+                       physical_size *
+                       mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO),
+                       physical_size, nullptr))
         return err;
 
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
@@ -3682,8 +3678,8 @@ dberr_t FetchIndexRootPages::run(const fil_iterator_t& iter,
 
   bool page_compressed= false;
 
-  dberr_t err= os_file_read_no_error_handling(
-    IORequestReadPartial, iter.file, readptr, 3 * size, size, 0);
+  dberr_t err= os_file_read(IORequestReadPartial, iter.file, readptr,
+                            3 * size, size, nullptr);
   if (err != DB_SUCCESS)
   {
     ib::error() << iter.filepath << ": os_file_read() failed";
@@ -3803,9 +3799,8 @@ static dberr_t fil_iterate(
 			? iter.crypt_io_buffer : io_buffer;
 		byte* const writeptr = readptr;
 
-		err = os_file_read_no_error_handling(
-			IORequestReadPartial,
-			iter.file, readptr, offset, n_bytes, 0);
+		err = os_file_read(IORequestReadPartial, iter.file, readptr,
+				   offset, n_bytes, nullptr);
 		if (err != DB_SUCCESS) {
 			ib::error() << iter.filepath
 				    << ": os_file_read() failed";
@@ -4138,10 +4133,10 @@ fil_tablespace_iterate(
 	block->page.frame = page;
 	block->page.init(buf_page_t::UNFIXED + 1, page_id_t{~0ULL});
 
-	/* Read the first page and determine the page and zip size. */
+	/* Read the first page and determine the page size. */
 
-	err = os_file_read_no_error_handling(IORequestReadPartial,
-					     file, page, 0, srv_page_size, 0);
+	err = os_file_read(IORequestReadPartial, file, page, 0, srv_page_size,
+			   nullptr);
 
 	if (err == DB_SUCCESS) {
 		err = callback.init(file_size, block);

@@ -5229,7 +5229,8 @@ xtrabackup_apply_delta(
 		offset = ((incremental_buffers * (page_size / 4))
 			 << page_size_shift);
 		if (os_file_read(IORequestRead, src_file,
-				 incremental_buffer, offset, page_size)
+				 incremental_buffer, offset, page_size,
+				 nullptr)
 		    != DB_SUCCESS) {
 			goto error;
 		}
@@ -5262,7 +5263,7 @@ xtrabackup_apply_delta(
 		/* read whole of the cluster */
 		if (os_file_read(IORequestRead, src_file,
 				 incremental_buffer,
-				 offset, page_in_buffer * page_size)
+				 offset, page_in_buffer * page_size, nullptr)
 		    != DB_SUCCESS) {
 			goto error;
 		}

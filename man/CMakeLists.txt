@@ -12,8 +12,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
+
 SET(MAN1_WSREP wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1
-    wsrep_sst_rsync_wan.1)
+    wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1 galera_new_cluster.1)
 SET(MAN1_SERVER innochecksum.1 myisam_ftdump.1 myisamchk.1
                 aria_chk.1 aria_dump_log.1 aria_ftdump.1 aria_pack.1 aria_read_log.1
                 aria_s3_copy.1
@@ -24,10 +25,11 @@ SET(MAN1_SERVER innochecksum.1 myisam_ftdump.1 myisamchk.1
 		mysqld_multi.1 mysqld_safe.1
 		resolveip.1 mariadb-service-convert.1
 		mysqld_safe_helper.1
-		wsrep_sst_mysqldump.1
-		galera_recovery.1 galera_new_cluster.1
 		mysql_ldb.1 myrocks_hotbackup.1
-		mbstream.1 mariabackup.1 ${MAN1_WSREP})
+		mbstream.1 mariabackup.1)
+IF(WITH_WSREP)
+  SET(MAN1_SERVER ${MAN1_SERVER} ${MAN1_WSREP})
+ENDIF()
 SET(MAN8_SERVER mysqld.8)
 SET(MAN1_CLIENT msql2mysql.1 mysql.1 mysql_find_rows.1 mysql_waitpid.1
 		mysqldumpslow.1
