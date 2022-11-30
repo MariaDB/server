@@ -2600,9 +2600,9 @@ all_done:
 
 		byte*			buf = index->online_log->head.block;
 
-		if (os_file_read_no_error_handling(
-			    IORequestRead, index->online_log->fd,
-			    buf, ofs, srv_sort_buf_size, 0) != DB_SUCCESS) {
+		if (DB_SUCCESS
+		    != os_file_read(IORequestRead, index->online_log->fd,
+				    buf, ofs, srv_sort_buf_size, nullptr)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for table " << index->table->name;
@@ -3520,9 +3520,9 @@ all_done:
 
 		byte*	buf = index->online_log->head.block;
 
-		if (os_file_read_no_error_handling(
-			    IORequestRead, index->online_log->fd,
-			    buf, ofs, srv_sort_buf_size, 0) != DB_SUCCESS) {
+		if (DB_SUCCESS
+		    != os_file_read(IORequestRead, index->online_log->fd,
+				    buf, ofs, srv_sort_buf_size, nullptr)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for index " << index->name;

@@ -976,6 +976,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
         {
           space->size= node->size= n_pages;
           space->set_committed_size();
+          goto size_set;
         }
       }
       if (!os_file_set_size(node->name, node->handle,
@@ -985,6 +986,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
         space->release();
         goto release_and_fail;
       }
+    size_set:
       node->deferred= false;
       space->release();
       it->second.space= space;

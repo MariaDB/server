@@ -1,6 +1,7 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
 -- source include/have_example_key_management_plugin.inc
+-- source include/innodb_undo_tablespaces.inc
 
 CREATE TABLE t1 (f1 INT, f2 VARCHAR(256))engine=innodb;
 INSERT INTO t1 VALUES(1, 'MariaDB'), (2, 'Robot'), (3, 'Science');
@@ -20,7 +21,7 @@ let $restart_parameters= --innodb_encryption_threads=5 --innodb_encryption_rotat
 
 --echo # Wait until encryption threads have encrypted all tablespaces
 
---let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + 1 + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 --source include/wait_condition.inc
@@ -39,7 +40,7 @@ create table t4 (f1 int not null)engine=innodb encrypted=NO;
 
 --echo # Wait until encryption threads have encrypted all tablespaces
 
---let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 --source include/wait_condition.inc
@@ -54,7 +55,7 @@ set global innodb_encrypt_tables = OFF;
 
 --echo # Wait until encryption threads to decrypt all unencrypted tablespaces
 
---let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING = 0;
 --source include/wait_condition.inc
@@ -69,7 +70,7 @@ set global innodb_encrypt_tables = ON;
 
 --echo # Wait until encryption threads to encrypt all unencrypted tablespaces
 
---let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 --source include/wait_condition.inc

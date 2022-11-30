@@ -170,7 +170,7 @@ mysql_pfs_key_t  innodb_temp_file_key;
 @param[in]	should_abort	whether to abort on an unknown error
 @param[in]	on_error_silent	whether to suppress reports of non-fatal errors
 @return true if we should retry the operation */
-static MY_ATTRIBUTE((warn_unused_result))
+static
 bool
 os_file_handle_error_cond_exit(
 	const char*	name,
@@ -2753,15 +2753,15 @@ os_file_io(
 		bytes_returned += n_bytes;
 
 		if (type.type != IORequest::READ_MAYBE_PARTIAL) {
-			const char*	op = type.is_read()
-				? "read" : "written";
-
-			ib::warn()
-				<< n
-				<< " bytes should have been " << op << ". Only "
-				<< bytes_returned
-				<< " bytes " << op << ". Retrying"
-				<< " for the remaining bytes.";
+			sql_print_warning("InnoDB: %zu bytes should have been"
+					  " %s at %llu from %s,"
+					  " but got only %zd."
+					  " Retrying.",
+					  n, type.is_read()
+					  ? "read" : "written", offset,
+					  type.node
+					  ? type.node->name
+					  : "(unknown file)", bytes_returned);
 		}
 
 		/* Advance the offset and buffer by n_bytes */
@@ -2902,52 +2902,38 @@ os_file_pread(
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
 @param[out]	o		number of bytes actually read
-@param[in]	exit_on_err	if true then exit on error
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-os_file_read_page(
+os_file_read_func(
 	const IORequest&	type,
 	os_file_t	file,
 	void*			buf,
 	os_offset_t		offset,
 	ulint			n,
-	ulint*			o,
-	bool			exit_on_err)
+	ulint*			o)
 {
-	dberr_t		err;
+  ut_ad(!type.node || type.node->handle == file);
+  ut_ad(n);
 
-	os_bytes_read_since_printout += n;
+  os_bytes_read_since_printout+= n;
 
-	ut_ad(n > 0);
+  dberr_t err;
+  ssize_t n_bytes= os_file_pread(type, file, buf, n, offset, &err);
 
-	ssize_t	n_bytes = os_file_pread(type, file, buf, n, offset, &err);
+  if (o)
+    *o= ulint(n_bytes);
 
-	if (o) {
-		*o = n_bytes;
-	}
+  if (ulint(n_bytes) == n || err != DB_SUCCESS)
+    return err;
 
-	if (ulint(n_bytes) == n || (err != DB_SUCCESS && !exit_on_err)) {
-		return err;
-	}
-	int os_err = IF_WIN((int)GetLastError(), errno);
+  os_file_handle_error_cond_exit(type.node ? type.node->name : nullptr, "read",
+                                 false, false);
+  sql_print_error("InnoDB: Tried to read %zu bytes at offset %llu"
+                  " of file %s, but was only able to read %zd",
+                  n, offset, type.node ? type.node->name : "(unknown)",
+                  n_bytes);
 
-	if (!os_file_handle_error_cond_exit(
-		    NULL, "read", exit_on_err, false)) {
-		ib::fatal()
-			<< "Tried to read " << n << " bytes at offset "
-			<< offset << ", but was only able to read " << n_bytes
-			<< ".Cannot read from file. OS error number "
-			<< os_err << ".";
-	} else {
-		ib::error() << "Tried to read " << n << " bytes at offset "
-		<< offset << ", but was only able to read " << n_bytes;
-	}
-	if (err == DB_SUCCESS) {
-		err = DB_IO_ERROR;
-	}
-
-	return err;
+  return err ? err : DB_IO_ERROR;
 }
 
 /** Retrieves the last error number if an error occurs in a file io function.
@@ -3301,51 +3287,6 @@ os_file_truncate(
 #else /* _WIN32 */
 	return(os_file_truncate_posix(pathname, file, size));
 #endif /* _WIN32 */
-}
-
-/** NOTE! Use the corresponding macro os_file_read(), not directly this
-function!
-Requests a synchronous positioned read operation.
-@return DB_SUCCESS if request was successful, DB_IO_ERROR on failure
-@param[in]	type		IO flags
-@param[in]	file		handle to an open file
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset from the start where to read
-@param[in]	n		number of bytes to read, starting from offset
-@return error code
-@retval	DB_SUCCESS	if the operation succeeded */
-dberr_t
-os_file_read_func(
-	const IORequest&	type,
-	os_file_t		file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n)
-{
-	return(os_file_read_page(type, file, buf, offset, n, NULL, true));
-}
-
-/** NOTE! Use the corresponding macro os_file_read_no_error_handling(),
-not directly this function!
-Requests a synchronous positioned read operation.
-@return DB_SUCCESS if request was successful, DB_IO_ERROR on failure
-@param[in]	type		IO flags
-@param[in]	file		handle to an open file
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset from the start where to read
-@param[in]	n		number of bytes to read, starting from offset
-@param[out]	o		number of bytes actually read
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_read_no_error_handling_func(
-	const IORequest&	type,
-	os_file_t	file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n,
-	ulint*			o)
-{
-	return(os_file_read_page(type, file, buf, offset, n, o, false));
 }
 
 /** Check the existence and type of the given file.
@@ -3770,7 +3711,7 @@ dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
 	if (!type.is_async()) {
 		err = type.is_read()
 			? os_file_read_func(type, type.node->handle,
-					    buf, offset, n)
+					    buf, offset, n, nullptr)
 			: os_file_write_func(type, type.node->name,
 					     type.node->handle,
 					     buf, offset, n);
@@ -4124,10 +4065,10 @@ bool fil_node_t::read_page0()
   if (!deferred)
   {
     page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
-    if (os_file_read(IORequestRead, handle, page, 0, psize)
+    if (os_file_read(IORequestRead, handle, page, 0, psize, nullptr)
         != DB_SUCCESS)
     {
-      ib::error() << "Unable to read first page of file " << name;
+      sql_print_error("InnoDB: Unable to read first page of file %s", name);
 corrupted:
       aligned_free(page);
       return false;
