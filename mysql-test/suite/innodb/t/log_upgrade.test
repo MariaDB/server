@@ -4,6 +4,8 @@
 # For example, tmpfs on FreeBSD does not support them.
 # On Microsoft Windows, sparse files have to be created in a special way.
 --source include/big_test.inc
+# include/shutdown_mysqld.inc does not work in ./mtr --embedded
+--source include/not_embedded.inc
 
 call mtr.add_suppression("InnoDB: The change buffer is corrupted");
 
