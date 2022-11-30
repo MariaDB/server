@@ -572,12 +572,8 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_file_close(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
 
-# define os_file_read(type, file, buf, offset, n)			\
-	pfs_os_file_read_func(type, file, buf, offset, n, __FILE__, __LINE__)
-
-# define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
-	pfs_os_file_read_no_error_handling_func(			\
-		type, file, buf, offset, n, o, __FILE__, __LINE__)
+# define os_file_read(type, file, buf, offset, n, o)			\
+	pfs_os_file_read_func(type, file, buf, offset, n,o, __FILE__, __LINE__)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	pfs_os_file_write_func(type, name, file, buf, offset,	\
@@ -722,31 +718,6 @@ pfs_os_file_read_func(
 	void*			buf,
 	os_offset_t		offset,
 	ulint			n,
-	const char*		src_file,
-	uint			src_line);
-
-/** NOTE! Please use the corresponding macro os_file_read_no_error_handling(),
-not directly this function!
-This is the performance schema instrumented wrapper function for
-os_file_read_no_error_handling_func() which requests a synchronous
-read operation.
-@param[in]	type		IO request context
-@param[in]	file		Open file handle
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset where to read
-@param[in]	n		number of bytes to read
-@param[out]	o		number of bytes actually read
-@param[in]	src_file	file name where func invoked
-@param[in]	src_line	line where the func invoked
-@return DB_SUCCESS if request was successful */
-UNIV_INLINE
-dberr_t
-pfs_os_file_read_no_error_handling_func(
-	const IORequest&	type,
-	pfs_os_file_t		file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n,
 	ulint*			o,
 	const char*		src_file,
 	uint			src_line);
@@ -872,11 +843,8 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_close(file)	os_file_close_func(file)
 
-# define os_file_read(type, file, buf, offset, n)			\
-	os_file_read_func(type, file, buf, offset, n)
-
-# define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
-	os_file_read_no_error_handling_func(type, file, buf, offset, n, o)
+# define os_file_read(type, file, buf, offset, n, o)		\
+	os_file_read_func(type, file, buf, offset, n, o)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	os_file_write_func(type, name, file, buf, offset, n)
@@ -981,6 +949,7 @@ Requests a synchronous read operation.
 @param[out]	buf		buffer where to read
 @param[in]	offset		file offset where to read
 @param[in]	n		number of bytes to read
+@param[out]	o		number of bytes actually read
 @return DB_SUCCESS if request was successful */
 dberr_t
 os_file_read_func(
@@ -988,7 +957,8 @@ os_file_read_func(
 	os_file_t		file,
 	void*			buf,
 	os_offset_t		offset,
-	ulint			n)
+	ulint			n,
+	ulint*			o)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Rewind file to its start, read at most size - 1 bytes from it to str, and
@@ -1002,27 +972,6 @@ os_file_read_string(
 	FILE*		file,
 	char*		str,
 	ulint		size);
-
-/** NOTE! Use the corresponding macro os_file_read_no_error_handling(),
-not directly this function!
-Requests a synchronous positioned read operation. This function does not do
-any error handling. In case of error it returns FALSE.
-@param[in]	type		IO request context
-@param[in]	file		Open file handle
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset where to read
-@param[in]	n		number of bytes to read
-@param[out]	o		number of bytes actually read
-@return DB_SUCCESS or error code */
-dberr_t
-os_file_read_no_error_handling_func(
-	const IORequest&	type,
-	os_file_t		file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n,
-	ulint*			o)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** NOTE! Use the corresponding macro os_file_write(), not directly this
 function!

@@ -3857,7 +3857,7 @@ static dberr_t xb_assign_undo_space_start()
 	byte* page = static_cast<byte*>
 		(aligned_malloc(srv_page_size, srv_page_size));
 
-	if (os_file_read(IORequestRead, file, page, 0, srv_page_size)
+	if (os_file_read(IORequestRead, file, page, 0, srv_page_size, nullptr)
 	    != DB_SUCCESS) {
 		msg("Reading first page failed.\n");
 		error = DB_ERROR;
@@ -3869,7 +3869,7 @@ static dberr_t xb_assign_undo_space_start()
 retry:
 	if (os_file_read(IORequestRead, file, page,
 			 TRX_SYS_PAGE_NO << srv_page_size_shift,
-			 srv_page_size) != DB_SUCCESS) {
+			 srv_page_size, nullptr) != DB_SUCCESS) {
 		msg("Reading TRX_SYS page failed.");
 		error = DB_ERROR;
 		goto func_exit;
@@ -5315,7 +5315,8 @@ xtrabackup_apply_delta(
 		offset = ((incremental_buffers * (page_size / 4))
 			 << page_size_shift);
 		if (os_file_read(IORequestRead, src_file,
-				 incremental_buffer, offset, page_size)
+				 incremental_buffer, offset, page_size,
+				 nullptr)
 		    != DB_SUCCESS) {
 			goto error;
 		}
@@ -5348,7 +5349,7 @@ xtrabackup_apply_delta(
 		/* read whole of the cluster */
 		if (os_file_read(IORequestRead, src_file,
 				 incremental_buffer,
-				 offset, page_in_buffer * page_size)
+				 offset, page_in_buffer * page_size, nullptr)
 		    != DB_SUCCESS) {
 			goto error;
 		}

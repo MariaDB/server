@@ -4,12 +4,14 @@
 
 --source include/have_innodb.inc
 --source include/have_file_key_management_plugin.inc
+--source include/innodb_undo_tablespaces.inc
 
 let $datadir=`select @@datadir`;
 --source include/shutdown_mysqld.inc
 
 --remove_file $datadir/ib_logfile0
 --remove_file $datadir/ibdata1
+--remove_files_wildcard $datadir undo*
 
 --source include/start_mysqld.inc
 

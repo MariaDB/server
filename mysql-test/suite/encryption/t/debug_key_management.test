@@ -1,5 +1,6 @@
 -- source include/have_innodb.inc
 -- source include/have_debug.inc
+-- source include/innodb_undo_tablespaces.inc
 -- source include/not_embedded.inc
 
 if (`select count(*) = 0 from information_schema.plugins
@@ -13,7 +14,7 @@ create table t1(a serial) engine=innoDB;
 set global innodb_encrypt_tables=ON;
 show variables like 'innodb_encrypt%';
 
---let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + 1 + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 let $wait_condition= select count(*) = $tables_count from information_schema.innodb_tablespaces_encryption where current_key_version=1;
 --source include/wait_condition.inc
 

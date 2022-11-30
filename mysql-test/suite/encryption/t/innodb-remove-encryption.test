@@ -2,6 +2,7 @@
 # Test uses restart
 --source include/not_embedded.inc
 --source filekeys_plugin.inc
+--source include/innodb_undo_tablespaces.inc
 
 #
 # MDEV-15566: System tablespace does not easily key rotate to unencrypted
@@ -23,7 +24,7 @@ create table t1(a int not null primary key, b char(200)) engine=innodb;
 
 --echo # Wait until encryption threads have encrypted all tablespaces
 
---let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) = $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND ROTATING_OR_FLUSHING = 0;
 --source include/wait_condition.inc

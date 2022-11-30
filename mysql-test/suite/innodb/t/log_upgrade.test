@@ -1,0 +1,120 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+# Some operating systems or file systems do not support sparse files.
+# For example, tmpfs on FreeBSD does not support them.
+# On Microsoft Windows, sparse files have to be created in a special way.
+--source include/big_test.inc
+# include/shutdown_mysqld.inc does not work in ./mtr --embedded
+--source include/not_embedded.inc
+
+call mtr.add_suppression("InnoDB: The change buffer is corrupted");
+
+--source include/shutdown_mysqld.inc
+
+let bugdir= $MYSQLTEST_VARDIR/tmp/log_upgrade;
+--mkdir $bugdir
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+--let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
+
+--echo #
+--echo # MDEV-24412 InnoDB: Upgrade after a crash is not supported
+--echo #
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+
+# Create a dummy system tablespace file using the default innodb_page_size=16k
+die unless open OUT, ">", "$ENV{bugdir}/ibdata1";
+binmode OUT;
+
+# We calculate innodb_checksum_algorithm=crc32 for the pages.
+# The following bytes are excluded:
+# bytes 0..3 (the checksum is stored there)
+# bytes 26..37 (encryption key version, post-encryption checksum, tablespace id)
+# bytes $page_size-8..$page_size-1 (checksum, LSB of FIL_PAGE_LSN)
+
+# Tablespace header page with valid FSP_SIZE=768 pages.
+# Also, write a dummy FSEG_MAGIC_N at offset 60 to keep fseg_inode_try_get()
+# happy when fseg_n_reserved_pages() is following an invalid pointer
+# from the all-zero change buffer header page (page 3).
+## FIL_PAGE_OFFSET
+my $head = pack("Nx[18]", 0);
+## FSP_PAGE_SIZE, # FSEG_MAGIC_N
+my $body = pack("x[8]Nx[10]Nx[16312]", 768, 97937874);
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+# Dummy pages 1..6.
+print OUT chr(0) x (6 * 16384);
+# Dictionary header page (page 7).
+## FIL_PAGE_OFFSET
+$head = pack("Nx[18]", 7);
+## DICT_HDR_TABLES,DICT_HDR_INDEXES
+$body = pack("x[32]Nx[8]Nx[16290]", 8, 9);
+$ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+# Empty SYS_TABLES page (page 8).
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT, FIL_PAGE_TYPE
+$head = pack("NNNx[8]n", 8, ~0, ~0, 17855);
+## PAGE_N_DIR_SLOTS, PAGE_HEAP_TOP, PAGE_INDEX_ID == DICT_TABLES_ID
+$body = pack("nnx[31]Cx[20]", 2, 124, 1);
+$body .= pack("nxnn", 0x801, 3, 116) . "infimum";
+$body .= pack("xnxnxx", 0x901, 0x803) . "supremum";
+$body .= pack("x[16248]nn", 116, 101);
+$ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+# Empty SYS_INDEXES page (page 9).
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT, FIL_PAGE_TYPE
+$head = pack("NNNx[8]n", 9, ~0, ~0, 17855);
+## PAGE_N_DIR_SLOTS, PAGE_HEAP_TOP, PAGE_INDEX_ID == DICT_INDEXES_ID
+$body = pack("nnx[31]Cx[20]", 2, 124, 3);
+$body .= pack("nxnn", 0x801, 3, 116) . "infimum";
+$body .= pack("xnxnxx", 0x901, 0x803) . "supremum";
+$body .= pack("x[16248]nn", 116, 101);
+$ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+die unless seek(OUT, 768 * 16384 - 1, 0);
+print OUT chr(0);
+close OUT or die;
+
+die unless open OUT, ">", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+$_= pack("Nx[5]nx[5]", 1, 0x1286) . "BogoDB 4.3.2.1" . chr(0) x 478;
+print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
+# checkpoint page 1 and all-zero checkpoint 2
+$_= pack("x[13]nCNNx[484]", 0x1286, 12, 2, 0x80c);
+print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
+die unless seek(OUT, 0x1FFFFFFFF, 0);
+print OUT chr(0);
+close OUT or die;
+die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
+binmode OUT;
+die unless seek(OUT, 0x800, 0); # the first 2048 bytes are unused!
+$_= pack("Nnnx[500]", 0x80000944, 12, 12);
+print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
+die unless seek(OUT, 0x1FFFFFFFF, 0);
+print OUT chr(0);
+close OUT or die;
+EOF
+
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
+--source include/start_mysqld.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Upgrading redo log:
+--source include/search_pattern_in_file.inc
+--let $restart_parameters= $dirs
+
+--list_files $bugdir
+--remove_files_wildcard $bugdir
+--rmdir $bugdir
+--let $restart_parameters=
+--source include/start_mysqld.inc
+
+--echo # End of 10.5 tests
