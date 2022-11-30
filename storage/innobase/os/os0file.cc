@@ -2770,10 +2770,11 @@ os_file_io(
 
 		if (type.type != IORequest::READ_MAYBE_PARTIAL) {
 			sql_print_warning("InnoDB: %zu bytes should have been"
-					  " %s from %s, but got only %zd."
+					  " %s at %llu from %s,"
+					  " but got only %zd."
 					  " Retrying.",
 					  n, type.is_read()
-					  ? "read" : "written",
+					  ? "read" : "written", offset,
 					  type.node
 					  ? type.node->name
 					  : "(unknown file)", bytes_returned);
