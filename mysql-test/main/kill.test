@@ -542,7 +542,7 @@ connection default;
 --echo #
 send SELECT SLEEP(1000);
 connection con1;
-let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)';
+let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)' AND STATE='User sleep';
 source include/wait_condition.inc;
 KILL QUERY ID @id;
 connection default;
@@ -560,7 +560,7 @@ CREATE USER u1@localhost;
 send SELECT SLEEP(1000);
 
 connection con1;
-let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)';
+let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)' AND STATE='User sleep';
 source include/wait_condition.inc;
 let $id= `SELECT @id`;
 
