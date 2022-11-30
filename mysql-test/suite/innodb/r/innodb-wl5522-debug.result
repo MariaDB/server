@@ -12,21 +12,18 @@ call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1`
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*ibdata1' page");
 call mtr.add_suppression("InnoDB: File '.*ibdata1' is corrupted");
 FLUSH TABLES;
-SET GLOBAL innodb_file_per_table = 1;
 CREATE TABLE t1 (c1 INT) ENGINE = InnoDB;
 INSERT INTO t1 VALUES(1),(2),(3);
 SET SESSION debug_dbug="+d,ib_discard_before_commit_crash";
 ALTER TABLE t1 DISCARD TABLESPACE;
 ERROR HY000: Lost connection to server during query
 DROP TABLE t1;
-SET GLOBAL innodb_file_per_table = 1;
 CREATE TABLE t1 (c1 INT) ENGINE = InnoDB;
 INSERT INTO t1 VALUES(1),(2),(3);
 SET SESSION debug_dbug="+d,ib_discard_after_commit_crash";
 ALTER TABLE t1 DISCARD TABLESPACE;
 ERROR HY000: Lost connection to server during query
 DROP TABLE t1;
-SET GLOBAL innodb_file_per_table = 1;
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
 INSERT INTO t1 VALUES (1), (2), (3), (4);
 FLUSH TABLES t1 FOR EXPORT;
@@ -52,8 +49,6 @@ ERROR HY000: Lost connection to server during query
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
-SET @file_per_table= @@innodb_file_per_table;
-SET GLOBAL innodb_file_per_table = 1;
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
 ALTER TABLE t1 DISCARD TABLESPACE;
 restore: t1 .ibd and .cfg files
@@ -941,4 +936,3 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 unlink: t1.ibd
 unlink: t1.cfg
-SET GLOBAL INNODB_FILE_PER_TABLE=@file_per_table;

@@ -427,15 +427,9 @@ DROP TABLE t2 , t1;
 # FTS index with compressed row format
 #------------------------------------------------------------------------------
 
-# Save innodb variables
-let $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
-
-set global innodb_file_per_table=1;
-
---disable_query_log
 SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
 SET GLOBAL innodb_read_only_compressed=OFF;
---enable_query_log
+
 # Create FTS table
 CREATE TABLE t1 (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -583,10 +577,7 @@ SELECT * FROM t1 WHERE MATCH (a,b)
 SELECT * FROM t1 ORDER BY id;
 
 DROP TABLE t1;
---disable_query_log
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
---enable_query_log
-eval SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;
 
 #------------------------------------------------------------------------------
 # FTS index with utf8 character testcase
