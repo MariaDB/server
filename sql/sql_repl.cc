@@ -48,6 +48,28 @@ static int binlog_dump_count = 0;
 
 extern TYPELIB binlog_checksum_typelib;
 
+/*
+  Helper function to print an event's header before sending it to a replica for
+  debugging a release build.
+*/
+static void print_event_header(String *packet)
+{
+  char *ptr= packet->c_ptr_safe();
+  sql_print_information("Header: %02x "            /* Default reserved */
+              "| %02x %02x %02x %02x "             /* Timestamp */
+              "| %02x   "                          /* Type */
+              "| %02x %02x %02x %02x "             /* Master ID */
+              "| %02x %02x %02x %02x "             /* Size */
+              "| %02x %02x %02x %02x "             /* Master Pos */
+              "| %02x %02x",                     /* Flags */
+              ptr[0],                             /* Default reserved */
+              ptr[1], ptr[2], ptr[3], ptr[4],     /* Timestamp */
+              ptr[5],                             /* Type */
+              ptr[6], ptr[7], ptr[8], ptr[9],     /* Master ID */
+              ptr[10], ptr[11], ptr[12], ptr[13],  /* Size */
+              ptr[14], ptr[15], ptr[16], ptr[17], /* Master Pos */
+              ptr[18], ptr[19]);                  /* Flags */
+}
 
 static int
 fake_event_header(String* packet, Log_event_type event_type, ulong extra_len,
@@ -163,6 +185,8 @@ struct binlog_send_info {
   bool should_stop;
   size_t dirlen;
 
+    uint debug_event_header;
+
   binlog_send_info(THD *thd_arg, String *packet_arg, ushort flags_arg,
                    char *lfn)
     : thd(thd_arg), net(&thd_arg->net), packet(packet_arg),
@@ -180,7 +204,8 @@ struct binlog_send_info {
       hb_info_counter(0),
 #endif
       clear_initial_log_pos(false),
-      should_stop(false)
+      should_stop(false),
+      debug_event_header(0)
   {
     error_text[0] = 0;
     bzero(&error_gtid, sizeof(error_gtid));
@@ -251,6 +276,13 @@ static int fake_rotate_event(binlog_send_info *info, ulonglong position,
   {
     info->error= ER_UNKNOWN_ERROR;
     DBUG_RETURN(err);
+  }
+
+  if (global_system_variables.log_warnings > 2)
+  {
+    sql_print_information("Sending fake rotate event to replica with following header..");
+    print_event_header(packet);
+    info->debug_event_header= 1;
   }
   DBUG_RETURN(0);
 }
@@ -2041,6 +2073,13 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     return "run 'before_send_event' hook failed";
   }
 
+  if (info->debug_event_header)
+  {
+    sql_print_information("Sending event to replica with following header..");
+    print_event_header(packet);
+    info->debug_event_header= 0;
+  }
+
   if (my_net_write(info->net, (uchar*) packet->ptr(), len))
   {
     info->error= ER_UNKNOWN_ERROR;
@@ -2399,6 +2438,12 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
                 ST_CREATED_OFFSET+ev_offset, (ulong) 0);
       fix_checksum(info->current_checksum_alg, packet, ev_offset);
     }
+  }
+
+  if (info->debug_event_header)
+  {
+    sql_print_information("Sending Format Description Event to replica with following header..");
+    print_event_header(packet);
   }
 
   /* send it */
