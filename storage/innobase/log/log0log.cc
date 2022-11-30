@@ -275,7 +275,8 @@ dberr_t file_os_io::close() noexcept
 
 dberr_t file_os_io::read(os_offset_t offset, span<byte> buf) noexcept
 {
-  return os_file_read(IORequestRead, m_fd, buf.data(), offset, buf.size());
+  return os_file_read(IORequestRead, m_fd, buf.data(), offset, buf.size(),
+                      nullptr);
 }
 
 dberr_t file_os_io::write(const char *path, os_offset_t offset,
