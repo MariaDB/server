@@ -660,6 +660,7 @@ ATTRIBUTE_COLD bool fil_space_t::prepare_acquired()
 
   if (!is_open)
     release();
+  else if (node->deferred);
   else if (auto desired_size= recv_size)
   {
     bool success;
