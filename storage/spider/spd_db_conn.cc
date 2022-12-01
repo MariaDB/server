@@ -80,7 +80,7 @@ int spider_db_connect(
   THD* thd = current_thd;
   longlong connect_retry_interval;
   DBUG_ENTER("spider_db_connect");
-  DBUG_ASSERT(conn->conn_kind != SPIDER_CONN_KIND_MYSQL || conn->need_mon);
+  DBUG_ASSERT(conn->need_mon);
   DBUG_PRINT("info",("spider link_idx=%d", link_idx));
   DBUG_PRINT("info",("spider conn=%p", conn));
 
@@ -240,7 +240,6 @@ void spider_db_disconnect(
 ) {
   DBUG_ENTER("spider_db_disconnect");
   DBUG_PRINT("info",("spider conn=%p", conn));
-  DBUG_PRINT("info",("spider conn->conn_kind=%u", conn->conn_kind));
   if (conn->db_conn->is_connected())
   {
     conn->db_conn->disconnect();

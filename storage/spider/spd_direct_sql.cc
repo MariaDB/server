@@ -551,7 +551,6 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   conn->semi_trx_isolation = -2;
   conn->semi_trx_isolation_chk = FALSE;
   conn->semi_trx_chk = FALSE;
-    conn->conn_kind = SPIDER_CONN_KIND_MYSQL;
 
   if (mysql_mutex_init(spd_key_mutex_mta_conn, &conn->mta_conn_mutex,
     MY_MUTEX_INIT_FAST))
@@ -697,7 +696,6 @@ SPIDER_CONN *spider_udf_direct_sql_get_conn(
     conn->queued_ping = FALSE;
 
   DBUG_PRINT("info",("spider conn=%p", conn));
-  DBUG_PRINT("info",("spider conn->conn_kind=%u", conn->conn_kind));
   DBUG_RETURN(conn);
 
 error:
