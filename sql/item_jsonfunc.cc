@@ -285,6 +285,7 @@ static int json_nice(json_engine_t *je, String *nice_js,
   static const char *comma= ", ", *colon= "\": ";
   uint comma_len, colon_len;
   int first_value= 1;
+  int curr_state= -1;
 
   nice_js->length(0);
   nice_js->set_charset(je->s.cs);
@@ -311,6 +312,7 @@ static int json_nice(json_engine_t *je, String *nice_js,
 
   do
   {
+    curr_state= je->state;
     switch (je->state)
     {
     case JST_KEY:
@@ -364,10 +366,11 @@ handle_value:
       else
       {
         if (mode == Item_func_json_format::DETAILED &&
-            depth > 0 &&
+            depth > 0 && !(curr_state != JST_KEY) &&
             append_tab(nice_js, depth, tab_size))
           goto error;
         nice_js->append((je->value_type == JSON_VALUE_OBJECT) ? "{" : "[", 1);
+        // last_state= curr_state;
         first_value= 1;
         depth++;
       }
