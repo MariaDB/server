@@ -327,7 +327,6 @@ typedef struct st_spider_conn_loop_check SPIDER_CONN_LOOP_CHECK;
 /* database connection */
 typedef struct st_spider_conn
 {
-  uint               conn_kind;
   char               *conn_key;
   uint               conn_key_length;
   my_hash_value_type conn_key_hash_value;

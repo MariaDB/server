@@ -8217,10 +8217,10 @@ int spider_mbase_share::discover_table_structure(
 
     SPIDER_CONN *conn;
     int need_mon;
-    if (!(conn = spider_get_conn(
-      spider_share, 0, spider_share->conn_keys[roop_count], trx, NULL, FALSE,
-      FALSE, SPIDER_CONN_KIND_MYSQL, &error_num))
-    ) {
+    if (!(conn= spider_get_conn(spider_share, 0,
+                                spider_share->conn_keys[roop_count], trx, NULL,
+                                FALSE, FALSE, &error_num)))
+    {
       DBUG_RETURN(error_num);
     }
     pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
