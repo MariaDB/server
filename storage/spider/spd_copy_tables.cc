@@ -593,11 +593,10 @@ int spider_udf_get_copy_tgt_conns(
     while (table_conn)
     {
       share = table_conn->share;
-      if (
-        !(table_conn->conn = spider_get_conn(
-          share, 0, share->conn_keys[0], trx, NULL, FALSE, FALSE,
-          SPIDER_CONN_KIND_MYSQL, &error_num))
-      ) {
+      if (!(table_conn->conn=
+                spider_get_conn(share, 0, share->conn_keys[0], trx, NULL,
+                                FALSE, FALSE, &error_num)))
+      {
         my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), share->server_names[0]);
         DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
       }
