@@ -211,4 +211,17 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 delete from t order by b limit 1;
 drop table t;
+#
+# MDEV-30112 ASAN errors in Item_ident::print / generate_partition_syntax
+#
+create table t (a int) partition by hash(a);
+alter table t change a b int, drop a;
+ERROR 42S22: Unknown column 'a' in 't'
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`a`)
+drop table t;
 # End of 10.3 tests
