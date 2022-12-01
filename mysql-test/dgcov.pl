@@ -63,14 +63,14 @@ my $cmd;
 if ($opt_purge)
 {
   $cmd= "find . -name '*.da' -o -name '*.gcda*' -o -name '*.gcov' -o ".
-               "-name '*.dgcov' | grep -v 'README\.gcov' | xargs rm -f ''";
+               "-name '*.dgcov' | xargs rm -f ''";
   logv "Running: $cmd";
   system($cmd)==0 or die "system($cmd): $? $!";
   exit 0;
 }
 
 my $gcc_version= `gcc -dumpversion`;
-$gcc_version=~ s/(\d).*$/$1/;
+$gcc_version=~ s/^(\d+)\..*$/$1/ or die "Cannot parse gcc -dumpversion: $gcc_version";
 
 find(\&gcov_one_file, $root);
 find(\&write_coverage, $root) if $opt_generate;
@@ -189,11 +189,12 @@ sub gcov_one_file {
     }
   } else {
     use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
-    use JSON::PP;
+    require JSON::PP;
     my $gcov_file_json;
     my $fname;
+    s/\.gcda$// if $gcc_version >= 11;
     gunzip "$_.gcov.json.gz" => \$gcov_file_json or die "gunzip($_.gcov.json.gz): $GunzipError";
-    my $obj= decode_json $gcov_file_json;
+    my $obj= JSON::PP::decode_json $gcov_file_json;
     for my $file (@{$obj->{files}}) {
       $fname= $file->{file};
       for my $line (@{$file->{lines}}){
