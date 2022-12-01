@@ -6905,5 +6905,13 @@ deallocate prepare stmt;
 drop view v1;
 drop table t1;
 #
+# MDEV-28696 View created as "select b''; " references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+#
+CREATE VIEW v1 as select b'';
+SELECT * FROM v1;
+b''
+
+DROP VIEW v1;
+#
 # End of 10.3 tests
 #

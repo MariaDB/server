@@ -7409,6 +7409,25 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
 }
 
 
+void Item_bin_string::print(String *str, enum_query_type query_type)
+{
+  if (!str_value.length())
+  {
+    /*
+      Historically a bit string such as b'01100001'
+      prints itself in the hex hybrid notation: 0x61
+      In case of an empty bit string b'', the hex hybrid
+      notation would result in a bad syntax: 0x
+      So let's print empty bit strings using bit string notation: b''
+    */
+    static const LEX_CSTRING empty_bit_string= {STRING_WITH_LEN("b''")};
+    str->append(empty_bit_string);
+  }
+  else
+    Item_hex_hybrid::print(str, query_type);
+}
+
+
 bool Item_temporal_literal::eq(const Item *item, bool binary_cmp) const
 {
   return

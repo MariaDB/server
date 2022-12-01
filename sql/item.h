@@ -4490,6 +4490,7 @@ class Item_bin_string: public Item_hex_hybrid
 {
 public:
   Item_bin_string(THD *thd, const char *str, size_t str_length);
+  void print(String *str, enum_query_type query_type);
 };
 
 
