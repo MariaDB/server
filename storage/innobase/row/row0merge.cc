@@ -1087,11 +1087,11 @@ row_merge_read(
 	DBUG_LOG("ib_merge_sort", "fd=" << fd << " ofs=" << ofs);
 	DBUG_EXECUTE_IF("row_merge_read_failure", DBUG_RETURN(FALSE););
 
-	const bool	success = DB_SUCCESS == os_file_read_no_error_handling(
-		IORequestRead, fd, buf, ofs, srv_sort_buf_size, 0);
+	const dberr_t err = os_file_read(
+		IORequestRead, fd, buf, ofs, srv_sort_buf_size, nullptr);
 
 	/* If encryption is enabled decrypt buffer */
-	if (success && log_tmp_is_encrypted()) {
+	if (err == DB_SUCCESS && srv_encrypt_log) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
 					   crypt_buf, ofs)) {
 			DBUG_RETURN(false);
@@ -1106,11 +1106,7 @@ row_merge_read(
 	posix_fadvise(fd, ofs, srv_sort_buf_size, POSIX_FADV_DONTNEED);
 #endif /* POSIX_FADV_DONTNEED */
 
-	if (!success) {
-		ib::error() << "Failed to read merge block at " << ofs;
-	}
-
-	DBUG_RETURN(success);
+	DBUG_RETURN(err == DB_SUCCESS);
 }
 
 /********************************************************************//**

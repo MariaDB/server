@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -253,7 +253,7 @@ dberr_t buf_dblwr_t::init_or_load_pages(pfs_os_file_t file, const char *path)
   /* Read the TRX_SYS header to check if we are using the doublewrite buffer */
   dberr_t err= os_file_read(IORequestRead, file, read_buf,
                             TRX_SYS_PAGE_NO << srv_page_size_shift,
-                            srv_page_size);
+                            srv_page_size, nullptr);
 
   if (err != DB_SUCCESS)
   {
@@ -285,7 +285,7 @@ func_exit:
   /* Read the pages from the doublewrite buffer to memory */
   err= os_file_read(IORequestRead, file, write_buf,
                     block1.page_no() << srv_page_size_shift,
-                    size << srv_page_size_shift);
+                    size << srv_page_size_shift, nullptr);
 
   if (err != DB_SUCCESS)
   {
@@ -296,7 +296,7 @@ func_exit:
   err= os_file_read(IORequestRead, file,
                     write_buf + (size << srv_page_size_shift),
                     block2.page_no() << srv_page_size_shift,
-                    size << srv_page_size_shift);
+                    size << srv_page_size_shift, nullptr);
   if (err != DB_SUCCESS)
   {
     ib::error() << "Failed to read the second double write buffer extent";

@@ -561,8 +561,8 @@ datafile_read(datafile_cur_t *cursor)
 	}
 
 	if (os_file_read(IORequestRead,
-			  cursor->file, cursor->buf, cursor->buf_offset,
-			  to_read) != DB_SUCCESS) {
+			 cursor->file, cursor->buf, cursor->buf_offset,
+			 to_read, nullptr) != DB_SUCCESS) {
 		return(XB_FIL_CUR_ERROR);
 	}
 

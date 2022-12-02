@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -263,12 +263,11 @@ Datafile::read_first_page(bool read_only_mode)
 
 		ulint	n_read = 0;
 
-		err = os_file_read_no_error_handling(
+		err = os_file_read(
 			IORequestReadPartial, m_handle, m_first_page, 0,
 			page_size, &n_read);
 
 		if (err == DB_SUCCESS) {
-			ut_a(n_read == page_size);
 			break;
 		}
 
@@ -664,7 +663,7 @@ Datafile::find_space_id()
 
 		for (ulint j = 0; j < page_count; ++j) {
 			if (os_file_read(IORequestRead, m_handle, page,
-					 j * page_size, page_size)) {
+					 j * page_size, page_size, nullptr)) {
 				ib::info()
 					<< "READ FAIL: page_no:" << j;
 				continue;
