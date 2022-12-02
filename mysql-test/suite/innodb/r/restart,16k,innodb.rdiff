@@ -1,5 +1,5 @@
---- ./suite/innodb/r/restart.result	2022-01-18 20:36:56.054653376 +1100
-+++ suite/innodb/r/restart.reject	2022-01-19 08:12:28.602794678 +1100
+--- ./suite/innodb/r/restart.result
++++ suite/innodb/r/restart.reject
 @@ -32,10 +32,10 @@
  SELECT @@innodb_buffer_pool_size INTO @innodb_buffer_pool_size_orig;
  SELECT CEILING((256 + 64) * @@innodb_page_size / 1048576) * 1048576 INTO @min_pool_size;
