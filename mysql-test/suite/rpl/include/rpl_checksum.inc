@@ -89,6 +89,7 @@ flush logs;
 flush logs;
 -- source include/wait_for_binlog_checkpoint.inc
 flush logs;
+-- source include/wait_for_binlog_checkpoint.inc
 
 sync_slave_with_master;
 #connection slave;
