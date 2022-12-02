@@ -1,5 +1,5 @@
---- r\sysvars_debug.result	2017-08-08 10:52:39.036804900 +0300
-+++ r\sysvars_debug,32bit.reject	2017-09-10 08:06:38.447122100 +0300
+--- r\sysvars_debug.result
++++ r\sysvars_debug,32bit.reject
 @@ -21,7 +21,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	0

@@ -1,5 +1,5 @@
---- suite/period/r/delete.result	2019-02-16 11:14:23.511258191 +0100
-+++ suite/period/r/delete.reject	2019-02-16 11:14:32.869258690 +0100
+--- suite/period/r/delete.result
++++ suite/period/r/delete.reject
 @@ -250,7 +250,6 @@
  ERROR 22003: Out of range value for column 'id' at row 1
  select * from t;
