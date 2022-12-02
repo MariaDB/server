@@ -433,7 +433,6 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   no_order= 0;
   simple_order= 0;
   simple_group= 0;
-  rand_table_in_field_list= 0;
   ordered_index_usage= ordered_index_void;
   need_distinct= 0;
   skip_sort_order= 0;
@@ -1433,7 +1432,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                    &all_fields, &select_lex->pre_fix, 1))
     DBUG_RETURN(-1);
   thd->lex->current_select->context_analysis_place= save_place;
-  rand_table_in_field_list= select_lex->select_list_tables & RAND_TABLE_BIT;
 
   if (setup_without_group(thd, ref_ptrs, tables_list,
                           select_lex->leaf_tables, fields_list,
@@ -14779,7 +14777,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
     and some wrong results so better to leave the code as it was
     related to ROLLUP.
   */
-  *simple_order= !join->rand_table_in_field_list;
+  *simple_order= !join->select_lex->rownum_in_field_list;
   if (join->only_const_tables())
     return change_list ? 0 : first_order;		// No need to sort
 

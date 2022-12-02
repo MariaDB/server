@@ -834,13 +834,13 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t) GROUP BY t HAVING r = 1  ORDER BY t1.u;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+1	SIMPLE	t1	index	NULL	t	5	NULL	8	Using temporary; Using filesort
 SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t) GROUP BY t HAVING r = 1  ORDER BY t1.u;
 t	r
 10	1
 12	1
-14	1
-16	1
+15	1
+17	1
 DROP TABLE t1;
 DROP FUNCTION next_seq_value;
 DROP TABLE series;

@@ -1344,6 +1344,9 @@ public:
   */
   table_map select_list_tables;
 
+  /* Set to 1 if any field in field list has ROWNUM() */
+  bool rownum_in_field_list;
+
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;
   table_map with_dep;
