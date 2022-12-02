@@ -1,5 +1,5 @@
---- mysql-test/suite/innodb/r/check_ibd_filesize.result	2022-08-16 17:28:06.462350465 +0530
-+++ mysql-test/suite/innodb/r/check_ibd_filesize.reject	2022-08-16 17:31:39.288769153 +0530
+--- mysql-test/suite/innodb/r/check_ibd_filesize.result
++++ mysql-test/suite/innodb/r/check_ibd_filesize.reject
 @@ -3,18 +3,18 @@
  # SPACE IN 5.7 THAN IN 5.6
  #
