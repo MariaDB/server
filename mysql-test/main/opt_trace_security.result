@@ -123,15 +123,23 @@ select * from db1.t1	{
             "best_join_order": ["t1"]
           },
           {
-            "attaching_conditions_to_tables": {
-              "attached_conditions_computation": [],
-              "attached_conditions_summary": [
-                {
-                  "table": "t1",
-                  "attached": null
-                }
-              ]
-            }
+            "make_join_readinfo": [
+              {
+                "table": "t1",
+                "index_condition": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "attaching_conditions_to_tables": {
+        "attached_conditions_computation": [],
+        "attached_conditions_summary": [
+          {
+            "table": "t1",
+            "attached_condition": null
           }
         ]
       }
@@ -252,15 +260,23 @@ select * from db1.v1	{
             "best_join_order": ["t1"]
           },
           {
-            "attaching_conditions_to_tables": {
-              "attached_conditions_computation": [],
-              "attached_conditions_summary": [
-                {
-                  "table": "t1",
-                  "attached": null
-                }
-              ]
-            }
+            "make_join_readinfo": [
+              {
+                "table": "t1",
+                "index_condition": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "attaching_conditions_to_tables": {
+        "attached_conditions_computation": [],
+        "attached_conditions_summary": [
+          {
+            "table": "t1",
+            "attached_condition": null
           }
         ]
       }
