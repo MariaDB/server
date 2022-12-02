@@ -278,10 +278,10 @@
 +          "key_length": "3066",
 +          "used_key_parts": ["f2"],
 +          "ref": ["const"],
+           "loops": 1,
            "rows": 1,
            "cost": "COST_REPLACED",
-           "filtered": 100,
-@@ -809,8 +810,8 @@
+@@ -810,8 +811,8 @@
            "access_type": "range",
            "possible_keys": ["k1"],
            "key": "k1",
@@ -289,6 +289,6 @@
 -          "used_key_parts": ["pk1", "f2", "pk2"],
 +          "key_length": "3007",
 +          "used_key_parts": ["pk1", "f2"],
+           "loops": 1,
            "rows": 1,
            "cost": "COST_REPLACED",
-           "filtered": 100,
