@@ -42,6 +42,7 @@
                                        // RESOLVED_AGAINST_ALIAS, ...
 #include "sql_expression_cache.h"
 #include "sql_lex.h"                   // empty_clex_str
+#include "my_json_writer.h"            // for dbug_print_opt_trace()
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -10886,6 +10887,29 @@ const char *dbug_print_item(Item *item)
   else
     return "Couldn't fit into buffer";
 }
+
+
+/*
+  Return the optimizer trace collected so far for the current thread.
+*/
+
+const char *dbug_print_opt_trace()
+{
+  if (current_thd)
+  {
+    if (current_thd->opt_trace.is_started())
+    {
+      String *s= const_cast<String *>(current_thd->opt_trace
+                    .get_current_json()->output.get_string());
+      return s->c_ptr();
+    }
+    else
+      return "Trace empty";
+  }
+  else
+    return "No Thread";
+}
+
 
 const char *dbug_print_select(SELECT_LEX *sl)
 {
