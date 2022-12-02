@@ -1,5 +1,5 @@
---- r/rpl_iodku.result	2022-05-04 18:51:24.956414404 +0300
-+++ r/rpl_iodku,stmt.reject	2022-05-04 18:51:49.520106231 +0300
+--- r/rpl_iodku.result
++++ r/rpl_iodku,stmt.reject
 @@ -1,10 +1,15 @@
  include/master-slave.inc
  [connection master]

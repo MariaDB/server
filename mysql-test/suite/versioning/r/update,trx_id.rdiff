@@ -1,5 +1,5 @@
---- update.result	2018-12-19 13:55:35.873917389 +0300
-+++ update,trx_id.reject	2018-12-19 13:55:35.533917399 +0300
+--- update.result
++++ update,trx_id.reject
 @@ -81,12 +81,10 @@
  commit;
  select x, y, sys_trx_end = MAXVAL as current from t1 for system_time all order by sys_trx_end, x, y;
