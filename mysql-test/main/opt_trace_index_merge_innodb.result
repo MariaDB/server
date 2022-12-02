@@ -256,15 +256,24 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             }
           },
           {
-            "attaching_conditions_to_tables": {
-              "attached_conditions_computation": [],
-              "attached_conditions_summary": [
-                {
-                  "table": "t1",
-                  "attached": "t1.pk1 <> 0"
-                }
-              ]
-            }
+            "make_join_readinfo": [
+              {
+                "table": "t1",
+                "index_condition": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "attaching_conditions_to_tables": {
+        "attached_conditions_computation": [],
+        "attached_conditions_summary": [
+          {
+            "table": "t1",
+            "attached_condition": null,
+            "index_condition": "t1.pk1 <> 0"
           }
         ]
       }
