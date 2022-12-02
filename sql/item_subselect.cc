@@ -42,6 +42,7 @@
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_cte.h"
 #include "sql_test.h"
+#include "opt_trace.h"
 
 double get_post_group_estimate(JOIN* join, double join_op_rows);
 
@@ -3298,6 +3299,14 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     set possible optimization strategies
   */
   in_subs->emb_on_expr_nest= emb_on_expr_nest;
+
+  {
+    OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
+  		        in_subs->get_select_lex()->select_number,
+  			"EXISTS (SELECT)", "IN (SELECT)");
+    trace_transform.add( "upper_not", ( upper_not?true:false ) );
+  }
+
   res= check_and_do_in_subquery_rewrites(join);
   first_select->join->prepare_stage2();
 
