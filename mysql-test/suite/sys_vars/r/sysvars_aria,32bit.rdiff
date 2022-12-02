@@ -1,5 +1,5 @@
---- suite/sys_vars/r/sysvars_aria.result	2021-02-02 02:58:55.686921205 +0200
-+++ suite/sys_vars/r/sysvars_aria,32bit.reject	2021-02-02 10:55:53.876791633 +0200
+--- suite/sys_vars/r/sysvars_aria.result
++++ suite/sys_vars/r/sysvars_aria,32bit.reject
 @@ -5,7 +5,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	8192

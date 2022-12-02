@@ -1,5 +1,5 @@
---- /home/alice/git/10.3/mysql-test/suite/engines/funcs/r/rpl_sp,myisam,mix.result~	2021-03-19 17:27:12.935559866 +0100
-+++ /home/alice/git/10.3/mysql-test/suite/engines/funcs/r/rpl_sp,myisam,mix.reject	2021-03-19 17:27:14.071534938 +0100
+--- /home/alice/git/10.3/mysql-test/suite/engines/funcs/r/rpl_sp,myisam,mix.result~
++++ /home/alice/git/10.3/mysql-test/suite/engines/funcs/r/rpl_sp,myisam,mix.reject
 @@ -126,12 +126,15 @@
  show warnings;
  Level	Code	Message

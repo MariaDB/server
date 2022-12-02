@@ -1,5 +1,5 @@
---- main/alter_table_combinations.result	2022-05-24 17:16:56.769146869 +0200
-+++ main/alter_table_combinations.reject	2022-05-24 17:25:01.216127156 +0200
+--- main/alter_table_combinations.result
++++ main/alter_table_combinations.reject
 @@ -11,7 +11,7 @@
  alter table t1 change x xx int, algorithm=inplace;
  check table t1;
