@@ -8102,6 +8102,14 @@ best_access_path(JOIN      *join,
   Json_writer_object trace_wrapper(thd, "best_access_path");
   DBUG_ENTER("best_access_path");
 
+  /*
+    Assume that there is at least one accepted row from previous table combinations.
+    This fixes a problem when the selectivity for the preceding table combinations
+    becomes so high that record_count becomes << 1.0, which makes the cost for the
+    current table so low that it does not matter when calculating the best plans.
+   */
+  set_if_bigger(record_count, 1.0);
+
   best.cost= DBL_MAX;
   best.records= DBL_MAX;
   best.records_read= DBL_MAX;

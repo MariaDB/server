@@ -2798,7 +2798,7 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
-          "loops": 0.471153846,
+          "loops": 1,
           "rows": 11,
           "cost": "COST_REPLACED",
           "filtered": 100
