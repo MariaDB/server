@@ -6497,7 +6497,8 @@ static Sys_var_set Sys_log_slow_disabled_statements(
        "Don't log certain types of statements to slow log",
        SESSION_VAR(log_slow_disabled_statements), CMD_LINE(REQUIRED_ARG),
        log_slow_disabled_statements_names,
-       DEFAULT(LOG_SLOW_DISABLE_SP));
+       DEFAULT(LOG_SLOW_DISABLE_SP), 0, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED("'@@log_slow_filter=REPLACE(@@log_slow_filter,\"admin\",\"\")'")); // since 10.11.2
 
 static Sys_var_set Sys_log_disabled_statements(
        "log_disabled_statements",

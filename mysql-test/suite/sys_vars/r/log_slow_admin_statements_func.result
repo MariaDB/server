@@ -62,19 +62,29 @@ select @@GLOBAL.log_slow_disabled_statements;
 @@GLOBAL.log_slow_disabled_statements
 admin,sp
 SET @@SESSION.log_slow_disabled_statements="";
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead
 select @@SESSION.log_slow_admin_statements;
 @@SESSION.log_slow_admin_statements
 1
 SET @@SESSION.log_slow_disabled_statements="admin";
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead
 select @@SESSION.log_slow_admin_statements;
 @@SESSION.log_slow_admin_statements
 0
 SET @@GLOBAL.log_slow_disabled_statements="";
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead
 select @@GLOBAL.log_slow_admin_statements;
 @@GLOBAL.log_slow_admin_statements
 1
 SET @@GLOBAL.log_slow_disabled_statements="admin";
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead
 select @@GLOBAL.log_slow_admin_statements;
 @@GLOBAL.log_slow_admin_statements
 0
 SET @@global.log_slow_disabled_statements= @save_log_slow_disabled_statements;
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead

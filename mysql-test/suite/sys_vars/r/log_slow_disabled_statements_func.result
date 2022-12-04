@@ -58,6 +58,8 @@ CALL slow2()
 SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part2'
 <--
 SET SESSION log_slow_disabled_statements="call,admin";
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead
 TRUNCATE TABLE mysql.slow_log;
 ALTER TABLE t1 add column extra2 int;
 CALL slow2();
@@ -92,6 +94,8 @@ SELECT j,count(*)+1 from t1 group by j,i
 SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part3'
 <--
 SET SESSION log_slow_disabled_statements="";
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead
 TRUNCATE TABLE mysql.slow_log;
 ALTER TABLE t1 add column extra3 int;
 CALL slow2();
@@ -130,6 +134,8 @@ CALL slow2()
 SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part4'
 <--
 SET SESSION log_slow_disabled_statements="call,admin,slave,sp";
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead
 TRUNCATE TABLE mysql.slow_log;
 ALTER TABLE t1 add column extra4 int;
 CALL slow2();
@@ -164,3 +170,5 @@ TRUNCATE TABLE mysql.slow_log;
 SET @@global.log_output=                   @old_log_output;
 SET @@global.slow_query_log=               @old_slow_query_log;
 SET @@global.log_slow_disabled_statements= @old_log_slow_disable_statements;
+Warnings:
+Warning	1287	'@@log_slow_disabled_statements' is deprecated and will be removed in a future release. Please use '@@log_slow_filter=REPLACE(@@log_slow_filter,"admin","")' instead
