@@ -1511,9 +1511,12 @@ static Sys_var_bit Sys_log_slow_admin_statements(
        "log_slow_admin_statements",
        "Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements "
        "to the slow log if it is open.  Resets or sets the option 'admin' in "
-       "log_slow_disabled_statements",
+       "log_slow_filter. "
+       "Deprecated, use log_slow_filter without 'admin'.",
        SESSION_VAR(log_slow_disabled_statements),
-       CMD_LINE(OPT_ARG), REVERSE(LOG_SLOW_DISABLE_ADMIN), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), REVERSE(LOG_SLOW_DISABLE_ADMIN), DEFAULT(TRUE),
+       0, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED("'@@log_slow_filter'"));
 
 static Sys_var_bit Sys_log_slow_slave_statements(
        "log_slow_slave_statements",
