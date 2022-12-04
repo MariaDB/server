@@ -899,7 +899,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   We should not introduce any further shift/reduce conflicts.
 */
-%expect 85
+%expect 96
 
 /*
    Comments for TOKENS.
@@ -1687,7 +1687,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %left   PREC_BELOW_NOT
 
-%nonassoc NOT_SYM
+%nonassoc LOW_PRIORITY_NOT
 %left   '=' EQUAL_SYM GE '>' LE '<' NE
 %nonassoc IS
 %right BETWEEN_SYM
@@ -9840,7 +9840,7 @@ expr:
                 MYSQL_YYABORT;
             }
           }
-        | NOT_SYM expr %prec NOT_SYM
+        | NOT_SYM expr %prec LOW_PRIORITY_NOT
           {
             $$= negate_expression(thd, $2);
             if (unlikely($$ == NULL))

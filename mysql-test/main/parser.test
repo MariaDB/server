@@ -1673,4 +1673,12 @@ EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
 
 SET @@sql_mode=@save_sql_mode;
 
+--echo #
+--echo # MDEV-30151 parse error 1=2 not between/in
+--echo #
+select 1=2 not in (3,4);
+select 1=2 not between 3 and 4;
+
+--echo #
 --echo # End of 10.3 tests
+--echo #
