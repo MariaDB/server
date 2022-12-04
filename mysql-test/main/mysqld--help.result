@@ -508,8 +508,8 @@ The following specify which files/extra groups are read (specified before remain
  --log-slow-admin-statements 
  Log slow OPTIMIZE, ANALYZE, ALTER and other
  administrative statements to the slow log if it is open. 
- Resets or sets the option 'admin' in
- log_slow_disabled_statements
+ Resets or sets the option 'admin' in log_slow_filter.
+ Deprecated, use log_slow_filter without 'admin'.
  (Defaults to on; use --skip-log-slow-admin-statements to disable.)
  --log-slow-disabled-statements=name 
  Don't log certain types of statements to slow log. Any

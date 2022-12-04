@@ -1665,7 +1665,7 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LOG_SLOW_ADMIN_STATEMENTS
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to the slow log if it is open.  Resets or sets the option 'admin' in log_slow_disabled_statements
+VARIABLE_COMMENT	Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to the slow log if it is open.  Resets or sets the option 'admin' in log_slow_filter. Deprecated, use log_slow_filter without 'admin'.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
