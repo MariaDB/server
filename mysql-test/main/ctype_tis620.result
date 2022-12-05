@@ -4432,3 +4432,28 @@ HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci))
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-27670 Assertion `(cs->state & 0x20000) == 0' failed in my_strnncollsp_nchars_generic_8bit
+#
+CREATE OR REPLACE TABLE t1
+(
+a VARCHAR(250) COLLATE tis620_thai_nopad_ci,
+UNIQUE KEY(a(100)) USING HASH
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('a'),('A');
+ERROR 23000: Duplicate entry 'A' for key 'a'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1
+(
+a CHAR(250) COLLATE tis620_thai_nopad_ci,
+UNIQUE KEY(a(100)) USING HASH
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('a'),('A');
+ERROR 23000: Duplicate entry 'A' for key 'a'
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

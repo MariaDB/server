@@ -1,4 +1,5 @@
 --source include/innodb_page_size.inc
+--source include/innodb_undo_tablespaces.inc
 
 if (!$EXAMPLE_KEY_MANAGEMENT_SO)
 {
