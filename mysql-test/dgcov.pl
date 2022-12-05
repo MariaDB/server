@@ -71,7 +71,7 @@ if ($opt_purge)
 }
 
 my $gcc_version= `gcc -dumpversion`;
-$gcc_version=~ s/^(\d+)\..*$/$1/ or die "Cannot parse gcc -dumpversion: $gcc_version";
+$gcc_version=~ s/^(\d+).*$/$1/ or die "Cannot parse gcc -dumpversion: $gcc_version";
 
 find(\&gcov_one_file, $root);
 find(\&write_coverage, $root) if $opt_generate;
@@ -191,6 +191,7 @@ sub gcov_one_file {
   } else {
     require IO::Uncompress::Gunzip;
     require JSON::PP;
+    no warnings 'once';
     my $gcov_file_json;
     s/\.gcda$// if $gcc_version >= 11;
     IO::Uncompress::Gunzip::gunzip("$_.gcov.json.gz", \$gcov_file_json)
