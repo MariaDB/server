@@ -2573,6 +2573,42 @@ but GCC 4.8.5 does not support pop_options. */
 # pragma GCC optimize ("O0")
 #endif
 
+#ifdef WITH_WSREP
+/** Start bulk insert operation for Galera by appending
+table-level exclusive key for bulk insert.
+@param trx transaction
+@param index index
+@retval false on success
+@retval true on failure */
+ATTRIBUTE_COLD static bool row_ins_wsrep_start_bulk(trx_t *trx, const dict_index_t &index)
+{
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  ulint	db_buf_len, tbl_buf_len;
+
+  if (!index.table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len))
+  {
+    WSREP_ERROR("Parse_name for bulk insert failed: %s",
+                wsrep_thd_query(trx->mysql_thd));
+    trx->error_state = DB_ROLLBACK;
+    return true;
+  }
+
+  /* Append table-level exclusive key for bulk insert. */
+  const int rcode = wsrep_thd_append_table_key(trx->mysql_thd, db_buf,
+                                               tbl_buf, WSREP_SERVICE_KEY_EXCLUSIVE);
+  if (rcode)
+  {
+    WSREP_ERROR("Appending table key for bulk insert failed: %s, %d",
+                wsrep_thd_query(trx->mysql_thd), rcode);
+    trx->error_state = DB_ROLLBACK;
+    return true;
+  }
+
+  return false;
+}
+#endif
+
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2703,7 +2739,7 @@ commit_exit:
 	    && !index->table->n_rec_locks
 	    && !index->table->is_active_ddl()
 	    && !index->table->has_spatial_index()
-	    && !trx->is_wsrep() /* FIXME: MDEV-24623 */
+	    && !index->table->versioned()
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
@@ -2723,6 +2759,19 @@ avoid_bulk:
 				trx->bulk_insert = false;
 				goto skip_bulk_insert;
 			}
+
+#ifdef WITH_WSREP
+			if (trx->is_wsrep())
+			{
+			    if (!wsrep_thd_is_local_transaction(trx->mysql_thd))
+				    goto skip_bulk_insert;
+			    if (row_ins_wsrep_start_bulk(trx, *index))
+				    goto commit_exit;
+
+			    fprintf(stderr, "JAN:: bulk insert started");
+			    fflush(stderr);
+			}
+#endif /* WITH_WSREP */
 
 #ifdef BTR_CUR_HASH_ADAPT
 			if (btr_search_enabled) {

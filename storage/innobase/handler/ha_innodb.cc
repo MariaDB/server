@@ -8023,6 +8023,7 @@ report_error:
 
 #ifdef WITH_WSREP
 	if (!error_result && trx->is_wsrep()
+	    && !trx->is_bulk_insert()
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)
 	    && !wsrep_consistency_check(m_user_thd)
@@ -8734,6 +8735,9 @@ ha_innobase::delete_row(
 
 	DBUG_ENTER("ha_innobase::delete_row");
 
+	fprintf(stderr, "JAN::delete_row()");
+	fflush(stderr);
+
 	if (is_read_only()) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (!trx_is_started(trx)) {
@@ -8754,10 +8758,13 @@ ha_innobase::delete_row(
 
 	error = row_update_for_mysql(m_prebuilt);
 
+	ut_ad(!trx->is_bulk_insert());
+
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()
 	    && wsrep_thd_is_local(m_user_thd)
-	    && !wsrep_thd_ignore_table(m_user_thd)) {
+	    && !wsrep_thd_ignore_table(m_user_thd))
+	{
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
 				      record,
 				      NULL)) {
@@ -10126,6 +10133,8 @@ wsrep_append_key(
 					(shared, exclusive, semi...) */
 )
 {
+	ut_ad(!trx->is_bulk_insert());
+
 	DBUG_ENTER("wsrep_append_key");
 	DBUG_PRINT("enter",
 		    ("thd: %lu trx: %lld", thd_get_thread_id(thd),
@@ -15680,6 +15689,8 @@ ha_innobase::extra(
 		trx->bulk_insert_apply();
 		trx->end_bulk_insert(*m_prebuilt->table);
 		trx->bulk_insert = false;
+		fprintf(stderr, "JAN::: end bulk insert\n");
+		fflush(stderr);
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		m_prebuilt->read_just_key = 0;
@@ -15822,6 +15833,8 @@ ha_innobase::start_stmt(
 		trx->end_bulk_insert();
 		trx->bulk_insert = false;
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
+		fprintf(stderr, "JAN::: end bulk insert\n");
+		fflush(stderr);
 	}
 
 	m_prebuilt->sql_stat_start = TRUE;
@@ -16010,6 +16023,8 @@ ha_innobase::external_lock(
 		}
 		trx->bulk_insert = false;
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
+		fprintf(stderr, "JAN::: end bulk insert\n");
+		fflush(stderr);
 	}
 
 	switch (m_prebuilt->table->quiesce) {
