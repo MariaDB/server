@@ -1,0 +1,30 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET foreign_key_checks = 0;
+SET unique_checks = 0;
+START TRANSACTION;
+connection node_2;
+SET foreign_key_checks = 1;
+SET unique_checks = 1;
+INSERT INTO t1 VALUES (1001);
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+START TRANSACTION;
+connection node_2;
+SET foreign_key_checks = 1;
+SET unique_checks = 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1001);
+connection node_1;
+COMMIT;
+2
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;
