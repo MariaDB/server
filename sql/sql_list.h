@@ -299,7 +299,7 @@ public:
   inline list_node* first_node() { return first;}
   inline void *head() { return first->info; }
   inline void **head_ref() { return first != &end_of_list ? &first->info : 0; }
-  inline bool is_empty() { return first == &end_of_list ; }
+  inline bool is_empty() const { return first == &end_of_list ; }
   inline list_node *last_ref() { return &end_of_list; }
   inline bool add_unique(void *info, List_eq *eq)
   {
@@ -740,7 +740,7 @@ class base_ilist
 public:
   inline void empty() { first= &last; last.prev= &first; }
   base_ilist() { empty(); }
-  inline bool is_empty() {  return first == &last; }
+  inline bool is_empty() const {  return first == &last; }
   // Returns true if p is the last "real" object in the list,
   // i.e. p->next points to the sentinel.
   inline bool is_last(ilink *p) { return p->next == NULL || p->next == &last; }
@@ -821,7 +821,7 @@ public:
   I_List() :base_ilist()	{}
   inline bool is_last(T *p)     { return base_ilist::is_last(p); }
   inline void empty()		{ base_ilist::empty(); }
-  inline bool is_empty()        { return base_ilist::is_empty(); } 
+  inline bool is_empty() const  { return base_ilist::is_empty(); }
   inline void append(T* a)	{ base_ilist::append(a); }
   inline void push_back(T* a)	{ base_ilist::push_back(a); }
   inline T* get()		{ return (T*) base_ilist::get(); }
@@ -859,14 +859,20 @@ public:
 
 template <typename T>
 inline
-void
+bool
 list_copy_and_replace_each_value(List<T> &list, MEM_ROOT *mem_root)
 {
   /* Make a deep copy of each element */
   List_iterator<T> it(list);
   T *el;
   while ((el= it++))
-    it.replace(el->clone(mem_root));
+  {
+    T *el2= el->clone(mem_root);
+    if (!el2)
+      return true;
+    it.replace(el2);
+  }
+  return false;
 }
 
 void free_list(I_List <i_string_pair> *list);

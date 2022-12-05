@@ -462,7 +462,7 @@ drop table t1;
 # MDEV-20729 Fix REFERENCES constraint in column definition
 #
 create or replace table t1(
-id int
+id SYS_DATATYPE
 );
 # system fields can't be foreign keys:
 create or replace table t2(
@@ -486,7 +486,7 @@ sys_end SYS_DATATYPE as row end,
 period for system_time(sys_start, sys_end),
 foreign key (sys_start) references t1(id)
 ) engine innodb with system versioning;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Missing index for constraint 't2.t2_ibfk_1' in the referenced table 't1'
 create or replace table t2(
 x int,
 sys_start SYS_DATATYPE as row start,
@@ -494,5 +494,5 @@ sys_end SYS_DATATYPE as row end,
 period for system_time(sys_start, sys_end),
 foreign key (sys_end) references t1(id)
 ) engine innodb with system versioning;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Missing index for constraint 't2.t2_ibfk_1' in the referenced table 't1'
 drop table t1;

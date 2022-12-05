@@ -8268,14 +8268,14 @@ ER_MUST_CHANGE_PASSWORD
         spa "Debe vd de poner SET PASSWORD antes de ejecutar esta sentencia"
 
 ER_FK_NO_INDEX_CHILD
-        chi "无法添加外键约束。外表'%s'中的约束'%s'缺少索引"
-        eng "Failed to add the foreign key constraint. Missing index for constraint '%s' in the foreign table '%s'"
-        spa "No pude añadir la restricción de clave foránea. Falta índice para restricción '%s' en la tabla foránea '%s'"
+        chi "外表'%s'中的约束'%s'缺少索引"
+        eng "Missing index for constraint '%s' in the foreign table '%s'"
+        spa "Falta índice para restricción '%s' en la tabla foránea '%s'"
 
 ER_FK_NO_INDEX_PARENT
-        chi "无法添加外键约束。引用的表'%s'中的约束'%s'缺少索引"
-        eng "Failed to add the foreign key constraint. Missing index for constraint '%s' in the referenced table '%s'"
-        spa "No pude añadir la restricción de clave foránea. Falta índice para restricción '%s' en la tabla referenciada '%s'"
+        chi "引用的表'%s.%s'中的约束'%s'缺少索引"
+        eng "Missing index for constraint '%s.%s' in the referenced table '%s'"
+        spa "Falta índice para restricción '%s.%s' en la tabla referenciada '%s'"
 
 ER_FK_FAIL_ADD_SYSTEM
         chi "无法将外键约束'%s'添加到系统表"

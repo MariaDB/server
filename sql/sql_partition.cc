@@ -6601,6 +6601,16 @@ static bool write_log_convert_partition(ALTER_PARTITION_PARAM_TYPE *lpt,
 }
 
 
+inline
+uint build_table_shadow_filename(char *buff, size_t bufflen,
+                                 ALTER_PARTITION_PARAM_TYPE *lpt,
+                                 bool backup= false)
+{
+  return build_table_shadow_filename(buff, bufflen, lpt->db.str,
+                                     lpt->table_name.str, backup);
+}
+
+
 /*
   Write the log entry to ensure that the shadow frm file is removed at
   crash.
@@ -7010,6 +7020,7 @@ static bool alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
   }
   lpt->table= 0;
   lpt->table_list->table= 0;
+  lpt->alter_ctx->fk_table_backup.commit();
   if (thd->locked_tables_mode)
     return thd->locked_tables_list.reopen_tables(thd, false);
 

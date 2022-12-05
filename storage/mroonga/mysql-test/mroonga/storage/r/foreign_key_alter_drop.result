@@ -7,7 +7,7 @@ content text NOT NULL
 CREATE TABLE articles (
 content text NOT NULL,
 comment int unsigned,
-FOREIGN KEY (comment) REFERENCES comments (comment)
+FOREIGN KEY comment (comment) REFERENCES comments (comment)
 );
 ALTER TABLE articles DROP FOREIGN KEY comment;
 SHOW CREATE TABLE articles;
@@ -19,5 +19,7 @@ articles	CREATE TABLE `articles` (
 ) ENGINE=Mroonga DEFAULT CHARSET=latin1
 SELECT * FROM information_schema.referential_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	UNIQUE_CONSTRAINT_CATALOG	UNIQUE_CONSTRAINT_SCHEMA	UNIQUE_CONSTRAINT_NAME	MATCH_OPTION	UPDATE_RULE	DELETE_RULE	TABLE_NAME	REFERENCED_TABLE_NAME
+def	mysql	fk_help_relation	def	mysql	fk_help_relation	NONE	???	???	help_relation	help_topic
+def	mysql	fk_help_relation_2	def	mysql	fk_help_relation_2	NONE	???	???	help_relation	help_keyword
 DROP TABLE articles;
 DROP TABLE comments;

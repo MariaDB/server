@@ -2022,6 +2022,85 @@ static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
   packet->append(STRING_WITH_LEN(")"));
 }
 
+
+static
+void fk_append_info(THD *thd, String *p, TABLE *table)
+{
+  for (const FK_info &fk: table->s->foreign_keys)
+  {
+    p->append(STRING_WITH_LEN(",\n  CONSTRAINT "));
+    append_identifier(thd, p, &fk.foreign_id);
+    p->append(STRING_WITH_LEN(" FOREIGN KEY ("));
+    bool comma= false;
+    for (const Lex_cstring &fcol: fk.foreign_fields)
+    {
+      if (comma)
+        p->append(STRING_WITH_LEN(", "));
+      else
+        comma= true;
+      append_identifier(thd, p, &fcol);
+    }
+    p->append(STRING_WITH_LEN(") REFERENCES "));
+    if (fk.referenced_db.str && 0 != cmp_table(table->s->db, fk.referenced_db))
+    {
+      append_identifier(thd, p, &fk.referenced_db);
+      p->append('.');
+    }
+    append_identifier(thd, p, &fk.referenced_table);
+    p->append(STRING_WITH_LEN(" ("));
+    comma= false;
+    for (const Lex_cstring &rcol: fk.referenced_fields)
+    {
+      if (comma)
+        p->append(STRING_WITH_LEN(", "));
+      else
+        comma= true;
+      append_identifier(thd, p, &rcol);
+    }
+    p->append(')');
+
+    switch (fk.delete_method)
+    {
+    case FK_OPTION_CASCADE:
+      p->append(STRING_WITH_LEN(" ON DELETE CASCADE"));
+      break;
+    case FK_OPTION_NO_ACTION:
+      p->append(STRING_WITH_LEN(" ON DELETE NO ACTION"));
+      break;
+    case FK_OPTION_RESTRICT:
+      p->append(STRING_WITH_LEN(" ON DELETE RESTRICT"));
+      break;
+    case FK_OPTION_SET_DEFAULT:
+      p->append(STRING_WITH_LEN(" ON DELETE SET DEFAULT"));
+      break;
+    case FK_OPTION_SET_NULL:
+      p->append(STRING_WITH_LEN(" ON DELETE SET NULL"));
+      break;
+    default:;
+    }
+
+    switch (fk.update_method)
+    {
+    case FK_OPTION_CASCADE:
+      p->append(STRING_WITH_LEN(" ON UPDATE CASCADE"));
+      break;
+    case FK_OPTION_NO_ACTION:
+      p->append(STRING_WITH_LEN(" ON UPDATE NO ACTION"));
+      break;
+    case FK_OPTION_RESTRICT:
+      p->append(STRING_WITH_LEN(" ON UPDATE RESTRICT"));
+      break;
+    case FK_OPTION_SET_DEFAULT:
+      p->append(STRING_WITH_LEN(" ON UPDATE SET DEFAULT"));
+      break;
+    case FK_OPTION_SET_NULL:
+      p->append(STRING_WITH_LEN(" ON UPDATE SET NULL"));
+      break;
+    default:;
+    }
+  }
+}
+
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name)
@@ -2066,7 +2145,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
                          enum_with_db_name with_db_name)
 {
   List<Item> field_list;
-  char tmp[MAX_FIELD_WIDTH], *for_str, def_value_buf[MAX_FIELD_WIDTH];
+  char tmp[MAX_FIELD_WIDTH], def_value_buf[MAX_FIELD_WIDTH];
   LEX_CSTRING alias;
   String type;
   String def_value;
@@ -2414,16 +2493,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
   }
 
-  /*
-    Get possible foreign key definitions stored in InnoDB and append them
-    to the CREATE TABLE statement
-  */
-
-  if ((for_str= table->file->get_foreign_key_create_info()))
-  {
-    packet->append(for_str, strlen(for_str));
-    table->file->free_foreign_key_create_info(for_str);
-  }
+  fk_append_info(thd, packet, table);
 
   /* Add table level check constraints */
   if (share->table_check_constraints)
@@ -7145,7 +7215,6 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
   }
   else if (!tables->view)
   {
-    List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
     uint primary_key= show_table->s->primary_key;
@@ -7186,14 +7255,11 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
         }
     }
 
-    show_table->file->get_foreign_key_list(thd, &f_key_list);
-    FOREIGN_KEY_INFO *f_key_info;
-    List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-    while ((f_key_info=it++))
+    for (const FK_info &fk: show_table->s->foreign_keys)
     {
       if (store_constraints(thd, table, db_name, table_name,
-                            f_key_info->foreign_id->str,
-                            strlen(f_key_info->foreign_id->str),
+                            fk.foreign_id.str,
+                            strlen(fk.foreign_id.str),
                             "FOREIGN KEY", 11))
         DBUG_RETURN(1);
     }
@@ -7339,7 +7405,6 @@ static int get_schema_key_column_usage_record(THD *thd,
   }
   else if (!tables->view)
   {
-    List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
     uint primary_key= show_table->s->primary_key;
@@ -7369,37 +7434,32 @@ static int get_schema_key_column_usage_record(THD *thd,
       }
     }
 
-    show_table->file->get_foreign_key_list(thd, &f_key_list);
-    FOREIGN_KEY_INFO *f_key_info;
-    List_iterator_fast<FOREIGN_KEY_INFO> fkey_it(f_key_list);
-    while ((f_key_info= fkey_it++))
+    for (FK_info &fk: show_table->s->foreign_keys)
     {
-      LEX_CSTRING *f_info;
-      LEX_CSTRING *r_info;
-      List_iterator_fast<LEX_CSTRING> it(f_key_info->foreign_fields),
-        it1(f_key_info->referenced_fields);
+      List_iterator_fast<Lex_cstring> rf_it(fk.referenced_fields);
       uint f_idx= 0;
-      while ((f_info= it++))
+      DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
+      for (const Lex_cstring &ff: fk.foreign_fields)
       {
-        r_info= it1++;
+        const Lex_cstring &rf= *(rf_it++);
         f_idx++;
         restore_record(table, s->default_values);
         store_key_column_usage(table, db_name, table_name,
-                               f_key_info->foreign_id->str,
-                               f_key_info->foreign_id->length,
-                               f_info->str, f_info->length,
-                               (longlong) f_idx);
-        table->field[8]->store((longlong) f_idx, TRUE);
+                              fk.foreign_id.str,
+                              fk.foreign_id.length,
+                              ff.str, ff.length,
+                              (longlong) f_idx);
+        table->field[8]->store((longlong) f_idx, true);
         table->field[8]->set_notnull();
-        table->field[9]->store(f_key_info->referenced_db->str,
-                               f_key_info->referenced_db->length,
-                               system_charset_info);
+        table->field[9]->store(fk.ref_db().str,
+                              fk.ref_db().length,
+                              system_charset_info);
         table->field[9]->set_notnull();
-        table->field[10]->store(f_key_info->referenced_table->str,
-                                f_key_info->referenced_table->length,
+        table->field[10]->store(fk.referenced_table.str,
+                                fk.referenced_table.length,
                                 system_charset_info);
         table->field[10]->set_notnull();
-        table->field[11]->store(r_info->str, r_info->length,
+        table->field[11]->store(rf.str, rf.length,
                                 system_charset_info);
         table->field[11]->set_notnull();
         if (schema_table_store_record(thd, table))
@@ -8147,43 +8207,61 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
     thd->clear_error();
     DBUG_RETURN(0);
   }
-  if (!tables->view)
+  if (!tables->view && !tables->table->s->foreign_keys.is_empty())
   {
-    List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
     show_table->file->info(HA_STATUS_VARIABLE |
                            HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
 
-    show_table->file->get_foreign_key_list(thd, &f_key_list);
-    FOREIGN_KEY_INFO *f_key_info;
-    List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-    while ((f_key_info= it++))
+    /** Preacquire shares */
+    Share_map ref_shares;
+    for (const FK_info &fk: show_table->s->foreign_keys)
+      if (fk.get_referenced_share(thd, &ref_shares, ME_WARNING))
+        return true;
+
+    for (const FK_info &fk: show_table->s->foreign_keys)
     {
-      restore_record(table, s->default_values);
-      table->field[0]->store(STRING_WITH_LEN("def"), cs);
-      table->field[1]->store(db_name->str, db_name->length, cs);
-      table->field[9]->store(table_name->str, table_name->length, cs);
-      table->field[2]->store(f_key_info->foreign_id->str,
-                             f_key_info->foreign_id->length, cs);
-      table->field[3]->store(STRING_WITH_LEN("def"), cs);
-      table->field[4]->store(f_key_info->referenced_db->str, 
-                             f_key_info->referenced_db->length, cs);
-      table->field[10]->store(f_key_info->referenced_table->str,
-                             f_key_info->referenced_table->length, cs);
-      if (f_key_info->referenced_key_name)
+      TABLE_SHARE *ref_share= NULL;
+      Lex_cstring ref_key_name;
+
+      if (!fk.self_ref())
       {
-        table->field[5]->store(f_key_info->referenced_key_name->str,
-                               f_key_info->referenced_key_name->length, cs);
-        table->field[5]->set_notnull();
+        Table_name ref(fk.ref_db(), fk.referenced_table);
+        auto ref_it= ref_shares.find(ref);
+        if (ref_it != ref_shares.end())
+        {
+          ref_share= ref_it->second.share;
+          DBUG_ASSERT(ref_share);
+        }
       }
       else
-        table->field[5]->set_null();
+        ref_share= tables->table->s;
+
+      if (ref_share)
+      {
+        if (KEY *k= fk.find_referenced_idx(ref_share, ME_WARNING))
+          ref_key_name= k->name;
+      }
+
+      restore_record(table, s->default_values);
+      table->field[0]->store(STRING_WITH_LEN("def"), cs);
+      table->field[1]->store(db_name, cs);
+      table->field[9]->store(table_name, cs);
+      table->field[2]->store(fk.foreign_id, cs);
+      table->field[3]->store(STRING_WITH_LEN("def"), cs);
+      table->field[4]->store(fk.ref_db(), cs);
+      table->field[10]->store(fk.referenced_table, cs);
+      if (!ref_key_name.is_empty())
+      {
+        table->field[5]->store(ref_key_name, cs);
+        table->field[5]->set_notnull();
+      }
       table->field[6]->store(STRING_WITH_LEN("NONE"), cs);
-      s= fk_option_name(f_key_info->update_method);
-      table->field[7]->store(s->str, s->length, cs);
-      s= fk_option_name(f_key_info->delete_method);
-      table->field[8]->store(s->str, s->length, cs);
+      s= fk_option_name(fk.update_method);
+      table->field[7]->store(s, cs);
+      s= fk_option_name(fk.delete_method);
+      table->field[8]->store(s, cs);
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);
     }

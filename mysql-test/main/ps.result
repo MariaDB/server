@@ -589,7 +589,7 @@ select t2.id from t2, t1 where (t1.id=1 and t2.t1_id=t1.id);
 id
 3
 deallocate prepare stmt;
-drop table t1, t2;
+drop table t2, t1;
 create table t1 (id int);
 prepare stmt from "insert into t1 (id) select id from t1 union select id from t1";
 execute stmt;
