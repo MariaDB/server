@@ -2642,7 +2642,6 @@ commit_exit:
 	    && !index->table->skip_alter_undo
 	    && !index->table->n_rec_locks
 	    && !index->table->is_active_ddl()
-	    && !trx->is_wsrep() /* FIXME: MDEV-24623 */
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
@@ -2657,6 +2656,34 @@ commit_exit:
 			if (index->table->n_rec_locks) {
 				goto skip_bulk_insert;
 			}
+
+#ifdef WITH_WSREP
+			if (trx->is_wsrep() && wsrep_thd_is_local(trx->mysql_thd))
+			{
+				char	db_buf[NAME_LEN + 1];
+				char	tbl_buf[NAME_LEN + 1];
+				ulint	db_buf_len, tbl_buf_len;
+
+				if (!index->table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len))
+				{
+					trx->error_state = DB_ROLLBACK;
+					goto commit_exit;
+				}
+
+				/* Append table-level exclusive key for bulk insert. */
+				const int rcode = wsrep_thd_append_table_key(trx->mysql_thd, db_buf,
+				            tbl_buf, WSREP_SERVICE_KEY_EXCLUSIVE);
+				if (rcode)
+				{
+					DBUG_PRINT("wsrep", ("bulk insert key failed: %d", rcode));
+					WSREP_ERROR("Appending table key for bulk insert failed: %s, %d",
+					        (wsrep_thd_query(trx->mysql_thd)) ?
+					        wsrep_thd_query(trx->mysql_thd) : "void", rcode);
+					trx->error_state = DB_ROLLBACK;
+					goto commit_exit;
+				}
+			}
+#endif /* WITH_WSREP */
 
 #ifdef BTR_CUR_HASH_ADAPT
 			if (btr_search_enabled) {

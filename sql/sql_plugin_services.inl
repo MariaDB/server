@@ -162,6 +162,7 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_is_local,
   wsrep_thd_self_abort,
   wsrep_thd_append_key,
+  wsrep_thd_append_table_key,
   wsrep_thd_client_state_str,
   wsrep_thd_client_mode_str,
   wsrep_thd_transaction_state_str,
