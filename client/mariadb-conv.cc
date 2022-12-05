@@ -25,8 +25,6 @@
 #include "sql_string.h"
 #include "my_dir.h"
 
-#define CONV_VERSION "1.0"
-
 
 class CmdOpt
 {
@@ -415,7 +413,7 @@ public:
   }
   void usage(void)
   {
-    printf("%s Ver %s Distrib %s for %s on %s\n", my_progname, CONV_VERSION,
+    printf("%s Distrib %s for %s on %s\n", my_progname,
       MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
     puts("Character set conversion utility for MariaDB");
     puts("Usage:");

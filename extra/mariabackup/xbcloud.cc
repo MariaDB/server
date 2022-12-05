@@ -43,8 +43,6 @@ using std::max;
 using std::map;
 using std::string;
 
-#define XBCLOUD_VERSION "1.0"
-
 #define SWIFT_MAX_URL_SIZE 8192
 #define SWIFT_MAX_HDR_SIZE 8192
 
@@ -343,7 +341,7 @@ static
 void
 print_version()
 {
-	printf("%s  Ver %s for %s (%s)\n", my_progname, XBCLOUD_VERSION,
+	printf("%s  Distrib %s for %s (%s)\n", my_progname, MYSQL_SERVER_VERSION,
 	       SYSTEM_TYPE, MACHINE_TYPE);
 }
 

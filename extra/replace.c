@@ -176,7 +176,7 @@ static int static_get_options(int *argc, char***argv)
       case 'I':
       case '?':
 	help=1;					/* Help text written */
-	printf("%s  Ver 1.4 for %s at %s\n",my_progname,SYSTEM_TYPE,
+	printf("%s  Distrib %s for %s at %s\n",my_progname,MYSQL_SERVER_VERSION,SYSTEM_TYPE,
 	       MACHINE_TYPE);
 	if (version)
 	  break;

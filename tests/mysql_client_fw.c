@@ -37,7 +37,6 @@ static my_bool non_blocking_api_enabled= 0;
 #include "nonblock-wrappers.h"
 #endif
 
-#define VER "2.1"
 #define MAX_TEST_QUERY_LENGTH 300 /* MAX QUERY BUFFER LENGTH */
 #define MAX_KEY MAX_INDEXES
 #define MAX_SERVER_ARGS 64
@@ -1256,8 +1255,8 @@ static void usage(void)
 {
   /* show the usage string when the user asks for this */
   putc('\n', stdout);
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",
-	 my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s  Distrib %s, for %s (%s)\n",
+	 my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
   puts("By Monty, Venu, Kent and others\n");
   printf("\
 Copyright (C) 2002-2004 MySQL AB\n\

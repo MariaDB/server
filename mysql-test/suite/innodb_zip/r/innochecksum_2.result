@@ -37,7 +37,7 @@ merge                             0
 [1]:# check the both short and long options for "help"
 [2]:# Run the innochecksum when file isn't provided.
 # It will print the innochecksum usage similar to --help option.
-innochecksum Ver #.#.#
+innochecksum Distrib
 Copyright (c) YEAR, YEAR , Oracle, MariaDB Corporation Ab and others.
 
 InnoDB offline file checksum utility.
@@ -88,5 +88,5 @@ merge                             0
 Number of pages:#
 Number of pages:#
 [4]:# Print the version of innochecksum and exit
-innochecksum Ver #.#.## Restart the DB server
+innochecksum Distrib# Restart the DB server
 DROP TABLE t1;

@@ -22,9 +22,8 @@
 #include <my_dir.h>
 #include <mysql_version.h>
 
-#define SHOW_VERSION "1.0.0"
-#define PRINT_VERSION do { printf("%s  Ver %s Distrib %s\n",    \
-                        my_progname, SHOW_VERSION, MYSQL_SERVER_VERSION);    \
+#define PRINT_VERSION do { printf("%s  Distrib %s\n",    \
+                        my_progname, MYSQL_SERVER_VERSION);    \
                       } while(0)
 
 /* Global variables. */

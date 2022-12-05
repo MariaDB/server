@@ -39,9 +39,6 @@
 ** 10 Jun 2003: SET NAMES and --no-set-names by Alexander Barkov
 */
 
-/* on merge conflict, bump to a higher version again */
-#define DUMP_VERSION "10.19"
-
 /**
   First mysql version supporting sequences.
 */
@@ -698,7 +695,7 @@ void check_io(FILE *file)
 
 static void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname_short,DUMP_VERSION,
+  printf("%s  Distrib %s, for %s (%s)\n",my_progname_short,
          MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 } /* print_version */
 
@@ -775,8 +772,8 @@ static void write_header(FILE *sql_file, const char *db_name)
   else if (!opt_compact)
   {
     print_comment(sql_file, 0,
-                  "-- MariaDB dump %s  Distrib %s, for %s (%s)\n--\n",
-                  DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
+                  "-- MariaDB dump Distrib %s, for %s (%s)\n--\n",
+                  MYSQL_SERVER_VERSION, SYSTEM_TYPE,
                   MACHINE_TYPE);
     print_comment(sql_file, 0, "-- Host: %s    ",
                   fix_for_comment(current_host ? current_host : "localhost"));

@@ -18,8 +18,6 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.4-MariaDB"
-
 #include "client_priv.h"
 #include <m_ctype.h>
 #include <mysql_version.h>
@@ -250,7 +248,7 @@ int what_to_do = 0;
 
 static void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n", my_progname, CHECK_VERSION,
+  printf("%s  Distrib %s, for %s (%s)\n", my_progname,
    MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
 } /* print_version */
 

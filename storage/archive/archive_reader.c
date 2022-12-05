@@ -26,8 +26,6 @@
 #define BUFFER_LEN 1024
 #define ARCHIVE_ROW_HEADER_SIZE 4
 
-#define SHOW_VERSION "0.1"
-
 static void get_options(int *argc,char * * *argv);
 static void print_version(void);
 static void usage(void);
@@ -402,7 +400,7 @@ static void usage(void)
 
 static void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n", my_progname, SHOW_VERSION,
+  printf("%s  Distrib %s, for %s (%s)\n", my_progname,
          MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
 }
 

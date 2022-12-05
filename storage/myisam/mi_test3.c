@@ -145,7 +145,7 @@ static void get_options(int argc, char **argv)
    case '?':
     case 'I':
     case 'V':
-      printf("%s  Ver 1.0 for %s at %s\n",progname,SYSTEM_TYPE,MACHINE_TYPE);
+      printf("%s  Distrib %s for %s at %s\n",progname,MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
       puts("By Monty, for your professional use\n");
       puts("Test av locking with threads\n");
       printf("Usage: %s [-?lKA] [-f#] [-t#]\n",progname);

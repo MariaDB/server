@@ -652,7 +652,7 @@ get_one_option(const struct my_option *opt,
     key_cacheing=1;
     break;
   case 'V':
-    printf("test1 Ver 1.2 \n");
+    printf("test1 Distrib %s\n", MYSQL_SERVER_VERSION);
     exit(0);
   case '#':
     DBUG_PUSH (argument);

@@ -22,8 +22,6 @@
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
-#define VER "2.0"
-
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
@@ -296,8 +294,8 @@ get_one_option(const struct my_option *opt, const char *argument,
   switch (opt->id) {
 
   case '?':
-    printf("%s  Ver %s Distrib %s, for %s (%s)\n",
-           my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+    printf("%s  Distrib %s, for %s (%s)\n",
+           my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
     puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
     puts("MariaDB utility for upgrading databases to new MariaDB versions.");
     print_defaults("my", load_default_groups);
@@ -358,8 +356,8 @@ get_one_option(const struct my_option *opt, const char *argument,
     add_option= 0;
     break;
   case 'V':
-    printf("%s  Ver %s Distrib %s, for %s (%s)\n",
-           my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+    printf("%s  Distrib %s, for %s (%s)\n",
+           my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
     die(0);
     break;
   case 'f': /* --force     */

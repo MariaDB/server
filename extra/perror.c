@@ -16,8 +16,6 @@
 
 /* Return error-text for system error messages and handler messages */
 
-#define PERROR_VERSION "2.11"
-
 #include <my_global.h>
 #include <my_sys.h>
 #include <m_string.h>
@@ -78,7 +76,7 @@ static HA_ERRORS ha_errlist[]=
 
 static void print_version(void)
 {
-  printf("%s Ver %s, for %s (%s)\n",my_progname,PERROR_VERSION,
+  printf("%s Distrib %s for %s (%s)\n",my_progname, MYSQL_SERVER_VERSION,
 	 SYSTEM_TYPE,MACHINE_TYPE);
 }
 

@@ -36,7 +36,7 @@ struct IUnknown;
 #include <string>
 
 #define USAGETEXT \
-"mysql_install_db.exe  Ver 1.00 for Windows\n" \
+"mysql_install_db.exe  Distrib " MYSQL_SERVER_VERSION " for Windows\n" \
 "Copyright (C) 2010-2011 Monty Program Ab & Vladislav Vaintroub\n" \
 "This software comes with ABSOLUTELY NO WARRANTY. This is free software,\n" \
 "and you are welcome to modify and redistribute it under the GPL v2 license\n" \

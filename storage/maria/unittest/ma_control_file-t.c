@@ -575,7 +575,7 @@ static struct my_option my_long_options[] =
 static void version(void)
 {
   printf("ma_control_file_test: unit test for the control file "
-         "module of the Aria storage engine. Ver 1.0 \n");
+         "module of the Aria storage engine. Distrib %s\n", MYSQL_SERVER_VERSION);
 }
 
 static my_bool

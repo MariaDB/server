@@ -1213,12 +1213,12 @@ static struct my_option innochecksum_options[] = {
 static void print_version()
 {
 #ifdef DBUG_OFF
-	printf("%s Ver %s, for %s (%s)\n",
-		my_progname, PACKAGE_VERSION,
+	printf("%s Distrib %s, for %s (%s)\n",
+		my_progname, MYSQL_SERVER_VERSION,
 		SYSTEM_TYPE, MACHINE_TYPE);
 #else
-	printf("%s-debug Ver %s, for %s (%s)\n",
-		my_progname, PACKAGE_VERSION,
+	printf("%s-debug Distrib %s, for %s (%s)\n",
+		my_progname, MYSQL_SERVER_VERSION,
 		SYSTEM_TYPE, MACHINE_TYPE);
 #endif /* DBUG_OFF */
 }

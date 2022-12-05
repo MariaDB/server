@@ -37,7 +37,7 @@ extern int upgrade_config_file(const char *myini_path);
 #pragma comment(lib, "version")
 
 #define USAGETEXT \
-"mysql_upgrade_service.exe  Ver 1.00 for Windows\n" \
+"mysql_upgrade_service.exe  Distrib " MYSQL_SERVER_VERSION " for Windows\n" \
 "Copyright (C) 2010-2011 Monty Program Ab & Vladislav Vaintroub" \
 "This software comes with ABSOLUTELY NO WARRANTY. This is free software,\n" \
 "and you are welcome to modify and redistribute it under the GPL v2 license\n" \

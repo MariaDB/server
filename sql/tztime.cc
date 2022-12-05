@@ -64,8 +64,6 @@
 #endif /* !defined(DBUG_OFF) */
 #endif /* defined(TZINFO2SQL) || defined(TESTTIME) */
 
-#define PROGRAM_VERSION "1.1"
-
 /* Structure describing local time type (e.g. Moscow summer time (MSD)) */
 typedef struct ttinfo
 {
@@ -2668,7 +2666,7 @@ C_MODE_END
 
 static void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname, PROGRAM_VERSION,
+  printf("%s  Distrib %s, for %s (%s)\n",my_progname,
 	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 }
 

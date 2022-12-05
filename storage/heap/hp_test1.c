@@ -161,7 +161,7 @@ static int get_options(int argc, char **argv)
       remove_ant=atoi(++pos);
       break;
     case 'V':
-      printf("hp_test1    Ver 3.0 \n");
+      printf("hp_test1    Distrib %s\n", MYSQL_SERVER_VERSION);
       exit(0);
     case '#':
       DBUG_PUSH (++pos);

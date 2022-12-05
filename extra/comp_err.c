@@ -1134,7 +1134,7 @@ static struct languages *parse_charset_string(char *str)
 static void print_version(void)
 {
   DBUG_ENTER("print_version");
-  printf("%s  (Compile errormessage)  Ver %s\n", my_progname, "3.0");
+  printf("%s  (Compile errormessage)  Distrib %s\n", my_progname, MYSQL_SERVER_VERSION);
   DBUG_VOID_RETURN;
 }
 

@@ -16,8 +16,6 @@
 
 /* Resolves IP's to hostname and hostnames to IP's */
 
-#define RESOLVE_VERSION "2.3"
-
 #include <my_global.h>
 #include <m_ctype.h>
 #include <my_sys.h>
@@ -54,7 +52,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s Ver %s, for %s (%s)\n",my_progname,RESOLVE_VERSION,
+  printf("%s Distrib %s, for %s (%s)\n",my_progname,MYSQL_SERVER_VERSION,
 	 SYSTEM_TYPE,MACHINE_TYPE);
 }
 

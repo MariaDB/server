@@ -979,7 +979,7 @@ static void get_options(int argc, char **argv)
     case '?':
     case 'I':
     case 'V':
-      printf("%s  Ver 1.2 for %s at %s\n",progname,SYSTEM_TYPE,MACHINE_TYPE);
+      printf("%s  Distrib %s for %s at %s\n",progname,MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
       puts("By Monty, for your professional use\n");
       printf("Usage: %s [-?AbBcDIKLPRqSsVWltv] [-k#] [-f#] [-m#] [-e#] [-E#] [-t#]\n",
 	     progname);

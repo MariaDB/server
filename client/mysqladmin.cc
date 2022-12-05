@@ -28,7 +28,6 @@
 #include <password.h>
 #include <my_sys.h>
 
-#define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */
 #define MAX_TRUNC_LENGTH 3
@@ -1391,7 +1390,7 @@ static char **mask_password(int argc, char ***argv)
 
 static void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s on %s\n",my_progname,ADMIN_VERSION,
+  printf("%s  Distrib %s, for %s on %s\n",my_progname,
 	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 }
 

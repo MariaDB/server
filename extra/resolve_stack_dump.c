@@ -29,7 +29,6 @@
 #define INIT_SYM_TABLE  4096
 #define INC_SYM_TABLE  4096
 #define MAX_SYM_SIZE   128
-#define DUMP_VERSION "1.4"
 #define HEX_INVALID  (uchar)255
 
 typedef ulong my_long_addr_t ; /* at some point, we need to fix configure
@@ -67,7 +66,7 @@ static void clean_up();
 
 static void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname,DUMP_VERSION,
+  printf("%s  Distrib %s, for %s (%s)\n",my_progname,
 	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 }
 

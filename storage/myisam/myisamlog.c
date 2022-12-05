@@ -249,7 +249,7 @@ static void get_options(register int *argc, register char ***argv)
 	/* Fall through */
       case 'I':
       case '?':
-	printf("%s  Ver 1.4 for %s at %s\n",my_progname,SYSTEM_TYPE,
+	printf("%s  Distrib %s for %s at %s\n",my_progname,MYSQL_SERVER_VERSION,SYSTEM_TYPE,
 	       MACHINE_TYPE);
 	puts("By Monty, for your professional use\n");
 	if (version)

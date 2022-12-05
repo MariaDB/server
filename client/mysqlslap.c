@@ -67,8 +67,6 @@ TODO:
 
 */
 
-#define SLAP_VERSION "1.0"
-
 #define HUGE_STRING_LENGTH 8196
 #define RAND_STRING_SIZE 126
 
@@ -719,7 +717,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname, SLAP_VERSION,
+  printf("%s  Distrib %s, for %s (%s)\n",my_progname,
          MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 }
 

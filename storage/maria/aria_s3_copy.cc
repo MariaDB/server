@@ -111,7 +111,7 @@ static bool get_database_from_path(char *to, size_t to_length, const char *path)
 
 static void print_version(void)
 {
-  printf("%s  Ver 1.0 for %s on %s\n", my_progname, SYSTEM_TYPE,
+  printf("%s  Distrib %s for %s on %s\n", my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
 	 MACHINE_TYPE);
 }
 

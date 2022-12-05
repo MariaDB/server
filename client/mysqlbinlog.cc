@@ -2156,7 +2156,7 @@ static void die()
 
 static void print_version()
 {
-  printf("%s Ver 3.5 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s Distrib %s for %s at %s\n", my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 

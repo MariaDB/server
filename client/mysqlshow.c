@@ -18,8 +18,6 @@
 
 /* Show databases, tables or columns */
 
-#define SHOW_VERSION "9.10"
-
 #include "client_priv.h"
 #include <my_sys.h>
 #include <m_string.h>
@@ -278,7 +276,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname,SHOW_VERSION,
+  printf("%s  Distrib %s, for %s (%s)\n",my_progname,
 	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 }
 

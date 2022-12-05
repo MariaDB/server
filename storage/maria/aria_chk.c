@@ -473,7 +473,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s  Ver 1.3 for %s on %s\n", my_progname, SYSTEM_TYPE,
+  printf("%s  Distrib %s for %s on %s\n", my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
 	 MACHINE_TYPE);
 }
 

@@ -97,7 +97,7 @@ register char **argv[];
 	version=1;
       case 'I':
       case '?':
-	printf("%s  Ver 1.0\n",progname);
+	printf("%s  Distrib %s\n",progname,MYSQL_SERVER_VERSION);
 	if (version)
 	  break;
 	puts("Output tabells of to_lower[], to_upper[] and sortorder[]\n");

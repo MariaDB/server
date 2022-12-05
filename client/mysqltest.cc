@@ -33,8 +33,6 @@
   And many others
 */
 
-#define MTEST_VERSION "3.5"
-
 #include "client_priv.h"
 #include <mysql_version.h>
 #include <mysqld_error.h>
@@ -7194,7 +7192,7 @@ static struct my_option my_long_options[] =
 
 void print_version(void)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname,MTEST_VERSION,
+  printf("%s  Distrib %s, for %s (%s)\n",my_progname,
 	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 }
 

@@ -27,7 +27,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "xbstream.h"
 #include "datasink.h"
 
-#define XBSTREAM_VERSION "1.0"
 #define XBSTREAM_BUFFER_SIZE (10 * 1024 * 1024UL)
 
 #define START_FILE_HASH_SIZE 16
@@ -150,7 +149,7 @@ static
 void
 print_version(void)
 {
-	printf("%s  Ver %s for %s (%s)\n", my_progname, XBSTREAM_VERSION,
+	printf("%s  Distrib %s for %s (%s)\n", my_progname, MYSQL_SERVER_VERSION,
 	       SYSTEM_TYPE, MACHINE_TYPE);
 }
 

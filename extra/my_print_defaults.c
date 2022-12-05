@@ -70,7 +70,7 @@ static void cleanup_and_exit(int exit_code)
 
 static void version()
 {
-  printf("%s  Ver 1.7 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s  Distrib %s for %s at %s\n",my_progname,MYSQL_SERVER_VERSION,SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 
