@@ -570,19 +570,13 @@ static dberr_t srv_undo_tablespaces_reinitialize()
   tolerate that discrepancy but not the inverse. Because there could
   be unused undo tablespaces for future use. */
 
-  if (srv_undo_tablespaces > srv_undo_tablespaces_open)
+  if (srv_undo_tablespaces != srv_undo_tablespaces_open)
   {
-    ib::error() << "Expected to open innodb_undo_tablespaces="
-		<< srv_undo_tablespaces
-		<< " but was able to find only "
-		<< srv_undo_tablespaces_open;
-
-    return DB_ERROR;
-  }
-  else if (srv_undo_tablespaces < srv_undo_tablespaces_open)
     sql_print_warning("InnoDB: Cannot change innodb_undo_tablespaces=%u "
                       "because previous shutdown was not with "
                       "innodb_fast_shutdown=0", srv_undo_tablespaces);
+    srv_undo_tablespaces= srv_undo_tablespaces_open;
+  }
   else if (srv_undo_tablespaces_open > 0)
     sql_print_information("InnoDB: Opened " UINT32PF " undo tablespaces",
                           srv_undo_tablespaces_open);
