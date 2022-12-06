@@ -1790,5 +1790,16 @@ DROP TABLE t1;
 SET STATEMENT sql_mode=ONLY_FULL_GROUP_BY FOR EXECUTE IMMEDIATE 'ALTER TABLE mysql.time_zone_transition ORDER BY Time_zone_id, Transition_time';
 
 --echo #
+--echo # MDEV-19071 Wrong results when using STDDEV_SAMP() and view
+--echo #
+create table t1(i int);
+insert into t1 values  (1),(2),(3),(4),(5);
+create view v1 as select stddev_samp(i),stddev_pop(i),stddev(i),std(i) from t1;
+show create view v1;
+select * from v1;
+drop view v1;
+drop table t1;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
