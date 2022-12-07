@@ -306,6 +306,15 @@ extern const char *innodb_checksum_algorithm_names[];
 extern TYPELIB innodb_checksum_algorithm_typelib;
 extern const char *innodb_flush_method_names[];
 extern TYPELIB innodb_flush_method_typelib;
+static ulong innodb_flush_method;
+/** Enumeration values of innodb_flush_method */
+enum innodb_flush_method_enum {
+  SRV_FSYNC, SRV_O_DSYNC, SRV_LITTLESYNC, SRV_NOSYNC,
+  SRV_O_DIRECT, SRV_O_DIRECT_NO_FSYNC
+#ifdef _WIN32
+  ,SRV_UNBUFFERED, SRV_ASYNC_UNBUFFERED, SRV_NORMAL
+#endif
+};
 
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
 					   NullS};
@@ -1018,6 +1027,7 @@ enum options_xtrabackup
 #if defined __linux__ || defined _WIN32
   OPT_INNODB_LOG_FILE_BUFFERING,
 #endif
+  OPT_INNODB_DATA_FILE_BUFFERING,
   OPT_INNODB_LOG_FILE_SIZE,
   OPT_INNODB_OPEN_FILES,
   OPT_XTRA_DEBUG_SYNC,
@@ -1570,9 +1580,9 @@ struct my_option xb_server_options[] =
 
   {"innodb_flush_method", OPT_INNODB_FLUSH_METHOD,
    "With which method to flush data.",
-   &srv_file_flush_method, &srv_file_flush_method,
+   &innodb_flush_method, &innodb_flush_method,
    &innodb_flush_method_typelib, GET_ENUM, REQUIRED_ARG,
-   IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT), 0, 0, 0, 0, 0},
+   SRV_O_DIRECT, 0, 0, 0, 0, 0},
 
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "Redo log buffer size in bytes.",
@@ -1586,6 +1596,11 @@ struct my_option xb_server_options[] =
    (G_PTR*) &log_sys.log_buffered, 0, GET_BOOL, NO_ARG,
    TRUE, 0, 0, 0, 0, 0},
 #endif
+  {"innodb_data_file_buffering", OPT_INNODB_DATA_FILE_BUFFERING,
+   "Whether the file system cache for data files is enabled during --backup",
+   (G_PTR*) &fil_system.buffered,
+   (G_PTR*) &fil_system.buffered, 0, GET_BOOL, NO_ARG,
+   FALSE, 0, 0, 0, 0, 0},
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
@@ -1904,9 +1919,7 @@ xb_get_one_option(const struct my_option *opt,
     break;
 
   case OPT_INNODB_FLUSH_METHOD:
-    ut_a(srv_file_flush_method
-	 <= IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT_NO_FSYNC));
-    ADD_PRINT_PARAM_OPT(innodb_flush_method_names[srv_file_flush_method]);
+    ADD_PRINT_PARAM_OPT(innodb_flush_method_names[innodb_flush_method]);
     break;
 
   case OPT_INNODB_PAGE_SIZE:

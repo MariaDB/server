@@ -1724,7 +1724,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       resize_log.write(CHECKPOINT_1, {c, get_block_size()});
     }
 
-    if (!log_write_through)
+    if (!log_write_through && !my_disable_sync)
       ut_a(log.flush());
     latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(checkpoint_pending);
@@ -1756,7 +1756,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
     if (!is_pmem())
     {
-      if (!log_write_through)
+      if (!log_write_through && !my_disable_sync)
         ut_a(resize_log.flush());
       IF_WIN(log.close(),);
     }
@@ -1902,13 +1902,7 @@ static bool log_checkpoint()
   if (recv_recovery_is_on())
     recv_sys.apply(true);
 
-  switch (srv_file_flush_method) {
-  case SRV_NOSYNC:
-  case SRV_O_DIRECT_NO_FSYNC:
-    break;
-  default:
-    fil_flush_file_spaces();
-  }
+  fil_flush_file_spaces();
 
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const lsn_t end_lsn= log_sys.get_lsn();
@@ -2060,13 +2054,7 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
                                    MONITOR_FLUSH_SYNC_PAGES, n_flushed);
     }
 
-    switch (srv_file_flush_method) {
-    case SRV_NOSYNC:
-    case SRV_O_DIRECT_NO_FSYNC:
-      break;
-    default:
-      fil_flush_file_spaces();
-    }
+    fil_flush_file_spaces();
 
     log_sys.latch.wr_lock(SRW_LOCK_CALL);
     const lsn_t newest_lsn= log_sys.get_lsn();

@@ -499,6 +499,9 @@ void fil_space_t::flush_low()
       break;
   }
 
+  if (fil_system.write_through || my_disable_sync)
+    goto skip_flush;
+
   fil_n_pending_tablespace_flushes++;
   for (fil_node_t *node= UT_LIST_GET_FIRST(chain); node;
        node= UT_LIST_GET_NEXT(chain, node))
@@ -523,8 +526,9 @@ void fil_space_t::flush_low()
     mysql_mutex_unlock(&fil_system.mutex);
   }
 
-  clear_flush();
   fil_n_pending_tablespace_flushes--;
+skip_flush:
+  clear_flush();
 }
 
 /** Try to extend a tablespace.
@@ -753,7 +757,6 @@ inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
   {
     if (space->is_in_unflushed_spaces)
     {
-      ut_ad(srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC);
       space->is_in_unflushed_spaces= false;
       fil_system.unflushed_spaces.remove(*space);
     }
@@ -786,7 +789,6 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
 
   if (space->is_in_unflushed_spaces)
   {
-    ut_ad(srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC);
     space->is_in_unflushed_spaces= false;
     unflushed_spaces.remove(*space);
   }
@@ -1318,6 +1320,16 @@ ATTRIBUTE_COLD void fil_system_t::extend_to_recv_size()
     }
   }
   mysql_mutex_unlock(&mutex);
+}
+
+void fil_system_t::set_write_through(bool write_through)
+{
+  // FIXME: implement this
+}
+
+void fil_system_t::set_buffered(bool buffered)
+{
+  // FIXME: implement this
 }
 
 /** Close all tablespace files at shutdown */
@@ -2598,7 +2610,7 @@ inline void fil_node_t::complete_write()
   mysql_mutex_assert_not_owner(&fil_system.mutex);
 
   if (space->purpose != FIL_TYPE_TEMPORARY &&
-      srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC &&
+      (!fil_system.write_through && !my_disable_sync) &&
       space->set_needs_flush())
   {
     mysql_mutex_lock(&fil_system.mutex);
@@ -2774,14 +2786,6 @@ write_completed:
 possibly cached by the OS. */
 void fil_flush_file_spaces()
 {
-  if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
-  {
-    ut_d(mysql_mutex_lock(&fil_system.mutex));
-    ut_ad(fil_system.unflushed_spaces.empty());
-    ut_d(mysql_mutex_unlock(&fil_system.mutex));
-    return;
-  }
-
 rescan:
   mysql_mutex_lock(&fil_system.mutex);
 

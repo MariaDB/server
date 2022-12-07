@@ -65,7 +65,9 @@ Created 10/21/1995 Heikki Tuuri
 #endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
 
 #ifdef _WIN32
-#include <winioctl.h>
+# include <winioctl.h>
+#elif !defined O_DSYNC
+# define O_DSYNC O_SYNC
 #endif
 
 // my_test_if_atomic_write() , my_win_secattr()
@@ -981,40 +983,19 @@ os_file_create_simple_func(
 
 	*success = false;
 
-	int		create_flag;
-	const char*	mode_str	= NULL;
+	int		create_flag = O_RDONLY;
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
 
-	if (create_mode == OS_FILE_OPEN) {
-		mode_str = "OPEN";
-
-		if (access_type == OS_FILE_READ_ONLY) {
-
-			create_flag = O_RDONLY;
-
-		} else if (read_only) {
-
-			create_flag = O_RDONLY;
-
-		} else {
+	if (read_only) {
+	} else if (create_mode == OS_FILE_OPEN) {
+		if (access_type != OS_FILE_READ_ONLY) {
 			create_flag = O_RDWR;
 		}
-
-	} else if (read_only) {
-
-		mode_str = "OPEN";
-		create_flag = O_RDONLY;
-
 	} else if (create_mode == OS_FILE_CREATE) {
-
-		mode_str = "CREATE";
 		create_flag = O_RDWR | O_CREAT | O_EXCL;
-
 	} else if (create_mode == OS_FILE_CREATE_PATH) {
-
-		mode_str = "CREATE PATH";
 		/* Create subdirs along the path if needed. */
 
 		*success = os_file_create_subdirs_if_needed(name);
@@ -1040,40 +1021,32 @@ os_file_create_simple_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	bool	retry;
+        create_flag |= O_CLOEXEC;
+	if (fil_system.write_through) create_flag |= O_DSYNC;
+        int direct_flag = fil_system.buffered ? 0 : O_DIRECT;
 
-	do {
-		file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
+	for (;;) {
+		file = open(name, create_flag | direct_flag, os_innodb_umask);
 
 		if (file == -1) {
+			if (direct_flag && errno == EINVAL) {
+				direct_flag = 0;
+				continue;
+			}
+
 			*success = false;
-			retry = os_file_handle_error(
+			if (!os_file_handle_error(
 				name,
 				create_mode == OS_FILE_OPEN
-				? "open" : "create");
+				? "open" : "create")) {
+				break;
+			}
 		} else {
 			*success = true;
-			retry = false;
-		}
-
-	} while (retry);
-
-	/* This function is always called for data files, we should disable
-	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
-	we open the same file in the same mode, see man page of open(2). */
-	if (!srv_read_only_mode && *success) {
-		switch (srv_file_flush_method) {
-		case SRV_O_DSYNC:
-		case SRV_O_DIRECT:
-		case SRV_O_DIRECT_NO_FSYNC:
-			os_file_set_nocache(file, name, mode_str);
-			break;
-		default:
 			break;
 		}
 	}
 
-#ifndef _WIN32
 	if (!read_only
 	    && *success
 	    && access_type == OS_FILE_READ_WRITE
@@ -1084,7 +1057,6 @@ os_file_create_simple_func(
 		close(file);
 		file = -1;
 	}
-#endif /* !_WIN32 */
 
 	return(file);
 }
@@ -1156,8 +1128,8 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	);
 
-	int		create_flag;
-	const char*	mode_str	= NULL;
+	int		create_flag = O_RDONLY | O_CLOEXEC;
+	const char*	mode_str = "OPEN";
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? true : false;
@@ -1167,30 +1139,17 @@ os_file_create_func(
 	create_mode &= ulint(~(OS_FILE_ON_ERROR_NO_EXIT
 			       | OS_FILE_ON_ERROR_SILENT));
 
-	if (create_mode == OS_FILE_OPEN
-	    || create_mode == OS_FILE_OPEN_RAW
-	    || create_mode == OS_FILE_OPEN_RETRY) {
-
-		mode_str = "OPEN";
-
-		create_flag = read_only ? O_RDONLY : O_RDWR;
-
-	} else if (read_only) {
-
-		mode_str = "OPEN";
-
-		create_flag = O_RDONLY;
-
+	if (read_only) {
+	} else if (create_mode == OS_FILE_OPEN
+		   || create_mode == OS_FILE_OPEN_RAW
+		   || create_mode == OS_FILE_OPEN_RETRY) {
+		create_flag = O_RDWR | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_CREATE) {
-
 		mode_str = "CREATE";
-		create_flag = O_RDWR | O_CREAT | O_EXCL;
-
+		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_OVERWRITE) {
-
 		mode_str = "OVERWRITE";
-		create_flag = O_RDWR | O_CREAT | O_TRUNC;
-
+		create_flag = O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC;
 	} else {
 		ib::error()
 			<< "Unknown file create mode (" << create_mode << ")"
@@ -1205,22 +1164,30 @@ os_file_create_func(
 
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
+	create_flag |= O_CLOEXEC;
+
+	int direct_flag = type == OS_DATA_FILE && create_mode != OS_FILE_CREATE
+		&& !fil_system.buffered
+		? O_DIRECT : 0;
+
 	if (read_only) {
-	} else if (type == OS_LOG_FILE && log_sys.log_write_through) {
-#ifdef O_DSYNC
+	} else if ((type == OS_LOG_FILE)
+		   ? log_sys.log_write_through
+		   : fil_system.write_through) {
 		create_flag |= O_DSYNC;
-#else
-		create_flag |= O_SYNC;
-#endif
 	}
 
 	os_file_t	file;
-	bool		retry;
 
-	do {
-		file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
+	for (;;) {
+		file = open(name, create_flag | direct_flag, os_innodb_umask);
 
 		if (file == -1) {
+			if (direct_flag && errno == EINVAL) {
+				direct_flag = 0;
+				continue;
+			}
+
 			const char*	operation;
 
 			operation = (create_mode == OS_FILE_CREATE
@@ -1229,39 +1196,30 @@ os_file_create_func(
 			*success = false;
 
 			if (on_error_no_exit) {
-				retry = os_file_handle_error_no_exit(
-					name, operation, on_error_silent);
+				if (os_file_handle_error_no_exit(
+					name, operation, on_error_silent))
+					continue;
 			} else {
-				retry = os_file_handle_error(name, operation);
+				if (os_file_handle_error(name, operation))
+					continue;
 			}
+
+			return file;
 		} else {
 			*success = true;
-			retry = false;
+			break;
 		}
-
-	} while (retry);
-
-	if (!*success) {
-		return file;
 	}
 
 #if (defined __sun__ && defined DIRECTIO_ON) || defined O_DIRECT
-	if (type == OS_DATA_FILE) {
-		switch (srv_file_flush_method) {
-		case SRV_O_DSYNC:
-		case SRV_O_DIRECT:
-		case SRV_O_DIRECT_NO_FSYNC:
+	if (type == OS_DATA_FILE && create_mode == OS_FILE_CREATE
+	    && !fil_system.buffered) {
 # ifdef __linux__
 use_o_direct:
 # endif
-			os_file_set_nocache(file, name, mode_str);
-			break;
-		default:
-			break;
-		}
-	}
+		os_file_set_nocache(file, name, mode_str);
 # ifdef __linux__
-	else if (type == OS_LOG_FILE && !log_sys.is_opened()) {
+	} else if (type == OS_LOG_FILE && !log_sys.is_opened()) {
 		struct stat st;
 		char b[20 + sizeof "/sys/dev/block/" ":"
 		       "/../queue/physical_block_size"];
@@ -1313,11 +1271,10 @@ skip_o_direct:
 			log_sys.log_buffered= true;
 			log_sys.set_block_size(512);
 		}
-	}
 # endif
+	}
 #endif
 
-#ifndef _WIN32
 	if (!read_only
 	    && create_mode != OS_FILE_OPEN_RAW
 	    && !my_disable_locking
@@ -1345,7 +1302,6 @@ skip_o_direct:
 		close(file);
 		file = -1;
 	}
-#endif /* !_WIN32 */
 
 	return(file);
 }
@@ -2008,6 +1964,9 @@ os_file_create_simple_func(
 		return(OS_FILE_CLOSED);
 	}
 
+	if (fil_system.write_through) attributes |= FILE_FLAG_WRITE_THROUGH;
+	if (!fil_system.buffered) attributes |= FILE_FLAG_NO_BUFFERING;
+
 	bool	retry;
 
 	do {
@@ -2181,18 +2140,11 @@ os_file_create_func(
 		}
 		if (log_sys.log_write_through)
 			attributes|= FILE_FLAG_WRITE_THROUGH;
-	}
-	else if (type == OS_DATA_FILE)
-	{
-		switch (srv_file_flush_method)
-		{
-		case SRV_FSYNC:
-		case SRV_LITTLESYNC:
-		case SRV_NOSYNC:
-			break;
-		default:
+	} else {
+		if (type == OS_DATA_FILE && !fil_system.unbuffered)
 			attributes|= FILE_FLAG_NO_BUFFERING;
-		}
+		if (fil_system.write_through)
+			attributes|= FILE_FLAG_WRITE_THROUGH;
 	}
 
 	DWORD	access = GENERIC_READ;
