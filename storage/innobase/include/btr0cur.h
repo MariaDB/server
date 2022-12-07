@@ -172,17 +172,6 @@ dberr_t btr_cur_search_to_nth_level(ulint level,
                                     btr_cur_t *cursor, mtr_t *mtr,
                                     ib_uint64_t autoinc= 0);
 
-/**********************************************************************//**
-Positions a cursor at a randomly chosen position within a B-tree.
-@return true if the index is available and we have put the cursor, false
-if the index is unavailable */
-bool
-btr_cur_open_at_rnd_pos(
-	dict_index_t*	index,		/*!< in: index */
-	btr_latch_mode	latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull,warn_unused_result));
 /*************************************************************//**
 Tries to perform an insert to a page in an index tree, next to cursor.
 It is assumed that mtr holds an x-latch on the page. The operation does
@@ -813,6 +802,14 @@ struct btr_cur_t {
   @return error code */
   dberr_t open_leaf(bool first, dict_index_t *index, btr_latch_mode latch_mode,
                     mtr_t *mtr);
+
+  /** Open the cursor at a random leaf page record.
+  @param offsets   temporary memory for rec_get_offsets()
+  @param heap      memory heap for rec_get_offsets()
+  @param mtr       mini-transaction
+  @return error code */
+  inline dberr_t open_random_leaf(rec_offs *&offsets, mem_heap_t *& heap,
+                                  mtr_t &mtr);
 };
 
 /** Modify the delete-mark flag of a record.

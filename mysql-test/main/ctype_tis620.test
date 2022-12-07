@@ -223,3 +223,34 @@ SELECT HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci));
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-27670 Assertion `(cs->state & 0x20000) == 0' failed in my_strnncollsp_nchars_generic_8bit
+--echo #
+
+CREATE OR REPLACE TABLE t1
+(
+  a VARCHAR(250) COLLATE tis620_thai_nopad_ci,
+  UNIQUE KEY(a(100)) USING HASH
+) ENGINE=MyISAM;
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('a'),('A');
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1
+
+(
+  a CHAR(250) COLLATE tis620_thai_nopad_ci,
+  UNIQUE KEY(a(100)) USING HASH
+) ENGINE=MyISAM;
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('a'),('A');
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
