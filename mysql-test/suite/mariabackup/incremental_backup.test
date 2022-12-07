@@ -1,5 +1,6 @@
 --source include/have_aria.inc
 --source include/innodb_page_size.inc
+--source include/innodb_undo_tablespaces.inc
 
 # see suite.pm "check for exact values, in case the default changes to be small everywhere"
 if (`select @@max_binlog_stmt_cache_size = 4294963200 and @@innodb_page_size = 65536`) {

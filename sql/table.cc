@@ -9020,6 +9020,7 @@ int TABLE::update_generated_fields()
     res= found_next_number_field->set_default();
     if (likely(!res))
       res= file->update_auto_increment();
+    next_number_field= NULL;
   }
 
   if (likely(!res) && vfield)

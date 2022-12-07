@@ -8002,6 +8002,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     lex->current_select->select_list_tables|= item->used_tables();
     lex->used_tables|= item->used_tables();
     lex->current_select->cur_pos_in_select_list++;
+    lex->current_select->rownum_in_field_list |= item->with_rownum_func();
   }
   lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
   lex->current_select->cur_pos_in_select_list= UNDEF_POS;

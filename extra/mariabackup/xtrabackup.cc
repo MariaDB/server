@@ -3831,6 +3831,21 @@ next_datadir_item:
 	return(err);
 }
 
+/** Close all undo tablespaces while applying incremental delta */
+static void xb_close_undo_tablespaces()
+{
+  if (srv_undo_space_id_start == 0)
+    return;
+  for (uint32_t space_id= srv_undo_space_id_start;
+       space_id < srv_undo_space_id_start + srv_undo_tablespaces_open;
+       space_id++)
+  {
+     fil_space_t *space= fil_space_get(space_id);
+     ut_ad(space);
+     space->close();
+  }
+}
+
 /****************************************************************************
 Populates the tablespace memory cache by scanning for and opening data files.
 @returns DB_SUCCESS or error code.*/
@@ -3883,6 +3898,10 @@ xb_load_tablespaces()
 	err = enumerate_ibd_files(xb_load_single_table_tablespace);
 	if (err != DB_SUCCESS) {
 		return(err);
+	}
+
+	if (srv_operation == SRV_OPERATION_RESTORE_DELTA) {
+		xb_close_undo_tablespaces();
 	}
 
 	DBUG_MARIABACKUP_EVENT("after_load_tablespaces", {});

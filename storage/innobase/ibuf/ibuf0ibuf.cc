@@ -2418,36 +2418,26 @@ will be merged from ibuf trees to the pages read
 ulint ibuf_contract()
 {
 	mtr_t		mtr;
-	btr_pcur_t	pcur;
+	btr_cur_t	cur;
 	ulint		sum_sizes;
 	uint32_t	page_nos[IBUF_MAX_N_PAGES_MERGED];
 	uint32_t	space_ids[IBUF_MAX_N_PAGES_MERGED];
 
 	ibuf_mtr_start(&mtr);
 
-	/* Open a cursor to a randomly chosen leaf of the tree, at a random
-	position within the leaf */
-	pcur.pos_state = BTR_PCUR_IS_POSITIONED;
-	pcur.old_rec = nullptr;
-	pcur.trx_if_known = nullptr;
-	pcur.search_mode = PAGE_CUR_G;
-	pcur.latch_mode = BTR_SEARCH_LEAF;
-
-	btr_pcur_init(&pcur);
-
-	if (!btr_cur_open_at_rnd_pos(ibuf.index, BTR_SEARCH_LEAF,
-				     btr_pcur_get_btr_cur(&pcur), &mtr)) {
+	if (cur.open_leaf(true, ibuf.index, BTR_SEARCH_LEAF, &mtr) !=
+	    DB_SUCCESS) {
 		return 0;
 	}
 
-	ut_ad(page_validate(btr_pcur_get_page(&pcur), ibuf.index));
+	ut_ad(page_validate(btr_cur_get_page(&cur), ibuf.index));
 
-	if (page_is_empty(btr_pcur_get_page(&pcur))) {
+	if (page_is_empty(btr_cur_get_page(&cur))) {
 		/* If a B-tree page is empty, it must be the root page
 		and the whole B-tree must be empty. InnoDB does not
 		allow empty B-tree pages other than the root. */
 		ut_ad(ibuf.empty);
-		ut_ad(btr_pcur_get_block(&pcur)->page.id()
+		ut_ad(btr_cur_get_block(&cur)->page.id()
 		      == page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO));
 
 		ibuf_mtr_commit(&mtr);
@@ -2457,7 +2447,7 @@ ulint ibuf_contract()
 
 	ulint n_pages = 0;
 	sum_sizes = ibuf_get_merge_page_nos(TRUE,
-					    btr_pcur_get_rec(&pcur), &mtr,
+					    btr_cur_get_rec(&cur), &mtr,
 					    space_ids,
 					    page_nos, &n_pages);
 	ibuf_mtr_commit(&mtr);

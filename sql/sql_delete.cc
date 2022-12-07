@@ -712,6 +712,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     table->use_all_columns();
     table->rpl_write_set= table->write_set;
+    // Initialize autoinc.
+    // We don't set next_number_field here, as it is handled manually.
+    if (table->found_next_number_field)
+      table->file->info(HA_STATUS_AUTO);
   }
   else
   {

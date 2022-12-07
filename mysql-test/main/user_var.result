@@ -372,13 +372,13 @@ insert into t1 (b) values (10), (30), (10), (10);
 set @var := 0;
 explain select if(b=@var, 999, b) , @var := b from t1  order by b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using filesort
 set @var := 0;
 select if(b=@var, 999, b) , @var := b from t1  order by b;
 if(b=@var, 999, b)	@var := b
 10	10
-10	10
 30	30
+999	10
 999	10
 drop table t1;
 create temporary table t1 (id int);
