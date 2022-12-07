@@ -2610,7 +2610,8 @@ start_table_io_wait_v1(PSI_table_locker_state *state,
 
       PFS_table_share *share= pfs_table->m_share;
       wait->m_thread= pfs_thread;
-      wait->m_class= &global_table_io_class;
+      if (wait->m_class == NULL || wait->m_class->m_type != PFS_CLASS_TABLE_LOCK)
+        wait->m_class= &global_table_io_class;
       wait->m_timer_start= timer_start;
       wait->m_timer_end= 0;
       wait->m_object_instance_addr= pfs_table->m_identity;
