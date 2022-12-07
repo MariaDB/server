@@ -10521,6 +10521,43 @@ DROP TABLE t1;
 --echo #
 
 --echo #
+--echo # MDEV-29129: Performance regression starting in 10.6: unlimited "select order by limit"
+--echo #
+
+CREATE TABLE t1 (
+  lookupId int primary key,
+  value varchar(255)
+);
+insert into t1 select seq, seq from seq_1_to_100;
+
+-- echo # Note: the function is intentionally NOT declared as DETERMINISTIC
+delimiter //;
+CREATE FUNCTION f1(LOOKUPID_IN INT) RETURNS varchar(255) CHARSET utf8
+BEGIN
+  DECLARE LOOKUP_VALUE VARCHAR(255);
+  SET LOOKUP_VALUE = (SELECT value FROM t1 WHERE lookupId = LOOKUPID_IN);
+  set @counter=@counter+1;
+  RETURN LOOKUP_VALUE;
+END; 
+//
+delimiter ;//
+
+create table t2 (
+  col1 int,
+  col2 int
+);
+insert into t2 select mod(seq,100), seq from seq_1_to_1000;
+
+explain 
+select f1(col1) from t2 order by col2 desc limit 5;
+set @counter=0;
+select f1(col1) from t2 order by col2 desc limit 5;
+--echo # Must show 5, not 1000:
+select @counter;
+drop function f1;
+drop table t1,t2;
+
+--echo #
 --echo # MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
 --echo #
 

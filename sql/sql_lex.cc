@@ -2976,6 +2976,8 @@ void st_select_lex::init_query()
   prep_leaf_list_state= UNINIT;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   select_list_tables= 0;
+  rownum_in_field_list= 0;
+
   window_specs.empty();
   window_funcs.empty();
   tvc= 0;
