@@ -1,0 +1,47 @@
+#
+# MDEV-29562 Spider table with charset utf32/utf16/ucs2 tries to set client charset to unsupported value
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (
+a INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+a INT
+) ENGINE=Spider CHARSET utf32 COMMENT='table "tbl_a", srv "s_2_1"';
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'CHARSET utf32'
+ALTER DATABASE auto_test_local CHARSET="ucs2";
+CREATE TABLE tbl_a (
+a INT
+) ENGINE=Spider COMMENT='table "tbl_a", srv "s_2_1"';
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'CHARSET ucs2'
+CREATE TABLE tbl_a (
+a INT
+) ENGINE=Spider CHARSET utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+SELECT * FROM tbl_a;
+a
+ALTER TABLE tbl_a CONVERT TO CHARACTER SET utf16;
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'CHARSET utf16'
+ALTER TABLE tbl_a CONVERT TO CHARACTER SET utf16le;
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'CHARSET utf16le'
+ALTER TABLE tbl_a CONVERT TO CHARACTER SET latin1;
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
