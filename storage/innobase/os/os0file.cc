@@ -2141,7 +2141,7 @@ os_file_create_func(
 		if (log_sys.log_write_through)
 			attributes|= FILE_FLAG_WRITE_THROUGH;
 	} else {
-		if (type == OS_DATA_FILE && !fil_system.unbuffered)
+		if (!fil_system.buffered && type != OS_DATA_FILE_NO_O_DIRECT)
 			attributes|= FILE_FLAG_NO_BUFFERING;
 		if (fil_system.write_through)
 			attributes|= FILE_FLAG_WRITE_THROUGH;
