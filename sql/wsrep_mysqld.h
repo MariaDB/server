@@ -88,6 +88,7 @@ extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
+extern std::atomic <bool > wsrep_thread_create_failed;
 extern ulonglong   wsrep_mode;
 
 enum enum_wsrep_reject_types {

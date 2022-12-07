@@ -1079,6 +1079,60 @@ btr_record_not_null_field_in_rec(
 	}
 }
 
+inline dberr_t
+btr_cur_t::open_random_leaf(rec_offs *&offsets, mem_heap_t *&heap, mtr_t &mtr)
+{
+  ut_ad(!index()->is_spatial());
+  ut_ad(!mtr.get_savepoint());
+
+  mtr_s_lock_index(index(), &mtr);
+
+  if (index()->page == FIL_NULL)
+    return DB_CORRUPTION;
+
+  dberr_t err;
+  auto offset= index()->page;
+  bool merge= false;
+  ulint height= ULINT_UNDEFINED;
+
+  while (buf_block_t *block=
+         btr_block_get(*index(), offset, RW_S_LATCH, merge, &mtr, &err))
+  {
+    page_cur.block= block;
+
+    if (height == ULINT_UNDEFINED)
+    {
+      height= btr_page_get_level(block->page.frame);
+      if (height > BTR_MAX_LEVELS)
+        return DB_CORRUPTION;
+
+      if (height == 0)
+        goto got_leaf;
+    }
+
+    if (height == 0)
+    {
+      mtr.rollback_to_savepoint(0, mtr.get_savepoint() - 1);
+    got_leaf:
+      page_cur.rec= page_get_infimum_rec(block->page.frame);
+      return DB_SUCCESS;
+    }
+
+    if (!--height)
+      merge= !index()->is_clust();
+
+    page_cur_open_on_rnd_user_rec(&page_cur);
+
+    offsets= rec_get_offsets(page_cur.rec, page_cur.index, offsets, 0,
+                             ULINT_UNDEFINED, &heap);
+
+    /* Go to the child node */
+    offset= btr_node_ptr_get_child_page_no(page_cur.rec, offsets);
+  }
+
+  return err;
+}
+
 /** Estimated table level stats from sampled value.
 @param value sampled stats
 @param index index being sampled
@@ -1107,7 +1161,6 @@ std::vector<index_field_stats_t>
 btr_estimate_number_of_different_key_vals(dict_index_t* index,
 					  trx_id_t bulk_trx_id)
 {
-	btr_cur_t	cursor;
 	page_t*		page;
 	rec_t*		rec;
 	ulint		n_cols;
@@ -1222,14 +1275,15 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	ut_ad(n_sample_pages > 0 && n_sample_pages <= (index->stat_index_size <= 1 ? 1 : index->stat_index_size));
 
 	/* We sample some pages in the index to get an estimate */
+	btr_cur_t cursor;
+	cursor.page_cur.index = index;
 
 	for (ulint i = 0; i < n_sample_pages; i++) {
 		mtr.start();
 
-		if (!btr_cur_open_at_rnd_pos(index, BTR_SEARCH_LEAF,
-					     &cursor, &mtr)
-		    || index->table->bulk_trx_id != bulk_trx_id
-		    || !index->is_readable()) {
+		if (cursor.open_random_leaf(offsets_rec, heap, mtr) !=
+                    DB_SUCCESS
+		    || index->table->bulk_trx_id != bulk_trx_id) {
 			mtr.commit();
 			goto exit_loop;
 		}
@@ -1242,9 +1296,8 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 
 		page = btr_cur_get_page(&cursor);
 
-		rec = page_rec_get_next(page_get_infimum_rec(page));
-		const ulint n_core = page_is_leaf(page)
-			? index->n_core_fields : 0;
+		rec = page_rec_get_next(cursor.page_cur.rec);
+		const ulint n_core = index->n_core_fields;
 
 		if (rec && !page_rec_is_supremum(rec)) {
 			not_empty_flag = 1;
