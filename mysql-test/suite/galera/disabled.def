@@ -40,3 +40,25 @@ galera_bf_abort_shutdown : MDEV-29773 Assertion failure on sql/wsrep_mysqld.cc:2
 galera.MW-284 : MDEV-29861: Galera test case hangs
 galera.galera_binlog_checksum : MDEV-29861: Galera test case hangs
 galera_var_notify_ssl_ipv6 : MDEV-29861: Galera test case hangs
+
+# Work around MDEV-30157
+# Galera SST or IST is incompatible with innodb_undo_tablespaces>0
+galera#414 : MDEV-30157
+mysql-wsrep#33 : MDEV-30157
+galera_as_slave_nonprim : MDEV-30157
+galera_gtid_slave_sst_rsync : MDEV-30157
+galera_ist_progress : MDEV-30157
+galera_ist_rsync : MDEV-30157
+galera_ist_MDEV-28583 : MDEV-30157
+galera_ist_recv_bind : MDEV-30157
+galera_sst_encrypted : MDEV-30157
+galera_sst_rsync : MDEV-30157
+galera_sst_rsync2 : MDEV-30157
+galera_sst_rsync_data_dir : MDEV-30157
+galera_sst_rsync_recv_auto : MDEV-30157
+galera_ssl_upgrade : MDEV-30157
+galera_suspend_slave : MDEV-30157
+galera_var_cluster_address : MDEV-30157
+galera_var_sst_auth : MDEV-30157
+MDEV-24063 : MDEV-30157
+MDEV-25389 : MDEV-30157
