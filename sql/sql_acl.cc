@@ -2918,7 +2918,6 @@ bool acl_reload(THD *thd)
   int result;
   DBUG_ENTER("acl_reload");
 
-  acl_public= NULL;
 
   Grant_tables tables;
   /*
@@ -2963,6 +2962,7 @@ bool acl_reload(THD *thd)
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
   my_hash_free(&acl_check_hosts);
+  acl_public= NULL;
 
   if ((result= acl_load(thd, tables)))
   {					// Error. Revert to old list
