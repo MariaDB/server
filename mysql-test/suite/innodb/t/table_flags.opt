@@ -1,2 +1,2 @@
 --innodb-checksum-algorithm=crc32
---skip-innodb-read-only-compressed
+--innodb-undo-tablespaces=0

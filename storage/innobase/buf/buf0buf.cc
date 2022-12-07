@@ -589,7 +589,7 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		DBUG_EXECUTE_IF(
 			"page_intermittent_checksum_mismatch", {
 			static int page_counter;
-			if (page_counter++ == 3) {
+			if (page_counter++ == 6) {
 				crc32++;
 			}
 		});
@@ -724,7 +724,8 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 			DBUG_EXECUTE_IF(
 				"page_intermittent_checksum_mismatch", {
 				static int page_counter;
-				if (page_counter++ == 3) return true;
+				if (page_counter++ == 6)
+					return true;
 			});
 
 			if ((checksum_field1 != crc32
