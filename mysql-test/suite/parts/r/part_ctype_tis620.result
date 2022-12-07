@@ -1,0 +1,47 @@
+#
+# MDEV-27768 MDEV-25440: Assertion `(cs->state & 0x20000) == 0' failed in my_strnncollsp_nchars_generic_8bit
+#
+CREATE TABLE t1 (
+a CHAR
+) COLLATE=tis620_thai_nopad_ci
+PARTITION BY RANGE COLUMNS (a)
+(
+PARTITION p0 VALUES LESS THAN (''),
+PARTITION p VALUES LESS THAN ('')
+);
+ERROR HY000: VALUES LESS THAN value must be strictly increasing for each partition
+CREATE TABLE t1 (
+a CHAR
+) COLLATE=tis620_thai_nopad_ci
+PARTITION BY RANGE COLUMNS (a)
+(
+PARTITION p0 VALUES LESS THAN (''),
+PARTITION p VALUES LESS THAN (' ')
+);
+ERROR HY000: VALUES LESS THAN value must be strictly increasing for each partition
+CREATE TABLE t1 (
+a CHAR
+) COLLATE=tis620_thai_nopad_ci
+PARTITION BY RANGE COLUMNS (a)
+(
+PARTITION p0 VALUES LESS THAN (' '),
+PARTITION p VALUES LESS THAN ('')
+);
+ERROR HY000: VALUES LESS THAN value must be strictly increasing for each partition
+CREATE TABLE t1
+(
+id INT NOT NULL,
+data VARCHAR(2),
+KEY data_id (data(1),id)
+) COLLATE tis620_thai_nopad_ci ENGINE=MyISAM
+PARTITION BY RANGE (id)
+(
+PARTITION p10 VALUES LESS THAN (10),
+PARTITION p20 VALUES LESS THAN (20)
+);
+INSERT INTO t1 VALUES (4, 'ab'), (14, 'ab'), (19,''),(9,'') ;
+SELECT id FROM t1 WHERE data='' ORDER BY id;
+id
+9
+19
+DROP TABLE t1;

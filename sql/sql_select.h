@@ -1420,11 +1420,6 @@ public:
     GROUP/ORDER BY.
   */
   bool simple_order, simple_group;
-  /*
-    Set to 1 if any field in field list has RAND_TABLE set. For example if
-    if one uses RAND() or ROWNUM() in field list
-  */
-  bool rand_table_in_field_list;
 
   /*
     ordered_index_usage is set if an ordered index access

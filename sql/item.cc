@@ -6130,6 +6130,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
     if (!thd->lex->current_select->no_wrap_view_item &&
         thd->lex->in_sum_func &&
+        select &&
         thd->lex == select->parent_lex &&
         thd->lex->in_sum_func->nest_level == 
         select->nest_level)
