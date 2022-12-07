@@ -1205,11 +1205,8 @@ os_file_create_func(
 
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
-	/* We let O_DSYNC only affect log files */
-
-	if (!read_only
-	    && type == OS_LOG_FILE
-	    && srv_file_flush_method == SRV_O_DSYNC) {
+	if (read_only) {
+	} else if (type == OS_LOG_FILE && log_sys.log_write_through) {
 #ifdef O_DSYNC
 		create_flag |= O_DSYNC;
 #else
@@ -2182,7 +2179,7 @@ os_file_create_func(
 		if (!log_sys.is_opened() && !log_sys.log_buffered) {
 			attributes|= FILE_FLAG_NO_BUFFERING;
 		}
-		if (srv_file_flush_method == SRV_O_DSYNC)
+		if (log_sys.log_write_through)
 			attributes|= FILE_FLAG_WRITE_THROUGH;
 	}
 	else if (type == OS_DATA_FILE)

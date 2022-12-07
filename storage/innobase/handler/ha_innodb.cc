@@ -4030,6 +4030,10 @@ static int innodb_init_params()
 	}
 #endif
 
+	if (srv_file_flush_method == SRV_O_DSYNC) {
+		log_sys.log_write_through = true;
+	}
+
 	if (srv_read_only_mode) {
 		ib::info() << "Started in read only mode";
 		srv_use_doublewrite_buf = FALSE;
@@ -18388,6 +18392,14 @@ static void innodb_log_file_buffering_update(THD *thd, st_mysql_sys_var*,
 }
 #endif
 
+static void innodb_log_file_write_through_update(THD *thd, st_mysql_sys_var*,
+                                                 void *, const void *save)
+{
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  log_sys.set_write_through(*static_cast<const my_bool*>(save));
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
 static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                                         void *var, const void *save)
 {
@@ -18847,7 +18859,7 @@ static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
   NULL, NULL, 1, 0, 3, 0);
 
 static MYSQL_SYSVAR_ENUM(flush_method, srv_file_flush_method,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_DEPRECATED,
   "With which method to flush data.",
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT),
   &innodb_flush_method_typelib);
@@ -19281,6 +19293,11 @@ static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
   "Whether the file system cache for ib_logfile0 is enabled",
   nullptr, innodb_log_file_buffering_update, FALSE);
 #endif
+
+static MYSQL_SYSVAR_BOOL(log_file_write_through, log_sys.log_write_through,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether each write to ib_logfile0 is write through",
+  nullptr, innodb_log_file_write_through_update, FALSE);
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
@@ -19726,6 +19743,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #if defined __linux__ || defined _WIN32
   MYSQL_SYSVAR(log_file_buffering),
 #endif
+  MYSQL_SYSVAR(log_file_write_through),
   MYSQL_SYSVAR(log_file_size),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(max_dirty_pages_pct),

@@ -1724,7 +1724,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       resize_log.write(CHECKPOINT_1, {c, get_block_size()});
     }
 
-    if (srv_file_flush_method != SRV_O_DSYNC)
+    if (!log_write_through)
       ut_a(log.flush());
     latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(checkpoint_pending);
@@ -1756,7 +1756,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
     if (!is_pmem())
     {
-      if (srv_file_flush_method != SRV_O_DSYNC)
+      if (!log_write_through)
         ut_a(resize_log.flush());
       IF_WIN(log.close(),);
     }
