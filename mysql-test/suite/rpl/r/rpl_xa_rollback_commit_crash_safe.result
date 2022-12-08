@@ -24,6 +24,8 @@ connection master;
 connection default;
 connection server_1;
 connection master;
+include/assert_grep.inc [Binlog XA ROLLBACK event should be successfully recovered]
+include/assert_grep.inc [Binlog XA crash recovery should successfully finish]
 connection slave;
 include/start_slave.inc
 connection master;
