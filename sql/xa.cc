@@ -243,7 +243,7 @@ void xid_cache_free()
   Find recovered XA transaction by XID.
 */
 
-static XID_cache_element *xid_cache_search(THD *thd, XID *xid)
+XID_cache_element *xid_cache_search(THD *thd, XID *xid)
 {
   DBUG_ASSERT(thd->xid_hash_pins);
   XID_cache_element *element=
@@ -303,7 +303,7 @@ bool xid_cache_insert(THD *thd, XID_STATE *xid_state, XID *xid)
 }
 
 
-static void xid_cache_delete(THD *thd, XID_cache_element *&element)
+void xid_cache_delete(THD *thd, XID_cache_element *&element)
 {
   DBUG_ASSERT(thd->xid_hash_pins);
   element->mark_uninitialized();

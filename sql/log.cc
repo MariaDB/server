@@ -11057,6 +11057,10 @@ bool MYSQL_BIN_LOG::recover_explicit_xa_prepare()
                   // partially engine-prepared XA is first cleaned out prior replay
                   thd->lex->sql_command= SQLCOM_XA_ROLLBACK;
                   ha_commit_or_rollback_by_xid(&gev->xid, 0);
+                  if (thd->fix_xid_hash_pins())
+                    sql_print_error(ER(ER_OUT_OF_RESOURCES));
+                  if (auto xs= xid_cache_search(thd, &gev->xid))
+                    xid_cache_delete(thd, xs);
                 }
                 else
                   --recover_xa_count;

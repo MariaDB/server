@@ -1422,7 +1422,7 @@ int ha_prepare(THD *thd)
       handlerton *ht= ha_info->ht();
       if (ht->prepare)
       {
-        DBUG_EXECUTE_IF("simulate_crash_after_first_engine_prepare",
+        DBUG_EXECUTE_IF("simulate_crash_before_last_engine_prepare",
                         if (!ha_info->next()) DBUG_SUICIDE(););
 
         if (unlikely(prepare_or_error(ht, thd, all)))
