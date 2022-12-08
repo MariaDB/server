@@ -177,23 +177,18 @@ select * from v1	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": "t1.a = 1"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": "t1.a = 1"
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": "t1.a = 1"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -353,23 +348,18 @@ select * from (select * from t1 where t1.a=1)q	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": "t1.a = 1"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": "t1.a = 1"
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": "t1.a = 1"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -536,12 +526,18 @@ select * from v2	{
                   }
                 },
                 {
-                  "make_join_readinfo": [
-                    {
-                      "table": "t1",
-                      "index_condition": "t1.a = 1"
-                    }
-                  ]
+                  "attaching_conditions_to_tables": {
+                    "attached_conditions_computation": [],
+                    "attached_conditions_summary": [
+                      {
+                        "table": "t1",
+                        "attached_condition": "t1.a = 1"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "make_join_readinfo": []
                 }
               ]
             }
@@ -615,23 +611,18 @@ select * from v2	{
             "cost": 0.012418701
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "<derived2>",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "<derived2>",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "<derived2>",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -640,17 +631,6 @@ select * from v2	{
       "join_execution": {
         "select_id": 1,
         "steps": [
-          {
-            "attaching_conditions_to_tables": {
-              "attached_conditions_computation": [],
-              "attached_conditions_summary": [
-                {
-                  "table": "t1",
-                  "attached_condition": "t1.a = 1"
-                }
-              ]
-            }
-          },
           {
             "join_execution": {
               "select_id": 2,
@@ -788,23 +768,18 @@ explain select * from v2	{
             "cost": 0.01159965
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t2",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t2",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "t2",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -931,12 +906,18 @@ explain select * from v1	{
                   "cost": 0.017968034
                 },
                 {
-                  "make_join_readinfo": [
-                    {
-                      "table": "t1",
-                      "index_condition": null
-                    }
-                  ]
+                  "attaching_conditions_to_tables": {
+                    "attached_conditions_computation": [],
+                    "attached_conditions_summary": [
+                      {
+                        "table": "t1",
+                        "attached_condition": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "make_join_readinfo": []
                 }
               ]
             }
@@ -1010,23 +991,18 @@ explain select * from v1	{
             "cost": 0.012757506
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "<derived2>",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "<derived2>",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "<derived2>",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -1035,17 +1011,6 @@ explain select * from v1	{
       "join_execution": {
         "select_id": 1,
         "steps": [
-          {
-            "attaching_conditions_to_tables": {
-              "attached_conditions_computation": [],
-              "attached_conditions_summary": [
-                {
-                  "table": "t1",
-                  "attached_condition": null
-                }
-              ]
-            }
-          },
           {
             "join_execution": {
               "select_id": 2,
@@ -1356,31 +1321,22 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": "t1.b is not null"
-              },
-              {
-                "table": "t2",
-                "index_condition": "t1.a = t2.b + 2"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": "t1.b is not null"
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": "t1.b is not null"
+                },
+                {
+                  "table": "t2",
+                  "attached_condition": "t1.a = t2.b + 2"
+                }
+              ]
+            }
           },
           {
-            "table": "t2",
-            "attached_condition": "t1.a = t2.b + 2"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -1551,23 +1507,18 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
             "cost": 0.004191135
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -1780,12 +1731,18 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": "t1.b = 2 and t1.c = 3"
-              }
-            ]
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": "t1.b = 2 and t1.c = 3"
+                }
+              ]
+            }
+          },
+          {
+            "make_join_readinfo": []
           },
           {
             "reconsidering_access_paths_for_index_ordering": {
@@ -1808,17 +1765,6 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
                 }
               ]
             }
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": "t1.b = 2 and t1.c = 3"
           }
         ]
       }
@@ -2024,23 +1970,18 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": "t1.a >= 20010104e0"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": "t1.a >= 20010104e0"
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": "t1.a >= 20010104e0"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -2235,23 +2176,18 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": "t1.a = 20010104e0"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": "t1.a = 20010104e0"
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": "t1.a = 20010104e0"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -2542,12 +2478,18 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
+          {
+            "make_join_readinfo": []
           },
           {
             "reconsidering_access_paths_for_index_ordering": {
@@ -2641,17 +2583,6 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "chosen": true
               }
             }
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": "t1.a <=> 1 and t1.b <=> 2"
           }
         ]
       }
@@ -2820,27 +2751,23 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
             }
           },
           {
-            "condition_on_constant_tables": "1",
-            "computing_condition": []
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [
+                {
+                  "condition_on_constant_tables": "1",
+                  "computing_condition": []
+                }
+              ],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -3035,35 +2962,27 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
             }
           },
           {
-            "condition_on_constant_tables": "1",
-            "computing_condition": []
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [
+                {
+                  "condition_on_constant_tables": "1",
+                  "computing_condition": []
+                }
+              ],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t2",
+                  "attached_condition": "trigcond(trigcond(t1.a is not null))"
+                }
+              ]
+            }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              },
-              {
-                "table": "t2",
-                "index_condition": "trigcond(trigcond(t1.a is not null))"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": null
-          },
-          {
-            "table": "t2",
-            "attached_condition": "trigcond(trigcond(t1.a is not null))"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -3239,27 +3158,23 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
             }
           },
           {
-            "condition_on_constant_tables": "1",
-            "computing_condition": []
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [
+                {
+                  "condition_on_constant_tables": "1",
+                  "computing_condition": []
+                }
+              ],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -3650,31 +3565,22 @@ explain extended select * from t1 where a in (select p from t2)	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              },
-              {
-                "table": "t2",
-                "index_condition": "t2.p = t1.a"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": null
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t2",
+                  "attached_condition": "t2.p = t1.a"
+                }
+              ]
+            }
           },
           {
-            "table": "t2",
-            "attached_condition": "t2.p = t1.a"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -4038,23 +3944,18 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -4184,23 +4085,18 @@ select f1(a) from t1	{
             "cost": 0.01066122
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -4306,23 +4202,18 @@ select f2(a) from t1	{
             "cost": 0.01066122
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -4352,7 +4243,7 @@ a
 2
 select length(trace) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 length(trace)
-2869
+2819
 set optimizer_trace_max_mem_size=100;
 select * from t1;
 a
@@ -4366,7 +4257,7 @@ select * from t1	{
       "join_preparation": {
         "select_id": 1,
         "steps": [
-        	2769	0
+        	2719	0
 set optimizer_trace_max_mem_size=0;
 select * from t1;
 a
@@ -4374,7 +4265,7 @@ a
 2
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
-select * from t1		2869	0
+select * from t1		2819	0
 drop table t1;
 set optimizer_trace='enabled=off';
 set @@optimizer_trace_max_mem_size= @save_optimizer_trace_max_mem_size;
@@ -4843,31 +4734,22 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t0",
-                "index_condition": "t0.a < 3 and t0.a is not null"
-              },
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t0",
-            "attached_condition": "t0.a < 3 and t0.a is not null"
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t0",
+                  "attached_condition": "t0.a < 3 and t0.a is not null"
+                },
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
           },
           {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -5008,12 +4890,18 @@ explain select * from (select rand() from t1)q	{
                   "cost": 0.010504815
                 },
                 {
-                  "make_join_readinfo": [
-                    {
-                      "table": "t1",
-                      "index_condition": null
-                    }
-                  ]
+                  "attaching_conditions_to_tables": {
+                    "attached_conditions_computation": [],
+                    "attached_conditions_summary": [
+                      {
+                        "table": "t1",
+                        "attached_condition": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "make_join_readinfo": []
                 }
               ]
             }
@@ -5087,23 +4975,18 @@ explain select * from (select rand() from t1)q	{
             "cost": 0.012461052
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "<derived2>",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "<derived2>",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "<derived2>",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -5112,17 +4995,6 @@ explain select * from (select rand() from t1)q	{
       "join_execution": {
         "select_id": 1,
         "steps": [
-          {
-            "attaching_conditions_to_tables": {
-              "attached_conditions_computation": [],
-              "attached_conditions_summary": [
-                {
-                  "table": "t1",
-                  "attached_condition": null
-                }
-              ]
-            }
-          },
           {
             "join_execution": {
               "select_id": 2,
@@ -5680,51 +5552,35 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             }
           },
           {
-            "condition_on_constant_tables": "1",
-            "computing_condition": []
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [
+                {
+                  "condition_on_constant_tables": "1",
+                  "computing_condition": []
+                }
+              ],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_1",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_2",
+                  "attached_condition": null
+                },
+                {
+                  "table": "<subquery2>",
+                  "attached_condition": null
+                }
+              ]
+            }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              },
-              {
-                "table": "<subquery2>",
-                "index_condition": "t1.a = `sj-materialize`.a"
-              },
-              {
-                "table": "t_inner_1",
-                "index_condition": null
-              },
-              {
-                "table": "t_inner_2",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": null
-          },
-          {
-            "table": "t_inner_1",
-            "attached_condition": null
-          },
-          {
-            "table": "t_inner_2",
-            "attached_condition": null
-          },
-          {
-            "table": "<subquery2>",
-            "attached_condition": "t1.a = `sj-materialize`.a"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -8055,63 +7911,38 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t_outer_1",
-                "index_condition": null
-              },
-              {
-                "table": "t_inner_1",
-                "index_condition": "t_inner_1.a = t_outer_1.a"
-              },
-              {
-                "table": "t_inner_2",
-                "index_condition": null
-              },
-              {
-                "table": "t_inner_4",
-                "index_condition": null
-              },
-              {
-                "table": "t_outer_2",
-                "index_condition": null
-              },
-              {
-                "table": "t_inner_3",
-                "index_condition": "t_inner_3.a = t_outer_2.a"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t_outer_1",
-            "attached_condition": null
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t_outer_1",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_1",
+                  "attached_condition": "t_inner_1.a = t_outer_1.a"
+                },
+                {
+                  "table": "t_inner_2",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_4",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_outer_2",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_3",
+                  "attached_condition": "t_inner_3.a = t_outer_2.a"
+                }
+              ]
+            }
           },
           {
-            "table": "t_inner_1",
-            "attached_condition": "t_inner_1.a = t_outer_1.a"
-          },
-          {
-            "table": "t_inner_2",
-            "attached_condition": null
-          },
-          {
-            "table": "t_inner_4",
-            "attached_condition": null
-          },
-          {
-            "table": "t_outer_2",
-            "attached_condition": null
-          },
-          {
-            "table": "t_inner_3",
-            "attached_condition": "t_inner_3.a = t_outer_2.a"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -10456,83 +10287,51 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             }
           },
           {
-            "condition_on_constant_tables": "1",
-            "computing_condition": []
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [
+                {
+                  "condition_on_constant_tables": "1",
+                  "computing_condition": []
+                }
+              ],
+              "attached_conditions_summary": [
+                {
+                  "table": "t_outer_1",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_1",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_2",
+                  "attached_condition": null
+                },
+                {
+                  "table": "<subquery2>",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_outer_2",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_4",
+                  "attached_condition": null
+                },
+                {
+                  "table": "t_inner_3",
+                  "attached_condition": null
+                },
+                {
+                  "table": "<subquery3>",
+                  "attached_condition": null
+                }
+              ]
+            }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t_outer_1",
-                "index_condition": null
-              },
-              {
-                "table": "<subquery2>",
-                "index_condition": "t_outer_1.a = `sj-materialize`.a"
-              },
-              {
-                "table": "t_inner_1",
-                "index_condition": null
-              },
-              {
-                "table": "t_inner_2",
-                "index_condition": null
-              },
-              {
-                "table": "t_outer_2",
-                "index_condition": null
-              },
-              {
-                "table": "<subquery3>",
-                "index_condition": "t_outer_2.a = `sj-materialize`.a"
-              },
-              {
-                "table": "t_inner_4",
-                "index_condition": null
-              },
-              {
-                "table": "t_inner_3",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t_outer_1",
-            "attached_condition": null
-          },
-          {
-            "table": "t_inner_1",
-            "attached_condition": null
-          },
-          {
-            "table": "t_inner_2",
-            "attached_condition": null
-          },
-          {
-            "table": "<subquery2>",
-            "attached_condition": "t_outer_1.a = `sj-materialize`.a"
-          },
-          {
-            "table": "t_outer_2",
-            "attached_condition": null
-          },
-          {
-            "table": "t_inner_4",
-            "attached_condition": null
-          },
-          {
-            "table": "t_inner_3",
-            "attached_condition": null
-          },
-          {
-            "table": "<subquery3>",
-            "attached_condition": "t_outer_2.a = `sj-materialize`.a"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -11898,12 +11697,6 @@ SELECT 'a\0' LIMIT 0	{
       }
     },
     {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": []
-      }
-    },
-    {
       "join_execution": {
         "select_id": 1,
         "steps": []
@@ -12018,23 +11811,18 @@ select count(*) from seq_1_to_10000000	{
             "cost": 444.7880673
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "seq_1_to_10000000",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "seq_1_to_10000000",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "seq_1_to_10000000",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -12800,24 +12588,24 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
             }
           },
           {
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": "t1.a < 10 and t1.b between 10 and 50 and t1.c < 10"
+                }
+              ]
+            }
+          },
+          {
             "make_join_readinfo": [
               {
                 "table": "t1",
-                "index_condition": "t1.b between 10 and 50 and t1.c < 10"
+                "index_condition": "t1.a < 10",
+                "row_condition": "t1.b between 10 and 50 and t1.c < 10"
               }
             ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "t1",
-            "attached_condition": "t1.b between 10 and 50 and t1.c < 10",
-            "index_condition": "t1.a < 10"
           }
         ]
       }
@@ -13221,79 +13009,71 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
             }
           },
           {
-            "table": "t1",
-            "range_analysis": {
-              "table_scan": {
-                "rows": 10000,
-                "cost": 1.581538
-              },
-              "potential_range_indexes": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [
                 {
-                  "index": "a",
-                  "usable": true,
-                  "key_parts": ["a"]
-                },
-                {
-                  "index": "b",
-                  "usable": true,
-                  "key_parts": ["b"]
+                  "table": "t1",
+                  "range_analysis": {
+                    "table_scan": {
+                      "rows": 10000,
+                      "cost": 1.581538
+                    },
+                    "potential_range_indexes": [
+                      {
+                        "index": "a",
+                        "usable": true,
+                        "key_parts": ["a"]
+                      },
+                      {
+                        "index": "b",
+                        "usable": true,
+                        "key_parts": ["b"]
+                      }
+                    ],
+                    "setup_range_conditions": [],
+                    "analyzing_range_alternatives": {
+                      "range_scan_alternatives": [
+                        {
+                          "index": "a"
+                        },
+                        {
+                          "index": "b",
+                          "ranges": ["(NULL) < (b) < (5000)"],
+                          "rowid_ordered": false,
+                          "using_mrr": false,
+                          "index_only": false,
+                          "rows": 4312,
+                          "cost": 5.325058827,
+                          "chosen": false,
+                          "cause": "cost"
+                        }
+                      ],
+                      "analyzing_roworder_intersect": {
+                        "cause": "too few roworder scans"
+                      },
+                      "analyzing_index_merge_union": []
+                    },
+                    "group_index_range": {
+                      "chosen": false,
+                      "cause": "not single_table"
+                    }
+                  }
                 }
               ],
-              "setup_range_conditions": [],
-              "analyzing_range_alternatives": {
-                "range_scan_alternatives": [
-                  {
-                    "index": "a"
-                  },
-                  {
-                    "index": "b",
-                    "ranges": ["(NULL) < (b) < (5000)"],
-                    "rowid_ordered": false,
-                    "using_mrr": false,
-                    "index_only": false,
-                    "rows": 4312,
-                    "cost": 5.325058827,
-                    "chosen": false,
-                    "cause": "cost"
-                  }
-                ],
-                "analyzing_roworder_intersect": {
-                  "cause": "too few roworder scans"
+              "attached_conditions_summary": [
+                {
+                  "table": "three",
+                  "attached_condition": null
                 },
-                "analyzing_index_merge_union": []
-              },
-              "group_index_range": {
-                "chosen": false,
-                "cause": "not single_table"
-              }
+                {
+                  "table": "t1",
+                  "attached_condition": "t1.a = three.a and t1.b < 5000 and t1.c < 1000"
+                }
+              ]
             }
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "three",
-                "index_condition": null
-              },
-              {
-                "table": "t1",
-                "index_condition": "t1.a = three.a and t1.b < 5000 and t1.c < 1000"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
-          {
-            "table": "three",
-            "attached_condition": null
-          },
-          {
-            "table": "t1",
-            "attached_condition": "t1.a = three.a"
+            "make_join_readinfo": []
           }
         ]
       }
@@ -13356,8 +13136,7 @@ out1
             
             {
                 "table": "t10",
-                "attached_condition": "t10.c < 10",
-                "index_condition": "t10.a < 3 and t10.b <> 5"
+                "attached_condition": "t10.a < 3 and t10.b <> 5 and t10.c < 10"
             }
         ]
     }
