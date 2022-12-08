@@ -3070,9 +3070,10 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   mysql->port=port;
 
   /*
-    remove the rpl hack from the version string,
-    see RPL_VERSION_HACK comment
+    remove the rpl hack from the version string, in case we're connecting
+    to a pre-11.0 server
   */
+#define RPL_VERSION_HACK "5.5.5-"
   if ((mysql->server_capabilities & CLIENT_PLUGIN_AUTH) &&
       strncmp(mysql->server_version, RPL_VERSION_HACK,
               sizeof(RPL_VERSION_HACK) - 1) == 0)
