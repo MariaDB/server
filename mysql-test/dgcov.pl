@@ -36,6 +36,7 @@ my $opt_skip_gcov;
 my %cov;
 my $file_no=0;
 
+Getopt::Long::Configure ("bundling");
 GetOptions
   ("v|verbose+"    => \$opt_verbose,
    "h|help"        => \$opt_help,
@@ -70,7 +71,7 @@ if ($opt_purge)
 }
 
 my $gcc_version= `gcc -dumpversion`;
-$gcc_version=~ s/^(\d+)\..*$/$1/ or die "Cannot parse gcc -dumpversion: $gcc_version";
+$gcc_version=~ s/^(\d+).*$/$1/ or die "Cannot parse gcc -dumpversion: $gcc_version";
 
 find(\&gcov_one_file, $root);
 find(\&write_coverage, $root) if $opt_generate;
@@ -188,17 +189,17 @@ sub gcov_one_file {
       close(FH);
     }
   } else {
-    use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
+    require IO::Uncompress::Gunzip;
     require JSON::PP;
+    no warnings 'once';
     my $gcov_file_json;
-    my $fname;
     s/\.gcda$// if $gcc_version >= 11;
-    gunzip "$_.gcov.json.gz" => \$gcov_file_json or die "gunzip($_.gcov.json.gz): $GunzipError";
+    IO::Uncompress::Gunzip::gunzip("$_.gcov.json.gz", \$gcov_file_json)
+      or die "gunzip($_.gcov.json.gz): $IO::Uncompress::Gunzip::GunzipError";
     my $obj= JSON::PP::decode_json $gcov_file_json;
     for my $file (@{$obj->{files}}) {
-      $fname= $file->{file};
       for my $line (@{$file->{lines}}){
-        $cov{$fname}->{$line->{line_number}}+= $line->{count};
+        $cov{$file->{file}}->{$line->{line_number}}+= $line->{count};
       }
     }
   }
