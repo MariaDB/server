@@ -5,6 +5,9 @@ a
 connect con2,127.0.0.1,root,,test;
 SELECT * FROM t;
 a
+connect con3,::1,root,,test;
+SELECT * FROM t;
+a
 connection default;
 DROP TABLE t;
 disconnect con1;

@@ -2269,8 +2269,12 @@ static void activate_tcp_port(uint port,
   hints.ai_socktype= SOCK_STREAM;
   hints.ai_family= AF_UNSPEC;
   
-  if (my_bind_addr_str && strcmp(my_bind_addr_str, "*") == 0)
+  if (my_bind_addr_str && (strcmp(my_bind_addr_str, "*") == 0 ||
+                           strcmp(my_bind_addr_str, "localhost") == 0))
     real_bind_addr_str= NULL; // windows doesn't seem to support * here
+                              // and linux returns only ipv4 for localhost
+                              // unless /etc/host is edited to add an ipv6
+                              // alternative address.
   else
     real_bind_addr_str= my_bind_addr_str;
 
