@@ -285,6 +285,7 @@ static int json_nice(json_engine_t *je, String *nice_js,
   static const char *comma= ", ", *colon= "\": ";
   uint comma_len, colon_len;
   int first_value= 1;
+  int value_size = 0;
   int curr_state= -1;
 
   nice_js->length(0);
@@ -362,6 +363,8 @@ handle_value:
           goto error;
 
         first_value= 0;
+        if (value_size != -1)
+          value_size++;
       }
       else
       {
@@ -370,8 +373,8 @@ handle_value:
             append_tab(nice_js, depth, tab_size))
           goto error;
         nice_js->append((je->value_type == JSON_VALUE_OBJECT) ? "{" : "[", 1);
-        // last_state= curr_state;
         first_value= 1;
+        value_size= (je->value_type == JSON_VALUE_OBJECT) ? -1: 0;
         depth++;
       }
 
@@ -380,11 +383,12 @@ handle_value:
     case JST_OBJ_END:
     case JST_ARRAY_END:
       depth--;
-      if (mode == Item_func_json_format::DETAILED &&
+      if (mode == Item_func_json_format::DETAILED && (value_size > 1 || value_size == -1) &&
           append_tab(nice_js, depth, tab_size))
         goto error;
       nice_js->append((je->state == JST_OBJ_END) ? "}": "]", 1);
       first_value= 0;
+      value_size= -1;
       break;
 
     default:

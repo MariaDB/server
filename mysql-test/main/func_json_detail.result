@@ -1,6 +1,4 @@
-
 create table t200 (a text);
-
 insert into t200 values
 ('{
   "steps": [
@@ -88,8 +86,32 @@ insert into t200 values
     }
   ]
 }');
-
-
 select JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
-
-#select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
+JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
+[
+    {
+        "range_scan_alternatives": 
+        [
+            {
+                "index": "a_b",
+                "ranges": 
+                [
+                    "2 <= a <= 2 AND 4 <= b <= 4",
+                    "123"
+                ],
+                "rowid_ordered": true,
+                "using_mrr": false,
+                "index_only": true,
+                "rows": 1,
+                "cost": 1.1752,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        []
+    }
+]
