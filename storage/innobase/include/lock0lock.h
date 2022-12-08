@@ -1268,8 +1268,6 @@ lock_rtr_move_rec_list(
 /* InnoDB wsrep applier timeout. */
 #define INNODB_WSREP_APPLIER_LOCK_WAIT_TIMEOUT_DEFAULT 5
 extern uint innodb_wsrep_applier_lock_wait_timeout;
-/* Count of wsrep BF threads waiting for a lock. */
-extern std::atomic<uint> wsrep_BF_waiting_count;
 /** Checks if wsrep BF transactions have been waiting for lock for too
 long time and attempts to kill local transactions to release BF thread
 lock wait. */
