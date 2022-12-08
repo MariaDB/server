@@ -10983,7 +10983,7 @@ bool MYSQL_BIN_LOG::recover_explicit_xa_prepare()
   if (!(rli= thd->rli_fake= new Relay_log_info(FALSE, "Recovery")))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
-    goto err2;
+    goto err_no_rli;
   }
   rli->sql_driver_thd= thd;
   static LEX_CSTRING connection_name= { STRING_WITH_LEN("Recovery") };
@@ -11003,7 +11003,7 @@ bool MYSQL_BIN_LOG::recover_explicit_xa_prepare()
   {
     sql_print_error("Binlog file '%s' not found in binlog index, needed "
                     "for recovery. Aborting.", xa_binlog_checkpoint_name);
-    goto err2;
+    goto err_no_file;
   }
 
   tmp_disable_binlog(thd);
@@ -11090,14 +11090,14 @@ bool MYSQL_BIN_LOG::recover_explicit_xa_prepare()
       {
         if ((err= ev->apply_event(rgi)))
         {
-            sql_print_error("Failed to execute binlog query event of type: %s,"
-                            " at %s:%llu; error %d %s", ev->get_type_str(),
-                            linfo.log_file_name,
-                            (ev->log_pos - ev->data_written),
-                            thd->get_stmt_da()->sql_errno(),
-                            thd->get_stmt_da()->message());
-            delete ev;
-            goto err1;
+          sql_print_error(
+              "Failed to execute recovered binlog query event of type: %s,"
+              " at %s:%llu; error %d %s",
+              ev->get_type_str(), linfo.log_file_name,
+              (ev->log_pos - ev->data_written),
+              thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
+          delete ev;
+          goto err1;
         }
         else if (typ == FORMAT_DESCRIPTION_EVENT)
           enable_apply_event=false;
@@ -11108,7 +11108,7 @@ bool MYSQL_BIN_LOG::recover_explicit_xa_prepare()
           --recover_xa_count;
           enable_apply_event=false;
 
-          sql_print_information("Binlog event %s at %s:%llu"
+          sql_print_information("Recovered binlog event %s at %s:%llu"
               " successfully applied",
               typ == XA_PREPARE_LOG_EVENT ?
               static_cast<XA_prepare_log_event *>(ev)->get_query() :
@@ -11138,7 +11138,7 @@ err1:
   */
   if (recover_xa_count > 0)
     goto err2;
-  sql_print_information("Crash recovery finished.");
+  sql_print_information("Binlog XA crash recovery finished.");
   err= false;
 err2:
   if (file >= 0)
@@ -11146,10 +11146,16 @@ err2:
     end_io_cache(&log);
     mysql_file_close(file, MYF(MY_WME));
   }
+
+err_no_file:
   thd->variables.pseudo_slave_mode= FALSE;
   delete rli->mi;
   delete thd->system_thread_info.rpl_sql_info;
+  if (!rgi)
+    rgi= thd->rgi_fake;
   rgi->slave_close_thread_tables(thd);
+
+err_no_rli:
   thd->reset_globals();
   delete thd;
 
