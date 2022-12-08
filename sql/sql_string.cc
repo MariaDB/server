@@ -1146,7 +1146,6 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
 }
 
 
-
 /*
   Append characters to a single-quoted string '...', escaping special
   characters with backslashes as necessary.
@@ -1164,6 +1163,8 @@ bool String::append_for_single_quote(const char *st, size_t len)
     case '\\':   APPEND(STRING_WITH_LEN("\\\\"));
     case '\0':   APPEND(STRING_WITH_LEN("\\0"));
     case '\'':   APPEND(STRING_WITH_LEN("\\'"));
+    case '\b':   APPEND(STRING_WITH_LEN("\\b"));
+    case '\t':   APPEND(STRING_WITH_LEN("\\t"));
     case '\n':   APPEND(STRING_WITH_LEN("\\n"));
     case '\r':   APPEND(STRING_WITH_LEN("\\r"));
     case '\032': APPEND(STRING_WITH_LEN("\\Z"));

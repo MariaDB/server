@@ -1467,7 +1467,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
   if (unlikely((file= open_binlog(&cache, name, &errormsg)) == (File)-1))
     return errormsg;
 
-  if (!(fdev= new Format_description_log_event(3)))
+  if (!(fdev= new Format_description_log_event(4)))
   {
     errormsg= "Out of memory initializing format_description event "
       "while scanning binlog to find start position";
@@ -2273,7 +2273,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   if (info->fdev != NULL)
     delete info->fdev;
 
-  if (!(info->fdev= new Format_description_log_event(3)))
+  if (!(info->fdev= new Format_description_log_event(4)))
   {
     info->errmsg= "Out of memory initializing format_description event";
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
@@ -4163,7 +4163,7 @@ bool mysql_show_binlog_events(THD* thd)
   }
 
   Format_description_log_event *description_event= new
-    Format_description_log_event(3); /* MySQL 4.0 by default */
+    Format_description_log_event(4);
 
   if (binary_log->is_open())
   {

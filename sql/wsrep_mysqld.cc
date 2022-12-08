@@ -3406,7 +3406,7 @@ ignore_error:
   WSREP_WARN("Ignoring error '%s' on query. "
              "Default database: '%s'. Query: '%s', Error_code: %d",
              thd->get_stmt_da()->message(),
-             print_slave_db_safe(thd->db.str),
+             safe_str(thd->db.str),
              thd->query(),
              error);
   return 1;
