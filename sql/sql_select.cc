@@ -349,8 +349,6 @@ static void fix_items_after_optimize(THD *thd, SELECT_LEX *select_lex);
 static void optimize_rownum(THD *thd, SELECT_LEX_UNIT *unit, Item *cond);
 static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
                                              Item *cond);
-void trace_attached_conditions(THD *thd, JOIN *join);
-void trace_join_readinfo(THD *thd, JOIN *join);
 
 #ifndef DBUG_OFF
 
@@ -3139,8 +3137,6 @@ int JOIN::optimize_stage2()
   if (make_join_readinfo(this, select_opts_for_readinfo, no_jbuf_after))
     DBUG_RETURN(1);
 
-  trace_join_readinfo(thd, this);
-
   /* Perform FULLTEXT search before all regular searches */
   if (!(select_options & SELECT_DESCRIBE))
     if (init_ftfuncs(thd, select_lex, MY_TEST(order)))
@@ -5115,8 +5111,6 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   {
     goto err;					// 1
   }
-
-  trace_attached_conditions(thd, join);
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
@@ -12980,6 +12974,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
   DBUG_ENTER("make_join_select");
   if (select)
   {
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_conditions(thd, "attaching_conditions_to_tables");
+    Json_writer_array trace_attached_comp(thd,
+                                          "attached_conditions_computation");
     add_not_null_conds(join);
     table_map used_tables;
     /*
@@ -13056,6 +13054,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           {
             add_cond_and_fix(thd, &outer_ref_cond, join->outer_ref_cond);
             join->outer_ref_cond= outer_ref_cond;
+
+            Json_writer_object trace(thd);
+            trace.add("outer_ref_cond", outer_ref_cond);
           }
         }
         else
@@ -13071,6 +13072,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             add_cond_and_fix(thd, &pseudo_bits_cond,
                              join->pseudo_bits_cond);
             join->pseudo_bits_cond= pseudo_bits_cond;
+
+            Json_writer_object trace(thd);
+            trace.add("pseudo_bits_cond", pseudo_bits_cond);
           }
         }
       }
@@ -13647,6 +13651,22 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         i++;
     }
 
+    if (unlikely(thd->trace_started()))
+    {
+      trace_attached_comp.end();
+      Json_writer_array trace_attached_summary(thd,
+                                               "attached_conditions_summary");
+      for (tab= first_depth_first_tab(join); tab;
+           tab= next_depth_first_tab(join, tab))
+      {
+        if (!tab->table)
+          continue;
+        Item *const cond = tab->select_cond;
+        Json_writer_object trace_one_table(thd);
+        trace_one_table.add_table_name(tab);
+        trace_one_table.add("attached_condition", cond);
+      }
+    }
   }
   DBUG_RETURN(0);
 }
@@ -14723,6 +14743,9 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
   JOIN_TAB *tab;
   uint i;
   DBUG_ENTER("make_join_readinfo");
+
+  Json_writer_object  trace_wrapper(join->thd);
+  Json_writer_array   trace_arr(join->thd, "make_join_readinfo");
 
   bool statistics= MY_TEST(!(join->select_options & SELECT_DESCRIBE));
   bool sorted= 1;
@@ -31904,61 +31927,6 @@ bool JOIN::transform_all_conds_and_on_exprs_in_join_list(
   }
   return false;
 }
-
-
-void trace_attached_conditions(THD *thd, JOIN *join)
-{
-  if (!unlikely(thd->trace_started()))
-    return;
-
-  Json_writer_object  trace_wrapper(thd);
-  Json_writer_object  trace_conditions(thd, "attaching_conditions_to_tables");
-  Json_writer_array   trace_attached_comp(thd,
-					   "attached_conditions_computation");
-  JOIN_TAB  *tab;
-
-  trace_attached_comp.end();
-  Json_writer_array  trace_attached_summary(thd,
-					       "attached_conditions_summary");
-
-  for (tab= first_depth_first_tab(join);
-       tab;
-       tab= next_depth_first_tab(join, tab))
-  {
-    if (!tab->table)
-      continue;
-
-    Item *const remaining_cond = tab->select_cond;
-    Item *const idx_cond = tab->table->file->pushed_idx_cond;
-    Json_writer_object  trace_one_table(thd);
-
-    trace_one_table.add_table_name(tab);
-    trace_one_table.add("attached_condition", remaining_cond);
-    if (idx_cond)
-      trace_one_table.add("index_condition", idx_cond);
-  }
-}
-
-
-void trace_join_readinfo(THD *thd, JOIN *join)
-{
-  if (!unlikely(thd->trace_started()))
-    return;
-
-  Json_writer_object  trace_wrapper(thd);
-  Json_writer_array  trace_conditions(thd, "make_join_readinfo");
-  JOIN_TAB  *tab;
-
-  for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
-       tab; 
-       tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
-  {
-    Json_writer_object  trace_one_table(thd);
-    trace_one_table.add_table_name(tab);
-    trace_one_table.add("index_condition", tab->select_cond);
-  }
-}
-
 
 /**
   @} (end of group Query_Optimizer)

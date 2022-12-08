@@ -133,23 +133,18 @@ select * from db1.t1	{
             "cost": 0.010504815
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
@@ -280,23 +275,18 @@ select * from db1.v1	{
             "cost": 0.010504815
           },
           {
-            "make_join_readinfo": [
-              {
-                "table": "t1",
-                "index_condition": null
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "attaching_conditions_to_tables": {
-        "attached_conditions_computation": [],
-        "attached_conditions_summary": [
+            "attaching_conditions_to_tables": {
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached_condition": null
+                }
+              ]
+            }
+          },
           {
-            "table": "t1",
-            "attached_condition": null
+            "make_join_readinfo": []
           }
         ]
       }
