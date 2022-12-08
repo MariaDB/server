@@ -169,21 +169,17 @@ class String;
   See the #defines below for the format specifics.
 
   The events which really update data are Query_log_event,
-  Execute_load_query_log_event and old Load_log_event and
-  Execute_load_log_event events (Execute_load_query is used together with
-  Begin_load_query and Append_block events to replicate LOAD DATA INFILE.
-  Create_file/Append_block/Execute_load (which includes Load_log_event)
-  were used to replicate LOAD DATA before the 5.0.3).
+  Execute_load_query_log_event and Execute_load_log_event events
+  (Execute_load_query is used together with Begin_load_query and Append_block
+  events to replicate LOAD DATA INFILE.
 
  ****************************************************************************/
 
 #define LOG_EVENT_HEADER_LEN 19     /* the fixed header length */
-#define OLD_HEADER_LEN       13     /* the fixed header length in 3.23 */
 /*
-   Fixed header length, where 4.x and 5.0 agree. That is, 5.0 may have a longer
-   header (it will for sure when we have the unique event's ID), but at least
-   the first 19 bytes are the same in 4.x and 5.0. So when we have the unique
-   event's ID, LOG_EVENT_HEADER_LEN will be something like 26, but
+   Fixed header length. That is, some future version may have a longer
+   header, but at least the first 19 bytes will be the same. So
+   LOG_EVENT_HEADER_LEN will be something like 26, but
    LOG_EVENT_MINIMAL_HEADER_LEN will remain 19.
 */
 #define LOG_EVENT_MINIMAL_HEADER_LEN 19
@@ -604,11 +600,6 @@ enum Log_event_type
   APPEND_BLOCK_EVENT= 9,
   EXEC_LOAD_EVENT= 10,
   DELETE_FILE_EVENT= 11,
-  /*
-    NEW_LOAD_EVENT is like LOAD_EVENT except that it has a longer
-    sql_ex, allowing multibyte TERMINATED BY etc; both types share the
-    same class (Load_log_event)
-  */
   NEW_LOAD_EVENT= 12,
   RAND_EVENT= 13,
   USER_VAR_EVENT= 14,
@@ -2098,10 +2089,9 @@ public:
   uint16 error_code;
   my_thread_id thread_id;
   /*
-    For events created by Query_log_event::do_apply_event (and
-    Load_log_event::do_apply_event()) we need the *original* thread
-    id, to be able to log the event with the original (=master's)
-    thread id (fix for BUG#1686).
+    For events created by Query_log_event::do_apply_event we need the
+   *original* thread id, to be able to log the event with the original
+   (=master's) thread id (fix for BUG#1686).
   */
   ulong slave_proxy_id;
 
@@ -2125,12 +2115,6 @@ public:
     'sql_mode', 'affected' etc. Sometimes 'value' must be a short string, so
     its first byte is its length. For now the order of status vars is:
     flags2 - sql_mode - catalog - autoinc - charset
-    We should add the same thing to Load_log_event, but in fact
-    LOAD DATA INFILE is going to be logged with a new type of event (logging of
-    the plain text query), so Load_log_event would be frozen, so no need. The
-    new way of logging LOAD DATA INFILE would use a derived class of
-    Query_log_event, so automatically benefit from the work already done for
-    status variables in Query_log_event.
  */
   uint16 status_vars_len;
 
@@ -2162,16 +2146,6 @@ public:
   ulonglong table_map_for_update;
   /* Xid for the event, if such exists */
   ulonglong xid;
-  /*
-    Holds the original length of a Query_log_event that comes from a
-    master of version < 5.0 (i.e., binlog_version < 4). When the IO
-    thread writes the relay log, it augments the Query_log_event with a
-    Q_MASTER_DATA_WRITTEN_CODE status_var that holds the original event
-    length. This field is initialized to non-zero in the SQL thread when
-    it reads this augmented event. SQL thread does not write 
-    Q_MASTER_DATA_WRITTEN_CODE to the slave's server binlog.
-  */
-  uint32 master_data_written;
   /*
     A copy of Gtid event's extra flags that is relevant for two-phase
     logged ALTER.
@@ -2331,413 +2305,6 @@ struct sql_ex_info
 };
 
 /**
-  @class Load_log_event
-
-  This log event corresponds to a "LOAD DATA INFILE" SQL query on the
-  following form:
-
-  @verbatim
-   (1)    USE db;
-   (2)    LOAD DATA [CONCURRENT] [LOCAL] INFILE 'file_name'
-   (3)    [REPLACE | IGNORE]
-   (4)    INTO TABLE 'table_name'
-   (5)    [FIELDS
-   (6)      [TERMINATED BY 'field_term']
-   (7)      [[OPTIONALLY] ENCLOSED BY 'enclosed']
-   (8)      [ESCAPED BY 'escaped']
-   (9)    ]
-  (10)    [LINES
-  (11)      [TERMINATED BY 'line_term']
-  (12)      [LINES STARTING BY 'line_start']
-  (13)    ]
-  (14)    [IGNORE skip_lines LINES]
-  (15)    (field_1, field_2, ..., field_n)@endverbatim
-
-  @section Load_log_event_binary_format Binary Format
-
-  The Post-Header consists of the following six components.
-
-  <table>
-  <caption>Post-Header for Load_log_event</caption>
-
-  <tr>
-    <th>Name</th>
-    <th>Format</th>
-    <th>Description</th>
-  </tr>
-
-  <tr>
-    <td>slave_proxy_id</td>
-    <td>4 byte unsigned integer</td>
-    <td>An integer identifying the client thread that issued the
-    query.  The id is unique per server.  (Note, however, that two
-    threads on different servers may have the same slave_proxy_id.)
-    This is used when a client thread creates a temporary table local
-    to the client.  The slave_proxy_id is used to distinguish
-    temporary tables that belong to different clients.
-    </td>
-  </tr>
-
-  <tr>
-    <td>exec_time</td>
-    <td>4 byte unsigned integer</td>
-    <td>The time from when the query started to when it was logged in
-    the binlog, in seconds.</td>
-  </tr>
-
-  <tr>
-    <td>skip_lines</td>
-    <td>4 byte unsigned integer</td>
-    <td>The number on line (14) above, if present, or 0 if line (14)
-    is left out.
-    </td>
-  </tr>
-
-  <tr>
-    <td>table_name_len</td>
-    <td>1 byte unsigned integer</td>
-    <td>The length of 'table_name' on line (4) above.</td>
-  </tr>
-
-  <tr>
-    <td>db_len</td>
-    <td>1 byte unsigned integer</td>
-    <td>The length of 'db' on line (1) above.</td>
-  </tr>
-
-  <tr>
-    <td>num_fields</td>
-    <td>4 byte unsigned integer</td>
-    <td>The number n of fields on line (15) above.</td>
-  </tr>
-  </table>    
-
-  The Body contains the following components.
-
-  <table>
-  <caption>Body of Load_log_event</caption>
-
-  <tr>
-    <th>Name</th>
-    <th>Format</th>
-    <th>Description</th>
-  </tr>
-
-  <tr>
-    <td>sql_ex</td>
-    <td>variable length</td>
-
-    <td>Describes the part of the query on lines (3) and
-    (5)&ndash;(13) above.  More precisely, it stores the five strings
-    (on lines) field_term (6), enclosed (7), escaped (8), line_term
-    (11), and line_start (12); as well as a bitfield indicating the
-    presence of the keywords REPLACE (3), IGNORE (3), and OPTIONALLY
-    (7).
-
-    The data is stored in one of two formats, called "old" and "new".
-    The type field of Common-Header determines which of these two
-    formats is used: type LOAD_EVENT means that the old format is
-    used, and type NEW_LOAD_EVENT means that the new format is used.
-    When MySQL writes a Load_log_event, it uses the new format if at
-    least one of the five strings is two or more bytes long.
-    Otherwise (i.e., if all strings are 0 or 1 bytes long), the old
-    format is used.
-
-    The new and old format differ in the way the five strings are
-    stored.
-
-    <ul>
-    <li> In the new format, the strings are stored in the order
-    field_term, enclosed, escaped, line_term, line_start. Each string
-    consists of a length (1 byte), followed by a sequence of
-    characters (0-255 bytes).  Finally, a boolean combination of the
-    following flags is stored in 1 byte: REPLACE_FLAG==0x4,
-    IGNORE_FLAG==0x8, and OPT_ENCLOSED_FLAG==0x2.  If a flag is set,
-    it indicates the presence of the corresponding keyword in the SQL
-    query.
-
-    <li> In the old format, we know that each string has length 0 or
-    1.  Therefore, only the first byte of each string is stored.  The
-    order of the strings is the same as in the new format.  These five
-    bytes are followed by the same 1 byte bitfield as in the new
-    format.  Finally, a 1 byte bitfield called empty_flags is stored.
-    The low 5 bits of empty_flags indicate which of the five strings
-    have length 0.  For each of the following flags that is set, the
-    corresponding string has length 0; for the flags that are not set,
-    the string has length 1: FIELD_TERM_EMPTY==0x1,
-    ENCLOSED_EMPTY==0x2, LINE_TERM_EMPTY==0x4, LINE_START_EMPTY==0x8,
-    ESCAPED_EMPTY==0x10.
-    </ul>
-
-    Thus, the size of the new format is 6 bytes + the sum of the sizes
-    of the five strings.  The size of the old format is always 7
-    bytes.
-    </td>
-  </tr>
-
-  <tr>
-    <td>field_lens</td>
-    <td>num_fields 1 byte unsigned integers</td>
-    <td>An array of num_fields integers representing the length of
-    each field in the query.  (num_fields is from the Post-Header).
-    </td>
-  </tr>
-
-  <tr>
-    <td>fields</td>
-    <td>num_fields null-terminated strings</td>
-    <td>An array of num_fields null-terminated strings, each
-    representing a field in the query.  (The trailing zero is
-    redundant, since the length are stored in the num_fields array.)
-    The total length of all strings equals to the sum of all
-    field_lens, plus num_fields bytes for all the trailing zeros.
-    </td>
-  </tr>
-
-  <tr>
-    <td>table_name</td>
-    <td>null-terminated string of length table_len+1 bytes</td>
-    <td>The 'table_name' from the query, as a null-terminated string.
-    (The trailing zero is actually redundant since the table_len is
-    known from Post-Header.)
-    </td>
-  </tr>
-
-  <tr>
-    <td>db</td>
-    <td>null-terminated string of length db_len+1 bytes</td>
-    <td>The 'db' from the query, as a null-terminated string.
-    (The trailing zero is actually redundant since the db_len is known
-    from Post-Header.)
-    </td>
-  </tr>
-
-  <tr>
-    <td>file_name</td>
-    <td>variable length string without trailing zero, extending to the
-    end of the event (determined by the length field of the
-    Common-Header)
-    </td>
-    <td>The 'file_name' from the query.
-    </td>
-  </tr>
-
-  </table>
-
-  @subsection Load_log_event_notes_on_previous_versions Notes on Previous Versions
-
-  This event type is understood by current versions, but only
-  generated by MySQL 3.23 and earlier.
-*/
-class Load_log_event: public Log_event
-{
-private:
-protected:
-  int copy_log_event(const uchar *buf, ulong event_len,
-                     int body_offset,
-                     const Format_description_log_event* description_event);
-
-public:
-  bool print_query(THD *thd, bool need_db, const char *cs, String *buf,
-                   my_off_t *fn_start, my_off_t *fn_end,
-                   const char *qualify_db);
-  my_thread_id thread_id;
-  ulong slave_proxy_id;
-  uint32 table_name_len;
-  /*
-    No need to have a catalog, as these events can only come from 4.x.
-    TODO: this may become false if Dmitri pushes his new LOAD DATA INFILE in
-    5.0 only (not in 4.x).
-  */
-  uint32 db_len;
-  uint32 fname_len;
-  uint32 num_fields;
-  const char* fields;
-  const uchar* field_lens;
-  uint32 field_block_len;
-
-  const char* table_name;
-  const char* db;
-  const char* fname;
-  uint32 skip_lines;
-  sql_ex_info sql_ex;
-  bool local_fname;
-  /**
-    Indicates that this event corresponds to LOAD DATA CONCURRENT,
-
-    @note Since Load_log_event event coming from the binary log
-          lacks information whether LOAD DATA on master was concurrent
-          or not, this flag is only set to TRUE for an auxiliary
-          Load_log_event object which is used in mysql_load() to
-          re-construct LOAD DATA statement from function parameters,
-          for logging.
-  */
-  bool is_concurrent;
-
-  /* fname doesn't point to memory inside Log_event::temp_buf  */
-  void set_fname_outside_temp_buf(const char *afname, size_t alen)
-  {
-    fname= afname;
-    fname_len= (uint)alen;
-    local_fname= TRUE;
-  }
-  /* fname doesn't point to memory inside Log_event::temp_buf  */
-  int  check_fname_outside_temp_buf()
-  {
-    return local_fname;
-  }
-
-#ifdef MYSQL_SERVER
-  String field_lens_buf;
-  String fields_buf;
-
-  Load_log_event(THD* thd, const sql_exchange* ex, const char* db_arg,
-		 const char* table_name_arg,
-		 List<Item>& fields_arg,
-                 bool is_concurrent_arg,
-                 enum enum_duplicates handle_dup, bool ignore,
-		 bool using_trans);
-  void set_fields(const char* db, List<Item> &fields_arg,
-                  Name_resolution_context *context);
-  const char* get_db() { return db; }
-#ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
-#endif /* HAVE_REPLICATION */
-#else
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info, bool commented);
-#endif
-
-  /*
-    Note that for all the events related to LOAD DATA (Load_log_event,
-    Create_file/Append/Exec/Delete, we pass description_event; however as
-    logging of LOAD DATA is going to be changed in 4.1 or 5.0, this is only used
-    for the common_header_len (post_header_len will not be changed).
-  */
-  Load_log_event(const uchar *buf, uint event_len,
-                 const Format_description_log_event* description_event);
-  ~Load_log_event()
-  {}
-  Log_event_type get_type_code()
-  {
-    return sql_ex.new_format() ? NEW_LOAD_EVENT: LOAD_EVENT;
-  }
-#ifdef MYSQL_SERVER
-  bool write_data_header();
-  bool write_data_body();
-#endif
-  bool is_valid() const { return table_name != 0; }
-  int get_data_size()
-  {
-    return (table_name_len + db_len + 2 + fname_len
-	    + LOAD_HEADER_LEN
-	    + sql_ex.data_size() + field_block_len + num_fields);
-  }
-
-public:        /* !!! Public in this patch to allow old usage */
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(rpl_group_info *rgi)
-  {
-    return do_apply_event(thd->slave_net,rgi,0);
-  }
-
-  int do_apply_event(NET *net, rpl_group_info *rgi,
-                     bool use_rli_only_for_errors);
-#endif
-};
-
-/**
-  @class Start_log_event_v3
-
-  Start_log_event_v3 is the Start_log_event of binlog format 3 (MySQL 3.23 and
-  4.x).
-
-  Format_description_log_event derives from Start_log_event_v3; it is
-  the Start_log_event of binlog format 4 (MySQL 5.0), that is, the
-  event that describes the other events' Common-Header/Post-Header
-  lengths. This event is sent by MySQL 5.0 whenever it starts sending
-  a new binlog if the requested position is >4 (otherwise if ==4 the
-  event will be sent naturally).
-
-  @section Start_log_event_v3_binary_format Binary Format
-*/
-class Start_log_event_v3: public Log_event
-{
-public:
-  /*
-    If this event is at the start of the first binary log since server
-    startup 'created' should be the timestamp when the event (and the
-    binary log) was created.  In the other case (i.e. this event is at
-    the start of a binary log created by FLUSH LOGS or automatic
-    rotation), 'created' should be 0.  This "trick" is used by MySQL
-    >=4.0.14 slaves to know whether they must drop stale temporary
-    tables and whether they should abort unfinished transaction.
-
-    Note that when 'created'!=0, it is always equal to the event's
-    timestamp; indeed Start_log_event is written only in log.cc where
-    the first constructor below is called, in which 'created' is set
-    to 'when'.  So in fact 'created' is a useless variable. When it is
-    0 we can read the actual value from timestamp ('when') and when it
-    is non-zero we can read the same value from timestamp
-    ('when'). Conclusion:
-     - we use timestamp to print when the binlog was created.
-     - we use 'created' only to know if this is a first binlog or not.
-     In 3.23.57 we did not pay attention to this identity, so mysqlbinlog in
-     3.23.57 does not print 'created the_date' if created was zero. This is now
-     fixed.
-  */
-  time_t created;
-  uint16 binlog_version;
-  char server_version[ST_SERVER_VER_LEN];
-  /*
-    We set this to 1 if we don't want to have the created time in the log,
-    which is the case when we rollover to a new log.
-  */
-  bool dont_set_created;
-
-#ifdef MYSQL_SERVER
-  Start_log_event_v3();
-#ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
-#endif /* HAVE_REPLICATION */
-#else
-  Start_log_event_v3() {}
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
-#endif
-
-  Start_log_event_v3(const uchar *buf, uint event_len,
-                     const Format_description_log_event* description_event);
-  ~Start_log_event_v3() {}
-  Log_event_type get_type_code() { return START_EVENT_V3;}
-  my_off_t get_header_len(my_off_t l __attribute__((unused)))
-  { return LOG_EVENT_MINIMAL_HEADER_LEN; }
-#ifdef MYSQL_SERVER
-  bool write();
-#endif
-  bool is_valid() const { return server_version[0] != 0; }
-  int get_data_size()
-  {
-    return START_V3_HEADER_LEN; //no variable-sized part
-  }
-
-protected:
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(rpl_group_info *rgi);
-  virtual enum_skip_reason do_shall_skip(rpl_group_info*)
-  {
-    /*
-      Events from ourself should be skipped, but they should not
-      decrease the slave skip counter.
-     */
-    if (this->server_id == global_system_variables.server_id)
-      return Log_event::EVENT_SKIP_IGNORE;
-    else
-      return Log_event::EVENT_SKIP_NOT;
-  }
-#endif
-};
-
-/**
   @class Start_encryption_log_event
 
   Start_encryption_log_event marks the beginning of encrypted data (all events
@@ -2847,9 +2414,40 @@ public:
   @section Format_description_log_event_binary_format Binary Format
 */
 
-class Format_description_log_event: public Start_log_event_v3
+class Format_description_log_event: public Log_event
 {
 public:
+  /*
+    If this event is at the start of the first binary log since server
+    startup 'created' should be the timestamp when the event (and the
+    binary log) was created.  In the other case (i.e. this event is at
+    the start of a binary log created by FLUSH LOGS or automatic
+    rotation), 'created' should be 0.  This "trick" is used by MySQL
+    >=4.0.14 slaves to know whether they must drop stale temporary
+    tables and whether they should abort unfinished transaction.
+
+    Note that when 'created'!=0, it is always equal to the event's
+    timestamp; indeed Start_log_event is written only in log.cc where
+    the first constructor below is called, in which 'created' is set
+    to 'when'.  So in fact 'created' is a useless variable. When it is
+    0 we can read the actual value from timestamp ('when') and when it
+    is non-zero we can read the same value from timestamp
+    ('when'). Conclusion:
+     - we use timestamp to print when the binlog was created.
+     - we use 'created' only to know if this is a first binlog or not.
+     In 3.23.57 we did not pay attention to this identity, so mysqlbinlog in
+     3.23.57 does not print 'created the_date' if created was zero. This is now
+     fixed.
+  */
+  time_t created;
+  uint16 binlog_version;
+  char server_version[ST_SERVER_VER_LEN];
+  /*
+    We set this to 1 if we don't want to have the created time in the log,
+    which is the case when we rollover to a new log.
+  */
+  bool dont_set_created;
+
   /*
      The size of the fixed header which _all_ events have
      (for binlogs written by this version, this is equal to
@@ -2858,8 +2456,8 @@ public:
   */
   uint8 common_header_len;
   uint8 number_of_event_types;
-  /* 
-     The list of post-headers' lengths followed 
+  /*
+     The list of post-headers' lengths followed
      by the checksum alg description byte
   */
   uint8 *post_header_len;
@@ -2888,14 +2486,18 @@ public:
     my_free(post_header_len);
   }
   Log_event_type get_type_code() { return FORMAT_DESCRIPTION_EVENT;}
+  my_off_t get_header_len(my_off_t) { return LOG_EVENT_MINIMAL_HEADER_LEN; }
 #ifdef MYSQL_SERVER
   bool write();
+#ifdef HAVE_REPLICATION
+  void pack_info(Protocol* protocol);
+#endif /* HAVE_REPLICATION */
+#else
+  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
   bool header_is_valid() const
   {
-    return ((common_header_len >= ((binlog_version==1) ? OLD_HEADER_LEN :
-                                   LOG_EVENT_MINIMAL_HEADER_LEN)) &&
-            (post_header_len != NULL));
+    return common_header_len >= LOG_EVENT_MINIMAL_HEADER_LEN && post_header_len;
   }
 
   bool is_valid() const
@@ -3861,82 +3463,6 @@ public:
 };
 
 
-/* the classes below are for the new LOAD DATA INFILE logging */
-
-/**
-  @class Create_file_log_event
-
-  @section Create_file_log_event_binary_format Binary Format
-*/
-
-class Create_file_log_event: public Load_log_event
-{
-protected:
-  /*
-    Pretend we are Load event, so we can write out just
-    our Load part - used on the slave when writing event out to
-    SQL_LOAD-*.info file
-  */
-  bool fake_base;
-public:
-  uchar *block;
-  const uchar *event_buf;
-  uint block_len;
-  uint file_id;
-  bool inited_from_old;
-
-#ifdef MYSQL_SERVER
-  Create_file_log_event(THD* thd, sql_exchange* ex, const char* db_arg,
-			const char* table_name_arg,
-			List<Item>& fields_arg,
-                        bool is_concurrent_arg,
-			enum enum_duplicates handle_dup, bool ignore,
-			uchar* block_arg, uint block_len_arg,
-			bool using_trans);
-#ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
-#endif /* HAVE_REPLICATION */
-#else
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info,
-             bool enable_local);
-#endif
-
-  Create_file_log_event(const uchar *buf, uint event_len,
-                        const Format_description_log_event* description_event);
-  ~Create_file_log_event()
-  {
-    my_free((void*) event_buf);
-  }
-
-  Log_event_type get_type_code()
-  {
-    return fake_base ? Load_log_event::get_type_code() : CREATE_FILE_EVENT;
-  }
-  int get_data_size()
-  {
-    return (fake_base ? Load_log_event::get_data_size() :
-	    Load_log_event::get_data_size() +
-	    4 + 1 + block_len);
-  }
-  bool is_valid() const { return inited_from_old || block != 0; }
-#ifdef MYSQL_SERVER
-  bool write_data_header();
-  bool write_data_body();
-  /*
-    Cut out Create_file extensions and
-    write it as Load event - used on the slave
-  */
-  bool write_base();
-#endif
-
-private:
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(rpl_group_info *rgi);
-#endif
-};
-
-
 /**
   @class Append_block_log_event
 
@@ -3956,9 +3482,7 @@ public:
     used by Append_block_log_event::write()), so it can't be read in
     the Append_block_log_event(const uchar *buf, int event_len)
     constructor.  In other words, 'db' is used only for filtering by
-    binlog-*-db rules.  Create_file_log_event is different: it's 'db'
-    (which is inherited from Load_log_event) is written to the binlog
-    and can be re-read.
+    binlog-*-db rules.
   */
   const char* db;
 
@@ -4020,46 +3544,6 @@ public:
   ~Delete_file_log_event() {}
   Log_event_type get_type_code() { return DELETE_FILE_EVENT;}
   int get_data_size() { return DELETE_FILE_HEADER_LEN ;}
-  bool is_valid() const { return file_id != 0; }
-#ifdef MYSQL_SERVER
-  bool write();
-  const char* get_db() { return db; }
-#endif
-
-private:
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_apply_event(rpl_group_info *rgi);
-#endif
-};
-
-
-/**
-  @class Execute_load_log_event
-
-  @section Delete_file_log_event_binary_format Binary Format
-*/
-
-class Execute_load_log_event: public Log_event
-{
-public:
-  uint file_id;
-  const char* db; /* see comment in Append_block_log_event */
-
-#ifdef MYSQL_SERVER
-  Execute_load_log_event(THD* thd, const char* db_arg, bool using_trans);
-#ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
-#endif /* HAVE_REPLICATION */
-#else
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
-#endif
-
-  Execute_load_log_event(const uchar *buf, uint event_len,
-                         const Format_description_log_event
-                         *description_event);
-  ~Execute_load_log_event() {}
-  Log_event_type get_type_code() { return EXEC_LOAD_EVENT;}
-  int get_data_size() { return  EXEC_LOAD_HEADER_LEN ;}
   bool is_valid() const { return file_id != 0; }
 #ifdef MYSQL_SERVER
   bool write();
@@ -5358,8 +4842,6 @@ private:
   */
   virtual int do_exec_row(rpl_group_info *rli) = 0;
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
-
-  friend class Old_rows_log_event;
 };
 
 /**
@@ -5607,9 +5089,6 @@ private:
   bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 };
-
-
-#include "log_event_old.h"
 
 /**
   @class Incident_log_event

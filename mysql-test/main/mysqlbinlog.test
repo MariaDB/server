@@ -123,13 +123,13 @@ select "--- reading stdin --" as "";
 --enable_query_log
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
---exec $MYSQL_BINLOG --short-form - < $MYSQL_TEST_DIR/std_data/trunc_binlog.000001
+--exec $MYSQL_BINLOG --short-form - < $MYSQL_TEST_DIR/std_data/bug16266.000001
 
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 --replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
 # postion is constant to correspond to an event in pre-recorded binlog
---let $binlog_start_pos=79
---exec $MYSQL_BINLOG --short-form --start-position=$binlog_start_pos - < $MYSQL_TEST_DIR/std_data/trunc_binlog.000001
+--let $binlog_start_pos=274
+--exec $MYSQL_BINLOG --short-form --start-position=$binlog_start_pos - < $MYSQL_TEST_DIR/std_data/bug16266.000001
 
 drop table t1,t2;
 
