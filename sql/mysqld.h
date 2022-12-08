@@ -740,7 +740,6 @@ extern const char *mysql_real_data_home_ptr;
 extern ulong thread_handling;
 extern "C" MYSQL_PLUGIN_IMPORT char server_version[SERVER_VERSION_LENGTH];
 extern char *server_version_ptr;
-extern bool using_custom_server_version;
 extern MYSQL_PLUGIN_IMPORT char mysql_real_data_home[];
 extern char mysql_unpacked_real_data_home[];
 extern MYSQL_PLUGIN_IMPORT struct system_variables global_system_variables;

@@ -13307,12 +13307,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
     data_len= SCRAMBLE_LENGTH;
   }
 
-  /* When server version is specified in config file, don't include
-     the replication hack prefix. */
-  if (using_custom_server_version)
-    end= strnmov(end, server_version, SERVER_VERSION_LENGTH) + 1;
-  else
-    end= strxnmov(end, SERVER_VERSION_LENGTH, RPL_VERSION_HACK, server_version, NullS) + 1;
+  end= strnmov(end, server_version, SERVER_VERSION_LENGTH) + 1;
 
   int4store((uchar*) end, mpvio->auth_info.thd->thread_id);
   end+= 4;
