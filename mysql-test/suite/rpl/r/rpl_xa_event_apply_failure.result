@@ -3,7 +3,7 @@ include/master-slave.inc
 connect  master2,localhost,root,,;
 connection master;
 CALL mtr.add_suppression("Found 1 prepared XA transactions");
-CALL mtr.add_suppression("Failed to execute binlog query event");
+CALL mtr.add_suppression("Failed to execute recovered binlog query event");
 CALL mtr.add_suppression("Recovery: Error .Out of memory..");
 CALL mtr.add_suppression("Crash recovery failed.");
 CALL mtr.add_suppression("Can.t init tc log");
@@ -28,6 +28,7 @@ connection master1;
 connection master;
 connection default;
 connection default;
+include/assert_grep.inc [Binlog event recovery should fail]
 connection master;
 *** must be no 'xa2' commit seen, as it's still prepared:
 SELECT * FROM t;

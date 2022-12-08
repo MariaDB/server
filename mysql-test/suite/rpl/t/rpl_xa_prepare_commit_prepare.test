@@ -75,6 +75,25 @@ connection server_1;
 --connection master
 --enable_reconnect
 --source include/wait_until_connected_again.inc
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+}
+--let $assert_file= $log_error_
+--let $assert_only_after = CURRENT_TEST: rpl.rpl_xa_prepare_commit_prepare
+
+--let $assert_text= Binlog XA PREPARE event should be successfully recovered
+--let $assert_select=Recovered binlog event XA PREPARE.*successfully applied\$
+--let $assert_count= 1
+--source include/assert_grep.inc
+
+--let $assert_text= Binlog XA crash recovery should successfully finish
+--let $assert_select=Binlog XA crash recovery finished
+--let $assert_count= 1
+--source include/assert_grep.inc
 
 --connection slave
 --source include/start_slave.inc
