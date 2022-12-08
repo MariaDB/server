@@ -106,7 +106,6 @@ SET (SQL_SOURCE
                key.cc log.cc lock.cc
                log_event.cc log_event_server.cc
                rpl_record.cc rpl_reporting.cc
-               log_event_old.cc rpl_record_old.cc
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c

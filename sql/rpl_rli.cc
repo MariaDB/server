@@ -525,13 +525,7 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
   Format_description_log_event *fdev;
   bool found= false;
 
-  /*
-    By default the relay log is in binlog format 3 (4.0).
-    Even if format is 4, this will work enough to read the first event
-    (Format_desc) (remember that format 4 is just lenghtened compared to format
-    3; format 3 is a prefix of format 4).
-  */
-  fdev= new Format_description_log_event(3);
+  fdev= new Format_description_log_event(4);
 
   while (!found)
   {
@@ -666,14 +660,7 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
     running, say, CHANGE MASTER.
   */
   delete rli->relay_log.description_event_for_exec;
-  /*
-    By default the relay log is in binlog format 3 (4.0).
-    Even if format is 4, this will work enough to read the first event
-    (Format_desc) (remember that format 4 is just lenghtened compared to format
-    3; format 3 is a prefix of format 4).
-  */
-  rli->relay_log.description_event_for_exec= new
-    Format_description_log_event(3);
+  rli->relay_log.description_event_for_exec= new Format_description_log_event(4);
 
   mysql_mutex_lock(log_lock);
 

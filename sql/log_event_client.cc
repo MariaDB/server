@@ -2104,9 +2104,9 @@ err:
 }
 
 
-bool Start_log_event_v3::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
+bool Format_description_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
-  DBUG_ENTER("Start_log_event_v3::print");
+  DBUG_ENTER("Format_description_log_event::print");
 
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F);
@@ -2185,122 +2185,6 @@ bool Start_encryption_log_event::print(FILE* file,
     if (my_b_write(&cache, (uchar*)buf.ptr(), buf.length()))
       return 1;
     return (cache.flush_data());
-}
-
-
-bool Load_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
-{
-  return print(file, print_event_info, 0);
-}
-
-
-bool Load_log_event::print(FILE* file_arg, PRINT_EVENT_INFO* print_event_info,
-			   bool commented)
-{
-  Write_on_release_cache cache(&print_event_info->head_cache, file_arg);
-  bool different_db= 1;
-  DBUG_ENTER("Load_log_event::print");
-
-  if (!print_event_info->short_form)
-  {
-    if (print_header(&cache, print_event_info, FALSE) ||
-        my_b_printf(&cache, "\tQuery\tthread_id=%ld\texec_time=%ld\n",
-                    thread_id, exec_time))
-      goto err;
-  }
-
-  if (db)
-  {
-    /*
-      If the database is different from the one of the previous statement, we
-      need to print the "use" command, and we update the last_db.
-      But if commented, the "use" is going to be commented so we should not
-      update the last_db.
-    */
-    if ((different_db= memcmp(print_event_info->db, db, db_len + 1)) &&
-        !commented)
-      memcpy(print_event_info->db, db, db_len + 1);
-  }
-
-  if (db && db[0] && different_db)
-    if (my_b_printf(&cache, "%suse %`s%s\n",
-                    commented ? "# " : "",
-                    db, print_event_info->delimiter))
-      goto err;
-
-  if (flags & LOG_EVENT_THREAD_SPECIFIC_F)
-    if (my_b_printf(&cache,"%sSET @@session.pseudo_thread_id=%lu%s\n",
-                    commented ? "# " : "", (ulong)thread_id,
-                    print_event_info->delimiter))
-      goto err;
-  if (my_b_printf(&cache, "%sLOAD DATA ",
-                  commented ? "# " : ""))
-    goto err;
-  if (check_fname_outside_temp_buf())
-    if (my_b_write_string(&cache, "LOCAL "))
-      goto err;
-  if (my_b_printf(&cache, "INFILE '%-*s' ", fname_len, fname))
-    goto err;
-
-  if (sql_ex.opt_flags & REPLACE_FLAG)
-  {
-    if (my_b_write_string(&cache, "REPLACE "))
-      goto err;
-  }
-  else if (sql_ex.opt_flags & IGNORE_FLAG)
-    if (my_b_write_string(&cache, "IGNORE "))
-      goto err;
-
-  if (my_b_printf(&cache, "INTO TABLE `%s`", table_name) ||
-      my_b_write_string(&cache, " FIELDS TERMINATED BY ") ||
-      pretty_print_str(&cache, sql_ex.field_term, sql_ex.field_term_len))
-    goto err;
-
-  if (sql_ex.opt_flags & OPT_ENCLOSED_FLAG)
-    if (my_b_write_string(&cache, " OPTIONALLY "))
-      goto err;
-  if (my_b_write_string(&cache, " ENCLOSED BY ") ||
-      pretty_print_str(&cache, sql_ex.enclosed, sql_ex.enclosed_len) ||
-      my_b_write_string(&cache, " ESCAPED BY ") ||
-      pretty_print_str(&cache, sql_ex.escaped, sql_ex.escaped_len) ||
-      my_b_write_string(&cache, " LINES TERMINATED BY ") ||
-      pretty_print_str(&cache, sql_ex.line_term, sql_ex.line_term_len))
-    goto err;
-
-  if (sql_ex.line_start)
-  {
-    if (my_b_write_string(&cache," STARTING BY ") ||
-        pretty_print_str(&cache, sql_ex.line_start, sql_ex.line_start_len))
-      goto err;
-  }
-  if ((long) skip_lines > 0)
-    if (my_b_printf(&cache, " IGNORE %ld LINES", (long) skip_lines))
-      goto err;
-
-  if (num_fields)
-  {
-    uint i;
-    const char* field = fields;
-    if (my_b_write_string(&cache, " ("))
-      goto err;
-    for (i = 0; i < num_fields; i++)
-    {
-      if (i)
-        if (my_b_write_byte(&cache, ','))
-          goto err;
-      if (my_b_printf(&cache, "%`s", field))
-        goto err;
-      field += field_lens[i]  + 1;
-    }
-    if (my_b_write_byte(&cache, ')'))
-      goto err;
-  }
-
-  if (my_b_printf(&cache, "%s\n", print_event_info->delimiter))
-    goto err;
-  DBUG_RETURN(cache.flush_data());
-err:
-  DBUG_RETURN(1);
 }
 
 
@@ -2626,61 +2510,6 @@ bool Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 #endif
 
 
-bool Create_file_log_event::print(FILE* file,
-                                  PRINT_EVENT_INFO* print_event_info,
-				  bool enable_local)
-{
-  if (print_event_info->short_form)
-  {
-    if (enable_local && check_fname_outside_temp_buf())
-      return Load_log_event::print(file, print_event_info);
-    return 0;
-  }
-
-  Write_on_release_cache cache(&print_event_info->head_cache, file);
-
-  if (enable_local)
-  {
-    if (Load_log_event::print(file, print_event_info,
-                              !check_fname_outside_temp_buf()))
-      goto err;
-
-    /**
-      reduce the size of io cache so that the write function is called
-      for every call to my_b_printf().
-     */
-    DBUG_EXECUTE_IF ("simulate_create_event_write_error",
-                     {(&cache)->write_pos= (&cache)->write_end;
-                     DBUG_SET("+d,simulate_file_write_error");});
-    /*
-      That one is for "file_id: etc" below: in mysqlbinlog we want the #, in
-      SHOW BINLOG EVENTS we don't.
-     */
-    if (my_b_write_byte(&cache, '#'))
-      goto err;
-  }
-
-  if (my_b_printf(&cache, " file_id: %d  block_len: %d\n", file_id, block_len))
-    goto err;
-
-  return cache.flush_data();
-err:
-  return 1;
-
-}
-
-
-bool Create_file_log_event::print(FILE* file,
-                                  PRINT_EVENT_INFO* print_event_info)
-{
-  return print(file, print_event_info, 0);
-}
-
-
-/*
-  Append_block_log_event::print()
-*/
-
 bool Append_block_log_event::print(FILE* file,
 				   PRINT_EVENT_INFO* print_event_info)
 {
@@ -2700,10 +2529,6 @@ err:
 }
 
 
-/*
-  Delete_file_log_event::print()
-*/
-
 bool Delete_file_log_event::print(FILE* file,
 				  PRINT_EVENT_INFO* print_event_info)
 {
@@ -2719,25 +2544,6 @@ bool Delete_file_log_event::print(FILE* file,
   return cache.flush_data();
 }
 
-/*
-  Execute_load_log_event::print()
-*/
-
-bool Execute_load_log_event::print(FILE* file,
-				   PRINT_EVENT_INFO* print_event_info)
-{
-  if (print_event_info->short_form)
-    return 0;
-
-  Write_on_release_cache cache(&print_event_info->head_cache, file);
-
-  if (print_header(&cache, print_event_info, FALSE) ||
-      my_b_printf(&cache, "\n#Exec_load: file_id=%d\n",
-                  file_id))
-    return 1;
-
-  return cache.flush_data();
-}
 
 bool Execute_load_query_log_event::print(FILE* file,
                                          PRINT_EVENT_INFO* print_event_info)
@@ -2994,10 +2800,6 @@ err:
 
   where fragments are represented by a pair of indexed user
   "one shot" variables.
-
-  @note
-  If any changes made don't forget to duplicate them to
-  Old_rows_log_event as long as it's supported.
 
   @param file               pointer to IO_CACHE
   @param print_event_info   pointer to print_event_info specializing
