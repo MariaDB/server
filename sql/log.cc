@@ -2018,6 +2018,10 @@ static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 {
   int rc= 0;
   THD *thd= current_thd;
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+
+  if (cache_mngr->completed_by_xid)
+    return rc;
 
   /* the asserted state can't be reachable with xa commit */
   DBUG_ASSERT(!thd->get_stmt_da()->is_error() ||
@@ -2032,16 +2036,12 @@ static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 
   thd->ha_data[hton->slot].ha_info[1].register_ha(&trans, hton);
   thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
-  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
 
-  if (!cache_mngr->completed_by_xid)
-  {
-    rc= binlog_commit(hton, thd, TRUE);
+  rc= binlog_commit(hton, thd, TRUE);
+  cache_mngr->completed_by_xid= true;
   thd->ha_data[binlog_hton->slot].ha_info[1].reset();
-    cache_mngr->completed_by_xid= true;
-  }
 
   return rc;
 }
@@ -2054,7 +2054,10 @@ static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 {
   int rc= 0;
   THD *thd= current_thd;
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
 
+  if (cache_mngr->completed_by_xid)
+    return rc;
   if (thd->get_stmt_da()->is_error() &&
       thd->get_stmt_da()->sql_errno() == ER_XA_RBROLLBACK)
     return rc;
@@ -2064,17 +2067,13 @@ static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 
   thd->ha_data[hton->slot].ha_info[1].register_ha(&trans, hton);
   thd->ha_data[hton->slot].ha_info[1].set_trx_read_write();
-  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
-              (thd->transaction.xid_state.get_state_code() == XA_ROLLBACK_ONLY));
+              (thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY));
 
-  if (!cache_mngr->completed_by_xid)
-  {
-    rc= binlog_rollback(hton, thd, TRUE);
-    thd->ha_data[hton->slot].ha_info[1].reset();
-    cache_mngr->completed_by_xid= true;
-  }
+  rc= binlog_rollback(hton, thd, TRUE);
+  cache_mngr->completed_by_xid= true;
+  thd->ha_data[hton->slot].ha_info[1].reset();
 
   return rc;
 }

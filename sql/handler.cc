@@ -1340,7 +1340,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
     transaction the handlerton is inserted into the list past its head.
   */
   bool link_past_head=
-    unlikely(thd->transaction.xid_state.is_explicit_XA() &&
+    unlikely(thd->transaction->xid_state.is_explicit_XA() &&
              trans->ha_list && trans->ha_list->ht() == binlog_hton);
   ha_info->register_ha(trans, ht_arg, link_past_head);
 
