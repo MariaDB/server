@@ -90,7 +90,6 @@ struct rpl_group_info;
 struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
-class Load_log_event;
 class Log_event_writer;
 class sp_rcontext;
 class sp_cache;

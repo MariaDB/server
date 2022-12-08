@@ -2,9 +2,6 @@
 # work as expected, and that BINLOG statements with row events fail if
 # they are not preceded by BINLOG statements with Format description
 # events.
-#
-# See also BUG#32407.
-
 
 # BINLOG statement does not work in embedded mode.
 source include/not_embedded.inc;
@@ -12,22 +9,9 @@ source include/not_embedded.inc;
 call mtr.add_suppression("BINLOG_BASE64_EVENT: According to the master's version");
 call mtr.add_suppression("BINLOG_BASE64_EVENT: Column 1 of table 'test.char128_utf8' cannot be converted");
 
-disable_warnings;
-DROP TABLE IF EXISTS t1;
-enable_warnings;
-# Test to show BUG#32407.  This reads a binlog created with the
-# mysql-5.1-telco-6.1 tree, specifically at the tag
-# mysql-5.1.15-ndb-6.1.23, and applies it to the database.  The test
-# should fail before BUG#32407 was fixed and succeed afterwards.
---echo ==== Test BUG#32407 ====
-
-# The binlog contains row events equivalent to:
-# CREATE TABLE t1 (a int) engine = myisam
-# INSERT INTO t1 VALUES (1), (1)
-exec $MYSQL_BINLOG suite/binlog/std_data/bug32407.001 | $MYSQL;
-# The above line should succeed and t1 should contain two ones
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1), (1);
 select * from t1;
-
 
 # Test that a BINLOG statement encoding a row event fails unless a
 # Format_description_event as been supplied with an earlier BINLOG
@@ -91,14 +75,6 @@ BINLOG @binlog_fragment_0, @binlog_fragment_1;
 select * from t1;
 # show "one-shot" feature of binlog_fragment variables
 SELECT @binlog_fragment_0, @binlog_fragment_1 as 'NULL','NULL';
-
-# New mysqlbinlog supports --base64-output=never
---echo ==== Test --base64-output=never on a binlog with row events ====
-
-# mysqlbinlog should fail
---replace_regex /#[0-9][0-9][0-9][0-9][0-9][0-9] \N*/<#>/   /SET \@\@session.pseudo_thread_id.*/<#>/
-exec $MYSQL_BINLOG --base64-output=never --print-row-count=0 --print-row-event-positions=0 suite/binlog/std_data/bug32407.001;
-
 
 # Test that the following fails cleanly: "First, read a
 # Format_description event which has N event types. Then, read an

@@ -971,17 +971,17 @@ explain extended select length('\n\t\r\b\0\_\%\\');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select octet_length('\n	\r\0008\0\\_\\%\\') AS `length('\n\t\r\b\0\_\%\\')`
+Note	1003	select octet_length('\n\t\r\b\0\\_\\%\\') AS `length('\n\t\r\b\0\_\%\\')`
 explain extended select bit_length('\n\t\r\b\0\_\%\\');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select bit_length('\n	\r\0008\0\\_\\%\\') AS `bit_length('\n\t\r\b\0\_\%\\')`
+Note	1003	select bit_length('\n\t\r\b\0\\_\\%\\') AS `bit_length('\n\t\r\b\0\_\%\\')`
 explain extended select bit_length('\n\t\r\b\0\_\%\\');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select bit_length('\n	\r\0008\0\\_\\%\\') AS `bit_length('\n\t\r\b\0\_\%\\')`
+Note	1003	select bit_length('\n\t\r\b\0\\_\\%\\') AS `bit_length('\n\t\r\b\0\_\%\\')`
 explain extended select concat('monty',' was here ','again');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
