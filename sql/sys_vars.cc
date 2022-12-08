@@ -723,13 +723,24 @@ Sys_binlog_direct(
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_direct_check));
 
+static bool deprecated_explicit_defaults_for_timestamp(sys_var *self, THD *thd,
+                                                       set_var *var)
+{
+  if (var->value && var->save_result.ulonglong_value == 0)
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
+                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                        "explicit_defaults_for_timestamp=0"); // since 11.0.0
+  return false;
+}
 static Sys_var_bit Sys_explicit_defaults_for_timestamp(
        "explicit_defaults_for_timestamp",
        "This option causes CREATE TABLE to create all TIMESTAMP columns "
        "as NULL with DEFAULT NULL attribute, Without this option, "
        "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.",
        SESSION_VAR(option_bits), CMD_LINE(OPT_ARG),
-       OPTION_EXPLICIT_DEF_TIMESTAMP, DEFAULT(TRUE), NO_MUTEX_GUARD, IN_BINLOG);
+       OPTION_EXPLICIT_DEF_TIMESTAMP, DEFAULT(TRUE), NO_MUTEX_GUARD, IN_BINLOG,
+       ON_CHECK(deprecated_explicit_defaults_for_timestamp));
 
 static Sys_var_ulonglong Sys_bulk_insert_buff_size(
        "bulk_insert_buffer_size", "Size of tree cache used in bulk "

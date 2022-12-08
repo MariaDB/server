@@ -1326,6 +1326,8 @@ SET timestamp=DEFAULT;
 # MDEV-29225 make explicit_defaults_for_timestamps SESSION variable
 #
 set explicit_defaults_for_timestamp=OFF;
+Warnings:
+Warning	1681	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
 create table t1 (f1 timestamp, f2 timestamp);
 show create table t1;
 Table	Create Table

@@ -2,6 +2,8 @@ include/master-slave.inc
 [connection master]
 set timestamp=1656940000;
 set explicit_defaults_for_timestamp=!@@explicit_defaults_for_timestamp;
+Warnings:
+Warning	1681	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
 connection master;
 create table t1 (f1 timestamp, f2 timestamp);
 show create table t1;

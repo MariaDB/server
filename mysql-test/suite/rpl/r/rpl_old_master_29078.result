@@ -48,6 +48,8 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 connection slave;
 set global explicit_defaults_for_timestamp=0;
+Warnings:
+Warning	1681	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
 include/reset_slave.inc
 include/start_slave.inc
 show create table t1;

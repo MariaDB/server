@@ -10,6 +10,8 @@ set @@session.explicit_defaults_for_timestamp = 1;
 connection slave;
 set @sav.explicit_defaults_for_timestamp   = @@global.explicit_defaults_for_timestamp;
 set global explicit_defaults_for_timestamp = 0;
+Warnings:
+Warning	1681	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
 set @sav.slave_parallel_workers     = @@global.slave_parallel_workers;
 include/stop_slave.inc
 set @@global.slave_parallel_workers = 1;
@@ -105,6 +107,8 @@ connection slave;
 # B. alternate the master and slave vars' values to (0,1)
 connection master;
 set @@session.explicit_defaults_for_timestamp = 0;
+Warnings:
+Warning	1681	'explicit_defaults_for_timestamp=0' is deprecated and will be removed in a future release
 connection slave;
 set @@global.explicit_defaults_for_timestamp = 1;
 connection slave;
