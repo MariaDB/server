@@ -1,0 +1,5 @@
+[rsync]
+wsrep_sst_method=rsync
+
+[mariabackup]
+wsrep_sst_method=mariabackup

@@ -1,0 +1,98 @@
+--source include/galera_sst_method.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+CREATE TABLE t1(a int not null primary key, b int) engine=innodb;
+INSERT INTO t1 values (0,0),(1,1),(2,2);
+
+select @@wsrep_gtid_domain_id;
+
+--connection node_2
+select * from t1;
+select @@wsrep_gtid_domain_id;
+
+--connection node_3
+select * from t1;
+select @@wsrep_gtid_domain_id;
+
+--echo # Now we are ready to kick nodes out of cluster
+--echo # shutdown node_3
+--connection node_3
+-- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--echo # shutdown node_2
+--connection node_2
+-- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--echo # shutdown node_1
+--connection node_1
+-- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/shutdown_mysqld.inc
+
+--echo # For nodes 2 and 3 we force SST
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--remove_file $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+
+--echo # Restart node_1
+--let $restart_parameters = "--wsrep-new-cluster --wsrep_gtid_mode=ON --wsrep_node_name=node_1 --wsrep_gtid_domain_id=200"
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+select * from t1;
+select @@wsrep_gtid_domain_id;
+
+--echo # Restart node_2
+--let $restart_parameters = "--wsrep_gtid_mode=ON --wsrep_node_name=node_2 --wsrep_gtid_domain_id=200"
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+select * from t1;
+select @@wsrep_gtid_domain_id;
+
+--echo # Restart node_3
+--let $restart_parameters = "--wsrep_gtid_mode=ON --wsrep_node_name=node_3 --wsrep_gtid_domain_id=200 --wsrep_sst_donor=node_2"
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_3
+select * from t1;
+select @@wsrep_gtid_domain_id;
+select @@wsrep_sst_donor;
+
+--connection node_1
+DROP TABLE t1;
+
+--source ../../galera/include/auto_increment_offset_restore.inc
