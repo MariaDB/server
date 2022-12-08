@@ -148,7 +148,9 @@ parse_arguments()
       --builddir=*) builddir=`parse_arg "$arg"` ;;
       --srcdir=*)  srcdir=`parse_arg "$arg"` ;;
       --ldata=*|--datadir=*|--data=*) ldata=`parse_arg "$arg"` ;;
-      --log-error=*)
+      --log[-_]error=*)
+       # Keep in the arguments passed to the server
+       args="$args $arg"
        log_error=`parse_arg "$arg"` ;;
         # Note that the user will be passed to mysqld so that it runs
         # as 'user' (crucial e.g. if log-bin=/some_other_path/
