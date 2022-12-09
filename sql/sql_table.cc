@@ -6075,6 +6075,10 @@ int mysql_discard_or_import_tablespace(THD *thd,
   if (unlikely(error))
     goto err;
 
+  if (discard)
+    tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN, table_list->table->s->db.str,
+                     table_list->table->s->table_name.str, true);
+
   /*
     The 0 in the call below means 'not in a transaction', which means
     immediate invalidation; that is probably what we wish here

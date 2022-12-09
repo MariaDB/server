@@ -6268,11 +6268,6 @@ no_such_table:
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
 	if ((ib_table->flags2 & DICT_TF2_DISCARDED)) {
-
-		ib_senderrf(thd,
-			IB_LOG_LEVEL_WARN, ER_TABLESPACE_DISCARDED,
-			table->s->table_name.str);
-
 		/* Allow an open because a proper DISCARD should have set
 		all the flags and index root page numbers to FIL_NULL that
 		should prevent any DML from running but it should allow DDL
@@ -13631,6 +13626,12 @@ int ha_innobase::truncate()
 	if (ib_table->is_temporary()) {
 		info.options|= HA_LEX_CREATE_TMP_TABLE;
 	} else {
+		if (!ib_table->space) {
+			ib_senderrf(m_user_thd,
+				    IB_LOG_LEVEL_WARN, ER_TABLESPACE_DISCARDED,
+				    table->s->table_name.str);
+		}
+
 		dict_get_and_save_data_dir_path(ib_table, false);
 	}
 

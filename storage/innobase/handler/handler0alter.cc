@@ -1013,6 +1013,12 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 
+	if (!m_prebuilt->table->space) {
+		ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN,
+			    ER_TABLESPACE_DISCARDED,
+			    table->s->table_name.str);
+	}
+
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
 		| INNOBASE_ALTER_INSTANT
