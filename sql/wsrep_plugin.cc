@@ -20,6 +20,11 @@
   in favor of single options which are initialized from provider.
 */
 
+#include "sql_plugin.h"
+#include "sql_priv.h"
+#include "sql_class.h"
+#include "set_var.h"
+
 #include "my_global.h"
 #include "mysqld_error.h"
 #include <mysql/plugin.h>
@@ -272,12 +277,21 @@ static int wsrep_provider_plugin_init(void *p)
 {
   WSREP_DEBUG("wsrep_provider_plugin_init()");
   provider_plugin_enabled= true;
+
+  // When plugin-wsrep-provider is enabled we set
+  // wsrep_provider_options parameter as READ_ONLY
+  sys_var *my_var= find_sys_var(current_thd, "wsrep_provider_options");
+  int flags= my_var->get_flags();
+  my_var->update_flags(flags |= (int)sys_var::READONLY);
   return 0;
 }
 
 static int wsrep_provider_plugin_deinit(void *p)
 {
   WSREP_DEBUG("wsrep_provider_plugin_deinit()");
+  sys_var *my_var= find_sys_var(current_thd, "wsrep_provider_options");
+  int flags= my_var->get_flags();
+  my_var->update_flags(flags &= (int)~sys_var::READONLY);
   return 0;
 }
 
