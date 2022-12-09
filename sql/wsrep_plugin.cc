@@ -276,6 +276,15 @@ void wsrep_destroy_sysvar(struct st_mysql_sys_var *var)
 static int wsrep_provider_plugin_init(void *p)
 {
   WSREP_DEBUG("wsrep_provider_plugin_init()");
+
+  if (!WSREP_ON_ || !wsrep_provider ||
+      (wsrep_provider && !strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN)))
+  {
+	  WSREP_ERROR("plugin-wsrep-provider can't be enabled if wsrep_on==OFF or wsrep_provider is unset or set to 'none'");
+	  my_message(ER_WRONG_ARGUMENTS, "plugin-wsrep-provider can't be enabled if wsrep_on==OFF or wsrep_provider is unset or set to 'none'", MYF(0));
+	  return 1;
+  }
+
   provider_plugin_enabled= true;
 
   // When plugin-wsrep-provider is enabled we set
