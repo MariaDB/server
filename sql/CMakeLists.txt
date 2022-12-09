@@ -38,7 +38,8 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_schema.cc
     wsrep_plugin.cc
     service_wsrep.cc
-  )
+    )
+  MYSQL_ADD_PLUGIN(wsrep_provider ${WSREP_SOURCES} DEFAULT NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
   MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
   IF(VISIBILITY_HIDDEN_FLAG AND TARGET wsrep)
     # wsrep_info plugin needs some wsrep symbols from inside mysqld
