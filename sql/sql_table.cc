@@ -5684,7 +5684,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   uint not_used;
   int create_res;
   TABLE_LIST *orig_table= table;
-  const bool atomic_replace= create_info->is_atomic_replace();
+  bool atomic_replace;
   int create_table_mode= C_ORDINARY_CREATE;
   LEX_CUSTRING frm= { NULL, 0 };
   char path_buf[FN_REFLEN + 1];
@@ -5750,6 +5750,9 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   local_create_info.db_type= src_table->table->s->db_type();
   local_create_info.row_type= src_table->table->s->row_type;
   local_create_info.alter_info= &local_alter_info;
+  local_create_info.options= create_info->options;
+  atomic_replace= local_create_info.is_atomic_replace();
+
   /*
     This statement:
       CREATE TABLE t1 LIKE t2
