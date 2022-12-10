@@ -12919,3 +12919,12 @@ ERROR HY000: Can't create table `test`.`t` (errno: 140 "Wrong create options")
 #
 # End of 10.8 tests
 #
+#
+# MDEV-29699 Assertion `!table_list->table || frm.str || !atomic_replace'
+#            failed upon CREATE OR REPLACE with ARCHIVE
+#
+create or replace table t engine=archive as select 1 as a;
+drop table t;
+#
+# End of 10.11 tests
+#
