@@ -2373,6 +2373,15 @@ a
 DROP VIEW v;
 DROP TABLE t1_fed, t1, t2;
 DROP SERVER s;
+#
+# MDEV-29758 CREATE OR REPLACE .. SELECT of Federated table doesn't store selected values
+#
+create table t (a int) engine=innodb;
+create or replace table tf connection 'mysql://root@127.0.0.1:MASTER_MYPORT/test/t' engine=Federated as select 1 as a;
+select * from tf;
+a
+1
+drop table tf, t;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

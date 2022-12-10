@@ -6,6 +6,7 @@
 
 --source have_federatedx.inc
 --source include/federated.inc
+--source include/have_innodb.inc
 
 connection default;
 
@@ -2111,5 +2112,15 @@ SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
 DROP VIEW v;
 DROP TABLE t1_fed, t1, t2;
 DROP SERVER s;
+
+--echo #
+--echo # MDEV-29758 CREATE OR REPLACE .. SELECT of Federated table doesn't store selected values
+--echo #
+create table t (a int) engine=innodb;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create or replace table tf connection 'mysql://root@127.0.0.1:$MASTER_MYPORT/test/t' engine=Federated as select 1 as a;
+select * from tf;
+# Cleanup
+drop table tf, t;
 
 source include/federated_cleanup.inc;
