@@ -13,8 +13,11 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
+#define VER "1.1"
 #include "maria_def.h"
 #include <my_getopt.h>
+#include <welcome_copyright_notice.h>
+
 extern void translog_example_table_init();
 static const char *load_default_groups[]= { "aria_dump_log",0 };
 static void get_options(int *argc,char * * *argv);
@@ -62,13 +65,6 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s Ver 1.1 for %s on %s\n",
-              my_progname_short, SYSTEM_TYPE, MACHINE_TYPE);
-}
 
 
 static void usage(void)

@@ -29,6 +29,7 @@
    Format_desc_of_slave, Rotate_of_master, Format_desc_of_master.
 */
 
+#define VER "3.5"
 #define MYSQL_CLIENT
 #undef MYSQL_SERVER
 #define TABLE TABLE_CLIENT
@@ -2151,12 +2152,6 @@ static void die()
   cleanup();
   my_end(MY_DONT_FREE_DBUG);
   exit(1);
-}
-
-
-static void print_version()
-{
-  printf("%s Ver 3.5 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 

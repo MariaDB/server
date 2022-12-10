@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+#define VER "2.1"
 #include <my_global.h>
 #include <my_sys.h>
 #include <mysql.h>
@@ -24,6 +25,7 @@
 #include <mysql_version.h>
 #include <sql_common.h>
 #include <mysql/client_plugin.h>
+#include <welcome_copyright_notice.h>
 
 /*
   If non_blocking_api_enabled is true, we will re-define all the blocking
@@ -37,7 +39,6 @@ static my_bool non_blocking_api_enabled= 0;
 #include "nonblock-wrappers.h"
 #endif
 
-#define VER "2.1"
 #define MAX_TEST_QUERY_LENGTH 300 /* MAX QUERY BUFFER LENGTH */
 #define MAX_KEY MAX_INDEXES
 #define MAX_SERVER_ARGS 64
@@ -1256,8 +1257,7 @@ static void usage(void)
 {
   /* show the usage string when the user asks for this */
   putc('\n', stdout);
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",
-	 my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+  print_version();
   puts("By Monty, Venu, Kent and others\n");
   printf("\
 Copyright (C) 2002-2004 MySQL AB\n\

@@ -27,7 +27,7 @@
 **			   *			   *
 **			   *************************
 */
-#define IMPORT_VERSION "3.7"
+#define VER "3.7"
 
 #include "client_priv.h"
 #include <my_sys.h>
@@ -192,13 +192,6 @@ static struct my_option my_long_options[] =
 static const char *load_default_groups[]=
 { "mysqlimport", "mariadb-import", "client", "client-server", "client-mariadb",
   0 };
-
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n" ,my_progname,
-	  IMPORT_VERSION, MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
 
 
 static void usage(void)

@@ -18,6 +18,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
+#define VER "1.0"
 #include <my_global.h>
 #include <my_base.h>
 #include <my_getopt.h>
@@ -26,8 +27,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "xbstream.h"
 #include "datasink.h"
+#include <welcome_copyright_notice.h>
 
-#define XBSTREAM_VERSION "1.0"
 #define XBSTREAM_BUFFER_SIZE (10 * 1024 * 1024UL)
 
 #define START_FILE_HASH_SIZE 16
@@ -144,14 +145,6 @@ get_options(int *argc, char ***argv)
 	}
 
 	return 0;
-}
-
-static
-void
-print_version(void)
-{
-	printf("%s  Ver %s for %s (%s)\n", my_progname, XBSTREAM_VERSION,
-	       SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 static
