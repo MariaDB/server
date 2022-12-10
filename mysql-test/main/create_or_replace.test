@@ -5,8 +5,7 @@
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
 
-SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
-SET GLOBAL innodb_stats_persistent=OFF;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 #
 # Create help table
@@ -218,18 +217,23 @@ create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create or replace table test.t1;
 show tables;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create or replace table mysqltest2.t2;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
+drop table mysqltest2.t2;
+drop table t1;
 create table t1 (i int);
 drop table t1;
 
@@ -238,18 +242,23 @@ create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 --error ER_DUP_FIELDNAME
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 show tables;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 --error ER_DUP_FIELDNAME
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
+drop table mysqltest2.t2;
+drop table t1;
 create table t1 (i int);
 drop table t1;
 
@@ -258,7 +267,8 @@ create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 unlock tables;
 drop table test.t1,mysqltest2.t2;
 
@@ -267,7 +277,8 @@ create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 unlock tables;
 drop table t1;
 
@@ -283,13 +294,16 @@ create table t1 (i int);
 lock table t1 write;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 --error ER_DATA_TOO_LONG
 create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
+drop table t1;
 show tables;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 create table t1 (i int);
 drop table t1;
 --enable_view_protocol
@@ -367,20 +381,24 @@ create table t1 (a int);
 lock table t1 write, t2 read;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 
 create or replace table t1 (i int);
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 create or replace table t1 like t2;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 create or replace table t1 select 1 as f1;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 drop table t1;
 unlock tables;
 
@@ -528,4 +546,107 @@ DROP TABLE IF EXISTS tm, t;
 --echo # End of 10.3 tests
 --echo #
 
-SET GLOBAL innodb_stats_persistent=@save_persistent;
+--echo #
+--echo # MDEV-25292 Atomic CREATE OR REPLACE TABLE
+--echo #
+create table t1 (a int);
+insert t1 values (1), (1);
+create table t2 (c int);
+--error ER_DUP_KEYNAME
+create or replace table t2 (a int, b int, key k (a), key k (b));
+show create table t2;
+--error ER_DUP_KEYNAME
+create or replace table t2 (a int, b int, key k (a), key k (b)) as select a, a as b from t1;
+show create table t2;
+--error ER_DUP_ENTRY
+create or replace table t2 (a int primary key) as select * from t1;
+show create table t2;
+set @old_mode= @@sql_mode;
+set @@sql_mode='ALLOW_INVALID_DATES';
+create table t3 (dt datetime default '2008-02-31 00:00:00');
+set @@sql_mode= @old_mode;
+--error ER_INVALID_DEFAULT
+create or replace table t2 like t3;
+show create table t2;
+--echo # LOCK TABLES
+lock tables t2 write, t1 write;
+flush tables;
+show open tables like 't2';
+create or replace table t2 (y int);
+flush tables;
+show open tables like 't2';
+create or replace table t2 like t1;
+flush tables;
+show open tables like 't2';
+create or replace table t2 (y int) as select * from t1;
+flush tables;
+show open tables like 't2';
+unlock tables;
+--echo # SP
+--delimiter $
+create or replace procedure sp(n int)
+begin
+  select concat('sp call ', n, ':') as '';
+  show open tables like 't2';
+  create or replace table t2 (y int);
+  select 'create or replace table t2 (y int);' as '';
+  show open tables like 't2';
+  insert into t2 values (2);
+  select 'insert into t2 values (2);' as '';
+  show open tables like 't2';
+  create or replace table t2 like t1;
+  select 'create or replace table t2 like t1;' as '';
+  show open tables like 't2';
+  create or replace table t2 (y int) as select * from t1;
+  select 'create or replace table t2 (y int) as select * from t1;' as '';
+  show open tables like 't2';
+  select 'select * from t2;' as '';
+  select * from t2;
+  show open tables  like 't2';
+end $
+--delimiter ;
+flush tables;
+call sp(1); call sp(2);
+--echo # SP under LOCK TABLES
+lock tables t2 write, t1 write;
+call sp(3); call sp(4);
+unlock tables;
+drop procedure sp;
+drop tables t1, t2, t3;
+--echo # Trigger
+create table t1 (a int);
+create trigger a before insert on t1 for each row set @s= 1;
+create or replace table t1 (old int);
+--error ER_TRG_DOES_NOT_EXIST
+show create trigger a;
+drop table t1;
+--echo # Foreign keys
+--list_files $MYSQLD_DATADIR/test *sql*
+create table t1 (x int primary key, y int) engine innodb;
+create table t2 (x int references t1(x)) engine innodb;
+--error ER_ROW_IS_REFERENCED_2
+create or replace table t1 (x int primary key);
+--list_files $MYSQLD_DATADIR/test *sql*
+--error ER_ROW_IS_REFERENCED_2
+create or replace table t1 (x int primary key);
+create table t3 (x int);
+--error ER_ROW_IS_REFERENCED_2
+create or replace table t1 like t3;
+--list_files $MYSQLD_DATADIR/test *sql*
+--error ER_ROW_IS_REFERENCED_2
+create or replace table t1 like t3;
+--error ER_ROW_IS_REFERENCED_2
+create or replace table t1 select * from t3;
+--error ER_ROW_IS_REFERENCED_2
+create or replace table t1 select * from t3;
+--list_files $MYSQLD_DATADIR/test *sql*
+show create table t1;
+drop tables t3, t2, t1;
+--echo # UNIQUE
+create table t1 (pk int auto_increment primary key, a varchar(2300), unique (a)) engine aria;
+insert into t1 (a) values ('a'), ('b'), ('c');
+create table t2 (x int);
+create or replace table t2 engine aria select * from t1;
+select * from t2;
+show create table t2;
+drop tables t2, t1;

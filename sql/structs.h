@@ -2,7 +2,7 @@
 #define STRUCTS_INCLUDED
 
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1014,4 +1014,14 @@ public:
 };
 
 
+struct Table_name
+{
+  LEX_CSTRING   db;
+  LEX_CSTRING   table_name;
+  LEX_CSTRING   alias;
+  bool is_set() const
+  {
+    return table_name.str;
+  }
+};
 #endif /* STRUCTS_INCLUDED */
