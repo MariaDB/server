@@ -1298,13 +1298,24 @@ bool HA_CREATE_INFO::make_tmp_table_list(THD *thd, TABLE_LIST **create_table,
   if (make_tmp_name(thd, "create", *create_table, &tmp_name) ||
       make_tmp_name(thd, "backup", *create_table, &backup_name) ||
       !(new_table= (TABLE_LIST *)thd->alloc(sizeof(TABLE_LIST))))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return true;
-  }
   (*create_table_mode)|= C_ALTER_TABLE;
   DBUG_ASSERT(!(options & HA_CREATE_TMP_ALTER));
   options|= HA_CREATE_TMP_ALTER;
+  if (data_file_name)
+  {
+    size_t dir_len= strlen(data_file_name) - (*create_table)->table_name.length;
+    const_cast<char *>(data_file_name)[dir_len]= 0;
+    if (append_file_to_dir(thd, &data_file_name, &tmp_name.table_name))
+      return true;
+  }
+  if (index_file_name)
+  {
+    size_t dir_len= strlen(index_file_name) - (*create_table)->table_name.length;
+    const_cast<char *>(index_file_name)[dir_len]= 0;
+    if (append_file_to_dir(thd, &index_file_name, &tmp_name.table_name))
+      return true;
+  }
   new_table->init_one_table(&tmp_name.db, &tmp_name.table_name,
                             &tmp_name.alias, (*create_table)->lock_type);
   *create_table= new_table;
