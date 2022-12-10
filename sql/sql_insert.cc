@@ -5317,10 +5317,18 @@ bool select_create::send_eof()
       table->file->ha_reset();
       /*
         Remove the temporary table structures from memory but keep the table
-        files.
+        files. The files must be closed, otherwise rename in
+        finalize_atomic_replace() sends warnings.
+
+        Federated engines must not close connection until they send COMMIT
+        in trans_commit_stmt(). For Federated RENAME doesn't send warnings
+        as the storage is remote.
       */
-      thd->drop_temporary_table(table, NULL, false);
-      table= NULL;
+      if (!(table->s->db_type()->flags & HTON_SQL_PROXY))
+      {
+        thd->drop_temporary_table(table, NULL, false);
+        table= NULL;
+      }
 
       if (create_info->finalize_atomic_replace(thd, orig_table))
       {
@@ -5340,6 +5348,12 @@ bool select_create::send_eof()
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
     thd->binlog_xid= 0;
+
+    if (atomic_replace && table)
+    {
+      thd->drop_temporary_table(table, NULL, false);
+      table= NULL;
+    }
 
     /*
       If are using statement based replication the table will be deleted here
