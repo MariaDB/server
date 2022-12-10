@@ -15,17 +15,14 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
+#define VER "1.0"
 #include <my_global.h>
 #include <m_string.h>
 #include <mysql.h>
 #include <my_getopt.h>
 #include <my_dir.h>
 #include <mysql_version.h>
-
-#define SHOW_VERSION "1.0.0"
-#define PRINT_VERSION do { printf("%s  Ver %s Distrib %s\n",    \
-                        my_progname, SHOW_VERSION, MYSQL_SERVER_VERSION);    \
-                      } while(0)
+#include <welcome_copyright_notice.h>
 
 /* Global variables. */
 static uint my_end_arg= 0;
@@ -418,7 +415,7 @@ exit:
 
 static void usage(void)
 {
-  PRINT_VERSION;
+  print_version();
   puts("Copyright (c) 2011, 2015, Oracle and/or its affiliates. "
        "All rights reserved.\n");
   puts("Enable or disable plugins.");
@@ -504,7 +501,7 @@ get_one_option(const struct my_option *opt,
     opt_verbose++;
     break;
   case 'V':
-    PRINT_VERSION;
+    print_version();
     exit(0);
     break;
   case '?':

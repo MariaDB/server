@@ -15,6 +15,7 @@
 
 /* Describe, check and repair of MARIA tables */
 
+#define VER "1.3"
 #include "ma_fulltext.h"
 #include <myisamchk.h>
 #include <my_bit.h>
@@ -25,6 +26,7 @@
 /* Remove next line if you want aria_chk to produce a stack trace */
 #undef HAVE_BACKTRACE
 #include <my_stacktrace.h>
+#include <welcome_copyright_notice.h>
 
 static uint decode_bits;
 static char **default_argv;
@@ -79,7 +81,6 @@ static char default_open_errmsg[]=  "%d when opening Aria table '%s'";
 static char default_close_errmsg[]= "%d when closing Aria table '%s'";
 
 static void get_options(int *argc,char * * *argv);
-static void print_version(void);
 static void usage(void);
 static int maria_chk(HA_CHECK *param, char *filename);
 static void descript(HA_CHECK *param, register MARIA_HA *info, char *name);
@@ -469,13 +470,6 @@ static struct my_option my_long_options[] =
     0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s  Ver 1.3 for %s on %s\n", my_progname, SYSTEM_TYPE,
-	 MACHINE_TYPE);
-}
 
 
 static void usage(void)

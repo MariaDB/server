@@ -16,7 +16,7 @@
 
 /* Return error-text for system error messages and handler messages */
 
-#define PERROR_VERSION "2.11"
+#define VER "2.11"
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -74,13 +74,6 @@ static HA_ERRORS ha_errlist[]=
   { -30988, "DB_VERIFY_BAD: Verify failed; bad format"},
   { 0,NullS },
 };
-
-
-static void print_version(void)
-{
-  printf("%s Ver %s, for %s (%s)\n",my_progname,PERROR_VERSION,
-	 SYSTEM_TYPE,MACHINE_TYPE);
-}
 
 
 static void usage(void)

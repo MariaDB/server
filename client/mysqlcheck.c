@@ -18,7 +18,7 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.4-MariaDB"
+#define VER "2.8"
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -228,7 +228,6 @@ static const char *load_default_groups[]=
   0 };
 
 
-static void print_version(void);
 static void usage(void);
 static int get_options(int *argc, char ***argv);
 static int process_all_databases();
@@ -246,13 +245,6 @@ static void print_result();
 static size_t fixed_name_length(const char *name);
 static char *fix_table_name(char *dest, char *src);
 int what_to_do = 0;
-
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n", my_progname, CHECK_VERSION,
-   MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
-} /* print_version */
 
 
 static void usage(void)

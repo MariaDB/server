@@ -15,12 +15,14 @@
 
 /* Describe, check and repair of MyISAM tables */
 
+#define VER "2.7"
 #include "fulltext.h"
 #include "my_default.h"
 #include <m_ctype.h>
 #include <stdarg.h>
 #include <my_getopt.h>
 #include <my_bit.h>
+#include <welcome_copyright_notice.h>
 
 static uint decode_bits;
 static char **default_argv;
@@ -53,7 +55,6 @@ static const char *field_pack[]=
 static const char *myisam_stats_method_str="nulls_unequal";
 
 static void get_options(int *argc,char * * *argv);
-static void print_version(void);
 static void usage(void);
 static int myisamchk(HA_CHECK *param, char *filename);
 static void descript(HA_CHECK *param, register MI_INFO *info, char * name);
@@ -329,13 +330,6 @@ static struct my_option my_long_options[] =
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s  Ver 2.7 for %s at %s\n", my_progname, SYSTEM_TYPE,
-	 MACHINE_TYPE);
-}
 
 
 static void usage(void)

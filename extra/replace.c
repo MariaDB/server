@@ -41,12 +41,13 @@
   Written by Monty.
   fill_buffer_retaining() is taken from gnu-grep and modified.
 */
-
+#define VER "1.4"
 #include <my_global.h>
 #include <m_ctype.h>
 #include <my_sys.h>
 #include <m_string.h>
 #include <errno.h>
+#include <welcome_copyright_notice.h>
 
 #define PC_MALLOC		256	/* Bytes for pointers */
 #define PS_MALLOC		512	/* Bytes for data */
@@ -176,8 +177,7 @@ static int static_get_options(int *argc, char***argv)
       case 'I':
       case '?':
 	help=1;					/* Help text written */
-	printf("%s  Ver 1.4 for %s at %s\n",my_progname,SYSTEM_TYPE,
-	       MACHINE_TYPE);
+        print_version();
 	if (version)
 	  break;
 	puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,\nand you are welcome to modify and redistribute it under the GPL license\n");

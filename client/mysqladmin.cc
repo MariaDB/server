@@ -17,6 +17,7 @@
 
 /* maintenance of mysql databases */
 
+#define VER "9.1"
 #include "client_priv.h"
 #include <signal.h>
 #include <my_pthread.h>				/* because of signal()	*/
@@ -28,7 +29,6 @@
 #include <password.h>
 #include <my_sys.h>
 
-#define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */
 #define MAX_TRUNC_LENGTH 3
@@ -1388,13 +1388,6 @@ static char **mask_password(int argc, char ***argv)
   temp_argv[argc]= my_strdup(PSI_NOT_INSTRUMENTED, (*argv)[argc], MYF(MY_FAE));
   return(temp_argv);
 }
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s on %s\n",my_progname,ADMIN_VERSION,
-	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
-
 
 static void usage(void)
 {

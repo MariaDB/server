@@ -20,13 +20,12 @@
    Character set conversion utility
 */
 
+#define VER "1.0"
 #include "mariadb.h"
 #include "client_priv.h"
 #include "sql_string.h"
 #include "my_dir.h"
-
-#define CONV_VERSION "1.0"
-
+#include <welcome_copyright_notice.h>
 
 class CmdOpt
 {
@@ -415,8 +414,7 @@ public:
   }
   void usage(void)
   {
-    printf("%s Ver %s Distrib %s for %s on %s\n", my_progname, CONV_VERSION,
-      MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+    print_version();
     puts("Character set conversion utility for MariaDB");
     puts("Usage:");
     printf("%s [OPTION...] [FILE...]\n", my_progname);
