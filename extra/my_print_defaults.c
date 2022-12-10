@@ -21,13 +21,14 @@
 **
 **  Written by Monty
 */
-
+#define VER "1.7"
 #include <my_global.h>
 #include <my_sys.h>
 #include <m_string.h>
 #include <my_getopt.h>
 #include <my_default.h>
 #include <mysql_version.h>
+#include <welcome_copyright_notice.h>
 
 #define load_default_groups mysqld_groups
 #include <mysqld_default_groups.h>
@@ -68,16 +69,10 @@ static void cleanup_and_exit(int exit_code)
   exit(exit_code);
 }
 
-static void version()
-{
-  printf("%s  Ver 1.7 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
-}
-
-
 static void usage() __attribute__ ((noreturn));
 static void usage()
 {
-  version();
+  print_version();
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,\nand you are welcome to modify and redistribute it under the GPL license\n");
   puts("Displays the options from option groups of option files, which is useful to see which options a particular tool will use");
   printf("Usage: %s [OPTIONS] [groups]\n", my_progname);
@@ -104,7 +99,7 @@ get_one_option(const struct my_option *opt __attribute__((unused)),
       verbose++;
       break;
     case 'V':
-      version();
+      print_version();
       /* fall through */
     case '#':
       DBUG_PUSH(argument ? argument : default_dbug_option);

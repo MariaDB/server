@@ -19,6 +19,7 @@
 #define USE_MY_FUNC			/* We need at least my_malloc */
 #endif
 
+#define VER "1.0"
 #include "maria_def.h"
 #include "trnman_public.h"
 #include "trnman.h"
@@ -33,6 +34,7 @@
 #endif
 #include <my_getopt.h>
 #include <my_handler_errors.h>
+#include <welcome_copyright_notice.h>
 
 #if SIZEOF_LONG_LONG > 4
 #define BITS_SAVED 64
@@ -351,12 +353,6 @@ static struct my_option my_long_options[] =
    &opt_wait, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s Ver 1.0 for %s on %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
-}
 
 
 static void usage(void)
