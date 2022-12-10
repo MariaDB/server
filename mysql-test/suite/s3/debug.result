@@ -13,3 +13,16 @@ SET debug_dbug=@saved_dbug;
 drop table p0;
 drop table p0;
 ERROR 42S02: Unknown table 's3.p0'
+create table t1 (a int);
+create table t2 (b int);
+alter table t1 engine=s3;
+set @debug_crash_counter= 1;
+set @@debug_dbug= '+d,ddl_log_create_before_install_new';
+# No crash means atomic C-O-R is not used
+create or replace table t1 (b int);
+alter table t1 engine=s3;
+create or replace table t1 like t2;
+alter table t1 engine=s3;
+create or replace table t1 select * from t2;
+set @@debug_dbug= @saved_dbug;
+drop tables t1, t2;
