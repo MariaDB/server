@@ -72,3 +72,22 @@ ERROR 42000: Duplicate key name 'k'
 create or replace table t1 (a int, b int, key k (a), key k (b));
 ERROR 42000: Duplicate key name 'k'
 drop table t1;
+#
+# MDEV-28956 Locking is broken if CREATE OR REPLACE fails under LOCK TABLES
+#
+# Non-atomic CREATE OR REPLACE part:
+#
+set @saved_debug_dbug= @@session.debug_dbug;
+set @@debug_dbug="+d,ddl_log_expensive_rename";
+create table t1 (pk int primary key) engine=innodb;
+create or replace table t2 (a int primary key references t1 (pk)) engine=innodb;
+lock tables t1 write, t2 write;
+create or replace table t2 (c1 int not null, c1 varchar(255) ) engine=innodb;
+ERROR 42S21: Duplicate column name 'c1'
+select * from t1;
+pk
+select * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+unlock tables;
+drop tables t1;
+set @@debug_dbug= @saved_debug_dbug;
