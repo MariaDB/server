@@ -2100,6 +2100,7 @@ private:
     an exact number of TABLE objects.
   */
   uint m_locked_tables_count;
+  uint m_locked_tables_original;
 public:
   bool some_table_marked_for_reopen;
 
@@ -2108,6 +2109,7 @@ public:
     m_locked_tables_last(&m_locked_tables),
     m_reopen_array(NULL),
     m_locked_tables_count(0),
+    m_locked_tables_original(0),
     some_table_marked_for_reopen(0)
   {
     init_sql_alloc(key_memory_locked_table_list, &m_locked_tables_root,
@@ -2132,6 +2134,18 @@ public:
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
   void mark_table_for_reopen(TABLE *table);
+  void start_command()
+  {
+    m_locked_tables_original= m_locked_tables_count;
+  }
+  uint locked_count() const
+  {
+    return m_locked_tables_count;
+  }
+  uint original_count() const
+  {
+    return m_locked_tables_original;
+  }
 };
 
 
