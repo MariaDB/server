@@ -4473,6 +4473,8 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   char path[FN_REFLEN + 1];
   cpath.str= path;
 
+  DBUG_ASSERT(is_atomic_replace());
+
   debug_crash_here("ddl_log_create_before_install_new");
   if (old_hton)
   {
@@ -4573,7 +4575,10 @@ void HA_CREATE_INFO::finalize_ddl(THD *thd, bool roll_back)
     debug_crash_here("ddl_log_create_log_complete");
     ddl_log_complete(ddl_log_state_create);
     debug_crash_here("ddl_log_create_log_complete2");
-    (void) ddl_log_revert(thd, ddl_log_state_rm);
+    if (is_atomic_replace())
+      (void) ddl_log_revert(thd, ddl_log_state_rm);
+    else
+      ddl_log_complete(ddl_log_state_rm);
     debug_crash_here("ddl_log_create_log_complete3");
   }
 }
