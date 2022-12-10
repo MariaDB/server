@@ -57,11 +57,11 @@ tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎�
 set @@debug_dbug="+d,ddl_log_create_after_save_backup", @debug_crash_counter=1;
 create or replace table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (z int);
 ERROR HY000: Lost connection to server during query
-#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
-#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
-#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
-#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
-#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
-#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
 drop table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎;
 set @@debug_dbug="";
