@@ -40,7 +40,7 @@ then
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep -q -E 'Distrib 10\.[1-9]'; then
+if ! $MYSQL_CLIENT --version | grep -q -E '(Distrib 10\.[1-9])|( from 1[1-9]\.)'; then
     $MYSQL_CLIENT --version >&2
     wsrep_log_error "this operation requires MySQL client version 10.1 or newer"
     exit $EINVAL

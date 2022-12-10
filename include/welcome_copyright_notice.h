@@ -31,8 +31,8 @@
 static inline void print_version()
 {
   /* NOTE mysql.cc is not using this function! */
-  printf("%s Ver %s Distrib %s for %s (%s)\n",
-         my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s from %s, client %s for %s (%s)\n",
+         my_progname, MYSQL_SERVER_VERSION, VER, SYSTEM_TYPE, MACHINE_TYPE);
 }
 #endif
 #endif /* _welcome_copyright_notice_h_ */
