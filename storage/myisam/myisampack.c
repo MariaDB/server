@@ -20,6 +20,7 @@
 #define USE_MY_FUNC			/* We need at least my_malloc */
 #endif
 
+#define VER "1.23"
 #include "myisamdef.h"
 #include "my_default.h"
 #include <queues.h>
@@ -30,6 +31,7 @@
 #endif
 #include <my_getopt.h>
 #include <assert.h>
+#include <welcome_copyright_notice.h>
 
 #if SIZEOF_LONG_LONG > 4
 #define BITS_SAVED 64
@@ -287,13 +289,6 @@ static struct my_option my_long_options[] =
    &opt_wait, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
-
-
-static void print_version(void)
-{
-  printf("%s Ver 1.23 for %s on %s\n",
-              my_progname, SYSTEM_TYPE, MACHINE_TYPE);
-}
 
 
 static void usage(void)

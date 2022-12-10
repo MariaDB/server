@@ -40,7 +40,7 @@
 */
 
 /* on merge conflict, bump to a higher version again */
-#define DUMP_VERSION "10.19"
+#define VER "10.19"
 
 /**
   First mysql version supporting sequences.
@@ -696,13 +696,6 @@ void check_io(FILE *file)
     die(EX_EOF, "Got errno %d on write", errno);
 }
 
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname_short,DUMP_VERSION,
-         MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-} /* print_version */
-
-
 static void short_usage_sub(FILE *f)
 {
   fprintf(f, "Usage: %s [OPTIONS] database [tables]\n", my_progname_short);
@@ -775,8 +768,8 @@ static void write_header(FILE *sql_file, const char *db_name)
   else if (!opt_compact)
   {
     print_comment(sql_file, 0,
-                  "-- MariaDB dump %s  Distrib %s, for %s (%s)\n--\n",
-                  DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
+                  "-- MariaDB dump %s-%s, for %s (%s)\n--\n",
+                  VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
                   MACHINE_TYPE);
     print_comment(sql_file, 0, "-- Host: %s    ",
                   fix_for_comment(current_host ? current_host : "localhost"));

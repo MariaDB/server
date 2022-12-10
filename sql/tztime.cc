@@ -29,6 +29,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#define VER "1.1"
 #include "mariadb.h"
 #if !defined(TZINFO2SQL) && !defined(TESTTIME)
 #include "sql_priv.h"
@@ -43,6 +44,7 @@
 #include <my_getopt.h>
 #endif
 
+#include <welcome_copyright_notice.h>
 #include "tztime.h"
 #include "tzfile.h"
 #include <m_string.h>
@@ -63,8 +65,6 @@
 #define ABBR_ARE_USED
 #endif /* !defined(DBUG_OFF) */
 #endif /* defined(TZINFO2SQL) || defined(TESTTIME) */
-
-#define PROGRAM_VERSION "1.1"
 
 /* Structure describing local time type (e.g. Moscow summer time (MSD)) */
 typedef struct ttinfo
@@ -2665,12 +2665,6 @@ C_MODE_START
 static my_bool get_one_option(const struct my_option *, const char *,
                               const char *);
 C_MODE_END
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname, PROGRAM_VERSION,
-	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
 
 static const char *default_timezone_dir= "/usr/share/zoneinfo/";
 
