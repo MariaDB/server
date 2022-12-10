@@ -4534,7 +4534,10 @@ void HA_CREATE_INFO::finalize_ddl(THD *thd, bool roll_back)
     debug_crash_here("ddl_log_create_fk_fail");
     ddl_log_complete(ddl_log_state_rm);
     debug_crash_here("ddl_log_create_fk_fail2");
+    ulonglong option_bits_save= thd->variables.option_bits;
+    thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
     (void) ddl_log_revert(thd, ddl_log_state_create);
+    thd->variables.option_bits= option_bits_save;
     debug_crash_here("ddl_log_create_fk_fail3");
   }
   else
