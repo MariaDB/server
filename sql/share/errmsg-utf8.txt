@@ -6304,11 +6304,8 @@ ER_VIEW_FRM_NO_USER
         eng "View '%-.192s'.'%-.192s' has no definer information (old table format). Current user is used as definer. Please recreate the view!"
         ger "View '%-.192s'.'%-.192s' hat keine Definierer-Information (altes Tabellenformat). Der aktuelle Benutzer wird als Definierer verwendet. Bitte erstellen Sie den View neu"
         spa "La vista '%-.192s'.'%-.192s' no tiene información de definidor (formato viejo de tabla). Se usa el usuario actual como definidor. Por favor, ¡recrea la vista!"
-ER_VIEW_OTHER_USER
-        chi "您需要使用'%-.192s'@'%-.192s'的创建视图的超级特权"
-        eng "You need the SUPER privilege for creation view with '%-.192s'@'%-.192s' definer"
-        ger "Sie brauchen die SUPER-Berechtigung, um einen View mit dem Definierer '%-.192s'@'%-.192s' zu erzeugen"
-        spa "Vd necesita el privilegio SUPER para la creación de la vista con definidor '%-.192s'@'%-.192s'"
+ER_UNUSED_30
+        eng "You should never see it"
 ER_NO_SUCH_USER
         chi "指定为定义的用户（'%-.64s'@'%-.64s'）不存在"
         eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
