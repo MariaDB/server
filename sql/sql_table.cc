@@ -4584,27 +4584,47 @@ void HA_CREATE_INFO::finalize_ddl(THD *thd, bool roll_back)
 }
 
 
-bool HA_CREATE_INFO::finalize_locked_tables(THD *thd)
+/**
+  Finalize operation of LOCK TABLES mode for CREATE TABLE family of commands.
+
+  @param  operation_failed   Notify if the callee CREATE fails the operation
+  @return                    true on error, false on success
+*/
+bool HA_CREATE_INFO::finalize_locked_tables(THD *thd, bool operation_failed)
 {
   DBUG_ASSERT(pos_in_locked_tables);
   DBUG_ASSERT(thd->locked_tables_mode);
   DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
-  /*
-    Add back the deleted table and re-created table as a locked table
-    This should always work as we have a meta lock on the table.
-  */
-  thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+  if (!operation_failed)
+  {
+    /*
+      Add back the deleted table and re-created table as a locked table
+      This should always work as we have a meta lock on the table.
+    */
+    thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+  }
   if (thd->locked_tables_list.reopen_tables(thd, false))
   {
     thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
     return true;
   }
-  /*
-    The lock was made exclusive in create_table_impl(). We have now
-    to bring it back to it's orginal state
-  */
-  TABLE *table= pos_in_locked_tables->table;
-  table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
+  if (is_atomic_replace() || !operation_failed)
+  {
+    /*
+      The lock was made exclusive in create_table_impl(). We have now
+      to bring it back to it's orginal state.
+    */
+    TABLE *table= pos_in_locked_tables->table;
+    table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
+  }
+  else
+  {
+    /*
+       In failed non-atomic we have nothing to downgrade:
+       original table was deleted and the lock was already removed.
+    */
+    DBUG_ASSERT(!pos_in_locked_tables->table);
+  }
 
   return false;
 }
@@ -5353,7 +5373,7 @@ err:
   */
   if (thd->locked_tables_mode && pos_in_locked_tables &&
       create_info->or_replace())
-    result|= (int) create_info->finalize_locked_tables(thd);
+    result|= (int) create_info->finalize_locked_tables(thd, result);
 
   DBUG_RETURN(result);
 }
@@ -6099,7 +6119,7 @@ err:
   */
   if (thd->locked_tables_mode && pos_in_locked_tables &&
       create_info->or_replace())
-    res|= (int) local_create_info.finalize_locked_tables(thd);
+    res|= (int) local_create_info.finalize_locked_tables(thd, res);
 
   DBUG_RETURN(res != 0);
 }

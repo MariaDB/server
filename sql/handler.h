@@ -2396,7 +2396,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
   }
   bool finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table);
   void finalize_ddl(THD *thd, bool roll_back);
-  bool finalize_locked_tables(THD *thd);
+  bool finalize_locked_tables(THD *thd, bool operation_failed);
   bool make_tmp_table_list(THD *thd, TABLE_LIST **create_table,
                            int *create_table_mode);
 };
