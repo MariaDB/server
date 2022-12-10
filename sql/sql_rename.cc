@@ -337,6 +337,7 @@ rename_table_and_triggers(THD *thd, rename_param *param,
   LEX_CSTRING *old_alias, *new_alias;
   TRIGGER_RENAME_PARAM rename_param;
   rename_param.rename_flags= param->rename_flags;
+  rename_param.lock_triggers= param->lock_triggers;
   DBUG_ENTER("rename_table_and_triggers");
   DBUG_PRINT("enter", ("skip_error: %d", (int) skip_error));
 

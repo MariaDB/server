@@ -97,3 +97,26 @@ set @@debug_dbug= '+d,ha_end_bulk_insert_fail';
 create or replace table t2 (y int) engine innodb select * from t1;
 set @@debug_dbug= @old_dbug;
 drop table t1;
+
+--echo #
+--echo # MDEV-29791 ER_NO_SUCH_TABLE_IN_ENGINE or "File not found"
+--echo #            upon concurrent DDL with CREATE OR REPLACE
+--echo #
+--connect (con1,localhost,root,,test)
+create table t1 (a int) engine innodb;
+create trigger tr before delete on t1 for each row begin end;
+set debug_sync= 'ddl_log_before_drop_triggers signal s1 wait_for s2';
+send create or replace table t1 (c int) engine innodb;
+
+--connection default
+set debug_sync= 'now wait_for s1';
+set debug_sync= 'now signal s2';
+drop trigger if exists tr;
+set debug_sync= 'reset';
+
+# cleanup
+--connection con1
+--reap
+drop table if exists t1;
+--disconnect con1
+--connection default
