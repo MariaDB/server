@@ -1102,3 +1102,24 @@ alter table t1 modify a bigint;
 set foreign_key_checks = on;
 create or replace table t1 (a int) engine=innodb;
 drop tables t1, t2;
+#
+# MDEV-29783 ER_NO_SUCH_TABLE_IN_ENGINE after failed CREATE OR REPLACE with FK violation
+#
+create table t1 (a int, key (a)) engine=innodb;
+create table t2 (b int, foreign key (b) references t1 (a)) engine=innodb;
+set statement foreign_key_checks=off for alter table t1 modify a varchar(8);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(8) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+create or replace table t1 (c int) engine=innodb;
+ERROR HY000: Can't create table `test`.`./test/t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(8) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t2, t1;
