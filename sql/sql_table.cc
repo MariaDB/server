@@ -4429,7 +4429,6 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
   LEX_CSTRING cpath;
   char path[FN_REFLEN + 1];
   cpath.str= path;
-  bool locked_tables_decremented= false;
 
   DBUG_ASSERT(is_atomic_replace());
 
@@ -4480,7 +4479,6 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
                                 HA_EXTRA_PREPARE_FOR_DROP, NULL);
       table= NULL;
       orig_table->table= NULL;
-      locked_tables_decremented= true;
     }
 
     param.rename_flags= FN_TO_IS_TMP;
@@ -4518,8 +4516,6 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
                                DDL_RENAME_PHASE_TRIGGER,
                                DDL_LOG_FLAG_FROM_IS_TMP))
       {
-        if (locked_tables_decremented)
-          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
         return true;
       }
 
@@ -4531,16 +4527,12 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
           ddl_log_drop_table(ddl_log_state_rm, old_hton, &cpath,
                             &db, &table_name, 0))
       {
-        if (locked_tables_decremented)
-          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
         return true;
       }
 
       debug_crash_here("ddl_log_replace_broken_4");
       if (ddl_log_commit_atomic_block(ddl_log_state_rm))
       {
-        if (locked_tables_decremented)
-          thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
         return true;
       }
 
@@ -4568,8 +4560,6 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
                                 &dummy))
   {
     thd->variables.option_bits= option_bits_save;
-    if (locked_tables_decremented)
-      thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     return true;
   }
   thd->variables.option_bits= option_bits_save;
@@ -4631,6 +4621,8 @@ bool HA_CREATE_INFO::finalize_locked_tables(THD *thd, bool operation_failed)
   DBUG_ASSERT(pos_in_locked_tables);
   DBUG_ASSERT(thd->locked_tables_mode);
   DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
+  const uint locked_count= thd->locked_tables_list.locked_count();
+  const uint orig_count= thd->locked_tables_list.original_count();
 
 #ifdef WITH_WSREP
   /*
@@ -4645,8 +4637,9 @@ bool HA_CREATE_INFO::finalize_locked_tables(THD *thd, bool operation_failed)
   }
 #endif
 
-  if (!operation_failed)
+  if (locked_count != orig_count)
   {
+    DBUG_ASSERT(locked_count < orig_count);
     /*
       Add back the deleted table and re-created table as a locked table
       This should always work as we have a meta lock on the table.
