@@ -7,7 +7,7 @@
 #              non-partitioned testing
 
 --echo #
---echo # Testing with normal tables
+--echo # Testing normal tables
 --echo #
 
 eval create table t1 (a int) engine=myisam $part_int;
@@ -20,6 +20,8 @@ repair table t1;
 optimize table t1;
 drop table t1;
 
+--source backup_log_print.inc
+
 eval create table t1_innodb (a int) engine=innodb $part_int;
 insert into t1_innodb values (1),(2);
 alter table t1_innodb add column b int;
@@ -29,6 +31,8 @@ truncate table t1_innodb;
 repair table t1_innodb;
 optimize table t1_innodb;
 drop table t1_innodb;
+
+--source backup_log_print.inc
 
 --echo #
 --echo # Testing with temporary tables (should not be logged)
@@ -40,6 +44,8 @@ alter table tmp_t10 rename as tmp_t11;
 rename table tmp_t11 to tmp_t10;
 truncate table tmp_t10;
 drop table tmp_t10;
+
+--source backup_log_print.inc
 
 --echo #
 --echo # Testing with mix of normal and temporary tables
@@ -53,6 +59,8 @@ create temporary table tmp_t21 (a int);
 eval create table t21 (a int) $part_int;
 drop temporary table if exists tmp_t21,t21;
 drop table if exists tmp_t21,t21;
+
+--source backup_log_print.inc
 
 --echo #
 --echo # Testing create select
@@ -68,6 +76,8 @@ eval create or replace table t31 (a int primary key) $part_int select * from t30
 eval create table t32 (a int) $part_int;
 drop table if exists t30,t31,t32,tmp_t30;
 
+--source backup_log_print.inc
+
 --echo #
 --echo # Testing create LIKE
 --echo #
@@ -81,6 +91,8 @@ create or replace table t42 like t41;
 show create table t42;
 drop table t40, t41, t42;
 
+--source backup_log_print.inc
+
 --echo #
 --echo # Testing rename
 --echo #
@@ -90,6 +102,8 @@ eval create table t51 (a int, b int) $part_int;
 rename table t50 to t52, t51 to t53;
 rename table t52 to tmp, t53 to t52, tmp to t53;
 drop table t52,t53;
+
+--source backup_log_print.inc
 
 --echo #
 --echo # Testing enable/disable keys
@@ -106,6 +120,8 @@ CREATE TEMPORARY TABLE t61 (i int(10), index(i) ) ENGINE=Aria;
 INSERT INTO t61 VALUES(1),(2),(3);
 ALTER TABLE t61 DISABLE KEYS;
 DROP TABLE t61;
+
+--source backup_log_print.inc
 
 --echo #
 --echo # Testing load data
@@ -128,12 +144,16 @@ insert into t71 select * from t70;
 unlock tables;
 drop table t70,t71;
 
+--source backup_log_print.inc
+
 --echo #
 --echo # Testing strange table names
 --echo #
 
 eval create table `t 1` (a int) $part_int;
 drop table `t 1`;
+
+--source backup_log_print.inc
 
 --echo #
 --echo # Testing views and triggers
@@ -146,6 +166,8 @@ drop trigger trg;
 drop view v1;
 drop table t80;
 
+--source backup_log_print.inc
+
 --echo #
 --echo # Testing alter to a new storage engine
 --echo #
@@ -153,3 +175,5 @@ drop table t80;
 eval create table t85 (a int primary key, b int) engine=myisam $part_int;
 alter table t85 engine=innodb;
 drop table t85;
+
+--source backup_log_print.inc
