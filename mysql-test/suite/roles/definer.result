@@ -669,7 +669,7 @@ CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
 BEGIN
 SELECT NOW(), VERSION();
 END;//
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 set role r1;
 CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
 BEGIN

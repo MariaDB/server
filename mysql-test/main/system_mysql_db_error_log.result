@@ -110,7 +110,7 @@ host='localhost' and user='good_version_id_100500';
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR good_version_id_100500@localhost;
 Grants for good_version_id_100500@localhost
-GRANT SUPER, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `good_version_id_100500`@`localhost`
+GRANT SUPER, BINLOG MONITOR, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `good_version_id_100500`@`localhost`
 DROP USER good_version_id_100500@localhost;
 FOUND 1 /Warning.*'user' entry 'bad_access1@localhost' has a wrong 'access' value.*version_id=/ in system_mysql_db_error_log.err
 FOUND 1 /Warning.*'user' entry 'bad_version_id_1000000@localhost' has a wrong 'version_id' value 1000000/ in system_mysql_db_error_log.err

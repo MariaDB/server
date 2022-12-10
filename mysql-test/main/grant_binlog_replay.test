@@ -9,12 +9,12 @@
 --echo #
 
 --echo #
---echo # Test that binlog replay statements are not allowed without BINLOG REPLAY or SUPER
+--echo # Test that binlog replay statements are not allowed without BINLOG REPLAY
 --echo #
 
 CREATE USER user1@localhost IDENTIFIED BY '';
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
-REVOKE BINLOG REPLAY, SUPER ON *.* FROM user1@localhost;
+REVOKE BINLOG REPLAY ON *.* FROM user1@localhost;
 
 connect (con1,localhost,user1,,);
 connection con1;
@@ -24,7 +24,6 @@ disconnect con1;
 
 connection default;
 DROP USER user1@localhost;
-
 
 --echo #
 --echo # Test that binlog replay statements are allowed with BINLOG REPLAY
@@ -36,28 +35,6 @@ SHOW GRANTS FOR user1@localhost;
 
 connect (con1,localhost,user1,,);
 connection con1;
-# The below fails with a syntax error.
-# This is fine. It's only important that it does not fail on "access denied".
---error ER_SYNTAX_ERROR
-BINLOG '';
---enable_result_log
-disconnect con1;
-
-connection default;
-DROP USER user1@localhost;
-
-
---echo #
---echo # Test that binlog replay statements are allowed with SUPER
---echo #
-
-CREATE USER user1@localhost IDENTIFIED BY '';
-GRANT SUPER ON *.* TO user1@localhost;
-SHOW GRANTS FOR user1@localhost;
-
-connect (con1,localhost,user1,,);
-connection con1;
---error ER_BAD_SLAVE
 # The below fails with a syntax error.
 # This is fine. It's only important that it does not fail on "access denied".
 --error ER_SYNTAX_ERROR

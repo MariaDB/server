@@ -8,9 +8,9 @@ create role role3 with admin role1;
 create role role4 with admin root@localhost;
 connect  c1, localhost, foo,,;
 create role role5 with admin root@localhost;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 create role role5 with admin role3;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 create role role5 with admin foo@localhost;
 connection default;
 call mtr.add_suppression("Invalid roles_mapping table entry user:'foo@bar', rolename:'role6'");

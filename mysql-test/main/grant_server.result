@@ -12,11 +12,11 @@ connection con1;
 CREATE SERVER IF NOT EXISTS server_1
 FOREIGN DATA WRAPPER mysql
 OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 DROP SERVER server_1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, FEDERATED ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
 disconnect con1;
 connection default;
 DROP USER user1@localhost;
@@ -39,7 +39,8 @@ disconnect con1;
 connection default;
 DROP USER user1@localhost;
 #
-# Test that SERVER DDL statements are allowed with SUPER
+# Test that SERVER DDL statements are not allowed with SUPER
+# but only with FEDERATED ADMIN
 #
 CREATE USER user1@localhost IDENTIFIED BY '';
 GRANT SUPER ON *.* TO user1@localhost;
@@ -48,6 +49,15 @@ Grants for user1@localhost
 GRANT SUPER ON *.* TO `user1`@`localhost`
 connect  con1,localhost,user1,,;
 connection con1;
+CREATE SERVER IF NOT EXISTS server_1
+FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
+ERROR 42000: Access denied; you need (at least one of) the FEDERATED ADMIN privilege(s) for this operation
+disconnect con1;
+connection default;
+REVOKE SUPER ON *.* FROM user1@localhost;
+GRANT FEDERATED ADMIN ON *.* TO user1@localhost;
+connect  con1,localhost,user1,,;
 CREATE SERVER IF NOT EXISTS server_1
 FOREIGN DATA WRAPPER mysql
 OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
