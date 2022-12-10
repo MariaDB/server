@@ -1805,6 +1805,8 @@ dict_table_rename_in_cache(
 				foreign->referenced_table
 					->referenced_set.insert(foreign);
 			}
+		} else {
+			dict_foreign_free(foreign);
 		}
 	}
 
