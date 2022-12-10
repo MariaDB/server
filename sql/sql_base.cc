@@ -2659,6 +2659,7 @@ void Locked_tables_list::reset()
   m_locked_tables_last= &m_locked_tables;
   m_reopen_array= NULL;
   m_locked_tables_count= 0;
+  m_locked_tables_original= 0;
   some_table_marked_for_reopen= 0;
 }
 
