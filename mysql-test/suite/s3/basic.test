@@ -85,4 +85,26 @@ show status like "s3%";
 #
 # clean up
 #
+
+--echo #
+--echo # MDEV-29767 CREATE OR REPLACE bypasses S3 restriction for table creation
+--echo #
+create table t (a int) engine=Aria;
+insert into t values (1),(2);
+alter table t engine=S3;
+--replace_result $database database
+--error ER_CANT_CREATE_TABLE
+create table t2 (a int) engine=S3;
+--replace_result $database database
+--error ER_CANT_CREATE_TABLE
+create table t2 like t;
+--replace_result $database database
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 like t;
+--replace_result $database database
+--error ER_NO_SUCH_TABLE
+show create table t2;
+# Cleanup
+drop table t;
+
 --source drop_database.inc
