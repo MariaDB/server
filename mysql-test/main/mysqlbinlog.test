@@ -608,7 +608,7 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 #
 # MDEV-12372 mysqlbinlog --version output is the same on 10.x as on 5.5.x, and contains not only version
 #
-replace_regex /.*mariadb-binlog(\.exe)? Ver .* Distrib .* for .* \([-_a-zA-Z0-9]+\)/mariadb-binlog Ver VER Distrib DISTRIB for OS (ARCH)/;
+replace_regex /for \S+/for OS/ /\d+/#/ /#[-_A-Za-z0-9]*-MariaDB,/#-MariaDB,/ /\(.*\)/(ARCH)/ /^.*binlog(\.exe)?/mariadb-binlog/;
 exec $MYSQL_BINLOG --version;
 
 --echo #
