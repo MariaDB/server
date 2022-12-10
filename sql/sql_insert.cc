@@ -4751,7 +4751,10 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
         table->pos_in_table_list= table_list;
         int error;
 
-        /* Disable logging of inserted rows */
+        /*
+          Disable logging of inserted rows, ha_start_bulk_insert() depends
+          on that.
+        */
         mysql_trans_prepare_alter_copy_data(thd);
 
         if ((DBUG_IF("atomic_replace_external_lock_fail") &&
@@ -5059,6 +5062,8 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     table->file->ha_start_bulk_insert((ha_rows) 0);
     if (thd->lex->duplicates == DUP_ERROR && !thd->lex->ignore)
       table->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+    if (atomic_replace)
+      thd->transaction->on= true;
   }
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
   if (check_that_all_fields_are_given_values(thd, table, table_list))
