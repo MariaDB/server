@@ -4297,6 +4297,8 @@ bool select_insert::prepare_eof()
   {
     DBUG_ASSERT(table->s->tmp_table);
 
+    table->file->ha_release_auto_increment();
+
     /*
        Note: InnoDB does autocommit on external unlock.
        We cannot do commit twice and we must commit after binlog
