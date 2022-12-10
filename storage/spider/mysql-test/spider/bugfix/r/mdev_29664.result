@@ -1,0 +1,20 @@
+#
+# MDEV-29664 Assertion `!n_mysql_tables_in_use' failed in innobase_close_connection
+#
+for master_1
+for child2
+for child3
+connection master_1;
+create database auto_test_local;
+use auto_test_local;
+set spider_same_server_link= on;
+create table t (c int) engine=innodb;
+create table t1 (c1 text) ENGINE=Spider DEFAULT CHARSET=utf8
+comment='wrapper "mysql", srv "s_1", table "t"';
+create or replace table t2 engine=innodb
+as select format (c1,0) as c1 from t1;
+ERROR 42S22: Unknown column 't0.c1' in 'field list'
+drop database auto_test_local;
+for master_1
+for child2
+for child3
