@@ -3733,8 +3733,8 @@ reset master;
 mariadb-dump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
 mariadb-dump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
 grant RELOAD on *.* to mysqltest_1@localhost;
-mariadb-dump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation (1227)
-mariadb-dump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation (1227)
+mariadb-dump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the BINLOG MONITOR privilege(s) for this operation (1227)
+mariadb-dump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the BINLOG MONITOR privilege(s) for this operation (1227)
 grant REPLICATION CLIENT on *.* to mysqltest_1@localhost;
 drop table t1;
 drop user mysqltest_1@localhost;

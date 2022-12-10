@@ -522,7 +522,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Show databases","Server Admin","To see all databases with SHOW DATABASES"},
   {"Show view","Tables","To see views with SHOW CREATE VIEW"},
   {"Shutdown","Server Admin", "To shut down the server"},
-  {"Super","Server Admin","To use KILL thread, SET GLOBAL, CHANGE MASTER, etc."},
+  {"Super","Server Admin","To set few server variables"},
   {"Trigger","Tables", "To use triggers"},
   {"Create tablespace", "Server Admin", "To create/alter/drop tablespaces"},
   {"Update", "Tables",  "To update existing rows"},
