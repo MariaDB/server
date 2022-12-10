@@ -3287,66 +3287,18 @@ foreign constraint parser to get the referenced table.
 heap memory passed in */
 char*
 dict_get_referenced_table(
-	const char*    name,		  /*!< in: foreign key table name */
-	const char*    database_name,	  /*!< in: table db name */
-	ulint	       database_name_len, /*!< in: db name length */
-	const char*    table_name,	  /*!< in: table name */
-	ulint	       table_name_len,	  /*!< in: table name length */
-	dict_table_t** table,		  /*!< out: table object or NULL */
-	mem_heap_t*    heap,		  /*!< in/out: heap memory */
-	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
+	LEX_CSTRING	database_name,	/*!< in: table db name */
+	LEX_CSTRING	table_name,	/*!< in: table name */
+	dict_table_t**	table,		/*!< out: table object or NULL */
+	mem_heap_t*	heap)		/*!< in/out: heap memory */
 {
-	char*		ref;
-	char		db_name[MAX_DATABASE_NAME_LEN];
-	char		tbl_name[MAX_TABLE_NAME_LEN];
-	CHARSET_INFO*	to_cs = &my_charset_filename;
-	uint		errors;
-	ut_ad(database_name || name);
-	ut_ad(table_name);
-
-	if (!strncmp(table_name, srv_mysql50_table_name_prefix,
-		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		/* This is a pre-5.1 table name
-		containing chars other than [A-Za-z0-9].
-		Discard the prefix and use raw UTF-8 encoding. */
-		table_name += sizeof(srv_mysql50_table_name_prefix) - 1;
-		table_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
-
-		to_cs = system_charset_info;
-	}
-
-	table_name_len = strconvert(from_cs, table_name, table_name_len, to_cs,
-				    tbl_name, MAX_TABLE_NAME_LEN, &errors);
-	table_name     = tbl_name;
-
-	if (database_name) {
-		to_cs = &my_charset_filename;
-		if (!strncmp(database_name, srv_mysql50_table_name_prefix,
-			     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-			database_name
-				+= sizeof(srv_mysql50_table_name_prefix) - 1;
-			database_name_len
-				-= sizeof(srv_mysql50_table_name_prefix) - 1;
-			to_cs = system_charset_info;
-		}
-
-		database_name_len = strconvert(
-			from_cs, database_name, database_name_len, to_cs,
-			db_name, MAX_DATABASE_NAME_LEN, &errors);
-		database_name = db_name;
-	} else {
-		/* Use the database name of the foreign key table */
-
-		database_name = name;
-		database_name_len = dict_get_db_name_len(name);
-	}
-
 	/* Copy database_name, '/', table_name, '\0' */
-	const size_t len = database_name_len + table_name_len + 1;
-	ref = static_cast<char*>(mem_heap_alloc(heap, len + 1));
-	memcpy(ref, database_name, database_name_len);
-	ref[database_name_len] = '/';
-	memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
+	const size_t len = database_name.length + table_name.length + 1;
+	char* ref = static_cast<char*>(mem_heap_alloc(heap, len + 1));
+	memcpy(ref, database_name.str, database_name.length);
+	ref[database_name.length] = '/';
+	memcpy(ref + database_name.length + 1, table_name.str,
+	       table_name.length + 1);
 
 	/* Values;  0 = Store and compare as given; case sensitive
 	            1 = Store and compare in lower; case insensitive
@@ -3354,10 +3306,10 @@ dict_get_referenced_table(
 	if (lower_case_table_names == 2) {
 		innobase_casedn_str(ref);
 		*table = dict_sys.load_table({ref, len});
-		memcpy(ref, database_name, database_name_len);
-		ref[database_name_len] = '/';
-		memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
-
+		memcpy(ref, database_name.str, database_name.length);
+		ref[database_name.length] = '/';
+		memcpy(ref + database_name.length + 1,
+		       table_name.str, table_name.length + 1);
 	} else {
 #ifndef _WIN32
 		if (lower_case_table_names == 1) {

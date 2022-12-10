@@ -369,6 +369,17 @@ row_import_tablespace_for_mysql(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL */
         MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+enum rename_fk {
+  /** ignore FOREIGN KEY constraints */
+  RENAME_IGNORE_FK= 0,
+  /** parse and enforce FOREIGN KEY constaints */
+  RENAME_FK,
+  /** Rename a table as part of a native table-rebuilding DDL operation */
+  RENAME_REBUILD,
+  /** Rename as part of ALTER TABLE...ALGORITHM=COPY */
+  RENAME_ALTER_COPY
+};
+
 /*********************************************************************//**
 Renames a table for MySQL.
 @return error code or DB_SUCCESS */
@@ -378,7 +389,7 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		use_fk)		/*!< in: whether to parse and enforce
+	rename_fk	fk)		/*!< in: how to handle
 					FOREIGN KEY constraints */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 

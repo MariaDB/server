@@ -36,6 +36,8 @@ unlock tables;
 --reap
 --disconnect con1
 
+--source include/show_binlog_events.inc
+
 # Cleanup
 drop function f1;
 drop table t1;

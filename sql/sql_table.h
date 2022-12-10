@@ -27,8 +27,10 @@
 
 class Alter_info;
 class Alter_table_ctx;
+struct Atomic_info;
 class Column_definition;
 class Create_field;
+struct Table_name;
 struct TABLE_LIST;
 class THD;
 struct TABLE;
@@ -94,49 +96,15 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
 bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
                           const LEX_CSTRING *add);
 
-/*
-  mysql_create_table_no_lock can be called in one of the following
-  mutually exclusive situations:
-
-  - Just a normal ordinary CREATE TABLE statement that explicitly
-    defines the table structure.
-
-  - CREATE TABLE ... SELECT. It is special, because only in this case,
-    the list of fields is allowed to have duplicates, as long as one of the
-    duplicates comes from the select list, and the other doesn't. For
-    example in
-
-       CREATE TABLE t1 (a int(5) NOT NUL) SELECT b+10 as a FROM t2;
-
-    the list in alter_info->create_list will have two fields `a`.
-
-  - ALTER TABLE, that creates a temporary table #sql-xxx, which will be later
-    renamed to replace the original table.
-
-  - ALTER TABLE as above, but which only modifies the frm file, it only
-    creates an frm file for the #sql-xxx, the table in the engine is not
-    created.
-
-  - Assisted discovery, CREATE TABLE statement without the table structure.
-
-  These situations are distinguished by the following "create table mode"
-  values, where a CREATE ... SELECT is denoted by any non-negative number
-  (which should be the number of fields in the SELECT ... part), and other
-  cases use constants as defined below.
-*/
-#define C_ORDINARY_CREATE         0
-#define C_ALTER_TABLE             1
-#define C_ALTER_TABLE_FRM_ONLY    2
-#define C_ASSISTED_DISCOVERY      3
-
 int mysql_create_table_no_lock(THD *thd,
-                               DDL_LOG_STATE *ddl_log_state,
-                               DDL_LOG_STATE *ddl_log_state_rm,
+                               const LEX_CSTRING *orig_db,
+                               const LEX_CSTRING *orig_table_name,
                                const LEX_CSTRING *db,
                                const LEX_CSTRING *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
-                               int create_table_mode, TABLE_LIST *table);
+                               int create_table_mode, TABLE_LIST *table,
+                               LEX_CUSTRING *frm= NULL);
 
 handler *mysql_create_frm_image(THD *thd,
                                 const LEX_CSTRING &db,
@@ -170,6 +138,31 @@ bool mysql_compare_tables(TABLE *table,
                           HA_CREATE_INFO *create_info,
                           bool *metadata_equal);
 bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy);
+/**
+    Parameters for rename_table_and_triggers()
+*/
+struct rename_param
+{
+  LEX_CSTRING old_alias, new_alias;
+  LEX_CUSTRING old_version;
+  handlerton *from_table_hton;
+  int rename_flags; /* FN_FROM_IS_TMP, FN_TO_IS_TMP, etc */
+  rename_param() :
+    from_table_hton(NULL),
+    rename_flags(0) {}
+};
+bool
+rename_table_and_triggers(THD *thd, rename_param *param,
+                          DDL_LOG_STATE *ddl_log_state,
+                          Table_name *ren_table, const LEX_CSTRING *new_db,
+                          bool skip_error, bool *force_if_exists);
+int
+rename_check_preconditions(THD *thd, rename_param *param,
+                           Table_name *ren_table,
+                           const LEX_CSTRING *new_db,
+                           const LEX_CSTRING *new_table_name,
+                           const LEX_CSTRING *new_table_alias,
+                           bool if_exists);
 bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
                         const LEX_CSTRING *new_name, LEX_CUSTRING *id,
