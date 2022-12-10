@@ -3088,10 +3088,17 @@ static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
   DBUG_ENTER("ddl_log_write");
 
   mysql_mutex_lock(&LOCK_gdl);
-  error= ((ddl_log_write_entry(ddl_log_entry, &log_entry)) ||
-          ddl_log_write_execute_entry(log_entry->entry_pos,
-                                      ddl_state->master_chain_pos,
-                                      &ddl_state->execute_entry));
+  error= ddl_log_write_entry(ddl_log_entry, &log_entry);
+
+  if (!error)
+  {
+    if (ddl_state->atomic_block)
+      ddl_state->atomic_block_entry= log_entry;
+    else
+      error= ddl_log_write_execute_entry(log_entry->entry_pos,
+                                        ddl_state->master_chain_pos,
+                                        &ddl_state->execute_entry);
+  }
   mysql_mutex_unlock(&LOCK_gdl);
   if (error)
   {
@@ -3189,7 +3196,10 @@ static bool ddl_log_drop_init(DDL_LOG_STATE *ddl_state,
   ddl_log_entry.from_db=      *const_cast<LEX_CSTRING*>(db);
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(comment);
 
-  DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
+  ddl_state->drop_prev_entry= ddl_state->list;
+  bool result= ddl_log_write(ddl_state, &ddl_log_entry);
+
+  DBUG_RETURN(result);
 }
 
 
@@ -3246,6 +3256,8 @@ static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
   bzero(&ddl_log_entry, sizeof(ddl_log_entry));
 
   ddl_log_entry.action_type=  action_code;
+  ddl_log_entry.next_entry=   ddl_state->drop_prev_entry ? ddl_state->drop_prev_entry->entry_pos : 0;
+
   if (hton)
     lex_string_set(&ddl_log_entry.handler_name,
                    ha_resolve_storage_engine_name(hton));
@@ -3260,6 +3272,11 @@ static bool ddl_log_drop(DDL_LOG_STATE *ddl_state,
     goto error;
 
   (void) ddl_log_sync_no_lock();
+  /*
+    Sequence of multiple DROP actions must be replayed in the same order as
+    it were written into DDL log. The sequence has single DROP_INIT action
+    in the beginning.
+  */
   if (update_next_entry_pos(ddl_state->list->entry_pos,
                             log_entry->entry_pos))
   {
@@ -3676,4 +3693,33 @@ void ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state)
 {
   DBUG_ASSERT(master_state->execute_entry);
   state->master_chain_pos= master_state->execute_entry->entry_pos;
+}
+
+/*
+  Don't update execute_entry until commit_atomic_block()
+*/
+
+void ddl_log_start_atomic_block(DDL_LOG_STATE *state)
+{
+  DBUG_ASSERT(!state->atomic_block);
+  state->atomic_block= true;
+}
+
+/*
+  Finish atomic block, update execute_entry.
+*/
+
+bool ddl_log_commit_atomic_block(DDL_LOG_STATE *state)
+{
+  if (!state->atomic_block)
+    return false;
+  DBUG_ASSERT(state->atomic_block_entry);
+  mysql_mutex_lock(&LOCK_gdl);
+  bool error= ddl_log_write_execute_entry(state->atomic_block_entry->entry_pos,
+                                          state->master_chain_pos,
+                                          &state->execute_entry);
+  mysql_mutex_unlock(&LOCK_gdl);
+  state->atomic_block= false;
+  state->atomic_block_entry= NULL;
+  return error;
 }
