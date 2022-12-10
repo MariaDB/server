@@ -1791,3 +1791,14 @@ create table t (t int auto_increment, key (t desc)) engine=archive;
 --echo #
 --echo # End of 10.8 tests
 --echo #
+
+--echo #
+--echo # MDEV-29699 Assertion `!table_list->table || frm.str || !atomic_replace'
+--echo #            failed upon CREATE OR REPLACE with ARCHIVE
+--echo #
+create or replace table t engine=archive as select 1 as a;
+drop table t;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
