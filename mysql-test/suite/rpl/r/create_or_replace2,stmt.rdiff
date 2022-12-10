@@ -1,0 +1,17 @@
+--- create_or_replace2.result
++++ create_or_replace2,stmt.reject
+@@ -34,9 +34,11 @@
+ master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+ RETURN ( SELECT MAX(a) FROM t1 )
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+-master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t1` (
+-  `b` int(11) DEFAULT NULL
+-) ENGINE=InnoDB
++master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE tmp (b INT) ENGINE=InnoDB
++master-bin.000001	#	Gtid	#	#	GTID #-#-#
++master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE t1 LIKE tmp
++master-bin.000001	#	Gtid	#	#	GTID #-#-#
++master-bin.000001	#	Query	#	#	use `test`; DROP /*!40005 TEMPORARY */ TABLE IF EXISTS `tmp`
+ drop function f1;
+ drop table t1;
+ include/rpl_end.inc

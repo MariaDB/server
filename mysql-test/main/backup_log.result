@@ -69,7 +69,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 create table t32 (a int) ;
 drop table if exists t30,t31,t32,tmp_t30;
 Warnings:
-Note	1051	Unknown table 'test.t31,test.tmp_t30'
+Note	1051	Unknown table 'test.tmp_t30'
 #
 # Testing create LIKE
 #
@@ -182,56 +182,55 @@ CREATE,MyISAM,0,test,t30,id: 8,,0,,,
 CREATE,MyISAM,0,test,t31,id: 9,,0,,,
 DROP,MyISAM,0,test,t31,id: 9,,0,,,
 CREATE,MyISAM,0,test,t31,id: 10,,0,,,
-DROP,MyISAM,0,test,t31,id: 10,,0,,,
-DROP_AFTER_CREATE,MyISAM,0,test,t31,id: 11,,0,,,
-CREATE,MyISAM,0,test,t32,id: 12,,0,,,
+CREATE,MyISAM,0,test,t32,id: 11,,0,,,
 DROP,MyISAM,0,test,t30,id: 8,,0,,,
-DROP,MyISAM,0,test,t32,id: 12,,0,,,
-CREATE,MyISAM,0,test,t40,id: 13,,0,,,
-CREATE,InnoDB,0,test,t41,id: 14,,0,,,
-CREATE,MyISAM,0,test,t42,id: 15,,0,,,
-DROP,MyISAM,0,test,t42,id: 15,,0,,,
-CREATE,InnoDB,0,test,t42,id: 16,,0,,,
-DROP,MyISAM,0,test,t40,id: 13,,0,,,
-DROP,InnoDB,0,test,t41,id: 14,,0,,,
-DROP,InnoDB,0,test,t42,id: 16,,0,,,
-CREATE,MyISAM,0,test,t50,id: 17,,0,,,
-CREATE,MyISAM,0,test,t51,id: 18,,0,,,
-RENAME,MyISAM,0,test,t50,id: 17,MyISAM,0,test,t52,id: 17
-RENAME,MyISAM,0,test,t51,id: 18,MyISAM,0,test,t53,id: 18
-RENAME,MyISAM,0,test,t52,id: 17,MyISAM,0,test,tmp,id: 17
-RENAME,MyISAM,0,test,t53,id: 18,MyISAM,0,test,t52,id: 18
-RENAME,MyISAM,0,test,tmp,id: 17,MyISAM,0,test,t53,id: 17
-DROP,MyISAM,0,test,t52,id: 18,,0,,,
-DROP,MyISAM,0,test,t53,id: 17,,0,,,
-CREATE,Aria,0,test,t60,id: 19,,0,,,
-CHANGE_INDEX,Aria,0,test,t60,id: 19,,0,,,
-CHANGE_INDEX,Aria,0,test,t60,id: 19,,0,,,
-DROP,Aria,0,test,t60,id: 19,,0,,,
-CREATE,Aria,0,test,t70,id: 20,,0,,,
-BULK_INSERT,Aria,0,test,t70,id: 20,,0,,,
-BULK_INSERT,Aria,0,test,t70,id: 20,,0,,,
-CREATE,Aria,0,test,t71,id: 21,,0,,,
-BULK_INSERT,Aria,0,test,t71,id: 21,,0,,,
-DROP,Aria,0,test,t70,id: 20,,0,,,
-DROP,Aria,0,test,t71,id: 21,,0,,,
-CREATE,MyISAM,0,test,t@00201,id: 22,,0,,,
-DROP,MyISAM,0,test,t@00201,id: 22,,0,,,
-CREATE,MyISAM,0,test,t80,id: 23,,0,,,
+DROP,MyISAM,0,test,t31,id: 10,,0,,,
+DROP,MyISAM,0,test,t32,id: 11,,0,,,
+CREATE,MyISAM,0,test,t40,id: 12,,0,,,
+CREATE,InnoDB,0,test,t41,id: 13,,0,,,
+CREATE,MyISAM,0,test,t42,id: 14,,0,,,
+DROP,MyISAM,0,test,t42,id: 14,,0,,,
+CREATE,InnoDB,0,test,t42,id: 15,,0,,,
+DROP,MyISAM,0,test,t40,id: 12,,0,,,
+DROP,InnoDB,0,test,t41,id: 13,,0,,,
+DROP,InnoDB,0,test,t42,id: 15,,0,,,
+CREATE,MyISAM,0,test,t50,id: 16,,0,,,
+CREATE,MyISAM,0,test,t51,id: 17,,0,,,
+RENAME,MyISAM,0,test,t50,id: 16,MyISAM,0,test,t52,id: 16
+RENAME,MyISAM,0,test,t51,id: 17,MyISAM,0,test,t53,id: 17
+RENAME,MyISAM,0,test,t52,id: 16,MyISAM,0,test,tmp,id: 16
+RENAME,MyISAM,0,test,t53,id: 17,MyISAM,0,test,t52,id: 17
+RENAME,MyISAM,0,test,tmp,id: 16,MyISAM,0,test,t53,id: 16
+DROP,MyISAM,0,test,t52,id: 17,,0,,,
+DROP,MyISAM,0,test,t53,id: 16,,0,,,
+CREATE,Aria,0,test,t60,id: 18,,0,,,
+CHANGE_INDEX,Aria,0,test,t60,id: 18,,0,,,
+CHANGE_INDEX,Aria,0,test,t60,id: 18,,0,,,
+DROP,Aria,0,test,t60,id: 18,,0,,,
+CREATE,Aria,0,test,t70,id: 19,,0,,,
+BULK_INSERT,Aria,0,test,t70,id: 19,,0,,,
+BULK_INSERT,Aria,0,test,t70,id: 19,,0,,,
+CREATE,Aria,0,test,t71,id: 20,,0,,,
+BULK_INSERT,Aria,0,test,t71,id: 20,,0,,,
+DROP,Aria,0,test,t70,id: 19,,0,,,
+DROP,Aria,0,test,t71,id: 20,,0,,,
+CREATE,MyISAM,0,test,t@00201,id: 21,,0,,,
+DROP,MyISAM,0,test,t@00201,id: 21,,0,,,
+CREATE,MyISAM,0,test,t80,id: 22,,0,,,
 CREATE,VIEW,0,test,v1,,,0,,,
 CREATE,TRIGGER,0,test,trg,,,0,,,
 DROP,TRIGGER,0,test,trg,,,0,,,
 DROP,VIEW,0,test,v1,,,0,,,
-DROP,MyISAM,0,test,t80,id: 23,,0,,,
-CREATE,MyISAM,0,test,t85,id: 24,,0,,,
-ALTER,MyISAM,0,test,t85,id: 24,InnoDB,0,test,t85,id: 25
-DROP,InnoDB,0,test,t85,id: 25,,0,,,
+DROP,MyISAM,0,test,t80,id: 22,,0,,,
+CREATE,MyISAM,0,test,t85,id: 23,,0,,,
+ALTER,MyISAM,0,test,t85,id: 23,InnoDB,0,test,t85,id: 24
+DROP,InnoDB,0,test,t85,id: 24,,0,,,
 CREATE,DATABASE,0,mysqltest,,,,0,,,
-CREATE,MyISAM,0,mysqltest,t90,id: 26,,0,,,
-CREATE,InnoDB,0,mysqltest,t91,id: 27,,0,,,
+CREATE,MyISAM,0,mysqltest,t90,id: 25,,0,,,
+CREATE,InnoDB,0,mysqltest,t91,id: 26,,0,,,
 ALTER,DATABASE,0,mysqltest,,,,0,,,
-DROP,MyISAM,0,mysqltest,t90,id: 26,,0,,,
-DROP,InnoDB,0,mysqltest,t91,id: 27,,0,,,
+DROP,MyISAM,0,mysqltest,t90,id: 25,,0,,,
+DROP,InnoDB,0,mysqltest,t91,id: 26,,0,,,
 DROP,DATABASE,0,mysqltest,,,,0,,,
 #
 # Cleanup
