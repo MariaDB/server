@@ -5229,7 +5229,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   bool is_trans= FALSE;
   int result;
   TABLE_LIST *orig_table= create_table;
-  const bool atomic_replace= create_info->is_atomic_replace();
+  bool atomic_replace= create_info->is_atomic_replace();
   DBUG_ENTER("mysql_create_table");
 
   DBUG_ASSERT(create_info->default_table_charset);
@@ -5259,6 +5259,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     {
       /* Table existed in distributed engine. Log query to binary log */
       result= 0;
+      atomic_replace= false;
       goto err;
     }
     /* is_error() may be 0 if table existed and we generated a warning */
@@ -5290,6 +5291,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
       create_info->make_tmp_table_list(thd, &create_table, &create_table_mode))
   {
     result= 1;
+    atomic_replace= false;
     goto err;
   }
 
@@ -5738,7 +5740,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     /* is_error() may be 0 if table existed and we generated a warning */
     res= thd->is_error();
     src_table_exists= !res;
-    goto err;
+    goto err_no_atomic;
   }
   /* Ensure we don't try to create something from which we select from */
   if (create_info->or_replace() && !create_info->tmp_table())
@@ -5748,7 +5750,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     {
       update_non_unique_table_error(src_table, "CREATE", duplicate);
       res= 1;
-      goto err;
+      goto err_no_atomic;
     }
   }
 
@@ -5775,7 +5777,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   DBUG_ASSERT(create_info->convert_charset_collation.is_empty());
   if (mysql_prepare_alter_table(thd, src_table->table, &local_create_info,
                                 &local_alter_info, &local_alter_ctx))
-    goto err;
+    goto err_no_atomic;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* Partition info is not handled by mysql_prepare_alter_table() call. */
   if (src_table->table->part_info)
@@ -5813,7 +5815,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
       local_create_info.vers_info.fix_create_like(local_alter_info, local_create_info,
                                                   *src_table, *table))
   {
-    goto err;
+    goto err_no_atomic;
   }
 
   /* The following is needed only in case of lock tables */
@@ -5825,7 +5827,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
   if (atomic_replace &&
       local_create_info.make_tmp_table_list(thd, &table, &create_table_mode))
-    goto err;
+    goto err_no_atomic;
 
   res= ((create_res=
          mysql_create_table_no_lock(thd,
@@ -5947,6 +5949,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
               res= 1;
               goto err;
             }
+            table->table->pos_in_table_list= table;
           }
 
           /*
@@ -6082,6 +6085,7 @@ err:
     }
   }
 
+err_no_atomic:
   if (do_logging)
   {
     thd->binlog_xid= thd->query_id;

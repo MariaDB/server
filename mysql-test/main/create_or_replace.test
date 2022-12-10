@@ -723,3 +723,18 @@ set sql_mode= default;
 --echo #
 create or replace table t1 (i serial) as select * from (values(1), (2)) dt;
 drop table t1;
+
+--echo #
+--echo # MDEV-29698 Server crash or assertion failure upon CREATE OR REPLACE with a MERGE table
+--echo #
+create table t (a int) engine=myisam;
+create table tm (a int) engine=merge union(t);
+--error ER_UPDATE_TABLE_USED
+create or replace table t like tm;
+# cleanup
+drop tables tm, t;
+
+create table t (a int) engine=myisam;
+create temporary table tm (a int) engine=merge union=(t);
+create or replace table tt like tm;
+drop tables tt, tm, t;
