@@ -1601,6 +1601,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         break;
       /* Fall through */
     case DDL_DROP_PHASE_TRIGGER:
+      DEBUG_SYNC(thd, "ddl_log_before_drop_triggers");
       Table_triggers_list::drop_all_triggers(thd, &db, &table,
                                              fn_flags,
                                              MYF(MY_WME | MY_IGNORE_ENOENT));
