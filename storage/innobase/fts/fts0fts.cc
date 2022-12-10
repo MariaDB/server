@@ -1386,7 +1386,7 @@ static dberr_t fts_drop_table(trx_t *trx, const char *table_name, bool rename)
       char *tmp= dict_mem_create_temporary_tablename(heap, table->name.m_name,
                                                      table->id);
       dberr_t err= row_rename_table_for_mysql(table->name.m_name, tmp, trx,
-                                              false);
+                                              RENAME_IGNORE_FK);
       mem_heap_free(heap);
       if (err != DB_SUCCESS)
       {
@@ -1444,7 +1444,7 @@ fts_rename_one_aux_table(
 	fts_table_new_name[table_new_name_len] = 0;
 
 	return row_rename_table_for_mysql(
-		fts_table_old_name, fts_table_new_name, trx, false);
+		fts_table_old_name, fts_table_new_name, trx, RENAME_IGNORE_FK);
 }
 
 /****************************************************************//**

@@ -1243,6 +1243,69 @@ static uint32 get_comment(THD *thd, uint32 comment_pos,
   return 0;
 }
 
+
+static
+bool make_tmp_name(THD *thd, const char *prefix, const Table_name *orig,
+                   Table_name *res)
+{
+  char res_name[NAME_LEN + 1];
+  char file_name[NAME_LEN + 1];
+  LEX_CSTRING table_name;
+
+  size_t len= my_snprintf(res_name, sizeof(res_name) - 1,
+                          tmp_file_prefix "-%s-%lx-%llx-", prefix,
+                          current_pid, thd->thread_id);
+
+  uint len2= tablename_to_filename(orig->table_name.str, file_name,
+                                   sizeof(res_name) - len - 1);
+
+  DBUG_ASSERT(len + len2 < sizeof(res_name) - 1);
+  memcpy(res_name + len, file_name, len2 + 1);
+  len+= len2;
+
+  table_name.str= strmake_root(thd->mem_root, res_name, len);
+  if (!table_name.str)
+    return true;
+
+  table_name.length= len;
+  res->db= orig->db;
+  res->table_name= table_name;
+  res->alias= table_name;
+  return false;
+}
+
+
+/**
+  Helper for making utility table names for atomic CREATE OR REPLACE.
+
+  Creates two temporary names: "create" (used for new table)
+  and "backup" (used for saving old table).
+
+  @param create_table[in/out]   Original table name, on output holds new name
+  @param create_table_mode[out] Create flags or-ed with C_ALTER_TABLE
+*/
+
+bool HA_CREATE_INFO::make_tmp_table_list(THD *thd, TABLE_LIST **create_table,
+                                         int *create_table_mode)
+{
+  TABLE_LIST *new_table;
+  if (make_tmp_name(thd, "create", *create_table, &tmp_name) ||
+      make_tmp_name(thd, "backup", *create_table, &backup_name) ||
+      !(new_table= (TABLE_LIST *)thd->alloc(sizeof(TABLE_LIST))))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  (*create_table_mode)|= C_ALTER_TABLE;
+  DBUG_ASSERT(!(options & HA_CREATE_TMP_ALTER));
+  options|= HA_CREATE_TMP_ALTER;
+  new_table->init_one_table(&tmp_name.db, &tmp_name.table_name,
+                            &tmp_name.alias, (*create_table)->lock_type);
+  *create_table= new_table;
+  return false;
+}
+
+
 /**
   Execute the drop of a sequence, view or table (normal or temporary).
 
@@ -1495,12 +1558,13 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
                                                  table_name.str, MDL_SHARED));
 
+      /* NOTE: alias holds original table name, table_name holds lowercase name */
       alias= (lower_case_table_names == 2) ? table->alias : table_name;
       /* remove .frm file and engine files */
       path_length= build_table_filename(path, sizeof(path) - 1, db.str,
                                         alias.str, reg_ext, 0);
       path_end= path + path_length - reg_ext_length;
-    }
+    } /* if (!drop_temporary) */
 
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     if (drop_temporary)
@@ -1599,7 +1663,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
                                &table_name);
       else
         res= ddl_log_drop_table(ddl_log_state, hton, &cpath, &db,
-                                &table_name);
+                                &table_name, 0);
       if (res)
       {
         error= -1;
@@ -1676,8 +1740,17 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       int ferror= 0;
       DBUG_ASSERT(!was_view);
 
+      /*
+        We where not able to drop the table for the engine. We will now try
+        to drop the table for any engines (to handle the case where we don't have
+        an .frm file or when the the information in the .frm does not match the
+        engine type).
+        We start by discarding the previous drop attempt, as we have tried
+        this drop already and it failed.
+      */
+      ddl_log_disable_entry(ddl_log_state);
       if (ddl_log_drop_table(ddl_log_state, 0, &cpath, &db,
-                             &table_name))
+                             &table_name, 0))
       {
         error= -1;
         goto err;
@@ -1716,17 +1789,24 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
     if (!was_view)
     {
-      debug_crash_here("ddl_log_drop_before_drop_trigger");
-      ddl_log_update_phase(ddl_log_state, DDL_DROP_PHASE_TRIGGER);
-      debug_crash_here("ddl_log_drop_before_drop_trigger2");
+      if (likely(!error) || non_existing_table_error(error))
+      {
+        debug_crash_here("ddl_log_drop_before_drop_trigger");
+        ddl_log_update_phase(ddl_log_state, DDL_DROP_PHASE_TRIGGER);
+        debug_crash_here("ddl_log_drop_before_drop_trigger2");
+        if (Table_triggers_list::drop_all_triggers(thd, &db, &table_name, 0,
+                                                   MYF(MY_WME |
+                                                       MY_IGNORE_ENOENT)))
+          error= error ? error : -1;
+      }
+      else
+      {
+        /* NOTE: table may not be dropped due to FK error */
+        DBUG_ASSERT(error);
+        ddl_log_update_phase(ddl_log_state, DDL_DROP_PHASE_END);
+      }
     }
 
-    if (likely(!error) || non_existing_table_error(error))
-    {
-      if (Table_triggers_list::drop_all_triggers(thd, &db, &table_name,
-                                               MYF(MY_WME | MY_IGNORE_ENOENT)))
-        error= error ? error : -1;
-    }
     debug_crash_here("ddl_log_drop_after_drop_trigger");
 
 report_error:
@@ -1793,7 +1873,12 @@ report_error:
         backup_log_ddl(&ddl_log);
       }
     }
-    if (!was_view)
+    /*
+      Foreign key check may fail and we didn't drop the table.
+      We are already at DDL_DROP_PHASE_END in this case and we
+      must not binlog DROP query.
+    */
+    if (!was_view && table_dropped)
       ddl_log_update_phase(ddl_log_state, DDL_DROP_PHASE_BINLOG);
 
     if (!dont_log_query &&
@@ -2806,7 +2891,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   List_iterator_fast<Create_field> it(alter_info->create_list);
   List_iterator<Create_field> it2(alter_info->create_list);
   uint total_uneven_bit_length= 0;
-  bool tmp_table= create_table_mode == C_ALTER_TABLE;
+  bool tmp_table= (create_table_mode & C_ALTER_TABLE);
   const bool create_simple= thd->lex->create_simple();
   bool is_hash_field_needed= false;
   DBUG_ENTER("mysql_prepare_create_table");
@@ -3013,6 +3098,18 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       }
       else
         fk_key->ref_columns.append(&fk_key->columns);
+      /*
+        If this is a self refering table from CREATE ... SELECT,
+        update the foreign key table name to the used (temporary) table name.
+      */
+      if (create_info->tmp_name.is_set() &&
+          (!fk_key->ref_db.str ||
+           !lex_string_cmp(table_alias_charset, &db, &fk_key->ref_db)) &&
+          !lex_string_cmp(table_alias_charset, &table_name,
+                          &fk_key->ref_table))
+      {
+        fk_key->ref_table= create_info->tmp_name.table_name;
+      }
       continue;
     }
     (*key_count)++;
@@ -4350,11 +4447,170 @@ err:
 
 
 /**
+  Finalize atomic CREATE OR REPLACE.
+
+  Renames old table to backup table (in case it exists), rename tmp table to
+  new table. These operations are covered with DDL logging in two chains:
+
+    ddl_log_state_create: rolls back the tables to the original state before
+    the command was started.
+
+    ddl_log_state_rm: keep the new table and drop the backup table.
+
+  finalize_ddl() executes one of the above chains depending on error or success
+  state.
+
+  @return true in case of error
+*/
+
+bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
+{
+  rename_param param;
+  bool dummy;
+  const LEX_CSTRING db= orig_table->db;
+  const LEX_CSTRING table_name= orig_table->table_name;
+  LEX_CSTRING cpath;
+  char path[FN_REFLEN + 1];
+  cpath.str= path;
+
+  debug_crash_here("ddl_log_create_before_install_new");
+  if (old_hton)
+  {
+    /* Old table exists, rename it to backup_name */
+    ddl_log_link_chains(ddl_log_state_rm, ddl_log_state_create);
+
+    cpath.length= build_table_filename(path, sizeof(path) - 1,
+                                       backup_name.db.str,
+                                       backup_name.table_name.str,
+                                       "", FN_IS_TMP);
+
+    if (ddl_log_drop_table_init(ddl_log_state_rm, &backup_name.db,
+                                &empty_clex_str) ||
+        ddl_log_drop_table(ddl_log_state_rm, old_hton, &cpath,
+                          &backup_name.db, &backup_name.table_name,
+                          DDL_LOG_FLAG_FROM_IS_TMP))
+      return true;
+
+    debug_crash_here("ddl_log_create_after_log_drop_backup");
+    if (ddl_log_rename_table(ddl_log_state_create, old_hton,
+                              &db, &table_name,
+                              &backup_name.db, &backup_name.table_name,
+                              DDL_RENAME_PHASE_TRIGGER,
+                              DDL_LOG_FLAG_FROM_IS_TMP))
+      return true;
+
+    debug_crash_here("ddl_log_create_after_log_rename_backup");
+
+    if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
+        thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
+    {
+      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
+                                                 table_name.str,
+                                                 MDL_EXCLUSIVE));
+
+      close_all_tables_for_name(thd, table->s,
+                                HA_EXTRA_PREPARE_FOR_DROP, NULL);
+      table= NULL;
+      orig_table->table= NULL;
+    }
+
+    param.rename_flags= FN_TO_IS_TMP;
+    param.from_table_hton= old_hton;
+    param.old_version= org_tabledef_version;
+    param.old_alias= lower_case_table_names == 2 ? orig_table->alias :
+                                                   table_name;
+    param.new_alias= backup_name.table_name;
+    if (rename_table_and_triggers(thd, &param, NULL, orig_table,
+                                  &backup_name.db, false, &dummy))
+      return true;
+    debug_crash_here("ddl_log_create_after_save_backup");
+  }
+
+  cpath.length= build_table_filename(path, sizeof(path) - 1, db.str,
+                                     table_name.str, "", 0);
+  param.rename_flags= FN_FROM_IS_TMP;
+  param.from_table_hton= db_type;
+  param.old_version= tabledef_version;
+  param.old_alias= tmp_name.table_name;
+  param.new_alias= table_name;
+  if (ddl_log_create_table(ddl_log_state_create, param.from_table_hton,
+                           &cpath, &db, &table_name, false) ||
+      rename_table_and_triggers(thd, &param, NULL, &tmp_name, &db, false,
+                                &dummy))
+    return true;
+  debug_crash_here("ddl_log_create_after_install_new");
+  return false;
+}
+
+
+/**
+  Execute ddl_log_state_rm or ddl_log_state_create depending on error or success
+  state.
+*/
+
+void HA_CREATE_INFO::finalize_ddl(THD *thd, bool roll_back)
+{
+  if (roll_back)
+  {
+    /*
+      Statement failed
+        - Forget drop of backup table
+        - Rollback create (drop temporary table, rename backup to original)
+    */
+    debug_crash_here("ddl_log_create_fk_fail");
+    ddl_log_complete(ddl_log_state_rm);
+    debug_crash_here("ddl_log_create_fk_fail2");
+    (void) ddl_log_revert(thd, ddl_log_state_create);
+    debug_crash_here("ddl_log_create_fk_fail3");
+  }
+  else
+  {
+    /*
+      Statement succeded
+        - Forget revert of create table
+        - Drop backup table
+    */
+    debug_crash_here("ddl_log_create_log_complete");
+    ddl_log_complete(ddl_log_state_create);
+    debug_crash_here("ddl_log_create_log_complete2");
+    (void) ddl_log_revert(thd, ddl_log_state_rm);
+    debug_crash_here("ddl_log_create_log_complete3");
+  }
+}
+
+
+bool HA_CREATE_INFO::finalize_locked_tables(THD *thd)
+{
+  DBUG_ASSERT(pos_in_locked_tables);
+  DBUG_ASSERT(thd->locked_tables_mode);
+  DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
+  /*
+    Add back the deleted table and re-created table as a locked table
+    This should always work as we have a meta lock on the table.
+  */
+  thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+  if (thd->locked_tables_list.reopen_tables(thd, false))
+  {
+    thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+    return true;
+  }
+  /*
+    The lock was made exclusive in create_table_impl(). We have now
+    to bring it back to it's orginal state
+  */
+  TABLE *table= pos_in_locked_tables->table;
+  table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
+
+  return false;
+}
+
+
+/**
   Create a table
 
   @param thd                 Thread object
-  @param orig_db             Database for error messages
-  @param orig_table_name     Table name for error messages
+  @param orig_db             Database for error messages or atomic replace
+  @param orig_table_name     Table name for error messages or atomic replace
                              (it's different from table_name for ALTER TABLE)
   @param db                  Database
   @param table_name          Table name
@@ -4389,8 +4645,6 @@ err:
 
 static
 int create_table_impl(THD *thd,
-                      DDL_LOG_STATE *ddl_log_state_create,
-                      DDL_LOG_STATE *ddl_log_state_rm,
                       const LEX_CSTRING &orig_db,
                       const LEX_CSTRING &orig_table_name,
                       const LEX_CSTRING &db, const LEX_CSTRING &table_name,
@@ -4399,23 +4653,22 @@ int create_table_impl(THD *thd,
                       int create_table_mode, bool *is_trans, KEY **key_info,
                       uint *key_count, LEX_CUSTRING *frm)
 {
-  LEX_CSTRING	*alias;
+  LEX_CSTRING	*alias= const_cast<LEX_CSTRING*>(table_case_name(create_info, &table_name));
   handler	*file= 0;
   int		error= 1;
-  bool          frm_only= create_table_mode == C_ALTER_TABLE_FRM_ONLY;
-  bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE || frm_only;
+  bool          frm_only= (create_table_mode & C_ALTER_TABLE_FRM_ONLY);
+  bool          atomic_replace= create_info->is_atomic_replace();
+  bool          internal_tmp_table= (!atomic_replace &&
+                                     (create_table_mode & C_ALTER_TABLE)) ||
+                                    frm_only;
+  /* Easy check for ddl logging if we are creating a temporary table */
+  DDL_LOG_STATE *ddl_log_state_create=
+    create_info->tmp_table() ? 0 : create_info->ddl_log_state_create;
   DBUG_ENTER("create_table_impl");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
                        db.str, table_name.str, internal_tmp_table, path.str));
 
   DBUG_ASSERT(create_info->default_table_charset);
-
-  /* Easy check for ddl logging if we are creating a temporary table */
-  if (create_info->tmp_table())
-  {
-    ddl_log_state_create= 0;
-    ddl_log_state_rm= 0;
-  }
 
   if (fix_constraints_names(thd, &alter_info->check_constraint_list,
                             create_info))
@@ -4444,8 +4697,6 @@ int create_table_impl(THD *thd,
         unlikely(check_partition_dirs(thd->lex->part_info)))
       goto err;
   }
-
-  alias= const_cast<LEX_CSTRING*>(table_case_name(create_info, &table_name));
 
   /* Check if table exists */
   if (create_info->tmp_table())
@@ -4500,12 +4751,16 @@ int create_table_impl(THD *thd,
       goto err;
     }
 
-    handlerton *db_type;
+    handlerton *db_type= NULL;
+    LEX_CSTRING partition_engine_name= {NULL, 0};
+
     if (!internal_tmp_table &&
         ha_table_exists(thd, &orig_db, &orig_table_name,
                         &create_info->org_tabledef_version,
-                        NULL, &db_type, NULL, 0))
+                        &partition_engine_name, &db_type, NULL, 0))
     {
+      create_info->old_hton= db_type;
+
       if (ha_check_if_updates_are_ignored(thd, db_type, "CREATE"))
       {
         /* Don't create table. CREATE will still be logged in binary log */
@@ -4515,44 +4770,115 @@ int create_table_impl(THD *thd,
 
       if (options.or_replace())
       {
-        (void) delete_statistics_for_table(thd, &db, &table_name);
+        (void) delete_statistics_for_table(thd, &orig_db, &orig_table_name);
 
         TABLE_LIST table_list;
-        table_list.init_one_table(&db, &table_name, 0, TL_WRITE_ALLOW_WRITE);
-        table_list.table= create_info->table;
+        TABLE *table= create_info->table;
+        table_list.init_one_table(&orig_db, &orig_table_name, 0, TL_READ);
+        table_list.table= table;
 
         if (check_if_log_table(&table_list, TRUE, "CREATE OR REPLACE"))
           goto err;
-        
-        /*
-          Rollback the empty transaction started in mysql_create_table()
-          call to open_and_lock_tables() when we are using LOCK TABLES.
-        */
-        (void) trans_rollback_stmt(thd);
-        /* Remove normal table without logging. Keep tables locked */
-        if (mysql_rm_table_no_locks(thd, &table_list, &thd->db,
-                                    ddl_log_state_rm,
-                                    0, 0, 0, 0, 1, 1))
-          goto err;
 
-        debug_crash_here("ddl_log_create_after_drop");
-
-        /*
-          We have to log this query, even if it failed later to ensure the
-          drop is done.
-        */
-        thd->variables.option_bits|= OPTION_BINLOG_THIS;
-        create_info->table_was_deleted= 1;
         lex_string_set(&create_info->org_storage_engine_name,
-                       ha_resolve_storage_engine_name(db_type));
-        DBUG_EXECUTE_IF("send_kill_after_delete",
-                        thd->set_killed(KILL_QUERY););
-        /*
-          Restart statement transactions for the case of CREATE ... SELECT.
-        */
-        if (thd->lex->first_select_lex()->item_list.elements &&
-            restart_trans_for_tables(thd, thd->lex->query_tables))
-          goto err;
+                      ha_resolve_storage_engine_name(db_type));
+
+        if (db_type == view_pseudo_hton)
+          atomic_replace= false;
+
+        if (atomic_replace)
+        {
+          /* NOTE: here FK referencing is checked */
+          if (!(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
+          {
+            Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
+            if (!create_info->table)
+            {
+              if (open_table(thd, &table_list, &ot_ctx))
+                goto err;
+              table= table_list.table;
+            }
+            FOREIGN_KEY_INFO *fk;
+            bool res= table->referenced_by_foreign_table(thd, &fk);
+            if (!create_info->table)
+            {
+              (void) close_thread_table(thd, &thd->open_tables);
+              table= NULL;
+            }
+            if (res)
+            {
+              if (fk)
+                my_error(ER_ROW_IS_REFERENCED_2, MYF(0), fk->foreign_table->str);
+              goto err;
+            }
+          }
+
+          if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
+              thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
+          {
+            if (wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED))
+              goto err;
+          }
+          else
+          {
+            DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                                       orig_db.str,
+                                                       orig_table_name.str,
+                                                       MDL_EXCLUSIVE));
+          }
+
+          /*
+            Prepare DROP entry for backup log. It will be logged before logging
+            the CREATE entry when the command succeeds.
+          */
+          backup_log_info *drop_entry= &create_info->drop_entry;
+          drop_entry->query= { C_STRING_WITH_LEN("DROP") };
+          if ((drop_entry->org_partitioned= (partition_engine_name.str != 0)))
+            drop_entry->org_storage_engine_name= partition_engine_name;
+          else
+            lex_string_set(&drop_entry->org_storage_engine_name,
+                           ha_resolve_storage_engine_name(db_type));
+          drop_entry->org_database=     orig_db;
+          drop_entry->org_table=        orig_table_name;
+          drop_entry->org_table_id=     create_info->org_tabledef_version;
+
+          DBUG_EXECUTE_IF("send_kill_after_delete", thd->set_killed(KILL_QUERY););
+        }
+        else
+        {
+          /*
+            Rollback the empty transaction started in mysql_create_table()
+            call to open_and_lock_tables() when we are using LOCK TABLES.
+          */
+          (void) trans_rollback_stmt(thd);
+
+          /* Remove normal table without logging. Keep tables locked */
+          if (mysql_rm_table_no_locks(thd, &table_list, &thd->db,
+                                      create_info->ddl_log_state_rm,
+                                      0, 0, 0, 0, 1, 1))
+            goto err;
+
+          /* Locked table was closed */
+          create_info->table= table_list.table;
+
+          debug_crash_here("ddl_log_create_after_drop");
+
+          /*
+            We have to log this query, even if it failed later to ensure the
+            drop is done.
+          */
+          thd->variables.option_bits|= OPTION_BINLOG_THIS;
+          create_info->table_was_deleted= 1;
+
+          DBUG_EXECUTE_IF("send_kill_after_delete", thd->set_killed(KILL_QUERY););
+
+          /*
+            Restart statement transactions for the case of CREATE ... SELECT.
+          */
+          if (thd->lex->first_select_lex()->item_list.elements &&
+              restart_trans_for_tables(thd, thd->lex->query_tables))
+            goto err;
+        }
       }
       else if (options.if_not_exists())
       {
@@ -4571,18 +4897,19 @@ int create_table_impl(THD *thd,
       }
       else
       {
-        my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name.str);
+        DBUG_ASSERT(!atomic_replace);
+        my_error(ER_TABLE_EXISTS_ERROR, MYF(0), orig_table_name.str);
         goto err;
       }
-    }
-  }
+    } /* ha_table_exists() */
+  } /* else (!create_info->tmp_table()) */
 
   THD_STAGE_INFO(thd, stage_creating_table);
 
   if (check_engine(thd, orig_db.str, orig_table_name.str, create_info))
     goto err;
 
-  if (create_table_mode == C_ASSISTED_DISCOVERY)
+  if (create_table_mode & C_ASSISTED_DISCOVERY)
   {
     /* check that it's used correctly */
     DBUG_ASSERT(alter_info->create_list.elements == 0);
@@ -4668,8 +4995,8 @@ int create_table_impl(THD *thd,
     if (!frm_only)
     {
       debug_crash_here("ddl_log_create_before_create_table");
-      if (ha_create_table(thd, path.str, db.str, table_name.str, create_info,
-                          frm, 0))
+      if (ha_create_table(thd, path.str, orig_db.str, orig_table_name.str,
+                          create_info, frm, 0))
       {
         file->ha_create_partitioning_metadata(path.str, NULL, CHF_DELETE_FLAG);
         deletefrm(path.str);
@@ -4725,21 +5052,40 @@ warn:
   Simple wrapper around create_table_impl() to be used
   in various version of CREATE TABLE statement.
 
+  @param thd                 Thread object
+  @param orig_db             Database for error messages or atomic replace
+  @param orig_table_name     Table name for error messages or atomic replace
+                             (it's different from table_name for ALTER TABLE)
+  @param db                  Database
+  @param table_name          Table name
+  @param create_info         Create information (like MAX_ROWS)
+  @param alter_info          Description of fields and keys for new table
+  @param[out] is_trans       Identifies the type of engine where the table
+                             was created: either trans or non-trans.
+  @param create_table_mode   C_ORDINARY_CREATE, C_ALTER_TABLE,
+                             C_ASSISTED_DISCOVERY or C_ALTER_TABLE_FRM_ONLY.
+                             or any positive number (for C_CREATE_SELECT).
+                             If set to C_ALTER_TABLE_FRM_ONY then no frm or
+                             table is created, only the frm image in memory.
+  @param[out] frm            The frm image.
+
   @result
     1 unspecifed error
     2 error; Don't log create statement
     0 ok
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
+
+  TODO: orig_db, orig_table_name, db, table_name should be moved to create_info
 */
 
-int mysql_create_table_no_lock(THD *thd,
-                               DDL_LOG_STATE *ddl_log_state_create,
-                               DDL_LOG_STATE *ddl_log_state_rm,
+int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *orig_db,
+                               const LEX_CSTRING *orig_table_name,
                                const LEX_CSTRING *db,
                                const LEX_CSTRING *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
-                               int create_table_mode, TABLE_LIST *table_list)
+                               int create_table_mode, TABLE_LIST *table_list,
+                               LEX_CUSTRING *frm)
 {
   KEY *not_used_1;
   uint not_used_2;
@@ -4747,7 +5093,14 @@ int mysql_create_table_no_lock(THD *thd,
   uint path_length;
   char path[FN_REFLEN + 1];
   LEX_CSTRING cpath;
-  LEX_CUSTRING frm= {0,0};
+  LEX_CUSTRING frm_local;
+
+  if (!frm)
+  {
+    /* Used in atomic replace */
+    frm_local= {0, 0};
+    frm= &frm_local;
+  }
 
   DBUG_ASSERT(create_info->default_table_charset);
 
@@ -4756,9 +5109,9 @@ int mysql_create_table_no_lock(THD *thd,
   else
   {
     const LEX_CSTRING *alias= table_case_name(create_info, table_name);
+    uint flags= (create_info->options & HA_CREATE_TMP_ALTER) ? FN_IS_TMP : 0;
     path_length= build_table_filename(path, sizeof(path) - 1, db->str,
-                                      alias->str,
-                                 "", 0);
+                                      alias->str, "", flags);
     // Check if we hit FN_REFLEN bytes along with file extension.
     if (path_length+reg_ext_length > FN_REFLEN)
     {
@@ -4769,12 +5122,12 @@ int mysql_create_table_no_lock(THD *thd,
   }
   lex_string_set3(&cpath, path, path_length);
 
-  res= create_table_impl(thd, ddl_log_state_create, ddl_log_state_rm,
-                         *db, *table_name, *db, *table_name, cpath,
-                         *create_info, create_info,
-                         alter_info, create_table_mode,
-                         is_trans, &not_used_1, &not_used_2, &frm);
-  my_free(const_cast<uchar*>(frm.str));
+  res= create_table_impl(thd, *orig_db, *orig_table_name, *db, *table_name,
+                         cpath, *create_info, create_info, alter_info,
+                         create_table_mode, is_trans, &not_used_1, &not_used_2,
+                         frm);
+  if (frm == &frm_local)
+    my_free(const_cast<uchar *>(frm_local.str));
 
   if (!res && create_info->sequence)
   {
@@ -4789,8 +5142,7 @@ int mysql_create_table_no_lock(THD *thd,
       DBUG_ASSERT(thd->is_error());
       /* Drop the table as it wasn't completely done */
       if (!mysql_rm_table_no_locks(thd, table_list, &thd->db,
-                                   (DDL_LOG_STATE*) 0,
-                                   1,
+                                   NULL, 1,
                                    create_info->tmp_table(),
                                    false, true /* Sequence*/,
                                    true /* Don't log_query */,
@@ -4831,7 +5183,9 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   int create_table_mode;
   uint save_thd_create_info_options;
   bool is_trans= FALSE;
-  bool result;
+  int result;
+  TABLE_LIST *orig_table= create_table;
+  const bool atomic_replace= create_info->is_atomic_replace();
   DBUG_ENTER("mysql_create_table");
 
   DBUG_ASSERT(create_info->default_table_charset);
@@ -4840,6 +5194,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
   bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
   bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
+  create_info->ddl_log_state_create= &ddl_log_state_create;
+  create_info->ddl_log_state_rm= &ddl_log_state_rm;
 
   /* Copy temporarily the statement flags to thd for lock_table_names() */
   save_thd_create_info_options= thd->lex->create_info.options;
@@ -4868,6 +5224,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   if ((create_info->table= create_table->table))
   {
     pos_in_locked_tables= create_info->table->pos_in_locked_tables;
+    create_info->pos_in_locked_tables= pos_in_locked_tables;
     mdl_ticket= create_table->table->mdl_ticket;
   }
   
@@ -4885,42 +5242,33 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   /* We can abort create table for any table type */
   thd->abort_on_warning= thd->is_strict_mode();
 
-  if (mysql_create_table_no_lock(thd, &ddl_log_state_create, &ddl_log_state_rm,
-                                 &create_table->db, &create_table->table_name,
-                                 create_info, alter_info, &is_trans,
-                                 create_table_mode, create_table) > 0)
+  if (atomic_replace &&
+      create_info->make_tmp_table_list(thd, &create_table, &create_table_mode))
   {
     result= 1;
     goto err;
   }
 
-  /*
-    Check if we are doing CREATE OR REPLACE TABLE under LOCK TABLES
-    on a non temporary table
-  */
-  if (thd->locked_tables_mode && pos_in_locked_tables &&
-      create_info->or_replace())
+  if (mysql_create_table_no_lock(thd,
+                                 &orig_table->db,
+                                 &orig_table->table_name,
+                                 &create_table->db,
+                                 &create_table->table_name, create_info,
+                                 alter_info,
+                                 &is_trans, create_table_mode,
+                                 create_table) > 0)
   {
-    DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
-    /*
-      Add back the deleted table and re-created table as a locked table
-      This should always work as we have a meta lock on the table.
-     */
-    thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-    if (thd->locked_tables_list.reopen_tables(thd, false))
-    {
-      thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-      result= 1;
-      goto err;
-    }
-    else
-    {
-      TABLE *table= pos_in_locked_tables->table;
-      table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
-    }
+    result= 1;
+    goto err;
   }
 
 err:
+  if (atomic_replace)
+  {
+    create_table= orig_table;
+    create_info->table= orig_table->table;
+  }
+
   thd->abort_on_warning= 0;
 
   /* In RBR or readonly server we don't need to log CREATE TEMPORARY TABLE */
@@ -4933,6 +5281,8 @@ err:
 
   if (create_info->tmp_table())
     thd->transaction->stmt.mark_created_temp_table();
+  else if (!result && atomic_replace)
+    result= create_info->finalize_atomic_replace(thd, orig_table);
 
   /* Write log if no error or if we already deleted a table */
   if (!result || thd->log_current_statement())
@@ -4953,12 +5303,16 @@ err:
         we should log a delete of it.
         If create_info->table was not set, it's a normal table and
         table_creation_was_logged will be set when the share is created.
+
+        NOTE: this is only needed for non-atomic CREATE OR REPLACE and
+              CREATE TEMPORARY TABLE.
       */
+      DBUG_ASSERT(!atomic_replace);
       create_info->table->s->table_creation_was_logged= 1;
     }
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-    if (ddl_log_state_rm.is_active())
+    if (ddl_log_state_rm.is_active() && !atomic_replace)
       ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
     debug_crash_here("ddl_log_create_before_binlog");
     if (unlikely(write_bin_log(thd, result ? FALSE : TRUE, thd->query(),
@@ -4977,11 +5331,25 @@ err:
       ddl_log.org_database=     create_table->db;
       ddl_log.org_table=        create_table->table_name;
       ddl_log.org_table_id=     create_info->tabledef_version;
+      if (create_info->drop_entry.query.length)
+      {
+        DBUG_ASSERT(atomic_replace);
+        backup_log_ddl(&create_info->drop_entry);
+      }
       backup_log_ddl(&ddl_log);
     }
   }
-  ddl_log_complete(&ddl_log_state_rm);
-  ddl_log_complete(&ddl_log_state_create);
+
+  create_info->finalize_ddl(thd, result);
+
+  /*
+    Check if we are doing CREATE OR REPLACE TABLE under LOCK TABLES
+    on a non temporary table
+  */
+  if (thd->locked_tables_mode && pos_in_locked_tables &&
+      create_info->or_replace())
+    result|= (int) create_info->finalize_locked_tables(thd);
+
   DBUG_RETURN(result);
 }
 
@@ -5289,10 +5657,15 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   bool src_table_exists= FALSE;
   uint not_used;
   int create_res;
+  TABLE_LIST *orig_table= table;
+  const bool atomic_replace= create_info->is_atomic_replace();
+  int create_table_mode= C_ORDINARY_CREATE;
   DBUG_ENTER("mysql_create_like_table");
 
   bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
   bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
+  local_create_info.ddl_log_state_create= &ddl_log_state_create;
+  local_create_info.ddl_log_state_rm= &ddl_log_state_rm;
 
 #ifdef WITH_WSREP
   if (WSREP(thd) && !thd->wsrep_applier &&
@@ -5401,14 +5774,22 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
   /* The following is needed only in case of lock tables */
   if ((local_create_info.table= thd->lex->query_tables->table))
-    pos_in_locked_tables= local_create_info.table->pos_in_locked_tables;    
+  {
+    pos_in_locked_tables= local_create_info.table->pos_in_locked_tables;
+    local_create_info.pos_in_locked_tables= pos_in_locked_tables;
+  }
+
+  if (atomic_replace &&
+      local_create_info.make_tmp_table_list(thd, &table, &create_table_mode))
+    goto err;
 
   res= ((create_res=
          mysql_create_table_no_lock(thd,
-                                    &ddl_log_state_create, &ddl_log_state_rm,
+                                    &orig_table->db,
+                                    &orig_table->table_name,
                                     &table->db, &table->table_name,
                                     &local_create_info, &local_alter_info,
-                                    &is_trans, C_ORDINARY_CREATE,
+                                    &is_trans, create_table_mode,
                                     table)) > 0);
   /* Remember to log if we deleted something */
   do_logging= thd->log_current_statement();
@@ -5416,46 +5797,18 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     goto err;
 
   /*
-    Check if we are doing CREATE OR REPLACE TABLE under LOCK TABLES
-    on a non temporary table
+    Ensure that we have an exclusive lock on target table if we are creating
+    non-temporary table. We don't have or need the lock if the create failed
+    because of existing table when using "if exists".
   */
-  if (thd->locked_tables_mode && pos_in_locked_tables &&
-      create_info->or_replace())
-  {
-    /*
-      Add back the deleted table and re-created table as a locked table
-      This should always work as we have a meta lock on the table.
-     */
-    thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-    if (thd->locked_tables_list.reopen_tables(thd, false))
-    {
-      thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-      res= 1;                                   // We got an error
-    }
-    else
-    {
-      /*
-        Get pointer to the newly opened table. We need this to ensure we
-        don't reopen the table when doing statment logging below.
-      */
-      table->table= pos_in_locked_tables->table;
-      table->table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
-    }
-  }
-  else
-  {
-    /*
-      Ensure that we have an exclusive lock on target table if we are creating
-      non-temporary table. We don't have or need the lock if the create failed
-      because of existing table when using "if exists".
-    */
-    DBUG_ASSERT((create_info->tmp_table()) || create_res < 0 ||
-                thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
-                                               table->table_name.str,
-                                               MDL_EXCLUSIVE) ||
-                (thd->locked_tables_mode && pos_in_locked_tables &&
-                 create_info->if_not_exists()));
-  }
+  DBUG_ASSERT((thd->locked_tables_mode && pos_in_locked_tables &&
+              create_info->or_replace()) || atomic_replace ||
+              (create_info->tmp_table()) || create_res < 0 ||
+              thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
+                                              table->table_name.str,
+                                              MDL_EXCLUSIVE) ||
+              (thd->locked_tables_mode && pos_in_locked_tables &&
+                create_info->if_not_exists()));
 
   DEBUG_SYNC(thd, "create_table_like_before_binlog");
 
@@ -5480,10 +5833,20 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   if (thd->is_current_stmt_binlog_format_row() || force_generated_create)
   {
     /*
-       Since temporary tables are not replicated under row-based
-       replication, CREATE TABLE ... LIKE ... needs special
-       treatement.  We have some cases to consider, according to the
-       following decision table:
+      The logging for CREATE .. LIKE is a bit different from normal
+      create as we want in statement-based logging use the original statement.
+
+      Generated statement means the CREATE TABLE statement without LIKE. Same
+      thing we do with CREATE .. SELECT in row based logging. It is needed to
+      get replication working if the original table didn't exists.
+
+      However as an engine can change a table definition, it is probly better to
+      use CREATE TABLE instead of LIKE to ensure the table definition will be
+      same on both side. (This is just a guess).
+
+      Since temporary tables are not replicated under row-based replication,
+      CREATE TABLE .. LIKE needs special treatment.  We have some cases to
+      consider, according to the following decision table:
 
            ==== ========= ========= ==============================
            Case    Target    Source Write to binary log
@@ -5507,7 +5870,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         query.length(0);  // Have to zero it since constructor doesn't
         Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN |
                                   MYSQL_OPEN_IGNORE_KILLED);
-        bool new_table= FALSE; // Whether newly created table is open.
+        bool opened_new_table= FALSE; // Whether newly created table is open.
 
         if (create_res != 0)
         {
@@ -5526,6 +5889,22 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           save_open_strategy= table->open_strategy;
           table->open_strategy= TABLE_LIST::OPEN_NORMAL;
 
+          if (atomic_replace)
+          {
+            /*
+               NOTE: We acquire explicit lock for temporary table just to make
+               close_thread_table() happy. We open it like a normal table
+               because it's too complex to open it like tmp_table here.
+            */
+            table->mdl_request.duration= MDL_EXPLICIT;
+            if (thd->mdl_context.acquire_lock(&table->mdl_request,
+                                            thd->variables.lock_wait_timeout))
+            {
+              res= 1;
+              goto err;
+            }
+          }
+
           /*
             In order for show_create_table() to work we need to open
             destination table if it is not already open (i.e. if it
@@ -5542,7 +5921,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
             res= 1;
             goto err;
           }
-          new_table= TRUE;
+          opened_new_table= TRUE;
         }
         /*
           We have to re-test if the table was a view as the view may not
@@ -5565,26 +5944,52 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           */
           create_info->used_fields|= HA_CREATE_USED_ENGINE;
 
+          const LEX_CSTRING *const db=
+            table->schema_table ? &INFORMATION_SCHEMA_NAME : &orig_table->db;
+          const char *force_db= NULL;
+          if (!thd->db.str || cmp(db, &thd->db))
+            force_db= db->str;
+
           int result __attribute__((unused))=
-            show_create_table(thd, table, &query, create_info, WITH_DB_NAME);
+            show_create_table_ex(thd, table,
+                                 force_db, orig_table->table_name.str,
+                                 &query, create_info, WITH_DB_NAME);
 
           DBUG_ASSERT(result == 0); // show_create_table() always return 0
           do_logging= FALSE;
+
+          thd->binlog_xid= thd->query_id;
+          ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
+          if (ddl_log_state_rm.is_active() && !atomic_replace)
+            ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+          debug_crash_here("ddl_log_create_before_binlog");
+
           if (write_bin_log(thd, TRUE, query.ptr(), query.length()))
           {
             res= 1;
+            thd->binlog_xid= 0;
             goto err;
           }
 
-          if (new_table)
+          debug_crash_here("ddl_log_create_after_binlog");
+          thd->binlog_xid= 0;
+
+          if (opened_new_table)
           {
             DBUG_ASSERT(thd->open_tables == table->table);
             /*
               When opening the table, we ignored the locked tables
               (MYSQL_OPEN_GET_NEW_TABLE). Now we can close the table
               without risking to close some locked table.
+
+              For atomic_replace we must remove TABLE and TABLE_SHARE
+              from cache since they are the objects for temporary table.
             */
+            if (atomic_replace)
+              table->table->s->tdc->flushed= true;
             close_thread_table(thd, &thd->open_tables);
+            if (atomic_replace)
+              thd->mdl_context.release_lock(table->mdl_request.ticket);
           }
         }
       }
@@ -5608,7 +6013,11 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         /*
           Remember that tmp table creation was logged so that we know if
           we should log a delete of it.
+
+          NOTE: this is only needed for non-atomic CREATE OR REPLACE and
+                CREATE TEMPORARY TABLE.
         */
+        DBUG_ASSERT(!atomic_replace);
         local_create_info.table->s->table_creation_was_logged= 1;
       }
     }
@@ -5616,13 +6025,26 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   }
 
 err:
+  if (atomic_replace)
+  {
+    table= orig_table;
+    local_create_info.table= orig_table->table;
+
+    if (!res)
+    {
+      res= local_create_info.finalize_atomic_replace(thd, orig_table);
+      if (res)
+        do_logging= false;
+    }
+  }
+
   if (do_logging)
   {
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-    if (ddl_log_state_rm.is_active())
+    if (ddl_log_state_rm.is_active() && !atomic_replace)
       ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
-    debug_crash_here("ddl_log_create_before_binlog");      
+    debug_crash_here("ddl_log_create_before_binlog");
     if (res && create_info->table_was_deleted)
     {
       /*
@@ -5630,6 +6052,7 @@ err:
         We have to log it.
       */
       DBUG_ASSERT(ddl_log_state_rm.is_active());
+      DBUG_ASSERT(!atomic_replace);
       log_drop_table(thd, &table->db, &table->table_name,
                      &create_info->org_storage_engine_name,
                      create_info->db_type == partition_hton,
@@ -5655,11 +6078,24 @@ err:
     ddl_log.org_database=     table->db;
     ddl_log.org_table=        table->table_name;
     ddl_log.org_table_id=     local_create_info.tabledef_version;
+    if (local_create_info.drop_entry.query.length)
+    {
+      DBUG_ASSERT(atomic_replace);
+      backup_log_ddl(&local_create_info.drop_entry);
+    }
     backup_log_ddl(&ddl_log);
   }
 
-  ddl_log_complete(&ddl_log_state_rm);
-  ddl_log_complete(&ddl_log_state_create);
+  local_create_info.finalize_ddl(thd, res);
+
+  /*
+    Check if we are doing CREATE OR REPLACE TABLE under LOCK TABLES
+    on a non temporary table
+  */
+  if (thd->locked_tables_mode && pos_in_locked_tables &&
+      create_info->or_replace())
+    res|= (int) local_create_info.finalize_locked_tables(thd);
+
   DBUG_RETURN(res != 0);
 }
 
@@ -9572,7 +10008,8 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
 
     (void) ddl_log_rename_table(&ddl_log_state, old_db_type,
                                 &alter_ctx->db, &alter_ctx->table_name,
-                                &alter_ctx->new_db, &alter_ctx->new_alias);
+                                &alter_ctx->new_db, &alter_ctx->new_alias,
+                                DDL_RENAME_PHASE_TABLE, 0);
     if (mysql_rename_table(old_db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias,
                            &table_version, 0))
@@ -10685,8 +11122,7 @@ do_continue:;
 
     Partitioning: part_info is passed via thd->work_part_info
   */
-  error= create_table_impl(thd, (DDL_LOG_STATE*) 0, (DDL_LOG_STATE*) 0,
-                           alter_ctx.db, alter_ctx.table_name,
+  error= create_table_impl(thd, alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,
                            alter_ctx.get_tmp_cstring_path(),
                            thd->lex->create_info, create_info, alter_info,
