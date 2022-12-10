@@ -858,3 +858,19 @@ t2	CREATE TABLE `t2` (
   `a` varchar(2300) DEFAULT NULL
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
 drop tables t2, t1;
+#
+# MDEV-28956 Locking is broken if CREATE OR REPLACE fails under LOCK TABLES
+#
+# Atomic CREATE OR REPLACE part:
+#
+create table t1 (pk int primary key) engine=innodb;
+create or replace table t2 (a int primary key references t1 (pk)) engine=innodb;
+lock tables t1 write, t2 write;
+create or replace table t2 (c1 int not null, c1 varchar(255) ) engine=innodb;
+ERROR 42S21: Duplicate column name 'c1'
+select * from t1;
+pk
+select * from t2;
+a
+unlock tables;
+drop tables t2, t1;
