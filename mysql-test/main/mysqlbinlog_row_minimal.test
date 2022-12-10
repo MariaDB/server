@@ -100,3 +100,11 @@ FLUSH BINARY LOGS;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-29709 Unexpected ER_NO_SUCH_TABLE on CREATE OR REPLACE
+--echo #            with further assertion failures
+--echo #
+create temporary table tmp (a int);
+create or replace table t_apparently_it_has_to_be_at_least_this_long like tmp;
+drop table t_apparently_it_has_to_be_at_least_this_long;
+drop temporary table tmp;

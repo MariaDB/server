@@ -104,7 +104,7 @@ int mysql_create_table_no_lock(THD *thd,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
                                int create_table_mode, TABLE_LIST *table,
-                               LEX_CUSTRING *frm= NULL);
+                               LEX_CUSTRING *frm= NULL, LEX_CSTRING *path= NULL);
 
 handler *mysql_create_frm_image(THD *thd,
                                 const LEX_CSTRING &db,
