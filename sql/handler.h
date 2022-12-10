@@ -1707,6 +1707,7 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_TEMPORARY_NOT_SUPPORTED (1 << 6) //Having temporary tables not supported
 #define HTON_SUPPORT_LOG_TABLES      (1 << 7) //Engine supports log tables
 #define HTON_NO_PARTITION            (1 << 8) //Not partition of these tables
+#define HTON_SQL_PROXY               (1 << 9) //Engine is SQL proxy
 
 /*
   This flag should be set when deciding that the engine does not allow
