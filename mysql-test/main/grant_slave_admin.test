@@ -9,12 +9,12 @@
 --echo #
 
 --echo #
---echo # Test that slave admin statements are not allowed without REPLICATION SLAVE ADMIN or SUPER
+--echo # Test that slave admin statements are not allowed without REPLICATION SLAVE ADMIN
 --echo #
 
 CREATE USER user1@localhost IDENTIFIED BY '';
 GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
-REVOKE REPLICATION SLAVE ADMIN, SUPER ON *.* FROM user1@localhost;
+REVOKE REPLICATION SLAVE ADMIN ON *.* FROM user1@localhost;
 
 connect (con1,localhost,user1,,);
 connection con1;
@@ -29,33 +29,12 @@ disconnect con1;
 connection default;
 DROP USER user1@localhost;
 
-
 --echo #
 --echo # Test that slave admin statements are allowed with REPLICATION SLAVE ADMIN
 --echo #
 
 CREATE USER user1@localhost IDENTIFIED BY '';
 GRANT REPLICATION SLAVE ADMIN ON *.* TO user1@localhost;
-SHOW GRANTS FOR user1@localhost;
-
-connect (con1,localhost,user1,,);
-connection con1;
---error ER_BAD_SLAVE
-START SLAVE;
-CHANGE MASTER TO MASTER_USER='root';
-STOP SLAVE;
-disconnect con1;
-
-connection default;
-DROP USER user1@localhost;
-
-
---echo #
---echo # Test that slave admin statements are allowed with SUPER
---echo #
-
-CREATE USER user1@localhost IDENTIFIED BY '';
-GRANT SUPER ON *.* TO user1@localhost;
 SHOW GRANTS FOR user1@localhost;
 
 connect (con1,localhost,user1,,);
