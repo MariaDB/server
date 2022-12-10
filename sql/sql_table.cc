@@ -1251,13 +1251,19 @@ bool make_tmp_name(THD *thd, const char *prefix, const Table_name *orig,
   char res_name[NAME_LEN + 1];
   char file_name[NAME_LEN + 1];
   LEX_CSTRING table_name;
+  /*
+    Filename trimming should not depend on prefix length with variable PID and
+    thread ID. This makes tests happier.
+  */
+  constexpr int MIN_PREFIX= 30;
 
   size_t len= my_snprintf(res_name, sizeof(res_name) - 1,
                           tmp_file_prefix "-%s-%lx-%llx-", prefix,
                           current_pid, thd->thread_id);
 
+  const size_t pfx_len= len < MIN_PREFIX ? MIN_PREFIX : len;
   uint len2= tablename_to_filename(orig->table_name.str, file_name,
-                                   sizeof(res_name) - len - 1);
+                                   sizeof(res_name) - pfx_len - 1);
 
   DBUG_ASSERT(len + len2 < sizeof(res_name) - 1);
   memcpy(res_name + len, file_name, len2 + 1);
