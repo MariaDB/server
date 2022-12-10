@@ -1101,5 +1101,18 @@ select * from information_schema.innodb_sys_foreign;
 
 drop tables if exists t1, t2;
 
+--echo #
+--echo # MDEV-29779 Unexpected ER_ERROR_ON_RENAME upon CREATE OR REPLACE
+--echo #
+create table t1 (a int) engine=innodb;
+create table t2 (pk int primary key) engine=innodb;
+create or replace table t1 (a int, foreign key(a) references t2(pk)) engine=innodb;
+
+set foreign_key_checks = off;
+alter table t1 modify a bigint;
+set foreign_key_checks = on;
+
+create or replace table t1 (a int) engine=innodb;
+drop tables t1, t2;
 
 --source include/wait_until_count_sessions.inc
