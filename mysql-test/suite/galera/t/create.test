@@ -94,6 +94,26 @@ LOCK TABLES t0 WRITE;
 CREATE OR REPLACE TABLE t0 SELECT 1;
 DROP TABLE t0;
 
+--echo #
+--echo # MDEV-29831 Galera crashes when running CoR for a locked table after
+--echo #            setting the minimum memory for a user session
+--echo #
+--connection node_1
+SET @max_mem_save= @@session.max_session_mem_used;
+SET SESSION max_session_mem_used= 8192;
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
+SET autocommit=OFF;
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, DATA INT) ENGINE=MEMORY;
+--error ER_OPTION_PREVENTS_STATEMENT
+INSERT INTO t2(id) VALUES ('11');
+--error ER_OPTION_PREVENTS_STATEMENT
+ALTER TABLE t1 ADD COLUMN f3 INT NOT NULL DEFAULT 10;
+LOCK TABLE t1 WRITE, t2 READ;
+--error ER_QUERY_INTERRUPTED
+CREATE OR REPLACE TABLE t1 SELECT 1;
+UNLOCK TABLES;
+DROP TABLES t2, t1;
+SET SESSION max_session_mem_used= @max_mem_save;
+
 --source include/galera_end.inc
 --echo # End of tests
-

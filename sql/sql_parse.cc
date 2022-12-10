@@ -3853,6 +3853,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
 #endif /* WITH_WSREP */
 
+  if (thd->locked_tables_mode)
+    thd->locked_tables_list.start_command();
+
   switch (lex->sql_command) {
 
   case SQLCOM_SHOW_EVENTS:
