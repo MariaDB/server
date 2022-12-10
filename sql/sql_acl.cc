@@ -1058,7 +1058,7 @@ class User_table_tabular: public User_table
       access|= DELETE_HISTORY_ACL;
 
     if (access & SUPER_ACL)
-      access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
+      access|= ALLOWED_BY_SUPER_UPTO_1010 | ALLOWED_BY_SUPER_UPTO_1011;
 
     /*
       The SHOW SLAVE HOSTS statement :
@@ -1545,10 +1545,15 @@ class User_table_json: public User_table
   {
     privilege_t mask= ALL_KNOWN_ACL_100304;
     ulonglong orig_access= access;
+    if (version_id < 101200)
+    {
+      if (access & SUPER_ACL)
+        access|= ALLOWED_BY_SUPER_UPTO_1011;
+    }
     if (version_id < 101100)
     {
       if (access & SUPER_ACL)
-        access|= READ_ONLY_ADMIN_ACL;
+        access|= ALLOWED_BY_SUPER_UPTO_1010;
     }
     if (version_id >= 100509)
     {
@@ -1565,26 +1570,6 @@ class User_table_json: public User_table
     }
     else // 100501 or earlier
     {
-      /*
-        Address changes in SUPER and REPLICATION SLAVE made in 10.5.2.
-        This also covers a special case: if the user had ALL PRIVILEGES before
-        the upgrade, it gets ALL PRIVILEGES after the upgrade.
-      */
-      if (access & SUPER_ACL)
-      {
-        if (access & REPL_SLAVE_ACL)
-        {
-          /*
-            The user could do both before the upgrade:
-            - set global variables       (because of SUPER_ACL)
-            - execute "SHOW SLAVE HOSTS" (because of REPL_SLAVE_ACL)
-            Grant all new privileges that were splitted from SUPER (in 10.5.2),
-            and REPLICATION MASTER ADMIN, so it still can do "SHOW SLAVE HOSTS".
-          */
-          access|= REPL_MASTER_ADMIN_ACL;
-        }
-        access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
-      }
       /*
         REPLICATION_CLIENT(BINLOG_MONITOR_ACL) should allow SHOW SLAVE STATUS
         REPLICATION SLAVE should allow SHOW RELAYLOG EVENTS
