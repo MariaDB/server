@@ -2479,7 +2479,8 @@ struct Table_specification_st: public HA_CREATE_INFO,
   }
   bool is_atomic_replace() const
   {
-    return or_replace() && is_atomic_replace_usable();
+    return or_replace() && !or_replace_slave_generated() &&
+           is_atomic_replace_usable();
   }
 };
 
