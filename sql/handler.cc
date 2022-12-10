@@ -5213,6 +5213,11 @@ int handler::ha_end_bulk_insert()
   DBUG_ENTER("handler::ha_end_bulk_insert");
   DBUG_EXECUTE_IF("crash_end_bulk_insert",
                   { extra(HA_EXTRA_FLUSH) ; DBUG_SUICIDE();});
+  if (DBUG_IF("ha_end_bulk_insert_fail"))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+  }
   estimation_rows_to_insert= 0;
   DBUG_RETURN(end_bulk_insert());
 }

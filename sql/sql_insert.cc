@@ -4293,7 +4293,7 @@ bool select_insert::prepare_eof()
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
-  if (atomic_replace)
+  if (atomic_replace && !error)
   {
     DBUG_ASSERT(table->s->tmp_table);
 
@@ -5510,7 +5510,10 @@ void select_create::abort_result_set()
 
     if (atomic_replace)
     {
+      ulonglong save_options_bits= thd->variables.option_bits;
+      thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
       (void) table->file->ha_external_lock(thd, F_UNLCK);
+      thd->variables.option_bits= save_options_bits;
       (void) thd->drop_temporary_table(table, NULL, true);
     }
     else
