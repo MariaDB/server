@@ -288,10 +288,8 @@ centos7:
     # Install packages so tests and the dependencies install
     # @TODO: RPM missing 'patch' and 'diff' as dependency, so installing it manually for now
     - yum install -y rpm/*.rpm patch diffutils
-    # @TODO: Fix on packaging level for /usr/share/mariadb to work and errormsg.sys be found
-    - rm -rf /usr/share/mariadb; ln -s /usr/share/mysql /usr/share/mariadb
     # mtr expects to be launched in-place and with write access to it's own directories
-    - cd /usr/share/mysql-test
+    - cd /usr/share/mariadb-test
     # Skip failing tests
     - |
       echo "
@@ -507,7 +505,7 @@ mini-benchmark:
       mariadb --skip-column-names -e "SELECT @@version, @@version_comment" | tee /tmp/version
       grep $MARIADB_MAJOR_VERSION /tmp/version || echo "MariaDB didn't install properly"
     - yum install -y sysbench procps-ng perf util-linux || yum install -y https://kojipkgs.fedoraproject.org//packages/luajit/2.0.4/3.el7/x86_64/luajit-2.0.4-3.el7.x86_64.rpm https://kojipkgs.fedoraproject.org//packages/sysbench/1.0.17/2.el7/x86_64/sysbench-1.0.17-2.el7.x86_64.rpm https://kojipkgs.fedoraproject.org//packages/ck/0.5.2/2.el7/x86_64/ck-0.5.2-2.el7.x86_64.rpm
-    - /usr/share/mysql/mini-benchmark
+    - /usr/share/mariadb/mini-benchmark
     - cp -av */sysbench-run-*.log */metrics.txt ..  # Move files one level down so they can be saved as artifacts
   artifacts:
     when: always

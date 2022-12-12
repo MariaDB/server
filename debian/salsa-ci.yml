@@ -321,7 +321,7 @@ test basic features:
       password=asdf234
       protocol=tcp
       EOF
-      export CERT_PATH=/usr/share/mysql/mysql-test/std_data
+      export CERT_PATH=/usr/share/mariadb/mariadb-test/std_data
       openssl verify -CAfile $CERT_PATH/cacert.pem $CERT_PATH/server-cert.pem
       openssl x509 -subject -issuer -noout -in $CERT_PATH/cacert.pem
       openssl x509 -subject -issuer -noout -in $CERT_PATH/server-cert.pem
