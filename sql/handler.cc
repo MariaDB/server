@@ -1001,12 +1001,30 @@ void ha_end_backup()
                            PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
 }
 
-void handler::log_not_redoable_operation(const char *operation)
+/*
+  Take a lock to block MDL_BACKUP_DDL (used by maria-backup) until
+  the DDL operation is taking place
+*/
+
+bool handler::log_not_redoable_operation(const char *operation)
 {
   DBUG_ENTER("log_not_redoable_operation");
   if (table->s->tmp_table == NO_TMP_TABLE)
   {
+    /*
+      Take a lock to ensure that mariadb-backup will notice the
+      new log entry (and re-copy the table if needed).
+    */
+    THD *thd= table->in_use;
+    MDL_request mdl_backup;
     backup_log_info ddl_log;
+
+    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
+                     MDL_STATEMENT);
+    if (thd->mdl_context.acquire_lock(&mdl_backup,
+                                      thd->variables.lock_wait_timeout))
+      DBUG_RETURN(1);
+
     bzero(&ddl_log, sizeof(ddl_log));
     lex_string_set(&ddl_log.query, operation);
     /*
@@ -1022,7 +1040,7 @@ void handler::log_not_redoable_operation(const char *operation)
     ddl_log.org_table_id=     table->s->tabledef_version;
     backup_log_ddl(&ddl_log);
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 /*
