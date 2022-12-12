@@ -2835,8 +2835,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE t1;
@@ -2851,8 +2849,6 @@ SELECT * FROM t1 INTO rec1, rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP TABLE t1;
@@ -2867,8 +2863,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 rec1.a	rec1.b
 10	b10
@@ -2884,8 +2878,6 @@ SELECT 10,'a','b' FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE t1;
@@ -2900,8 +2892,6 @@ SELECT 10,'a' FROM t1 INTO rec1, rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP TABLE t1;
@@ -2916,8 +2906,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 rec1.a	rec1.b
 10	b10
@@ -2934,8 +2922,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE t1;
@@ -2951,8 +2937,6 @@ SELECT * FROM t1 INTO rec1, rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP TABLE t1;
@@ -2968,8 +2952,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 rec1.a	rec1.b
 10	b10

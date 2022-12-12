@@ -37,8 +37,6 @@ create index Language on CountryLanguage(Language);
 create index CityName on City(Name);
 alter table City change population population int(11) null default 0;
 select max(id) from City into @max_city_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert into City values (@max_city_id + 1,'Kilifarevo','BGR',NULL);
 SELECT COUNT(*) FROM Country;
 COUNT(*)

@@ -953,19 +953,22 @@ typedef struct system_status_var
                                             functions are used */
   ulong feature_dynamic_columns;    /* +1 when creating a dynamic column */
   ulong feature_fulltext;	    /* +1 when MATCH is used */
-  ulong feature_gis;                /* +1 opening a table with GIS features */
-  ulong feature_invisible_columns;     /* +1 opening a table with invisible column */
-  ulong feature_json;		    /* +1 when JSON function appears in the statement */
+  ulong feature_gis;                /* +1 opening table with GIS features */
+  ulong feature_invisible_columns;  /* +1 opening table with invisible column */
+  ulong feature_json;		    /* +1 when JSON function is used */
   ulong feature_locale;		    /* +1 when LOCALE is set */
   ulong feature_subquery;	    /* +1 when subqueries are used */
-  ulong feature_system_versioning;  /* +1 opening a table WITH SYSTEM VERSIONING */
+  ulong feature_system_versioning;  /* +1 opening table WITH SYSTEM VERSIONING */
   ulong feature_application_time_periods;
                                     /* +1 opening a table with application-time period */
-  ulong feature_insert_returning;  /* +1 when INSERT...RETURNING is used */
+  ulong feature_insert_returning;   /* +1 when INSERT...RETURNING is used */
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */
   ulong feature_xml;		    /* +1 when XPATH is used */
   ulong feature_window_functions;   /* +1 when window functions are used */
+  ulong feature_into_outfile;       /* +1 when INTO OUTFILE is used */
+  ulong feature_into_variable;      /* +1 when INTO VARIABLE is used */
+  ulong feature_into_old_syntax;    /* +1 when INTO is used with old syntax*/
 
   /* From MASTER_GTID_WAIT usage */
   ulong master_gtid_wait_timeouts;          /* Number of timeouts */

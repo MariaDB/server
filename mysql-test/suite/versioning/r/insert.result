@@ -54,8 +54,6 @@ drop view vt1_1;
 create or replace table t1( id bigint primary key, a int, b int) with system versioning;
 insert into t1 values(1, 1, 1);
 select row_start, row_end from t1 into @sys_start, @sys_end;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select id, a, b from t1;
 id	a	b
 1	1	1

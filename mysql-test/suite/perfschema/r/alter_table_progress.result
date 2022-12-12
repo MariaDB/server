@@ -16,8 +16,6 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR found_row';
 select event_id from performance_schema.events_statements_current
 where thread_id = @con1_thread_id into @con1_stmt_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED
 from performance_schema.events_stages_current
 where (thread_id = @con1_thread_id);
