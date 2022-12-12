@@ -872,7 +872,7 @@ extern "C" {
 
 int _ma_killed_ptr(HA_CHECK *param)
 {
-  if (likely(thd_killed((THD*)param->thd)) == 0)
+  if (!param->thd || likely(thd_killed((THD*)param->thd)) == 0)
     return 0;
   my_errno= HA_ERR_ABORTED_BY_USER;
   return 1;
@@ -901,9 +901,10 @@ int _ma_killed_ptr(HA_CHECK *param)
 void _ma_report_progress(HA_CHECK *param, ulonglong progress,
                          ulonglong max_progress)
 {
-  thd_progress_report((THD*)param->thd,
-                      progress + max_progress * param->stage,
-                      max_progress * param->max_stage);
+  if (param->thd)
+    thd_progress_report((THD*)param->thd,
+                        progress + max_progress * param->stage,
+                        max_progress * param->max_stage);
 }
 
 
@@ -2263,7 +2264,6 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
       {
         bulk_insert_single_undo= BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR;
         write_log_record_for_bulk_insert(file);
-        _ma_tmp_disable_logging_for_table(file, TRUE);
         /*
           Pages currently in the page cache have type PAGECACHE_LSN_PAGE, we
           are not allowed to overwrite them with PAGECACHE_PLAIN_PAGE, so
@@ -2271,8 +2271,12 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
           forced an UNDO which will for sure empty the table if we crash. The
           upcoming unique-key insertions however need a proper index, so we
           cannot leave the corrupted on-disk index file, thus we truncate it.
+
+          The following call will log the truncate and update the lsn for the table
+          to ensure that all redo's before this will be ignored.
         */
         maria_delete_all_rows(file);
+        _ma_tmp_disable_logging_for_table(file, TRUE);
       }
     }
     else if (!file->bulk_insert &&
@@ -2303,23 +2307,58 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
 
 int ha_maria::end_bulk_insert()
 {
-  int first_error, error;
-  my_bool abort= file->s->deleting;
+  int first_error, first_errno= 0, error;
+  my_bool abort= file->s->deleting, empty_table= 0;
+  uint enable_index_mode= HA_KEY_SWITCH_NONUNIQ_SAVE;
   DBUG_ENTER("ha_maria::end_bulk_insert");
 
   if ((first_error= maria_end_bulk_insert(file, abort)))
-    abort= 1;
-
-  if ((error= maria_extra(file, HA_EXTRA_NO_CACHE, 0)))
   {
-    first_error= first_error ? first_error : error;
+    first_errno= my_errno;
     abort= 1;
   }
 
-  if (!abort && can_enable_indexes)
-    if ((error= enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE)))
-      first_error= first_error ? first_error : error;
+  if ((error= maria_extra(file, HA_EXTRA_NO_CACHE, 0)))
+  {
+    if (!first_error)
+    {
+      first_error= error;
+      first_errno= my_errno;
+    }
+    abort= 1;
+  }
 
+  if (bulk_insert_single_undo != BULK_INSERT_NONE)
+  {
+    if (log_not_redoable_operation("BULK_INSERT"))
+    {
+      /* Got lock timeout. revert back to empty file and give error */
+      if (!first_error)
+      {
+        first_error= 1;
+        first_errno= my_errno;
+      }
+      enable_index_mode= HA_KEY_SWITCH_ALL;
+      empty_table= 1;
+      /*
+        Ignore all changed pages, required by _ma_renable_logging_for_table()
+      */
+      _ma_flush_table_files(file, MARIA_FLUSH_DATA|MARIA_FLUSH_INDEX,
+                            FLUSH_IGNORE_CHANGED, FLUSH_IGNORE_CHANGED);
+    }
+  }
+
+  if (!abort && can_enable_indexes)
+  {
+    if ((error= enable_indexes(enable_index_mode)))
+    {
+      if (!first_error)
+      {
+        first_error= 1;
+        first_errno= my_errno;
+      }
+    }
+  }
   if (bulk_insert_single_undo != BULK_INSERT_NONE)
   {
     /*
@@ -2328,12 +2367,23 @@ int ha_maria::end_bulk_insert()
     */
     if ((error= _ma_reenable_logging_for_table(file,
                                                bulk_insert_single_undo ==
-                                               BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR)))
-      first_error= first_error ? first_error : error;
-    bulk_insert_single_undo= BULK_INSERT_NONE;  // Safety
-    log_not_redoable_operation("BULK_INSERT");
+                                               BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR)) &&
+        !empty_table)
+    {
+      if (!first_error)
+      {
+        first_error= 1;
+        first_errno= my_errno;
+      }
+    }
+    bulk_insert_single_undo= BULK_INSERT_NONE;  // Safety if called again
   }
+  if (empty_table)
+    maria_delete_all_rows(file);
+
   can_enable_indexes= 0;
+  if (first_error)
+    my_errno= first_errno;
   DBUG_RETURN(first_error);
 }
 
