@@ -5155,7 +5155,7 @@ public:
     return (lower_case_table_names == 2 && !(ha_table_flags() & HA_FILE_BASED));
   }
 
-  void log_not_redoable_operation(const char *operation);
+  bool log_not_redoable_operation(const char *operation);
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);
