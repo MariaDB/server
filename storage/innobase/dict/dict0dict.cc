@@ -4639,14 +4639,14 @@ dict_table_schema_check(
 		/* no such table */
 
 		if (innobase_strcasecmp(req_schema->table_name, "mysql/innodb_table_stats") == 0) {
-			if (innodb_table_stats_not_found_reported == false) {
+			if (innodb_table_stats_not_found_reported == false && !opt_bootstrap) {
 				innodb_table_stats_not_found = true;
 				innodb_table_stats_not_found_reported = true;
 			} else {
 				should_print = false;
 			}
 		} else if (innobase_strcasecmp(req_schema->table_name, "mysql/innodb_index_stats") == 0 ) {
-			if (innodb_index_stats_not_found_reported == false) {
+			if (innodb_index_stats_not_found_reported == false && !opt_bootstrap) {
 				innodb_index_stats_not_found = true;
 				innodb_index_stats_not_found_reported = true;
 			} else {
