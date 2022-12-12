@@ -27,7 +27,7 @@ IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
    "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 ENDIF()
 
-PROJECT(MySQL)
+PROJECT(MariaDB)
 
 # Remove the following comment if you don't want to have striped binaries
 # in RPM's:
@@ -88,7 +88,6 @@ ELSE()
   SET(CMAKE_CXX_STANDARD 11)
 ENDIF()
 
-SET(CPACK_PACKAGE_NAME "MariaDB")
 SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MariaDB: a very fast and robust SQL database server")
 SET(CPACK_PACKAGE_URL "http://mariadb.org")
 
