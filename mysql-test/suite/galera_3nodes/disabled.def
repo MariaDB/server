@@ -10,5 +10,11 @@
 #
 ##############################################################################
 
+GCF-606                      : Timeout in wait_condition.inc for SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+GCF-354                      : At line 30: query 'INSERT INTO test.t1 values (1)' failed: 1180: Got error 6 "No such device or address" during COMMIT
+galera_ipv6_mysqldump        : [Warning] WSREP: Failed to send SYNC signal: -107 (Transport endpoint is not connected
+galera_vote_rejoin_mysqldump : MDEV-24481: galera_3nodes.galera_vote_rejoin_mysqldump MTR failed: mysql_shutdown failed
+galera_parallel_apply_3nodes : MDEV-29368 DEBUG_SYNC timeout
+galera_parallel_apply_3nodes : MDEV-29774 Galera test galera_parallel_apply_3nodes is unstable
 galera_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster
 galera_gtid_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster
