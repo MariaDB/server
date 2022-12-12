@@ -120,7 +120,6 @@ ALTER TABLE t2 IMPORT TABLESPACE;
 Warnings:
 Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
 DROP TABLE t2;
-SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table
 1
@@ -283,6 +282,8 @@ c1	c2
 unlink: t1.cfg
 DROP TABLE t1;
 SET GLOBAL innodb_file_per_table = 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;
@@ -300,6 +301,8 @@ Warning	1809	Table `test`.`t1` in system tablespace
 UNLOCK TABLES;
 DROP TABLE t1;
 SET GLOBAL innodb_file_per_table = 1;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX idx(c2)) ENGINE=InnoDB;

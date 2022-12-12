@@ -10,10 +10,6 @@ SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
 SET GLOBAL innodb_read_only_compressed=OFF;
 --enable_query_log
 
-let $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
-
-set global innodb_file_per_table=1;
-
 -- echo ### Test 1 ###
 # Create a table of DYNAMIC format, with a primary index of 1000 bytes in
 # size
@@ -402,5 +398,3 @@ create index idx2 on worklog5743(a(767));
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 drop table worklog5743;
-
-eval SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;

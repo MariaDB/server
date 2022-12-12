@@ -1,11 +1,9 @@
 SET GLOBAL innodb_fast_shutdown=0;
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0
-SET GLOBAL innodb_file_per_table=1;
 #
 # Bug#21644827 - FTS, ASSERT !SRV_READ_ONLY_MODE || M_IMPL.M_LOG_MODE ==
 #                MTR_LOG_NO_REDO
 #
-SET GLOBAL innodb_file_per_table=ON;
 create table t1 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156)) engine=InnoDB
 row_format=redundant;
@@ -16,6 +14,8 @@ insert into t values(789, 'abcdef', 'jghikl', 'mnop');
 insert into t values(134, 'kasdfsdsadf', 'adfjlasdkfjasd', 'adfsadflkasdasdfljasdf');
 insert into t1 select a,d,b,c from t, seq_1_to_1024;
 SET GLOBAL innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 create table t2 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156), fulltext ftsic(c)) engine=InnoDB
 row_format=redundant;

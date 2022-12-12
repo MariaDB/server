@@ -525,7 +525,7 @@ DROP TABLE t, t2, tp;
 --echo #                failed during EXCHANGE PARTITION with different TABLESPACE.
 --echo #
 CREATE TABLE t1 (a VARCHAR(200)) PARTITION BY KEY(a) partitions 10;
-ALTER TABLE t1 ADD PARTITION (PARTITION pm TABLESPACE = `innodb_file_per_table`);
+ALTER TABLE t1 ADD PARTITION (PARTITION pm);
 CREATE TABLE t2 like t1;
 ALTER TABLE t2 REMOVE PARTITIONING;
 # The following works as table spaces are not checked anymore
