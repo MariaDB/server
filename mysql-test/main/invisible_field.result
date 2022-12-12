@@ -559,8 +559,6 @@ DROP TABLE t1;
 create or replace table t1 (a int, b int invisible);
 insert into t1 values (1),(2);
 select * from t1 into outfile 'f';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 load data infile 'f' into table t1;
 select a,b from t1;
 a	b
@@ -591,8 +589,6 @@ a	b
 truncate table t1;
 insert into t1(a,b) values (1,1),(2,2);
 select a,b from t1 into outfile 'a';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 load data infile 'a' into table t1(a,b);
 select a,b from t1;
 a	b

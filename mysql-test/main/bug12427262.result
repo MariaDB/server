@@ -16,8 +16,6 @@ create table t10 (c1 int);
 select Sum(ALL(COUNT_READ)) from performance_schema.file_summary_by_instance where FILE_NAME 
 like "%show_table_lw_db%" AND FILE_NAME like "%.frm%" AND EVENT_NAME='wait/io/file/sql/FRM'
 into @count_read_before;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 show tables;
 Tables_in_show_table_lw_db
 t1
@@ -33,8 +31,6 @@ t9
 select Sum(ALL(COUNT_READ)) from performance_schema.file_summary_by_instance where FILE_NAME 
 like "%show_table_lw_db%" AND FILE_NAME like "%.frm%" AND EVENT_NAME='wait/io/file/sql/FRM'
 into @count_read_after;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select @count_read_after-@count_read_before;
 @count_read_after-@count_read_before
 0.00000000000000000000000000000000000000
@@ -53,8 +49,6 @@ t9	BASE TABLE
 select Sum(ALL(COUNT_READ)) from performance_schema.file_summary_by_instance where FILE_NAME 
 like "%show_table_lw_db%" AND FILE_NAME like "%.frm%" AND EVENT_NAME='wait/io/file/sql/FRM'
 into @count_read_after;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select @count_read_after-@count_read_before;
 @count_read_after-@count_read_before
 10.00000000000000000000000000000000000000

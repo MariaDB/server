@@ -3934,8 +3934,6 @@ declare a int default 0;
 select count(*) from t2 into a;
 return a;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 set optimizer_trace='enabled=on';
 select f1(a) from t1;
 f1(a)

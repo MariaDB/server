@@ -6,8 +6,6 @@ SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='performance_schema'
   ORDER BY TABLE_NAME;
 SELECT COUNT(*) FROM table_list INTO @table_count;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 #
 # For each table in the performance schema, attempt HANDLER...OPEN,
 # which should fail with an error 1031, ER_ILLEGAL_HA.

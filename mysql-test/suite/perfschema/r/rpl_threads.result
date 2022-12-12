@@ -16,8 +16,6 @@ connection master;
 select ID from INFORMATION_SCHEMA.PROCESSLIST
 where COMMAND = "Binlog Dump"
   into @master_dump_pid;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select COMMAND, STATE
 from INFORMATION_SCHEMA.PROCESSLIST
 where ID = @master_dump_pid;
@@ -33,8 +31,6 @@ connection slave;
 select ID from INFORMATION_SCHEMA.PROCESSLIST
 where STATE like "Waiting for master to send event%"
   into @slave_io_pid;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select COMMAND, STATE
 from INFORMATION_SCHEMA.PROCESSLIST
 where ID = @slave_io_pid;
@@ -47,8 +43,6 @@ NAME	TYPE	PROCESSLIST_COMMAND	PROCESSLIST_STATE
 select ID from INFORMATION_SCHEMA.PROCESSLIST
 where STATE like "Slave has read all relay log%"
   into @slave_sql_pid;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select COMMAND, STATE
 from INFORMATION_SCHEMA.PROCESSLIST
 where ID = @slave_sql_pid;

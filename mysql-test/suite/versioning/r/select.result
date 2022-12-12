@@ -23,8 +23,6 @@ delete from t1 where x = 3;
 delete from t1 where x > 7;
 insert into t1(x, y) values(3, 33);
 select sys_trx_start from t1 where x = 3 and y = 33 into @t1;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select x, y from t1;
 x	y
 0	100
@@ -382,8 +380,6 @@ insert into t1 values (1);
 set @ts= now(6);
 delete from t1;
 select sys_trx_start from t1 for system_time all into @trx_start;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ## ensure @trx_start is much lower than unix timestamp
 select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
 trx_start_good
@@ -577,11 +573,7 @@ period for system_time (row_start, row_end)
 insert into t1 values (1);
 delete from t1;
 select row_start from t1 for system_time all into @t1;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select row_end from t1 for system_time all into @t2;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from t1 for system_time between @t1 and @t2;
 a
 1

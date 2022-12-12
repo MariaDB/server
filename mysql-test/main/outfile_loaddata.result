@@ -124,19 +124,16 @@ ERROR 42000: Field separator argument is not what is expected; check the manual
 # LOAD DATA rises error or has unpredictable result -- to be fixed later
 SELECT * FROM t1 INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' FIELDS ENCLOSED BY 'ÑŠ';
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1638	Non-ASCII separator arguments are not fully supported
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' INTO TABLE t2 CHARACTER SET binary FIELDS ENCLOSED BY 'ÑŠ';
 ERROR 42000: Field separator argument is not what is expected; check the manual
 SELECT * FROM t1 INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' FIELDS ESCAPED BY 'ÑŠ';
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1638	Non-ASCII separator arguments are not fully supported
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' INTO TABLE t2 CHARACTER SET binary FIELDS ESCAPED BY 'ÑŠ';
 ERROR 42000: Field separator argument is not what is expected; check the manual
 SELECT * FROM t1 INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' FIELDS TERMINATED BY 'ÑŠ';
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1638	Non-ASCII separator arguments are not fully supported
 ##################################################
 1ÑŠABC-áâ÷ÑŠDEF-ÂÃÄ
@@ -160,7 +157,6 @@ a	b	c
 2	NULL	NULL
 SELECT * FROM t1 INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' LINES STARTING BY 'ÑŠ';
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1638	Non-ASCII separator arguments are not fully supported
 ##################################################
 ÑŠ1	ABC-áâ÷	DEF-ÂÃÄ
@@ -176,7 +172,6 @@ a	b	c
 2	NULL	NULL
 SELECT * FROM t1 INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' LINES TERMINATED BY 'ÑŠ';
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1638	Non-ASCII separator arguments are not fully supported
 ##################################################
 1	ABC-áâ÷	DEF-ÂÃÄÑŠ2	\N	\NÑŠ##################################################

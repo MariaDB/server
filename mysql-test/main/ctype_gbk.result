@@ -680,11 +680,7 @@ b MEDIUMTEXT CHARACTER SET big5);
 INSERT INTO t1 VALUES
 (REPEAT(0x1125,200000), REPEAT(0x1125,200000)), ('', ''), ('', '');
 SELECT a FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT b FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLES t1;
 End of 5.0 tests
 #
