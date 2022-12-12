@@ -1,6 +1,4 @@
 select variable_value from information_schema.global_status where variable_name="handler_read_key" into @global_read_key;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 show columns from information_schema.client_statistics;
 Field	Type	Null	Key	Default	Extra
 CLIENT	varchar(64)	NO		NULL	

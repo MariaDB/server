@@ -2804,8 +2804,6 @@ CREATE TABLE tm1 (c1 INT) ENGINE=MRG_MYISAM UNION=(t1)
 INSERT_METHOD=LAST;
 CREATE TRIGGER tm1_ai AFTER INSERT ON tm1
 FOR EACH ROW SELECT max(c1) FROM t1 INTO @var;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 LOCK TABLE tm1 WRITE, t1 WRITE;
 INSERT INTO tm1 VALUES (1);
 SELECT * FROM tm1;
@@ -2830,8 +2828,6 @@ CREATE TABLE tm1 (c1 INT) ENGINE=MRG_MYISAM UNION=(t1,t2,t3,t4,t5)
 INSERT_METHOD=LAST;
 CREATE TRIGGER t2_au AFTER UPDATE ON t2
 FOR EACH ROW SELECT MAX(c1) FROM t1 INTO @var;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE FUNCTION f1() RETURNS INT
 RETURN (SELECT MAX(c1) FROM t4);
 LOCK TABLE tm1 WRITE, t1 WRITE, t2 WRITE, t3 WRITE, t4 WRITE, t5 WRITE;

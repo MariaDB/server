@@ -646,13 +646,9 @@ show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
 select * from t1 into outfile "query_cache.out.file";
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select * from t1 into outfile "query_cache.out.file";
 ERROR HY000: File 'query_cache.out.file' already exists
 select * from t1 limit 1 into dumpfile "query_cache.dump.file";
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	0
@@ -1105,8 +1101,6 @@ Declare var1 int;
 select max(a) from t1 into var1;
 return var1;
 end//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create procedure `p1`()
 begin
 select a, f1() from t1;

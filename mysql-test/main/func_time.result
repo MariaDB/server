@@ -3803,21 +3803,13 @@ SET @sav_slow_query_log= @@session.slow_query_log;
 SET @@session.slow_query_log= ON;
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @ts_func;
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DELETE FROM t_ts;
 DELETE FROM t_trig;
 SET @@session.slow_query_log= OFF;
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @func_ts;
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SET @@session.slow_query_log= @sav_slow_query_log;
 DROP FUNCTION fn_sleep_before_now;
 DROP TRIGGER trg_insert_t_ts;

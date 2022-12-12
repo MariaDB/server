@@ -20,8 +20,6 @@ else
 select '' as "SUCCESS";
 end if;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 set @reprepare_count= 0;
 flush status;
 =====================================================================
@@ -1075,8 +1073,6 @@ call p1(x);
 return x;
 end|
 create procedure p1(out x int) select max(a) from t1 into x;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 prepare stmt from "select * from v1";
 execute stmt;
 f1()
@@ -1089,8 +1085,6 @@ SUCCESS
 
 drop procedure p1;
 create procedure p1(out x int) select max(a) from t2 into x;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # XXX: used to be a bug. The prelocked list was not invalidated
 # and we kept opening table t1, whereas the procedure
 # is now referring to table t2
