@@ -665,15 +665,15 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 
   if (name)
   {
+    char *new_name= mem_strdup(name);
+    mysql_mutex_lock(&fil_system.mutex);
     success= os_file_rename(innodb_data_file_key, old_name, name);
-
     if (success)
-    {
-      mysql_mutex_lock(&fil_system.mutex);
-      space.chain.start->name= mem_strdup(name);
-      mysql_mutex_unlock(&fil_system.mutex);
-      ut_free(old_name);
-    }
+      space.chain.start->name= new_name;
+    else
+      old_name= new_name;
+    mysql_mutex_unlock(&fil_system.mutex);
+    ut_free(old_name);
   }
   else
   {

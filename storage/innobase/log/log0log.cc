@@ -401,6 +401,31 @@ void log_t::set_buffered(bool buffered)
 }
 #endif
 
+  /** Try to enable or disable durable writes (update log_write_through) */
+void log_t::set_write_through(bool write_through)
+{
+  if (is_pmem() || high_level_read_only)
+    return;
+  log_resize_acquire();
+  if (!resize_in_progress() && is_opened() &&
+      bool(log_write_through) != write_through)
+  {
+    os_file_close_func(log.m_file);
+    log.m_file= OS_FILE_CLOSED;
+    std::string path{get_log_file_path()};
+    log_write_through= write_through;
+    bool success;
+    log.m_file= os_file_create_func(path.c_str(),
+                                    OS_FILE_OPEN, OS_FILE_NORMAL, OS_LOG_FILE,
+                                    false, &success);
+    ut_a(log.m_file != OS_FILE_CLOSED);
+    sql_print_information(log_write_through
+                          ? "InnoDB: Log writes write through"
+                          : "InnoDB: Log writes may be cached");
+  }
+  log_resize_release();
+}
+
 /** Start resizing the log and release the exclusive latch.
 @param size  requested new file_size
 @return whether the resizing was started successfully */
@@ -852,7 +877,7 @@ bool log_t::flush(lsn_t lsn) noexcept
 {
   ut_ad(lsn >= get_flushed_lsn());
   flush_lock.set_pending(lsn);
-  const bool success{srv_file_flush_method == SRV_O_DSYNC || log.flush()};
+  const bool success{log_write_through || log.flush()};
   if (UNIV_LIKELY(success))
   {
     flushed_to_disk_lsn.store(lsn, std::memory_order_release);

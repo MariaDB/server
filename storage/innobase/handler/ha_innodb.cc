@@ -366,6 +366,8 @@ const char* innodb_flush_method_names[] = {
 	NullS
 };
 
+static constexpr ulong innodb_flush_method_default = IF_WIN(6,4);
+
 /** Enumeration of innodb_flush_method */
 TYPELIB innodb_flush_method_typelib = {
 	array_elements(innodb_flush_method_names) - 1,
@@ -373,6 +375,9 @@ TYPELIB innodb_flush_method_typelib = {
 	innodb_flush_method_names,
 	NULL
 };
+
+/** Deprecated parameter */
+static ulong innodb_flush_method;
 
 /** Names of allowed values of innodb_deadlock_report */
 static const char *innodb_deadlock_report_names[]= {
@@ -4005,22 +4010,27 @@ static int innodb_init_params()
 
 	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
-#ifndef _WIN32
-	if (srv_use_atomic_writes && my_may_have_atomic_write) {
-		/*
-                  Force O_DIRECT on Unixes (on Windows writes are always
-                  unbuffered)
-                */
-		switch (srv_file_flush_method) {
-		case SRV_O_DIRECT:
-		case SRV_O_DIRECT_NO_FSYNC:
-			break;
-		default:
-			srv_file_flush_method = SRV_O_DIRECT;
-			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
-		}
-	}
+	if (innodb_flush_method == 1 /* O_DSYNC */) {
+		log_sys.log_write_through = true;
+		fil_system.write_through = true;
+		fil_system.buffered = false;
+#if defined __linux__ || defined _WIN32
+		log_sys.log_buffered = false;
+		goto skip_buffering_tweak;
 #endif
+	} else if (innodb_flush_method >= 4 /* O_DIRECT */
+		   IF_WIN(&& innodb_flush_method < 8 /* normal */,)) {
+		/* O_DIRECT and similar settings do nothing */
+#ifndef _WIN32
+	} else if (srv_use_atomic_writes && my_may_have_atomic_write) {
+		/* If atomic writes are enabled, do the same as with
+		innodb_flush_method=O_DIRECT: retain the default settings */
+#endif
+	} else {
+		log_sys.log_write_through = false;
+		fil_system.write_through = false;
+		fil_system.buffered = true;
+	}
 
 #if defined __linux__ || defined _WIN32
 	if (srv_flush_log_at_trx_commit == 2) {
@@ -4028,6 +4038,7 @@ static int innodb_init_params()
 		innodb_flush_log_at_trx_commit=2. */
 		log_sys.log_buffered = true;
 	}
+skip_buffering_tweak:
 #endif
 
 	if (srv_read_only_mode) {
@@ -4035,12 +4046,6 @@ static int innodb_init_params()
 		srv_use_doublewrite_buf = FALSE;
 	}
 
-#if !defined LINUX_NATIVE_AIO && !defined HAVE_URING && !defined _WIN32
-	/* Currently native AIO is supported only on windows and linux
-	and that also when the support is compiled in. In all other
-	cases, we ignore the setting of innodb_use_native_aio. */
-	srv_use_native_aio = FALSE;
-#endif
 #ifdef HAVE_URING
 	if (srv_use_native_aio && io_uring_may_be_unsafe) {
 		sql_print_warning("innodb_use_native_aio may cause "
@@ -4048,22 +4053,13 @@ static int innodb_init_params()
 				  "https://jira.mariadb.org/browse/MDEV-26674",
 				  io_uring_may_be_unsafe);
 	}
+#elif !defined LINUX_NATIVE_AIO && !defined _WIN32
+	/* Currently native AIO is supported only on windows and linux
+	and that also when the support is compiled in. In all other
+	cases, we ignore the setting of innodb_use_native_aio. */
+	srv_use_native_aio = FALSE;
 #endif
 
-#ifndef _WIN32
-	ut_ad(srv_file_flush_method <= SRV_O_DIRECT_NO_FSYNC);
-#else
-	switch (srv_file_flush_method) {
-	case SRV_ALL_O_DIRECT_FSYNC + 1 /* "async_unbuffered"="unbuffered" */:
-		srv_file_flush_method = SRV_ALL_O_DIRECT_FSYNC;
-		break;
-	case SRV_ALL_O_DIRECT_FSYNC + 2 /* "normal"="fsync" */:
-		srv_file_flush_method = SRV_FSYNC;
-		break;
-	default:
-		ut_ad(srv_file_flush_method <= SRV_ALL_O_DIRECT_FSYNC);
-	}
-#endif
 	innodb_buffer_pool_size_init();
 
 	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
@@ -18379,7 +18375,7 @@ buffer_pool_load_abort(
 }
 
 #if defined __linux__ || defined _WIN32
-static void innodb_log_file_buffering_update(THD *thd, st_mysql_sys_var*,
+static void innodb_log_file_buffering_update(THD *, st_mysql_sys_var*,
                                              void *, const void *save)
 {
   mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -18387,6 +18383,30 @@ static void innodb_log_file_buffering_update(THD *thd, st_mysql_sys_var*,
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 #endif
+
+static void innodb_log_file_write_through_update(THD *, st_mysql_sys_var*,
+                                                 void *, const void *save)
+{
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  log_sys.set_write_through(*static_cast<const my_bool*>(save));
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
+static void innodb_data_file_buffering_update(THD *, st_mysql_sys_var*,
+                                              void *, const void *save)
+{
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  fil_system.set_buffered(*static_cast<const my_bool*>(save));
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
+static void innodb_data_file_write_through_update(THD *, st_mysql_sys_var*,
+                                                  void *, const void *save)
+{
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  fil_system.set_write_through(*static_cast<const my_bool*>(save));
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
 
 static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
                                         void *var, const void *save)
@@ -18846,11 +18866,10 @@ static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
   " guarantees in case of crash. 0 and 2 can be faster than 1 or 3.",
   NULL, NULL, 1, 0, 3, 0);
 
-static MYSQL_SYSVAR_ENUM(flush_method, srv_file_flush_method,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_DEPRECATED,
   "With which method to flush data.",
-  NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT),
-  &innodb_flush_method_typelib);
+  NULL, NULL, innodb_flush_method_default, &innodb_flush_method_typelib);
 
 static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -19281,6 +19300,21 @@ static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
   "Whether the file system cache for ib_logfile0 is enabled",
   nullptr, innodb_log_file_buffering_update, FALSE);
 #endif
+
+static MYSQL_SYSVAR_BOOL(log_file_write_through, log_sys.log_write_through,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether each write to ib_logfile0 is write through",
+  nullptr, innodb_log_file_write_through_update, FALSE);
+
+static MYSQL_SYSVAR_BOOL(data_file_buffering, fil_system.buffered,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether the file system cache for data files is enabled",
+  nullptr, innodb_data_file_buffering_update, FALSE);
+
+static MYSQL_SYSVAR_BOOL(data_file_write_through, fil_system.write_through,
+  PLUGIN_VAR_OPCMDARG,
+  "Whether each write to data files writes through",
+  nullptr, innodb_data_file_write_through_update, FALSE);
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG,
@@ -19726,6 +19760,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #if defined __linux__ || defined _WIN32
   MYSQL_SYSVAR(log_file_buffering),
 #endif
+  MYSQL_SYSVAR(log_file_write_through),
+  MYSQL_SYSVAR(data_file_buffering),
+  MYSQL_SYSVAR(data_file_write_through),
   MYSQL_SYSVAR(log_file_size),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(max_dirty_pages_pct),
