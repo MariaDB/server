@@ -207,8 +207,6 @@ DROP TABLE t1;
 # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -220,8 +218,6 @@ a
 DROP TABLE t1;
 # Problem # 2 : if you write and read ucs2 data to a file they're lost
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);

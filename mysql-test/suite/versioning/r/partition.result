@@ -178,8 +178,6 @@ x	C	D
 1	1	1
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt;
 drop prepare stmt;
 set @now= now(6);
@@ -191,8 +189,6 @@ execute select_pn;
 x	C	D
 set @str= concat('select row_start from t1 partition (p0) into @ts1');
 prepare stmt from @str;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt;
 drop prepare stmt;
 select @ts0 = @ts1;
@@ -208,8 +204,6 @@ x	C	D
 2	1	1
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt;
 drop prepare stmt;
 set @now= now(6);
@@ -225,20 +219,14 @@ drop prepare select_p0;
 drop prepare select_pn;
 set @str= concat('select row_start from t1 partition (p0) where x = 2 into @ts1');
 prepare stmt from @str;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt;
 drop prepare stmt;
 set @str= concat('select row_end from t1 partition (p0) where x = 2 into @ts2');
 prepare stmt from @str;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt;
 drop prepare stmt;
 set @str= concat('select row_start from t1 partition (pn) into @ts3');
 prepare stmt from @str;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt;
 drop prepare stmt;
 select @ts0 = @ts1;
@@ -821,8 +809,6 @@ create or replace table t2 (f int);
 create or replace trigger tr before insert on t2
 for each row select table_rows from information_schema.tables
 where table_name = 't1' into @a;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert into t2 values (1);
 #
 # MDEV-14740 Locking assertion for system_time partitioning
@@ -832,8 +818,6 @@ partition by system_time interval 1 week;
 create or replace table t2 (f int);
 create or replace trigger tr before insert on t2
 for each row select count(*) from t1 into @a;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert into t2 values (1);
 #
 # MDEV-14747 ALTER PARTITION BY SYSTEM_TIME after LOCK TABLES

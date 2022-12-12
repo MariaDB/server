@@ -199,8 +199,6 @@ a
 2
 1
 select row_start from t where a=3 into @tm;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table t add column b int;
 select @tm=row_start from t where a=3;
 @tm=row_start

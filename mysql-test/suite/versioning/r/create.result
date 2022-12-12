@@ -271,12 +271,8 @@ t3	CREATE TABLE `t3` (
 ## For versioned table
 insert into t1 values (1);
 select row_start from t1 into @row_start;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert into t0 (y) values (2);
 select st from t0 into @st;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create or replace table t2 with system versioning as select * from t1;
 show create table t2;
 Table	Create Table
@@ -339,12 +335,8 @@ ERROR 42S21: Duplicate column name 'row_end'
 # Prepare checking for historical row
 delete from t1;
 select row_end from t1 for system_time all into @row_end;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 delete from t0;
 select en from t0 for system_time all into @en;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 ## Combinations of versioned + non-versioned
 create or replace table t2 (y int);
 insert into t2 values (3);
@@ -365,14 +357,10 @@ insert into t2 (y) values (1), (2);
 delete from t2 where y = 2;
 create or replace table t3 select * from t2 for system_time all;
 select st, en from t3 where y = 1 into @st, @en;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select y from t2 for system_time all where st = @st and en = @en;
 y
 1
 select st, en from t3 where y = 2 into @st, @en;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select y from t2 for system_time all where st = @st and en = @en;
 y
 2

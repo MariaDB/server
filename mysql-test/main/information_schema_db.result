@@ -26,8 +26,6 @@ declare ret_val int;
 select max(f1) from t1 into ret_val;
 return ret_val;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create view v1 as select f1 from t1 where f1 = func1(f1);
 create function func2() returns int return 1;
 use mbase;

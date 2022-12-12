@@ -1541,8 +1541,6 @@ NULL
 (select 2) union (select 1 into @var);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'into @var)' at line 1
 (select 1) union (select 1) into @var;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 (select 2) union (select 1) into @var;
 ERROR 42000: Result consisted of more than one row
 CREATE TABLE t1 (a int);
@@ -1675,14 +1673,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file6' FROM t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM t1' at line 1
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO @v ;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file5';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file6';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a INTO @v FROM t1 UNION SELECT a FROM t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT a FROM t1' at line 1
 SELECT a INTO OUTFILE 'union.out.file7' FROM t1 UNION SELECT a FROM t1;

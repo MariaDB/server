@@ -274,8 +274,6 @@ on update cascade
 ) engine=innodb;
 insert into parent (value) values (23);
 select id, value from parent into @id, @value;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert into child values (default, @id, @value);
 insert into subchild values (default, @id, @value);
 select parent_id from subchild;
