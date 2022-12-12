@@ -1175,16 +1175,6 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   /* We try to get table first, so that we get the table in in the trace log */
   info= get_MARIA_HA_from_REDO_record(rec);
 
-  if (skip_DDLs)
-  {
-    /*
-      REPAIR is not exactly a DDL, but it manipulates files without logging
-      insertions into them.
-    */
-    tprint(tracef, "we skip DDLs\n");
-    DBUG_RETURN(0);
-  }
-
   if (!info)
   {
     /* no such table, don't need to warn */
@@ -1196,6 +1186,13 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
     tprint(tracef, "we skip repairing crashed table\n");
     DBUG_RETURN(0);
   }
+
+  if (rec->lsn <= info->s->state.is_of_horizon)
+  {
+    DBUG_PRINT("info", ("Table is up to date, skipping redo"));
+    DBUG_RETURN(0);
+  }
+
   /*
     Otherwise, the mapping is newer than the table, and our record is newer
     than the mapping, so we can repair.
@@ -1560,7 +1557,6 @@ prototype_redo_exec_hook(REDO_INSERT_ROW_HEAD)
   uchar *buff= NULL;
   MARIA_HA *info= get_MARIA_HA_from_REDO_record(rec);
   if (info == NULL || maria_is_crashed(info))
-
   {
     /*
       Table was skipped at open time (because later dropped/renamed, not
