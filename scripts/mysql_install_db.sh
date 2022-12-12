@@ -400,12 +400,12 @@ fi
 
 # Set up paths to SQL scripts required for bootstrap
 fill_help_tables="$srcpkgdatadir/fill_help_tables.sql"
-create_system_tables="$srcpkgdatadir/mysql_system_tables.sql"
-create_system_tables2="$srcpkgdatadir/mysql_performance_tables.sql"
-fill_system_tables="$srcpkgdatadir/mysql_system_tables_data.sql"
+create_system_tables="$srcpkgdatadir/mariadb_system_tables.sql"
+create_system_tables2="$srcpkgdatadir/mariadb_performance_tables.sql"
+fill_system_tables="$srcpkgdatadir/mariadb_system_tables_data.sql"
 maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql"
-mysql_test_db="$srcpkgdatadir/mysql_test_db.sql"
-mysql_sys_schema="$buildpkgdatadir/mysql_sys_schema.sql"
+mysql_test_db="$srcpkgdatadir/mariadb_test_db.sql"
+mysql_sys_schema="$buildpkgdatadir/mariadb_sys_schema.sql"
 
 for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp" "$mysql_test_db" "$mysql_sys_schema"
 do

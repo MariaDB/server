@@ -80,7 +80,7 @@ enum privilege_t: unsigned long long
     In other files:
     - static struct show_privileges_st sys_privileges[]
     - static const char *command_array[] and static uint command_lengths[]
-    - mysql_system_tables.sql and mysql_system_tables_fix.sql
+    - mariadb_system_tables.sql and mariadb_system_tables_fix.sql
     - acl_init() or whatever - to define behaviour for old privilege tables
     - Update User_table_json::get_access()
     - sql_yacc.yy - for GRANT/REVOKE to work

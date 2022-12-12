@@ -1254,14 +1254,14 @@ sub command_line_setup {
 
   # In the RPM case, binaries and libraries are installed in the
   # default system locations, instead of having our own private base
-  # directory. And we install "/usr/share/mysql-test". Moving up one
-  # more directory relative to "mysql-test" gives us a usable base
+  # directory. And we install "/usr/share/mariadb-test". Moving up one
+  # more directory relative to "mariadb-test" gives us a usable base
   # directory for RPM installs.
   if ( ! $source_dist and ! -d "$basedir/bin" )
   {
     $basedir= dirname($basedir);
   }
-  # For .deb, it's like RPM, but installed in /usr/share/mysql/mysql-test.
+  # For .deb, it's like RPM, but installed in /usr/share/mariadb/mariadb-test.
   # So move up one more directory level yet.
   if ( ! $source_dist and ! -d "$basedir/bin" )
   {
@@ -1860,7 +1860,8 @@ sub executable_setup () {
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mariadb-plugin");
   $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
 
-  $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mysql_embedded");
+  $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mariadb-embedded",
+                                            "$bindir/libmysqld/examples/mysql_embedded");
 
   # Look for mysqltest executable
   if ( $opt_embedded_server )
@@ -1970,11 +1971,15 @@ sub mysql_client_test_arguments(){
   # mysql_client_test executable may _not_ exist
   if ( $opt_embedded_server ) {
     $exe= mtr_exe_maybe_exists(
+            "$bindir/libmysqld/examples$multiconfig/mariadb-client-test-embedded",
+            "$bindir/bin/mariadb-client-test-embedded",
             "$bindir/libmysqld/examples$multiconfig/mysql_client_test_embedded",
-		"$bindir/bin/mysql_client_test_embedded");
+            "$bindir/bin/mysql_client_test_embedded");
   } else {
-    $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mysql_client_test",
-			       "$bindir/bin/mysql_client_test");
+    $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mariadb-client-test",
+                               "$bindir/bin/mariadb-client-test",
+                               "$bindir/tests$multiconfig/mysql_client_test",
+                               "$bindir/bin/mysql_client_test");
   }
 
   my $args;
@@ -2179,10 +2184,10 @@ sub environment_setup {
   # mysql_fix_privilege_tables.sql
   # ----------------------------------------------------
   my $file_mysql_fix_privilege_tables=
-    mtr_file_exists("$bindir/scripts/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mariadb/mysql_fix_privilege_tables.sql",
-		    "$bindir/share/mysql/mysql_fix_privilege_tables.sql");
+    mtr_file_exists("$bindir/scripts/mariadb_fix_privilege_tables.sql",
+		    "$bindir/share/mariadb_fix_privilege_tables.sql",
+		    "$bindir/share/mariadb/mariadb_fix_privilege_tables.sql",
+		    "$bindir/share/mysql/mariadb_fix_privilege_tables.sql");
   $ENV{'MYSQL_FIX_PRIVILEGE_TABLES'}=  $file_mysql_fix_privilege_tables;
 
   # ----------------------------------------------------
@@ -2257,6 +2262,8 @@ sub environment_setup {
   # mariabackup
   # ----------------------------------------------------
   my $exe_mariabackup= mtr_exe_maybe_exists(
+      "$bindir/extra/mariabackup$multiconfig/mariadb-backup",
+      "$path_client_bindir/mariadb-backup",
       "$bindir/extra/mariabackup$multiconfig/mariabackup",
       "$path_client_bindir/mariabackup");
 
@@ -3090,7 +3097,7 @@ sub mysql_install_db {
     my $path_sql= my_find_file($install_basedir,
              ["mysql", "sql/share", "share/mariadb",
               "share/mysql", "share", "scripts"],
-             "mysql_system_tables.sql",
+             "mariadb_system_tables.sql",
              NOT_REQUIRED);
 
     if (-f $path_sql )
@@ -3101,7 +3108,7 @@ sub mysql_install_db {
 
       # Add the offical mysql system tables
       # for a production system
-      mtr_appendfile_to_file("$sql_dir/mysql_system_tables.sql",
+      mtr_appendfile_to_file("$sql_dir/mariadb_system_tables.sql",
            $bootstrap_sql_file);
 
       my $gis_sp_path = $source_dist ? "$bindir/scripts" : $sql_dir;
@@ -3110,18 +3117,18 @@ sub mysql_install_db {
 
       # Add the performance tables
       # for a production system
-      mtr_appendfile_to_file("$sql_dir/mysql_performance_tables.sql",
+      mtr_appendfile_to_file("$sql_dir/mariadb_performance_tables.sql",
                             $bootstrap_sql_file);
 
       # Add the mysql system tables initial data
       # for a production system
-      mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
+      mtr_appendfile_to_file("$sql_dir/mariadb_system_tables_data.sql",
            $bootstrap_sql_file);
 
       # Add test data for timezone - this is just a subset, on a real
       # system these tables will be populated either by mysql_tzinfo_to_sql
       # or by downloading the timezone table package from our website
-      mtr_appendfile_to_file("$sql_dir/mysql_test_data_timezone.sql",
+      mtr_appendfile_to_file("$sql_dir/mariadb_test_data_timezone.sql",
            $bootstrap_sql_file);
 
       # Fill help tables, just an empty file when running from bk repo
@@ -3131,7 +3138,7 @@ sub mysql_install_db {
            $bootstrap_sql_file);
 
       # Append sys schema
-      mtr_appendfile_to_file("$gis_sp_path/mysql_sys_schema.sql",
+      mtr_appendfile_to_file("$gis_sp_path/mariadb_sys_schema.sql",
            $bootstrap_sql_file);
 
       mtr_tofile($bootstrap_sql_file, "CREATE DATABASE IF NOT EXISTS test CHARACTER SET latin1 COLLATE latin1_swedish_ci;\n");
