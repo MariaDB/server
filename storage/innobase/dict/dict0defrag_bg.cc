@@ -214,9 +214,6 @@ Save defragmentation result.
 @return DB_SUCCESS or error code */
 dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
 {
-  if (index->is_ibuf())
-    return DB_SUCCESS;
-
   MDL_ticket *mdl_table= nullptr, *mdl_index= nullptr;
   dict_table_t *table_stats= dict_table_open_on_name(TABLE_STATS_NAME, false,
                                                      DICT_ERR_IGNORE_NONE);
@@ -336,8 +333,6 @@ dict_stats_save_defrag_stats(
 /*============================*/
 	dict_index_t*	index)	/*!< in: index */
 {
-  if (index->is_ibuf())
-    return DB_SUCCESS;
   if (!index->is_readable())
     return dict_stats_report_error(index->table, true);
 

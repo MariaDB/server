@@ -27,7 +27,6 @@ Created 12/9/2009 Jimmy Yang
 
 #include "buf0buf.h"
 #include "dict0mem.h"
-#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "mach0data.h"
 #include "os0file.h"
@@ -527,22 +526,9 @@ static monitor_info_t	innodb_counter_info[] =
 	MONITOR_BUF_PAGE_READ("index_non_leaf","Index Non-leaf",
 			      INDEX_NON_LEAF),
 
-	MONITOR_BUF_PAGE_READ("index_ibuf_leaf", "Insert Buffer Index Leaf",
-			      INDEX_IBUF_LEAF),
-
-	MONITOR_BUF_PAGE_READ("index_ibuf_non_leaf",
-			      "Insert Buffer Index Non-Leaf",
-			       INDEX_IBUF_NON_LEAF),
-
 	MONITOR_BUF_PAGE_READ("undo_log", "Undo Log", UNDO_LOG),
 
 	MONITOR_BUF_PAGE_READ("index_inode", "Index Inode", INODE),
-
-	MONITOR_BUF_PAGE_READ("ibuf_free_list", "Insert Buffer Free List",
-			      IBUF_FREELIST),
-
-	MONITOR_BUF_PAGE_READ("ibuf_bitmap", "Insert Buffer Bitmap",
-			      IBUF_BITMAP),
 
 	MONITOR_BUF_PAGE_READ("system_page", "System", SYSTEM),
 
@@ -566,22 +552,9 @@ static monitor_info_t	innodb_counter_info[] =
 	MONITOR_BUF_PAGE_WRITTEN("index_non_leaf","Index Non-leaf",
 				 INDEX_NON_LEAF),
 
-	MONITOR_BUF_PAGE_WRITTEN("index_ibuf_leaf", "Insert Buffer Index Leaf",
-				 INDEX_IBUF_LEAF),
-
-	MONITOR_BUF_PAGE_WRITTEN("index_ibuf_non_leaf",
-				 "Insert Buffer Index Non-Leaf",
-				 INDEX_IBUF_NON_LEAF),
-
 	MONITOR_BUF_PAGE_WRITTEN("undo_log", "Undo Log", UNDO_LOG),
 
 	MONITOR_BUF_PAGE_WRITTEN("index_inode", "Index Inode", INODE),
-
-	MONITOR_BUF_PAGE_WRITTEN("ibuf_free_list", "Insert Buffer Free List",
-				 IBUF_FREELIST),
-
-	MONITOR_BUF_PAGE_WRITTEN("ibuf_bitmap", "Insert Buffer Bitmap",
-				 IBUF_BITMAP),
 
 	MONITOR_BUF_PAGE_WRITTEN("system_page", "System", SYSTEM),
 
@@ -947,57 +920,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_N_FILE_OPENED},
-
-	/* ========== Counters for Change Buffer ========== */
-	{"module_ibuf_system", "change_buffer", "InnoDB Change Buffer",
-	 MONITOR_MODULE,
-	 MONITOR_DEFAULT_START, MONITOR_MODULE_IBUF_SYSTEM},
-
-	{"ibuf_merges_insert", "change_buffer",
-	 "Number of inserted records merged by change buffering",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_INSERT},
-
-	{"ibuf_merges_delete_mark", "change_buffer",
-	 "Number of deleted records merged by change buffering",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_DELETE},
-
-	{"ibuf_merges_delete", "change_buffer",
-	 "Number of purge records merged by change buffering",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_PURGE},
-
-	{"ibuf_merges_discard_insert", "change_buffer",
-	 "Number of insert merged operations discarded",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_DISCARD_INSERT},
-
-	{"ibuf_merges_discard_delete_mark", "change_buffer",
-	 "Number of deleted merged operations discarded",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_DISCARD_DELETE},
-
-	{"ibuf_merges_discard_delete", "change_buffer",
-	 "Number of purge merged  operations discarded",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGE_DISCARD_PURGE},
-
-	{"ibuf_merges", "change_buffer", "Number of change buffer merges",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_MERGES},
-
-	{"ibuf_size", "change_buffer", "Change buffer size in pages",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_IBUF_SIZE},
 
 	/* ========== Counters for server operations ========== */
 	{"module_innodb", "innodb",
@@ -1527,38 +1449,6 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_OVLD_N_FILE_OPENED:
 		value = fil_system.n_open;
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_INSERT:
-		value = ibuf.n_merged_ops[IBUF_OP_INSERT];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_DELETE:
-		value = ibuf.n_merged_ops[IBUF_OP_DELETE_MARK];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_PURGE:
-		value = ibuf.n_merged_ops[IBUF_OP_DELETE];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_DISCARD_INSERT:
-		value = ibuf.n_discarded_ops[IBUF_OP_INSERT];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_DISCARD_DELETE:
-		value = ibuf.n_discarded_ops[IBUF_OP_DELETE_MARK];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGE_DISCARD_PURGE:
-		value = ibuf.n_discarded_ops[IBUF_OP_DELETE];
-		break;
-
-	case MONITOR_OVLD_IBUF_MERGES:
-		value = ibuf.n_merges;
-		break;
-
-	case MONITOR_OVLD_IBUF_SIZE:
-		value = ibuf.size;
 		break;
 
 	case MONITOR_OVLD_SERVER_ACTIVITY:

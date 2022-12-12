@@ -33,7 +33,6 @@ Created 11/29/1995 Heikki Tuuri
 #include "page0page.h"
 #include "srv0srv.h"
 #include "srv0start.h"
-#include "ibuf0ibuf.h"
 #include "btr0btr.h"
 #include "btr0sea.h"
 #include "dict0boot.h"
@@ -848,11 +847,17 @@ fsp_fill_free_list(
       {
         buf_block_t *f= buf_LRU_get_free_block(false);
         buf_block_t *block=
-          buf_page_create(space,
-                          static_cast<uint32_t>(i + FSP_IBUF_BITMAP_OFFSET),
+          buf_page_create(space, static_cast<uint32_t>(i + 1),
                           zip_size, mtr, f);
         if (UNIV_UNLIKELY(block != f))
           buf_pool.free_block(f);
+        /* The zero-initialization will reset the change buffer bitmap bits
+        to safe values for possible import to an earlier version that
+        supports change buffering:
+
+        IBUF_BITMAP_FREE     = 0 (no space left for buffering inserts)
+        IBUF_BITMAP_BUFFERED = 0 (no changes have been buffered)
+        IBUF_BITMAP_IBUF     = 0 (not part of the change buffer) */
         fsp_init_file_page(space, block, mtr);
         mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
                       FIL_PAGE_IBUF_BITMAP);
@@ -877,9 +882,9 @@ fsp_fill_free_list(
     if (UNIV_UNLIKELY(init_xdes))
     {
       /* The first page in the extent is a descriptor page and the
-      second is an ibuf bitmap page: mark them used */
+      second was reserved for change buffer bitmap: mark them used */
       xdes_set_free<false>(*xdes, descr, 0, mtr);
-      xdes_set_free<false>(*xdes, descr, FSP_IBUF_BITMAP_OFFSET, mtr);
+      xdes_set_free<false>(*xdes, descr, 1, mtr);
       xdes_set_state(*xdes, descr, XDES_FREE_FRAG, mtr);
       if (dberr_t err= flst_add_last(header, FSP_HEADER_OFFSET + FSP_FREE_FRAG,
                                      xdes, xoffset, mtr))

@@ -913,15 +913,6 @@ void log_write_up_to(lsn_t lsn, bool durable,
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(lsn != LSN_MAX);
-
-  if (UNIV_UNLIKELY(recv_no_ibuf_operations))
-  {
-    /* A non-final batch of recovery is active no writes to the log
-    are allowed yet. */
-    ut_a(!callback);
-    return;
-  }
-
   ut_ad(lsn <= log_sys.get_lsn());
 
 #ifdef HAVE_PMEM
@@ -947,6 +938,7 @@ repeat:
   if (write_lock.acquire(lsn, durable ? nullptr : callback) ==
       group_commit_lock::ACQUIRED)
   {
+    ut_ad(!recv_no_log_write || srv_operation != SRV_OPERATION_NORMAL);
     log_sys.latch.wr_lock(SRW_LOCK_CALL);
     pending_write_lsn= write_lock.release(log_sys.write_buf<true>());
   }
@@ -1079,11 +1071,9 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 
 	ib::info() << "Starting shutdown...";
 
-	/* Wait until the master thread and all other operations are idle: our
+	/* Wait until the master task and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
-	bool do_srv_shutdown = false;
 	if (srv_master_timer) {
-		do_srv_shutdown = srv_fast_shutdown < 2;
 		srv_master_timer.reset();
 	}
 
@@ -1099,11 +1089,6 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 		buf_dump_start();
 	}
 	srv_monitor_timer.reset();
-
-	if (do_srv_shutdown) {
-		srv_shutdown(srv_fast_shutdown == 0);
-	}
-
 
 loop:
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);

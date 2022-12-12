@@ -33,7 +33,6 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "dict0defrag_bg.h"
-#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "srv0start.h"
 #include "mysqld.h"
@@ -330,20 +329,16 @@ btr_defragment_merge_pages(
 	// If max_ins_size >= move_size, we can move the records without
 	// reorganizing the page, otherwise we need to reorganize the page
 	// first to release more space.
-	if (move_size > max_ins_size) {
-		dberr_t err = btr_page_reorganize_block(page_zip_level,
-                                                        to_block, index, mtr);
-		if (err != DB_SUCCESS) {
-			if (!dict_index_is_clust(index)
-			    && page_is_leaf(to_page)) {
-				ibuf_reset_free_bits(to_block);
-			}
-			// If reorganization fails, that means page is
-			// not compressable. There's no point to try
-			// merging into this page. Continue to the
-			// next page.
-			return err == DB_FAIL ? from_block : nullptr;
-		}
+	if (move_size <= max_ins_size) {
+	} else if (dberr_t err = btr_page_reorganize_block(page_zip_level,
+							   to_block, index,
+							   mtr)) {
+		// If reorganization fails, that means page is
+		// not compressable. There's no point to try
+		// merging into this page. Continue to the
+		// next page.
+		return err == DB_FAIL ? from_block : nullptr;
+	} else {
 		ut_ad(page_validate(to_page, index));
 		max_ins_size = page_get_max_insert_size(to_page, n_recs);
 		if (max_ins_size < move_size) {
@@ -391,18 +386,6 @@ btr_defragment_merge_pages(
 	if (target_n_recs > n_recs_to_move
 	    && *max_data_size > new_data_size + move_size) {
 		*max_data_size = new_data_size + move_size;
-	}
-	// Set ibuf free bits if necessary.
-	if (!dict_index_is_clust(index)
-	    && page_is_leaf(to_page)) {
-		if (zip_size) {
-			ibuf_reset_free_bits(to_block);
-		} else {
-			ibuf_update_free_bits_if_full(
-				to_block,
-				srv_page_size,
-				ULINT_UNDEFINED);
-		}
 	}
 	btr_cur_t parent;
 	parent.page_cur.index = index;
@@ -526,8 +509,7 @@ btr_defragment_n_pages(
 			break;
 		}
 
-		blocks[i] = btr_block_get(*index, page_no, RW_X_LATCH, true,
-					  mtr);
+		blocks[i] = btr_block_get(*index, page_no, RW_X_LATCH, mtr);
 		if (!blocks[i]) {
 			return nullptr;
 		}
@@ -542,7 +524,7 @@ btr_defragment_n_pages(
 			/* given page is the last page.
 			Lift the records to father. */
 			dberr_t err;
-			btr_lift_page_up(index, block, mtr, &err);
+			btr_lift_page_up(index, block, nullptr, mtr, &err);
 		}
 		return NULL;
 	}

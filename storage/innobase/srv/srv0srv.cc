@@ -48,7 +48,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "buf0lru.h"
 #include "dict0boot.h"
 #include "dict0load.h"
-#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "log0recv.h"
 #include "mem0mem.h"
@@ -126,9 +125,9 @@ my_bool	srv_read_only_mode;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
 my_bool	srv_file_per_table;
-/** Set if InnoDB operates in read-only mode or innodb-force-recovery
-is greater than SRV_FORCE_NO_TRX_UNDO. */
-my_bool	high_level_read_only;
+/** Set if innodb_read_only is set or innodb_force_recovery
+is SRV_FORCE_NO_UNDO_LOG_SCAN or greater. */
+bool high_level_read_only;
 
 /** Sort buffer size in index creation */
 ulong	srv_sort_buf_size;
@@ -279,7 +278,7 @@ my_bool	srv_print_all_deadlocks;
 INFORMATION_SCHEMA.innodb_cmp_per_index */
 my_bool	srv_cmp_per_index_enabled;
 
-/** innodb_fast_shutdown=1 skips purge and change buffer merge.
+/** innodb_fast_shutdown=1 skips the purge of transaction history.
 innodb_fast_shutdown=2 effectively crashes the server (no log checkpoint).
 innodb_fast_shutdown=3 is a clean shutdown that skips the rollback
 of active transaction (to be done on restart). */
@@ -381,8 +380,6 @@ FILE*	srv_misc_tmpfile;
 ulint		srv_main_active_loops;
 /** Iterations of the loop bounded by the 'srv_idle' label. */
 ulint		srv_main_idle_loops;
-/** Iterations of the loop bounded by the 'srv_shutdown' label. */
-static ulint		srv_main_shutdown_loops;
 /** Log writes involving flush. */
 ulint		srv_log_writes_and_flush;
 
@@ -577,10 +574,9 @@ srv_print_master_thread_info(
 	FILE  *file)    /* in: output stream */
 {
 	fprintf(file, "srv_master_thread loops: " ULINTPF " srv_active, "
-		ULINTPF " srv_shutdown, " ULINTPF " srv_idle\n"
+		ULINTPF " srv_idle\n"
 		"srv_master_thread log flush and writes: " ULINTPF "\n",
 		srv_main_active_loops,
-		srv_main_shutdown_loops,
 		srv_main_idle_loops,
 		srv_log_writes_and_flush);
 }
@@ -797,8 +793,6 @@ srv_printf_innodb_monitor(
 	      "FILE I/O\n"
 	      "--------\n", file);
 	os_aio_print(file);
-
-	ibuf_print(file);
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (btr_search_enabled) {
@@ -1340,31 +1334,6 @@ static void srv_sync_log_buffer_in_background()
 	}
 }
 
-/** Report progress during shutdown.
-@param last   time of last output
-@param n_read number of page reads initiated for change buffer merge */
-static void srv_shutdown_print(time_t &last, ulint n_read)
-{
-  time_t now= time(nullptr);
-  if (now - last >= 15)
-  {
-    last= now;
-
-    const ulint ibuf_size= ibuf.size;
-    sql_print_information("Completing change buffer merge;"
-                          " %zu page reads initiated;"
-                          " %zu change buffer pages remain",
-                          n_read, ibuf_size);
-#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
-    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                   "Completing change buffer merge;"
-                                   " %zu page reads initiated;"
-                                   " %zu change buffer pages remain",
-                                   n_read, ibuf_size);
-#endif
-  }
-}
-
 /** Perform periodic tasks whenever the server is active.
 @param counter_time  microsecond_interval_timer() */
 static void srv_master_do_active_tasks(ulonglong counter_time)
@@ -1400,32 +1369,6 @@ static void srv_master_do_idle_tasks(ulonglong counter_time)
 	}
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
-}
-
-/**
-Complete the shutdown tasks such as background DROP TABLE,
-and optionally change buffer merge (on innodb_fast_shutdown=0). */
-void srv_shutdown(bool ibuf_merge)
-{
-	ulint		n_read = 0;
-	time_t		now = time(NULL);
-
-	do {
-		ut_ad(!srv_read_only_mode);
-		ut_ad(srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
-		++srv_main_shutdown_loops;
-
-		if (ibuf_merge) {
-			srv_main_thread_op_info = "doing insert buffer merge";
-			/* Disallow the use of change buffer to
-			avoid a race condition with
-			ibuf_read_merge_pages() */
-			ibuf_max_size_update(0);
-			log_free_check();
-			n_read = ibuf_contract();
-			srv_shutdown_print(now, n_read);
-		}
-	} while (n_read);
 }
 
 /** The periodic master task controlling the server. */

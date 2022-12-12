@@ -1369,8 +1369,7 @@ page_cur_insert_rec_low(
   ut_ad(!!page_is_comp(block->page.frame) == !!rec_offs_comp(offsets));
   ut_ad(fil_page_index_page_check(block->page.frame));
   ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + block->page.frame) ==
-        index->id ||
-        mtr->is_inside_ibuf());
+        index->id || index->is_dummy);
   ut_ad(page_dir_get_n_slots(block->page.frame) >= 2);
 
   ut_ad(!page_rec_is_supremum(cur->rec));
@@ -1769,11 +1768,6 @@ static inline void page_zip_dir_add_slot(buf_block_t *block,
 Inserts a record next to page cursor on a compressed and uncompressed
 page.
 
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
-
 @return pointer to inserted record
 @return nullptr on failure */
 rec_t*
@@ -1797,8 +1791,7 @@ page_cur_insert_rec_zip(
   ut_ad(rec_offs_comp(offsets));
   ut_ad(fil_page_get_type(page) == FIL_PAGE_INDEX ||
         fil_page_get_type(page) == FIL_PAGE_RTREE);
-  ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + page) ==
-        index->id || mtr->is_inside_ibuf());
+  ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + page) == index->id);
   ut_ad(!page_get_instant(page));
   ut_ad(!page_cur_is_after_last(cursor));
 #ifdef UNIV_ZIP_DEBUG
@@ -2265,8 +2258,7 @@ page_cur_delete_rec(
 	      == index->table->not_redundant());
 	ut_ad(fil_page_index_page_check(block->page.frame));
 	ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + block->page.frame)
-	      == index->id
-	      || mtr->is_inside_ibuf());
+	      == index->id);
 	ut_ad(mtr->is_named_space(index->table->space));
 
 	/* The record must not be the supremum or infimum record. */

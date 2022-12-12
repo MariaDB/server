@@ -213,9 +213,9 @@ page_zip_max_ins_size(
 
 /**********************************************************************//**
 Determine if enough space is available in the modification log.
-@return TRUE if page_zip_write_rec() will succeed */
+@return true if page_zip_write_rec() will succeed */
 UNIV_INLINE
-ibool
+bool
 page_zip_available(
 /*===============*/
 	const page_zip_des_t*	page_zip,/*!< in: compressed page */
@@ -323,10 +323,6 @@ Reorganize and compress a page.  This is a low-level operation for
 compressed pages, to be used when page_zip_compress() fails.
 On success, redo log will be written.
 The function btr_page_reorganize() should be preferred whenever possible.
-IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
-non-clustered index, the caller must update the insert buffer free
-bits in the same mini-transaction in such a way that the modification
-will be redo-logged.
 @return error code
 @retval DB_FAIL on overflow; the block_zip will be left intact */
 dberr_t

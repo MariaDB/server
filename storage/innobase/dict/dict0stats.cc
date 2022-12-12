@@ -582,8 +582,6 @@ dict_stats_table_clone_create(
 			continue;
 		}
 
-		ut_ad(!dict_index_is_ibuf(index));
-
 		ulint	n_uniq = dict_index_get_n_unique(index);
 
 		heap_size += sizeof(dict_index_t);
@@ -631,8 +629,6 @@ dict_stats_table_clone_create(
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
 		}
-
-		ut_ad(!dict_index_is_ibuf(index));
 
 		dict_index_t*	idx;
 
@@ -712,7 +708,6 @@ dict_stats_empty_index(
 				/*!< in: whether to empty defrag stats */
 {
 	ut_ad(!(index->type & DICT_FTS));
-	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(index->table->stats_mutex_is_owner());
 
 	ulint	n_uniq = index->n_uniq;
@@ -764,8 +759,6 @@ dict_stats_empty_table(
 		if (index->type & DICT_FTS) {
 			continue;
 		}
-
-		ut_ad(!dict_index_is_ibuf(index));
 
 		dict_stats_empty_index(index, empty_defrag_stats);
 	}
@@ -898,8 +891,6 @@ dict_stats_copy(
 				continue;
 			}
 		}
-
-		ut_ad(!dict_index_is_ibuf(dst_idx));
 
 		if (!INDEX_EQ(src_idx, dst_idx)) {
 			for (src_idx = dict_table_get_first_index(src);
@@ -1092,11 +1083,10 @@ btr_cur_t::open_random_leaf(rec_offs *&offsets, mem_heap_t *&heap, mtr_t &mtr)
 
   dberr_t err;
   auto offset= index()->page;
-  bool merge= false;
   ulint height= ULINT_UNDEFINED;
 
   while (buf_block_t *block=
-         btr_block_get(*index(), offset, RW_S_LATCH, merge, &mtr, &err))
+         btr_block_get(*index(), offset, RW_S_LATCH, &mtr, &err))
   {
     page_cur.block= block;
 
@@ -1118,8 +1108,7 @@ btr_cur_t::open_random_leaf(rec_offs *&offsets, mem_heap_t *&heap, mtr_t &mtr)
       return DB_SUCCESS;
     }
 
-    if (!--height)
-      merge= !index()->is_clust();
+    height--;
 
     page_cur_open_on_rnd_user_rec(&page_cur);
 
@@ -1460,10 +1449,6 @@ dummy_empty:
 		dict_stats_empty_index(index, false);
 		index->table->stats_mutex_unlock();
 		return err;
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-	} else if (ibuf_debug && !dict_index_is_clust(index)) {
-		goto dummy_empty;
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else if (dict_index_is_online_ddl(index) || !index->is_committed()
 		   || !index->table->space) {
 		goto dummy_empty;
@@ -1569,9 +1554,6 @@ empty_table:
 	}
 
 	for (; index != NULL; index = dict_table_get_next_index(index)) {
-
-		ut_ad(!dict_index_is_ibuf(index));
-
 		if (!index->is_btree()) {
 			continue;
 		}
@@ -1636,9 +1618,7 @@ static dberr_t page_cur_open_level(page_cur_t *page_cur, ulint level,
 
   for (ulint height = ULINT_UNDEFINED;; height--)
   {
-    buf_block_t* block=
-      btr_block_get(*index, page, RW_S_LATCH,
-                    !height && !index->is_clust(), mtr, &err);
+    buf_block_t* block= btr_block_get(*index, page, RW_S_LATCH, mtr, &err);
     if (!block)
       break;
 
@@ -2256,9 +2236,7 @@ dict_stats_analyze_index_below_cur(
 
 		block = buf_page_get_gen(page_id, zip_size,
 					 RW_S_LATCH, NULL, BUF_GET,
-					 &mtr, &err,
-					 !index->is_clust()
-					 && 1 == btr_page_get_level(page));
+					 &mtr, &err);
 		if (!block) {
 			goto func_exit;
 		}
@@ -2997,7 +2975,6 @@ dict_stats_update_persistent(
 		return(DB_CORRUPTION);
 	}
 
-	ut_ad(!dict_index_is_ibuf(index));
 	table->stats_mutex_lock();
 	dict_stats_empty_index(index, false);
 	table->stats_mutex_unlock();
@@ -3370,8 +3347,6 @@ unlocked_free_and_exit:
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
 		}
-
-		ut_ad(!dict_index_is_ibuf(index));
 
 		for (unsigned i = 0; i < index->n_uniq; i++) {
 
