@@ -218,10 +218,6 @@ close pfs_cursor;
 signal sqlstate '01000' set message_text='Done', mysql_errno=12000;
 end
 $
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 show global variables like "performance_schema%";
 Variable_name	Value
 performance_schema	ON

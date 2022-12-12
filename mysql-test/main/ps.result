@@ -244,8 +244,6 @@ prepare stmt1 from "insert into t1 select i from t1";
 execute stmt1;
 execute stmt1;
 prepare stmt1 from "select * from t1 into outfile '<MYSQLTEST_VARDIR>/tmp/f1.txt'";
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt1;
 deallocate prepare stmt1;
 drop table t1;

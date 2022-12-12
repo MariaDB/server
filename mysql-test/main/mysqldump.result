@@ -2822,8 +2822,6 @@ CREATE PROCEDURE bug9056_proc2(OUT a INT)
 BEGIN
 select sum(id) from t1 into a;
 END //
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 set sql_mode='ansi';
 create procedure `a'b` () select 1;
 set sql_mode='';

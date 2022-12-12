@@ -736,8 +736,6 @@ select user() into user;
 set NEW.username = user;
 select count(*) from ((select 1) union (select 2)) as d1 into i;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 update t1 set data = 1;
 connection addconroot1;
 update t1 set data = 2;
@@ -2086,8 +2084,6 @@ FOR EACH ROW BEGIN
 SELECT 1 FROM t1 c WHERE
 (@bug51650 IS NULL OR @bug51650 != c.b) AND c.b = NEW.a LIMIT 1 INTO @foo;
 END//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SET @bug51650 = 1;
 INSERT IGNORE INTO t2 VALUES();
 INSERT IGNORE INTO t1 SET b = '777';

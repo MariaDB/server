@@ -506,8 +506,6 @@ insert into t3 select a from t3;
 select count(*)*255 from t3 into table_size;
 until table_size > max_table_size*2 end repeat;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 call bug14210_fill_table()|
 drop procedure bug14210_fill_table|
 create table t4 like t3|
