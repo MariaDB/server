@@ -1,1 +1,2 @@
 --innodb-checksum-algorithm=crc32
+--innodb-undo-tablespaces=0

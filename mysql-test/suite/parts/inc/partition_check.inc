@@ -1116,7 +1116,16 @@ if ($debug)
 #-------------------------------------------------------------------------------
 # 10   ANALYZE/CHECK/CHECKSUM
 ANALYZE  TABLE t1;
+if ($engine != "'InnoDB'") {
 CHECK    TABLE t1 EXTENDED;
+}
+if ($engine == "'InnoDB'") {
+# Prevent occasional "Unpurged clustered index record" warnings
+--disable_query_log
+--echo CHECK    TABLE t1 EXTENDED;
+CHECK TABLE t1;
+--enable_query_log
+}
 # Checksum depends on @max_row so we have to unify the value
 --replace_column 2 <some_value>
 CHECKSUM TABLE t1 EXTENDED;
