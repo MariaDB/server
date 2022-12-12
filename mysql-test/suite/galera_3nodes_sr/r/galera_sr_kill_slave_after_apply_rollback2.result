@@ -1,3 +1,11 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_2;
+connection node_3;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -7,25 +15,33 @@ INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
+connection node_2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 Killing server ...
+connection node_1;
 INSERT INTO t1 VALUES (6);
 ROLLBACK;
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
-COUNT(*) = 0
-1
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+5
+connection node_2;
+# restart
+connection node_1;
+connection node_2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-SELECT COUNT(*) = 0 FROM t1;
-COUNT(*) = 0
-1
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
-COUNT(*) = 0
-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+6
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+5
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
-SELECT COUNT(*) = 0 FROM t1;
-COUNT(*) = 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
 1
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
-COUNT(*) = 0
-1
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+5
+connection node_1;
+disconnect node_1a;
 DROP TABLE t1;
