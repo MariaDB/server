@@ -2307,7 +2307,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
 
 int ha_maria::end_bulk_insert()
 {
-  int first_error, first_errno, error;
+  int first_error, first_errno= 0, error;
   my_bool abort= file->s->deleting, empty_table= 0;
   uint enable_index_mode= HA_KEY_SWITCH_NONUNIQ_SAVE;
   DBUG_ENTER("ha_maria::end_bulk_insert");
