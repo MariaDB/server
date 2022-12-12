@@ -579,8 +579,8 @@ script\&. Check especially the lines:
 MY_PWD=`pwd`
 # Check if we are starting this relative (for the binary release)
 if test \-d $MY_PWD/data/mysql \-a \e
-   \-f \&./share/mysql/english/errmsg\&.sys \-a \e
-   \-x \&./bin/mysqld
+   \-f \&./share/mariadb/english/errmsg\&.sys \-a \e
+   \-x \&./bin/mariadbd
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 .fi
 .if n \{\
@@ -637,28 +637,28 @@ socket     = /tmp/mysql\&.sock2
 port       = 3307
 pid\-file   = /usr/local/mysql/var2/hostname\&.pid2
 datadir    = /usr/local/mysql/var2
-language   = /usr/local/share/mysql/english
+language   = /usr/local/share/mariadb/english
 user       = john
 [mysqld3]
 socket     = /tmp/mysql\&.sock3
 port       = 3308
 pid\-file   = /usr/local/mysql/var3/hostname\&.pid3
 datadir    = /usr/local/mysql/var3
-language   = /usr/local/share/mysql/swedish
+language   = /usr/local/share/mariadb/swedish
 user       = monty
 [mysqld4]
 socket     = /tmp/mysql\&.sock4
 port       = 3309
 pid\-file   = /usr/local/mysql/var4/hostname\&.pid4
 datadir    = /usr/local/mysql/var4
-language   = /usr/local/share/mysql/estonia
+language   = /usr/local/share/mariadb/estonia
 user       = tonu
 [mysqld6]
 socket     = /tmp/mysql\&.sock6
 port       = 3311
 pid\-file   = /usr/local/mysql/var6/hostname\&.pid6
 datadir    = /usr/local/mysql/var6
-language   = /usr/local/share/mysql/japanese
+language   = /usr/local/share/mariadb/japanese
 user       = jani
 .fi
 .if n \{\

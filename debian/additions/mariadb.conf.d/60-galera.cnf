@@ -1,7 +1,7 @@
 #
 # * Galera-related settings
 #
-# See the examples of server wsrep.cnf files in /usr/share/mysql
+# See the examples of server wsrep.cnf files in /usr/share/mariadb
 # and read more at https://mariadb.com/kb/en/galera-cluster/
 
 [galera]

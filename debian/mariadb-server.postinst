@@ -52,7 +52,7 @@ case "$1" in
       fi
     fi
 
-    mysql_statedir=/usr/share/mysql
+    mysql_statedir=/usr/share/mariadb
     mysql_datadir=/var/lib/mysql
     mysql_logdir=/var/log/mysql
     mysql_cfgdir=/etc/mysql
