@@ -67,8 +67,8 @@ if (-d '../sql') {
   @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test', 'storage/*/*/mysql-test', );
   $overlay_regex= '\b(?:storage|plugin|storage[/][^/]*)/(\w+)/mysql-test\b';
 } else {
-  @plugin_suitedirs= ('mysql-test/plugin/*');
-  $overlay_regex= '\bmysql-test/plugin/(\w+)\b';
+  @plugin_suitedirs= ('mariadb-test/plugin/*');
+  $overlay_regex= '\bmariadb-test/plugin/(\w+)\b';
 }
 $plugin_suitedir_regex= $overlay_regex;
 $plugin_suitedir_regex=~ s/\Q(\w+)\E/\\w+/;
@@ -278,8 +278,8 @@ sub load_suite_object {
 sub suite_for_file($) {
   my ($file) = @_;
   return ($2, $1) if $file =~ m@^(.*/$plugin_suitedir_regex/(\w+))/@o;
-  return ($2, $1) if $file =~ m@^(.*/mysql-test/suite/(\w+))/@;
-  return ('main', $1) if $file =~ m@^(.*/mysql-test)/@;
+  return ($2, $1) if $file =~ m@^(.*/(?:mysql|mariadb)-test/suite/(\w+))/@;
+  return ('main', $1) if $file =~ m@^(.*/(?:mysql|mariadb)-test)/@;
   mtr_error("Cannot determine suite for $file");
 }
 

@@ -77,7 +77,7 @@ override_dh_auto_clean:
 	@echo "RULES.$@"
 	dh_testdir
 	dh_testroot
-	rm -rf $(BUILDDIR) builddir-native mysql-test/unstable-tests
+	rm -rf $(BUILDDIR) builddir-native mariadb-test/unstable-tests
 	debconf-updatepo # Update po-files when clean runs before each build
 
 override_dh_auto_configure:
@@ -128,8 +128,8 @@ override_dh_auto_test:
 	@echo "RULES.$@"
 	dh_testdir
 	# Ensure at least an empty file exists
-	touch mysql-test/unstable-tests
-	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
+	touch mariadb-test/unstable-tests
+	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mariadb-test/unstable-tests
 	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	cd $(BUILDDIR)/mysql-test && \
