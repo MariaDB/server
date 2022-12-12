@@ -2096,8 +2096,9 @@ row_import_cleanup(
 	row_prebuilt_t*	prebuilt,	/*!< in/out: prebuilt from handler */
 	dberr_t		err)		/*!< in: error code */
 {
+	dict_table_t* table = prebuilt->table;
+
 	if (err != DB_SUCCESS) {
-		dict_table_t* table = prebuilt->table;
 		table->file_unreadable = true;
 		if (table->space) {
 			fil_close_tablespace(table->space_id);
@@ -2128,7 +2129,25 @@ row_import_cleanup(
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
 
-	return(err);
+	if (err != DB_SUCCESS
+	    || !dict_table_get_first_index(table)->is_gen_clust()) {
+		return err;
+	}
+
+	btr_cur_t cur;
+	mtr_t mtr;
+	mtr.start();
+	err = cur.open_leaf(false, dict_table_get_first_index(table),
+			    BTR_SEARCH_LEAF, &mtr);
+	if (err != DB_SUCCESS) {
+	} else if (const rec_t *rec =
+		   page_rec_get_prev(btr_cur_get_rec(&cur))) {
+		if (page_rec_is_user_rec(rec))
+			table->row_id= mach_read_from_6(rec);
+	}
+	mtr.commit();
+
+	return err;
 }
 
 /*****************************************************************//**
@@ -2261,55 +2280,6 @@ row_import_adjust_root_pages_of_secondary_indexes(
 	}
 
 	return(err);
-}
-
-/*****************************************************************//**
-Ensure that dict_sys.row_id exceeds SELECT MAX(DB_ROW_ID). */
-MY_ATTRIBUTE((nonnull)) static
-void
-row_import_set_sys_max_row_id(
-/*==========================*/
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt from
-						handler */
-	const dict_table_t*	table)		/*!< in: table to import */
-{
-	const rec_t*		rec;
-	mtr_t			mtr;
-	btr_pcur_t		pcur;
-	row_id_t		row_id	= 0;
-	dict_index_t*		index;
-
-	index = dict_table_get_first_index(table);
-	ut_ad(index->is_primary());
-	ut_ad(dict_index_is_auto_gen_clust(index));
-
-	mtr_start(&mtr);
-
-	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-
-	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr)
-	    == DB_SUCCESS) {
-		rec = btr_pcur_move_to_prev_on_page(&pcur);
-
-		if (!rec) {
-			/* The table is corrupted. */
-		} else if (page_rec_is_infimum(rec)) {
-			/* The table is empty. */
-		} else if (rec_is_metadata(rec, *index)) {
-			/* The clustered index contains the metadata
-			record only, that is, the table is empty. */
-		} else {
-			row_id = mach_read_from_6(rec);
-		}
-	}
-
-	mtr_commit(&mtr);
-
-	if (row_id) {
-		/* Update the system row id if the imported index row id is
-		greater than the max system row id. */
-		dict_sys.update_row_id(row_id);
-	}
 }
 
 /*****************************************************************//**
@@ -4498,13 +4468,6 @@ row_import_for_mysql(
 
 	if (err != DB_SUCCESS) {
 		return row_import_error(prebuilt, err);
-	}
-
-	/* Ensure that the next available DB_ROW_ID is not smaller than
-	any DB_ROW_ID stored in the table. */
-
-	if (prebuilt->clust_index_was_generated) {
-		row_import_set_sys_max_row_id(prebuilt, table);
 	}
 
 	ib::info() << "Phase III - Flush changes to disk";

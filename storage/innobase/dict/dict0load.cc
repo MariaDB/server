@@ -2471,9 +2471,7 @@ corrupted:
 				goto corrupted;
 			}
 
-			if (table->supports_instant()) {
-				err = btr_cur_instant_init(table);
-			}
+			err = btr_cur_instant_init(table);
 		}
 	} else {
 		ut_ad(ignore_err & DICT_ERR_IGNORE_INDEX);

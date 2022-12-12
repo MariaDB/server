@@ -1180,6 +1180,7 @@ inline void dict_sys_t::add(dict_table_t* table)
 	ulint fold = my_crc32c(0, table->name.m_name,
 			       strlen(table->name.m_name));
 
+	table->row_id = 0;
 	table->autoinc_mutex.init();
 	table->lock_mutex_init();
 

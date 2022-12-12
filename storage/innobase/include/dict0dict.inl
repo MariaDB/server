@@ -244,7 +244,7 @@ dict_table_get_next_index(
 /********************************************************************//**
 Gets the number of user-defined non-virtual columns in a table in the
 dictionary cache.
-@return number of user-defined (e.g., not ROW_ID) non-virtual
+@return number of user-defined (e.g., not DB_ROW_ID) non-virtual
 columns of a table */
 UNIV_INLINE
 unsigned
