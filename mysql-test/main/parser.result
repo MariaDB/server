@@ -1866,4 +1866,35 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"abc' at line 1
 SET @@sql_mode=@save_sql_mode;
+#
+# MDEV-30151 parse error 1=2 not between/in
+#
+SELECT 1=2 NOT IN (3,4);
+1=2 NOT IN (3,4)
+1
+SELECT 1=2 NOT BETWEEN 3 AND 4;
+1=2 NOT BETWEEN 3 AND 4
+1
+CREATE TABLE t1 ( f INT AS ( 1 IN ( 2 NOT BETWEEN 3 AND 4 ) ) );
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) GENERATED ALWAYS AS (1 = 2 not between 3 and 4) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE TABLE t1 ( f INT, CHECK ( 1 IN ( 2 NOT BETWEEN 3 AND 4 ) ) );
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (1 = 2 not between 3 and 4)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
+CREATE VIEW v1 AS SELECT 1 IN ( 2 NOT BETWEEN 3 AND 4 );
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 = 2 not between 3 and 4 AS `1 IN ( 2 NOT BETWEEN 3 AND 4 )`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+#
 # End of 10.3 tests
+#
