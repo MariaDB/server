@@ -1,6 +1,6 @@
 debian/additions/debian-start etc/mysql
-debian/additions/debian-start.inc.sh usr/share/mysql
-debian/additions/echo_stderr usr/share/mysql
+debian/additions/debian-start.inc.sh usr/share/mariadb
+debian/additions/echo_stderr usr/share/mariadb
 debian/additions/mariadb.conf.d/50-mariadb_safe.cnf etc/mysql/mariadb.conf.d
 debian/additions/mariadb.conf.d/50-server.cnf etc/mysql/mariadb.conf.d
 debian/additions/source_mariadb.py usr/share/apport/package-hooks
@@ -75,7 +75,7 @@ usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
 usr/share/man/man1/wsrep_sst_rsync_wan.1
-usr/share/mysql/errmsg-utf8.txt
-usr/share/mysql/mini-benchmark
-usr/share/mysql/wsrep.cnf
-usr/share/mysql/wsrep_notify
+usr/share/mariadb/errmsg-utf8.txt
+usr/share/mariadb/mini-benchmark
+usr/share/mariadb/wsrep.cnf
+usr/share/mariadb/wsrep_notify
