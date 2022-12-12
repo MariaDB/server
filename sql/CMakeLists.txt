@@ -470,14 +470,14 @@ IF(WIN32)
   ADD_CUSTOM_COMMAND(OUTPUT
     ${my_bootstrap_sql}
     COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/scripts
-    cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql+mysql_test_db.sql+mysql_sys_schema.sql ${native_outfile}
+    cmd /c copy mariadb_system_tables.sql+mariadb_system_tables_data.sql+fill_help_tables.sql+mariadb_performance_tables.sql+mariadb_test_db.sql+mariadb_sys_schema.sql ${native_outfile}
     DEPENDS
-    ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables.sql
-    ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables_data.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mariadb_system_tables.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mariadb_system_tables_data.sql
     ${CMAKE_SOURCE_DIR}/scripts/fill_help_tables.sql
-    ${CMAKE_SOURCE_DIR}/scripts/mysql_performance_tables.sql
-    ${CMAKE_SOURCE_DIR}/scripts/mysql_test_db.sql
-    ${CMAKE_BINARY_DIR}/scripts/mysql_sys_schema.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mariadb_performance_tables.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mariadb_test_db.sql
+    ${CMAKE_BINARY_DIR}/scripts/mariadb_sys_schema.sql
   )
 
   ADD_CUSTOM_COMMAND(
