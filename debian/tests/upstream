@@ -26,12 +26,12 @@ echo "Setting up skip-tests-list"
 
 # Use unstable-tests list as base to skip all tests  considered unstable
 # or create an empty file if that upstream file does not exists on this branch
-cp /usr/share/mysql/mysql-test/unstable-tests $SKIP_TEST_LST || touch $SKIP_TEST_LST
+cp /usr/share/mariadb/mariadb-test/unstable-tests $SKIP_TEST_LST || touch $SKIP_TEST_LST
 
 # Also use the arch specific skiplists if exist
-if [ -f /usr/share/mysql/mysql-test/unstable-tests.$ARCH ]
+if [ -f /usr/share/mariadb/mariadb-test/unstable-tests.$ARCH ]
 then
-  cat /usr/share/mysql/mysql-test/unstable-tests.$ARCH >> $SKIP_TEST_LST
+  cat /usr/share/mariadb/mariadb-test/unstable-tests.$ARCH >> $SKIP_TEST_LST
 fi
 
 # Skip tests that cannot run properly on ci.debian.net / autopkgtests.ubuntu.com
@@ -61,7 +61,7 @@ fi
 # failed autopkgtest runs
 cp -v $SKIP_TEST_LST $AUTOPKGTEST_ARTIFACTS
 
-cd /usr/share/mysql/mysql-test
+cd /usr/share/mariadb/mariadb-test
 echo "starting mysql-test-tun.pl..."
 eatmydata perl -I. ./mysql-test-run.pl --suite=main \
     --vardir="$WORKDIR/var" --tmpdir="$WORKDIR/tmp" \

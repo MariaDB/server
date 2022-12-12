@@ -34,52 +34,52 @@ IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
  TARGET_LINK_LIBRARIES(comp_sql)
 ENDIF()
 
-# Build mysql_fix_privilege_tables.sql (concatenate 3 sql scripts)
+# Build mariadb_fix_privilege_tables.sql (concatenate 3 sql scripts)
 IF(NOT WIN32 OR  (CMAKE_CROSSCOMPILING AND NOT DEFINED CMAKE_CROSSCOMPILING_EMULATOR))
   FIND_PROGRAM(CAT_EXECUTABLE cat DOC "path to the executable")
   MARK_AS_ADVANCED(CAT_EXECUTABLE)
 ENDIF()
 
 IF(NOT ("${CMAKE_BINARY_DIR}" STREQUAL "${CMAKE_SOURCE_DIR}"))
-  FOREACH(f fill_help_tables.sql mysql_system_tables_fix.sql mysql_system_tables.sql mysql_system_tables_data.sql mysql_performance_tables.sql)
+  FOREACH(f fill_help_tables.sql mariadb_system_tables_fix.sql mariadb_system_tables.sql mariadb_system_tables_data.sql mariadb_performance_tables.sql)
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${f} ${CMAKE_CURRENT_BINARY_DIR}/${f} COPYONLY)
   ENDFOREACH()
 ENDIF()
 
 IF(CAT_EXECUTABLE)
   SET(CAT_COMMAND COMMAND
-    ${CAT_EXECUTABLE} mysql_system_tables_fix.sql mysql_system_tables.sql mysql_performance_tables.sql mysql_sys_schema.sql>
-    mysql_fix_privilege_tables.sql
+    ${CAT_EXECUTABLE} mariadb_system_tables_fix.sql mariadb_system_tables.sql mariadb_performance_tables.sql mariadb_sys_schema.sql>
+    mariadb_fix_privilege_tables.sql
   )
 ELSEIF(WIN32)
   SET(CAT_COMMAND
    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_BINARY_DIR}
-   cmd /c copy /b mysql_system_tables_fix.sql + mysql_system_tables.sql +  mysql_performance_tables.sql + mysql_sys_schema.sql
-   mysql_fix_privilege_tables.sql )
+   cmd /c copy /b mariadb_system_tables_fix.sql + mariadb_system_tables.sql +  mariadb_performance_tables.sql + mariadb_sys_schema.sql
+   mariadb_fix_privilege_tables.sql )
 ELSE()
   MESSAGE(FATAL_ERROR "Cannot concatenate files")
 ENDIF()
 
-# Build mysql_fix_privilege_tables.c
+# Build mariadb_fix_privilege_tables.c
 ADD_CUSTOM_COMMAND(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mysql_fix_privilege_tables_sql.c
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mariadb_fix_privilege_tables_sql.c
   ${CAT_COMMAND}
   COMMAND comp_sql
-  mysql_fix_privilege_tables
-  mysql_fix_privilege_tables.sql
-  mysql_fix_privilege_tables_sql.c
+  mariadb_fix_privilege_tables
+  mariadb_fix_privilege_tables.sql
+  mariadb_fix_privilege_tables_sql.c
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS comp_sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_fix.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_performance_tables.sql
-  ${CMAKE_CURRENT_BINARY_DIR}/mysql_sys_schema.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mariadb_system_tables.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mariadb_system_tables_fix.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mariadb_performance_tables.sql
+  ${CMAKE_CURRENT_BINARY_DIR}/mariadb_sys_schema.sql
 )
 
 # Add target for the above to be built
 ADD_CUSTOM_TARGET(GenFixPrivs
   ALL
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/mysql_fix_privilege_tables_sql.c
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/mariadb_fix_privilege_tables_sql.c
 )
 
 IF(UNIX AND NOT WITHOUT_SERVER)
@@ -109,15 +109,15 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
 
 IF (NOT WITHOUT_SERVER)
 INSTALL(FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_data.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_performance_tables.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_db.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mariadb_system_tables.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mariadb_system_tables_data.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mariadb_performance_tables.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mariadb_test_db.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/fill_help_tables.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_data_timezone.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mariadb_test_data_timezone.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql
-  ${CMAKE_CURRENT_BINARY_DIR}/mysql_sys_schema.sql
+  ${CMAKE_CURRENT_BINARY_DIR}/mariadb_sys_schema.sql
   ${FIX_PRIVILEGES_SQL}
   DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT Server
 )
@@ -208,8 +208,8 @@ ENDIF()
 
 SET(resolveip_locations "$basedir/${INSTALL_BINDIR} $basedir/bin")
 SET(mysqld_locations "$basedir/${INSTALL_SBINDIR} $basedir/libexec $basedir/sbin $basedir/bin")
-SET(errmsg_locations "$basedir/${INSTALL_MYSQLSHAREDIR}/english $basedir/share/english $basedir/share/mysql/english")
-SET(pkgdata_locations "$basedir/${INSTALL_MYSQLSHAREDIR} $basedir/share $basedir/share/mysql")
+SET(errmsg_locations "$basedir/${INSTALL_MYSQLSHAREDIR}/english $basedir/share/english $basedir/share/mariadb/english $basedir/share/mysql/english")
+SET(pkgdata_locations "$basedir/${INSTALL_MYSQLSHAREDIR} $basedir/share $basedir/share/mariadb $basedir/share/mysql")
 
 # install mysql_install_db.sh at this point since it needs
 # different values for the above variables that will change

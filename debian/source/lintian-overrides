@@ -69,8 +69,8 @@ very-long-line-length-in-source-file plugin/handler_socket/regtest/test_01_lib/t
 # SQL source file that has very long inserts/selects
 very-long-line-length-in-source-file mysql-test/std_data/init_file_longline_3816.sql *
 very-long-line-length-in-source-file scripts/fill_help_tables.sql *
-very-long-line-length-in-source-file scripts/mysql_system_tables.sql *
-very-long-line-length-in-source-file scripts/mysql_test_data_timezone.sql *
+very-long-line-length-in-source-file scripts/mariadb_system_tables.sql *
+very-long-line-length-in-source-file scripts/mariadb_test_data_timezone.sql *
 # Machine formatted HTML
 very-long-line-length-in-source-file sql/share/charsets/languages.html *
 very-long-line-length-in-source-file sql/share/errmsg-utf8.txt *
