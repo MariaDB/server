@@ -47,18 +47,51 @@ trim_string()
 
 trim_dir()
 {
-    local t=$(trim_string "$1")
-    if [ "$t" != '/' ]; then
-        if [ "${t%/}" != "$t" ]; then
-            t=$(trim_string "${t%/}")
+    if [ -n "$BASH_VERSION" ]; then
+        local pattern="![:space:]${2:-}"
+        local x="${1#*[$pattern]}"
+        local z=${#1}
+        x=${#x}
+        if [ $x -ne $z ]; then
+            local y="${1%[$pattern/]*}"
+            y=${#y}
+            x=$(( z-x-1 ))
+            y=$(( y-x+1 ))
+            x="${1:$x:$y}"
+            [ -z "$x" ] && x='.'
+            printf '%s' "$x"
+        else
+            printf ''
         fi
     else
-        t='.'
+        local pattern="[:space:]${2:-}"
+        local x=$(echo "$1" | sed -E "s/^[$pattern]+|[$pattern/]+\$//g")
+        if [ -n "$x" ]; then
+            echo "$x"
+        elif "${1#*/}" != "$1"; then
+            echo '.'
+        else
+            echo ''
+        fi
     fi
+}
+
+trim_right()
+{
     if [ -n "$BASH_VERSION" ]; then
-        printf '%s' "$t"
+        local pattern="[![:space:]${2:-}]"
+        local z=${#1}
+        local y="${1%$pattern*}"
+        y=${#y}
+        if [ $y -ne $z ]; then
+            y=$(( y+1 ))
+            printf '%s' "${1:0:$y}"
+        else
+            printf ''
+        fi
     else
-        echo "$t"
+        local pattern="[[:space:]${2:-}]"
+        echo "$1" | sed -E "s/$pattern+\$//g"
     fi
 }
 
@@ -111,7 +144,7 @@ INNOEXTRA=""
 while [ $# -gt 0 ]; do
 case "$1" in
     '--address')
-        WSREP_SST_OPT_ADDR="$2"
+        WSREP_SST_OPT_ADDR=$(trim_string "$2")
         #
         # Break address string into host:port/path parts
         #
@@ -119,20 +152,22 @@ case "$1" in
         \[*)
             # IPv6
             # Remove the starting and ending square brackets, if present:
-            addr_no_bracket="${WSREP_SST_OPT_ADDR#\[}"
+            addr="${WSREP_SST_OPT_ADDR#\[}"
+            addr=$(trim_right "${addr%%\]*}")
             # Some utilities and subsequent code require an address
             # without square brackets:
-            readonly WSREP_SST_OPT_HOST_UNESCAPED="${addr_no_bracket%%\]*}"
+            readonly WSREP_SST_OPT_HOST_UNESCAPED="$addr"
             # Square brackets are needed in most cases:
-            readonly WSREP_SST_OPT_HOST="[$WSREP_SST_OPT_HOST_UNESCAPED]"
+            readonly WSREP_SST_OPT_HOST="[$addr]"
             # Mark this address as IPv6:
             readonly WSREP_SST_OPT_HOST_IPv6=1
             # Let's remove the leading part that contains the host address:
             remain="${WSREP_SST_OPT_ADDR#*\]}"
             ;;
         *)
-            readonly WSREP_SST_OPT_HOST="${WSREP_SST_OPT_ADDR%%[:/]*}"
-            readonly WSREP_SST_OPT_HOST_UNESCAPED="$WSREP_SST_OPT_HOST"
+            addr=$(trim_right "${WSREP_SST_OPT_ADDR%%[:/]*}")
+            readonly WSREP_SST_OPT_HOST="$addr"
+            readonly WSREP_SST_OPT_HOST_UNESCAPED="$addr"
             readonly WSREP_SST_OPT_HOST_IPv6=0
             # Let's remove the leading part that contains the host address:
             remain="${WSREP_SST_OPT_ADDR#*[:/]}"
@@ -154,17 +189,18 @@ case "$1" in
         else
             readonly WSREP_SST_OPT_PATH=""
         fi
+        WSREP_SST_OPT_ADDR_PORT=$(trim_right "$WSREP_SST_OPT_ADDR_PORT")
         # Remove the module name part from the string, which ends with "/":
         remain="${WSREP_SST_OPT_PATH#*/}"
         # This operation removes the tail after the very first occurrence
         # of the "/" character, inclusively:
-        readonly WSREP_SST_OPT_MODULE="${WSREP_SST_OPT_PATH%%/*}"
+        readonly WSREP_SST_OPT_MODULE=$(trim_right "${WSREP_SST_OPT_PATH%%/*}")
         # If there is one more "/" in the string, then everything before
         # it will be the LSN, otherwise the LSN is empty:
         if [ "$remain" != "$WSREP_SST_OPT_PATH" ]; then
             # Extract the part that matches the LSN by removing all
             # characters starting from the very first "/":
-            readonly WSREP_SST_OPT_LSN="${remain%%/*}"
+            readonly WSREP_SST_OPT_LSN=$(trim_right "${remain%%/*}")
             # Exctract everything after the first occurrence of
             # the "/" character in the string:
             source="$remain"
@@ -176,7 +212,7 @@ case "$1" in
                 # Let's extract the version number by removing the tail
                 # after the very first occurence of the "/" character
                 # (inclusively):
-                readonly WSREP_SST_OPT_SST_VER="${remain%%/*}"
+                readonly WSREP_SST_OPT_SST_VER=$(trim_right "${remain%%/*}")
             else
                 readonly WSREP_SST_OPT_SST_VER=""
             fi
@@ -218,41 +254,46 @@ case "$1" in
         shift
         ;;
     '--defaults-file')
-        readonly WSREP_SST_OPT_DEFAULT="$1=$2"
-        readonly WSREP_SST_OPT_DEFAULTS="$1='$2'"
+        file=$(trim_string "$2")
+        readonly WSREP_SST_OPT_DEFAULT="$1=$file"
+        readonly WSREP_SST_OPT_DEFAULTS="$1='$file'"
         shift
         ;;
     '--defaults-extra-file')
-        readonly WSREP_SST_OPT_EXTRA_DEFAULT="$1=$2"
-        readonly WSREP_SST_OPT_EXTRA_DEFAULTS="$1='$2'"
+        file=$(trim_string "$2")
+        readonly WSREP_SST_OPT_EXTRA_DEFAULT="$1=$file"
+        readonly WSREP_SST_OPT_EXTRA_DEFAULTS="$1='$file'"
         shift
         ;;
     '--defaults-group-suffix')
-        readonly WSREP_SST_OPT_SUFFIX_DEFAULT="$1=$2"
-        readonly WSREP_SST_OPT_SUFFIX_VALUE="$2"
+        suffix=$(trim_string "$2")
+        readonly WSREP_SST_OPT_SUFFIX_DEFAULT="$1=$suffix"
+        readonly WSREP_SST_OPT_SUFFIX_VALUE="$suffix"
         shift
         ;;
     '--host')
-        case "$2" in
+        addr=$(trim_string "$2")
+        case "$addr" in
         \[*)
             # IPv6
             # Remove the starting and ending square brackets, if present:
-            addr_no_bracket="${2#\[}"
+            addr="${addr#\[}"
+            addr=$(trim_right "${addr%%\]*}")
             # Some utilities and subsequent code require an address
             # without square brackets:
-            readonly WSREP_SST_OPT_HOST_UNESCAPED="${addr_no_bracket%%\]*}"
+            readonly WSREP_SST_OPT_HOST_UNESCAPED="$addr"
             # Square brackets are needed in most cases:
-            readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
+            readonly WSREP_SST_OPT_HOST="[$addr]"
             # Mark this address as IPv6:
             readonly WSREP_SST_OPT_HOST_IPv6=1
             ;;
         *)
-            readonly WSREP_SST_OPT_HOST="$2"
-            readonly WSREP_SST_OPT_HOST_UNESCAPED="$2"
+            readonly WSREP_SST_OPT_HOST="$addr"
+            readonly WSREP_SST_OPT_HOST_UNESCAPED="$addr"
             readonly WSREP_SST_OPT_HOST_IPv6=0
             ;;
         esac
-        WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_HOST"
+        WSREP_SST_OPT_ADDR="$addr"
         shift
         ;;
     '--local-port')
@@ -272,11 +313,11 @@ case "$1" in
         shift
         ;;
     '--role')
-        readonly WSREP_SST_OPT_ROLE="$2"
+        readonly WSREP_SST_OPT_ROLE=$(trim_string "$2")
         shift
         ;;
     '--socket')
-        readonly WSREP_SST_OPT_SOCKET="$2"
+        readonly WSREP_SST_OPT_SOCKET=$(trim_string "$2")
         shift
         ;;
     '--user')
@@ -284,23 +325,23 @@ case "$1" in
         shift
         ;;
     '--gtid')
-        readonly WSREP_SST_OPT_GTID="$2"
+        readonly WSREP_SST_OPT_GTID=$(trim_string "$2")
         shift
         ;;
     '--binlog'|'--log-bin')
-        readonly WSREP_SST_OPT_BINLOG="$2"
+        readonly WSREP_SST_OPT_BINLOG=$(trim_string "$2")
         shift
         ;;
     '--binlog-index'|'--log-bin-index')
-        WSREP_SST_OPT_BINLOG_INDEX="$2"
+        WSREP_SST_OPT_BINLOG_INDEX=$(trim_string "$2")
         shift
         ;;
     '--log-basename')
-        readonly WSREP_SST_OPT_LOG_BASENAME="$2"
+        readonly WSREP_SST_OPT_LOG_BASENAME=$(trim_string "$2")
         shift
         ;;
     '--gtid-domain-id')
-        readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
+        readonly WSREP_SST_OPT_GTID_DOMAIN_ID=$(trim_string "$2")
         shift
         ;;
     '--mysqld-args')
