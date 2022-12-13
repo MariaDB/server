@@ -439,9 +439,10 @@ get_footprint()
         -regex '.*undo[0-9]+$\|.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' \
         -type f -print0 | du --files0-from=- --block-size=1 -c -s | \
         awk 'END { print $1 }')
-
     local payload_undo=0
-    if [ -n "$ib_undo_dir" -a -d "$ib_undo_dir" ]; then
+    if [ -n "$ib_undo_dir" -a "$ib_undo_dir" != '.' -a \
+         "$ib_undo_dir" != "$DATA_DIR" -a -d "$ib_undo_dir" ]
+    then
         cd "$ib_undo_dir"
         payload_undo=$(find . -regex '.*undo[0-9]+$' -type f -print0 | \
             du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
@@ -451,7 +452,7 @@ get_footprint()
     wsrep_log_info \
         "SST footprint estimate: data: $payload_data, undo: $payload_undo"
 
-    payload=$(( payload_data + payload_undo ))
+    payload=$(( payload_data+payload_undo ))
 
     if [ "$compress" != 'none' ]; then
         # QuickLZ has around 50% compression ratio
@@ -1220,13 +1221,16 @@ else # joiner
         INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
     fi
 
-    if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' ]; then
+    if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
+         "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
+    then
         # handle both relative and absolute paths:
         cd "$DATA"
         [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
         cd "$INNODB_DATA_HOME_DIR"
         ib_home_dir="$(pwd)"
         cd "$OLD_PWD"
+        [ "$ib_home_dir" = "$DATA_DIR" ] && ib_home_dir=""
     fi
 
     # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
@@ -1236,13 +1240,16 @@ else # joiner
         INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
     fi
 
-    if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' ]; then
+    if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
+         "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
+    then
         # handle both relative and absolute paths:
         cd "$DATA"
         [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
         cd "$INNODB_LOG_GROUP_HOME"
         ib_log_dir="$(pwd)"
         cd "$OLD_PWD"
+        [ "$ib_log_dir" = "$DATA_DIR" ] && ib_log_dir=""
     fi
 
     # if no command line argument and INNODB_UNDO_DIR is not set,
@@ -1252,13 +1259,16 @@ else # joiner
         INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
     fi
 
-    if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' ]; then
+    if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
+         "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
+    then
         # handle both relative and absolute paths:
         cd "$DATA"
         [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
         cd "$INNODB_UNDO_DIR"
         ib_undo_dir="$(pwd)"
         cd "$OLD_PWD"
+        [ "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
     fi
 
     if [ -n "$backup_threads" ]; then
@@ -1500,11 +1510,15 @@ else # joiner
                 binlogs=$(ls -d -1 "$binlog_base".[0-9]* 2>/dev/null || :)
             fi
             cd "$DATA_DIR"
-            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' ]; then
+            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
+                 "$binlog_dir" != "$DATA_DIR" ]
+            then
                 [ ! -d "$binlog_dir" ] && mkdir -p "$binlog_dir"
             fi
             index_dir=$(dirname "$binlog_index");
-            if [ -n "$index_dir" -a "$index_dir" != '.' ]; then
+            if [ -n "$index_dir" -a "$index_dir" != '.' -a \
+                 "$index_dir" != "$DATA_DIR" ]
+            then
                 [ ! -d "$index_dir" ] && mkdir -p "$index_dir"
             fi
             if [ -n "$binlogs" ]; then
