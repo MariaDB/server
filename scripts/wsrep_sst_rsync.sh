@@ -549,7 +549,10 @@ FILTER="-f '- /lost+found'
         -f '+ /wsrep_sst_binlog.tar'
         -f '- $ib_home_dir/ib_lru_dump'
         -f '- $ib_home_dir/ibdata*'
-        -f '+ $ib_undo_dir/undo*'
+        -f '- $ib_undo_dir/undo*'
+        -f '- $ib_log_dir/ib_logfile[0-9]*'
+        -f '- $ib_log_dir/aria_log_control'
+        -f '- $ib_log_dir/aria_log.*'
         -f '+ /*/'
         -f '- /*'"
 
@@ -610,10 +613,23 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of InnoDB and Aria log files done"
 
+        # third, we transfer InnoDB undo logs
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
+              --ignore-times --inplace --dirs --delete --quiet \
+              $WHOLE_FILE_OPT -f '+ /undo*' \
+              -f '- **' "$ib_undo_dir/" \
+              "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
+
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "rsync innodb_undo_dir returned code $RC:"
+            exit 255 # unknown error
+        fi
+
+        wsrep_log_info "Transfer of InnoDB undo logs done"
+
         # then, we parallelize the transfer of database directories,
         # use '.' so that path concatenation works:
-
-        cd "$DATA"
 
         backup_threads=$(parse_cnf '--mysqld|sst' 'backup-threads')
         if [ -z "$backup_threads" ]; then
@@ -621,13 +637,20 @@ FILTER="-f '- /lost+found'
             backup_threads=$nproc
         fi
 
+        cd "$DATA"
+
         find . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
              -not -name '.zfs' -print0 | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials --ignore-times \
              --inplace --recursive --delete --quiet $WHOLE_FILE_OPT \
-             --exclude '*/ib_logfile*' --exclude '*/aria_log.*' \
-             --exclude '*/aria_log_control' "$WSREP_SST_OPT_DATA/{}/" \
+             -f '- $ib_home_dir/ib_lru_dump' \
+             -f '- $ib_home_dir/ibdata*' \
+             -f '- $ib_undo_dir/undo*' \
+             -f '- $ib_log_dir/ib_logfile[0-9]*' \
+             -f '- $ib_log_dir/aria_log_control' \
+             -f '- $ib_log_dir/aria_log.*' \
+             "$WSREP_SST_OPT_DATA/{}/" \
              "rsync://$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
 
         cd "$OLD_PWD"
@@ -715,6 +738,8 @@ $SILENT
     path = $ib_log_dir
 [$MODULE-data_dir]
     path = $ib_home_dir
+[$MODULE-undo_dir]
+    path = $ib_undo_dir
 EOF
 
     # If the IP is local, listen only on it:
