@@ -318,7 +318,7 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
-my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path|force_rebootstrap';
+my $rebootstrap_re= '--(?:loose[-_])?(?:innodb[-_](?:page[-_]size|file(?:[-_]format|per[-_]table)|compression[-_](?:default|algorithm)|checksum(?:s|[-_]algorithm)|undo[-_](?:directory|tablespaces)|(?:data|log[-_]group)[-_]home[-_]dir|buffer[-_]pool[-_]filename|data[-_]file[-_]path|encrypt[-_](?:log|tables)|default[-_](?:encryption[-_]key[-_]id|page[-_]encryption)|sys[-_]|(?:index|table)[-_]stats)|aria[-_]log[-_](?:dir[-_]path|file[-_]size))|force_rebootstrap';
 
 sub testcase_timeout ($) { return $opt_testcase_timeout * 60; }
 sub check_timeout ($) { return testcase_timeout($_[0]); }
@@ -2670,7 +2670,29 @@ sub mysql_server_start($) {
     return;
   }
 
-  my $datadir= $mysqld->value('datadir');
+  my $extra_opts= get_extra_opts($mysqld, $tinfo);
+
+  # The test options can contain the --datadir parameter, but
+  # the bootstrap function can only read datadir location from
+  # a .cnf file. So we need to parse the options to get the
+  # actual location of the data directory, considering both
+  # the options and the .cnf file, and then store the resulting
+  # value in a "$mysqld" hash - to use later, when we need to
+  # know the actual location of the data directory:
+  my $datadir="";
+  foreach my $opt ( @$extra_opts )
+  {
+    if ($opt =~ /^--datadir=/) {
+      $datadir = substr($opt, 10);
+      last;
+    }
+  }
+  # If datadir is not in the options, then read it from .cnf:
+  if (! $datadir) {
+    $datadir = $mysqld->value('datadir');
+  }
+  $mysqld->{'datadir'} = $datadir;
+
   if (not $opt_start_dirty)
   {
 
@@ -2693,17 +2715,59 @@ sub mysql_server_start($) {
     }
   }
 
+  # Run <tname>-master.sh
+  if ($mysqld->option('#!run-master-sh') and
+      defined $tinfo->{master_sh} and
+      run_system('/bin/sh ' . $tinfo->{master_sh}) )
+  {
+    $tinfo->{'comment'}= "Failed to execute '$tinfo->{master_sh}'";
+    return 1;
+  }
+
+  # Run <tname>-slave.sh
+  if ($mysqld->option('#!run-slave-sh') and
+      defined $tinfo->{slave_sh} and
+      run_system('/bin/sh ' . $tinfo->{slave_sh}))
+  {
+    $tinfo->{'comment'}= "Failed to execute '$tinfo->{slave_sh}'";
+    return 1;
+  }
+
   my $mysqld_basedir= $mysqld->value('basedir');
-  my $extra_opts= get_extra_opts($mysqld, $tinfo);
 
   if ( $basedir eq $mysqld_basedir )
   {
     if (! $opt_start_dirty)	# If dirty, keep possibly grown system db
     {
+      # Find the name of the current section in the configuration
+      # file and its suffix:
+      my $section = $mysqld->{name};
+      my $server_name;
+      my $suffix = "";
+      if (index($section, '.') != -1) {
+        ($server_name, $suffix) = $section =~ /^\s*([^\s.]+)\s*\.\s*([^\s]+)/;
+      }
+      else {
+        $server_name = $section =~ /^\s*([^\s]+)/;
+      }
       # Some InnoDB options are incompatible with the default bootstrap.
       # If they are used, re-bootstrap
       my @rebootstrap_opts;
       @rebootstrap_opts = grep {/$rebootstrap_re/o} @$extra_opts if $extra_opts;
+      # Let's store the additional bootstrap options in
+      # the environment variable - they may be used later
+      # in the mtr tests - for re-bootstrap or run the
+      # recovery, etc:
+      my $extra_text = "--datadir=$datadir";
+      if (@rebootstrap_opts) {
+        $extra_text .= ' '.join(' ', @rebootstrap_opts);
+      }
+      if ($suffix) {
+        $ENV{'MTR_BOOTSTRAP_OPTS_'.$suffix} = $extra_text;
+      }
+      else {
+        $ENV{'MTR_BOOTSTRAP_OPTS'} = $extra_text;
+      }
       if (@rebootstrap_opts)
       {
         mtr_verbose("Re-bootstrap with @rebootstrap_opts");
@@ -2733,24 +2797,6 @@ sub mysql_server_start($) {
 
   # Write start of testcase to log file
   mark_log($mysqld->value('log-error'), $tinfo);
-
-  # Run <tname>-master.sh
-  if ($mysqld->option('#!run-master-sh') and
-      defined $tinfo->{master_sh} and 
-      run_system('/bin/sh ' . $tinfo->{master_sh}) )
-  {
-    $tinfo->{'comment'}= "Failed to execute '$tinfo->{master_sh}'";
-    return 1;
-  }
-
-  # Run <tname>-slave.sh
-  if ($mysqld->option('#!run-slave-sh') and
-      defined $tinfo->{slave_sh} and
-      run_system('/bin/sh ' . $tinfo->{slave_sh}))
-  {
-    $tinfo->{'comment'}= "Failed to execute '$tinfo->{slave_sh}'";
-    return 1;
-  }
 
   if (!$opt_embedded_server)
   {
@@ -3010,7 +3056,7 @@ sub default_mysqld {
 sub mysql_install_db {
   my ($mysqld, $datadir, $extra_opts)= @_;
 
-  my $install_datadir= $datadir || $mysqld->value('datadir');
+  my $install_datadir= $datadir || $mysqld->{'datadir'};
   my $install_basedir= $mysqld->value('basedir');
   my $install_lang= $mysqld->value('lc-messages-dir');
   my $install_chsdir= $mysqld->value('character-sets-dir');
@@ -3097,6 +3143,7 @@ sub mysql_install_db {
     {
       my $sql_dir= dirname($path_sql);
       # Use the mysql database for system tables
+      mtr_tofile($bootstrap_sql_file, "create database if not exists mysql;\n");
       mtr_tofile($bootstrap_sql_file, "use mysql;\n");
 
       # Add the offical mysql system tables
@@ -3636,7 +3683,7 @@ sub restart_forced_by_test($)
   my $restart = 0;
   foreach my $mysqld ( mysqlds() )
   {
-    my $datadir = $mysqld->value('datadir');
+    my $datadir = $mysqld->{'datadir'};
     my $force_restart_file = "$datadir/mtr/$file";
     if ( -f $force_restart_file )
     {
@@ -5090,7 +5137,7 @@ sub mysqld_start ($$) {
   # Remember this log file for valgrind error report search
   $mysqld_logs{$output}= 1 if $opt_valgrind;
   # Remember data dir for gmon.out files if using gprof
-  $gprof_dirs{$mysqld->value('datadir')}= 1 if $opt_gprof;
+  $gprof_dirs{$mysqld->{'datadir'}}= 1 if $opt_gprof;
 
   if ( defined $exe )
   {

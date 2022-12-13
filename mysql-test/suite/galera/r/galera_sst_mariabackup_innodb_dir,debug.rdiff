@@ -1,6 +1,6 @@
---- galera_sst_rsync_data_dir.result
-+++ galera_sst_rsync_data_dir.reject
-@@ -516,3 +516,187 @@
+--- r/galera_sst_mariabackup_innodb_dir.result
++++ r/galera_sst_mariabackup_innodb_dir.reject
+@@ -516,5 +516,189 @@
  1
  DROP TABLE t1;
  COMMIT;
@@ -188,3 +188,5 @@
 +DROP TABLE t1;
 +COMMIT;
 +SET GLOBAL debug_dbug = $debug_orig;
+ disconnect node_2;
+ disconnect node_1;

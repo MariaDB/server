@@ -40,3 +40,4 @@ galera_bf_abort_shutdown : MDEV-29773 Assertion failure on sql/wsrep_mysqld.cc:2
 galera.MW-284 : MDEV-29861: Galera test case hangs
 galera.galera_binlog_checksum : MDEV-29861: Galera test case hangs
 galera_var_notify_ssl_ipv6 : MDEV-29861: Galera test case hangs
+galera_sst_rsync_innodb_nest : MDEV-29591 nesting innodb subdirectories in datadir causes SST to fail
