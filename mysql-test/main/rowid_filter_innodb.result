@@ -1997,7 +1997,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
 WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	101	100.00	Using where
-1	PRIMARY	t1	ref|filter	a1,b1	a1|b1	5|4	test.t2.a2	36 (29%)	28.75	Using where; Using rowid filter
+1	PRIMARY	t1	ref	a1,b1	a1	5	test.t2.a2	36	28.75	Using where
 2	SUBQUERY	t2	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using index condition
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select max(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`pk2` <= 1) and `test`.`t1`.`pk1` + 1 = `test`.`t2`.`pk2` + 2
@@ -2022,14 +2022,6 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a1"],
       "ref": ["test.t2.a2"],
-      "rowid_filter": {
-        "range": {
-          "key": "b1",
-          "used_key_parts": ["b1"]
-        },
-        "rows": 115,
-        "selectivity_pct": 28.75
-      },
       "rows": 36,
       "filtered": 28.75,
       "attached_condition": "t1.b1 <= (subquery#2) and t1.pk1 + 1 = t2.pk2 + 2"
@@ -2112,7 +2104,7 @@ test.t1	analyze	status	OK
 explain
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	a,b	b|a	5|5	const	128 (14%)	Using where; Using rowid filter
+1	SIMPLE	t1	ref	a,b	b	5	const	128	Using where
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 a	b
 1	0
@@ -2447,32 +2439,19 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t1",
-      "access_type": "ref",
+      "access_type": "range",
       "possible_keys": ["idx1", "idx2"],
-      "key": "idx2",
-      "key_length": "5",
-      "used_key_parts": ["fl2"],
-      "ref": ["const"],
-      "rowid_filter": {
-        "range": {
-          "key": "idx1",
-          "used_key_parts": ["nm"]
-        },
-        "rows": 44,
-        "selectivity_pct": 0.44,
-        "r_rows": 44,
-        "r_lookups": 1000,
-        "r_selectivity_pct": 0,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
-      },
+      "key": "idx1",
+      "key_length": "35",
+      "used_key_parts": ["nm"],
       "r_loops": 1,
-      "rows": 921,
-      "r_rows": 0,
+      "rows": 44,
+      "r_rows": 44,
       "r_total_time_ms": "REPLACED",
-      "filtered": 0.44,
-      "r_filtered": 100,
-      "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+      "filtered": 9.21,
+      "r_filtered": 0,
+      "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
+      "attached_condition": "t1.fl2 = 0"
     }
   }
 }
@@ -2505,31 +2484,19 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t1",
-      "access_type": "ref",
+      "access_type": "range",
       "possible_keys": ["idx1", "idx2"],
-      "key": "idx2",
-      "key_length": "5",
-      "used_key_parts": ["fl2"],
-      "ref": ["const"],
-      "rowid_filter": {
-        "range": {
-          "key": "idx1",
-          "used_key_parts": ["nm"]
-        },
-        "rows": 44,
-        "selectivity_pct": 0.44,
-        "r_rows": 0,
-        "r_lookups": 0,
-        "r_selectivity_pct": 0,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
-      },
+      "key": "idx1",
+      "key_length": "35",
+      "used_key_parts": ["nm"],
       "r_loops": 1,
-      "rows": 911,
+      "rows": 44,
       "r_rows": 0,
-      "filtered": 0.44,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 9.11,
       "r_filtered": 100,
-      "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+      "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
+      "attached_condition": "t1.fl2 = 0"
     }
   }
 }
@@ -2704,7 +2671,7 @@ count(*)
 5
 explain extended select count(*) from t1 where a between 21 and 30 and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	24 (10%)	9.60	Using where; Using rowid filter
+1	SIMPLE	t1	ref	b,a	b	5	const	24	9.60	Using where
 Warnings:
 Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` between 21 and 30
 select * from t1 where a between 21 and 30 and b=2;
@@ -3166,7 +3133,7 @@ WHERE 1 = 1 AND domain = 'www.mailhost.i-dev.fr' AND
 timestamp >= DATE_ADD('2017-01-30 08:24:51', INTERVAL -1 MONTH)
 ORDER BY timestamp DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	ixEventWhoisDomainDomain,ixEventWhoisDomainTimestamp	ixEventWhoisDomainDomain|ixEventWhoisDomainTimestamp	98|4	const	40 (33%)	33.33	Using index condition; Using where; Using filesort; Using rowid filter
+1	SIMPLE	t1	ref	ixEventWhoisDomainDomain,ixEventWhoisDomainTimestamp	ixEventWhoisDomainDomain	98	const	40	33.33	Using index condition; Using where; Using filesort
 Warnings:
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`domain` AS `domain`,`test`.`t1`.`registrant_name` AS `registrant_name`,`test`.`t1`.`registrant_organization` AS `registrant_organization`,`test`.`t1`.`registrant_street1` AS `registrant_street1`,`test`.`t1`.`registrant_street2` AS `registrant_street2`,`test`.`t1`.`registrant_street3` AS `registrant_street3`,`test`.`t1`.`registrant_street4` AS `registrant_street4`,`test`.`t1`.`registrant_street5` AS `registrant_street5`,`test`.`t1`.`registrant_city` AS `registrant_city`,`test`.`t1`.`registrant_postal_code` AS `registrant_postal_code`,`test`.`t1`.`registrant_country` AS `registrant_country`,`test`.`t1`.`registrant_email` AS `registrant_email`,`test`.`t1`.`registrant_telephone` AS `registrant_telephone`,`test`.`t1`.`administrative_name` AS `administrative_name`,`test`.`t1`.`administrative_organization` AS `administrative_organization`,`test`.`t1`.`administrative_street1` AS `administrative_street1`,`test`.`t1`.`administrative_street2` AS `administrative_street2`,`test`.`t1`.`administrative_street3` AS `administrative_street3`,`test`.`t1`.`administrative_street4` AS `administrative_street4`,`test`.`t1`.`administrative_street5` AS `administrative_street5`,`test`.`t1`.`administrative_city` AS `administrative_city`,`test`.`t1`.`administrative_postal_code` AS `administrative_postal_code`,`test`.`t1`.`administrative_country` AS `administrative_country`,`test`.`t1`.`administrative_email` AS `administrative_email`,`test`.`t1`.`administrative_telephone` AS `administrative_telephone`,`test`.`t1`.`technical_name` AS `technical_name`,`test`.`t1`.`technical_organization` AS `technical_organization`,`test`.`t1`.`technical_street1` AS `technical_street1`,`test`.`t1`.`technical_street2` AS `technical_street2`,`test`.`t1`.`technical_street3` AS `technical_street3`,`test`.`t1`.`technical_street4` AS `technical_street4`,`test`.`t1`.`technical_street5` AS `technical_street5`,`test`.`t1`.`technical_city` AS `technical_city`,`test`.`t1`.`technical_postal_code` AS `technical_postal_code`,`test`.`t1`.`technical_country` AS `technical_country`,`test`.`t1`.`technical_email` AS `technical_email`,`test`.`t1`.`technical_telephone` AS `technical_telephone`,`test`.`t1`.`json` AS `json`,`test`.`t1`.`timestamp` AS `timestamp` from `test`.`t1` where `test`.`t1`.`domain` = 'www.mailhost.i-dev.fr' and `test`.`t1`.`timestamp` >= <cache>('2017-01-30 08:24:51' + interval -1 month) order by `test`.`t1`.`timestamp` desc
 SET optimizer_switch=@save_optimizer_switch;
@@ -3415,7 +3382,7 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where
-1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	24 (14%)	14.46	Using where; Using rowid filter
+1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	24	14.46	Using where
 Warnings:
 Note	1003	select `test`.`t`.`id` AS `id`,`test`.`fi`.`id` AS `id`,`test`.`fi`.`aceid` AS `aceid`,`test`.`fi`.`clid` AS `clid`,`test`.`fi`.`fh` AS `fh` from `test`.`acli` `t` join `test`.`acei` `a` join `test`.`filt` `fi` where `test`.`t`.`tp` = 121 and `test`.`a`.`atp` = 1 and `test`.`fi`.`aceid` = `test`.`a`.`id` and `test`.`a`.`aclid` = `test`.`t`.`id` and `test`.`t`.`rid` = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and `test`.`fi`.`fh` in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)
 set statement optimizer_switch='rowid_filter=on' for select t.id, fi.*
@@ -3531,7 +3498,7 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where; Using join buffer (flat, BKA join); Rowid-ordered scan
-1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	24 (14%)	14.46	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan; Using rowid filter
+1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	24	14.46	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan
 Warnings:
 Note	1003	select `test`.`t`.`id` AS `id`,`test`.`fi`.`id` AS `id`,`test`.`fi`.`aceid` AS `aceid`,`test`.`fi`.`clid` AS `clid`,`test`.`fi`.`fh` AS `fh` from `test`.`acli` `t` join `test`.`acei` `a` join `test`.`filt` `fi` where `test`.`t`.`tp` = 121 and `test`.`a`.`atp` = 1 and `test`.`fi`.`aceid` = `test`.`a`.`id` and `test`.`a`.`aclid` = `test`.`t`.`id` and `test`.`t`.`rid` = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and `test`.`fi`.`fh` in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)
 set statement optimizer_switch='rowid_filter=on' for select t.id, fi.*
@@ -3649,22 +3616,9 @@ ANALYZE
         "key_length": "8",
         "used_key_parts": ["aceid"],
         "ref": ["test.a.id"],
-        "rowid_filter": {
-          "range": {
-            "key": "filt_fh",
-            "used_key_parts": ["fh"]
-          },
-          "rows": 81,
-          "selectivity_pct": 14.464,
-          "r_rows": 80,
-          "r_lookups": 80,
-          "r_selectivity_pct": 40,
-          "r_buffer_size": "REPLACED",
-          "r_filling_time_ms": "REPLACED"
-        },
         "r_loops": 1,
         "rows": 24,
-        "r_rows": 32,
+        "r_rows": 80,
         "r_total_time_ms": "REPLACED",
         "filtered": 14.464,
         "r_filtered": 100
@@ -3674,7 +3628,7 @@ ANALYZE
       "join_type": "BKA",
       "mrr_type": "Rowid-ordered scan",
       "attached_condition": "fi.fh in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)",
-      "r_filtered": 100
+      "r_filtered": 40
     }
   }
 }
@@ -3778,7 +3732,7 @@ WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
 WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ref|filter	c1,i1	c1|i1	3|5	func	38 (25%)	25.00	Using where; Full scan on NULL key; Using rowid filter
+2	DEPENDENT SUBQUERY	t2	ref	c1,i1	i1	5	test.t1.pk	20	100.00	Using index condition; Using where
 2	DEPENDENT SUBQUERY	a1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1
