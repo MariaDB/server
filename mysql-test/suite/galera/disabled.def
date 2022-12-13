@@ -11,18 +11,12 @@
 ##############################################################################
 
 galera_as_slave_ctas : MDEV-28378 timeout
-galera_bf_kill_debug : MDEV-24485 wsrep::client_state::do_acquire_ownership(): Assertion `state_ == s_idle || mode_ != m_local' failed
+galera_bf_abort_at_after_statement : Timeout in wait_condition.inc for SELECT COUNT(*) = 1 FROM t1 where id = 1 and val = 3
 galera_pc_recovery : MDEV-25199 cluster fails to start up
-galera_sst_mysqldump : MDEV-26501 : galera.galera_sst_mysqldump MTR failed: galera SST with mysqldump failed
-galera_unicode_identifiers : MDEV-26500 : galera.galera_unicode_identifiers MTR failed: InnoDB: innodb_fatal_semaphore_wait_threshold was exceeded for dict_sys.mutex
-galera_var_dirty_reads : MDEV-25615 Galera test failure on galera_var_dirty_reads
 galera_sst_encrypted : MDEV-29876 Galera test failure on galera_sst_encrypted
-galera.MW-284 : MDEV-29861 Galera test case hangs
-galera.galera_binlog_checksum : MDEV-29861 Galera test case hangs
+MW-284 : MDEV-29861 Galera test case hangs
+galera_binlog_checksum : MDEV-29861 Galera test case hangs
 galera_var_notify_ssl_ipv6 : MDEV-29861 Galera test case hangs
 galera_var_node_address : MDEV-20485 Galera test failure
-galera_wsrep_provider_unset_set: wsrep_provider is read-only for security reasons
-pxc-421: wsrep_provider is read-only for security reasons
-galera_bf_abort_shutdown : MDEV-29773 Assertion failure on sql/wsrep_mysqld.cc:2893 in wsrep_bf_abort_shutdown
 MDEV-26575 : MDEV-29878 Galera test failure on MDEV-26575
-galera_bf_abort_at_after_statement : Timeout in wait_condition.inc for SELECT COUNT(*) = 1 FROM t1 where id = 1 and val = 3
+galera_bf_abort_shutdown : MDEV-29918 Assertion failure on galera_bf_abort_shutdown
