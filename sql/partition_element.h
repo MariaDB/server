@@ -124,6 +124,7 @@ public:
   bool signed_flag;                          // Range value signed
   bool max_value;                            // MAXVALUE range
   uint32 id;
+  partition_element *parent_part;
   bool empty;
   elem_type_enum type;
 
@@ -138,7 +139,7 @@ public:
     engine_type(NULL), connect_string(null_clex_str), part_state(PART_NORMAL),
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
     signed_flag(FALSE), max_value(FALSE),
-    id(UINT_MAX32),
+    id(UINT_MAX32), parent_part(NULL),
     empty(true),
     type(CONVENTIONAL),
     option_list(NULL), option_struct(NULL)
@@ -158,7 +159,7 @@ public:
     has_null_value(FALSE),
     signed_flag(part_elem->signed_flag),
     max_value(part_elem->max_value),
-    id(part_elem->id),
+    id(part_elem->id), parent_part(part_elem->parent_part),
     empty(part_elem->empty),
     type(CONVENTIONAL),
     option_list(part_elem->option_list),
@@ -172,6 +173,13 @@ public:
     DBUG_ASSERT(ev);
     DBUG_ASSERT(ev->col_val_array);
     return ev->col_val_array[idx];
+  }
+
+  uint32 serial_id(uint num_subparts) const
+  {
+    DBUG_ASSERT(num_subparts || !parent_part);
+    DBUG_ASSERT(!num_subparts || parent_part);
+    return num_subparts ? parent_part->id * num_subparts + id : id;
   }
 };
 
