@@ -2125,7 +2125,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   block->page.lock.x_lock();
 #ifdef BTR_CUR_HASH_ADAPT
   if (block->index)
-    btr_search_drop_page_hash_index(block);
+    btr_search_drop_page_hash_index(block, false);
 #endif /* BTR_CUR_HASH_ADAPT */
   block->page.set_freed(block->page.state());
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
@@ -3219,7 +3219,8 @@ retry:
 
 #ifdef BTR_CUR_HASH_ADAPT
     if (drop_hash_entry)
-      btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage));
+      btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage),
+                                      false);
 #endif /* BTR_CUR_HASH_ADAPT */
 
     if (ibuf_exist && !recv_recovery_is_on())

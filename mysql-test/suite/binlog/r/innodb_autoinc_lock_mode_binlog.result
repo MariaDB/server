@@ -1,3 +1,4 @@
+reset master;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 select @@innodb_autoinc_lock_mode;
 @@innodb_autoinc_lock_mode

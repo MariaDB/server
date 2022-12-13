@@ -515,7 +515,6 @@ int init_embedded_server(int argc, char **argv, char **groups)
    */
   int *argcp;
   char ***argvp;
-  int fake_argc = 1;
   char *fake_argv[] = { (char *)"", 0 };
   const char *fake_groups[] = { "server", "embedded", 0 };
   my_bool acl_error;
@@ -528,16 +527,14 @@ int init_embedded_server(int argc, char **argv, char **groups)
   if (init_early_variables())
     return 1;
 
-  if (argc)
+  if (!argc)
   {
-    argcp= &argc;
-    argvp= (char***) &argv;
+    argc= 1;
+    argv= fake_argv;
   }
-  else
-  {
-    argcp= &fake_argc;
-    argvp= (char ***) &fake_argv;
-  }
+  argcp= &argc;
+  argvp= &argv;
+
   if (!groups)
     groups= (char**) fake_groups;
 

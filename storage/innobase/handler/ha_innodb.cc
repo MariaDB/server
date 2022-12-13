@@ -5999,11 +5999,6 @@ ha_innobase::open(const char* name, int, uint)
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
 	if ((ib_table->flags2 & DICT_TF2_DISCARDED)) {
-
-		ib_senderrf(thd,
-			IB_LOG_LEVEL_WARN, ER_TABLESPACE_DISCARDED,
-			table->s->table_name.str);
-
 		/* Allow an open because a proper DISCARD should have set
 		all the flags and index root page numbers to FIL_NULL that
 		should prevent any DML from running but it should allow DDL
@@ -13870,6 +13865,10 @@ int ha_innobase::truncate()
 
   mem_heap_t *heap= mem_heap_create(1000);
 
+  if (!ib_table->space)
+    ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_TABLESPACE_DISCARDED,
+                table->s->table_name.str);
+
   dict_get_and_save_data_dir_path(ib_table);
   info.data_file_name= ib_table->data_dir_path;
   const char *temp_name=
@@ -18182,7 +18181,9 @@ innodb_enable_monitor_at_startup(
 /****************************************************************//**
 Callback function for accessing the InnoDB variables from MySQL:
 SHOW VARIABLES. */
-static int show_innodb_vars(THD*, SHOW_VAR* var, char*)
+static int show_innodb_vars(THD*, SHOW_VAR* var, void *,
+                            struct system_status_var *status_var,
+                            enum enum_var_type var_type)
 {
 	innodb_export_status();
 	var->type = SHOW_ARRAY;
@@ -18578,7 +18579,7 @@ innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
-	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
+	SHOW_FUNC_ENTRY("Innodb", &show_innodb_vars),
 	{NullS, NullS, SHOW_LONG}
 };
 
@@ -20049,17 +20050,13 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	return mysql_table;
 }
 
-/** Get the computed value by supplying the base column values.
-@param[in,out]	table		table whose virtual column
-				template to be built */
+/** Only used by the purge thread
+@param[in,out]	table       table whose virtual column template to be built */
 TABLE* innobase_init_vc_templ(dict_table_t* table)
 {
-	if (table->vc_templ != NULL) {
-		return NULL;
-	}
 	DBUG_ENTER("innobase_init_vc_templ");
 
-	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
+	ut_ad(table->vc_templ == NULL);
 
 	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
 
@@ -20068,8 +20065,12 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 		DBUG_RETURN(NULL);
 	}
 
-	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL,
-			       false);
+	dict_vcol_templ_t* vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
+
+	dict_sys.lock(SRW_LOCK_CALL);
+	table->vc_templ = vc_templ;
+	innobase_build_v_templ(mysql_table, table, vc_templ, nullptr, true);
+	dict_sys.unlock();
 	DBUG_RETURN(mysql_table);
 }
 

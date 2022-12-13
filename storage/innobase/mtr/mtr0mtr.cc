@@ -1251,7 +1251,7 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
         slot.type= MTR_MEMO_PAGE_X_MODIFY;
 #ifdef BTR_CUR_HASH_ADAPT
         if (block->index)
-          btr_search_drop_page_hash_index(block);
+          btr_search_drop_page_hash_index(block, false);
 #endif /* BTR_CUR_HASH_ADAPT */
         block->page.set_freed(block->page.state());
       }

@@ -36,6 +36,7 @@ my $opt_skip_gcov;
 my %cov;
 my $file_no=0;
 
+Getopt::Long::Configure ("bundling");
 GetOptions
   ("v|verbose+"    => \$opt_verbose,
    "h|help"        => \$opt_help,
@@ -62,12 +63,15 @@ my $res;
 my $cmd;
 if ($opt_purge)
 {
-  $cmd= "find . -name '*.da' -o -name '*.gcda' -o -name '*.gcov' -o ".
+  $cmd= "find . -name '*.da' -o -name '*.gcda*' -o -name '*.gcov' -o ".
                "-name '*.dgcov' | xargs rm -f ''";
   logv "Running: $cmd";
   system($cmd)==0 or die "system($cmd): $? $!";
   exit 0;
 }
+
+my $gcc_version= `gcc -dumpversion`;
+$gcc_version=~ s/^(\d+).*$/$1/ or die "Cannot parse gcc -dumpversion: $gcc_version";
 
 find(\&gcov_one_file, $root);
 find(\&write_coverage, $root) if $opt_generate;
@@ -167,26 +171,43 @@ sub gcov_one_file {
   {
     return;
   }
-  for my $gcov_file (<$_*.gcov>) {
-    open FH, '<', "$gcov_file_path" or die "open(<$gcov_file_path): $!";
-    my $fname;
-    while (<FH>) {
-      chomp;
-      if (/^function:/) {
-        next;
+  # now, read the generated file
+  if ($gcc_version <9){
+    for my $gcov_file (<$_*.gcov>) {
+      open FH, '<', "$gcov_file_path" or die "open(<$gcov_file_path): $!";
+      my $fname;
+      while (<FH>) {
+        chomp;
+        if (/^function:/) {
+          next;
+        }
+        if (/^file:/) {
+          $fname=realpath(-f $' ? $' : $root.$');
+          next;
+        }
+        next if /^lcount:\d+,-\d+/; # whatever that means
+        unless (/^lcount:(\d+),(\d+)/ and $fname) {
+          warn "unknown line '$_' in $gcov_file_path";
+          next;
+        }
+        $cov{$fname}->{$1}+=$2;
       }
-      if (/^file:/) {
-        $fname=realpath(-f $' ? $' : $root.$');
-        next;
-      }
-      next if /^lcount:\d+,-\d+/; # whatever that means
-      unless (/^lcount:(\d+),(\d+)/ and $fname) {
-        warn "unknown line '$_' in $gcov_file";
-        next;
-      }
-      $cov{$fname}->{$1}+=$2;
+      close(FH);
     }
-    close(FH);
+  } else {
+    require IO::Uncompress::Gunzip;
+    require JSON::PP;
+    no warnings 'once';
+    my $gcov_file_json;
+    s/\.gcda$// if $gcc_version >= 11;
+    IO::Uncompress::Gunzip::gunzip("$_.gcov.json.gz", \$gcov_file_json)
+      or die "gunzip($_.gcov.json.gz): $IO::Uncompress::Gunzip::GunzipError";
+    my $obj= JSON::PP::decode_json $gcov_file_json;
+    for my $file (@{$obj->{files}}) {
+      for my $line (@{$file->{lines}}){
+        $cov{$file->{file}}->{$line->{line_number}}+= $line->{count};
+      }
+    }
   }
 }
 

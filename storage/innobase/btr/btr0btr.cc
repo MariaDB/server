@@ -833,7 +833,7 @@ static void btr_free_root(buf_block_t *block, const fil_space_t &space,
                                    MTR_MEMO_PAGE_SX_FIX));
   ut_ad(mtr->is_named_space(&space));
 
-  btr_search_drop_page_hash_index(block);
+  btr_search_drop_page_hash_index(block, false);
 
   if (btr_root_fseg_validate(PAGE_HEADER + PAGE_BTR_SEG_TOP, *block, space))
   {
@@ -1107,7 +1107,7 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
 
 #ifdef BTR_CUR_HASH_ADAPT
     if (root_block->index)
-      btr_search_drop_page_hash_index(root_block);
+      btr_search_drop_page_hash_index(root_block, false);
     ut_ad(n_ahi_pages() == 0);
 #endif
     mtr.memset(root_block, PAGE_HEADER + PAGE_BTR_SEG_LEAF,
@@ -1287,7 +1287,7 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
   if (UNIV_UNLIKELY(pos == ULINT_UNDEFINED))
     return DB_CORRUPTION;
 
-  btr_search_drop_page_hash_index(block);
+  btr_search_drop_page_hash_index(block, false);
 
   buf_block_t *old= buf_block_alloc();
   /* Copy the old page to temporary space */
@@ -1617,7 +1617,7 @@ btr_page_empty(
 	     || page_zip_validate(page_zip, block->page.frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
@@ -3421,7 +3421,7 @@ btr_lift_page_up(
 		mem_heap_free(heap);
 	}
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	/* Make the father empty */
 	btr_page_empty(father_block, father_page_zip, index, page_level, mtr);
@@ -3742,7 +3742,7 @@ cannot_merge:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 		/* Remove the page from the level list */
 		err = btr_level_list_remove(*block, *index, mtr);
@@ -3845,7 +3845,7 @@ cannot_merge:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 		if (merge_page_zip && left_page_no == FIL_NULL) {
 
@@ -4045,7 +4045,7 @@ btr_discard_only_page_on_level(
 		ut_ad(fil_page_index_page_check(page));
 		ut_ad(block->page.id().space() == index->table->space->id);
 		ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 		cursor.page_cur.index = index;
 		cursor.page_cur.block = block;
 
@@ -4229,7 +4229,7 @@ btr_discard_page(
 		return DB_CORRUPTION;
 	}
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	if (dict_index_is_spatial(index)) {
 		rtr_node_ptr_delete(&parent_cursor, mtr);

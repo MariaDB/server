@@ -1586,12 +1586,14 @@ bool Item_field::check_vcol_func_processor(void *arg)
       }
     }
   }
-  if (field && (field->unireg_check == Field::NEXT_NUMBER))
-  {
-    // Auto increment fields are unsupported
-    return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
-  }
-  return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
+
+  uint r= VCOL_FIELD_REF;
+  if (field && field->unireg_check == Field::NEXT_NUMBER)
+    r|= VCOL_AUTO_INC;
+  if (field && field->vcol_info &&
+      field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
+    r|= VCOL_NON_DETERMINISTIC;
+  return mark_unsupported_function(field_name.str, arg, r);
 }
 
 
@@ -7214,6 +7216,25 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
     ptr[0]= 0;
 
   collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+}
+
+
+void Item_bin_string::print(String *str, enum_query_type query_type)
+{
+  if (!str_value.length())
+  {
+    /*
+      Historically a bit string such as b'01100001'
+      prints itself in the hex hybrid notation: 0x61
+      In case of an empty bit string b'', the hex hybrid
+      notation would result in a bad syntax: 0x
+      So let's print empty bit strings using bit string notation: b''
+    */
+    static const LEX_CSTRING empty_bit_string= {STRING_WITH_LEN("b''")};
+    str->append(empty_bit_string);
+  }
+  else
+    Item_hex_hybrid::print(str, query_type);
 }
 
 

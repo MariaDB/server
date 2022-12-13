@@ -262,6 +262,25 @@ drop user foo@localhost;
 drop user bar@localhost;
 drop user buz@localhost;
 
+CREATE USER foo;
+CREATE DATABASE db;
+CREATE TABLE db.test_getcolpriv(col1 INT, col2 INT);
+
+GRANT SELECT (col1,col2) ON db.test_getcolpriv TO foo;
+GRANT INSERT (col1) ON db.test_getcolpriv TO foo;
+
+SHOW GRANTS FOR foo;
+REVOKE SELECT (col1,col2) ON db.test_getcolpriv FROM foo;
+SHOW GRANTS FOR foo;
+REVOKE INSERT (col1) ON db.test_getcolpriv FROM foo;
+
+SHOW GRANTS FOR foo;
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR foo;
+
+DROP USER foo;
+DROP DATABASE db;
+
 --echo # End of 10.3 tests
 
 #

@@ -279,3 +279,20 @@ ALTER TABLE t1 ADD d INT NULL;
 ALTER TABLE t1 ADD FULLTEXT(b);
 ERROR HY000: Index 'FTS_DOC_ID_INDEX' is of wrong type for an InnoDB FULLTEXT index
 DROP TABLE t1;
+#
+# MDEV-29169 Using MATCH returns NULL for Virtual Column
+#
+CREATE TABLE t (a TEXT DEFAULT NULL,
+b TEXT AS (a),
+c TEXT AS (concat(a, '1')),
+d int AS (111) VIRTUAL,
+FULLTEXT KEY `a` (`a`)
+) ENGINE=InnoDB;
+INSERT INTO t (a) VALUES ('test');
+SELECT * FROM t;
+a	b	c	d
+test	test	test1	111
+SELECT * FROM t WHERE MATCH(a) AGAINST('test');
+a	b	c	d
+test	test	test1	111
+DROP TABLE t;
