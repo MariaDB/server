@@ -3513,12 +3513,13 @@ public:
   bool check_vcol_func_processor(void *arg)
   {
     context= 0;
+    uint res= VCOL_FIELD_REF;
     if (field && (field->unireg_check == Field::NEXT_NUMBER))
-    {
-      // Auto increment fields are unsupported
-      return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
-    }
-    return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
+      res|= VCOL_AUTO_INC;
+    if (field && field->vcol_info &&
+        field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
+      res|= VCOL_NON_DETERMINISTIC;
+    return mark_unsupported_function(field_name.str, arg, res);
   }
   bool set_fields_as_dependent_processor(void *arg)
   {
@@ -4820,6 +4821,7 @@ class Item_bin_string: public Item_hex_hybrid
 {
 public:
   Item_bin_string(THD *thd, const char *str, size_t str_length);
+  void print(String *str, enum_query_type query_type);
 };
 
 

@@ -873,6 +873,19 @@ eval CREATE OR REPLACE TABLE t1 (pk INT AUTO_INCREMENT, a INT, KEY(pk)) ENGINE=$
 INSERT INTO t1 VALUES (1,1),(2,2);
 UPDATE t1 SET pk = 0;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-29636 Assertion `part_share->auto_inc_initialized || !can_use_for_auto_inc_init()'
+--echo # failed in ha_partition::set_auto_increment_if_higher upon REPLACE
+--echo # with partition pruning
+--echo #
+eval CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY) ENGINE=$engine
+PARTITION BY RANGE (a) (
+  PARTITION p0 VALUES LESS THAN (10),
+  PARTITION pn VALUES LESS THAN MAXVALUE
+);
+REPLACE INTO t1 PARTITION (p0) SELECT 1;
+DROP TABLE t1;
 }
 
 if (!$skip_delete)

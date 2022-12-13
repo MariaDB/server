@@ -675,7 +675,7 @@ btr_search_update_hash_ref(
 
 	if (cursor->index != index) {
 		ut_ad(cursor->index->id == index->id);
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 		return;
 	}
 
@@ -1305,7 +1305,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 			dropping the table (preventing eviction). */
 			ut_ad(index->table->get_ref_count() > 0
 			      || mutex_own(&dict_sys.mutex));
-			btr_search_drop_page_hash_index(block);
+			btr_search_drop_page_hash_index(block, false);
 		}
 	}
 
@@ -1377,7 +1377,7 @@ btr_search_build_page_hash_index(
 	}
 
 	if (rebuild) {
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 	}
 
 	/* Check that the values for hash index build are sensible */
@@ -1603,7 +1603,7 @@ btr_search_move_or_delete_hash_entries(
 
 	if (new_block->index) {
 drop_exit:
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 		return;
 	}
 
@@ -1679,7 +1679,7 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 	if (index != cursor->index) {
 		ut_ad(index->id == cursor->index->id);
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 		return;
 	}
 
@@ -1759,7 +1759,7 @@ btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 
 	if (cursor->index != index) {
 		ut_ad(cursor->index->id == index->id);
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 		return;
 	}
 
@@ -1854,7 +1854,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 #endif
 	if (index != cursor->index) {
 		ut_ad(index->id == cursor->index->id);
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 		return;
 	}
 

@@ -260,6 +260,24 @@ create table t1 (a int, b int generated always as(-c) virtual, c int generated a
 ERROR 01000: Expression for field `b` is referring to uninitialized field `c`
 create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key) stored, col_int_key int);
 ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the GENERATED ALWAYS AS clause of `pk`
+create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key) unique, col_int_key int);
+ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the GENERATED ALWAYS AS clause of `pk`
+create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key), col_int_key int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `col_int_nokey` int(11) GENERATED ALWAYS AS (`pk` + `col_int_key`) VIRTUAL,
+  `col_int_key` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+insert t1 (col_int_key) values (10),(20),(30);
+select * from t1;
+pk	col_int_nokey	col_int_key
+1	11	10
+2	22	20
+3	33	30
+drop table t1;
 # Bug#20339347: FAIL TO USE CREATE ....SELECT STATEMENT TO CREATE A NEW TABLE
 create table t1 (a int, b int generated always as(-a) virtual, c int generated always as (b + 1) stored);
 insert into t1(a) values(1),(2);

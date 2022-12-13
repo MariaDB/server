@@ -5582,8 +5582,11 @@ static int replace_column_table(GRANT_TABLE *g_t,
         error= 0;
       grant_column= column_hash_search(g_t, column->column.ptr(),
                                        column->column.length());
-      if (grant_column)				// Should always be true
-	grant_column->rights= privileges;	// Update hash
+      if (grant_column)  // Should always be true
+      {
+        grant_column->rights= privileges;	// Update hash
+        grant_column->init_rights= privileges;
+      }
     }
     else					// new grant
     {
@@ -9675,9 +9678,8 @@ static bool show_table_and_column_privileges(THD *thd, const char *username,
                     }
                     else
                       global.append(STRING_WITH_LEN(", "));
-                    global.append(grant_column->column,
-                                  grant_column->key_length,
-                                  system_charset_info);
+                    append_identifier(thd, &global, grant_column->column,
+                                      grant_column->key_length);
                   }
                 }
                 if (found_col)

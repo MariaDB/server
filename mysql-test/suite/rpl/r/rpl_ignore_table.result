@@ -48,7 +48,7 @@ GRANT SELECT, INSERT, UPDATE, REFERENCES ON `test`.`t1` TO `mysqltest2`@`localho
 GRANT USAGE ON *.* TO `mysqltest2`@`localhost`
 show grants for mysqltest3@localhost;
 Grants for mysqltest3@localhost
-GRANT SELECT (a), INSERT, INSERT (a), UPDATE (a), REFERENCES (a) ON `test`.`t4` TO `mysqltest3`@`localhost`
+GRANT SELECT (`a`), INSERT, INSERT (`a`), UPDATE (`a`), REFERENCES (`a`) ON `test`.`t4` TO `mysqltest3`@`localhost`
 GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
 GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
 show grants for mysqltest4@localhost;
@@ -73,7 +73,7 @@ GRANT INSERT ON `test`.`t4` TO `mysqltest2`@`localhost`
 GRANT USAGE ON *.* TO `mysqltest2`@`localhost`
 show grants for mysqltest3@localhost;
 Grants for mysqltest3@localhost
-GRANT SELECT (a), INSERT, INSERT (a), UPDATE (a), REFERENCES (a) ON `test`.`t4` TO `mysqltest3`@`localhost`
+GRANT SELECT (`a`), INSERT, INSERT (`a`), UPDATE (`a`), REFERENCES (`a`) ON `test`.`t4` TO `mysqltest3`@`localhost`
 GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
 GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
 show grants for mysqltest4@localhost;
@@ -100,7 +100,7 @@ Grants for mysqltest1@localhost
 GRANT USAGE ON *.* TO `mysqltest1`@`localhost`
 show grants for mysqltest3@localhost;
 Grants for mysqltest3@localhost
-GRANT INSERT, INSERT (a), UPDATE (a), REFERENCES (a) ON `test`.`t4` TO `mysqltest3`@`localhost`
+GRANT INSERT, INSERT (`a`), UPDATE (`a`), REFERENCES (`a`) ON `test`.`t4` TO `mysqltest3`@`localhost`
 GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
 GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
 show grants for mysqltest4@localhost;
@@ -114,7 +114,7 @@ show grants for mysqltest3@localhost;
 Grants for mysqltest3@localhost
 GRANT USAGE ON *.* TO `mysqltest3`@`localhost`
 GRANT SELECT ON `test`.* TO `mysqltest3`@`localhost`
-GRANT INSERT, INSERT (a), UPDATE (a), REFERENCES (a) ON `test`.`t4` TO `mysqltest3`@`localhost`
+GRANT INSERT, INSERT (`a`), UPDATE (`a`), REFERENCES (`a`) ON `test`.`t4` TO `mysqltest3`@`localhost`
 show grants for mysqltest4@localhost;
 Grants for mysqltest4@localhost
 GRANT USAGE ON *.* TO `mysqltest4`@`localhost` IDENTIFIED BY PASSWORD '*196BDEDE2AE4F84CA44C47D54D78478C7E2BD7B7'

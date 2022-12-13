@@ -13262,6 +13262,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     uint jcl= tab->used_join_cache_level;
     tab->read_record.table= table;
     tab->read_record.unlock_row= rr_unlock_row;
+    tab->read_record.print_error= true;
     tab->sorted= sorted;
     sorted= 0;                                  // only first must be sorted
     

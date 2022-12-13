@@ -1,5 +1,5 @@
 -- source include/have_log_bin.inc
-
+reset master; # clear binlogs
 set sql_log_bin=0;
 --disable_warnings
 drop table if exists t1,v1,v2,v3,v4,v1badcheck;

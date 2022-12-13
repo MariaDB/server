@@ -1,0 +1,34 @@
+#
+# MDEV-28996 ASAN errors in String::q_append / spider_string::q_append / spider_db_mbase_util::open_item_func
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (
+a CHAR(8)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO tbl_a VALUES ('foo'),('bar');
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+a CHAR(8)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+SELECT MAX(BINARY a) FROM tbl_a;
+MAX(BINARY a)
+foo
+DROP DATABASE auto_test_local;
+connection child2_1;
+DROP DATABASE auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

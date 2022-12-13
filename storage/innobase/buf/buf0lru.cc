@@ -1604,10 +1604,12 @@ func_exit:
 	order to avoid bogus Valgrind or MSAN warnings.*/
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
 
+#ifdef BTR_CUR_HASH_ADAPT
 	MEM_MAKE_DEFINED(block->frame, srv_page_size);
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 	MEM_UNDEFINED(block->frame, srv_page_size);
 
+#endif /* BTR_CUR_HASH_ADAPT */
 	buf_pool_mutex_enter(buf_pool);
 
 	if (b) {

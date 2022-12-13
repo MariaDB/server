@@ -247,3 +247,7 @@ create table t1 (a int);
 alter table t1 add column r blob generated always
 as (match(a) against ('' in boolean mode)) virtual;
 drop table t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

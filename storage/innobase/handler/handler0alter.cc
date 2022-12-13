@@ -2092,6 +2092,12 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 
+	if (!m_prebuilt->table->space) {
+		ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN,
+			    ER_TABLESPACE_DISCARDED,
+			    table->s->table_name.str);
+	}
+
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
 		| INNOBASE_ALTER_INSTANT
@@ -5784,7 +5790,16 @@ static bool innobase_instant_try(
 	const dict_col_t* old_cols = user_table->cols;
 	DBUG_ASSERT(user_table->n_cols == ctx->old_n_cols);
 
+#ifdef BTR_CUR_HASH_ADAPT
+	/* Acquire the ahi latch to avoid a race condition
+	between ahi access and instant alter table */
+	rw_lock_t* ahi_latch = btr_get_search_latch(index);
+	rw_lock_x_lock(ahi_latch);
+#endif /* BTR_CUR_HASH_ADAPT */
 	const bool metadata_changed = ctx->instant_column();
+#ifdef BTR_CUR_HASH_ADAPT
+	rw_lock_x_unlock(ahi_latch);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);
 	/* Release the page latch. Between this and the next

@@ -6646,6 +6646,15 @@ drop view v1;
 drop table t1;
 
 --echo #
+--echo # MDEV-28696 View created as "select b''; " references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+--echo #
+
+CREATE VIEW v1 as select b'';
+SELECT * FROM v1;
+DROP VIEW v1;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

@@ -666,6 +666,16 @@ SELECT * FROM t1;
 DELETE FROM t1 WHERE a=CAST(0.671437 AS FLOAT);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-29473 UBSAN: Signed integer overflow: X * Y cannot be represented in type 'int' in strings/dtoa.c
+--echo #
+
+# This test was failing with UBSAN builds
+
+CREATE TABLE t1 (c DOUBLE);
+--error ER_WARN_DATA_OUT_OF_RANGE
+INSERT INTO t1 VALUES ('1e4294967297');
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.3 tests

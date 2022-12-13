@@ -10662,8 +10662,8 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
   uint filter= VCOL_IMPOSSIBLE;
   if (type != VCOL_GENERATED_VIRTUAL && type != VCOL_DEFAULT)
     filter|= VCOL_NOT_STRICTLY_DETERMINISTIC;
-  if (type == VCOL_GENERATED_VIRTUAL)
-    filter|= VCOL_NOT_VIRTUAL;
+  if (type != VCOL_DEFAULT)
+    filter|= VCOL_NEXTVAL;
 
   if (unlikely(ret || (res.errors & filter)))
   {
@@ -10986,6 +10986,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
                                                Field *orig_field)
  :Column_definition_attributes(old_field)
 {
+  geom_type= Field::GEOM_GEOMETRY;
+  srid= 0;
   on_update=  NULL;
   field_name= old_field->field_name;
   flags=      old_field->flags;

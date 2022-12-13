@@ -102,7 +102,7 @@ btr_search_move_or_delete_hash_entries(
 @param[in]	garbage_collect	drop ahi only if the index is marked
 				as freed */
 void btr_search_drop_page_hash_index(buf_block_t* block,
-				     bool garbage_collect= false);
+				     bool garbage_collect);
 
 /** Drop possible adaptive hash index entries when a page is evicted
 from the buffer pool or freed in a file, or the index is being dropped.

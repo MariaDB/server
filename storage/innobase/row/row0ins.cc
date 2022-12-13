@@ -897,11 +897,7 @@ row_ins_foreign_fill_virtual(
 		&ext, update->heap);
 	n_diff = update->n_fields;
 
-	if (index->table->vc_templ == NULL) {
-		/** This can occur when there is a cascading
-		delete or update after restart. */
-		innobase_init_vc_templ(index->table);
-	}
+	ut_ad(index->table->vc_templ != NULL);
 
 	ib_vcol_row vc(NULL);
 	uchar *record = vc.record(thd, index, &mysql_table);

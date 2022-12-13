@@ -48,11 +48,15 @@ commands="$commands
 path=`dirname $0`
 . \"$path/autorun.sh\""
 
-if [ -z "$just_clean" ]
+if [ -z "$just_clean"]
 then
-commands="$commands
-git submodule update
-CC=\"$CC\" CFLAGS=\"$cflags\" CXX=\"$CXX\" CXXFLAGS=\"$cxxflags\" CXXLDFLAGS=\"$CXXLDFLAGS\" $configure"
+    if test -d .git
+    then
+        commands="$commands
+        git submodule update"
+    fi
+    commands="$commands
+    CC=\"$CC\" CFLAGS=\"$cflags\" CXX=\"$CXX\" CXXFLAGS=\"$cxxflags\" CXXLDFLAGS=\"$CXXLDFLAGS\" $configure"
 fi
 
 if [ -z "$just_configure" -a -z "$just_clean" ]

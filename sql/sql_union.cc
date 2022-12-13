@@ -551,14 +551,17 @@ int select_union_direct::send_data(List<Item> &items)
 {
   if (!limit)
     return false;
-  limit--;
-  if (offset)
+  if (!unit->offset_limit_cnt)
   {
-    offset--;
-    return false;
+    limit--;
+    if (offset)
+    {
+      offset--;
+      return false;
+    }
+    send_records++;
   }
 
-  send_records++;
   fill_record(thd, table, table->field, items, true, false);
   if (unlikely(thd->is_error()))
     return true; /* purecov: inspected */
