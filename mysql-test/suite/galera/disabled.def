@@ -52,6 +52,7 @@ galera_ist_rsync : MDEV-30157
 galera_ist_MDEV-28583 : MDEV-30157
 galera_ist_recv_bind : MDEV-30157
 galera_kill_nochanges : MDEV-30157
+galera_kill_smallchanges : MDEV-30157
 galera_sst_encrypted : MDEV-30157
 galera_sst_rsync : MDEV-30157
 galera_sst_rsync2 : MDEV-30157

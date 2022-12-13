@@ -43,5 +43,6 @@ galera-features#119 : MDEV-30157
 galera_allowlist : MDEV-30157
 galera_certification_ccc : MDEV-30157
 galera_evs_suspect_timeout : MDEV-30157
+galera_garbd_backup : MDEV-30157
 galera_pc_weight: MDEV-30157
 galera_var_dirty_reads2: MDEV-30157
