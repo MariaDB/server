@@ -20320,6 +20320,8 @@ free_tmp_table(THD *thd, TABLE *entry)
     }
     entry->file->ha_drop_table(entry->s->path.str);
     delete entry->file;
+    entry->file= NULL;
+    entry->reset_created();
   }
 
   /* free blobs */
