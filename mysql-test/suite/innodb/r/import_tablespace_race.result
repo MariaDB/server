@@ -1,0 +1,27 @@
+#
+# MDEV-29144 ER_TABLE_SCHEMA_MISMATCH or crash on DISCARD/IMPORT
+#
+call mtr.add_suppression("InnoDB: Unknown index id");
+CREATE TABLE t (pk int PRIMARY KEY, c varchar(1024))
+ENGINE=InnoDB CHARSET latin1;
+INSERT INTO t SELECT seq, 'x' FROM seq_1_to_100;
+connect  con1,localhost,root,,test;
+BEGIN NOT ATOMIC
+DECLARE a INT DEFAULT 0;
+REPEAT
+SET a= a+1;
+UPDATE t SET c = 'xx' WHERE pk = a;
+UNTIL a = 100
+END REPEAT;
+END
+$
+connection default;
+ALTER TABLE t NOWAIT ADD INDEX (c);
+connection con1;
+connection default;
+FLUSH TABLE t FOR EXPORT;
+UNLOCK TABLES;
+DROP TABLE t;
+ALTER TABLE t DISCARD TABLESPACE;
+ALTER TABLE t IMPORT TABLESPACE;
+DROP TABLE t;

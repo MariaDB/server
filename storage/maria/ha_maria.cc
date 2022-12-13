@@ -1489,6 +1489,7 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
   {
     param->db_name= table->s->db.str;
     param->table_name= table->alias.c_ptr();
+    param->testflag= check_opt->flags;
     _ma_check_print_info(param, "Running zerofill on moved table");
     return zerofill(thd, check_opt);
   }

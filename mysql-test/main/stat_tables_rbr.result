@@ -1,3 +1,4 @@
+RESET MASTER;
 #
 # Bug mdev-463: assertion failure when running ANALYZE with RBR on
 # 

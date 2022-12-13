@@ -300,6 +300,30 @@ drop database db;
 drop user foo@localhost;
 drop user bar@localhost;
 drop user buz@localhost;
+CREATE USER foo;
+CREATE DATABASE db;
+CREATE TABLE db.test_getcolpriv(col1 INT, col2 INT);
+GRANT SELECT (col1,col2) ON db.test_getcolpriv TO foo;
+GRANT INSERT (col1) ON db.test_getcolpriv TO foo;
+SHOW GRANTS FOR foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT SELECT (`col2`, `col1`), INSERT (`col1`) ON `db`.`test_getcolpriv` TO `foo`@`%`
+REVOKE SELECT (col1,col2) ON db.test_getcolpriv FROM foo;
+SHOW GRANTS FOR foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT INSERT (`col1`) ON `db`.`test_getcolpriv` TO `foo`@`%`
+REVOKE INSERT (col1) ON db.test_getcolpriv FROM foo;
+SHOW GRANTS FOR foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+DROP USER foo;
+DROP DATABASE db;
 # End of 10.3 tests
 create user u1@h identified with 'mysql_native_password' using 'pwd';
 ERROR HY000: Password hash should be a 41-digit hexadecimal number

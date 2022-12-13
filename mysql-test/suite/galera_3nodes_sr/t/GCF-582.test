@@ -1,6 +1,14 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--LET $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
@@ -11,6 +19,8 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -37,3 +47,6 @@ SELECT COUNT(*) FROM t1;
 SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
+
+--disconnect node_1b
+--source ../galera/include/auto_increment_offset_restore.inc

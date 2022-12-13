@@ -134,7 +134,7 @@ GRANT SELECT (a) ON t1 TO foo;
 SHOW GRANTS FOR foo;
 Grants for foo@%
 GRANT USAGE ON *.* TO `foo`@`%`
-GRANT SELECT (a) ON `db`.`t1` TO `foo`@`%`
+GRANT SELECT (`a`) ON `db`.`t1` TO `foo`@`%`
 SELECT * FROM information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	LEVEL	CHECK_CLAUSE
 def	db	t1	CONSTRAINT_1	Table	`b` > 0

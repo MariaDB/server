@@ -1,6 +1,8 @@
 # These should be moved, see https://jira.mariadb.org/browse/MDEV-21653
 arch-dependent-file-in-usr-share usr/share/mysql/mysql-test/lib/My/SafeProcess/my_safe_process
 arch-dependent-file-in-usr-share usr/share/mysql/mysql-test/lib/My/SafeProcess/wsrep_check_version
+arch-dependent-file-in-usr-share [usr/share/mysql/mysql-test/lib/My/SafeProcess/my_safe_process]
+arch-dependent-file-in-usr-share [usr/share/mysql/mysql-test/lib/My/SafeProcess/wsrep_check_version]
 # Mainly for support for *BSD family. Not right way to do but this is test package and not for production
 incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/lib/process-purecov-annotations.pl]
 incorrect-path-for-interpreter /usr/bin/env perl != /usr/bin/perl [usr/share/mysql/mysql-test/lib/v1/mysql-test-run.pl]
