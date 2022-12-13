@@ -55,6 +55,7 @@ speciald=1
 ib_home_dir=""
 ib_log_dir=""
 ib_undo_dir=""
+ar_log_dir=""
 
 sfmt=""
 strmcmd=""
@@ -1271,6 +1272,24 @@ else # joiner
         [ "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
     fi
 
+    # if no command line argument then try to get it from the my.cnf:
+    if [ -z "$ARIA_LOG_DIR" ]; then
+        ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
+        ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
+    fi
+
+    if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
+         "$ARIA_LOG_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
+        cd "$ARIA_LOG_DIR"
+        ar_log_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
+    fi
+
     if [ -n "$backup_threads" ]; then
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
@@ -1410,12 +1429,14 @@ else # joiner
             find -E ${ib_home_dir:+"$ib_home_dir"} \
                     ${ib_undo_dir:+"$ib_undo_dir"} \
                     ${ib_log_dir:+"$ib_log_dir"} \
+                    ${ar_log_dir:+"$ar_log_dir"} \
                     "$DATA" -mindepth 1 -prune -regex "$cpat" \
                     -o -exec rm -rf {} >&2 \+
         else
             find ${ib_home_dir:+"$ib_home_dir"} \
                  ${ib_undo_dir:+"$ib_undo_dir"} \
                  ${ib_log_dir:+"$ib_log_dir"} \
+                 ${ar_log_dir:+"$ar_log_dir"} \
                  "$DATA" -mindepth 1 -prune -regex "$cpat" \
                  -o -exec rm -rf {} >&2 \+
         fi
