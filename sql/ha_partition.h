@@ -308,6 +308,7 @@ private:
   handler **m_new_file;                 // Array of references to new handlers
   handler **m_reorged_file;             // Reorganised partitions
   handler **m_added_file;               // Added parts kept for errors
+  uint m_added_count;
   LEX_CSTRING *m_connect_string;
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
@@ -557,6 +558,7 @@ public:
                         ulonglong * const copied, ulonglong * const deleted,
                         const uchar *pack_frm_data, size_t pack_frm_len)
     override;
+  int allocate_partitions();
   int drop_partitions(const char *path) override;
   int rename_partitions(const char *path) override;
   bool get_no_parts(const char *, uint *num_parts) override
@@ -572,13 +574,12 @@ public:
   {
     m_file[part_id]->update_create_info(create_info);
   }
-private:
   int copy_partitions(ulonglong * const copied, ulonglong * const deleted);
-  void cleanup_new_partition(uint part_count);
-  int prepare_new_partition(TABLE *table, HA_CREATE_INFO *create_info,
-                            handler *file, const char *part_name,
-                            partition_element *p_elem,
-                            uint disable_non_uniq_indexes);
+  void cleanup_new_partition();
+  int create_partition(TABLE *table, HA_CREATE_INFO *create_info,
+                       const char *part_name, partition_element *p_elem,
+                       uint disable_non_uniq_indexes);
+private:
   /*
     delete_table and rename_table uses very similar logic which
     is packed into this routine.

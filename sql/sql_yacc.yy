@@ -5056,6 +5056,7 @@ sub_part_definition:
               MYSQL_YYABORT;
 
             sub_p_elem->id= curr_part->subpartitions.elements - 1;
+            sub_p_elem->parent_part= curr_part;
             part_info->curr_part_elem= sub_p_elem;
             part_info->use_default_subpartitions= FALSE;
             part_info->use_default_num_subpartitions= FALSE;
