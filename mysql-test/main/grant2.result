@@ -204,7 +204,7 @@ show grants for 'mysqltest_2';
 Grants for mysqltest_2@%
 GRANT SELECT ON *.* TO "mysqltest_2"@"%" IDENTIFIED BY PASSWORD '*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1'
 GRANT INSERT ON "test".* TO "mysqltest_2"@"%"
-GRANT UPDATE (c2) ON "test"."t2" TO "mysqltest_2"@"%"
+GRANT UPDATE ("c2") ON "test"."t2" TO "mysqltest_2"@"%"
 GRANT UPDATE ON "test"."t1" TO "mysqltest_2"@"%"
 drop user 'mysqltest_1';
 select host,user,password,plugin,authentication_string from mysql.user where user like 'mysqltest_%';
@@ -242,7 +242,7 @@ show grants for 'mysqltest_1';
 Grants for mysqltest_1@%
 GRANT SELECT ON *.* TO "mysqltest_1"@"%" IDENTIFIED BY PASSWORD '*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1'
 GRANT INSERT ON "test".* TO "mysqltest_1"@"%"
-GRANT UPDATE (c2) ON "test"."t2" TO "mysqltest_1"@"%"
+GRANT UPDATE ("c2") ON "test"."t2" TO "mysqltest_1"@"%"
 GRANT UPDATE ON "test"."t1" TO "mysqltest_1"@"%"
 drop user 'mysqltest_1', 'mysqltest_3';
 drop user 'mysqltest_1';

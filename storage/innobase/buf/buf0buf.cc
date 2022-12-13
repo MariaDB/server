@@ -2327,7 +2327,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr,
 
 #ifdef BTR_CUR_HASH_ADAPT
       if (block->index)
-        btr_search_drop_page_hash_index(block);
+        btr_search_drop_page_hash_index(block, false);
 #endif /* BTR_CUR_HASH_ADAPT */
 
       block->page.status= buf_page_t::FREED;
@@ -3511,7 +3511,7 @@ loop:
 
 #ifdef BTR_CUR_HASH_ADAPT
     if (drop_hash_entry)
-      btr_search_drop_page_hash_index(block);
+      btr_search_drop_page_hash_index(block, false);
 #endif /* BTR_CUR_HASH_ADAPT */
 
     if (block->page.ibuf_exist)

@@ -951,7 +951,7 @@ static void btr_free_root(buf_block_t *block, mtr_t *mtr)
                                    MTR_MEMO_PAGE_SX_FIX));
   ut_ad(mtr->is_named_space(block->page.id().space()));
 
-  btr_search_drop_page_hash_index(block);
+  btr_search_drop_page_hash_index(block, false);
 
 #ifdef UNIV_BTR_DEBUG
   ut_a(btr_root_fseg_validate(PAGE_HEADER + PAGE_BTR_SEG_TOP + block->frame,
@@ -1364,7 +1364,7 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
   /* Copy the old page to temporary space */
   memcpy_aligned<UNIV_PAGE_SIZE_MIN>(old->frame, block->frame, srv_page_size);
 
-  btr_search_drop_page_hash_index(block);
+  btr_search_drop_page_hash_index(block, false);
 
   /* Save the cursor position. */
   const ulint pos= page_rec_get_n_recs_before(cursor->rec);
@@ -1668,7 +1668,7 @@ btr_page_empty(
 	ut_a(!page_zip || page_zip_validate(page_zip, block->frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
@@ -3301,7 +3301,7 @@ btr_lift_page_up(
 		mem_heap_free(heap);
 	}
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	/* Make the father empty */
 	btr_page_empty(father_block, father_page_zip, index, page_level, mtr);
@@ -3583,7 +3583,7 @@ retry:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 		/* Remove the page from the level list */
 		if (DB_SUCCESS != btr_level_list_remove(*block, *index, mtr)) {
@@ -3691,7 +3691,7 @@ retry:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 #ifdef UNIV_BTR_DEBUG
 		if (merge_page_zip && left_page_no == FIL_NULL) {
@@ -3916,7 +3916,7 @@ btr_discard_only_page_on_level(
 		ut_ad(fil_page_index_page_check(page));
 		ut_ad(block->page.id().space() == index->table->space->id);
 		ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 		if (dict_index_is_spatial(index)) {
 			/* Check any concurrent search having this page */
@@ -4081,7 +4081,7 @@ btr_discard_page(
 	ut_a(page_is_comp(merge_block->frame) == page_is_comp(block->frame));
 	ut_ad(!memcmp_aligned<2>(&merge_block->frame[PAGE_HEADER + PAGE_LEVEL],
 				 &block->frame[PAGE_HEADER + PAGE_LEVEL], 2));
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	if (dict_index_is_spatial(index)) {
 		rtr_node_ptr_delete(&parent_cursor, mtr);

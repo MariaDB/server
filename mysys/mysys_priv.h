@@ -204,6 +204,45 @@ extern int      my_win_fsync(File fd);
 extern File     my_win_dup(File fd);
 extern File     my_win_sopen(const char *path, int oflag, int shflag, int perm);
 extern File     my_open_osfhandle(HANDLE handle, int oflag);
+
+
+/*
+  The following constants are related to retries when file operation fails with
+  ERROR_FILE_SHARING_VIOLATION
+*/
+#define FILE_SHARING_VIOLATION_RETRIES  50
+#define FILE_SHARING_VIOLATION_DELAY_MS 10
+
+
+/* DBUG injecting of ERROR_FILE_SHARING_VIOLATION */
+#ifndef DBUG_OFF
+/* Open file, without sharing. if specific DBUG keyword is set */
+#define DBUG_INJECT_FILE_SHARING_VIOLATION(filename)                          \
+  FILE *fp= NULL;                                                             \
+  do                                                                          \
+  {                                                                           \
+    DBUG_EXECUTE_IF("file_sharing_violation",                                 \
+                    fp= _fsopen(filename, "r", _SH_DENYRW););                 \
+  } while (0)
+
+/* Close the file that causes ERROR_FILE_SHARING_VIOLATION.*/
+#define DBUG_CLEAR_FILE_SHARING_VIOLATION()                                   \
+  do                                                                          \
+  {                                                                           \
+    if (fp)                                                                   \
+    {                                                                         \
+      DWORD tmp_err= GetLastError();                                          \
+      fclose(fp);                                                             \
+      SetLastError(tmp_err);                                                  \
+      fp= NULL;                                                               \
+    }                                                                         \
+  } while (0)
+
+#else
+#define DBUG_INJECT_FILE_SHARING_VIOLATION(filename) do {} while (0)
+#define DBUG_CLEAR_FILE_SHARING_VIOLATION()  do {} while (0)
+#endif
+
 #endif
 
 C_MODE_END

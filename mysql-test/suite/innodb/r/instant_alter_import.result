@@ -147,8 +147,6 @@ INSERT INTO t1 VALUES(1);
 FLUSH TABLE t1 FOR EXPORT;
 unlock tables;
 ALTER TABLE t IMPORT tablespace;
-Warnings:
-Warning	1814	Tablespace has been discarded for table `t`
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK

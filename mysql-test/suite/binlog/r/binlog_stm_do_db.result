@@ -1,3 +1,4 @@
+RESET MASTER;
 SET @old_isolation_level= @@session.tx_isolation;
 SET @@session.tx_isolation= 'READ-COMMITTED';
 CREATE DATABASE b42829;

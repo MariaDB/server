@@ -3,6 +3,7 @@
 let collation=utf8_unicode_ci;
 --source include/have_collation.inc
 
+reset master; # clear up binlogs
 # REQUIREMENT
 #   replace_regex should replace output of SHOW BINLOG EVENTS
 

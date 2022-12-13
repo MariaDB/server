@@ -1270,7 +1270,8 @@ void prepare_new_connection_state(THD* thd)
         and the main Diagnostics Area contains an error condition.
       */
       if (packet_length != packet_error)
-        my_error(ER_NEW_ABORTING_CONNECTION, MYF(0),
+        my_error(ER_NEW_ABORTING_CONNECTION,
+                 (thd->db.str || sctx->user) ? MYF(0) : MYF(ME_WARNING),
                  thd->thread_id,
                  thd->db.str ? thd->db.str : "unconnected",
                  sctx->user ? sctx->user : "unauthenticated",

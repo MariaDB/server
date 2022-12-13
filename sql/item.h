@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4818,6 +4818,7 @@ class Item_bin_string: public Item_hex_hybrid
 {
 public:
   Item_bin_string(THD *thd, const char *str, size_t str_length);
+  void print(String *str, enum_query_type query_type) override;
 };
 
 

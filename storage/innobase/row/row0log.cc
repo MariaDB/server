@@ -2368,6 +2368,8 @@ func_exit_committed:
 		mtr_start(&mtr);
 		index->set_modified(mtr);
 
+		ut_free(pcur.old_rec_buf);
+
 		if (ROW_FOUND != row_search_index_entry(
 			    index, entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
 			ut_ad(0);

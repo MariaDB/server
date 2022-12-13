@@ -967,7 +967,7 @@ func_exit:
 		order to avoid bogus Valgrind or MSAN warnings.*/
 
 		MEM_MAKE_DEFINED(block->frame, srv_page_size);
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 		MEM_UNDEFINED(block->frame, srv_page_size);
 
 		if (UNIV_LIKELY_NULL(b)) {

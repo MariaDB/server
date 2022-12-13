@@ -144,7 +144,7 @@ sub do_args($$$$$) {
   my $v = $debuggers{$k};
 
   # on windows mtr args are quoted (for system), otherwise not (for exec)
-  sub quote($) { $_[0] =~ /[; ]/ ? "\"$_[0]\"" : $_[0] }
+  sub quote($) { $_[0] =~ /[; >]/ ? "\"$_[0]\"" : $_[0] }
   sub unquote($) { $_[0] =~ s/^"(.*)"$/$1/; $_[0] }
   sub quote_from_mtr($) { IS_WINDOWS() ? $_[0] : quote($_[0]) }
   sub unquote_for_mtr($) { IS_WINDOWS() ? $_[0] : unquote($_[0]) }

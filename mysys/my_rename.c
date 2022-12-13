@@ -34,41 +34,24 @@
 */
 static BOOL win_rename_with_retries(const char *from, const char *to)
 {
-#ifndef DBUG_OFF
-  FILE *fp = NULL;
-  DBUG_EXECUTE_IF("rename_sharing_violation",
-    {
-    fp= fopen(from, "r");
-    DBUG_ASSERT(fp);
-    }
-  );
-#endif
+  DBUG_INJECT_FILE_SHARING_VIOLATION(from);
 
-  for (int retry= RENAME_MAX_RETRIES; retry--;)
+  for (int retry= FILE_SHARING_VIOLATION_RETRIES; retry--;)
   {
     BOOL ret= MoveFileEx(from, to,
                          MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING);
+
+    DBUG_CLEAR_FILE_SHARING_VIOLATION();
 
     if (ret)
       return ret;
 
     DWORD last_error= GetLastError();
+
     if (last_error == ERROR_SHARING_VIOLATION ||
         last_error == ERROR_ACCESS_DENIED)
     {
-#ifndef DBUG_OFF
-       /*
-        If error was injected in via DBUG_EXECUTE_IF, close the file
-        that is causing ERROR_SHARING_VIOLATION, so that retry succeeds.
-       */
-        if (fp)
-        {
-          fclose(fp);
-          fp= NULL;
-        }
-#endif
-
-      Sleep(10);
+      Sleep(FILE_SHARING_VIOLATION_DELAY_MS);
     }
     else
       return ret;

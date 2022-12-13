@@ -1895,7 +1895,9 @@ static void tokudb_lock_wait_needed_callback(
 // and prefixed with "TOKUDB_"
 static int show_tokudb_vars(TOKUDB_UNUSED(THD* thd),
                             SHOW_VAR* var,
-                            TOKUDB_UNUSED(char* buff)) {
+                            TOKUDB_UNUSED(void* buff),
+                            TOKUDB_UNUSED(system_status_var *status_var),
+                            TOKUDB_UNUSED(enum_var_type var_type)) {
     TOKUDB_DBUG_ENTER("");
 
     int error;
@@ -1996,7 +1998,7 @@ static int show_tokudb_vars(TOKUDB_UNUSED(THD* thd),
 }
 
 static SHOW_VAR toku_global_status_variables_export[]= {
-    {"Tokudb", (char*)&show_tokudb_vars, SHOW_FUNC},
+    SHOW_FUNC_ENTRY("Tokudb", &show_tokudb_vars),
     {NullS, NullS, SHOW_LONG}
 };
 

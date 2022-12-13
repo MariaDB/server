@@ -29,6 +29,7 @@ Created 2013-7-26 by Kevin Lewis
 #include "os0file.h"
 #include "page0page.h"
 #include "srv0start.h"
+#include "log.h"
 
 /** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied
@@ -351,10 +352,23 @@ Datafile::read_first_page(bool read_only_mode)
 		if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
 			ulint cflags = fsp_flags_convert_from_101(m_flags);
 			if (cflags == ULINT_UNDEFINED) {
-				ib::error()
-					<< "Invalid flags " << ib::hex(m_flags)
-					<< " in " << m_filepath;
-				return(DB_CORRUPTION);
+				switch (fsp_flags_is_incompatible_mysql(m_flags)) {
+				case 0:
+					sql_print_error("InnoDB: Invalid flags 0x%zx in %s",
+							m_flags, m_filepath);
+					return(DB_CORRUPTION);
+				case 3:
+				case 2:
+					sql_print_error("InnoDB: MySQL-8.0 tablespace in %s",
+							m_filepath);
+					break;
+				case 1:
+					sql_print_error("InnoDB: MySQL Encrypted tablespace in %s",
+							m_filepath);
+					break;
+				}
+				sql_print_error("InnoDB: Restart in MySQL for migration/recovery.");
+				return(DB_UNSUPPORTED);
 			} else {
 				m_flags = cflags;
 			}

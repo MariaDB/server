@@ -1414,7 +1414,8 @@ private:
     if (!part_share->auto_inc_initialized &&
         (ha_thd()->lex->sql_command == SQLCOM_INSERT ||
          ha_thd()->lex->sql_command == SQLCOM_INSERT_SELECT ||
-         ha_thd()->lex->sql_command == SQLCOM_REPLACE) &&
+         ha_thd()->lex->sql_command == SQLCOM_REPLACE ||
+         ha_thd()->lex->sql_command == SQLCOM_REPLACE_SELECT) &&
         table->found_next_number_field)
       bitmap_set_all(&m_part_info->read_partitions);
   }

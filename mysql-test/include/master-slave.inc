@@ -1,5 +1,3 @@
---source include/no_valgrind_without_big.inc
-
 # ==== Purpose ====
 #
 # Configure two servers to be replication master and slave.

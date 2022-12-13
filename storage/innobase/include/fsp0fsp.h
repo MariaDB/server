@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -717,6 +717,20 @@ fsp_flags_match(ulint expected, ulint actual)
 
 	actual = fsp_flags_convert_from_101(actual);
 	return(actual == expected);
+}
+
+/** Determine if FSP_SPACE_FLAGS are from an incompatible MySQL format.
+@param	flags	the contents of FSP_SPACE_FLAGS
+@return	MySQL flags shifted.
+@retval	0, if not a MySQL incompatible format. */
+MY_ATTRIBUTE((warn_unused_result, const))
+inline ulint fsp_flags_is_incompatible_mysql(ulint flags)
+{
+  /*
+    MySQL-8.0 SDI flag (bit 14),
+    or MySQL 5.7 Encyption flag (bit 13)
+  */
+  return flags >> 13 & 3;
 }
 
 /** Determine the descriptor index within a descriptor page.

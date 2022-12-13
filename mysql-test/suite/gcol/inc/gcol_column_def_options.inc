@@ -49,18 +49,18 @@ alter table t1 add column (h int generated always as (a+1) virtual, i int as(5) 
 drop table t1;
 
 --echo # DEFAULT
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int, b int generated always as (a+1) virtual default 0);
 create table t1 (a int);
---error 1064
+--error ER_PARSE_ERROR
 alter table t1 add column b int generated always as (a+1) virtual default 0;
 drop table t1;
 
 --echo # AUTO_INCREMENT
---error 1064
+--error ER_PARSE_ERROR
 create table t1 (a int, b int generated always as (a+1) virtual AUTO_INCREMENT);
 create table t1 (a int);
---error 1064
+--error ER_PARSE_ERROR
 alter table t1 add column b int generated always as (a+1) virtual AUTO_INCREMENT;
 drop table t1;
 
@@ -203,6 +203,13 @@ create table t1 (a int, b int generated always as(-b) virtual, c int generated a
 create table t1 (a int, b int generated always as(-c) virtual, c int generated always as (b + 1) virtual);
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key) stored, col_int_key int);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key) unique, col_int_key int);
+create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key), col_int_key int);
+show create table t1;
+insert t1 (col_int_key) values (10),(20),(30);
+select * from t1;
+drop table t1;
 
 --echo # Bug#20339347: FAIL TO USE CREATE ....SELECT STATEMENT TO CREATE A NEW TABLE
 create table t1 (a int, b int generated always as(-a) virtual, c int generated always as (b + 1) stored);

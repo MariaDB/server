@@ -15,6 +15,9 @@ let page_size= `select @@innodb_page_size`;
 
 --echo # FIXME: Unlike MySQL, maybe MariaDB should not read the .ibd files
 --echo # of tables with .isl file or DATA DIRECTORY attribute.
+call mtr.add_suppression("\\[ERROR\\] InnoDB: MySQL-8\\.0 tablespace in ");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Restart in MySQL for migration/recovery\\.");
+
 --echo # FIXME: This is much more noisy than MariaDB 10.1!
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Tablespace flags are invalid in datafile: .*test.t[rcd]\\.ibd");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Operating system error number .* in a file operation\\.");
@@ -47,7 +50,7 @@ die unless open OUT, ">", "$ENV{datadir}/test/tc.ibd";
 print OUT "bar " x $ENV{page_size};
 close OUT or die;
 die unless open OUT, ">", "$ENV{MYSQL_TMP_DIR}/test/td.ibd";
-print OUT "xyz " x $ENV{page_size};
+print OUT "Xyz " x $ENV{page_size};
 close OUT or die;
 EOF
 
@@ -101,3 +104,60 @@ EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size
 --source include/wait_condition.inc
 
 SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;
+
+--echo #
+--echo # MDEV-27882 Innodb - recognise MySQL-8.0 innodb flags and give a specific error message
+--echo #
+
+--let MYSQLD_DATADIR= `SELECT @@datadir`
+--let SERVER_ID= `SELECT @@server_id`
+--let EXPECT_FILE_NAME= $MYSQLTEST_VARDIR/tmp/mysqld.$SERVER_ID.expect
+
+--source include/shutdown_mysqld.inc
+
+--move_file $MYSQLD_DATADIR/ibdata1 $MYSQLD_DATADIR/ibdata1.bak
+--copy_file std_data/mysql80/ibdata1_$page_size $MYSQLD_DATADIR/ibdata1
+
+perl;
+use IO::Handle;
+my $size = 9 * 1048576;
+if ($ENV{MTR_COMBINATION_32K}) {
+  $size *= 2;
+}
+if ($ENV{MTR_COMBINATION_64K}) {
+  $size *= 4;
+}
+$size -= $ENV{page_size};
+die unless open(FILE, ">>", "$ENV{MYSQLD_DATADIR}/ibdata1");
+binmode FILE;
+
+print FILE chr(0) x $size;
+close(FILE);
+EOF
+
+--let ibdata_size='9M'
+if ($MTR_COMBINATION_32K)
+{
+--let ibdata_size='18M'
+}
+if ($MTR_COMBINATION_64K)
+{
+--let ibdata_size='36M'
+}
+
+--error 1
+exec $MYSQLD --no-defaults --skip-networking --innodb_data_file_path=ibdata1:$ibdata_size --innodb-page-size=$page_size --datadir=$MYSQLD_DATADIR --log-error=$MYSQL_TMP_DIR/attempted_start.err;
+
+let SEARCH_FILE= $MYSQL_TMP_DIR/attempted_start.err;
+let SEARCH_PATTERN= InnoDB: MySQL-8\.0 tablespace in \./ibdata1;
+source include/search_pattern_in_file.inc;
+
+--remove_file $MYSQL_TMP_DIR/attempted_start.err
+--remove_file $MYSQLD_DATADIR/ibdata1
+--move_file $MYSQLD_DATADIR/ibdata1.bak $MYSQLD_DATADIR/ibdata1
+
+--source include/start_mysqld.inc
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
