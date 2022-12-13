@@ -134,6 +134,7 @@ WSREP_SST_OPT_ADDR=""
 WSREP_SST_OPT_ADDR_PORT=""
 WSREP_SST_OPT_HOST=""
 WSREP_SST_OPT_HOST_UNESCAPED=""
+ARIA_LOG_DIR=""
 INNODB_DATA_HOME_DIR=$(trim_dir "${INNODB_DATA_HOME_DIR:-}")
 INNODB_LOG_GROUP_HOME=$(trim_dir "${INNODB_LOG_GROUP_HOME:-}")
 INNODB_UNDO_DIR=$(trim_dir "${INNODB_UNDO_DIR:-}")
@@ -232,6 +233,11 @@ case "$1" in
     '--datadir')
         # Let's remove the trailing slash:
         readonly WSREP_SST_OPT_DATA=$(trim_dir "$2")
+        shift
+        ;;
+    '--aria-log-dir-path')
+        # Let's remove the trailing slash:
+        readonly ARIA_LOG_DIR=$(trim_dir "$2")
         shift
         ;;
     '--innodb-data-home-dir')
@@ -499,6 +505,12 @@ case "$1" in
                # from mysqld's argument list:
                skip_mysqld_arg=0
                case "$option" in
+                   '--aria-log-dir-path')
+                       if [ -z "$ARIA_LOG_DIR" ]; then
+                           MYSQLD_OPT_ARIA_LOG_DIR=$(trim_dir "$value")
+                       fi
+                       skip_mysqld_arg=1
+                       ;;
                    '--innodb-data-home-dir')
                        if [ -z "$INNODB_DATA_HOME_DIR" ]; then
                            MYSQLD_OPT_INNODB_DATA_HOME_DIR=$(trim_dir "$value")
@@ -592,6 +604,10 @@ readonly WSREP_SST_OPT_PROGRESS
 
 # The same argument can be present on the command line several
 # times, in this case we must take its last value:
+if [ -n "${MYSQLD_OPT_ARIA_LOG_DIR:-}" -a \
+     -z "$ARIA_LOG_DIR" ]; then
+    readonly ARIA_LOG_DIR="$MYSQLD_OPT_ARIA_LOG_DIR"
+fi
 if [ -n "${MYSQLD_OPT_INNODB_DATA_HOME_DIR:-}" -a \
      -z "$INNODB_DATA_HOME_DIR" ]; then
     readonly INNODB_DATA_HOME_DIR="$MYSQLD_OPT_INNODB_DATA_HOME_DIR"
@@ -648,6 +664,9 @@ if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
     else
         WSREP_SST_OPT_MYSQLD="--log-basename='$WSREP_SST_OPT_LOG_BASENAME'"
     fi
+fi
+if [ -n "$ARIA_LOG_DIR" ]; then
+    INNOEXTRA="$INNOEXTRA --aria-log-dir-path='$ARIA_LOG_DIR'"
 fi
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
     INNOEXTRA="$INNOEXTRA --innodb-data-home-dir='$INNODB_DATA_HOME_DIR'"
