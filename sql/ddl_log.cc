@@ -3503,7 +3503,7 @@ bool ddl_log_create_trigger(DDL_LOG_STATE *ddl_state,
 /**
    Log ALTER TABLE
 
-   $param backup_name   Name of backup table. In case of ALTER TABLE rename
+   @param backup_name   Name of backup table. In case of ALTER TABLE rename
                         this is the final table name
 */
 
