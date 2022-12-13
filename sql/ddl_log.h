@@ -58,6 +58,7 @@ enum ddl_log_action_code
   */
   DDL_LOG_UNKNOWN_ACTION= 0,
 
+#ifndef DDL_LOG_NO_OLD
   /* Delete a .frm file or a table in the partition engine */
   DDL_LOG_DELETE_ACTION= 1,
 
@@ -69,6 +70,7 @@ enum ddl_log_action_code
     new name, that is replace this entry.
   */
   DDL_LOG_REPLACE_ACTION= 3,
+#endif
 
   /* Exchange two entities by renaming them a -> tmp, b -> a, tmp -> b */
   DDL_LOG_EXCHANGE_ACTION= 4,
@@ -88,6 +90,10 @@ enum ddl_log_action_code
   DDL_LOG_CREATE_TRIGGER_ACTION=15,
   DDL_LOG_ALTER_TABLE_ACTION=16,
   DDL_LOG_STORE_QUERY_ACTION=17,
+  DDL_LOG_FILE_DELETE_ACTION= 18,
+  DDL_LOG_FILE_RENAME_ACTION= 19,
+  DDL_LOG_FILE_REPLACE_ACTION= 20,
+
   DDL_LOG_LAST_ACTION                          /* End marker */
 };
 
@@ -266,6 +272,12 @@ bool ddl_log_close_binlogged_events(HASH *xids);
 int ddl_log_execute_recovery();
 
 /* functions for updating the ddl log */
+bool ddl_log_write(DDL_LOG_STATE *ddl_state,
+                   DDL_LOG_ENTRY *ddl_log_entry);
+/*
+  TODO: MDEV-28844 don't use in exchange_name_with_ddl_log(), remove global
+        declaration
+*/
 bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
                            DDL_LOG_MEMORY_ENTRY **active_entry);
 
@@ -274,7 +286,8 @@ bool ddl_log_write_execute_entry(uint first_entry, uint cond_entry,
 bool ddl_log_disable_execute_entry(DDL_LOG_MEMORY_ENTRY **active_entry);
 
 void ddl_log_complete(DDL_LOG_STATE *ddl_log_state);
-bool ddl_log_revert(THD *thd, DDL_LOG_STATE *ddl_log_state);
+bool ddl_log_revert(THD *thd, DDL_LOG_STATE *ddl_log_state,
+                    bool report_error);
 
 bool ddl_log_update_phase(DDL_LOG_STATE *entry, uchar phase);
 bool ddl_log_add_flag(DDL_LOG_STATE *entry, uint16 flag);
@@ -284,6 +297,10 @@ bool ddl_log_disable_entry(DDL_LOG_STATE *state);
 bool ddl_log_increment_phase(uint entry_pos);
 void ddl_log_release_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry);
 bool ddl_log_sync();
+/*
+  TODO: MDEV-28844 don't use in exchange_name_with_ddl_log(), remove global
+        declaration
+*/
 bool ddl_log_execute_entry(THD *thd, uint first_entry);
 
 void ddl_log_add_entry(DDL_LOG_STATE *state, DDL_LOG_MEMORY_ENTRY *log_entry);
@@ -357,8 +374,12 @@ bool ddl_log_alter_table(DDL_LOG_STATE *ddl_state,
                          bool is_renamed);
 bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
                          const char *query, size_t length);
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 bool ddl_log_delete_frm(DDL_LOG_STATE *ddl_state, const char *to_path);
-void ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state);
+bool ddl_log_rename_frm(DDL_LOG_STATE *ddl_state,
+                        const char *from_path, const char *to_path);
+#endif
+bool ddl_log_link_chains(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state);
 void ddl_log_start_atomic_block(DDL_LOG_STATE *state);
 bool ddl_log_commit_atomic_block(DDL_LOG_STATE *state);
 extern mysql_mutex_t LOCK_gdl;

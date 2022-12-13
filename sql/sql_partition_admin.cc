@@ -398,7 +398,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   */
   /* call rename table from table to tmp-name */
   DBUG_EXECUTE_IF("exchange_partition_fail_3",
-                  my_error(ER_ERROR_ON_RENAME, MYF(0), name, tmp_name, 0);
+                  my_error(ER_ERROR_ON_RENAME, MYF(0), name, "#TMP", 0);
                   error_set= TRUE;
                   goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_3", DBUG_SUICIDE(););
@@ -432,7 +432,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
 
   /* call rename table from tmp-nam to partition */
   DBUG_EXECUTE_IF("exchange_partition_fail_7",
-                  my_error(ER_ERROR_ON_RENAME, MYF(0), tmp_name, from_name, 0);
+                  my_error(ER_ERROR_ON_RENAME, MYF(0), "#TMP", from_name, 0);
                   error_set= TRUE;
                   goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_7", DBUG_SUICIDE(););
@@ -721,13 +721,6 @@ bool Sql_cmd_alter_table_exchange_partition::
                                           temp_file_name, table_hton)))
     goto err;
 
-  /*
-    Reopen tables under LOCK TABLES. Ignore the return value for now. It's
-    better to keep master/slave in consistent state. Alternative would be to
-    try to revert the exchange operation and issue error.
-  */
-  (void) thd->locked_tables_list.reopen_tables(thd, false);
-
   if (force_if_exists)
     thd->variables.option_bits|= OPTION_IF_EXISTS;
 
@@ -755,6 +748,12 @@ bool Sql_cmd_alter_table_exchange_partition::
 err:
   if (thd->locked_tables_mode)
   {
+    /*
+      Reopen tables under LOCK TABLES. Ignore the return value for now. It's
+      better to keep master/slave in consistent state. Alternative would be to
+      try to revert the exchange operation and issue error.
+    */
+    (void) thd->locked_tables_list.reopen_tables(thd, false);
     if (swap_table_mdl_ticket)
       swap_table_mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
     if (part_table_mdl_ticket)
@@ -999,55 +998,6 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   query_cache_invalidate3(thd, first_table, FALSE);
 
   DBUG_RETURN(error);
-}
-
-
-/**
-  Move a table specified in the CONVERT TABLE <table_name> TO PARTITION ...
-  to the new partition.
-
-  @param lpt  A structure containing parameters regarding to the statement
-              ALTER TABLE ... TO PARTITION ...
-  @param part_file_name  a file name of the partition being added
-
-  @return false on success, true on error
-*/
-
-bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
-{
-  char part_file_name[2*FN_REFLEN+1];
-  THD *thd= lpt->thd;
-  const char *path= lpt->table_list->table->s->path.str;
-  TABLE_LIST *table_from= lpt->table_list->next_local;
-
-  const char *partition_name=
-    thd->lex->part_info->curr_part_elem->partition_name;
-
-  if (create_partition_name(part_file_name, sizeof(part_file_name), path,
-                            partition_name, NORMAL_PART_NAME, false))
-    return true;
-
-  char from_file_name[FN_REFLEN+1];
-
-  build_table_filename(from_file_name, sizeof(from_file_name),
-                       table_from->db.str, table_from->table_name.str, "", 0);
-
-  handler *file= get_new_handler(nullptr, thd->mem_root,
-                                 table_from->table->file->ht);
-  if (unlikely(!file))
-    return true;
-
-  close_all_tables_for_name(thd, table_from->table->s,
-                            HA_EXTRA_PREPARE_FOR_RENAME, nullptr);
-
-  bool res= file->ha_rename_table(from_file_name, part_file_name);
-
-  if (res)
-    my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
-             part_file_name, my_errno);
-
-  delete file;
-  return res;
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */

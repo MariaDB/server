@@ -30,13 +30,14 @@ if ($MTR_COMBINATION_ROW)
 
 --disable_query_log
 --eval set @@default_storage_engine=$default_engine
+call mtr.add_suppression("Crashing at");
 --enable_query_log
 
 --echo # Crash recovery
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
-let $crash_count= 14;
+let $crash_count= 15;
 let $crash_points='crash_create_before_create_frm',
                   'crash_alter_partition_after_create_frm',
                   'crash_alter_partition_after_write_frm',
@@ -45,12 +46,13 @@ let $crash_points='crash_create_before_create_frm',
                   'crash_convert_partition_3',
                   'crash_convert_partition_4',
                   'crash_convert_partition_5',
+                  'crash_alter_partition_rename_table',
                   'crash_convert_partition_6',
                   'crash_convert_partition_7',
                   'crash_convert_partition_8',
                   'crash_convert_partition_9',
-                  'crash_convert_partition_10',
-                  'crash_convert_partition_11';
+                  'crash_alter_partition_binlog_1',
+                  'crash_alter_partition_binlog_2';
 
 #let $crash_count= 1;
 #let $crash_points= 'crash_convert_partition_10';
@@ -164,6 +166,7 @@ while ($r < $statement_count)
     --disable_warnings
     drop table t1;
     drop table if exists tp1;
+    drop table if exists tp2;
     --enable_warnings
   }
 }
