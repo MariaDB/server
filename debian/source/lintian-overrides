@@ -9,6 +9,8 @@ version-substvar-for-external-package mariadb-server-10.9 -> mysql-client-8.*
 version-substvar-for-external-package mariadb-client-10.9 -> mysql-client-core-5.*
 version-substvar-for-external-package mariadb-client-10.9 -> mysql-client-core-8.*
 version-substvar-for-external-package libmariadbd-dev -> libmariadbclient-dev
+version-substvar-for-external-package Conflicts (line 95) ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev
+version-substvar-for-external-package Replaces (line 109) ${source:Version} libmariadb-dev-compat -> libmariadbclient-dev
 # ColumnStore not used in Debian, safe to ignore. Reported upstream in https://jira.mariadb.org/browse/MDEV-24124
 source-is-missing storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2
 source-is-missing [storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2]
