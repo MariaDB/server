@@ -185,7 +185,9 @@ if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
     INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
 fi
 
-if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' ]; then
+if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
+     "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
+then
     # handle both relative and absolute paths:
     cd "$DATA"
     [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
@@ -201,7 +203,9 @@ if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
 fi
 
-if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' ]; then
+if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
+     "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
+then
     # handle both relative and absolute paths:
     cd "$DATA"
     [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
@@ -217,7 +221,9 @@ if [ -z "$INNODB_UNDO_DIR" ]; then
     INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
 fi
 
-if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' ]; then
+if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
+     "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
+then
     # handle both relative and absolute paths:
     cd "$DATA"
     [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
@@ -504,7 +510,9 @@ EOF
                             if [ "$first" = '-' -o "$first" = '@' ]; then
                                 bin_base="./$bin_base"
                             fi
-                            if [ -n "$bin_dir" -a "$bin_dir" != '.' ]; then
+                            if [ -n "$bin_dir" -a "$bin_dir" != '.' -a \
+                                 "$bin_dir" != "$DATA_DIR" ]
+                            then
                                 tar $tar_options "$BINLOG_TAR_FILE" \
                                     -C "$bin_dir" "$bin_base" >&2
                             else
@@ -872,7 +880,7 @@ EOF
         binlog_cd=0
         # Change the directory to binlog base (if possible):
         if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
-             -d "$binlog_dir" ]
+             "$binlog_dir" != "$DATA_DIR" -a -d "$binlog_dir" ]
         then
             binlog_cd=1
             cd "$binlog_dir"
@@ -891,11 +899,15 @@ EOF
                tmpfile=$(TMPDIR="$tmpdir"; mktemp)
             fi
             index_dir=$(dirname "$binlog_index");
-            if [ -n "$index_dir" -a "$index_dir" != '.' ]; then
+            if [ -n "$index_dir" -a "$index_dir" != '.' -a \
+                 "$index_dir" != "$DATA_DIR" ]
+            then
                 [ ! -d "$index_dir" ] && mkdir -p "$index_dir"
             fi
             binlog_cd=0
-            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' ]; then
+            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
+                 "$binlog_dir" != "$DATA_DIR" ]
+            then
                 [ ! -d "$binlog_dir" ] && mkdir -p "$binlog_dir"
                 binlog_cd=1
                 cd "$binlog_dir"
