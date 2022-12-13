@@ -339,6 +339,8 @@ dict_table_schema_check(
 	const dict_table_t* table= dict_sys.load_table(req_schema->table_name);
 
 	if (!table) {
+		if (opt_bootstrap)
+			return DB_TABLE_NOT_FOUND;
 		if (req_schema == &table_stats_schema) {
 			if (innodb_table_stats_not_found_reported) {
 				return DB_STATS_DO_NOT_EXIST;
@@ -4133,7 +4135,8 @@ dict_stats_update(
 			or is corrupted, calculate the transient stats */
 
 			if (innodb_table_stats_not_found == false &&
-			    table->stats_error_printed == false) {
+			    table->stats_error_printed == false &&
+			    !opt_bootstrap) {
 				ib::error() << "Fetch of persistent statistics"
 					" requested for table "
 					<< table->name

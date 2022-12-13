@@ -6,6 +6,7 @@
 
 source include/have_ssl_communication.inc;
 source include/master-slave.inc;
+source include/no_valgrind_without_big.inc;
 
 # create a user for replication that requires ssl encryption
 connection master;

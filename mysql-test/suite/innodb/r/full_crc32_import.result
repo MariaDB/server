@@ -38,6 +38,8 @@ restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR HY000: Internal error: Drop all secondary indexes before importing table test/t1 when .cfg file is missing.
 ALTER TABLE t1 DROP INDEX b;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
 ALTER TABLE t1 IMPORT TABLESPACE;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -116,9 +118,10 @@ restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR HY000: Internal error: Drop all secondary indexes before importing table test/t1 when .cfg file is missing.
 ALTER TABLE t1 DROP INDEX idx1;
-ALTER TABLE t1 IMPORT TABLESPACE;
 Warnings:
 Warning	1814	Tablespace has been discarded for table `t1`
+ALTER TABLE t1 IMPORT TABLESPACE;
+Warnings:
 Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t1.cfg', will attempt to import without schema verification
 SHOW CREATE TABLE t1;
 Table	Create Table

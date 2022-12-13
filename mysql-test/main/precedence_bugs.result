@@ -58,3 +58,21 @@ Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY D
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
 drop view v1;
+#
+# MDEV-30082 View definition losing brackets changes semantics of the query and causes wrong result
+#
+create table t1 (a varchar(1), b bool) engine=myisam;
+insert into t1 values ('u',1),('s',1);
+select * from t1 where t1.b in (t1.a <= all (select 'a'));
+a	b
+create view v as select * from t1 where t1.b in (t1.a <= all (select 'a'));
+select * from v;
+a	b
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `t1`.`a` AS `a`,`t1`.`b` AS `b` from `t1` where `t1`.`b` = (`t1`.`a` <= all (select 'a'))	latin1	latin1_swedish_ci
+drop view v;
+drop table t1;
+#
+# End of 10.3 results
+#

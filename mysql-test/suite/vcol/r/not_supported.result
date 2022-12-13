@@ -42,3 +42,16 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 #
 # End of 10.2 tests
 #
+create table t1 (a int, b real as (rand()), c real as (b) stored);
+ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS AS clause of `c`
+create table t1 (a int, b real as (rand()), c real as (b) unique);
+ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS AS clause of `c`
+create table t1 (a int auto_increment primary key,
+b int as (a+1), c int as (b+1) stored);
+ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS AS clause of `c`
+create table t1 (a int auto_increment primary key,
+b int as (a+1), c int as (b+1) unique);
+ERROR HY000: Function or expression 'b' cannot be used in the GENERATED ALWAYS AS clause of `c`
+#
+# End of 10.3 tests
+#

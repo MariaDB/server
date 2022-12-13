@@ -172,14 +172,14 @@ GRANT SELECT (a), INSERT (b) ON `temp`.`t1` TO 'user2'@'%';
 SHOW GRANTS FOR 'user2'@'%';
 Grants for user2@%
 GRANT USAGE ON *.* TO `user2`@`%`
-GRANT SELECT (a), INSERT (b) ON `temp`.`t1` TO `user2`@`%`
+GRANT SELECT (`a`), INSERT (`b`) ON `temp`.`t1` TO `user2`@`%`
 # Connect as the renamed user
 connect  conn1, localhost, user2,,;
 connection conn1;
 SHOW GRANTS;
 Grants for user2@%
 GRANT USAGE ON *.* TO `user2`@`%`
-GRANT SELECT (a), INSERT (b) ON `temp`.`t1` TO `user2`@`%`
+GRANT SELECT (`a`), INSERT (`b`) ON `temp`.`t1` TO `user2`@`%`
 SELECT a FROM temp.t1;
 a
 1

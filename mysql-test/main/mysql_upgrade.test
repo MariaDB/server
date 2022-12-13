@@ -383,7 +383,20 @@ update mysql.db set Delete_history_priv='Y' where db like 'test%';
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 
---echo # End of 10.3 tests
+--echo #
+--echo # MDEV-16735 Upgrades only work if 'alter_algorithm' is 'DEFAULT'
+--echo # or 'COPY'. Test that the session value 'DEFAULT' in mysql_upgrade
+--echo # properly overrides the potentially incompatible global value.
+--echo #
+
+SET GLOBAL alter_algorithm='INPLACE';
+SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
+--exec $MYSQL_UPGRADE --force 2>&1
+SET GLOBAL alter_algorithm=DEFAULT;
+SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo End of 10.3 tests
 
 --source include/switch_to_mysql_user.inc
 drop view mysql.user_bak;

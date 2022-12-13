@@ -1,7 +1,7 @@
 --source include/have_binlog_format_row.inc
 --source include/have_innodb.inc
 --source include/have_partition.inc
-
+RESET MASTER; # clear up binlogs
 --echo #
 --echo # Bug mdev-463: assertion failure when running ANALYZE with RBR on
 --echo # 

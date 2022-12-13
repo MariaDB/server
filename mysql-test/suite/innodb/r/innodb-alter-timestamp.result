@@ -146,6 +146,8 @@ CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
 ALTER TABLE t DISCARD TABLESPACE;
 SET sql_mode='NO_ZERO_DATE';
 ALTER TABLE t ADD c DATE NOT NULL;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t`
 SET sql_mode=DEFAULT;
 DROP TABLE t;
 # End of 10.3 tests

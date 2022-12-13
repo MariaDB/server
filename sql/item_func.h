@@ -4157,9 +4157,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
   bool check_vcol_func_processor(void *arg) override
   {
-    return mark_unsupported_function(func_name(), "()", arg,
-                                     (VCOL_NON_DETERMINISTIC |
-                                      VCOL_NOT_VIRTUAL));
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_NEXTVAL);
   }
 };
 

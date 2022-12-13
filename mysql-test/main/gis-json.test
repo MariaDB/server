@@ -26,6 +26,7 @@ SELECT st_astext(st_geomfromgeojson('{"type""point"}'));
 #enable after fix MDEV-27871
 --disable_view_protocol
 SELECT st_astext(st_geomfromgeojson('{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] } }'));
+SELECT st_astext(st_geomfromgeojson('{ "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "type": "Feature" }'));
 SELECT st_astext(st_geomfromgeojson('{ "type": "FeatureCollection", "features": [{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "properties": { "prop0": "value0" } }]}'));
 
 

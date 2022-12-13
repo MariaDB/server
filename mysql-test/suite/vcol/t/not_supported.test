@@ -49,3 +49,18 @@ create table t1 (a int, b serial as (a+1));
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int, b real as (rand()), c real as (b) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int, b real as (rand()), c real as (b) unique);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int auto_increment primary key,
+                 b int as (a+1), c int as (b+1) stored);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int auto_increment primary key,
+                 b int as (a+1), c int as (b+1) unique);
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

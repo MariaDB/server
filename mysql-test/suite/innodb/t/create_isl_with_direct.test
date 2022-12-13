@@ -2,13 +2,6 @@
 --source include/have_innodb.inc
 --source include/have_symlink.inc
 
---disable_query_log
-CALL mtr.add_suppression(".*Failed to set O_DIRECT on file.*");
-
-# The below mtr suppression to avoid failure in solaris platform.
-CALL mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to set DIRECTIO_ON on file.*");
---enable_query_log
-
 SHOW VARIABLES LIKE 'innodb_flush_method';
 
 let MYSQLD_DATADIR=`SELECT @@datadir`;

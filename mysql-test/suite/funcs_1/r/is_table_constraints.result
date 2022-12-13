@@ -111,7 +111,7 @@ GRANT SELECT(f5) ON db_datadict.t1 TO 'testuser1'@'localhost';
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO `testuser1`@`localhost`
-GRANT SELECT (f5) ON `db_datadict`.`t1` TO `testuser1`@`localhost`
+GRANT SELECT (`f5`) ON `db_datadict`.`t1` TO `testuser1`@`localhost`
 SELECT * FROM information_schema.table_constraints
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema,table_name, constraint_name;
@@ -135,7 +135,7 @@ connect  testuser1, localhost, testuser1, , db_datadict;
 SHOW GRANTS FOR 'testuser1'@'localhost';
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO `testuser1`@`localhost`
-GRANT SELECT (f5) ON `db_datadict`.`t1` TO `testuser1`@`localhost`
+GRANT SELECT (`f5`) ON `db_datadict`.`t1` TO `testuser1`@`localhost`
 SELECT * FROM information_schema.table_constraints
 WHERE table_schema = 'db_datadict'
 ORDER BY table_schema,table_name, constraint_name;

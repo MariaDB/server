@@ -385,15 +385,15 @@ bool mtr_t::commit_file(fil_space_t &space, const char *name)
 
   if (name)
   {
+    char *new_name= mem_strdup(name);
+    mysql_mutex_lock(&fil_system.mutex);
     success= os_file_rename(innodb_data_file_key, old_name, name);
-
     if (success)
-    {
-      mysql_mutex_lock(&fil_system.mutex);
-      space.chain.start->name= mem_strdup(name);
-      mysql_mutex_unlock(&fil_system.mutex);
-      ut_free(old_name);
-    }
+      space.chain.start->name= new_name;
+    else
+      old_name= new_name;
+    mysql_mutex_unlock(&fil_system.mutex);
+    ut_free(old_name);
   }
   else
   {
@@ -1250,7 +1250,7 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
         slot.type= MTR_MEMO_PAGE_X_MODIFY;
 #ifdef BTR_CUR_HASH_ADAPT
         if (block->index)
-          btr_search_drop_page_hash_index(block);
+          btr_search_drop_page_hash_index(block, false);
 #endif /* BTR_CUR_HASH_ADAPT */
         block->page.set_freed(block->page.state());
       }

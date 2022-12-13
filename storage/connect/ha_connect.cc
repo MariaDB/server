@@ -1614,15 +1614,10 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Scale= 0;
   pcf->Opt= (fop) ? (int)fop->opt : 0;
 
-//	if (fp->field_length >= 0) {
+	if (fp->field_length >= 0)
 		pcf->Length= fp->field_length;
-
-		// length is bytes for Connect, not characters
-		if (!strnicmp(chset, "utf8", 4))
-			pcf->Length /= 3;
-
-//	} else
-//		pcf->Length= 256;            // BLOB?
+	else
+		pcf->Length= 256;            // BLOB?
 
   pcf->Precision= pcf->Length;
 
