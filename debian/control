@@ -384,7 +384,6 @@ Replaces: mariadb-client (<< ${source:Version}),
           percona-xtradb-cluster-server-5.7,
           virtual-mysql-client-core
 Provides: default-mysql-client-core,
-          mariadb-client-core-10.11,
           virtual-mysql-client-core
 Description: MariaDB database core client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -544,7 +543,6 @@ Replaces: mariadb-client (<< ${source:Version}),
           percona-xtradb-cluster-server-5.7,
           virtual-mysql-client
 Provides: default-mysql-client,
-          mariadb-client-10.11,
           virtual-mysql-client
 Recommends: libdbd-mariadb-perl | libdbd-mysql-perl,
             libdbi-perl,
@@ -658,7 +656,6 @@ Replaces: mariadb-client (<< ${source:Version}),
           percona-xtradb-cluster-server-5.7,
           virtual-mysql-server-core
 Provides: default-mysql-server-core,
-          mariadb-server-core-10.11,
           virtual-mysql-server-core
 Description: MariaDB database core server files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -771,7 +768,6 @@ Replaces: handlersocket-mysql-5.5,
           percona-xtradb-cluster-server-5.7,
           virtual-mysql-server
 Provides: default-mysql-server,
-          mariadb-server-10.11,
           virtual-mysql-server
 Description: MariaDB database server binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
