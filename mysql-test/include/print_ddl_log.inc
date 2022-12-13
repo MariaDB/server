@@ -1,6 +1,9 @@
+if (!$keep_include_silent)
+{
 --echo #
 --echo # Reading backup ddl log file
 --echo #
+}
 
 let MYSQLD_DATADIR= `select @@datadir`;
 perl;

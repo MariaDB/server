@@ -18,12 +18,36 @@
 #define SQL_TABLE_INCLUDED
 
 #include <my_sys.h>                             // pthread_mutex_t
+#include "mysqld_error.h"
 #include "m_string.h"                           // LEX_CUSTRING
 #include "lex_charset.h"
 
-#define ERROR_INJECT(code) \
-  ((DBUG_IF("crash_" code) && (DBUG_SUICIDE(), 0)) || \
-   (DBUG_IF("fail_" code) && (my_error(ER_UNKNOWN_ERROR, MYF(0)), 1)))
+#ifndef DBUG_OFF
+void sql_print_error(const char *format, ...);
+
+inline bool _error_inject(const char *crash_kw, const char *fail_kw)
+{
+  if (DBUG_IF(crash_kw))
+  {
+    sql_print_error("Crashing at %s", crash_kw);
+    DBUG_SUICIDE();
+    return false;
+  }
+  if (DBUG_IF(fail_kw))
+  {
+    sql_print_error("Failing at %s", fail_kw);
+    my_error(ER_UNKNOWN_ERROR, MYF(0));
+    return true;
+  }
+  DBUG_PRINT("ddl_log", ("Passing %s", fail_kw));
+  return false;
+}
+#define ERROR_INJECT(code) (_error_inject("crash_" code, "fail_" code))
+#define CRASH_INJECT(code) (_error_inject("crash_" code, "crash_" code))
+#else
+#define ERROR_INJECT(code) false
+#define CRASH_INJECT(code) do { } while(0)
+#endif
 
 class Alter_info;
 class Alter_table_ctx;
@@ -57,10 +81,14 @@ enum enum_explain_filename_mode
 /* depends on errmsg.txt Database `db`, Table `t` ... */
 #define EXPLAIN_FILENAME_MAX_EXTRA_LENGTH 63
 
+/* Shadow FRM is new table FRM prepared by ALTER TABLE */
 #define WFRM_WRITE_SHADOW 1
-#define WFRM_INSTALL_SHADOW 2
-#define WFRM_WRITE_CONVERTED_TO 4
-#define WFRM_BACKUP_ORIGINAL 8
+/* Backup original FRM and install shadow FRM */
+#define WFRM_BACKUP_AND_INSTALL 2
+/* Create FRM for table produced by CONVERT OUT */
+#define WFRM_WRITE_CONVERTED_TO 8
+/* Restore original FRM */
+#define WFRM_LOG_RESTORE 16
 
 /* Flags for conversion functions. */
 static const uint FN_FROM_IS_TMP=  1 << 0;
@@ -86,7 +114,7 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);
 uint build_table_shadow_filename(char *buff, size_t bufflen,
                                  ALTER_PARTITION_PARAM_TYPE *lpt,
-                                 bool backup= false);
+                                 const char *infix= "shadow");
 void build_lower_case_table_filename(char *buff, size_t bufflen,
                                      const LEX_CSTRING *db,
                                      const LEX_CSTRING *table,
@@ -123,8 +151,8 @@ bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                Table_specification_st *create_info,
                                Alter_info *alter_info,
                                Alter_table_ctx *alter_ctx);
-bool mysql_trans_prepare_alter_copy_data(THD *thd);
-bool mysql_trans_commit_alter_copy_data(THD *thd);
+int mysql_trans_prepare_alter_copy_data(THD *thd);
+int mysql_trans_commit_alter_copy_data(THD *thd, bool rollback);
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
                        Table_specification_st *create_info,
@@ -194,7 +222,9 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
 void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);
+#endif
 int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length,
                   bool is_trans= FALSE);

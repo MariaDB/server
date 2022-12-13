@@ -467,6 +467,19 @@ public:
   {
     return m_file;
   }
+  handler **get_new_handlers()
+  {
+    return m_new_file;
+  }
+  handler *get_child_handler(partition_element *part_elem,
+                             partition_element *sub_elem)
+  {
+    return m_file[part_elem->serial_id(sub_elem, m_part_info->num_subparts)];
+  }
+  handler *new_handler(partition_element *part_elem, partition_element *sub_elem)
+  {
+    return m_new_file[part_elem->serial_id(sub_elem, m_part_info->num_subparts)];
+  }
   ha_partition *get_clone_source()
   {
     return m_is_clone_of;
@@ -554,13 +567,7 @@ public:
     override;
   bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
-  int change_partitions(HA_CREATE_INFO *create_info, const char *path,
-                        ulonglong * const copied, ulonglong * const deleted,
-                        const uchar *pack_frm_data, size_t pack_frm_len)
-    override;
   int allocate_partitions();
-  int drop_partitions(const char *path) override;
-  int rename_partitions(const char *path) override;
   bool get_no_parts(const char *, uint *num_parts) override
   {
     DBUG_ENTER("ha_partition::get_no_parts");
@@ -580,6 +587,11 @@ public:
                        const char *part_name, partition_element *p_elem,
                        uint disable_non_uniq_indexes);
 private:
+  void extra_on_new_files(enum ha_extra_function operation)
+  {
+    for (handler **f= m_new_file; *f; f++)
+      (*f)->extra(operation);
+  }
   /*
     delete_table and rename_table uses very similar logic which
     is packed into this routine.

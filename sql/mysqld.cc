@@ -879,7 +879,7 @@ PSI_file_key key_file_binlog,  key_file_binlog_cache, key_file_binlog_index,
   key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_log_ddl,
-  key_file_master_info, key_file_misc, key_file_partition_ddl_log,
+  key_file_master_info, key_file_misc, key_file_ddl_log,
   key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
   key_file_trg, key_file_trn, key_file_init;
 PSI_file_key key_file_query_log, key_file_slow_log;
@@ -9151,7 +9151,7 @@ static PSI_file_info all_server_files[]=
   { &key_file_log_event_info, "log_event_info", 0},
   { &key_file_master_info, "master_info", 0},
   { &key_file_misc, "misc", 0},
-  { &key_file_partition_ddl_log, "partition_ddl_log", 0},
+  { &key_file_ddl_log, "ddl_log", 0},
   { &key_file_pid, "pid", 0},
   { &key_file_query_log, "query_log", 0},
   { &key_file_relay_log_info, "relay_log_info", 0},

@@ -199,8 +199,13 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   }
   else
   {
-    /* Revert the renames of normal tables with the help of the ddl log */
-    error|= ddl_log_revert(thd, &ddl_log_state);
+    /*
+      Revert the renames of normal tables with the help of the ddl log
+
+      report_error set to false is important here as revert of multi-rename
+      must continue even if something fails (tested by innodb.rename_table).
+    */
+    (void) ddl_log_revert(thd, &ddl_log_state, false);
   }
 
 err:
