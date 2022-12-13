@@ -5011,7 +5011,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
           without any changes at all.
         */
         flags= table->file->alter_table_flags(alter_info->flags);
-        if (flags & (HA_FAST_CHANGE_PARTITION | HA_PARTITION_ONE_PHASE))
+        if (flags & HA_FAST_CHANGE_PARTITION)
         {
           *fast_alter_table= true;
           /* Force table re-open for consistency with the main case. */
@@ -5054,7 +5054,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       my_error(ER_PARTITION_FUNCTION_FAILURE, MYF(0));
       goto err;
     }
-    if ((flags & (HA_FAST_CHANGE_PARTITION | HA_PARTITION_ONE_PHASE)) != 0)
+    if (flags & HA_FAST_CHANGE_PARTITION)
     {
       /*
         "Fast" change of partitioning is supported in this case.
@@ -5830,6 +5830,7 @@ the generated partition syntax in a correct manner.
         } while (++part_count < tab_part_info->num_parts);
         tab_it.rewind();
         part_count= 0;
+        /* Update id after tab_it.replace() and tab_it.remove() */
         while (partition_element *el= tab_it++)
           el->id= part_count++;
         if (drop_count != num_parts_reorged)
@@ -6123,587 +6124,636 @@ err:
 }
 
 
-/*
-  Change partitions, used to implement ALTER TABLE ADD/REORGANIZE/COALESCE
-  partitions. This method is used to implement both single-phase and multi-
-  phase implementations of ADD/REORGANIZE/COALESCE partitions.
+#ifndef DBUG_OFF
+#define HA_ERR_INJECT(code) (ERROR_INJECT(code) && (ha_err= EINVAL))
+#else
+#define HA_ERR_INJECT(code) false
+#endif
 
-  SYNOPSIS
-    mysql_change_partitions()
-    lpt                        Struct containing parameters
 
-  RETURN VALUES
-    TRUE                          Failure
-    FALSE                         Success
+/**
+  DDL logger and partiton renamer
 
-  DESCRIPTION
-    Request handler to add partitions as set in states of the partition
-
-    Elements of the lpt parameters used:
-    create_info                Create information used to create partitions
-    db                         Database name
-    table_name                 Table name
-    copied                     Output parameter where number of copied
-                               records are added
-    deleted                    Output parameter where number of deleted
-                               records are added
+  Processes DROP PARTITION action and serves to other ALTER commands as an
+  utility basis.
 */
 
-static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt, bool copy_data)
+class Alter_partition_drop
 {
-  char path[FN_REFLEN+1];
-  int error;
-  handler *file= lpt->table->file;
-  THD *thd= lpt->thd;
-  DBUG_ENTER("mysql_change_partitions");
+protected:
+  const char *path;
+  enum_part_name_type from_name_type; /* NORMAL_PART_NAME, TEMP_PART_NAME, RENAMED_PART_NAME */
+  enum_part_name_type to_name_type;   /* same + SKIP_PART_NAME */
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-
-  if(copy_data && mysql_trans_prepare_alter_copy_data(thd))
-    DBUG_RETURN(TRUE);
-
-  /* TODO: test if bulk_insert would increase the performance */
-
-  if (unlikely((error= file->ha_change_partitions(lpt->create_info, path,
-                                                  &lpt->copied,
-                                                  &lpt->deleted,
-                                                  lpt->pack_frm_data,
-                                                  lpt->pack_frm_len))))
-  {
-    file->print_error(error, MYF(error != ER_OUTOFMEMORY ? 0 : ME_FATAL));
-  }
-
-  DBUG_ASSERT(copy_data || (!lpt->copied && !lpt->deleted));
-
-  if (copy_data && mysql_trans_commit_alter_copy_data(thd))
-    error= 1;                                /* The error has been reported */
-
-  DBUG_RETURN(MY_TEST(error));
-}
-
-
-/*
-  Rename partitions in an ALTER TABLE of partitions
-
-  SYNOPSIS
-    mysql_rename_partitions()
-    lpt                        Struct containing parameters
-
-  RETURN VALUES
-    TRUE                          Failure
-    FALSE                         Success
-
-  DESCRIPTION
-    Request handler to rename partitions as set in states of the partition
-
-    Parameters used:
-    db                         Database name
-    table_name                 Table name
-*/
-
-static bool mysql_rename_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
-{
-  char path[FN_REFLEN+1];
-  int error;
-  DBUG_ENTER("mysql_rename_partitions");
-
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  if (unlikely((error= lpt->table->file->ha_rename_partitions(path))))
-  {
-    if (error != 1)
-      lpt->table->file->print_error(error, MYF(0));
-    DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
-}
-
-
-/*
-  Drop partitions in an ALTER TABLE of partitions
-
-  SYNOPSIS
-    mysql_drop_partitions()
-    lpt                        Struct containing parameters
-
-  RETURN VALUES
-    TRUE                          Failure
-    FALSE                         Success
-  DESCRIPTION
-    Drop the partitions marked with PART_TO_BE_DROPPED state and remove
-    those partitions from the list.
-
-    Parameters used:
-    table                       Table object
-    db                          Database name
-    table_name                  Table name
-*/
-
-static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
-{
-  char path[FN_REFLEN+1];
-  partition_info *part_info= lpt->table->part_info;
-  List_iterator<partition_element> part_it(part_info->partitions);
-  int error;
-  DBUG_ENTER("mysql_drop_partitions");
-
-  DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                                lpt->table->s->db.str,
-                                                lpt->table->s->table_name.str,
-                                                MDL_EXCLUSIVE));
-
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  if ((error= lpt->table->file->ha_drop_partitions(path)))
-  {
-    lpt->table->file->print_error(error, MYF(0));
-    DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
-}
-
-
-/*
-  Convert partition to a table in an ALTER TABLE of partitions
-
-  SYNOPSIS
-    alter_partition_convert_out()
-    lpt                        Struct containing parameters
-
-  RETURN VALUES
-    TRUE                          Failure
-    FALSE                         Success
-
-  DESCRIPTION
-    Rename partition table marked with PART_TO_BE_DROPPED into a separate table
-    under the name lpt->alter_ctx->(new_db, new_name).
-
-    This is ddl-logged by write_log_convert_out_partition().
-*/
-
-static bool alter_partition_convert_out(ALTER_PARTITION_PARAM_TYPE *lpt)
-{
-  partition_info *part_info= lpt->table->part_info;
-  THD *thd= lpt->thd;
-  int error;
-  handler *file= get_new_handler(NULL, thd->mem_root, part_info->default_engine_type);
-
-  DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                                  lpt->table->s->db.str,
-                                                  lpt->table->s->table_name.str,
-                                                  MDL_EXCLUSIVE));
-
-  char from_name[FN_REFLEN + 1], to_name[FN_REFLEN + 1];
-  const char *path= lpt->table->s->path.str;
-
-  build_table_filename(to_name, sizeof(to_name) - 1, lpt->alter_ctx->new_db.str,
-                       lpt->alter_ctx->new_name.str, "", 0);
-
-  for (const partition_element &e: part_info->partitions)
-  {
-    if (e.part_state != PART_TO_BE_DROPPED)
-      continue;
-
-    if (unlikely((error= create_partition_name(from_name, sizeof(from_name),
-                                                path, e.partition_name,
-                                                NORMAL_PART_NAME, FALSE))))
-    {
-      DBUG_ASSERT(thd->is_error());
-      return true;
-    }
-    if (DBUG_IF("error_convert_partition_00") ||
-        unlikely(error= file->ha_rename_table(from_name, to_name)))
-    {
-      my_error(ER_ERROR_ON_RENAME, MYF(0), from_name, to_name, my_errno);
-      lpt->table->file->print_error(error, MYF(0));
-      return true;
-    }
-    break;
-  }
-
-  return false;
-}
-
-
-/*
-  Release all log entries for this partition info struct
-  SYNOPSIS
-    release_part_info_log_entries()
-    first_log_entry                 First log entry in list to release
-  RETURN VALUES
-    NONE
-*/
-
-static void release_part_info_log_entries(DDL_LOG_MEMORY_ENTRY *log_entry)
-{
-  DBUG_ENTER("release_part_info_log_entries");
-
-  while (log_entry)
-  {
-    DDL_LOG_MEMORY_ENTRY *next= log_entry->next_active_log_entry;
-    ddl_log_release_memory_entry(log_entry);
-    log_entry= next;
-  }
-  DBUG_VOID_RETURN;
-}
-
-
-/*
-  Log an rename frm file
-  SYNOPSIS
-    write_log_replace_frm()
-    lpt                            Struct for parameters
-    next_entry                     Next reference to use in log record
-    from_path                      Name to rename from
-    to_path                        Name to rename to
-  RETURN VALUES
-    TRUE                           Error
-    FALSE                          Success
-  DESCRIPTION
-    Support routine that writes a replace of an frm file into the
-    ddl log. It also inserts an entry that keeps track of used space into
-    the partition info object
-*/
-
-bool write_log_replace_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                  uint next_entry,
-                                  const char *from_path,
-                                  const char *to_path)
-{
   DDL_LOG_ENTRY ddl_log_entry;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
-  DBUG_ENTER("write_log_replace_frm");
 
-  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
-  ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
-  ddl_log_entry.next_entry= next_entry;
-  lex_string_set(&ddl_log_entry.handler_name, reg_ext);
-  lex_string_set(&ddl_log_entry.name, to_path);
-  lex_string_set(&ddl_log_entry.from_name, from_path);
+  char from_name_buf[FN_REFLEN + 1];
+  char to_name_buf[FN_REFLEN + 1];
+  LEX_CSTRING from_name, to_name;
+  ALTER_PARTITION_PARAM_TYPE *lpt;
+  TABLE *table;
+  partition_info *part_info;
+  DDL_LOG_STATE *rollback_chain;
+  DDL_LOG_STATE *cleanup_chain;
+  ha_partition *hp;
 
-  if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
+public:
+  enum Phase
   {
-    DBUG_RETURN(true);
+    RENAME_TO_BACKUPS= 0,
+    LOG_DROP_BACKUPS= 2,
+    ADD_PARTITIONS= 4,
+    RENAME_ADDED_PARTS= 8,
+    CONVERT_OUT= 16,
+    CONVERT_IN= 32,
+    NO_PHASE= 255
+  } phase;
+
+  Alter_partition_drop(ALTER_PARTITION_PARAM_TYPE *lpt) :
+    path(lpt->path), from_name_type(SKIP_PART_NAME),
+    to_name_type(SKIP_PART_NAME),
+    from_name{NULL, 0}, to_name{NULL, 0},
+    lpt(lpt), table(lpt->table), part_info(lpt->part_info),
+    rollback_chain(&lpt->rollback_chain),
+    cleanup_chain(&lpt->cleanup_chain),
+    hp((ha_partition *) table->file)
+  {
+    DBUG_ASSERT(table->file->ht->db_type == DB_TYPE_PARTITION_DB);
   }
-  ddl_log_add_entry(lpt->part_info, log_entry);
-  DBUG_RETURN(false);
-}
 
+  virtual ~Alter_partition_drop() {}
+  bool iterate(Phase phase, enum_part_name_type from_name_arg,
+               enum_part_name_type to_name_arg, List<partition_element> *parts);
 
-/*
-  Log final partition changes in change partition
-  SYNOPSIS
-    write_log_changed_partitions()
-    lpt                      Struct containing parameters
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
-  DESCRIPTION
-    This code is used to perform safe ADD PARTITION for HASH partitions
-    and COALESCE for HASH partitions and REORGANIZE for any type of
-    partitions.
-    We prepare entries for all partitions except the reorganised partitions
-    in REORGANIZE partition, those are handled by
-    write_log_dropped_partitions. For those partitions that are replaced
-    special care is needed to ensure that this is performed correctly and
-    this requires a two-phased approach with this log as a helper for this.
+  /**
+    Make from_name, to_name according to from_name_type, to_name_type.
+    Set common ddl_log_entry parameters like flags, handler_name.
+  */
 
-    This code is closely intertwined with the code in rename_partitions in
-    the partition handler.
-*/
-
-static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                         uint *next_entry, const char *path)
-{
-  DDL_LOG_ENTRY ddl_log_entry;
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
-  char tmp_path[FN_REFLEN + 1];
-  char normal_path[FN_REFLEN + 1];
-  List_iterator<partition_element> part_it(part_info->partitions);
-  uint temp_partitions= part_info->temp_partitions.elements;
-  uint num_elements= part_info->partitions.elements;
-  uint i= 0;
-  DBUG_ENTER("write_log_changed_partitions");
-
-  do
+  bool build_names(partition_element *part_elem, partition_element *sub_elem)
   {
-    partition_element *part_elem= part_it++;
-    if (part_elem->part_state == PART_IS_CHANGED ||
-        (part_elem->part_state == PART_IS_ADDED && temp_partitions))
+    bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+    ddl_log_entry.flags= DDL_LOG_FLAG_ALTER_PARTITION;
+
+    DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                                    table->s->db.str,
+                                                    table->s->table_name.str,
+                                                    MDL_EXCLUSIVE));
+
+    handlerton *ht= part_elem->engine_type ?
+                      part_elem->engine_type : part_info->default_engine_type;
+    DBUG_ASSERT(ht);
+    lex_string_set(&ddl_log_entry.handler_name,
+                   ha_resolve_storage_engine_name(ht));
+    if (!sub_elem)
     {
-      bzero(&ddl_log_entry, sizeof(ddl_log_entry));
-      if (part_info->is_sub_partitioned())
+      if (from_name_type != SKIP_PART_NAME)
       {
-        List_iterator<partition_element> sub_it(part_elem->subpartitions);
-        uint num_subparts= part_info->num_subparts;
-        uint j= 0;
-        do
-        {
-          partition_element *sub_elem= sub_it++;
-          ddl_log_entry.next_entry= *next_entry;
-          lex_string_set(&ddl_log_entry.handler_name,
-                         ha_resolve_storage_engine_name(sub_elem->
-                                                        engine_type));
-          if (create_subpartition_name(tmp_path, sizeof(tmp_path), path,
-                                       part_elem->partition_name,
-                                       sub_elem->partition_name,
-                                       TEMP_PART_NAME) ||
-              create_subpartition_name(normal_path, sizeof(normal_path), path,
-                                       part_elem->partition_name,
-                                       sub_elem->partition_name,
-                                       NORMAL_PART_NAME))
-            DBUG_RETURN(TRUE);
-          lex_string_set(&ddl_log_entry.name, normal_path);
-          lex_string_set(&ddl_log_entry.from_name, tmp_path);
-          if (part_elem->part_state == PART_IS_CHANGED)
-            ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
-          else
-            ddl_log_entry.action_type= DDL_LOG_RENAME_ACTION;
-          if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
-            DBUG_RETURN(TRUE);
-
-          *next_entry= log_entry->entry_pos;
-          sub_elem->log_entry= log_entry;
-          ddl_log_add_entry(part_info, log_entry);
-        } while (++j < num_subparts);
+        from_name= { from_name_buf, sizeof(from_name_buf) };
+        if (create_partition_name(&from_name, path, part_elem->partition_name,
+                                  from_name_type, true /* translate */))
+          return true;
       }
-      else
+      if (to_name_type != SKIP_PART_NAME)
       {
-        ddl_log_entry.next_entry= *next_entry;
-        lex_string_set(&ddl_log_entry.handler_name,
-                       ha_resolve_storage_engine_name(part_elem->engine_type));
-        if (create_partition_name(tmp_path, sizeof(tmp_path), path,
-                                  part_elem->partition_name, TEMP_PART_NAME,
-                                  TRUE) ||
-            create_partition_name(normal_path, sizeof(normal_path), path,
-                                  part_elem->partition_name, NORMAL_PART_NAME,
-                                  TRUE))
-          DBUG_RETURN(TRUE);
-        lex_string_set(&ddl_log_entry.name, normal_path);
-        lex_string_set(&ddl_log_entry.from_name, tmp_path);
-        if (part_elem->part_state == PART_IS_CHANGED)
-          ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
-        else
-          ddl_log_entry.action_type= DDL_LOG_RENAME_ACTION;
-        if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
-        {
-          DBUG_RETURN(TRUE);
-        }
-        *next_entry= log_entry->entry_pos;
-        part_elem->log_entry= log_entry;
-        ddl_log_add_entry(part_info, log_entry);
+        to_name= { to_name_buf, sizeof(to_name_buf) };
+        if (create_partition_name(&to_name, path, part_elem->partition_name,
+                                  to_name_type, true /* translate */))
+          return true;
       }
     }
-  } while (++i < num_elements);
-  DBUG_RETURN(FALSE);
-}
+    else
+    {
+      if (from_name_type != SKIP_PART_NAME)
+      {
+        from_name= { from_name_buf, sizeof(from_name_buf) };
+        if (create_subpartition_name(&from_name, path, part_elem->partition_name,
+                                     sub_elem->partition_name, from_name_type))
+          return true;
+      }
+      if (to_name_type != SKIP_PART_NAME)
+      {
+        to_name= { to_name_buf, sizeof(to_name_buf) };
+        if (create_subpartition_name(&to_name, path, part_elem->partition_name,
+                                     sub_elem->partition_name, to_name_type))
+          return true;
+      }
+    }
 
+    return false;
+  }
 
-/*
-  Log dropped or converted partitions
-  SYNOPSIS
-    log_drop_or_convert_action()
-    lpt                      Struct containing parameters
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
-*/
+  /**
+    check_state() selects partitions to be processed by process_partition()
+  */
 
-enum log_action_enum
-{
-  ACT_DROP = 0,
-  ACT_CONVERT_IN,
-  ACT_CONVERT_OUT
+  virtual
+  bool needs_processing(partition_element *part_elem)
+  {
+    return part_elem->part_state == PART_TO_BE_DROPPED;
+  }
+
+  /**
+    DROP PARTITION processing
+
+    Iterate phases: rename partitions marked for drop to backup partitions and
+    write rollback_chain so it reverts these operations. Write cleanup_chain so
+    it drops backup partitions, but only when rollback_chain is inactive.
+  */
+
+  bool rename_parts()
+  {
+    if (iterate(RENAME_TO_BACKUPS, NORMAL_PART_NAME, RENAMED_PART_NAME,
+                &part_info->partitions))
+      return true;
+    if (iterate(LOG_DROP_BACKUPS, RENAMED_PART_NAME, SKIP_PART_NAME,
+                &part_info->partitions))
+      return true;
+    return false;
+  }
+
+#ifdef DBUG_OFF
+#define DEBUG_CRASH_OR_FAIL false
+#else
+#define DEBUG_CRASH_OR_FAIL debug_crash_or_fail()
+  bool debug_crash_or_fail()
+  {
+    switch (phase)
+    {
+    case RENAME_TO_BACKUPS:
+      if (ERROR_INJECT("alter_partition_rename_to_backup"))
+        return true;
+      break;
+    case RENAME_ADDED_PARTS:
+      if (ERROR_INJECT("alter_partition_rename_added_part"))
+        return true;
+      break;
+    case LOG_DROP_BACKUPS:
+      if (ERROR_INJECT("alter_partition_rename_drop_backup"))
+        return true;
+      break;
+    default:
+      break;
+    }
+    return false;
+  }
+#endif
+
+#ifdef DBUG_OFF
+#define DEBUG_ASSERT_STATES(A) do { } while(0)
+#else
+#define DEBUG_ASSERT_STATES(A) debug_assert_states(A)
+  void debug_assert_states(partition_element *part_elem)
+  {
+    switch (phase)
+    {
+    case RENAME_TO_BACKUPS:
+      DBUG_ASSERT(from_name_type == NORMAL_PART_NAME);
+      DBUG_ASSERT(to_name_type == RENAMED_PART_NAME);
+      DBUG_ASSERT(part_elem->part_state & (
+                    PART_TO_BE_DROPPED |
+                    PART_TO_BE_REORGED |
+                    PART_REORGED_DROPPED |
+                    PART_CHANGED));
+      break;
+    case RENAME_ADDED_PARTS:
+      DBUG_ASSERT(from_name_type == TEMP_PART_NAME);
+      DBUG_ASSERT(to_name_type == NORMAL_PART_NAME);
+      break;
+    case CONVERT_OUT:
+      DBUG_ASSERT(from_name_type == NORMAL_PART_NAME);
+      DBUG_ASSERT(to_name_type == SKIP_PART_NAME);
+      DBUG_ASSERT(to_name.str); /* to_name is external table name */
+      DBUG_ASSERT(part_elem->part_state & PART_TO_BE_DROPPED);
+      break;
+    case CONVERT_IN:
+      DBUG_ASSERT(from_name_type == SKIP_PART_NAME);
+      DBUG_ASSERT(to_name_type == NORMAL_PART_NAME);
+      DBUG_ASSERT(to_name.str); /* to_name is external table name */
+      DBUG_ASSERT(part_elem->part_state & PART_TO_BE_ADDED);
+      break;
+    case ADD_PARTITIONS:
+      DBUG_ASSERT(to_name_type == SKIP_PART_NAME);
+      break;
+    case LOG_DROP_BACKUPS:
+      DBUG_ASSERT(from_name_type == RENAMED_PART_NAME);
+      DBUG_ASSERT(to_name_type == SKIP_PART_NAME);
+      DBUG_ASSERT(part_elem->part_state &
+                  (PART_TO_BE_DROPPED |
+                   PART_TO_BE_REORGED |
+                   PART_REORGED_DROPPED |
+                   PART_CHANGED));
+      break;
+    default:
+      DBUG_ASSERT(0);
+      break;
+    }
+  }
+#endif
+
+  /**
+    The body of iteration: each partition selected by check_state() is
+    processed here.
+
+    Do DDL logging and convey the rename. It doesn't do drop because that is
+    done by replaying cleanup_chain. Add is done by Alter_partition_add.
+  */
+
+  virtual
+  bool process_partition(partition_element *part_elem,
+                         partition_element *sub_elem)
+  {
+    DEBUG_ASSERT_STATES(part_elem);
+    DDL_LOG_STATE *output_chain= rollback_chain;
+    bool do_rename= false;
+
+    switch (phase)
+    {
+    case RENAME_TO_BACKUPS:
+    case RENAME_ADDED_PARTS:
+    case CONVERT_OUT:
+    case CONVERT_IN:
+      ddl_log_entry.action_type= DDL_LOG_RENAME_TABLE_ACTION;
+      ddl_log_entry.phase= DDL_RENAME_PHASE_TABLE;
+      ddl_log_entry.name= from_name;
+      ddl_log_entry.from_name= to_name;
+      do_rename= true;
+      break;
+    case ADD_PARTITIONS:
+      ddl_log_entry.action_type= DDL_LOG_DROP_TABLE_ACTION;
+      ddl_log_entry.tmp_name= from_name;
+      break;
+    case LOG_DROP_BACKUPS:
+      ddl_log_entry.action_type= DDL_LOG_DROP_TABLE_ACTION;
+      ddl_log_entry.tmp_name= from_name;
+      output_chain= cleanup_chain;
+      /* cleanup_chain cannot be executed before rollback_chain */
+      ddl_log_link_chains(cleanup_chain, rollback_chain);
+      break;
+    default:
+      DBUG_ASSERT(0);
+      return true;
+    }
+
+    ddl_log_entry.next_entry= output_chain->list ?
+                                output_chain->list->entry_pos : 0;
+    if (ddl_log_write(output_chain, &ddl_log_entry))
+      return true;
+
+    if (do_rename)
+    {
+      int ha_err;
+      DBUG_ASSERT(table->file->ht->db_type == DB_TYPE_PARTITION_DB);
+      handler *file= (phase & (RENAME_ADDED_PARTS|CONVERT_IN) ?
+                      hp->new_handler(part_elem, sub_elem) :
+                      hp->get_child_handler(part_elem, sub_elem));
+      ha_err= file->ha_rename_table(from_name.str, to_name.str);
+      if (ha_err ||
+          HA_ERR_INJECT("alter_partition_rename_table"))
+      {
+        file->print_error(ha_err, MYF(0));
+        return true;
+      }
+    }
+
+    return DEBUG_CRASH_OR_FAIL;
+  }
 };
 
-static bool log_drop_or_convert_action(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                       uint *next_entry, const char *path,
-                                       const char *from_name, bool temp_list,
-                                       const log_action_enum convert_action)
+
+/**
+  ADD PARTITION action
+*/
+
+class Alter_partition_add : public Alter_partition_drop
 {
-  DDL_LOG_ENTRY ddl_log_entry;
-  DBUG_ASSERT(convert_action == ACT_DROP || (from_name != NULL));
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
-  char tmp_path[FN_REFLEN + 1];
-  List_iterator<partition_element> part_it(part_info->partitions);
-  List_iterator<partition_element> temp_it(part_info->temp_partitions);
-  uint num_temp_partitions= part_info->temp_partitions.elements;
-  uint num_elements= part_info->partitions.elements;
-  DBUG_ENTER("log_drop_or_convert_action");
+protected:
+  uint disable_non_uniq_indexes;
+  int ha_err;
 
-  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
-
-  ddl_log_entry.action_type= convert_action ?
-                              DDL_LOG_RENAME_ACTION :
-                              DDL_LOG_DELETE_ACTION;
-  if (temp_list)
-    num_elements= num_temp_partitions;
-  while (num_elements--)
+public:
+  Alter_partition_add(ALTER_PARTITION_PARAM_TYPE *lpt) :
+             Alter_partition_drop(lpt)
   {
-    partition_element *part_elem;
-    if (temp_list)
-      part_elem= temp_it++;
-    else
-      part_elem= part_it++;
-    if (part_elem->part_state == PART_TO_BE_DROPPED ||
-        part_elem->part_state == PART_TO_BE_ADDED ||
-        part_elem->part_state == PART_CHANGED)
+    disable_non_uniq_indexes= hp->indexes_are_disabled();
+  }
+
+  bool needs_processing(partition_element *part_elem)
+  {
+    return part_elem->part_state == PART_TO_BE_ADDED;
+  }
+
+  /**
+    ADD PARTITION processing
+  */
+
+  bool add_parts()
+  {
+    ha_err= hp->allocate_partitions();
+    if (ha_err)
     {
-      uint name_variant;
-      if (part_elem->part_state == PART_CHANGED ||
-          (part_elem->part_state == PART_TO_BE_ADDED &&
-           num_temp_partitions))
-        name_variant= TEMP_PART_NAME;
-      else
-        name_variant= NORMAL_PART_NAME;
-      DBUG_ASSERT(convert_action != ACT_CONVERT_IN ||
-                  part_elem->part_state == PART_TO_BE_ADDED);
-      DBUG_ASSERT(convert_action != ACT_CONVERT_OUT ||
-                  part_elem->part_state == PART_TO_BE_DROPPED);
+      hp->print_error(ha_err, MYF(0));
+      return true;
+    }
+    if (iterate(ADD_PARTITIONS, NORMAL_PART_NAME, SKIP_PART_NAME,
+                &part_info->partitions))
+      return true;
+    return false;
+  }
+
+  bool process_partition(partition_element *part_elem,
+                         partition_element *sub_elem)
+  {
+    DBUG_ASSERT(phase == ADD_PARTITIONS);
+    DBUG_ASSERT(!ha_err);
+
+    if (Alter_partition_drop::process_partition(part_elem, sub_elem))
+      return true;
+
+    ha_err= hp->create_partition(table, lpt->create_info, from_name.str,
+                                 sub_elem ? sub_elem : part_elem,
+                                 disable_non_uniq_indexes);
+    if (ha_err ||
+        HA_ERR_INJECT("alter_partition_add"))
+    {
+      hp->print_error(ha_err, MYF(0));
+      hp->cleanup_new_partition();
+      return true;
+    }
+
+    return false;
+  }
+};
+
+
+/**
+  Change partition action
+
+  ADD HASH / COALESCE / REBUILD / REORGANIZE / CONVERT IN / CONVERT OUT
+*/
+
+class Alter_partition_change : public Alter_partition_add
+{
+  uint processed_state;
+
+public:
+  using Alter_partition_add::Alter_partition_add;
+
+  bool needs_processing(partition_element *part_elem)
+  {
+    return part_elem->part_state & processed_state;
+  }
+
+  /**
+    REORGANIZE processing part 1
+  */
+
+  bool add_parts_and_copy_data(THD *thd)
+  {
+    ha_err= hp->allocate_partitions();
+    if (ha_err)
+    {
+      hp->print_error(ha_err, MYF(0));
+      return true;
+    }
+
+    /*
+      ha_enable_transaction() must be done before ha_create():
+      Aria stores born_transactional and uses it for copy data.
+     */
+    if ((ha_err= mysql_trans_prepare_alter_copy_data(thd)))
+    {
+      hp->print_error(ha_err, MYF(0));
+      return true;
+    }
+
+    /*
+      Call Alter_partition_add::process_partition() for each
+      (PART_TO_BE_ADDED|PART_CHANGED) partition to create the partitions
+    */
+
+    processed_state= (PART_TO_BE_ADDED|PART_CHANGED);
+    if (iterate(ADD_PARTITIONS, TEMP_PART_NAME, SKIP_PART_NAME,
+                &part_info->partitions))
+    {
+      (void) mysql_trans_commit_alter_copy_data(thd, true);
+      return true;
+    }
+
+    if (HA_ERR_INJECT("change_partition_add_parts_1") ||
+        (ha_err= hp->copy_partitions(&lpt->copied, &lpt->deleted)) ||
+        HA_ERR_INJECT("change_partition_add_parts_2") ||
+        (ha_err= mysql_trans_commit_alter_copy_data(thd, false)) ||
+        HA_ERR_INJECT("change_partition_add_parts_3"))
+    {
+      /* Rollback the transaction */
+      (void) mysql_trans_commit_alter_copy_data(thd, true);
+      hp->print_error(ha_err, MYF(0));
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+    REORGANIZE processing part 2
+  */
+
+  bool rename_parts()
+  {
+    DEBUG_SYNC(lpt->thd, "before_rename_partitions");
+    /*
+      Rename to backups
+
+      For REORGANIZE partitions rebuilt are inside temp_partitions marked by
+      PART_TO_BE_REORGED, partitions dropped are inside partitions marked by
+      PART_REORGED_DROPPED.
+
+      For REBUILD partitions are marked by PART_CHANGED.
+    */
+    if (part_info->temp_partitions.elements)
+    {
+      processed_state= PART_TO_BE_REORGED;
+      if (iterate(RENAME_TO_BACKUPS, NORMAL_PART_NAME, RENAMED_PART_NAME,
+                  &part_info->temp_partitions))
+        return true;
+    }
+    processed_state= PART_CHANGED|PART_REORGED_DROPPED;
+    if (iterate(RENAME_TO_BACKUPS, NORMAL_PART_NAME, RENAMED_PART_NAME,
+                &part_info->partitions) ||
+        ERROR_INJECT("change_partition_rename_parts_1"))
+      return true;
+    /*
+      Rename from temporary newly added or rebuilt partitions
+
+      REORGANIZE adds new partitions in PART_TO_BE_ADDED state.
+      REBUILD uses PART_CHANGED state for rewriting partitions.
+    */
+    processed_state= PART_TO_BE_ADDED|PART_CHANGED;
+    if (iterate(RENAME_ADDED_PARTS, TEMP_PART_NAME, NORMAL_PART_NAME,
+                &part_info->partitions) ||
+        ERROR_INJECT("change_partition_rename_parts_2"))
+      return true;
+    /*
+      Log drop backups
+
+      Above backed up partitions must be dropped at the latest stage of processing
+      (see ddl_log_revert(cleanup_chain) in fast_alter_partition_table()).
+    */
+    if (part_info->temp_partitions.elements)
+    {
+      processed_state= PART_TO_BE_REORGED;
+      if (iterate(LOG_DROP_BACKUPS, RENAMED_PART_NAME, SKIP_PART_NAME,
+                  &part_info->temp_partitions))
+        return true;
+    }
+    processed_state= PART_CHANGED|PART_REORGED_DROPPED;
+    if (iterate(LOG_DROP_BACKUPS, RENAMED_PART_NAME, SKIP_PART_NAME,
+                &part_info->partitions))
+      return true;
+    return false;
+  }
+
+  /**
+    CONVERT OUT processing
+  */
+
+  bool convert_out()
+  {
+    to_name.length= build_table_filename(to_name_buf, sizeof(to_name_buf) - 1,
+                                          lpt->alter_ctx->new_db.str,
+                                          lpt->alter_ctx->new_name.str, "", 0);
+    to_name.str= to_name_buf;
+
+    processed_state= PART_TO_BE_DROPPED;
+    if (iterate(CONVERT_OUT, NORMAL_PART_NAME, SKIP_PART_NAME,
+                &part_info->partitions))
+      return true;
+    return false;
+  }
+
+  /**
+    CONVERT IN processing
+  */
+
+  bool convert_in()
+  {
+    TABLE_LIST* table_from= lpt->table_list->next_local;
+
+    ha_err= hp->allocate_partitions();
+    if (ha_err)
+    {
+      hp->print_error(ha_err, MYF(0));
+      return true;
+    }
+
+    from_name.length= build_table_filename(from_name_buf, sizeof(from_name_buf) - 1,
+                                            table_from->db.str, table_from->table_name.str,
+                                            "", 0);
+    from_name.str= from_name_buf;
+
+    processed_state= PART_TO_BE_ADDED;
+    if (iterate(CONVERT_IN, SKIP_PART_NAME, NORMAL_PART_NAME,
+                &part_info->partitions))
+      return true;
+    return false;
+  }
+
+  bool process_partition(partition_element *part_elem,
+                         partition_element *sub_elem)
+  {
+    switch (phase)
+    {
+    case ADD_PARTITIONS:
+      return Alter_partition_add::process_partition(part_elem, sub_elem);
+    case RENAME_TO_BACKUPS:
+    case RENAME_ADDED_PARTS:
+    case LOG_DROP_BACKUPS:
+    case CONVERT_OUT:
+    case CONVERT_IN:
+      return Alter_partition_drop::process_partition(part_elem, sub_elem);
+    default:
+      DBUG_ASSERT(0);
+      return true;
+    }
+    return false;
+  }
+};
+
+
+bool Alter_partition_drop::iterate(Phase phase_arg,
+                                     enum_part_name_type from_name_arg,
+                                     enum_part_name_type to_name_arg,
+                                     List<partition_element> *parts)
+{
+  phase= phase_arg;
+  from_name_type= from_name_arg;
+  to_name_type= to_name_arg;
+  List_iterator<partition_element> part_it(*parts);
+  partition_element *part_elem;
+  while ((part_elem= part_it++))
+  {
+    if (needs_processing(part_elem))
+    {
       if (part_info->is_sub_partitioned())
       {
-        DBUG_ASSERT(!convert_action);
         List_iterator<partition_element> sub_it(part_elem->subpartitions);
-        uint num_subparts= part_info->num_subparts;
-        uint j= 0;
-        do
+        partition_element *sub_elem;
+        while ((sub_elem= sub_it++))
         {
-          partition_element *sub_elem= sub_it++;
-          ddl_log_entry.next_entry= *next_entry;
-          lex_string_set(&ddl_log_entry.handler_name,
-                         ha_resolve_storage_engine_name(sub_elem->
-                                                        engine_type));
-          if (create_subpartition_name(tmp_path, sizeof(tmp_path), path,
-                                       part_elem->partition_name,
-                                       sub_elem->partition_name, name_variant))
-            DBUG_RETURN(TRUE);
-          lex_string_set(&ddl_log_entry.name, tmp_path);
-          if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
-          {
-            DBUG_RETURN(TRUE);
-          }
-          *next_entry= log_entry->entry_pos;
-          sub_elem->log_entry= log_entry;
-          ddl_log_add_entry(part_info, log_entry);
-        } while (++j < num_subparts);
+          if (build_names(part_elem, sub_elem))
+            return true;
+          if (process_partition(part_elem, sub_elem))
+            return true;
+        }
       }
       else
       {
-        ddl_log_entry.next_entry= *next_entry;
-        lex_string_set(&ddl_log_entry.handler_name,
-                       ha_resolve_storage_engine_name(part_elem->engine_type));
-        if (create_partition_name(tmp_path, sizeof(tmp_path), path,
-                                  part_elem->partition_name, name_variant,
-                                  TRUE))
-          DBUG_RETURN(TRUE);
-        switch (convert_action)
-        {
-          case ACT_CONVERT_OUT:
-            ddl_log_entry.from_name= { from_name, strlen(from_name) };
-            /* fall through */
-          case ACT_DROP:
-            ddl_log_entry.name= { tmp_path, strlen(tmp_path) };
-            break;
-          case ACT_CONVERT_IN:
-            ddl_log_entry.name= { from_name, strlen(from_name) };
-            ddl_log_entry.from_name= { tmp_path, strlen(tmp_path) };
-        }
-        if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
-        {
-          DBUG_RETURN(TRUE);
-        }
-        *next_entry= log_entry->entry_pos;
-        part_elem->log_entry= log_entry;
-        ddl_log_add_entry(part_info, log_entry);
+        if (build_names(part_elem, NULL))
+          return true;
+        if (process_partition(part_elem, NULL))
+          return true;
       }
     }
   }
-  DBUG_RETURN(FALSE);
-}
-
-
-inline
-static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                         uint *next_entry, const char *path,
-                                         bool temp_list)
-{
-  return log_drop_or_convert_action(lpt, next_entry, path, NULL, temp_list,
-                                    ACT_DROP);
-}
-
-inline
-static bool write_log_convert_partition(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                        uint *next_entry, const char *path)
-{
-  char other_table[FN_REFLEN + 1];
-  const ulong f= lpt->alter_info->partition_flags;
-  DBUG_ASSERT((f & ALTER_PARTITION_CONVERT_IN) || (f & ALTER_PARTITION_CONVERT_OUT));
-  const log_action_enum convert_action= (f & ALTER_PARTITION_CONVERT_IN)
-                                         ? ACT_CONVERT_IN : ACT_CONVERT_OUT;
-  build_table_filename(other_table, sizeof(other_table) - 1, lpt->alter_ctx->new_db.str,
-                       lpt->alter_ctx->new_name.str, "", 0);
-  DDL_LOG_MEMORY_ENTRY *main_entry= lpt->part_info->main_entry;
-  bool res= log_drop_or_convert_action(lpt, next_entry, path, other_table,
-                                       false, convert_action);
-  /*
-    NOTE: main_entry is "drop shadow frm", we have to keep it like this
-    because partitioning crash-safety disables it at install shadow FRM phase.
-    This is needed to avoid spurious drop action when the shadow frm is replaced
-    by the backup frm and there is nothing to drop.
-  */
-  lpt->part_info->main_entry= main_entry;
-  return res;
+  return false;
 }
 
 
 /*
   Write the log entry to ensure that the shadow frm file is removed at
   crash.
+
   SYNOPSIS
     write_log_drop_frm()
     lpt                      Struct containing parameters
+    drop_chain               Cleanup chain
+    path                     Location of FRM file
+    cond_entry               DDL log conditional entry pos
 
   RETURN VALUES
     TRUE                     Error
     FALSE                    Success
   DESCRIPTION
-    Prepare an entry to the ddl log indicating a drop/install of the shadow frm
+    Write an entry to the ddl log indicating a drop/install of the frm
     file and its corresponding handler file.
 */
 
-static bool write_log_drop_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
-                               DDL_LOG_STATE *drop_chain)
+static bool write_log_drop_frm(DDL_LOG_STATE *drop_chain,
+                               const char *path, uint cond_entry)
 {
-  char path[FN_REFLEN + 1];
   DBUG_ENTER("write_log_drop_frm");
-  const DDL_LOG_STATE *main_chain= lpt->part_info;
-  const bool drop_backup= (drop_chain != main_chain);
-
-  build_table_shadow_filename(path, sizeof(path) - 1, lpt, drop_backup);
   mysql_mutex_lock(&LOCK_gdl);
-  if (ddl_log_delete_frm(drop_chain, (const char*)path))
+  if (ddl_log_delete_frm(drop_chain, path))
     goto error;
 
-  if (drop_backup && (lpt->alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN))
-  {
-    TABLE_LIST *table_from= lpt->table_list->next_local;
-    build_table_filename(path, sizeof(path) - 1, table_from->db.str,
-                         table_from->table_name.str, "", 0);
-
-    if (ddl_log_delete_frm(drop_chain, (const char*) path))
-      goto error;
-  }
-
-  if (ddl_log_write_execute_entry(drop_chain->list->entry_pos,
-                                  drop_backup ?
-                                    main_chain->execute_entry->entry_pos : 0,
+  if (ddl_log_write_execute_entry(drop_chain->list->entry_pos, cond_entry,
                                   &drop_chain->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
   DBUG_RETURN(FALSE);
 
 error:
-  release_part_info_log_entries(drop_chain->list);
   mysql_mutex_unlock(&LOCK_gdl);
   drop_chain->list= NULL;
   my_error(ER_DDL_LOG_ERROR, MYF(0));
@@ -6714,361 +6764,90 @@ error:
 static inline
 bool write_log_drop_shadow_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
-  return write_log_drop_frm(lpt, lpt->part_info);
-}
-
-
-/*
-  Log renaming of shadow frm to real frm name and dropping of old frm
-  SYNOPSIS
-    write_log_rename_frm()
-    lpt                      Struct containing parameters
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
-  DESCRIPTION
-    Prepare an entry to ensure that we complete the renaming of the frm
-    file if failure occurs in the middle of the rename process.
-*/
-
-static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
-{
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
-  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->execute_entry;
   char path[FN_REFLEN + 1];
-  char shadow_path[FN_REFLEN + 1];
-  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->list;
-  DBUG_ENTER("write_log_rename_frm");
+  build_table_shadow_filename(path, sizeof(path) - 1, lpt);
 
-  part_info->list= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
-  mysql_mutex_lock(&LOCK_gdl);
-  if (write_log_replace_frm(lpt, 0UL, shadow_path, path))
-    goto error;
-  log_entry= part_info->list;
-  part_info->main_entry= log_entry;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
-                                  &exec_log_entry))
-    goto error;
-  release_part_info_log_entries(old_first_log_entry);
-  mysql_mutex_unlock(&LOCK_gdl);
-  DBUG_RETURN(FALSE);
-
-error:
-  release_part_info_log_entries(part_info->list);
-  mysql_mutex_unlock(&LOCK_gdl);
-  part_info->list= old_first_log_entry;
-  part_info->main_entry= NULL;
-  my_error(ER_DDL_LOG_ERROR, MYF(0));
-  DBUG_RETURN(TRUE);
+  bool res= write_log_drop_frm(&lpt->rollback_chain, path, 0);
+  return res;
 }
 
 
-/*
-  Write the log entries to ensure that the drop partition command is completed
-  even in the presence of a crash.
-
-  SYNOPSIS
-    write_log_drop_partition()
-    lpt                      Struct containing parameters
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
-  DESCRIPTION
-    Prepare entries to the ddl log indicating all partitions to drop and to
-    install the shadow frm file and remove the old frm file.
-*/
-
-static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
+static inline
+bool write_log_drop_backup_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
-  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->execute_entry;
-  char tmp_path[FN_REFLEN + 1];
   char path[FN_REFLEN + 1];
-  uint next_entry= 0;
-  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->list;
-  DBUG_ENTER("write_log_drop_partition");
+  build_table_shadow_filename(path, sizeof(path) - 1, lpt, "backup");
 
-  part_info->list= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
-  mysql_mutex_lock(&LOCK_gdl);
-  if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
-                                   FALSE))
-    goto error;
-  if (write_log_replace_frm(lpt, next_entry, (const char*)tmp_path,
-                            (const char*)path))
-    goto error;
-  log_entry= part_info->list;
-  part_info->main_entry= log_entry;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
-                                  &exec_log_entry))
-    goto error;
-  release_part_info_log_entries(old_first_log_entry);
-  mysql_mutex_unlock(&LOCK_gdl);
-  DBUG_RETURN(FALSE);
-
-error:
-  release_part_info_log_entries(part_info->list);
-  mysql_mutex_unlock(&LOCK_gdl);
-  part_info->list= old_first_log_entry;
-  part_info->main_entry= NULL;
-  my_error(ER_DDL_LOG_ERROR, MYF(0));
-  DBUG_RETURN(TRUE);
+  return write_log_drop_frm(&lpt->cleanup_chain, path,
+                            lpt->rollback_chain.execute_entry->entry_pos);
 }
 
 
-static bool write_log_convert_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
+/*
+  Log drop of source table FRM for CONVERT IN
+*/
+static inline
+bool write_log_drop_converted_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
-  partition_info *part_info= lpt->part_info;
-  char tmp_path[FN_REFLEN + 1];
   char path[FN_REFLEN + 1];
-  uint next_entry= part_info->list ? part_info->list->entry_pos : 0;
+  TABLE_LIST *table_from= lpt->table_list->next_local;
+  build_table_filename(path, sizeof(path) - 1, table_from->db.str,
+                       table_from->table_name.str, "", 0);
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
-
-  mysql_mutex_lock(&LOCK_gdl);
-
-  if (write_log_convert_partition(lpt, &next_entry, (const char*)path))
-    goto error;
-  DBUG_ASSERT(next_entry == part_info->list->entry_pos);
-  if (ddl_log_write_execute_entry(part_info->list->entry_pos, 0,
-                                  &part_info->execute_entry))
-    goto error;
-  mysql_mutex_unlock(&LOCK_gdl);
-  return false;
-
-error:
-  mysql_mutex_unlock(&LOCK_gdl);
-  part_info->main_entry= NULL;
-  my_error(ER_DDL_LOG_ERROR, MYF(0));
-  return true;
+  return write_log_drop_frm(&lpt->cleanup_chain, path,
+                            lpt->rollback_chain.execute_entry->entry_pos);
 }
 
 
 /*
-  Write the log entries to ensure that the add partition command is not
-  executed at all if a crash before it has completed
+  Close tables, prepare for reopening under LOCK TABLES.
 
-  SYNOPSIS
-    write_log_add_change_partition()
-    lpt                      Struct containing parameters
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
-  DESCRIPTION
-    Prepare entries to the ddl log indicating all partitions to drop and to
-    remove the shadow frm file.
-    We always inject entries backwards in the list in the ddl log since we
-    don't know the entry position until we have written it.
-*/
-
-static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
-{
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
-  char tmp_path[FN_REFLEN + 1];
-  char path[FN_REFLEN + 1];
-  uint next_entry= 0;
-  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->list;
-  /* write_log_drop_shadow_frm(lpt) must have been run first */
-  DBUG_ASSERT(old_first_log_entry);
-  DBUG_ENTER("write_log_add_change_partition");
-
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
-  mysql_mutex_lock(&LOCK_gdl);
-
-  /* Relink the previous drop shadow frm entry */
-  if (old_first_log_entry)
-    next_entry= old_first_log_entry->entry_pos;
-  if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
-                                   FALSE))
-    goto error;
-  log_entry= part_info->list;
-
-  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
-                                  &part_info->execute_entry))
-    goto error;
-  mysql_mutex_unlock(&LOCK_gdl);
-  DBUG_RETURN(FALSE);
-
-error:
-  release_part_info_log_entries(part_info->list);
-  mysql_mutex_unlock(&LOCK_gdl);
-  part_info->list= old_first_log_entry;
-  my_error(ER_DDL_LOG_ERROR, MYF(0));
-  DBUG_RETURN(TRUE);
-}
-
-
-/*
-  Write description of how to complete the operation after first phase of
-  change partitions.
-
-  SYNOPSIS
-    write_log_final_change_partition()
-    lpt                      Struct containing parameters
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
-  DESCRIPTION
-    We will write log entries that specify to
-    1) Install the shadow frm file.
-    2) Remove all partitions reorganized. (To be able to reorganize a partition
-       to the same name. Like in REORGANIZE p0 INTO (p0, p1),
-       so that the later rename from the new p0-temporary name to p0 don't
-       fail because the partition already exists.
-    3) Rename others to reflect the new naming scheme.
-
-    Note that it is written in the ddl log in reverse.
-*/
-
-static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
-{
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
-  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->execute_entry;
-  char path[FN_REFLEN + 1];
-  char shadow_path[FN_REFLEN + 1];
-  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->list;
-  uint next_entry= 0;
-  DBUG_ENTER("write_log_final_change_partition");
-
-  /*
-    Do not link any previous log entry.
-    Replace the revert operations with forced retry operations.
-  */
-  part_info->list= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
-  mysql_mutex_lock(&LOCK_gdl);
-  if (write_log_changed_partitions(lpt, &next_entry, (const char*)path))
-    goto error;
-  if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
-                                   lpt->alter_info->partition_flags &
-                                   ALTER_PARTITION_REORGANIZE))
-    goto error;
-  if (write_log_replace_frm(lpt, next_entry, shadow_path, path))
-    goto error;
-  log_entry= part_info->list;
-  part_info->main_entry= log_entry;
-  /* Overwrite the revert execute log entry with this retry execute entry */
-  if (ddl_log_write_execute_entry(log_entry->entry_pos, 0,
-                                  &exec_log_entry))
-    goto error;
-  release_part_info_log_entries(old_first_log_entry);
-  mysql_mutex_unlock(&LOCK_gdl);
-  DBUG_RETURN(FALSE);
-
-error:
-  release_part_info_log_entries(part_info->list);
-  mysql_mutex_unlock(&LOCK_gdl);
-  part_info->list= old_first_log_entry;
-  part_info->main_entry= NULL;
-  my_error(ER_DDL_LOG_ERROR, MYF(0));
-  DBUG_RETURN(TRUE);
-}
-
-
-/*
-  Remove entry from ddl log and release resources for others to use
-
-  SYNOPSIS
-    write_log_completed()
-    lpt                      Struct containing parameters
-  RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
-*/
-
-/*
-  TODO: Partitioning atomic DDL refactoring: this should be replaced with
-        ddl_log_complete().
-*/
-static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                bool dont_crash)
-{
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry= part_info->execute_entry;
-  DBUG_ENTER("write_log_completed");
-
-  DBUG_ASSERT(log_entry);
-  mysql_mutex_lock(&LOCK_gdl);
-  if (ddl_log_disable_execute_entry(&log_entry))
-  {
-    /*
-      Failed to write, Bad...
-      We have completed the operation but have log records to REMOVE
-      stuff that shouldn't be removed. What clever things could one do
-      here? An error output was written to the error output by the
-      above method so we don't do anything here.
-    */
-    ;
-  }
-  release_part_info_log_entries(part_info->list);
-  release_part_info_log_entries(part_info->execute_entry);
-  mysql_mutex_unlock(&LOCK_gdl);
-  part_info->execute_entry= NULL;
-  part_info->list= NULL;
-  DBUG_VOID_RETURN;
-}
-
-
-/*
-   Release all log entries
-   SYNOPSIS
-     release_log_entries()
-     part_info                  Partition info struct
-   RETURN VALUES
-     NONE
-*/
-
-/*
-  TODO: Partitioning atomic DDL refactoring: this should be replaced with
-        ddl_log_release_entries().
-*/
-static void release_log_entries(partition_info *part_info)
-{
-  mysql_mutex_lock(&LOCK_gdl);
-  release_part_info_log_entries(part_info->list);
-  release_part_info_log_entries(part_info->execute_entry);
-  mysql_mutex_unlock(&LOCK_gdl);
-  part_info->list= NULL;
-  part_info->execute_entry= NULL;
-}
-
-
-/*
-  Final part of partition changes to handle things when under
-  LOCK TABLES.
   SYNPOSIS
     alter_partition_lock_handling()
     lpt                        Struct carrying parameters
-  RETURN VALUES
-    true on error
 */
-static bool alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
+static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   THD *thd= lpt->thd;
 
   if (lpt->table)
   {
-    /*
-      Remove all instances of the table and its locks and other resources.
-    */
-    close_all_tables_for_name(thd, lpt->table->s, HA_EXTRA_NOT_USED, NULL);
+    TABLE *table= lpt->table;
+    if (!thd->mdl_context.is_lock_owner(MDL_key::TABLE, lpt->db.str,
+                                        lpt->table_name.str,
+                                        MDL_EXCLUSIVE) &&
+        wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+    {
+      /*
+        Did not succeed in getting exclusive access to the table.
+
+        Since we have altered a cached table object (and its part_info) we need
+        at least to remove this instance so it will not be reused.
+
+        Temporarily remove it from the locked table list, so that it will get
+        reopened.
+
+        Note: tested by partition_special_myisam partition_special_innodb
+      */
+      thd->locked_tables_list.unlink_from_list(thd,
+                                              table->pos_in_locked_tables,
+                                              false);
+      /*
+        Make sure that the table is unlocked, closed and removed from
+        the table cache.
+      */
+      mysql_lock_remove(thd, thd->lock, table);
+      close_thread_table(thd, &thd->open_tables);
+      lpt->table_list->table= NULL;
+    }
+    else
+    {
+      /* Ensure the share is destroyed and reopened. */
+      close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
+    }
   }
   lpt->table= 0;
   lpt->table_list->table= 0;
-  if (thd->locked_tables_mode)
-    return thd->locked_tables_list.reopen_tables(thd, false);
-
-  return false;
 }
 
 
@@ -7113,197 +6892,6 @@ static int alter_close_table(ALTER_PARTITION_PARAM_TYPE *lpt)
 
 
 /**
-  Handle errors for ALTER TABLE for partitioning.
-
-  @param lpt                Struct carrying parameters
-  @param action_completed   The action must be completed, NOT reverted
-  @param drop_partition     Partitions has not been dropped yet
-  @param frm_install        The shadow frm-file has not yet been installed
-  @param close_table        Table is still open, close it before reverting
-*/
-
-/*
-  TODO: Partitioning atomic DDL refactoring: this should be replaced with
-        correct combination of ddl_log_revert() / ddl_log_complete()
-*/
-static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                    bool action_completed,
-                                    bool drop_partition,
-                                    bool frm_install,
-                                    bool reopen)
-{
-  THD *thd= lpt->thd;
-  partition_info *part_info= lpt->part_info->get_clone(thd);
-  /* TABLE is going to be released, we should not access old part_info anymore */
-  lpt->part_info= part_info;
-  TABLE *table= lpt->table;
-  DBUG_ENTER("handle_alter_part_error");
-  DBUG_ASSERT(table->needs_reopen());
-
-  /*
-    All instances of this table needs to be closed.
-    Better to do that here, than leave the cleaning up to others.
-    Acquire EXCLUSIVE mdl lock if not already acquired.
-  */
-  if (!thd->mdl_context.is_lock_owner(MDL_key::TABLE, lpt->db.str,
-                                      lpt->table_name.str,
-                                      MDL_EXCLUSIVE) &&
-      wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
-  {
-    /*
-      Did not succeed in getting exclusive access to the table.
-
-      Since we have altered a cached table object (and its part_info) we need
-      at least to remove this instance so it will not be reused.
-
-      Temporarily remove it from the locked table list, so that it will get
-      reopened.
-    */
-    thd->locked_tables_list.unlink_from_list(thd,
-                                             table->pos_in_locked_tables,
-                                             false);
-    /*
-      Make sure that the table is unlocked, closed and removed from
-      the table cache.
-    */
-    mysql_lock_remove(thd, thd->lock, table);
-    close_thread_table(thd, &thd->open_tables);
-    lpt->table_list->table= NULL;
-  }
-  else
-  {
-    /* Ensure the share is destroyed and reopened. */
-    close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
-  }
-
-  if (!reopen)
-    DBUG_VOID_RETURN;
-
-  if (part_info->list &&
-      ddl_log_execute_entry(thd, part_info->list->entry_pos))
-  {
-    /*
-      We couldn't recover from error, most likely manual interaction
-      is required.
-    */
-    write_log_completed(lpt, FALSE);
-    release_log_entries(part_info);
-    if (!action_completed)
-    {
-      if (drop_partition)
-      {
-        /* Table is still ok, but we left a shadow frm file behind. */
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                     "Operation was unsuccessful, table is still "
-                     "intact, but it is possible that a shadow frm "
-                     "file was left behind");
-      }
-      else
-      {
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                     "Operation was unsuccessful, table is still "
-                     "intact, but it is possible that a shadow frm "
-                     "file was left behind. "
-                     "It is also possible that temporary partitions "
-                     "are left behind, these could be empty or more "
-                     "or less filled with records");
-      }
-    }
-    else
-    {
-      if (frm_install)
-      {
-        /*
-          Failed during install of shadow frm file, table isn't intact
-          and dropped partitions are still there
-        */
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                     "Failed during alter of partitions, table is no "
-                     "longer intact. "
-                     "The frm file is in an unknown state, and a "
-                     "backup is required.");
-      }
-      else if (drop_partition)
-      {
-        /*
-          Table is ok, we have switched to new table but left dropped
-          partitions still in their places. We remove the log records and
-          ask the user to perform the action manually. We remove the log
-          records and ask the user to perform the action manually.
-        */
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                     "Failed during drop of partitions, table is "
-                     "intact. "
-                     "Manual drop of remaining partitions is required");
-      }
-      else
-      {
-        /*
-          We failed during renaming of partitions. The table is most
-          certainly in a very bad state so we give user warning and disable
-          the table by writing an ancient frm version into it.
-        */
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                     "Failed during renaming of partitions. We are now "
-                     "in a position where table is not reusable "
-                     "Table is disabled by writing ancient frm file "
-                     "version into it");
-      }
-    }
-  }
-  else
-  {
-    release_log_entries(part_info);
-    if (!action_completed)
-    {
-      /*
-        We hit an error before things were completed but managed
-        to recover from the error. An error occurred and we have
-        restored things to original so no need for further action.
-      */
-      ;
-    }
-    else
-    {
-      /*
-        We hit an error after we had completed most of the operation
-        and were successful in a second attempt so the operation
-        actually is successful now. We need to issue a warning that
-        even though we reported an error the operation was successfully
-        completed.
-      */
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 1,
-                   "Operation was successfully completed by failure "
-                   "handling, after failure of normal operation");
-    }
-  }
-
-  if (thd->locked_tables_mode)
-  {
-    Diagnostics_area *stmt_da= NULL;
-    Diagnostics_area tmp_stmt_da(true);
-
-    if (unlikely(thd->is_error()))
-    {
-      /* reopen might fail if we have a previous error, use a temporary da. */
-      stmt_da= thd->get_stmt_da();
-      thd->set_stmt_da(&tmp_stmt_da);
-    }
-
-    /* NB: error status is not needed here, the statement fails with
-       the original error. */
-    if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
-      sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
-
-    if (stmt_da)
-      thd->set_stmt_da(stmt_da);
-  }
-
-  DBUG_VOID_RETURN;
-}
-
-
-/**
   Downgrade an exclusive MDL lock if under LOCK TABLE.
 
   If we don't downgrade the lock, it will not be downgraded or released
@@ -7341,8 +6929,6 @@ bool backup_log_alter_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   return 0;
 }
 
-
-extern bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt);
 
 /**
   Check that definition of source table fits definition of partition being
@@ -7401,6 +6987,24 @@ static bool check_table_data(ALTER_PARTITION_PARAM_TYPE *lpt)
 }
 
 
+bool alter_partition_binlog(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  bool res;
+  THD *thd= lpt->thd;
+  if (thd->lex->no_write_to_binlog)
+    return false;
+
+  thd->binlog_xid= thd->query_id;
+  res= ERROR_INJECT("alter_partition_binlog_1") ||
+        ddl_log_update_xid(&lpt->rollback_chain, thd->binlog_xid);
+  if (!res)
+    res= ERROR_INJECT("alter_partition_binlog_2") ||
+          write_bin_log(thd, false, thd->query(), thd->query_length());
+  thd->binlog_xid= 0;
+  return res;
+}
+
+
 /**
   Actually perform the change requested by ALTER TABLE of partitions
   previously prepared.
@@ -7408,10 +7012,9 @@ static bool check_table_data(ALTER_PARTITION_PARAM_TYPE *lpt)
   @param thd                           Thread object
   @param table                         Original table object with new part_info
   @param alter_info                    ALTER TABLE info
+  @param alter_ctx                     ALTER TABLE context
   @param create_info                   Create info for CREATE TABLE
   @param table_list                    List of the table involved
-  @param db                            Database name of new table
-  @param table_name                    Table name of new table
 
   @return Operation status
     @retval TRUE                          Error
@@ -7428,25 +7031,10 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                                 HA_CREATE_INFO *create_info,
                                 TABLE_LIST *table_list)
 {
-  /*
-    TODO: Partitioning atomic DDL refactoring.
-
-    DDL log chain state is stored in partition_info:
-
-    struct st_ddl_log_memory_entry *first_log_entry;
-    struct st_ddl_log_memory_entry *exec_log_entry;
-    struct st_ddl_log_memory_entry *frm_log_entry;
-
-    Make it stored and used in DDL_LOG_STATE like it was done in MDEV-17567.
-    This requires mysql_write_frm() refactoring (see comment there).
-  */
-
   /* Set-up struct used to write frm files */
   partition_info *part_info;
   ALTER_PARTITION_PARAM_TYPE lpt_obj;
   ALTER_PARTITION_PARAM_TYPE *lpt= &lpt_obj;
-  bool action_completed= FALSE;
-  bool frm_install= FALSE;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
   /* option_bits is used to mark if we should log the query with IF EXISTS */
   ulonglong save_option_bits= thd->variables.option_bits;
@@ -7462,71 +7050,24 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   lpt->create_info= create_info;
   lpt->db_options= create_info->table_options_with_row_type();
   lpt->table= table;
-  lpt->key_info_buffer= 0;
-  lpt->key_count= 0;
   lpt->db= alter_ctx->db;
   lpt->table_name= alter_ctx->table_name;
   lpt->org_tabledef_version= table->s->tabledef_version;
-  lpt->copied= 0;
-  lpt->deleted= 0;
-  lpt->pack_frm_data= NULL;
-  lpt->pack_frm_len= 0;
+  DBUG_ASSERT(sizeof(lpt->path) >= table->s->normalized_path.length + 1);
+  memcpy(lpt->path, table->s->normalized_path.str,
+          table->s->normalized_path.length + 1);
+
+  DDL_LOG_STATE *rollback_chain= &lpt->rollback_chain;
+  DDL_LOG_STATE *cleanup_chain= &lpt->cleanup_chain;
 
   /* Add IF EXISTS to binlog if shared table */
   if (table->file->partition_ht()->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
     thd->variables.option_bits|= OPTION_IF_EXISTS;
 
-  if (table->file->alter_table_flags(alter_info->flags) &
-        HA_PARTITION_ONE_PHASE &&
-      !(alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST))
+  if (alter_info->partition_flags & ALTER_PARTITION_DROP)
   {
-    /*
-      In the case where the engine supports one phase online partition
-      changes it is not necessary to have any exclusive locks. The
-      correctness is upheld instead by transactions being aborted if they
-      access the table after its partition definition has changed (if they
-      are still using the old partition definition).
+    Alter_partition_drop action_drop(lpt);
 
-      The handler is in this case responsible to ensure that all users
-      start using the new frm file after it has changed. To implement
-      one phase it is necessary for the handler to have the master copy
-      of the frm file and use discovery mechanisms to renew it. Thus
-      write frm will write the frm, pack the new frm and finally
-      the frm is deleted and the discovery mechanisms will either restore
-      back to the old or installing the new after the change is activated.
-
-      Thus all open tables will be discovered that they are old, if not
-      earlier as soon as they try an operation using the old table. One
-      should ensure that this is checked already when opening a table,
-      even if it is found in the cache of open tables.
-
-      change_partitions will perform all operations and it is the duty of
-      the handler to ensure that the frm files in the system gets updated
-      in synch with the changes made and if an error occurs that a proper
-      error handling is done.
-
-      If the MySQL Server crashes at this moment but the handler succeeds
-      in performing the change then the binlog is not written for the
-      change. There is no way to solve this as long as the binlog is not
-      transactional and even then it is hard to solve it completely.
- 
-      The first approach here was to downgrade locks. Now a different approach
-      is decided upon. The idea is that the handler will have access to the
-      Alter_info when store_lock arrives with TL_WRITE_ALLOW_READ. So if the
-      handler knows that this functionality can be handled with a lower lock
-      level it will set the lock level to TL_WRITE_ALLOW_WRITE immediately.
-      Thus the need to downgrade the lock disappears.
-      1) Write the new frm, pack it and then delete it
-      2) Perform the change within the handler
-    */
-    if (mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
-        mysql_change_partitions(lpt, true))
-    {
-      goto err;
-    }
-  }
-  else if (alter_info->partition_flags & ALTER_PARTITION_DROP)
-  {
     /*
       Now after all checks and setting state on dropped partitions we can
       start the actual dropping of the partitions.
@@ -7550,7 +7091,10 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       dropped partitions was aborted for sure (thus only possible for
       transactional engines).
 
-      0) Write an entry that removes the shadow frm file if crash occurs 
+      DDL logging is done in rollback_chain that restores old table before
+      binlogging is done. Otherwise cleanup_chain is used to drop backups.
+
+      0) Write an entry that removes the shadow frm file if crash occurs
       1) Write the new frm file as a shadow frm
       2) Get an exclusive metadata lock on the table (waits for all active
          transactions using this table). This ensures that we
@@ -7563,13 +7107,14 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       4) Close the table that have already been opened but didn't stumble on
          the abort locked previously. This is done as part of the
          alter_close_table call.
-      5) Old place for binary logging
-      6) Install the previously written shadow frm file
-      7) Prepare handlers for drop of partitions
-      8) Drop the partitions
-      9) Remove entries from ddl log
-      10) Reopen table if under lock tables
-      11) Write the bin log
+      5) Rename to backups logged by restoring from backups
+      6) Log drop of backup FRM
+      7) Log restore from backup FRM
+      8) Backup old FRM file, install the new frm file
+      9) Old place for binary logging
+      10) Drop backups, remove entries from ddl log
+      11) Reopen table if under lock tables
+      12) Write the bin log
           Unfortunately the writing of the binlog is not synchronised with
           other logging activities. So no matter in which order the binlog
           is written compared to other activities there will always be cases
@@ -7580,47 +7125,37 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
           require writing the statement first in the ddl log and then
           when recovering from the crash read the binlog and insert it into
           the binlog if not written already.
-      12) Complete query
+      13) Complete query
 
       We insert Error injections at all places where it could be interesting
       to test if recovery is properly done.
     */
+
     if (write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT("drop_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT("drop_partition_2") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         ERROR_INJECT("drop_partition_3") ||
-        write_log_drop_partition(lpt) ||
-        (action_completed= TRUE, FALSE) ||
-        ERROR_INJECT("drop_partition_4") ||
         alter_close_table(lpt) ||
+        ERROR_INJECT("drop_partition_4") ||
+        action_drop.rename_parts() ||
         ERROR_INJECT("drop_partition_5") ||
+        write_log_drop_backup_frm(lpt) ||
         ERROR_INJECT("drop_partition_6") ||
-        (frm_install= TRUE, FALSE) ||
-        mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
-        backup_log_alter_partition(lpt) ||
-        (frm_install= FALSE, FALSE) ||
+        mysql_write_frm(lpt, WFRM_LOG_RESTORE) ||
         ERROR_INJECT("drop_partition_7") ||
-        mysql_drop_partitions(lpt) ||
+        mysql_write_frm(lpt, WFRM_BACKUP_AND_INSTALL) ||
         ERROR_INJECT("drop_partition_8") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
-        ((!thd->lex->no_write_to_binlog) &&
-         (write_bin_log(thd, FALSE,
-                        thd->query(), thd->query_length()), FALSE)) ||
-        ERROR_INJECT("drop_partition_9"))
-    {
-      handle_alter_part_error(lpt, action_completed, TRUE, frm_install, true);
-      goto err;
-    }
-    if (alter_partition_lock_handling(lpt))
-      goto err;
-  }
+        backup_log_alter_partition(lpt) ||
+        alter_partition_binlog(lpt))
+      goto fail;
+  } /* DROP */
   else if (alter_info->partition_flags & ALTER_PARTITION_CONVERT_OUT)
   {
-    DDL_LOG_STATE chain_drop_backup;
-    bzero(&chain_drop_backup, sizeof(chain_drop_backup));
+    Alter_partition_change action_conv_out(lpt);
 
+    /* Create FRM for table converted from partition, log-protected by dropping FRM */
     if (mysql_write_frm(lpt, WFRM_WRITE_CONVERTED_TO) ||
         ERROR_INJECT("convert_partition_1") ||
         write_log_drop_shadow_frm(lpt) ||
@@ -7629,43 +7164,26 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_3") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         ERROR_INJECT("convert_partition_4") ||
-        write_log_convert_partition(lpt) ||
-        ERROR_INJECT("convert_partition_5") ||
         alter_close_table(lpt) ||
+        ERROR_INJECT("convert_partition_5") ||
+        /* Rename partition file to table file, log-protected by reverse rename */
+        action_conv_out.convert_out() ||
         ERROR_INJECT("convert_partition_6") ||
-        alter_partition_convert_out(lpt) ||
+        write_log_drop_backup_frm(lpt) ||
         ERROR_INJECT("convert_partition_7") ||
-        write_log_drop_frm(lpt, &chain_drop_backup) ||
-        mysql_write_frm(lpt, WFRM_INSTALL_SHADOW|WFRM_BACKUP_ORIGINAL) ||
-        backup_log_alter_partition(lpt) ||
+        mysql_write_frm(lpt, WFRM_LOG_RESTORE) ||
         ERROR_INJECT("convert_partition_8") ||
-        ((!thd->lex->no_write_to_binlog) &&
-          ((thd->binlog_xid= thd->query_id),
-           ddl_log_update_xid(lpt->part_info, thd->binlog_xid),
-           write_bin_log(thd, false, thd->query(), thd->query_length()),
-           (thd->binlog_xid= 0))) ||
-        ERROR_INJECT("convert_partition_9"))
-    {
-      DDL_LOG_STATE main_state= *lpt->part_info;
-      handle_alter_part_error(lpt, true, true, false, false);
-      ddl_log_complete(&chain_drop_backup);
-      (void) ddl_log_revert(thd, &main_state);
-      if (thd->locked_tables_mode)
-        thd->locked_tables_list.reopen_tables(thd, false);
-      goto err;
-    }
-    ddl_log_complete(lpt->part_info);
-    ERROR_INJECT("convert_partition_10");
-    (void) ddl_log_revert(thd, &chain_drop_backup);
-    if (alter_partition_lock_handling(lpt) ||
-        ERROR_INJECT("convert_partition_11"))
-      goto err;
-  }
+        mysql_write_frm(lpt, WFRM_BACKUP_AND_INSTALL) ||
+        ERROR_INJECT("convert_partition_9") ||
+        backup_log_alter_partition(lpt) ||
+        alter_partition_binlog(lpt))
+      goto fail;
+  } /* CONVERT OUT */
   else if ((alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN))
   {
-    DDL_LOG_STATE chain_drop_backup;
-    bzero(&chain_drop_backup, sizeof(chain_drop_backup));
     TABLE *table_from= table_list->next_local->table;
+    TABLE_LIST *tl_from= table_from->pos_in_locked_tables;
+    Alter_partition_change action_conv_in(lpt);
 
     if (wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         wait_while_table_is_used(thd, table_from, HA_EXTRA_PREPARE_FOR_RENAME) ||
@@ -7675,44 +7193,36 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         check_table_data(lpt))
       goto err;
 
+    close_all_tables_for_name(lpt->thd, table_from->s,
+                              HA_EXTRA_PREPARE_FOR_RENAME, NULL);
+    if (tl_from)
+      tl_from->table= NULL;
+
     if (write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT("convert_partition_3") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT("convert_partition_4") ||
         alter_close_table(lpt) ||
         ERROR_INJECT("convert_partition_5") ||
-        write_log_convert_partition(lpt) ||
+        /* Rename table file to partition file, log-protected by reverse rename */
+        action_conv_in.convert_in() ||
         ERROR_INJECT("convert_partition_6") ||
-        alter_partition_convert_in(lpt) ||
+        write_log_drop_backup_frm(lpt) ||
         ERROR_INJECT("convert_partition_7") ||
-        (frm_install= true, false) ||
-        write_log_drop_frm(lpt, &chain_drop_backup) ||
-        mysql_write_frm(lpt, WFRM_INSTALL_SHADOW|WFRM_BACKUP_ORIGINAL) ||
-        log_partition_alter_to_ddl_log(lpt) ||
-        (frm_install= false, false) ||
+        write_log_drop_converted_frm(lpt) ||
         ERROR_INJECT("convert_partition_8") ||
-        ((!thd->lex->no_write_to_binlog) &&
-          ((thd->binlog_xid= thd->query_id),
-           ddl_log_update_xid(lpt->part_info, thd->binlog_xid),
-           write_bin_log(thd, false, thd->query(), thd->query_length()),
-           (thd->binlog_xid= 0))) ||
-        ERROR_INJECT("convert_partition_9"))
+        mysql_write_frm(lpt, WFRM_LOG_RESTORE) ||
+        ERROR_INJECT("convert_partition_9") ||
+        mysql_write_frm(lpt, WFRM_BACKUP_AND_INSTALL) ||
+        ERROR_INJECT("convert_partition_10") ||
+        backup_log_alter_partition(lpt) ||
+        alter_partition_binlog(lpt))
     {
-      DDL_LOG_STATE main_state= *lpt->part_info;
-      handle_alter_part_error(lpt, true, true, false, false);
-      ddl_log_complete(&chain_drop_backup);
-      (void) ddl_log_revert(thd, &main_state);
-      if (thd->locked_tables_mode)
-        thd->locked_tables_list.reopen_tables(thd, false);
-      goto err;
+      if (tl_from)
+        thd->locked_tables_list.add_back_last_deleted_lock(tl_from);
+      goto fail;
     }
-    ddl_log_complete(lpt->part_info);
-    ERROR_INJECT("convert_partition_10");
-    (void) ddl_log_revert(thd, &chain_drop_backup);
-    if (alter_partition_lock_handling(lpt) ||
-        ERROR_INJECT("convert_partition_11"))
-      goto err;
-  }
+  } /* CONVERT IN */
   /*
     TODO: would be good if adding new empty VERSIONING partitions would always
     go this way, auto or not.
@@ -7723,6 +7233,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
             alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST))
   {
     DBUG_ASSERT(!(alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN));
+    Alter_partition_add action_add(lpt);
+
     /*
       ADD RANGE/LIST PARTITIONS
       In this case there are no tuples removed and no tuples are added.
@@ -7732,68 +7244,56 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       miss updates made by a transaction serialised before it that are
       inserted into the new partition.
 
-      0) Write an entry that removes the shadow frm file if crash occurs 
+      0) Write an entry that removes the shadow frm file if crash occurs
       1) Write the new frm file as a shadow frm file
       2) Get an exclusive metadata lock on the table (waits for all active
          transactions using this table). This ensures that we
          can release all other locks on the table and since no one can open
          the table, there can be no new threads accessing the table. They
          will be hanging on this exclusive lock.
-      3) Write an entry to remove the new parttions if crash occurs
-      4) Add the new partitions.
-      5) Close all instances of the table and remove them from the table cache.
-      6) Old place for write binlog
-      7) Now the change is completed except for the installation of the
-         new frm file. We thus write an action in the log to change to
-         the shadow frm file
-      8) Install the new frm file of the table where the partitions are
-         added to the table.
-      9) Remove entries from ddl log
-      10)Reopen tables if under lock tables
-      11)Write to binlog
-      12)Complete query
+      3) Add the new partitions logged by dropping them
+      4) Close all instances of the table and remove them from the table cache.
+      5) Log drop of backup FRM
+      6) Log restore from backup FRM
+      7) Backup old FRM file, install the new frm file
+      8) Old place for write binlog
+      9) Drop backups, remove entries from ddl log
+      10) Reopen tables if under lock tables
+      11) Write to binlog
+      12) Complete query
     */
+
     if (write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT("add_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT("add_partition_2") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         ERROR_INJECT("add_partition_3") ||
-        write_log_add_change_partition(lpt) ||
+        action_add.add_parts() ||
         ERROR_INJECT("add_partition_4") ||
-        mysql_change_partitions(lpt, false) ||
-        ERROR_INJECT("add_partition_5") ||
         alter_close_table(lpt) ||
+        ERROR_INJECT("add_partition_5") ||
+        write_log_drop_backup_frm(lpt) ||
         ERROR_INJECT("add_partition_6") ||
+        mysql_write_frm(lpt, WFRM_LOG_RESTORE) ||
         ERROR_INJECT("add_partition_7") ||
-        write_log_rename_frm(lpt) ||
-        (action_completed= TRUE, FALSE) ||
+        mysql_write_frm(lpt, WFRM_BACKUP_AND_INSTALL) ||
         ERROR_INJECT("add_partition_8") ||
-        (frm_install= TRUE, FALSE) ||
-        mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
         backup_log_alter_partition(lpt) ||
-        (frm_install= FALSE, FALSE) ||
-        ERROR_INJECT("add_partition_9") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
-        ((!thd->lex->no_write_to_binlog) &&
-         (write_bin_log(thd, FALSE,
-                        thd->query(), thd->query_length()), FALSE)) ||
-        ERROR_INJECT("add_partition_10"))
-    {
-      handle_alter_part_error(lpt, action_completed, FALSE, frm_install, true);
-      goto err;
-    }
-    if (alter_partition_lock_handling(lpt))
-      goto err;
-  }
+        alter_partition_binlog(lpt))
+      goto fail;
+  } /* ADD */
   else
   {
+    /* ADD HASH / COALESCE / REBUILD / REORGANIZE */
+    Alter_partition_change action_change(lpt);
+
     /*
       ADD HASH PARTITION/
       COALESCE PARTITION/
       REBUILD PARTITION/
       REORGANIZE PARTITION
- 
+
       In this case all records are still around after the change although
       possibly organised into new partitions, thus by ensuring that all
       updates go to both the old and the new partitioning scheme we can
@@ -7821,71 +7321,81 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
 
       0) Write an entry that removes the shadow frm file if crash occurs.
       1) Write the shadow frm file of new partitioning.
-      2) Log such that temporary partitions added in change phase are
-         removed in a crash situation.
-      3) Add the new partitions.
-         Copy from the reorganised partitions to the new partitions.
       4) Get an exclusive metadata lock on the table (waits for all active
          transactions using this table). This ensures that we
          can release all other locks on the table and since no one can open
          the table, there can be no new threads accessing the table. They
          will be hanging on this exclusive lock.
+      2) Log remove and add the new partitions, copy data.
       5) Close the table.
-      6) Log that operation is completed and log all complete actions
-         needed to complete operation from here.
-      7) Old place for write bin log.
-      8) Prepare handlers for rename and delete of partitions.
-      9) Rename and drop the reorged partitions such that they are no
-         longer used and rename those added to their real new names.
-      10) Install the shadow frm file.
-      11) Reopen the table if under lock tables.
-      12) Write to binlog
-      13) Complete query.
+      6) Rename to backups and rename added parts, both preliminarily logged by
+         reverse operation.
+      5) Log drop of backup FRM
+      6) Log restore from backup FRM
+      7) Backup old FRM file, install the new frm file
+      8) Old place for write bin log.
+      9) Drop backups, remove entries from ddl log
+      10) Reopen the table if under lock tables.
+      11) Write to binlog
+      12) Complete query
     */
+
     if (write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT("change_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT("change_partition_2") ||
-        write_log_add_change_partition(lpt) ||
-        ERROR_INJECT("change_partition_3") ||
-        mysql_change_partitions(lpt, true) ||
-        ERROR_INJECT("change_partition_4") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
-        ERROR_INJECT("change_partition_5") ||
+        ERROR_INJECT("change_partition_3") ||
+        action_change.add_parts_and_copy_data(thd) ||
+        ERROR_INJECT("change_partition_4") ||
         alter_close_table(lpt) ||
+        ERROR_INJECT("change_partition_5") ||
+        action_change.rename_parts() ||
         ERROR_INJECT("change_partition_6") ||
-        write_log_final_change_partition(lpt) ||
-        (action_completed= TRUE, FALSE) ||
+        write_log_drop_backup_frm(lpt) ||
         ERROR_INJECT("change_partition_7") ||
+        mysql_write_frm(lpt, WFRM_LOG_RESTORE) ||
         ERROR_INJECT("change_partition_8") ||
-        ((frm_install= TRUE), FALSE) ||
-        mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
-        backup_log_alter_partition(lpt) ||
-        (frm_install= FALSE, FALSE) ||
+        mysql_write_frm(lpt, WFRM_BACKUP_AND_INSTALL) ||
         ERROR_INJECT("change_partition_9") ||
-        mysql_drop_partitions(lpt) ||
-        ERROR_INJECT("change_partition_10") ||
-        mysql_rename_partitions(lpt) ||
-        ERROR_INJECT("change_partition_11") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
-        ((!thd->lex->no_write_to_binlog) &&
-         (write_bin_log(thd, FALSE,
-                        thd->query(), thd->query_length()), FALSE)) ||
-        ERROR_INJECT("change_partition_12"))
-    {
-      handle_alter_part_error(lpt, action_completed, FALSE, frm_install, true);
-      goto err;
-    }
-    if (alter_partition_lock_handling(lpt))
-      goto err;
+        backup_log_alter_partition(lpt) ||
+        alter_partition_binlog(lpt))
+      goto fail;
+  } /* ADD HASH / COALESCE / REBUILD / REORGANIZE */
+
+  CRASH_INJECT("done_partition_1");
+  ddl_log_complete(rollback_chain);
+  CRASH_INJECT("done_partition_2");
+  alter_partition_lock_handling(lpt);
+  (void) ddl_log_revert(thd, cleanup_chain, true);
+
+  if (thd->locked_tables_mode &&
+      (ERROR_INJECT("done_partition_3") ||
+       thd->locked_tables_list.reopen_tables(thd, false)))
+  {
+    thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+    goto err;
   }
+
   thd->variables.option_bits= save_option_bits;
   downgrade_mdl_if_lock_tables_mode(thd, mdl_ticket, MDL_SHARED_NO_READ_WRITE);
-  /*
-    A final step is to write the query to the binlog and send ok to the
-    user
-  */
+
   DBUG_RETURN(fast_end_partition(thd, lpt->copied, lpt->deleted, table_list));
+
+fail:
+  DBUG_ASSERT(thd->is_error());
+  CRASH_INJECT("fail_partition_1");
+  ddl_log_complete(cleanup_chain);
+  CRASH_INJECT("fail_partition_2");
+  /* We may fail to drop partitions due to existing locking,
+     so must unlock first */
+  alter_partition_lock_handling(lpt);
+  (void) ddl_log_revert(thd, rollback_chain, true);
+
+  if (thd->locked_tables_mode &&
+      thd->locked_tables_list.reopen_tables(thd, false))
+    thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+
 err:
   thd->variables.option_bits= save_option_bits;
   downgrade_mdl_if_lock_tables_mode(thd, mdl_ticket, MDL_SHARED_NO_READ_WRITE);
@@ -9105,11 +8615,15 @@ static const char *longest_str(const char *s1, const char *s2,
   DESCRIPTION
     This method is used to calculate the partition name, service routine to
     the del_ren_cre_table method.
+
+  TODO: MDEV-28844 Merge create_partition_name() and create_subpartition_name()
 */
 
-int create_partition_name(char *out, size_t outlen, const char *in1,
+int create_partition_name(LEX_CSTRING *out_str, const char *in1,
                           const char *in2, uint name_variant, bool translate)
 {
+  char *out= const_cast<char *>(out_str->str);
+  size_t outlen= out_str->length;
   char transl_part_name[FN_REFLEN];
   const char *transl_part, *end;
   DBUG_ASSERT(outlen >= FN_REFLEN + 1); // consistency! same limit everywhere
@@ -9131,13 +8645,23 @@ int create_partition_name(char *out, size_t outlen, const char *in1,
     DBUG_ASSERT(name_variant == RENAMED_PART_NAME);
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part, "#REN#", NullS);
   }
-  if (end - out == static_cast<ptrdiff_t>(outlen-1))
+  out_str->length= end - out;
+  if (out_str->length == outlen - 1)
   {
     my_error(ER_PATH_LENGTH, MYF(0), longest_str(in1, transl_part));
     return HA_WRONG_CREATE_OPTION;
   }
   return 0;
 }
+
+
+int create_partition_name(char *out, size_t outlen, const char *in1,
+                          const char *in2, uint name_variant, bool translate)
+{
+  LEX_CSTRING out_str= { out, outlen };
+  return create_partition_name(&out_str, in1, in2, name_variant, translate);
+}
+
 
 /**
   Create subpartition name. This method is used to calculate the
@@ -9154,10 +8678,12 @@ int create_partition_name(char *out, size_t outlen, const char *in1,
     @retval false             Success.
 */
 
-int create_subpartition_name(char *out, size_t outlen,
+int create_subpartition_name(LEX_CSTRING *out_str,
                              const char *in1, const char *in2,
                              const char *in3, uint name_variant)
 {
+  char *out= const_cast<char *>(out_str->str);
+  size_t outlen= out_str->length;
   char transl_part_name[FN_REFLEN], transl_subpart_name[FN_REFLEN], *end;
   DBUG_ASSERT(outlen >= FN_REFLEN + 1); // consistency! same limit everywhere
 
@@ -9176,7 +8702,8 @@ int create_subpartition_name(char *out, size_t outlen,
     end= strxnmov(out, outlen-1, in1, "#P#", transl_part_name,
                   "#SP#", transl_subpart_name, "#REN#", NullS);
   }
-  if (end - out == static_cast<ptrdiff_t>(outlen-1))
+  out_str->length= end - out;
+  if (out_str->length == outlen - 1)
   {
     my_error(ER_PATH_LENGTH, MYF(0),
              longest_str(in1, transl_part_name, transl_subpart_name));
@@ -9184,6 +8711,16 @@ int create_subpartition_name(char *out, size_t outlen,
   }
   return 0;
 }
+
+
+int create_subpartition_name(char *out, size_t outlen,
+                             const char *in1, const char *in2,
+                             const char *in3, uint name_variant)
+{
+  LEX_CSTRING out_str= { out, outlen };
+  return create_subpartition_name(&out_str, in1, in2, in3, name_variant);
+}
+
 
 uint get_partition_field_store_length(Field *field)
 {

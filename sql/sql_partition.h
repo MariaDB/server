@@ -23,6 +23,7 @@
 
 #include "sql_list.h"                           /* List */
 #include "table.h"                              /* TABLE_LIST */
+#include "ddl_log.h"
 
 class Alter_info;
 class Alter_table_ctx;
@@ -43,9 +44,12 @@ typedef struct st_key_range key_range;
 #define HA_USE_AUTO_PARTITION (1 << 3)
 #define HA_ONLY_VERS_PARTITION (1 << 4)
 
-#define NORMAL_PART_NAME 0
-#define TEMP_PART_NAME 1
-#define RENAMED_PART_NAME 2
+enum enum_part_name_type {
+  NORMAL_PART_NAME= 0,
+  TEMP_PART_NAME,
+  RENAMED_PART_NAME,
+  SKIP_PART_NAME= 255
+};
 
 typedef struct st_lock_param_type
 {
@@ -67,6 +71,14 @@ typedef struct st_lock_param_type
   size_t pack_frm_len;
   // TODO: remove duplicate data: part_info can be accessed via table->part_info
   partition_info *part_info;
+  DDL_LOG_STATE rollback_chain;
+  DDL_LOG_STATE cleanup_chain;
+  char path[FN_REFLEN + 1];
+
+  st_lock_param_type()
+  {
+    bzero(this, sizeof(*this));
+  }
 } ALTER_PARTITION_PARAM_TYPE;
 
 typedef struct {
@@ -284,18 +296,19 @@ bool compare_table_with_partition(THD *thd, TABLE *table,
                                   partition_element *part_elem,
                                   uint part_id);
 bool partition_key_modified(TABLE *table, const MY_BITMAP *fields);
-bool write_log_replace_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
-                            uint next_entry,
-                            const char *from_path,
-                            const char *to_path);
-
 #else
 #define partition_key_modified(X,Y) 0
 #endif
 
 int __attribute__((warn_unused_result))
+  create_partition_name(LEX_CSTRING *out, const char *in1, const char
+                        *in2, uint name_variant, bool translate);
+int __attribute__((warn_unused_result))
   create_partition_name(char *out, size_t outlen, const char *in1, const char
                         *in2, uint name_variant, bool translate);
+int __attribute__((warn_unused_result))
+  create_subpartition_name(LEX_CSTRING *out, const char *in1, const
+                           char *in2, const char *in3, uint name_variant);
 int __attribute__((warn_unused_result))
   create_subpartition_name(char *out, size_t outlen, const char *in1, const
                            char *in2, const char *in3, uint name_variant);

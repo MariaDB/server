@@ -108,4 +108,8 @@ static inline bool lex_string_eq(const LEX_CSTRING *a, const char *b, size_t b_l
   return strcasecmp(a->str, b) == 0;
 }
 
+inline LEX_CSTRING strdup_root(MEM_ROOT *root, const LEX_CSTRING str)
+{
+  return safe_lexcstrdup_root(root, str);
+}
 #endif /* LEX_STRING_INCLUDED */
