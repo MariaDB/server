@@ -60,4 +60,81 @@ replace into t1 values (1),(2);
 connection con1;
 replace into t1 values (1),(2);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+connection default;
+set timestamp=default;
 drop table t1;
+#
+# MDEV-15990: REPLACE on a precise-versioned table
+# returns duplicate key error (ER_DUP_ENTRY)
+create or replace table t(
+id int,
+KEY_TYPE(id),
+x int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning;
+replace t values (1, 3), (1, 30), (1, 300);
+create temporary table log(id int key auto_increment, s char(30));
+create trigger tr1del before delete on t
+for each row insert log(s) select 'DEL BEFORE' union
+select concat(id, ' ', x, ' ',
+if(row_start = (select VERS_CURRENT_VALUE),
+"CURRENT", "OTHER"),
+' ', check_row(row_start, row_end))
+from t for system_time all;
+create trigger tr2del after delete on t
+for each row insert log(s) select 'DEL AFTER' union
+select concat(id, ' ', x, ' ',
+if(row_start = (select VERS_CURRENT_VALUE),
+"CURRENT", "OTHER"),
+' ', check_row(row_start, row_end))
+from t for system_time all;
+replace t values (1, 4), (1, 40), (1, 400);
+select *, check_row(row_start, row_end), row_start != 0 as start_nonzero
+from t for system_time all order by x, row_end;
+id	x	check_row(row_start, row_end)	start_nonzero
+1	300	HISTORICAL ROW	1
+1	400	CURRENT ROW	1
+select s from log order by id;
+s
+DEL BEFORE
+1 300 OTHER CURRENT ROW
+DEL AFTER
+1 300 OTHER HISTORICAL ROW
+DEL BEFORE
+1 300 OTHER HISTORICAL ROW
+1 4 CURRENT CURRENT ROW
+DEL AFTER
+1 300 OTHER HISTORICAL ROW
+DEL BEFORE
+1 300 OTHER HISTORICAL ROW
+1 40 CURRENT CURRENT ROW
+DEL AFTER
+1 300 OTHER HISTORICAL ROW
+# ensure that row_start is not duplicated
+select count(row_start) as empty from t for system_time all
+group by row_start having count(row_start) > 1;
+empty
+drop table t;
+# Replace on unversioned field should create history record
+create table t(
+id int primary key,
+x int without system versioning,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning;
+insert t values (1, 2);
+replace t values (1, 3);
+select *, check_row(row_start, row_end), row_start != 0 as start_nonzero
+from t for system_time all order by x;
+id	x	check_row(row_start, row_end)	start_nonzero
+1	2	HISTORICAL ROW	1
+1	3	CURRENT ROW	1
+# ensure that row_start is not duplicated
+select count(row_start) as empty from t for system_time all
+group by row_start having count(row_start) > 1;
+empty
+drop table t;
+drop table log;

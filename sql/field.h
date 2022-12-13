@@ -4964,10 +4964,18 @@ ulonglong TABLE::vers_end_id() const
 }
 
 inline
-ulonglong TABLE::vers_start_id() const
+ulonglong TABLE::vers_start_id(const uchar* rec) const
 {
   DBUG_ASSERT(versioned(VERS_TRX_ID));
-  return static_cast<ulonglong>(vers_start_field()->val_int());
+  uchar *ptr= rec == NULL ? vers_start_field()->ptr
+          : const_cast<uchar*>(vers_start_field()->ptr_in_record(rec));
+
+  uchar *old_ptr= vers_start_field()->ptr;
+  vers_start_field()->ptr= ptr;
+  auto ret= static_cast<ulonglong>(vers_start_field()->val_int());
+  vers_start_field()->ptr= old_ptr;
+
+  return ret;
 }
 
 #endif /* FIELD_INCLUDED */

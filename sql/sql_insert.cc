@@ -1958,34 +1958,15 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           For system versioning wa also use path through delete since we would
           save nothing through this cheating.
         */
-        if (last_uniq_key(table,key_nr) &&
+        if (last_uniq_key(table,key_nr) && !table->versioned() &&
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
-          if (table->versioned(VERS_TRX_ID))
-          {
-            bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
-            table->file->column_bitmaps_signal();
-            table->vers_start_field()->store(0, false);
-          }
-          if (unlikely(error= table->file->ha_update_row(table->record[1],
-                                                         table->record[0])) &&
-              error != HA_ERR_RECORD_IS_THE_SAME)
+          error= table->file->ha_update_row(table->record[1], table->record[0]);
+          if (unlikely(error && error != HA_ERR_RECORD_IS_THE_SAME))
             goto err;
           if (likely(!error))
-          {
             info->deleted++;
-            if (!table->file->has_transactions())
-              thd->transaction.stmt.modified_non_trans_table= TRUE;
-            if (table->versioned(VERS_TIMESTAMP))
-            {
-              store_record(table, record[2]);
-              error= vers_insert_history_row(table);
-              restore_record(table, record[2]);
-              if (unlikely(error))
-                goto err;
-            }
-          }
           else
             error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
           /*
@@ -2001,23 +1982,11 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
 
-          if (!table->versioned(VERS_TIMESTAMP))
-            error= table->file->ha_delete_row(table->record[1]);
-          else
-          {
-            store_record(table, record[2]);
-            restore_record(table, record[1]);
-            table->vers_update_end();
-            error= table->file->ha_update_row(table->record[1],
-                                              table->record[0]);
-            restore_record(table, record[2]);
-          }
+          error= table->delete_row(table->record[1]);
           if (unlikely(error))
             goto err;
-          if (!table->versioned(VERS_TIMESTAMP))
-            info->deleted++;
-          else
-            info->updated++;
+
+          info->deleted++;
           if (!table->file->has_transactions())
             thd->transaction.stmt.modified_non_trans_table= TRUE;
           if (table->triggers &&
@@ -2042,7 +2011,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
      */
     if (table->file->insert_id_for_cur_row == 0)
       table->file->insert_id_for_cur_row= insert_id_for_cur_row;
-      
+
     /*
       Restore column maps if they where replaced during an duplicate key
       problem.

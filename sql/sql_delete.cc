@@ -239,14 +239,39 @@ static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
 
 
 inline
-int TABLE::delete_row()
+int TABLE::delete_row(uchar *buf)
 {
-  if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->is_max())
-    return file->ha_delete_row(record[0]);
+  ulong sec_part;
+  Field *row_start;
+  const uchar *pos;
+  if (versioned(VERS_TIMESTAMP))
+  {
+    row_start= vers_start_field();
+    pos= row_start->ptr_in_record(buf);
+  }
 
-  store_record(this, record[1]);
+  if (!versioned(VERS_TIMESTAMP) || !vers_end_field()->is_max() ||
+      (row_start->get_timestamp(pos, &sec_part) == in_use->query_start() &&
+       sec_part == in_use->query_start_sec_part()))
+    return file->ha_delete_row(buf);
+
+  if (buf != record[0])
+  {
+    DBUG_ASSERT(buf == record[1]);
+    store_record(this, record[2]);
+    restore_record(this, record[1]);
+  }
+  else
+  {
+    store_record(this, record[1]);
+  }
   vers_update_end();
+
   int err= file->ha_update_row(record[1], record[0]);
+
+  if (buf != record[0])
+    restore_record(this, record[2]);
+
   /*
      MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
      row with same trx_id which is the result of foreign key action, so we

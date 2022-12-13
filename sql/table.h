@@ -1681,12 +1681,13 @@ public:
     return field[s->row_end_field];
   }
 
-  ulonglong vers_start_id() const;
+  ulonglong vers_start_id(const uchar* rec=NULL) const;
   ulonglong vers_end_id() const;
 
   bool vers_check_update(List<Item> &items);
 
-  int delete_row();
+  inline int delete_row(){ return delete_row(record[0]); }
+  int delete_row(uchar *buf);
   /* Used in majority of DML (called from fill_record()) */
   void vers_update_fields();
   /* Used in DELETE, DUP REPLACE and insert history row */
