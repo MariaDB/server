@@ -1390,13 +1390,8 @@ public:
   /** @return whether the buffer pool contains a page
   @param page_id       page identifier
   @param chain         hash table chain for page_id.fold() */
-  TRANSACTIONAL_INLINE
-  bool page_hash_contains(const page_id_t page_id, hash_chain &chain)
-  {
-    transactional_shared_lock_guard<page_hash_latch> g
-      {page_hash.lock_get(chain)};
-    return page_hash.get(page_id, chain);
-  }
+  TRANSACTIONAL_TARGET
+  bool page_hash_contains(const page_id_t page_id, hash_chain &chain);
 
   /** @return whether less than 1/4 of the buffer pool is available */
   TPOOL_SUPPRESS_TSAN

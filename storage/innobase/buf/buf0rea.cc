@@ -43,6 +43,14 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "log.h"
 
+TRANSACTIONAL_TARGET
+bool buf_pool_t::page_hash_contains(const page_id_t page_id, hash_chain &chain)
+{
+  transactional_shared_lock_guard<page_hash_latch> g
+    {page_hash.lock_get(chain)};
+  return page_hash.get(page_id, chain);
+}
+
 /** If there are buf_pool.curr_size per the number below pending reads, then
 read-ahead is not done: this is to prevent flooding the buffer pool with
 i/o-fixed buffer blocks */
@@ -55,13 +63,15 @@ then this function does nothing.
 Sets the io_fix flag to BUF_IO_READ and sets a non-recursive exclusive lock
 on the buffer frame. The io-handler must take care that the flag is cleared
 and the lock released later.
-@param[in]	page_id			page id
-@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
+@param page_id    page identifier
+@param zip_size   ROW_FORMAT=COMPRESSED page size, or 0
+@param chain      buf_pool.page_hash cell for page_id
 @return pointer to the block
 @retval	NULL	in case of an error */
 TRANSACTIONAL_TARGET
-static buf_page_t* buf_page_init_for_read(const page_id_t page_id,
-                                          ulint zip_size)
+static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
+                                          ulint zip_size,
+                                          buf_pool_t::hash_chain &chain)
 {
   buf_page_t *bpage= nullptr;
   buf_block_t *block= nullptr;
@@ -73,8 +83,6 @@ static buf_page_t* buf_page_init_for_read(const page_id_t page_id,
     in buf_page_t::read_complete() by the io-handler thread. */
     block->page.lock.x_lock(true);
   }
-
-  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
 
   mysql_mutex_lock(&buf_pool.mutex);
 
@@ -178,44 +186,36 @@ buffer buf_pool if it is not already there, in which case does nothing.
 Sets the io_fix flag and sets an exclusive lock on the buffer frame. The
 flag is cleared and the x-lock released by an i/o-handler thread.
 
+@param[in] page_id	page id
+@param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out] chain	buf_pool.page_hash cell for page_id
 @param[out] err		DB_SUCCESS or DB_TABLESPACE_DELETED
 			if we are trying
 			to read from a non-existent tablespace
 @param[in,out] space	tablespace
 @param[in] sync		true if synchronous aio is desired
-@param[in] page_id	page id
-@param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return whether a read request was queued */
 static
 bool
 buf_read_page_low(
+	const page_id_t		page_id,
+	ulint			zip_size,
+	buf_pool_t::hash_chain&	chain,
 	dberr_t*		err,
 	fil_space_t*		space,
-	bool			sync,
-	const page_id_t		page_id,
-	ulint			zip_size)
+	bool			sync = false)
 {
 	buf_page_t*	bpage;
 
 	*err = DB_SUCCESS;
 
-	if (buf_dblwr.is_inside(page_id)) {
-		ib::error() << "Trying to read doublewrite buffer page "
-			<< page_id;
-		ut_ad(0);
-nothing_read:
-		space->release();
-		return false;
-	}
+	ut_ad(!buf_dblwr.is_inside(page_id));
 
-	/* The following call will also check if the tablespace does not exist
-	or is being dropped; if we succeed in initing the page in the buffer
-	pool for read, then DISCARD cannot proceed until the read has
-	completed */
-	bpage = buf_page_init_for_read(page_id, zip_size);
+	bpage = buf_page_init_for_read(page_id, zip_size, chain);
 
 	if (bpage == NULL) {
-		goto nothing_read;
+		space->release();
+		return false;
 	}
 
 	ut_ad(bpage->in_file());
@@ -311,9 +311,12 @@ read_ahead:
   {
     if (space->is_stopping())
       break;
+    buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
+    if (buf_pool.page_hash_contains(i, chain))
+      continue;
     dberr_t err;
     space->reacquire();
-    if (buf_read_page_low(&err, space, false, i, zip_size))
+    if (buf_read_page_low(i, zip_size, chain, &err, space))
       count++;
   }
 
@@ -336,14 +339,16 @@ read_ahead:
 if it is not already there. Sets the io_fix and an exclusive lock
 on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
-@param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param page_id    page id
+@param zip_size   ROW_FORMAT=COMPRESSED page size, or 0
+@param chain      buf_pool.page_hash cell for page_id
 @retval DB_SUCCESS if the page was read and is not corrupted,
 @retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
 @retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
 after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
+dberr_t buf_read_page(const page_id_t page_id, ulint zip_size,
+                      buf_pool_t::hash_chain &chain)
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
   if (!space)
@@ -353,8 +358,10 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
     return DB_TABLESPACE_DELETED;
   }
 
+  /* Our caller should already have ensured that the page does not
+  exist in buf_pool.page_hash. */
   dberr_t err;
-  if (buf_read_page_low(&err, space, true, page_id, zip_size))
+  if (buf_read_page_low(page_id, zip_size, chain, &err, space, true))
     srv_stats.buf_pool_reads.add(1);
 
   buf_LRU_stat_inc_io();
@@ -371,18 +378,23 @@ released by the i/o-handler thread.
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
                               ulint zip_size)
 {
-	dberr_t		err;
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
+  if (buf_pool.page_hash_contains(page_id, chain))
+  {
+    space->release();
+    return;
+  }
 
-	if (buf_read_page_low(&err, space, false, page_id, zip_size)) {
-		srv_stats.buf_pool_reads.add(1);
-	}
+  dberr_t err;
+  if (buf_read_page_low(page_id, zip_size, chain, &err, space))
+    srv_stats.buf_pool_reads.add(1);
 
-	/* We do not increment number of I/O operations used for LRU policy
-	here (buf_LRU_stat_inc_io()). We use this in heuristics to decide
-	about evicting uncompressed version of compressed pages from the
-	buffer pool. Since this function is called from buffer pool load
-	these IOs are deliberate and are not part of normal workload we can
-	ignore these in our heuristics. */
+  /* We do not increment number of I/O operations used for LRU policy
+  here (buf_LRU_stat_inc_io()). We use this in heuristics to decide
+  about evicting uncompressed version of ROW_FORMAT=COMPRESSED pages
+  from the buffer pool. Since this function is called from buffer pool
+  load these IOs are deliberate and are not part of normal workload we
+  can ignore these in our heuristics. */
 }
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
@@ -520,9 +532,12 @@ failed:
   {
     if (space->is_stopping())
       break;
+    buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(new_low.fold());
+    if (buf_pool.page_hash_contains(new_low, chain))
+      continue;
     dberr_t err;
     space->reacquire();
-    count+= buf_read_page_low(&err, space, false, new_low, zip_size);
+    count+= buf_read_page_low(new_low, zip_size, chain, &err, space);
   }
 
   if (count)
@@ -588,9 +603,11 @@ void buf_read_recv_pages(uint32_t space_id, st_::span<uint32_t> page_nos)
 			}
 		}
 
+		buf_pool_t::hash_chain& chain =
+			buf_pool.page_hash.cell_get(cur_page_id.fold());
 		dberr_t err;
 		space->reacquire();
-		buf_read_page_low(&err, space, false, cur_page_id, zip_size);
+		buf_read_page_low(cur_page_id, zip_size, chain, &err, space);
 
 		if (err != DB_SUCCESS) {
 			sql_print_error("InnoDB: Recovery failed to read page "
