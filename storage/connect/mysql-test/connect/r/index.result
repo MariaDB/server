@@ -140,6 +140,42 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
 #
+# MDEV-28299: Server crashes in
+#             XINDXS::Range/CntIndexRange (Connect engine)
+#
+CREATE TABLE t1 ( a int not null, KEY (a))engine=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
+SELECT * FROM t1 WHERE a=1;
+a
+INSERT INTO t1 values (1),(2),(1);
+SELECT * FROM t1 WHERE a=1;
+a
+1
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a int, b int, pk int, PRIMARY KEY (pk)) engine=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
+SELECT x.a
+FROM t1 AS x JOIN t1 AS y ON (x.a = y.b)
+WHERE x.pk > 3;
+a
+INSERT INTO t1 values (1,2,1),(2,1,2),(1,2,3),(3,4,4);
+SELECT x.a
+FROM t1 AS x JOIN t1 AS y ON (x.a = y.b)
+WHERE x.pk > 3;
+a
+INSERT INTO t1 values (1,2,5);
+SELECT x.a
+FROM t1 AS x JOIN t1 AS y ON (x.a = y.b)
+WHERE x.pk > 3;
+a
+1
+DROP TABLE t1;
+#
 # MDEV-27591 Connect tables (FIX/DOS) don't work with DESC keys - wrong results
 #
 CREATE TABLE t1 (

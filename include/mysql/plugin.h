@@ -204,6 +204,18 @@ struct system_status_var;
 typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, void *, struct system_status_var *status_var, enum enum_var_type);
 
 
+static inline
+struct st_mysql_show_var SHOW_FUNC_ENTRY(const char *name,
+                                         mysql_show_var_func func_arg)
+{
+  struct st_mysql_show_var tmp;
+  tmp.name= name;
+  tmp.value= (void*) func_arg;
+  tmp.type= SHOW_FUNC;
+  return tmp;
+};
+
+
 /*
   Constants for plugin flags.
  */

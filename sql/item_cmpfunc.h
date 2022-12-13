@@ -1,7 +1,7 @@
 #ifndef ITEM_CMPFUNC_INCLUDED
 #define ITEM_CMPFUNC_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -721,6 +721,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("<not>") };
     return name;
   }
+  enum precedence precedence() const override
+  { return show ? Item_func::precedence() : args[0]->precedence(); }
   bool fix_fields(THD *thd, Item **ref) override
   { return Item_func::fix_fields(thd, ref);}
   void print(String *str, enum_query_type query_type) override;

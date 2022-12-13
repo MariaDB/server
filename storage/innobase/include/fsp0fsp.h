@@ -706,6 +706,20 @@ inline bool fsp_flags_match(uint32_t expected, uint32_t actual)
   return actual == expected || fsp_flags_convert_from_101(actual) == expected;
 }
 
+/** Determine if FSP_SPACE_FLAGS are from an incompatible MySQL format.
+@param	flags	the contents of FSP_SPACE_FLAGS
+@return	MySQL flags shifted.
+@retval	0, if not a MySQL incompatible format. */
+MY_ATTRIBUTE((warn_unused_result, const))
+inline uint32_t fsp_flags_is_incompatible_mysql(uint32_t flags)
+{
+  /*
+    MySQL-8.0 SDI flag (bit 14),
+    or MySQL 5.7 Encyption flag (bit 13)
+  */
+  return flags >> 13 & 3;
+}
+
 /** Determine the descriptor index within a descriptor page.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	offset		page offset

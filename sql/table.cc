@@ -2440,11 +2440,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	comment_pos+=   comment_length;
       }
 
-      if ((uchar) strpos[13] == (uchar) MYSQL_TYPE_VIRTUAL
-          && likely(share->mysql_version >= 100000))
+      if (strpos[13] == MYSQL_TYPE_VIRTUAL &&
+          (share->mysql_version < 50600 || share->mysql_version >= 100000))
       {
         /*
-          MariaDB version 10.0 version.
+          MariaDB 5.5 or 10.0 version.
           The interval_id byte in the .frm file stores the length of the
           expression statement for a virtual column.
         */
@@ -3255,6 +3255,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         share->stored_fields--;
         if (reg_field->flags & BLOB_FLAG)
           share->virtual_not_stored_blob_fields++;
+        if (reg_field->flags & PART_KEY_FLAG)
+          vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL_INDEXED);
         /* Correct stored_rec_length as non stored fields are last */
         recpos= (uint) (reg_field->ptr - record);
         if (share->stored_rec_length >= recpos)
@@ -3819,7 +3821,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
              get_vcol_type_name(), name.str);
     DBUG_RETURN(1);
   }
-  else if (unlikely(res.errors & VCOL_AUTO_INC))
+  else if (res.errors & VCOL_AUTO_INC && vcol_type != VCOL_GENERATED_VIRTUAL)
   {
     /*
       An auto_increment field may not be used in an expression for
@@ -3830,10 +3832,17 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
       pointer at that time
     */
     myf warn= table->s->frm_version < FRM_VER_EXPRESSSIONS ? ME_WARNING : 0;
-    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
              "AUTO_INCREMENT", get_vcol_type_name(), res.name);
     if (!warn)
       DBUG_RETURN(1);
+  }
+  else if (vcol_type != VCOL_GENERATED_VIRTUAL && vcol_type != VCOL_DEFAULT &&
+           res.errors & VCOL_NOT_STRICTLY_DETERMINISTIC)
+  {
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0),
+             res.name, get_vcol_type_name(), name.str);
+    DBUG_RETURN(1);
   }
   flags= res.errors;
 
@@ -9730,15 +9739,16 @@ bool TABLE_LIST::change_refs_to_fields()
   List_iterator<Item> li(used_items);
   Item_direct_ref *ref;
   Field_iterator_view field_it;
+  Name_resolution_context *ctx;
   THD *thd= table->in_use;
+  Item **materialized_items;
   DBUG_ASSERT(is_merged_derived());
 
   if (!used_items.elements)
     return FALSE;
 
-  Item **materialized_items=
-      (Item **)thd->calloc(sizeof(void *) * table->s->fields);
-  Name_resolution_context *ctx= new Name_resolution_context(this);
+  materialized_items= (Item **)thd->calloc(sizeof(void *) * table->s->fields);
+  ctx= new (thd->mem_root) Name_resolution_context(this);
   if (!materialized_items || !ctx)
     return TRUE;
 

@@ -6,13 +6,13 @@
 #
 # Edit parameters below to specify the address and login to server:
 #
-USER=root
-PSWD=
+USER='root'
+PSWD=''
 #
 # If these parameters are not set, then the values
 # passed by the server are taken:
 #
-HOST=127.0.0.1
+HOST="127.0.0.1"
 PORT=$NODE_MYPORT_1
 #
 # Edit parameters below to specify SSL parameters:
@@ -20,16 +20,18 @@ PORT=$NODE_MYPORT_1
 ssl_cert="$MYSQL_TEST_DIR/std_data/client-cert.pem"
 ssl_key="$MYSQL_TEST_DIR/std_data/client-key.pem"
 ssl_ca="$MYSQL_TEST_DIR/std_data/cacert.pem"
-ssl_capath=
-ssl_cipher=
-ssl_crl=
-ssl_crlpath=
+ssl_capath=""
+ssl_cipher=""
+ssl_crl=""
+ssl_crlpath=""
 ssl_verify_server_cert=0
 #
 # Client executable path:
 #
 CLIENT="$EXE_MYSQL"
-
+#
+# Name of schema and tables:
+#
 SCHEMA="mtr_wsrep_notify"
 MEMB_TABLE="$SCHEMA.membership"
 STATUS_TABLE="$SCHEMA.status"
@@ -65,9 +67,9 @@ configuration_change()
     do
         echo "INSERT INTO $MEMB_TABLE VALUES ( $idx, "
         # Don't forget to properly quote string values
-        echo "'$NODE'" | sed  s/\\//\',\'/g
+        echo "'$NODE'" | sed s/\\//\',\'/g
         echo ");"
-        idx=$(( $idx + 1 ))
+        idx=$(( $idx+1 ))
     done
 
     echo "INSERT INTO $STATUS_TABLE VALUES($idx, $INDEX, '$STATUS', '$CLUSTER_UUID', $PRIMARY);"
@@ -102,34 +104,35 @@ trim_string()
     fi
 }
 
-COM=status_update # not a configuration change by default
+COM='status_update' # not a configuration change by default
 
 STATUS=""
 CLUSTER_UUID=""
-PRIMARY="0"
+PRIMARY=0
 INDEX=""
 MEMBERS=""
 
 while [ $# -gt 0 ]; do
     case $1 in
-    --status)
+    '--status')
         STATUS=$(trim_string "$2")
         shift
         ;;
-    --uuid)
+    '--uuid')
         CLUSTER_UUID=$(trim_string "$2")
         shift
         ;;
-    --primary)
-        [ "$2" = "yes" ] && PRIMARY="1" || PRIMARY="0"
-        COM=configuration_change
+    '--primary')
+        arg=$(trim_string "$2")
+        [ "$arg" = 'yes' ] && PRIMARY=1 || PRIMARY=0
+        COM='configuration_change'
         shift
         ;;
-    --index)
+    '--index')
         INDEX=$(trim_string "$2")
         shift
         ;;
-    --members)
+    '--members')
         MEMBERS=$(trim_string "$2")
         shift
         ;;
@@ -168,9 +171,7 @@ ssl_verify_server_cert=$(trim_string "$ssl_verify_server_cert");
 
 SSL_PARAM=""
 
-if [ -n "$ssl_key" -o -n "$ssl_cert" -o \
-     -n "$ssl_ca"  -o -n "$ssl_capath" -o \
-     -n "$ssl_cipher" ]
+if [ -n "$ssl_key$ssl_cert$ssl_ca$ssl_capath$ssl_cipher$ssl_crl$ssl_crlpath" ]
 then
     SSL_PARAM=' --ssl'
     [ -n "$ssl_key" ]     && SSL_PARAM="$SSL_PARAM --ssl-key='$ssl_key'"
@@ -181,8 +182,10 @@ then
     [ -n "$ssl_crl" ]     && SSL_PARAM="$SSL_PARAM --ssl-crl='$ssl_crl'"
     [ -n "$ssl_crlpath" ] && SSL_PARAM="$SSL_PARAM --ssl-crlpath='$ssl_crlpath'"
     if [ -n "$ssl_verify_server_cert" ]; then
-        if [ $ssl_verify_server_cert -ne 0 ]; then
-            SSL_PARAM+=' --ssl-verify-server-cert'
+        if [ "$ssl_verify_server_cert" != "0" -o \
+             "$ssl_verify_server_cert" = "on" ]
+        then
+            SSL_PARAM="$SSL_PARAM --ssl-verify-server-cert"
         fi
     fi
 fi

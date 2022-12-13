@@ -1,5 +1,9 @@
 connection node_2;
 connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_2;
+connection node_3;
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
