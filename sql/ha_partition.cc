@@ -493,8 +493,9 @@ void ha_partition::init_handler_variables()
 
 const char *ha_partition::real_table_type() const
 {
-  // we can do this since we only support a single engine type
-  return hton_name(m_main_engine_ht)->str;
+  /* MDEV-22168 should be fixed with the ddl_log records */
+  return m_main_engine_ht ?
+    hton_name(m_main_engine_ht)->str : m_file[0]->table_type();
 }
 
 /*
