@@ -801,6 +801,9 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
                cs->cs_name.str);
       return true;
     }
+    Sql_used used;
+    cs= global_system_variables.character_set_collations.
+          get_collation_for_charset(&used, cs);
     thd->org_charset= cs;
     thd->update_charset(cs,cs,cs);
   }

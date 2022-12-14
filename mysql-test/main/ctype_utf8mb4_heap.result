@@ -1676,6 +1676,7 @@ SET CHARACTER SET utf8mb4;
 SHOW VARIABLES LIKE 'character\_set\_%';
 Variable_name	Value
 character_set_client	utf8mb4
+character_set_collations	
 character_set_connection	latin1
 character_set_database	latin1
 character_set_filesystem	binary

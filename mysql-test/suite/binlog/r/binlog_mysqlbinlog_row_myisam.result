@@ -2273,6 +2273,7 @@ SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
 SET @@session.character_set_client=utf8mb3,@@session.collation_connection=33,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations=''/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (
@@ -2547,7 +2548,6 @@ START TRANSACTION
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
-SET @@session.time_zone='SYSTEM'/*!*/;
 COMMIT
 /*!*/;
 # at #
@@ -5305,6 +5305,7 @@ SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
 SET @@session.character_set_client=utf8mb3,@@session.collation_connection=33,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations=''/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (
@@ -5711,6 +5712,7 @@ SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
 SET @@session.character_set_client=utf8mb3,@@session.collation_connection=33,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations=''/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (
@@ -5725,6 +5727,7 @@ c_1_n INT -- row number
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
+SET @@session.character_set_collations=''/*!*/;
 CREATE TABLE t2 (
 c_2_1 DATE,
 c_2_2 VARCHAR(255),
@@ -5737,6 +5740,7 @@ c_2_n INT -- row number
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
+SET @@session.character_set_collations=''/*!*/;
 CREATE TABLE t3 (
 c_3_1 DATE,
 c_3_2 VARCHAR(255),
@@ -6359,6 +6363,7 @@ SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
 SET @@session.character_set_client=utf8mb3,@@session.collation_connection=33,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations=''/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (

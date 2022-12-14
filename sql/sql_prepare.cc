@@ -226,6 +226,20 @@ private:
   */
   MEM_ROOT main_mem_root;
   sql_mode_t m_sql_mode;
+  THD::used_t m_prepare_time_thd_used_flags;
+  uint m_prepare_time_charset_collation_map_version;
+  bool check_charset_collation_map_version(THD *thd,
+                                           Reprepare_observer *observer)
+  {
+    if ((m_prepare_time_thd_used_flags & THD::CHARACTER_SET_COLLATIONS_USED) &&
+        m_prepare_time_charset_collation_map_version !=
+        thd->variables.character_set_collations.version())
+    {
+      observer->report_error(thd);
+      return true;
+    }
+    return false;
+  }
 private:
   bool set_db(const LEX_CSTRING *db);
   bool set_parameters(String *expanded_query,
@@ -3891,7 +3905,9 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   iterations(0),
   start_param(0),
   read_types(0),
-  m_sql_mode(thd->variables.sql_mode)
+  m_sql_mode(thd->variables.sql_mode),
+  m_prepare_time_thd_used_flags(0),
+  m_prepare_time_charset_collation_map_version(0)
 {
   init_sql_alloc(key_memory_prepared_statement_main_mem_root,
                  &main_mem_root, thd_arg->variables.query_alloc_block_size,
@@ -4274,6 +4290,9 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   }
   // The same format as for triggers to compare
   hr_prepare_time= my_hrtime();
+  m_prepare_time_thd_used_flags= thd->used;
+  m_prepare_time_charset_collation_map_version=
+    thd->variables.character_set_collations.version();
   DBUG_RETURN(error);
 }
 
@@ -4829,6 +4848,13 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   /* Ditto */
   swap_variables(LEX_CSTRING, db, copy->db);
 
+  swap_variables(uint,
+                 m_prepare_time_charset_collation_map_version,
+                 copy->m_prepare_time_charset_collation_map_version);
+  swap_variables(THD::used_t,
+                 m_prepare_time_thd_used_flags,
+                 copy->m_prepare_time_thd_used_flags);
+
   DBUG_ASSERT(param_count == copy->param_count);
   DBUG_ASSERT(thd == copy->thd);
   last_error[0]= '\0';
@@ -4871,6 +4897,9 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   bool cur_db_changed;
 
   LEX_CSTRING stmt_db_name= db;
+
+  if (check_charset_collation_map_version(thd, thd->m_reprepare_observer))
+    return true;
 
   status_var_increment(thd->status_var.com_stmt_execute);
 
@@ -4989,6 +5018,15 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       MYSQL_QUERY_EXEC_START(thd->query(), thd->thread_id, thd->get_db(),
                              &thd->security_ctx->priv_user[0],
                              (char *) thd->security_ctx->host_or_ip, 1);
+      /*
+        Some thd->used flags are set only during PREPARE.
+        For example CHARACTER_SET_COLLATIONS_USED is in most cases
+        set during parsing only.
+        Mix PREPARE time thd->used flags to EXECUTE time thd->used flags,
+        e.g. to have the log event header write an optional chunk with
+        the @@character_set_collations map.
+      */
+      thd->used|= m_prepare_time_thd_used_flags;
       error= mysql_execute_command(thd, true);
       MYSQL_QUERY_EXEC_DONE(error);
       thd->update_server_status();

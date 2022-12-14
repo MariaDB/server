@@ -3785,10 +3785,12 @@ public:
   }
   bool set(const Type_handler *handler,
            const Lex_length_and_dec_st & length_and_dec,
+           Sql_used *used,
+           const Charset_collation_map_st &map,
            const Lex_column_charset_collation_attrs_st &cscl,
            CHARSET_INFO *defcs)
   {
-    CHARSET_INFO *tmp= cscl.resolved_to_character_set(defcs);
+    CHARSET_INFO *tmp= cscl.resolved_to_character_set(used, map, defcs);
     if (!tmp)
       return true;
     set(handler, length_and_dec, tmp);

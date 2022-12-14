@@ -52,6 +52,7 @@
 #include "sql_string.h"   // needed for Rpl_filter
 #include "sql_list.h"     // needed for Rpl_filter
 #include "rpl_filter.h"
+#include "charset_collations.h"
 
 #include "mysqld.h"
 

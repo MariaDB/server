@@ -1164,6 +1164,14 @@ bool Query_log_event::write()
     int2store(start+2, auto_increment_offset);
     start+= 4;
   }
+
+  if (thd && (thd->used & THD::CHARACTER_SET_COLLATIONS_USED))
+  {
+    *start++= Q_CHARACTER_SET_COLLATIONS;
+    size_t len= thd->variables.character_set_collations.to_binary((char*)start);
+    start+= len;
+  }
+
   if (charset_inited)
   {
     *start++= Q_CHARSET_CODE;
@@ -1946,6 +1954,17 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         thd->variables.sql_mode=
           (sql_mode_t) ((thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE) |
                         (sql_mode & ~(sql_mode_t) MODE_NO_DIR_IN_CREATE));
+
+      size_t cslen= thd->variables.character_set_collations.from_binary(
+                                      character_set_collations.str,
+                                      character_set_collations.length);
+      if (cslen != character_set_collations.length)
+      {
+        // Fatal: either a broken even, or an unknown collation ID
+        thd->variables.character_set_collations.init();
+        goto compare_errors; // QQ: report an error here?
+      }
+
       if (charset_inited)
       {
         rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;

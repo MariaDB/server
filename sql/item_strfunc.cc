@@ -3830,7 +3830,9 @@ bool Item_func_set_collation::fix_length_and_dec(THD *thd)
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return true;
   Lex_exact_charset_opt_extended_collate cl(collation.collation, true);
-  if (cl.merge_collation_override(m_set_collation))
+  if (cl.merge_collation_override(thd,
+                                  thd->variables.character_set_collations,
+                                  m_set_collation))
     return true;
   collation.set(cl.collation().charset_info(), DERIVATION_EXPLICIT,
                 args[0]->collation.repertoire);

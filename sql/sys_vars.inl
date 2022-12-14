@@ -2994,3 +2994,104 @@ public:
   virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return value_ptr(thd, global_var(vers_asof_timestamp_t)); }
 };
+
+
+class Sys_var_charset_collation_map: public sys_var
+{
+public:
+  Sys_var_charset_collation_map(const char *name_arg, const char *comment,
+                                int flag_args, ptrdiff_t off, size_t size,
+                                CMD_LINE getopt,
+                                enum binlog_status_enum binlog_status_arg)
+   :sys_var(&all_sys_vars, name_arg, comment,
+            flag_args, off, getopt.id, getopt.arg_type,
+            SHOW_CHAR,
+            DEFAULT(0), nullptr, binlog_status_arg,
+            nullptr, nullptr, nullptr)
+  {
+    option.var_type|= GET_STR;
+  }
+
+private:
+
+  static bool charset_collation_map_from_item(Charset_collation_map_st *map,
+                                              Item *item,
+                                              myf utf8_flag)
+  {
+    String *value, buffer;
+    if (!(value= item->val_str_ascii(&buffer)))
+      return true;
+    return map->from_text(value->to_lex_cstring(), utf8_flag);
+  }
+
+  static const uchar *make_value_ptr(THD *thd,
+                                     const Charset_collation_map_st &map)
+  {
+    size_t nbytes= map.text_format_nbytes_needed();
+    char *buf= (char *) thd->alloc(nbytes + 1);
+    size_t length= map.print(buf, nbytes);
+    buf[length]= '\0';
+    return (uchar *) buf;
+  }
+
+private:
+
+  bool do_check(THD *thd, set_var *var) override
+  {
+    Charset_collation_map_st *map= (Charset_collation_map_st*)
+                                   thd->alloc(sizeof(Charset_collation_map_st));
+    if (!map || charset_collation_map_from_item(map, var->value,
+                                                thd->get_utf8_flag()))
+      return true;
+    var->save_result.ptr= map;
+    return false;
+  }
+
+  void session_save_default(THD *thd, set_var *var) override
+  {
+    thd->variables.character_set_collations.set(
+      global_system_variables.character_set_collations, 1);
+  }
+
+  void global_save_default(THD *thd, set_var *var) override
+  {
+    global_system_variables.character_set_collations.init();
+  }
+
+  bool session_update(THD *thd, set_var *var) override
+  {
+    if (!var->value)
+    {
+      session_save_default(thd, var);
+      return false;
+    }
+    thd->variables.character_set_collations.
+      set(*(Charset_collation_map_st*) var->save_result.ptr, 1);
+    return false;
+  }
+
+  bool global_update(THD *thd, set_var *var) override
+  {
+    if (!var->value)
+    {
+      global_save_default(thd, var);
+      return false;
+    }
+    global_system_variables.character_set_collations=
+      *(Charset_collation_map_st*) var->save_result.ptr;
+    return false;
+  }
+
+  const uchar *
+  session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return make_value_ptr(thd, thd->variables.character_set_collations);
+  }
+
+  const uchar *
+  global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return make_value_ptr(thd, global_system_variables.
+                                 character_set_collations);
+  }
+};

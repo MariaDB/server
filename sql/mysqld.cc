@@ -351,6 +351,7 @@ char *enforced_storage_engine=NULL;
 char *gtid_pos_auto_engines;
 plugin_ref *opt_gtid_pos_auto_plugins;
 static char compiled_default_collation_name[]= MYSQL_DEFAULT_COLLATION_NAME;
+static const char *character_set_collations_str= "";
 Thread_cache thread_cache;
 static bool binlog_format_used= false;
 LEX_STRING opt_init_connect, opt_init_slave;
@@ -4288,6 +4289,18 @@ static int init_common_variables()
   */
   myf utf8_flag= global_system_variables.old_behavior &
                  OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
+
+  if (character_set_collations_str[0])
+  {
+    Lex_cstring_strlen str(character_set_collations_str);
+    if (global_system_variables.character_set_collations.
+                                  from_text(str, utf8_flag))
+    {
+      sql_print_error(ER_DEFAULT(ER_WRONG_VALUE_FOR_VAR),
+                      "character_set_collations", character_set_collations_str);
+    }
+  }
+
   for (;;)
   {
     char *next_character_set_name= strchr(default_character_set_name, ',');
@@ -4306,7 +4319,13 @@ static int init_common_variables()
         return 1;                           // Eof of the list
     }
     else
+    {
+      Sql_used used;
+      default_charset_info= global_system_variables.character_set_collations.
+                              get_collation_for_charset(&used,
+                                                        default_charset_info);
       break;
+    }
   }
 
   if (default_collation_name)
@@ -6519,6 +6538,9 @@ struct my_option my_long_options[]=
    0, 0, 0, 0, 0, 0},
   {"collation-server", 0, "Set the default collation.",
    &default_collation_name, &default_collation_name,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
+  {"character-set-collations", 0, "Overrides for character set default collations.",
+   &character_set_collations_str, &character_set_collations_str,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
   {"console", OPT_CONSOLE, "Write error output on screen; don't remove the console window on windows.",
    &opt_console, &opt_console, 0, GET_BOOL, NO_ARG, 0, 0, 0,

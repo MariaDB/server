@@ -5812,6 +5812,32 @@ finish:
       }
       thd->reset_kill_query();
     }
+
+    /*
+      Binary logging is now done. Unset the "used" flags to avoid
+      flags leaking to the next event (and to the COMMIT statement
+      in the end of the current event).
+
+      Example:
+
+      Suppose a non-default collation (in @@character_set_collations)
+      was used during the statement, the mysqlbinlog output for
+      the current statement will contain a sequence like this:
+
+        SET character_set_collations='utf8mb3=utf8mb3_bin';
+        INSERT INTO t1 VALUES (_utf8mb3'test');
+        COMMIT;
+
+      The statment (INSERT in this example) is already in binlog at this point, and the
+      and the "SET character_set_collations" is written inside a
+      Q_CHARACTER_SET_COLLATIONS chunk in its log entry header.
+      The flag CHARACTER_SET_COLLATIONS_USED is not needed any more.
+      The COMMIT can be printed without "SET character_set_collations".
+
+      The same logic applies to the other _USED flags.
+    */
+    thd->used= 0;
+
     if (unlikely(thd->is_error()) ||
         (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
     {

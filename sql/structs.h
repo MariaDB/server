@@ -773,10 +773,13 @@ public:
     m_ci= cs;
     Lex_length_and_dec_st::reset();
   }
-  bool set(int type, const Lex_column_charset_collation_attrs_st &collation,
+  bool set(int type,
+           Sql_used *used,
+           const Charset_collation_map_st &map,
+           const Lex_column_charset_collation_attrs_st &collation,
            CHARSET_INFO *charset)
   {
-    CHARSET_INFO *tmp= collation.resolved_to_character_set(charset);
+    CHARSET_INFO *tmp= collation.resolved_to_character_set(used, map, charset);
     if (!tmp)
       return true;
     set(type, tmp);

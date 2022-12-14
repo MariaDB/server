@@ -1982,6 +1982,38 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
     memcpy(print_event_info->charset, charset, 6);
     print_event_info->charset_inited= 1;
   }
+
+  if (character_set_collations.length)
+  {
+    Charset_collation_map_st map;
+    size_t length= map.from_binary(character_set_collations.str,
+                                   character_set_collations.length);
+    if (length == character_set_collations.length)
+    {
+      Binary_string str;
+      size_t nbytes= map.text_format_nbytes_needed();
+      if (str.alloc(nbytes))
+        goto err;
+      size_t text_length= map.print((char*) str.ptr(), nbytes);
+      str.length(text_length);
+      /*
+        my_b_printf() does not seem to support '%.*s'
+        so append a \0 terminator.
+      */
+      str.append_char('\0');
+      if (my_b_printf(file, "SET @@session.character_set_collations='%s'%s\n",
+                      str.ptr(), print_event_info->delimiter))
+        goto err;
+    }
+    else
+    {
+      if (my_b_printf(file,
+                      "/* SET @@session.character_set_collations='%s' */\n",
+                      "<format not recognized>"))
+        goto err;
+    }
+  }
+
   if (time_zone_len)
   {
     if (memcmp(print_event_info->time_zone_str,

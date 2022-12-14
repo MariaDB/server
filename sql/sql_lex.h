@@ -4465,19 +4465,23 @@ public:
   bool add_alter_list(LEX_CSTRING par_name, Virtual_column_info *expr,
                       bool par_exists);
   bool add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists);
-  bool add_alter_list_item_convert_to_charset(CHARSET_INFO *cs)
+  bool add_alter_list_item_convert_to_charset(Sql_used *used,
+                                              const Charset_collation_map_st &map,
+                                              CHARSET_INFO *cs)
   {
-    if (create_info.add_table_option_convert_charset(cs))
+    if (create_info.add_table_option_convert_charset(used, map, cs))
       return true;
     alter_info.flags|= ALTER_CONVERT_TO;
     return false;
   }
   bool
-  add_alter_list_item_convert_to_charset(CHARSET_INFO *cs,
+  add_alter_list_item_convert_to_charset(Sql_used *used,
+                                         const Charset_collation_map_st &map,
+                                         CHARSET_INFO *cs,
                                          const Lex_extended_collation_st &cl)
   {
-    if (create_info.add_table_option_convert_charset(cs) ||
-        create_info.add_table_option_convert_collation(cl))
+    if (create_info.add_table_option_convert_charset(used, map, cs) ||
+        create_info.add_table_option_convert_collation(used, map, cl))
       return true;
     alter_info.flags|= ALTER_CONVERT_TO;
     return false;

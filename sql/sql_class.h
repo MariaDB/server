@@ -24,6 +24,7 @@
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
+#include "sql_used.h"
 #include <mysql/plugin_audit.h>
 #include "log.h"
 #include "rpl_tblmap.h"
@@ -886,6 +887,8 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   my_bool binlog_alter_two_phase;
+
+  Charset_collation_map_st character_set_collations;
 } SV;
 
 /**
@@ -2603,6 +2606,7 @@ struct thd_async_state
 */
 
 class THD: public THD_count, /* this must be first */
+           public Sql_used,
            public Statement,
            /*
              This is to track items changed during execution of a prepared
@@ -2924,12 +2928,6 @@ public:
     stored routine is invoked.  Only THD persists between the calls.
   */
   uint32 binlog_unsafe_warning_flags;
-
-  typedef uint used_t;
-  enum { RAND_USED=1, TIME_ZONE_USED=2, QUERY_START_SEC_PART_USED=4,
-         THREAD_SPECIFIC_USED=8 };
-
-  used_t used;
 
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();

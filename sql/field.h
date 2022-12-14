@@ -5340,7 +5340,9 @@ public:
     - find a _bin collation if the BINARY comparison style was specified, e.g.:
        CREATE TABLE t1 (a VARCHAR(10) BINARY) CHARSET utf8;
   */
-  bool prepare_charset_for_string(const Column_derived_attributes *dattr);
+  bool prepare_charset_for_string(Sql_used *used,
+                                  const Charset_collation_map_st &map,
+                                  const Column_derived_attributes *dattr);
 
   /**
     Prepare a SET/ENUM field.
@@ -5495,10 +5497,11 @@ public:
 
   bool check_vcol_for_key(THD *thd) const;
 
-  void set_charset_collation_attrs(const
+  void set_charset_collation_attrs(Sql_used *used,
+                                   const Charset_collation_map_st &map, const
                                    Lex_column_charset_collation_attrs_st &lc)
   {
-    charset= lc.charset_info();
+    charset= lc.charset_info(used, map);
     if (lc.is_contextually_typed_collation())
       flags|= CONTEXT_COLLATION_FLAG;
     else

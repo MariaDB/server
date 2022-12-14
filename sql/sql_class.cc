@@ -637,7 +637,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0),
    in_sub_stmt(0), log_all_errors(0),
-   binlog_unsafe_warning_flags(0), used(0),
+   binlog_unsafe_warning_flags(0),
    current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    bulk_param(0),
    table_map_for_update(0),

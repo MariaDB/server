@@ -925,7 +925,10 @@ int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
     return set(thd, ctype, path, nullptr);
 
   CHARSET_INFO *tmp;
-  if (!(tmp= cl.resolved_to_character_set(&my_charset_utf8mb4_general_ci)))
+  if (!(tmp= cl.resolved_to_character_set(
+                  thd,
+                  thd->variables.character_set_collations,
+                  &my_charset_utf8mb4_general_ci)))
     return 1;
   return set(thd, ctype, path, tmp);
 }

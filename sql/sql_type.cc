@@ -2718,7 +2718,9 @@ Type_handler::Column_definition_set_attributes(THD *thd,
                                                column_definition_type_t type)
                                                const
 {
-  def->set_charset_collation_attrs(attr.charset_collation_attrs());
+  def->set_charset_collation_attrs(thd,
+                                   thd->variables.character_set_collations,
+                                   attr.charset_collation_attrs());
   def->set_length_and_dec(attr);
   return false;
 }
@@ -3026,7 +3028,9 @@ bool Type_handler_null::
                                               *derived_attr)
                                         const
 {
-  def->prepare_charset_for_string(derived_attr);
+  def->prepare_charset_for_string(thd,
+                                  thd->variables.character_set_collations,
+                                  derived_attr);
   def->create_length_to_internal_length_null();
   return false;
 }
@@ -3108,7 +3112,10 @@ bool Type_handler_typelib::
                                               *derived_attr)
                                         const
 {
-  return def->prepare_charset_for_string(derived_attr) ||
+  return def->prepare_charset_for_string(thd,
+                                         thd->variables.
+                                           character_set_collations,
+                                         derived_attr) ||
          def->prepare_stage1_typelib(thd, mem_root, type);
 }
 
@@ -3122,7 +3129,10 @@ bool Type_handler_string_result::
                                               *derived_attr)
                                         const
 {
-  return def->prepare_charset_for_string(derived_attr) ||
+  return def->prepare_charset_for_string(thd,
+                                         thd->variables.
+                                           character_set_collations,
+                                         derived_attr) ||
          def->prepare_stage1_string(thd, mem_root);
 }
 

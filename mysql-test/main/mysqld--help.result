@@ -144,6 +144,8 @@ The following specify which files/extra groups are read (specified before remain
  Don't ignore client side character set value sent during
  handshake.
  (Defaults to on; use --skip-character-set-client-handshake to disable.)
+ --character-set-collations=name 
+ Overrides for character set default collations.
  --character-set-filesystem=name 
  Set the filesystem character set.
  -C, --character-set-server=name 
@@ -1574,6 +1576,7 @@ binlog-row-metadata NO_LOG
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
 character-set-client-handshake TRUE
+character-set-collations 
 character-set-filesystem binary
 character-sets-dir MYSQL_CHARSETSDIR/
 chroot (No default value)

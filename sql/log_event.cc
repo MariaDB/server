@@ -1330,6 +1330,7 @@ code_name(int code)
   case Q_HRNOW: return "Q_HRNOW";
   case Q_XID: return "XID";
   case Q_GTID_FLAGS3: return "Q_GTID_FLAGS3";
+  case Q_CHARACTER_SET_COLLATIONS: return "Q_CHARACTER_SET_COLLATIONS";
   }
   sprintf(buf, "CODE#%d", code);
   return buf;
@@ -1375,7 +1376,8 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
                                  Log_event_type event_type)
   :Log_event(buf, description_event), data_buf(0), query(NullS),
    db(NullS), catalog_len(0), status_vars_len(0),
-   flags2_inited(0), sql_mode_inited(0), charset_inited(0), flags2(0),
+   flags2_inited(0), sql_mode_inited(0), charset_inited(0),
+   character_set_collations({0,0}), flags2(0),
    auto_increment_increment(1), auto_increment_offset(1),
    time_zone_len(0), lc_time_names_number(0), charset_database_number(0),
    table_map_for_update(0), xid(0), gtid_flags_extra(0),
@@ -1478,6 +1480,17 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       charset_inited= 1;
       memcpy(charset, pos, 6);
       pos+= 6;
+      break;
+    }
+    case Q_CHARACTER_SET_COLLATIONS:
+    {
+      const uchar *pos0= pos;
+      CHECK_SPACE(pos, end, 1);
+      uint16 count= *pos++;
+      CHECK_SPACE(pos, end, count * 4);
+      pos+= count * 4;
+      character_set_collations= Lex_cstring((const char *) pos0,
+                                            (const char *) pos);
       break;
     }
     case Q_TIME_ZONE_CODE:

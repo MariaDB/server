@@ -166,7 +166,7 @@ SET (SQL_SOURCE
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
                sql_schema.cc
-               lex_charset.cc
+               lex_charset.cc charset_collations.cc
                sql_type.cc sql_mode.cc sql_type_json.cc
                sql_type_string.cc
                sql_type_geom.cc

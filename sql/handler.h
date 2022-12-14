@@ -2366,32 +2366,42 @@ struct Table_specification_st: public HA_CREATE_INFO,
     convert_charset_collation.init();
   }
 
-  bool add_table_option_convert_charset(CHARSET_INFO *cs)
+  bool add_table_option_convert_charset(Sql_used *used,
+                                        const Charset_collation_map_st &map,
+                                        CHARSET_INFO *cs)
   {
     // cs can be NULL, e.g.: ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT;
     used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);
     return cs ?
-      convert_charset_collation.merge_exact_charset(Lex_exact_charset(cs)) :
+      convert_charset_collation.merge_exact_charset(used, map,
+                                                    Lex_exact_charset(cs)) :
       convert_charset_collation.merge_charset_default();
   }
-  bool add_table_option_convert_collation(const Lex_extended_collation_st &cl)
+  bool add_table_option_convert_collation(Sql_used *used,
+                                          const Charset_collation_map_st &map,
+                                          const Lex_extended_collation_st &cl)
   {
     used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);
-    return convert_charset_collation.merge_collation(cl);
+    return convert_charset_collation.merge_collation(used, map, cl);
   }
 
-  bool add_table_option_default_charset(CHARSET_INFO *cs)
+  bool add_table_option_default_charset(Sql_used *used,
+                                        const Charset_collation_map_st &map,
+                                        CHARSET_INFO *cs)
   {
     // cs can be NULL, e.g.:  CREATE TABLE t1 (..) CHARACTER SET DEFAULT;
     used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
     return cs ?
-      default_charset_collation.merge_exact_charset(Lex_exact_charset(cs)) :
+      default_charset_collation.merge_exact_charset(used, map,
+                                                    Lex_exact_charset(cs)) :
       default_charset_collation.merge_charset_default();
   }
-  bool add_table_option_default_collation(const Lex_extended_collation_st &cl)
+  bool add_table_option_default_collation(Sql_used *used,
+                                          const Charset_collation_map_st &map,
+                                          const Lex_extended_collation_st &cl)
   {
     used_fields|= HA_CREATE_USED_DEFAULT_CHARSET;
-    return default_charset_collation.merge_collation(cl);
+    return default_charset_collation.merge_collation(used, map, cl);
   }
 
   bool resolve_to_charset_collation_context(THD *thd,

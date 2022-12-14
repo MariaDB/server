@@ -97,6 +97,7 @@ SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C utf8mb3 *//*!*/;
 SET @@session.character_set_client=X,@@session.collation_connection=X,@@session.collation_server=X/*!*/;
+SET @@session.character_set_collations=''/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8)

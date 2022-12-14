@@ -438,6 +438,14 @@ static bool update_auto_increment_increment (sys_var *self, THD *thd, enum_var_t
 
 #endif /* WITH_WSREP */
 
+
+static Sys_var_charset_collation_map Sys_character_set_collations(
+       "character_set_collations",
+       "Overrides for character set default collations",
+       SESSION_VAR(character_set_collations),
+       NO_CMD_LINE, NOT_IN_BINLOG);
+
+
 static Sys_var_double Sys_analyze_sample_percentage(
        "analyze_sample_percentage",
        "Percentage of rows from the table ANALYZE TABLE will sample "
@@ -819,7 +827,7 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
           ((thd->variables.pseudo_slave_mode || thd->slave_thread) &&
            (var->save_result.ptr=
              Lex_exact_charset_opt_extended_collate(cs, true).
-               find_default_collation())))
+               find_compiled_default_collation())))
         return false;
     }
     my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), llstr(csno, buff));
