@@ -2347,6 +2347,8 @@ private:
   Atomic_relaxed<pthread_t> lock_mutex_owner{0};
 #endif
 public:
+  /** The next DB_ROW_ID value */
+  Atomic_counter<uint64_t> row_id{0};
   /** Autoinc counter value to give to the next inserted row. */
   uint64_t autoinc;
 

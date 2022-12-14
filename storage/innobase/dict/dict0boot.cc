@@ -93,18 +93,6 @@ dict_hdr_get_new_id(
 	mtr.commit();
 }
 
-/** Update dict_sys.row_id in the dictionary header file page. */
-void dict_hdr_flush_row_id(row_id_t id)
-{
-  mtr_t mtr;
-  mtr.start();
-  buf_block_t* d= dict_hdr_get(&mtr);
-  byte *row_id= DICT_HDR + DICT_HDR_ROW_ID + d->page.frame;
-  if (mach_read_from_8(row_id) < id)
-    mtr.write<8>(*d, row_id, id);
-  mtr.commit();
-}
-
 /** Create the DICT_HDR page on database initialization.
 @return error code */
 dberr_t dict_create()
@@ -126,10 +114,8 @@ dberr_t dict_create()
 	}
 	ut_a(d->page.id() == hdr_page_id);
 
-	/* Start counting row, table, index, and tree ids from
+	/* Start counting table, index, and tree ids from
 	DICT_HDR_FIRST_ID */
-	mtr.write<8>(*d, DICT_HDR + DICT_HDR_ROW_ID + d->page.frame,
-		     DICT_HDR_FIRST_ID);
 	mtr.write<8>(*d, DICT_HDR + DICT_HDR_TABLE_ID + d->page.frame,
 		     DICT_HDR_FIRST_ID);
 	mtr.write<8>(*d, DICT_HDR + DICT_HDR_INDEX_ID + d->page.frame,
@@ -245,17 +231,6 @@ dberr_t dict_boot()
 
 	const byte* dict_hdr = &d->page.frame[DICT_HDR];
 
-	/* Because we only write new row ids to disk-based data structure
-	(dictionary header) when it is divisible by
-	DICT_HDR_ROW_ID_WRITE_MARGIN, in recovery we will not recover
-	the latest value of the row id counter. Therefore we advance
-	the counter at the database startup to avoid overlapping values.
-	Note that when a user after database startup first time asks for
-	a new row id, then because the counter is now divisible by
-	..._MARGIN, it will immediately be updated to the disk-based
-	header. */
-
-	dict_sys.recover_row_id(mach_read_from_8(dict_hdr + DICT_HDR_ROW_ID));
 	if (uint32_t max_space_id
 	    = mach_read_from_4(dict_hdr + DICT_HDR_MAX_SPACE_ID)) {
 		max_space_id--;

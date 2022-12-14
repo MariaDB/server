@@ -348,9 +348,13 @@ when loading a table definition.
 static dberr_t btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
 	ut_ad(index->is_primary());
-	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
-	ut_ad(index->table->supports_instant());
 	ut_ad(index->table->is_readable());
+
+	if (!index->table->supports_instant()) {
+		return DB_SUCCESS;
+	}
+
+	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
 
 	dberr_t err;
 	const fil_space_t* space = index->table->space;
@@ -618,17 +622,25 @@ when loading a table definition.
 @param[in,out]	table	table definition from the data dictionary
 @return	error code
 @retval	DB_SUCCESS	if no error occurred */
-dberr_t
-btr_cur_instant_init(dict_table_t* table)
+dberr_t btr_cur_instant_init(dict_table_t *table)
 {
-	mtr_t		mtr;
-	dict_index_t*	index = dict_table_get_first_index(table);
-	mtr.start();
-	dberr_t	err = index
-		? btr_cur_instant_init_low(index, &mtr)
-		: DB_CORRUPTION;
-	mtr.commit();
-	return(err);
+  mtr_t mtr;
+  dict_index_t *index= dict_table_get_first_index(table);
+  mtr.start();
+  dberr_t err = index ? btr_cur_instant_init_low(index, &mtr) : DB_CORRUPTION;
+  mtr.commit();
+  if (err == DB_SUCCESS && index->is_gen_clust())
+  {
+    btr_cur_t cur;
+    mtr.start();
+    err= cur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr);
+    if (err != DB_SUCCESS);
+    else if (const rec_t *rec= page_rec_get_prev(btr_cur_get_rec(&cur)))
+      if (page_rec_is_user_rec(rec))
+        table->row_id= mach_read_from_6(rec);
+    mtr.commit();
+  }
+  return(err);
 }
 
 /** Initialize the n_core_null_bytes on first access to a clustered

@@ -3526,19 +3526,6 @@ row_ins_index_entry_step(
 }
 
 /***********************************************************//**
-Allocates a row id for row and inits the node->index field. */
-UNIV_INLINE
-void
-row_ins_alloc_row_id_step(
-/*======================*/
-	ins_node_t*	node)	/*!< in: row insert node */
-{
-  ut_ad(node->state == INS_NODE_ALLOC_ROW_ID);
-  if (dict_table_get_first_index(node->table)->is_gen_clust())
-    dict_sys_write_row_id(node->sys_buf, dict_sys.get_new_row_id());
-}
-
-/***********************************************************//**
 Gets a row to insert from the values list. */
 UNIV_INLINE
 void
@@ -3618,12 +3605,17 @@ row_ins(
 	DBUG_PRINT("row_ins", ("table: %s", node->table->name.m_name));
 
 	if (node->state == INS_NODE_ALLOC_ROW_ID) {
-
-		row_ins_alloc_row_id_step(node);
-
 		node->index = dict_table_get_first_index(node->table);
 		ut_ad(node->entry_list.empty() == false);
 		node->entry = node->entry_list.begin();
+
+		if (node->index->is_gen_clust()) {
+			const uint64_t db_row_id{++node->table->row_id};
+			if (db_row_id >> 48) {
+				DBUG_RETURN(DB_OUT_OF_FILE_SPACE);
+			}
+			mach_write_to_6(node->sys_buf, db_row_id);
+		}
 
 		if (node->ins_type == INS_SEARCHED) {
 
