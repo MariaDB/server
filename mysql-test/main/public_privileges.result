@@ -47,7 +47,7 @@ Grants for testuser@%
 GRANT USAGE ON *.* TO `testuser`@`%`
 GRANT SELECT ON `testdb1`.* TO PUBLIC
 GRANT SELECT ON `testdb2`.`t2` TO PUBLIC
-GRANT SELECT (b) ON `testdb2`.`t3` TO PUBLIC
+GRANT SELECT (`b`) ON `testdb2`.`t3` TO PUBLIC
 show grants for testuser@'%';
 Grants for testuser@%
 GRANT USAGE ON *.* TO `testuser`@`%`

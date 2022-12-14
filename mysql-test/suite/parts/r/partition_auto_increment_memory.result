@@ -1139,6 +1139,18 @@ INSERT INTO t1 VALUES (1,1),(2,2);
 UPDATE t1 SET pk = 0;
 DROP TABLE t1;
 #
+# MDEV-29636 Assertion `part_share->auto_inc_initialized || !can_use_for_auto_inc_init()'
+# failed in ha_partition::set_auto_increment_if_higher upon REPLACE
+# with partition pruning
+#
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY) ENGINE='Memory'
+PARTITION BY RANGE (a) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION pn VALUES LESS THAN MAXVALUE
+);
+REPLACE INTO t1 PARTITION (p0) SELECT 1;
+DROP TABLE t1;
+#
 # MDEV-21027 Assertion `part_share->auto_inc_initialized || !can_use_for_auto_inc_init()'
 # ha_partition::set_auto_increment_if_higher
 #

@@ -17,7 +17,7 @@ GRANT SELECT(c1) on testdb.v1 to 'select_only_c1'@localhost;
 SHOW GRANTS FOR 'select_only_c1'@'localhost';
 Grants for select_only_c1@localhost
 GRANT USAGE ON *.* TO `select_only_c1`@`localhost`
-GRANT SELECT (c1) ON `testdb`.`v1` TO `select_only_c1`@`localhost`
+GRANT SELECT (`c1`) ON `testdb`.`v1` TO `select_only_c1`@`localhost`
 
 "after fix privs"
 SHOW GRANTS FOR 'show_view_tbl'@'localhost';
@@ -28,7 +28,7 @@ GRANT CREATE VIEW, SHOW VIEW ON `testdb`.`v1` TO `show_view_tbl`@`localhost`
 SHOW GRANTS FOR 'select_only_c1'@'localhost';
 Grants for select_only_c1@localhost
 GRANT USAGE ON *.* TO `select_only_c1`@`localhost`
-GRANT SELECT (c1) ON `testdb`.`v1` TO `select_only_c1`@`localhost`
+GRANT SELECT (`c1`) ON `testdb`.`v1` TO `select_only_c1`@`localhost`
 
 DROP USER 'show_view_tbl'@'localhost';
 DROP USER 'select_only_c1'@'localhost';

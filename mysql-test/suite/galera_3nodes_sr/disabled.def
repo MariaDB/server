@@ -1,5 +1,13 @@
-GCF-582 : 
-GCF-810A : 
-GCF-810B : 
-GCF-810C : 
-galera_sr_kill_slave_after_apply_rollback2 :
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : MDEV-<xxxx> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+
+galera_sr_kill_slave_after_apply_rollback2 : MDEV-29892 Galera test failure on galera_sr_kill_slave_after_apply_rollback2

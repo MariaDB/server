@@ -74,6 +74,7 @@ COMMIT;
 
 --connection con3
 --reap
+--remove_file $MYSQLD_DATADIR/test/load.in
 DROP TABLE t1;
 
 --disconnect con3

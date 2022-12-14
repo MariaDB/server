@@ -65,5 +65,5 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   PRIMARY KEY (`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

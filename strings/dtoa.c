@@ -1478,7 +1478,10 @@ static double my_strtod_int(const char *s00, char **se, int *error, char *buf, s
         L= c - '0';
         s1= s;
         while (++s < end && (c= *s) >= '0' && c <= '9')
-          L= 10*L + c - '0';
+        {
+          if (L < 19999)
+            L= 10*L + c - '0';
+        }
         if (s - s1 > 8 || L > 19999)
           /* Avoid confusion from exponents
            * so large that e might overflow.

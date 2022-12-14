@@ -400,7 +400,7 @@ public:
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(func_name(), "()", arg,
-                                     VCOL_NON_DETERMINISTIC | VCOL_NOT_VIRTUAL);
+                                     VCOL_NON_DETERMINISTIC | VCOL_NEXTVAL);
   }
   Item *get_copy(THD *thd) override
   {

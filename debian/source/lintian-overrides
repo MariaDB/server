@@ -28,12 +28,20 @@ version-substvar-for-external-package Replaces (line 748) ${source:Version} mari
 version-substvar-for-external-package Replaces (line 748) ${source:Version} mariadb-server -> mariadb-server-10.11
 # ColumnStore not used in Debian, safe to ignore. Reported upstream in https://jira.mariadb.org/browse/MDEV-24124
 source-is-missing storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2
+source-is-missing [storage/columnstore/columnstore/utils/jemalloc/libjemalloc.so.2]
 # Must be fixed upstream
 source-is-missing storage/mroonga/vendor/groonga/examples/dictionary/html/js/jquery-ui-*.custom.js
+# New Lintian syntax (from version 2.115)
+source-is-missing [sql/share/charsets/languages.html]
+source-is-missing [storage/rocksdb/rocksdb/docs/_includes/footer.html]
 # Intentional control relationships
 version-substvar-for-external-package Replaces * libmariadbd-dev -> libmariadbclient-dev
 version-substvar-for-external-package Replaces * libmariadb-dev -> libmysqlclient-dev
 version-substvar-for-external-package Replaces * libmariadb-dev -> libmysqld-dev
+# New Lintian syntax (from version 2.115)
+version-substvar-for-external-package Replaces * libmariadb-dev -> libmysqlclient-dev [debian/control:*]
+version-substvar-for-external-package Replaces * libmariadb-dev -> libmysqld-dev [debian/control:*]
+version-substvar-for-external-package Replaces * libmariadbd-dev -> libmariadbclient-dev [debian/control:*]
 # Data or test files where long lines are justified
 very-long-line-length-in-source-file *.test *
 very-long-line-length-in-source-file *.result *
