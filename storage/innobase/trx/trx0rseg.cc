@@ -449,7 +449,7 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
     return DB_TABLESPACE_NOT_FOUND;
   dberr_t err;
   const buf_block_t *rseg_hdr=
-    buf_page_get_gen(rseg->page_id(), 0, RW_S_LATCH, nullptr, BUF_GET, mtr,
+    buf_page_get_gen(rseg->page_id(), 0, RW_X_LATCH, nullptr, BUF_GET, mtr,
                      &err);
   if (!rseg_hdr)
     return err;
@@ -580,7 +580,7 @@ dberr_t trx_rseg_array_init()
 
 	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
 		mtr.start();
-		if (const buf_block_t* sys = trx_sysf_get(&mtr, false)) {
+		if (const buf_block_t* sys = trx_sysf_get(&mtr, true)) {
 			if (rseg_id == 0) {
 				/* In case this is an upgrade from
 				before MariaDB 10.3.5, fetch the base

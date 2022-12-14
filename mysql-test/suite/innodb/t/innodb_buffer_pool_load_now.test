@@ -69,7 +69,7 @@ EOF
 
 --move_file $file $file.now
 
-# Complete purge (and change buffer merge).
+# Complete purge.
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/shutdown_mysqld.inc
 

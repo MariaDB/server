@@ -142,7 +142,6 @@ using the call command. */
 						assertions. */
 #define UNIV_LRU_DEBUG				/* debug the buffer pool LRU */
 #define UNIV_HASH_DEBUG				/* debug HASH_ macros */
-#define UNIV_IBUF_DEBUG				/* debug the insert buffer */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance
                                                 related stuff. */
@@ -475,9 +474,6 @@ extern mysql_pfs_key_t fts_cache_mutex_key;
 extern mysql_pfs_key_t fts_cache_init_mutex_key;
 extern mysql_pfs_key_t fts_delete_mutex_key;
 extern mysql_pfs_key_t fts_doc_id_mutex_key;
-extern mysql_pfs_key_t ibuf_bitmap_mutex_key;
-extern mysql_pfs_key_t ibuf_mutex_key;
-extern mysql_pfs_key_t ibuf_pessimistic_insert_mutex_key;
 extern mysql_pfs_key_t recalc_pool_mutex_key;
 extern mysql_pfs_key_t purge_sys_pq_mutex_key;
 extern mysql_pfs_key_t recv_sys_mutex_key;

@@ -37,39 +37,6 @@ Created 3/14/1997 Heikki Tuuri
 #include <queue>
 
 class MDL_ticket;
-/** Determines if it is possible to remove a secondary index entry.
-Removal is possible if the secondary index entry does not refer to any
-not delete marked version of a clustered index record where DB_TRX_ID
-is newer than the purge view.
-
-NOTE: This function should only be called by the purge thread, only
-while holding a latch on the leaf page of the secondary index entry
-(or keeping the buffer pool watch on the page).  It is possible that
-this function first returns true and then false, if a user transaction
-inserts a record that the secondary index entry would refer to.
-However, in that case, the user transaction would also re-insert the
-secondary index entry after purge has removed it and released the leaf
-page latch.
-@param[in,out]	node		row purge node
-@param[in]	index		secondary index
-@param[in]	entry		secondary index entry
-@param[in,out]	sec_pcur	secondary index cursor or NULL
-				if it is called for purge buffering
-				operation.
-@param[in,out]	sec_mtr		mini-transaction which holds
-				secondary index entry or NULL if it is
-				called for purge buffering operation.
-@param[in]	is_tree		true=pessimistic purge,
-				false=optimistic (leaf-page only)
-@return true if the secondary index record can be purged */
-bool
-row_purge_poss_sec(
-	purge_node_t*	node,
-	dict_index_t*	index,
-	const dtuple_t*	entry,
-	btr_pcur_t*	sec_pcur=NULL,
-	mtr_t*		sec_mtr=NULL,
-	bool		is_tree=false);
 
 /***************************************************************
 Does the purge operation.

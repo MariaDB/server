@@ -25,7 +25,6 @@ c varchar(150), index k1(c(99), b(56)), index k2(b(5), c(10))) engine=InnoDB
 row_format=redundant;
 insert into t3 values(444, 'dddd', 'bbbbb', 'aaaaa');
 insert into t3 values(555, 'eeee', 'ccccc', 'aaaaa');
-SET GLOBAL innodb_fast_shutdown=0;
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/row_format_redundant --innodb-data-file-path=ibdata1:1M:autoextend --innodb-undo-tablespaces=0 --innodb-stats-persistent=0 --innodb-read-only
 SELECT COUNT(*) FROM t1;
 COUNT(*)
@@ -68,7 +67,7 @@ DROP TABLE t1;
 Warnings:
 Warning	1932	Table 'test.t1' doesn't exist in engine
 DROP TABLE t2,t3;
-FOUND 6 /\[ERROR\] InnoDB: Table test/t1 in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Table test/t1 in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b.*/ in mysqld.1.err
 # restart
 ib_buffer_pool
 ib_logfile0

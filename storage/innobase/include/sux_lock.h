@@ -149,7 +149,7 @@ private:
 #endif
 
 public:
-  /** In crash recovery or the change buffer, claim the ownership
+  /** In crash recovery, claim the ownership
   of the exclusive block lock to the current thread */
   void claim_ownership() { set_new_owner(pthread_self()); }
 

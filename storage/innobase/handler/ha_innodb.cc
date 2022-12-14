@@ -87,7 +87,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0plugin.h"
 #include "fts0priv.h"
 #include "fts0types.h"
-#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "log0crypt.h"
 #include "mtr0mtr.h"
@@ -399,25 +398,6 @@ static TYPELIB innodb_deadlock_report_typelib = {
 	NULL
 };
 
-/** Allowed values of innodb_change_buffering */
-static const char* innodb_change_buffering_names[] = {
-	"none",		/* IBUF_USE_NONE */
-	"inserts",	/* IBUF_USE_INSERT */
-	"deletes",	/* IBUF_USE_DELETE_MARK */
-	"changes",	/* IBUF_USE_INSERT_DELETE_MARK */
-	"purges",	/* IBUF_USE_DELETE */
-	"all",		/* IBUF_USE_ALL */
-	NullS
-};
-
-/** Enumeration of innodb_change_buffering */
-static TYPELIB innodb_change_buffering_typelib = {
-	array_elements(innodb_change_buffering_names) - 1,
-	"innodb_change_buffering_typelib",
-	innodb_change_buffering_names,
-	NULL
-};
-
 /** Allowed values of innodb_instant_alter_column_allowed */
 const char* innodb_instant_alter_column_allowed_names[] = {
 	"never", /* compatible with MariaDB 5.5 to 10.2 */
@@ -531,9 +511,6 @@ mysql_pfs_key_t	fts_cache_mutex_key;
 mysql_pfs_key_t	fts_cache_init_mutex_key;
 mysql_pfs_key_t	fts_delete_mutex_key;
 mysql_pfs_key_t	fts_doc_id_mutex_key;
-mysql_pfs_key_t	ibuf_bitmap_mutex_key;
-mysql_pfs_key_t	ibuf_mutex_key;
-mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
 mysql_pfs_key_t	recalc_pool_mutex_key;
 mysql_pfs_key_t	purge_sys_pq_mutex_key;
 mysql_pfs_key_t	recv_sys_mutex_key;
@@ -565,8 +542,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(fts_cache_init_mutex),
 	PSI_KEY(fts_delete_mutex),
 	PSI_KEY(fts_doc_id_mutex),
-	PSI_KEY(ibuf_mutex),
-	PSI_KEY(ibuf_pessimistic_insert_mutex),
 	PSI_KEY(index_online_log),
 	PSI_KEY(page_zip_stat_per_index_mutex),
 	PSI_KEY(purge_sys_pq_mutex),
@@ -973,20 +948,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {"dblwr_writes", &export_vars.innodb_dblwr_writes, SHOW_SIZE_T},
   {"deadlocks", &lock_sys.deadlocks, SHOW_SIZE_T},
   {"history_list_length", &export_vars.innodb_history_list_length,SHOW_SIZE_T},
-  {"ibuf_discarded_delete_marks", &ibuf.n_discarded_ops[IBUF_OP_DELETE_MARK],
-   SHOW_SIZE_T},
-  {"ibuf_discarded_deletes", &ibuf.n_discarded_ops[IBUF_OP_DELETE],
-   SHOW_SIZE_T},
-  {"ibuf_discarded_inserts", &ibuf.n_discarded_ops[IBUF_OP_INSERT],
-   SHOW_SIZE_T},
-  {"ibuf_free_list", &ibuf.free_list_len, SHOW_SIZE_T},
-  {"ibuf_merged_delete_marks", &ibuf.n_merged_ops[IBUF_OP_DELETE_MARK],
-   SHOW_SIZE_T},
-  {"ibuf_merged_deletes", &ibuf.n_merged_ops[IBUF_OP_DELETE], SHOW_SIZE_T},
-  {"ibuf_merged_inserts", &ibuf.n_merged_ops[IBUF_OP_INSERT], SHOW_SIZE_T},
-  {"ibuf_merges", &ibuf.n_merges, SHOW_SIZE_T},
-  {"ibuf_segment_size", &ibuf.seg_size, SHOW_SIZE_T},
-  {"ibuf_size", &ibuf.size, SHOW_SIZE_T},
   {"log_waits", &log_sys.waits, SHOW_SIZE_T},
   {"log_write_requests", &log_sys.write_to_buf, SHOW_SIZE_T},
   {"log_writes", &log_sys.write_to_log, SHOW_SIZE_T},
@@ -3927,8 +3888,6 @@ static int innodb_init_params()
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-	DBUG_ASSERT(innodb_change_buffering <= IBUF_USE_ALL);
-
 	/* Check that interdependent parameters have sane values. */
 	if (srv_max_buf_pool_modified_pct < srv_max_dirty_pages_pct_lwm) {
 		sql_print_warning("InnoDB: innodb_max_dirty_pages_pct_lwm"
@@ -4004,11 +3963,6 @@ static int innodb_init_params()
 	}
 
 	fts_sort_pll_degree = num_pll_degree;
-
-	/* Store the default charset-collation number of this MySQL
-	installation */
-
-	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
 	if (innodb_flush_method == 1 /* O_DSYNC */) {
 		log_sys.log_write_through = true;
@@ -4213,8 +4167,6 @@ static int innodb_init(void* p)
 	innobase_old_blocks_pct = buf_LRU_old_ratio_update(
 		innobase_old_blocks_pct, true);
 
-	ibuf_max_size_update(srv_change_buffer_max_size);
-
 	mysql_mutex_init(pending_checkpoint_mutex_key,
 			 &log_requests.mutex,
 			 MY_MUTEX_INIT_FAST);
@@ -4345,7 +4297,7 @@ innobase_start_trx_and_assign_read_view(
 	Do this only if transaction is using REPEATABLE READ isolation
 	level. */
 	trx->isolation_level = innobase_map_isolation_level(
-		thd_get_trx_isolation(thd));
+		thd_get_trx_isolation(thd)) & 3;
 
 	if (trx->isolation_level == TRX_ISO_REPEATABLE_READ) {
 		trx->read_view.open(trx);
@@ -6593,8 +6545,7 @@ uint8_t
 get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field)
 {
 	/* The following asserts try to check that the MySQL type code fits in
-	8 bits: this is used in ibuf and also when DATA_NOT_NULL is ORed to
-	the type */
+	8 bits: this is used when DATA_NOT_NULL is ORed to the type */
 
 	static_assert(MYSQL_TYPE_STRING < 256, "compatibility");
 	static_assert(MYSQL_TYPE_VAR_STRING < 256, "compatibility");
@@ -15235,7 +15186,7 @@ ha_innobase::check(
 	}
 
 	/* Restore the original isolation level */
-	m_prebuilt->trx->isolation_level = old_isolation_level;
+	m_prebuilt->trx->isolation_level = old_isolation_level & 3;
 #ifdef BTR_CUR_HASH_ADAPT
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	/* We validate the whole adaptive hash index for all tables
@@ -16268,7 +16219,7 @@ ha_innobase::store_lock(
 	if (lock_type != TL_IGNORE
 	    && trx->n_mysql_tables_in_use == 0) {
 		trx->isolation_level = innobase_map_isolation_level(
-			(enum_tx_isolation) thd_tx_isolation(thd));
+			(enum_tx_isolation) thd_tx_isolation(thd)) & 3;
 
 		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
 
@@ -17407,20 +17358,6 @@ innodb_old_blocks_pct_update(THD*, st_mysql_sys_var*, void*, const void* save)
 					      true);
 	mysql_mutex_lock(&LOCK_global_system_variables);
 	innobase_old_blocks_pct = ratio;
-}
-
-/****************************************************************//**
-Update the system variable innodb_old_blocks_pct using the "saved"
-value. This function is registered as a callback with MySQL. */
-static
-void
-innodb_change_buffer_max_size_update(THD*, st_mysql_sys_var*, void*,
-				     const void* save)
-{
-	srv_change_buffer_max_size = *static_cast<const uint*>(save);
-	mysql_mutex_unlock(&LOCK_global_system_variables);
-	ibuf_max_size_update(srv_change_buffer_max_size);
-	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 #ifdef UNIV_DEBUG
@@ -19450,37 +19387,12 @@ static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   NULL, NULL, FALSE);
 #endif /* HAVE_LIBNUMA */
 
-static MYSQL_SYSVAR_ENUM(change_buffering, innodb_change_buffering,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Buffer changes to secondary indexes.",
-  nullptr, nullptr, IBUF_USE_NONE, &innodb_change_buffering_typelib);
-
-static MYSQL_SYSVAR_UINT(change_buffer_max_size,
-  srv_change_buffer_max_size,
-  PLUGIN_VAR_RQCMDARG,
-  "Maximum on-disk size of change buffer in terms of percentage"
-  " of the buffer pool.",
-  NULL, innodb_change_buffer_max_size_update,
-  CHANGE_BUFFER_DEFAULT_SIZE, 0, 50, 0);
-
 static MYSQL_SYSVAR_ENUM(stats_method, srv_innodb_stats_method,
    PLUGIN_VAR_RQCMDARG,
   "Specifies how InnoDB index statistics collection code should"
   " treat NULLs. Possible values are NULLS_EQUAL (default),"
   " NULLS_UNEQUAL and NULLS_IGNORED",
    NULL, NULL, SRV_STATS_NULLS_EQUAL, &innodb_stats_method_typelib);
-
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-static MYSQL_SYSVAR_BOOL(change_buffer_dump, ibuf_dump,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Dump the change buffer at startup.",
-  NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_UINT(change_buffering_debug, ibuf_debug,
-  PLUGIN_VAR_RQCMDARG,
-  "Debug flags for InnoDB change buffering (0=none, 1=try to buffer)",
-  NULL, NULL, 0, 0, 1, 0);
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequency,
   PLUGIN_VAR_RQCMDARG,
@@ -19811,12 +19723,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #ifdef HAVE_LIBNUMA
   MYSQL_SYSVAR(numa_interleave),
 #endif /* HAVE_LIBNUMA */
-  MYSQL_SYSVAR(change_buffering),
-  MYSQL_SYSVAR(change_buffer_max_size),
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-  MYSQL_SYSVAR(change_buffer_dump),
-  MYSQL_SYSVAR(change_buffering_debug),
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),
