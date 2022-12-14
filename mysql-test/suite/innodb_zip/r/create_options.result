@@ -1,5 +1,4 @@
 SET default_storage_engine=InnoDB;
-SET GLOBAL innodb_file_per_table=ON;
 SET SESSION innodb_strict_mode = ON;
 # Test 1) StrictMode=ON, CREATE and ALTER with each ROW_FORMAT & KEY_BLOCK_SIZE=0
 #         KEY_BLOCK_SIZE=0 means 'no KEY_BLOCK_SIZE is specified'
@@ -280,6 +279,8 @@ Level	Code	Message
 #         innodb_file_per_table=OFF and that they can be set to default
 #         values during strict mode.
 SET GLOBAL innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 DROP TABLE t1;
 CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=1;
 Got one of the listed errors
@@ -354,9 +355,13 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	
 SET GLOBAL innodb_file_per_table=ON;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 DROP TABLE t1;
 CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 SET GLOBAL innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t1 ADD COLUMN f1 INT;
 SHOW WARNINGS;
 Level	Code	Message
@@ -367,6 +372,8 @@ ALTER TABLE t1 ADD COLUMN f2 INT;
 SHOW WARNINGS;
 Level	Code	Message
 SET GLOBAL innodb_file_per_table=ON;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ##################################################
 SET SESSION innodb_strict_mode = OFF;
 # Test 9) StrictMode=OFF, CREATE and ALTER with each ROW_FORMAT & KEY_BLOCK_SIZE=0
@@ -722,6 +729,8 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compressed	row_format=COMPRESSED key_block_size=2
 SET GLOBAL innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t1 ADD COLUMN f1 INT;
 SHOW WARNINGS;
 Level	Code	Message
@@ -729,6 +738,8 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Compressed	row_format=COMPRESSED key_block_size=2
 SET GLOBAL innodb_file_per_table=ON;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t1 ADD COLUMN f2 INT;
 SHOW WARNINGS;
 Level	Code	Message
@@ -743,6 +754,8 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	row_format=DYNAMIC
 SET GLOBAL innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t1 ADD COLUMN f1 INT;
 SHOW WARNINGS;
 Level	Code	Message
@@ -750,6 +763,8 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 TABLE_NAME	ROW_FORMAT	CREATE_OPTIONS
 t1	Dynamic	row_format=DYNAMIC
 SET GLOBAL innodb_file_per_table=ON;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t1 ADD COLUMN f2 INT;
 SHOW WARNINGS;
 Level	Code	Message

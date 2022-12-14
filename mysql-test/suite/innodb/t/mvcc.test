@@ -1,9 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
-SET @save_per_table= @@GLOBAL.innodb_file_per_table;
-SET GLOBAL innodb_file_per_table= 1;
-
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 
 --echo #
@@ -68,5 +65,3 @@ DELIMITER ;$$
 INSERT INTO t1 SET id=1,c294=1;
 REPLACE t1 SET id=1,c294=1;
 DROP TABLE t1;
-
-SET GLOBAL innodb_file_per_table= @save_per_table;

@@ -40,7 +40,6 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
 --let $restart_parameters=$d --innodb-stats-persistent=0
 --source include/restart_mysqld.inc
 
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE tr(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE tc(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=COMPACT;
 CREATE TABLE td(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=DYNAMIC;

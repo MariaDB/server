@@ -6,7 +6,10 @@ WHERE table_schema='mysqltest_innodb_zip';
 table_name	row_format	data_length	index_length
 SET @save_innodb_stats_on_metadata=@@global.innodb_stats_on_metadata;
 set session innodb_strict_mode=0;
+SET @save_fpt=@@GLOBAL.innodb_file_per_table;
 set global innodb_file_per_table=off;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SET @@global.innodb_stats_on_metadata=ON;
 create table t0(a int primary key) engine=innodb row_format=compressed;
 Warnings:
@@ -32,6 +35,8 @@ Warnings:
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
 Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1.
 set global innodb_file_per_table=on;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 create table t6(a int primary key) engine=innodb
 key_block_size=1 row_format=redundant;
 Warnings:
@@ -153,7 +158,6 @@ count(*)
 1
 update t1 set c3 = repeat('E', 20000) where c1 = 1;
 drop table t1;
-set global innodb_file_per_table = on;
 set innodb_strict_mode = off;
 create table t1 (id int primary key) engine = innodb key_block_size = 0;
 drop table t1;
@@ -247,6 +251,8 @@ Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 set global innodb_file_per_table = off;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 create table t1 (id int primary key) engine = innodb key_block_size = 1;
 ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t1` (errno: 140 "Wrong create options")
 show warnings;
@@ -286,4 +292,8 @@ mysqltest_innodb_zip	t7	Dynamic	{valid}	0
 mysqltest_innodb_zip	t8	Compact	{valid}	0
 mysqltest_innodb_zip	t9	Redundant	{valid}	0
 drop table t7, t8, t9;
+SET GLOBAL innodb_file_per_table=@save_fpt;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+SET @@global.innodb_stats_on_metadata=@save_innodb_stats_on_metadata;
 DROP DATABASE mysqltest_innodb_zip;

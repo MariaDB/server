@@ -83,7 +83,7 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 SELECT * FROM t1;
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT) ENGINE=InnoDB  ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
@@ -127,7 +127,7 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore
 CREATE TABLE t1(
@@ -174,7 +174,7 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore, this time the table has a secondary index too.
 CREATE TABLE t1(
@@ -217,7 +217,7 @@ SELECT COUNT(*) FROM t1 WHERE c2 = 1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore, this time the table has a secondary index too.
 # Rename the index on the create so that the IMPORT fails, drop index

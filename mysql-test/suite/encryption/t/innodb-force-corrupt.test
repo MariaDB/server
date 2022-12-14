@@ -12,7 +12,6 @@ call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=\\d+, page nu
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption in an InnoDB type table");
 call mtr.add_suppression("\\[ERROR\\] (mysqld|mariadbd).*: Index for table 't2' is corrupt; try to repair it");
 
-SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
 
 --echo # Create and populate tables to be corrupted

@@ -3,7 +3,6 @@ SET default_storage_engine=InnoDB;
 # A series of tests to make sure tables are opened after restart.
 # Bug#13357607 Compressed file-per-table tablespaces fail to open
 #
-set global innodb_file_per_table=on;
 #
 # Create and insert records into a REDUNDANT row formatted table.
 #
@@ -265,9 +264,6 @@ t7_restart#p#p1#sp#s3.ibd
 # Start the server and show that tables are still visible and accessible.
 #
 # restart
-SHOW VARIABLES LIKE 'innodb_file_per_table';
-Variable_name	Value
-innodb_file_per_table	ON
 SHOW CREATE TABLE t1_restart;
 Table	Create Table
 t1_restart	CREATE TABLE `t1_restart` (
@@ -522,9 +518,6 @@ t7_restart#p#p1#sp#s3.ibd
 # Start the server and show the tablespaces.
 #
 # restart
-SHOW VARIABLES LIKE 'innodb_file_per_table';
-Variable_name	Value
-innodb_file_per_table	ON
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
 test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
@@ -723,9 +716,6 @@ t77_restart#p#p1#sp#s3.ibd
 # Restart the server
 #
 # restart
-SHOW VARIABLES LIKE 'innodb_file_per_table';
-Variable_name	Value
-innodb_file_per_table	ON
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Page_Size	Zip_Size	Path
 test/t4_restart	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4_restart.ibd
