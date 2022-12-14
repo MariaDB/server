@@ -40,7 +40,6 @@ Created 2/25/1997 Heikki Tuuri
 #include "row0row.h"
 #include "row0upd.h"
 #include "que0que.h"
-#include "ibuf0ibuf.h"
 #include "log0log.h"
 #include "fil0fil.h"
 #include <mysql/service_thd_mdl.h>
@@ -266,7 +265,7 @@ row_undo_ins_remove_sec_low(
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
 	pcur.btr_cur.page_cur.index = index;
-	row_mtr_start(&mtr, index, !modify_leaf);
+	row_mtr_start(&mtr, index);
 
 	if (modify_leaf) {
 		mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
@@ -282,19 +281,9 @@ row_undo_ins_remove_sec_low(
 					 | BTR_RTREE_DELETE_MARK
 					 | BTR_RTREE_UNDO_INS)
 			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
-		btr_pcur_get_btr_cur(&pcur)->thr = thr;
 	}
 
-	switch (row_search_index_entry(entry, mode, &pcur, &mtr)) {
-	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
-		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
-		ut_error;
-	case ROW_NOT_FOUND:
-		break;
-	case ROW_FOUND:
+	if (row_search_index_entry(entry, mode, &pcur, thr, &mtr)) {
 		if (dict_index_is_spatial(index)
 		    && rec_get_deleted_flag(
 			    btr_pcur_get_rec(&pcur),

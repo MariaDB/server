@@ -1095,9 +1095,7 @@ rec_get_converted_size(
 
 	ut_ad(dtuple_check_typed(dtuple));
 #ifdef UNIV_DEBUG
-	if (dict_index_is_ibuf(index)) {
-		ut_ad(dtuple->n_fields > 1);
-	} else if ((dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK)
+	if ((dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK)
 		   == REC_STATUS_NODE_PTR) {
 		ut_ad(dtuple->n_fields - 1
 		      == dict_index_get_n_unique_in_tree_nonleaf(index));

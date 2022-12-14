@@ -47,7 +47,6 @@ Updated 14/02/2015
 #include "trx0sys.h"
 #include "row0mysql.h"
 #include "buf0lru.h"
-#include "ibuf0ibuf.h"
 #include "zlib.h"
 #ifdef __linux__
 #include <linux/fs.h>

@@ -45,9 +45,24 @@ my $head = pack("Nx[18]", 0);
 my $body = pack("x[8]Nx[10]Nx[16312]", 768, 97937874);
 my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
 print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
-# Dummy pages 1..6.
-print OUT chr(0) x (6 * 16384);
+
+# Dummy change buffer header page (page 3).
+die unless seek(OUT, 3 * 16384, 0);
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT, FIL_PAGE_TYPE
+my $head = pack("NNNx[8]n", 3, 0xffffffff, 0xffffffff, 6);
+my $body = pack("x[62]nnx[16272]", 2, 50);
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+# Dummy change buffer root page (page 4).
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT
+my $head = pack("NNNx[10]", 4, 0xffffffff, 0xffffffff);
+my $body = chr(0) x 16338;
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
 # Dictionary header page (page 7).
+die unless seek(OUT, 7 * 16384, 0);
 ## FIL_PAGE_OFFSET
 $head = pack("Nx[18]", 7);
 ## DICT_HDR_TABLES,DICT_HDR_INDEXES

@@ -94,7 +94,29 @@ rtr_page_split_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr,	/*!< in: mtr */
-	dberr_t*	err);	/*!< out: error code */
+	dberr_t*	err,	/*!< out: error code */
+	que_thr_t*	thr);	/*!< in: query thread */
+
+/*************************************************************//**
+Makes tree one level higher by splitting the root, and inserts the tuple.
+NOTE that the operation of this function must always succeed,
+we cannot reverse it: therefore enough free disk space must be
+guaranteed to be available before this function is called.
+@return inserted record */
+rec_t*
+rtr_root_raise_and_insert(
+	ulint		flags,	/*!< in: undo logging and locking flags */
+	btr_cur_t*	cursor,	/*!< in: cursor at which to insert: must be
+				on the root page; when the function returns,
+				the cursor is positioned on the predecessor
+				of the inserted record */
+	rec_offs**	offsets,/*!< out: offsets on inserted record */
+	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
+	const dtuple_t*	tuple,	/*!< in: tuple to insert */
+	ulint		n_ext,	/*!< in: number of externally stored columns */
+	mtr_t*		mtr,	/*!< in: mtr */
+	dberr_t*	err,	/*!< out: error code */
+	que_thr_t*	thr);	/*!< in: query thread */
 
 /**************************************************************//**
 Sets the child node mbr in a node pointer. */
@@ -205,8 +227,8 @@ rtr_create_rtr_info(
 	bool		init_matches,	/*!< in: Whether to initiate the
 					"matches" structure for collecting
 					matched leaf records */
-	btr_cur_t*	cursor,		/*!< in: tree search cursor */
-	dict_index_t*	index);		/*!< in: index struct */
+	que_thr_t*	thr,		/*!< in/out: query thread */
+	btr_cur_t*	cursor);	/*!< in: tree search cursor */
 
 /********************************************************************//**
 Update a btr_cur_t with rtr_info */
@@ -261,8 +283,10 @@ rtr_get_mbr_from_tuple(
 				about parent nodes in search
 @param[in,out]	cursor		cursor on node pointer record,
 				its page x-latched
+@param[in,out]	thr		query thread
 @return whether the cursor was successfully positioned */
-bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor)
+bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor,
+                         que_thr_t *thr)
   MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
 
 /************************************************************//**
@@ -274,11 +298,12 @@ rtr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
 				about parent nodes in search */
-	btr_cur_t*	cursor);/*!< out: cursor on node pointer record,
+	btr_cur_t*	cursor,	/*!< out: cursor on node pointer record,
 				its page x-latched */
+	que_thr_t*	thr,	/*!< in/out: query thread */
+	mtr_t*		mtr);	/*!< in/out: mtr */
 /**************************************************************//**
 Store the parent path cursor
 @return number of cursor stored */
@@ -297,10 +322,10 @@ Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. */
 bool
 rtr_pcur_open(
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,	/*!< in: memory buffer for persistent cursor */
+	que_thr_t*	thr,	/*!< in/out; query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((warn_unused_result));
 

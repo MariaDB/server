@@ -5323,6 +5323,10 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-thread-concurrency"),
       MARIADB_REMOVED_OPTION("innodb-thread-sleep-delay"),
       MARIADB_REMOVED_OPTION("innodb-undo-logs"),
+
+      /* The following options were deprecated in 10.9 */
+      MARIADB_REMOVED_OPTION("innodb-change-buffering"),
+
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*
