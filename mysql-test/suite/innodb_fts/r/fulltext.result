@@ -721,6 +721,8 @@ DROP TABLE t1;
 #
 SET @save = @@global.innodb_file_per_table;
 SET @@global.innodb_file_per_table = 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1 (
 col_int INTEGER, col_text TEXT,
 col_int_g INTEGER GENERATED ALWAYS AS (col_int)
@@ -730,6 +732,8 @@ ALTER TABLE t1 DROP KEY `ftidx` ;
 INSERT INTO t1 (col_int, col_text) VALUES ( 1255, NULL);
 DROP TABLE t1;
 SET @@global.innodb_file_per_table = @save;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 #
 # MDEV-20797  FULLTEXT search with apostrophe,
 #		and mandatory words

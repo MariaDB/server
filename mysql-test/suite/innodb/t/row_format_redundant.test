@@ -26,14 +26,11 @@ let bugdir= $MYSQLTEST_VARDIR/tmp/row_format_redundant;
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc
 
-SET GLOBAL innodb_file_per_table=1;
-
 --echo #
 --echo # Bug#21644827 - FTS, ASSERT !SRV_READ_ONLY_MODE || M_IMPL.M_LOG_MODE ==
 --echo #                MTR_LOG_NO_REDO
 --echo #
 
-SET GLOBAL innodb_file_per_table=ON;
 create table t1 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156)) engine=InnoDB
 row_format=redundant;
