@@ -17,7 +17,7 @@ set -o pipefail
 
 case "$1" in
   configure)
-    # This is needed because mysql_install_db removes the pid file in /run
+    # This is needed because mariadb-install-db removes the pid file in /run
     # and because changed configuration options should take effect immediately.
     # In case the server wasn't running at all it should be ok if the stop
     # script fails. I can't tell at this point because of the cleaned /run.
@@ -162,12 +162,12 @@ EOF
 
     # initiate databases. Output is not allowed by debconf :-(
     # This will fail if we are upgrading an existing database; in this case
-    # mysql_upgrade, called from the /etc/init.d/mariadb start script, will
+    # mariadb-upgrade, called from the /etc/mysql/debian-start script, will
     # handle things.
     # Debian: beware of the bashisms...
     # Debian: can safely run on upgrades with existing databases
     set +e
-    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql \
+    bash /usr/bin/mariadb-install-db --rpm --cross-bootstrap --user=mysql \
                                    --disable-log-bin  --skip-test-db 2>&1 | \
                                    $ERR_LOGGER
     set -e
