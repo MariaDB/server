@@ -1168,7 +1168,7 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
     callback= &cb;
   }
 
-  log_write_up_to(lsn, srv_file_flush_method != SRV_NOSYNC &&
+  log_write_up_to(lsn, !my_disable_sync &&
                   (srv_flush_log_at_trx_commit & 1), callback);
 }
 

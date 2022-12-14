@@ -198,12 +198,6 @@ xb_fil_cur_open(
 		return(XB_FIL_CUR_SKIP);
 	}
 
-	if (srv_file_flush_method == SRV_O_DIRECT
-	    || srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC) {
-
-		os_file_set_nocache(cursor->file, node->name, "OPEN");
-	}
-
 	posix_fadvise(cursor->file, 0, 0, POSIX_FADV_SEQUENTIAL);
 
 	cursor->page_size = node->space->physical_size();
