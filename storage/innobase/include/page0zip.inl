@@ -269,7 +269,7 @@ page_zip_max_ins_size(
 Determine if enough space is available in the modification log.
 @return TRUE if enough space is available */
 UNIV_INLINE
-ibool
+bool
 page_zip_available(
 /*===============*/
 	const page_zip_des_t*	page_zip,/*!< in: compressed page */

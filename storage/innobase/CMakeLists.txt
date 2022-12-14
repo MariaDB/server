@@ -270,7 +270,6 @@ SET(INNOBASE_SOURCES
 	include/handler0alter.h
 	include/hash0hash.h
 	include/ibuf0ibuf.h
-	include/ibuf0ibuf.inl
 	include/lock0iter.h
 	include/lock0lock.h
 	include/lock0lock.inl

@@ -64,7 +64,6 @@ combination of types */
 				auto-generated clustered indexes,
 				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
-#define	DICT_IBUF	8	/*!< insert buffer tree */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
 #define	DICT_FTS	32	/* FTS index; can't be combined with the
@@ -995,7 +994,7 @@ struct dict_index_t {
 # define DICT_INDEX_MERGE_THRESHOLD_DEFAULT 50
 	unsigned	type:DICT_IT_BITS;
 				/*!< index type (DICT_CLUSTERED, DICT_UNIQUE,
-				DICT_IBUF, DICT_CORRUPT) */
+				DICT_CORRUPT) */
 #define MAX_KEY_LENGTH_BITS 12
 	unsigned	trx_id_offset:MAX_KEY_LENGTH_BITS;
 				/*!< position of the trx id column
@@ -1184,12 +1183,8 @@ public:
 	/** @return whether instant ALTER TABLE is in effect */
 	inline bool is_instant() const;
 
-	/** @return whether the index is the primary key index
-	(not the clustered index of the change buffer) */
-	bool is_primary() const
-	{
-		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
-	}
+	/** @return whether the index is the primary key index */
+	bool is_primary() const { return is_clust(); }
 
 	/** @return whether this is a generated clustered index */
 	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
@@ -1203,16 +1198,13 @@ public:
 	/** @return whether this is a spatial index */
 	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
 
-	/** @return whether this is the change buffer */
-	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
-
 	/** @return whether this index requires locking */
-	bool has_locking() const { return !is_ibuf(); }
+	static constexpr bool has_locking() { return true; }
 
 	/** @return whether this is a normal B-tree index
         (not the change buffer, not SPATIAL or FULLTEXT) */
 	bool is_btree() const {
-		return UNIV_LIKELY(!(type & (DICT_IBUF | DICT_SPATIAL
+		return UNIV_LIKELY(!(type & (DICT_SPATIAL
 					     | DICT_FTS | DICT_CORRUPT)));
 	}
 

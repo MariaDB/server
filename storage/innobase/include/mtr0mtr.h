@@ -381,15 +381,6 @@ public:
   @retval 0 if the transaction only modified temporary tablespaces */
   lsn_t commit_lsn() const { ut_ad(has_committed()); return m_commit_lsn; }
 
-  /** Note that we are inside the change buffer code. */
-  void enter_ibuf() { m_inside_ibuf= true; }
-
-  /** Note that we have exited from the change buffer code. */
-  void exit_ibuf() { m_inside_ibuf= false; }
-
-  /** @return true if we are inside the change buffer code */
-  bool is_inside_ibuf() const { return m_inside_ibuf; }
-
   /** Note that some pages have been freed */
   void set_trim_pages() { m_trim_pages= true; }
 
@@ -791,10 +782,6 @@ private:
 
   /** whether log_sys.latch is locked exclusively */
   uint16_t m_latch_ex:1;
-
-  /** whether change buffer is latched; only needed in non-debug builds
-  to suppress some read-ahead operations, @see ibuf_inside() */
-  uint16_t m_inside_ibuf:1;
 
   /** whether the pages has been trimmed */
   uint16_t m_trim_pages:1;

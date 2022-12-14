@@ -33,7 +33,6 @@ Created 2/27/1997 Heikki Tuuri
 #include "trx0purge.h"
 #include "btr0btr.h"
 #include "mach0data.h"
-#include "ibuf0ibuf.h"
 #include "row0undo.h"
 #include "row0vers.h"
 #include "trx0trx.h"
@@ -490,10 +489,9 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	dberr_t			err	= DB_SUCCESS;
 	mtr_t			mtr;
 	mtr_t			mtr_vers;
-	row_search_result	search_result;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
-	row_mtr_start(&mtr, index, !modify_leaf);
+	row_mtr_start(&mtr, index);
 
 	pcur.btr_cur.page_cur.index = index;
 	btr_cur = btr_pcur_get_btr_cur(&pcur);
@@ -504,7 +502,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 					 | BTR_RTREE_DELETE_MARK
 					 | BTR_RTREE_UNDO_INS)
 			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
-		btr_cur->thr = thr;
 	} else if (!index->is_committed()) {
 		/* The index->online_status may change if the index is
 		or was being created online, but not committed yet. It
@@ -523,10 +520,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		ut_ad(!dict_index_is_online_ddl(index));
 	}
 
-	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
-
-	switch (UNIV_EXPECT(search_result, ROW_FOUND)) {
-	case ROW_NOT_FOUND:
+	if (!row_search_index_entry(entry, mode, &pcur, thr, &mtr)) {
 		/* In crash recovery, the secondary index record may
 		be missing if the UPDATE did not have time to insert
 		the secondary index records before the crash.  When we
@@ -537,14 +531,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		before it has inserted all updated secondary index
 		records, then the undo will not find those records. */
 		goto func_exit;
-	case ROW_FOUND:
-		break;
-	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
-		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
-		ut_error;
 	}
 
 	/* We should remove the index record if no prior version of the row,
@@ -665,7 +651,6 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	trx_t*			trx		= thr_get_trx(thr);
 	const ulint		flags
 		= BTR_KEEP_SYS_FLAG | BTR_NO_LOCKING_FLAG;
-	row_search_result	search_result;
 	const auto		orig_mode = mode;
 
 	pcur.btr_cur.page_cur.index = index;
@@ -682,23 +667,12 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	}
 
 try_again:
-	row_mtr_start(&mtr, index, mode & 8);
+	row_mtr_start(&mtr, index);
 
-	btr_cur->thr = thr;
+	mem_heap_t* offsets_heap = nullptr;
+	rec_offs* offsets = nullptr;
 
-	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
-
-	switch (search_result) {
-		mem_heap_t*	heap;
-		mem_heap_t*	offsets_heap;
-		rec_offs*	offsets;
-	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
-		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
-		ut_error;
-	case ROW_NOT_FOUND:
+	if (!row_search_index_entry(entry, mode, &pcur, thr, &mtr)) {
 		/* For spatial index, if first search didn't find an
 		undel-marked rec, try to find a del-marked rec. */
 		if (dict_index_is_spatial(index) && btr_cur->rtr_info->fd_del) {
@@ -720,7 +694,7 @@ try_again:
 				<< " at: " << rec_index_print(
 					btr_cur_get_rec(btr_cur), index);
 			err = DB_DUPLICATE_KEY;
-			break;
+			goto func_exit;
 		}
 
 		ib::warn() << "Record in index " << index->name
@@ -734,8 +708,6 @@ try_again:
 		delete-unmark. */
 		big_rec_t*	big_rec;
 		rec_t*		insert_rec;
-		offsets = NULL;
-		offsets_heap = NULL;
 
 		err = btr_cur_optimistic_insert(
 			flags, btr_cur, &offsets, &offsets_heap,
@@ -764,15 +736,13 @@ try_again:
 		if (offsets_heap) {
 			mem_heap_free(offsets_heap);
 		}
-
-		break;
-	case ROW_FOUND:
+	} else {
+		mem_heap_t*	heap;
 		btr_rec_set_deleted<false>(btr_cur_get_block(btr_cur),
 					   btr_cur_get_rec(btr_cur), &mtr);
 		heap = mem_heap_create(
 			sizeof(upd_t)
 			+ dtuple_get_n_fields(entry) * sizeof(upd_field_t));
-		offsets_heap = NULL;
 		offsets = rec_get_offsets(
 			btr_cur_get_rec(btr_cur),
 			index, nullptr, index->n_core_fields, ULINT_UNDEFINED,
@@ -811,6 +781,7 @@ try_again:
 		mem_heap_free(offsets_heap);
 	}
 
+func_exit:
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 

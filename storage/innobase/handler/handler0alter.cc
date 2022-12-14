@@ -2154,8 +2154,7 @@ next_page:
     }
 
     next_page= false;
-    block= btr_block_get(*clust_index, next_page_no, BTR_SEARCH_LEAF, false,
-                         &mtr);
+    block= btr_block_get(*clust_index, next_page_no, BTR_SEARCH_LEAF, &mtr);
     if (!block)
       goto non_empty;
     page_cur_set_before_first(block, cur);

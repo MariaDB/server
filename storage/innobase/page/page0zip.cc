@@ -408,8 +408,6 @@ inline void mtr_t::zmemcpy(const buf_block_t &b, void *dest, const void *str,
 static void page_zip_compress_write_log(buf_block_t *block,
                                         dict_index_t *index, mtr_t *mtr)
 {
-  ut_ad(!index->is_ibuf());
-
   if (!mtr->is_logged())
     return;
 
@@ -463,8 +461,7 @@ page_zip_get_n_prev_extern(
 	ut_ad(page_is_leaf(page));
 	ut_ad(page_is_comp(page));
 	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(index->is_primary());
 
 	heap_no = rec_get_heap_no_new(rec);
 	ut_ad(heap_no >= PAGE_HEAP_NO_USER_LOW);
@@ -1282,7 +1279,6 @@ page_zip_compress(
 	ut_ad(page_simple_validate_new((page_t*) page));
 	ut_ad(page_zip_simple_validate(page_zip));
 	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(!dict_index_is_ibuf(index));
 
 	MEM_CHECK_DEFINED(page, srv_page_size);
 
@@ -4374,10 +4370,6 @@ Reorganize and compress a page.  This is a low-level operation for
 compressed pages, to be used when page_zip_compress() fails.
 On success, redo log will be written.
 The function btr_page_reorganize() should be preferred whenever possible.
-IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
-non-clustered index, the caller must update the insert buffer free
-bits in the same mini-transaction in such a way that the modification
-will be redo-logged.
 @return error code
 @retval DB_FAIL on overflow; the block_zip will be left intact */
 dberr_t
@@ -4398,7 +4390,6 @@ page_zip_reorganize(
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(block->page.zip.data);
 	ut_ad(page_is_comp(page));
-	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(!index->table->is_temporary());
 	/* Note that page_zip_validate(page_zip, page, index) may fail here. */
 	MEM_CHECK_DEFINED(page, srv_page_size);
@@ -4505,7 +4496,6 @@ page_zip_copy_recs(
 
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->memo_contains_page_flagged(src, MTR_MEMO_PAGE_X_FIX));
-	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(!index->table->is_temporary());
 #ifdef UNIV_ZIP_DEBUG
 	/* The B-tree operations that call this function may set

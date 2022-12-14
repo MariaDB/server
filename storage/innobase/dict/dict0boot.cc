@@ -30,7 +30,6 @@ Created 4/18/1996 Heikki Tuuri
 #include "dict0load.h"
 #include "trx0trx.h"
 #include "srv0srv.h"
-#include "ibuf0ibuf.h"
 #include "buf0flu.h"
 #include "log0recv.h"
 #include "os0file.h"
@@ -233,12 +232,12 @@ dberr_t dict_boot()
 	dict_sys.create();
 
 	dberr_t err;
-	const buf_block_t *d = buf_page_get_gen(hdr_page_id, 0, RW_X_LATCH,
+	const buf_block_t *d = buf_page_get_gen(hdr_page_id, 0, RW_S_LATCH,
 						nullptr, BUF_GET, &mtr, &err);
-        if (!d) {
+	if (!d) {
 		mtr.commit();
 		return err;
-        }
+	}
 
 	heap = mem_heap_create(450);
 
@@ -420,10 +419,7 @@ dberr_t dict_boot()
 
 	mtr.commit();
 
-	err = ibuf_init_at_db_start();
-
-	if (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO) {
-		err = DB_SUCCESS;
+	if (err == DB_SUCCESS) {
 		/* Load definitions of other indexes on system tables */
 
 		dict_load_sys_table(dict_sys.sys_tables);
