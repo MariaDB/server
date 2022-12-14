@@ -19314,7 +19314,7 @@ static MYSQL_SYSVAR_UINT(undo_tablespaces, srv_undo_tablespaces,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of undo tablespaces to use.",
   NULL, NULL,
-  0L,			/* Default seting */
+  3L,			/* Default seting */
   0L,			/* Minimum value */
   TRX_SYS_MAX_UNDO_SPACES, 0); /* Maximum value */
 
@@ -19335,7 +19335,7 @@ static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
 static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
   PLUGIN_VAR_OPCMDARG,
   "Enable or Disable Truncate of UNDO tablespace.",
-  NULL, NULL, FALSE);
+  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

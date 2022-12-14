@@ -33,7 +33,7 @@ let $restart_parameters=$default_parameters --innodb_encryption_threads=5 --inno
 
 --echo # Wait until encryption threads have encrypted all tablespaces
 
---let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + 1 + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 --source include/wait_condition.inc
@@ -63,7 +63,7 @@ alter table t33 encryption_key_id=222;
 
 --echo # Wait until encryption threads have encrypted all tablespaces
 
---let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 --source include/wait_condition.inc
@@ -77,7 +77,7 @@ set global innodb_encrypt_tables = OFF;
 
 --echo # Wait until encryption threads to decrypt all encrypted tablespaces
 
---let $tables_count= `select count(*) - 1 from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) - 1 + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING = 0;
 --source include/wait_condition.inc
@@ -105,7 +105,7 @@ set global innodb_encrypt_tables = ON;
 
 --echo # Wait until encryption threads to encrypt all unencrypted tablespaces
 
---let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces from information_schema.tables where engine = 'InnoDB'`
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 --source include/wait_condition.inc
