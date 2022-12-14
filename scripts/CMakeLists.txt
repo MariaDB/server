@@ -223,7 +223,7 @@ IF(UNIX AND NOT WITHOUT_SERVER)
     DESTINATION ${INSTALL_SCRIPTDIR}
     COMPONENT Server)
 
-  INSTALL_LINK(mariadb-install-db mysql_install_db ${INSTALL_SCRIPTDIR} Server)
+  INSTALL_LINK(mariadb-install-db mysql_install_db ${INSTALL_SCRIPTDIR} ServerSymlinks)
 ENDIF()
 
 SET(prefix "${CMAKE_INSTALL_PREFIX}")
@@ -385,7 +385,7 @@ ELSE()
 
     # Create symlink
     IF (NOT ${binname} STREQUAL ${file})
-      INSTALL_LINK(${file} ${binname} ${INSTALL_BINDIR} ${${file}_COMPONENT})
+      INSTALL_LINK(${file} ${binname} ${INSTALL_BINDIR} ${${file}_COMPONENT}Symlinks)
     ENDIF()
   ENDFOREACH()
 ENDIF()

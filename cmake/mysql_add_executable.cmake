@@ -106,7 +106,7 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
          ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${link}
          DESTINATION
          ${ARG_DESTINATION}
-         COMPONENT ${COMP})
+         COMPONENT ${COMP}Symlinks)
     ELSE()
       # Windows note:
       # Here, hardlinks are used, because cmake can't install symlinks.

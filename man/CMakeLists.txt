@@ -13,44 +13,54 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-SET(MAN1_WSREP wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1
-    wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1 galera_new_cluster.1)
-SET(MAN1_SERVER innochecksum.1 myisam_ftdump.1 myisamchk.1
-                aria_chk.1 aria_dump_log.1 aria_ftdump.1 aria_pack.1 aria_read_log.1
-                aria_s3_copy.1
-		myisamlog.1 myisampack.1 mysql.server.1 mariadb-conv.1
-		mysql_fix_extensions.1
-		mysql_install_db.1
-		mysql_upgrade.1
-		mysqld_multi.1 mysqld_safe.1
-		resolveip.1 mariadb-service-convert.1
-		mysqld_safe_helper.1
-		mysql_ldb.1 myrocks_hotbackup.1
-		mbstream.1 mariabackup.1)
 IF(WITH_WSREP)
-  SET(MAN1_SERVER ${MAN1_SERVER} ${MAN1_WSREP})
+  SET(MAN1_WSREP wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1
+      wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1 galera_new_cluster.1)
 ENDIF()
+SET(MAN1_SERVER_COMPAT mysql.server.1
+                       mysql_fix_extensions.1
+                       mysql_install_db.1
+                       mysql_upgrade.1
+                       mysqld_multi.1 mysqld_safe.1
+                       mysqld_safe_helper.1)
+SET(MAN1_SERVER_NATIVE innochecksum.1 myisam_ftdump.1 myisamchk.1
+                       aria_chk.1 aria_dump_log.1 aria_ftdump.1 aria_pack.1 aria_read_log.1
+                       myisamlog.1 myisampack.1  mariadb-conv.1
+                       resolveip.1 mariadb-service-convert.1)
+SET(MAN1_SERVER ${MAN1_SERVER_COMPAT} ${MAN1_SERVER_NATIVE})
 SET(MAN8_SERVER mysqld.8)
-SET(MAN1_CLIENT msql2mysql.1 mysql.1 mysql_find_rows.1 mysql_waitpid.1
-		mysqldumpslow.1
-		mysqlaccess.1 mysqladmin.1 mysqlbinlog.1 mysqlcheck.1
-		mysqldump.1 mysqlimport.1 mysqlshow.1 mysqlslap.1 mytop.1
-                mysql_plugin.1 mysql_embedded.1 my_print_defaults.1
-                mysqlhotcopy.1 mysql_setpermission.1 mysql_tzinfo_to_sql.1
-                mysql_convert_table_format.1 replace.1 mysql_secure_installation.1
-		perror.1 resolve_stack_dump.1)
+SET(MAN1_CLIENT_NATIVE msql2mysql.1 perror.1 replace.1 resolve_stack_dump.1 mytop.1 my_print_defaults.1)
+SET(MAN1_CLIENT_COMPAT mysql.1 mysql_find_rows.1 mysql_waitpid.1
+                       mysqldumpslow.1
+                       mysqlaccess.1 mysqladmin.1 mysqlbinlog.1 mysqlcheck.1
+                       mysqldump.1 mysqlimport.1 mysqlshow.1 mysqlslap.1
+                       mysql_plugin.1 mysql_embedded.1
+                       mysqlhotcopy.1 mysql_setpermission.1 mysql_tzinfo_to_sql.1
+                       mysql_convert_table_format.1 mysql_secure_installation.1)
+SET(MAN1_CLIENT ${MAN1_CLIENT_NATIVE} ${MAN1_CLIENT_COMPAT})
 SET(MAN1_DEVEL mysql_config.1)
-SET(MAN1_TEST mysql-stress-test.pl.1 mysql-test-run.pl.1 mysql_client_test.1
-              mysqltest.1 mysqltest_embedded.1 mysql_client_test_embedded.1
-              my_safe_process.1)
+SET(MAN1_TEST my_safe_process.1
+              mysql-stress-test.pl.1 mysql-test-run.pl.1 mysql_client_test.1
+              mysqltest.1 mysqltest_embedded.1 mysql_client_test_embedded.1)
 IF(NOT WITHOUT_SERVER)
-  INSTALL(FILES ${MAN1_SERVER} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesServer)
-  INSTALL(FILES ${MAN8_SERVER} DESTINATION ${INSTALL_MANDIR}/man8 COMPONENT ManPagesServer)
+  INSTALL(FILES ${MAN1_SERVER_NATIVE} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesServer)
+  IF (WITH_WSREP)
+    INSTALL(FILES ${MAN1_WSREP} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesServer)
+  ENDIF()
+  INSTALL(FILES ${MAN1_SERVER_COMPAT} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ServerSymlinks)
+  INSTALL(FILES ${MAN8_SERVER} DESTINATION ${INSTALL_MANDIR}/man8 COMPONENT ServerSymlinks)
 ENDIF()
+SET(MAN1_BACKUP mbstream.1 mariabackup.1)
+INSTALL(FILES ${MAN1_BACKUP} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT backup)
 
-INSTALL(FILES ${MAN1_CLIENT} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesClient)
+INSTALL(FILES ${MAN1_CLIENT_NATIVE} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesClient)
+INSTALL(FILES ${MAN1_CLIENT_COMPAT} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ClientSymlinks)
 INSTALL(FILES ${MAN1_DEVEL} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesDevelopment)
 INSTALL(FILES ${MAN1_TEST} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT ManPagesTest)
+
+SET(MAN1_ROCKSDB mysql_ldb.1 myrocks_hotbackup.1)
+INSTALL(FILES ${MAN1_ROCKSDB} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT rocksdb-engine)
+INSTALL(FILES aria_s3_copy.1 DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT s3-engine)
 
 macro(MARIADB_SYMLINK_MANPAGE)
   list(LENGTH MARIADB_SYMLINK_TOS _len)
@@ -65,6 +75,8 @@ macro(MARIADB_SYMLINK_MANPAGE)
     list(FIND MAN1_CLIENT ${_manname}.1 _iman1client)
     list(FIND MAN1_DEVEL ${_manname}.1 _iman1devel)
     list(FIND MAN1_TEST ${_manname}.1 _iman1test)
+    list(FIND MAN1_BACKUP ${_manname}.1 _iman1backup)
+    list(FIND MAN1_ROCKSDB ${_manname}.1 _iman1rocks)
 
     if (${_iman1client} GREATER -1)
       MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 1 "man1" ManPagesClient)
@@ -74,6 +86,12 @@ macro(MARIADB_SYMLINK_MANPAGE)
     endif()
     if (${_iman1test} GREATER -1)
       MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 1 "man1" ManPagesTest)
+    endif()
+    if (${_iman1backup} GREATER -1)
+      MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 1 "man1" ManPagesBackup)
+    endif()
+    if (${_iman1rocks} GREATER -1)
+      MARIADB_SYMLINK_MANPAGE_CREATE(${_manname} ${_index} 1 "man1" rocksdb-engine)
     endif()
     if (WITHOUT_SERVER)
 	    continue()
