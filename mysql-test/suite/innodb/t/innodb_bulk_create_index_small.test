@@ -80,11 +80,6 @@ SELECT CHAR_LENGTH(b) FROM t1 WHERE a=4975;
 
 DROP TABLE t1;
 
-SET GLOBAL innodb_file_per_table=default;
-
-# Test Compressed Table
-SET GLOBAL innodb_file_per_table=1;
-
 CREATE TABLE t1(
 	class	INT,
 	id	INT,
@@ -142,7 +137,5 @@ CHECK TABLE t1;
 SELECT CHAR_LENGTH(b) FROM t1 WHERE a=4975;
 
 DROP TABLE t1;
-
-SET GLOBAL innodb_file_per_table=default;
 
 DROP PROCEDURE populate_t1;

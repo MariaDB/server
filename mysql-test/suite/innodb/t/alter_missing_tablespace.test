@@ -21,7 +21,6 @@ call mtr.add_suppression("InnoDB: ALTER TABLE `test`.`t` DISCARD TABLESPACE fail
 --enable_query_log
 
 let $MYSQLD_DATADIR=`select @@datadir`;
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t(a SERIAL)ENGINE=InnoDB;
 CREATE TABLE `x..d` (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t1(a SERIAL)ENGINE=InnoDB;

@@ -40,6 +40,8 @@ t	CREATE TABLE `t` (
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
 SET @TMP = @@GLOBAL.INNODB_FILE_PER_TABLE;
 SET GLOBAL INNODB_FILE_PER_TABLE=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t ADD PRIMARY KEY pk(a), ALGORITHM=INPLACE;
 Warnings:
 Warning	1280	Name 'pk' ignored for PRIMARY key.
@@ -53,6 +55,8 @@ t	CREATE TABLE `t` (
 (PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
  PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
 SET GLOBAL INNODB_FILE_PER_TABLE=@TMP;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 ALTER TABLE t REORGANIZE PARTITION p1,p2 INTO (
 PARTITION p1 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB,
 PARTITION p2 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB

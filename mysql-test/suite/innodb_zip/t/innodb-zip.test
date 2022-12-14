@@ -6,12 +6,12 @@ SELECT table_name, row_format, data_length, index_length
   FROM information_schema.tables
   WHERE table_schema='mysqltest_innodb_zip';
 
-let $per_table=`select @@innodb_file_per_table`;
 SET @save_innodb_stats_on_metadata=@@global.innodb_stats_on_metadata;
 
 --let $query_i_s = SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name
 
 set session innodb_strict_mode=0;
+SET @save_fpt=@@GLOBAL.innodb_file_per_table;
 set global innodb_file_per_table=off;
 SET @@global.innodb_stats_on_metadata=ON;
 
@@ -122,8 +122,6 @@ select count(*) from t1 where c4 = repeat('C', 20000);
 
 update t1 set c3 = repeat('E', 20000) where c1 = 1;
 drop table t1;
-
-set global innodb_file_per_table = on;
 
 set innodb_strict_mode = off;
 create table t1 (id int primary key) engine = innodb key_block_size = 0;
@@ -254,9 +252,7 @@ drop table t7, t8, t9;
 # restore environment to the state it was before this test execution
 #
 
--- disable_query_log
-eval set global innodb_file_per_table=$per_table;
+SET GLOBAL innodb_file_per_table=@save_fpt;
 SET @@global.innodb_stats_on_metadata=@save_innodb_stats_on_metadata;
---enable_query_log
 
 DROP DATABASE mysqltest_innodb_zip;

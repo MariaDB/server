@@ -12,8 +12,6 @@
 --let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
 --let SEARCH_RANGE = 10000000
 
-SET GLOBAL innodb_file_per_table = ON;
-
 create table t1 (a varchar(255)) engine=innodb encrypted=yes;
 create table t2 (a varchar(255)) engine=innodb;
 show warnings;

@@ -8,6 +8,8 @@ SET SESSION innodb_strict_mode = ON;
 # InnoDB only supports DATA DIRECTORY with innodb_file_per_table=ON
 #
 SET GLOBAL innodb_file_per_table = OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1 (c1 INT)  ENGINE = InnoDB
 PARTITION BY HASH (c1) (
 PARTITION p0
@@ -36,6 +38,8 @@ Error	6	Error on delete of 'MYSQLD_DATADIR/test/t1.par' (Errcode: 2 "No such fil
 #
 SET SESSION innodb_strict_mode = OFF;
 SET GLOBAL innodb_file_per_table = ON;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1 (c1 INT) ENGINE = InnoDB
 PARTITION BY HASH (c1)
 (PARTITION p0
@@ -134,6 +138,8 @@ DROP TABLE t1;
 #                 properly when used with DATA DIRECTORY
 #
 SET GLOBAL innodb_file_per_table = ON;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1
 (
 myid INT(11) NOT NULL,
@@ -326,4 +332,6 @@ DROP TABLE t1, t2;
 # Cleanup
 #
 SET GLOBAL innodb_file_per_table=@file_per_table;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SET SESSION innodb_strict_mode=@strict_mode;

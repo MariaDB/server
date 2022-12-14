@@ -6,7 +6,6 @@
 --source include/have_innodb.inc
 --source include/have_symlink.inc
 
-SET @innodb_file_per_table_orig=@@GLOBAL.innodb_file_per_table;
 LET $regexp=/FTS_[0-9a-f_]+([A-Z0-9_]+)\.([islbd]{3})/FTS_AUX_\1.\2/;
 
 # Set up some variables
@@ -14,7 +13,6 @@ LET $MYSQL_DATA_DIR = `select @@datadir`;
 LET $data_directory_clause = DATA DIRECTORY='$MYSQL_TMP_DIR/alt_dir';
 
 SET default_storage_engine=InnoDB;
-SET GLOBAL innodb_file_per_table=ON;
 
 SET NAMES utf8mb4;
 
@@ -706,5 +704,3 @@ DROP TABLE tt, t1o, sys_tables, sys_indexes, sys_foreign;
 --list_files $MYSQL_TMP_DIR/alt_dir/test
 --rmdir $MYSQL_TMP_DIR/alt_dir/test
 --rmdir $MYSQL_TMP_DIR/alt_dir
-
-SET GLOBAL innodb_file_per_table = @innodb_file_per_table_orig;
