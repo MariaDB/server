@@ -66,7 +66,7 @@ FUNCTION(INSTALL_MANPAGES COMP)
       SET(dst "${CMAKE_CURRENT_BINARY_DIR}/${s}.${n}")
       FILE(WRITE ${dst} ".so man${n}/${f}.${n}")
       INSTALL(FILES ${dst} DESTINATION ${INSTALL_MANDIR}/man${n}
-              COMPONENT ${COMP})
+              COMPONENT ${COMP}Symlinks)
     ENDIF()
   ENDFOREACH()
 ENDFUNCTION()
