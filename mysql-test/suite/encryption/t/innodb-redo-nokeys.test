@@ -19,8 +19,6 @@ call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore corrupti
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
 
-SET GLOBAL innodb_file_per_table = ON;
-
 create table t1(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes encryption_key_id=20;
 create table t2(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes;
 create table t3(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb encrypted=yes encryption_key_id=20;

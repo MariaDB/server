@@ -1,6 +1,6 @@
 #
 # Test to cause merge of the pages (at secondary index by deleting)
-# test/tab1 should be created already with innodb_file_per_table=ON
+# test/tab1 should be created already
 # The definition is intended to be based on
 # "create table tab1 (a bigint primary key, b blob) engine=InnoDB row_format=dynamic;"
 # "create index index1 on tab1(b(750));"

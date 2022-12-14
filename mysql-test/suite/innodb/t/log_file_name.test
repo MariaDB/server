@@ -7,7 +7,6 @@
 # Embedded server does not support crashing
 --source include/not_embedded.inc
 
-SET GLOBAL innodb_file_per_table=ON;
 FLUSH TABLES;
 
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;

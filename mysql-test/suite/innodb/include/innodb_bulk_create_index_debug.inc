@@ -38,8 +38,6 @@ if ($row_format != 'COMPRESSED')
 
 if ($row_format == 'COMPRESSED')
 {
-  SET GLOBAL innodb_file_per_table=1;
-
   eval CREATE TABLE t1(
         class   INT,
         id      INT,
@@ -69,8 +67,6 @@ if ($row_format != 'COMPRESSED') {
 }
 
 if ($row_format == 'COMPRESSED') {
-  SET GLOBAL innodb_file_per_table=1;
-
   eval CREATE TABLE t1(
         a INT PRIMARY KEY,
         b TEXT,
@@ -124,8 +120,6 @@ if ($row_format != 'COMPRESSED')
 
 if ($row_format == 'COMPRESSED')
 {
-  SET GLOBAL innodb_file_per_table=1;
-
   eval CREATE TABLE t1(
         class   INT,
         id      INT,
@@ -174,8 +168,6 @@ if ($row_format != 'COMPRESSED') {
 }
 
 if ($row_format == 'COMPRESSED') {
-  SET GLOBAL innodb_file_per_table=1;
-
   eval CREATE TABLE t1(
         a INT PRIMARY KEY,
         b TEXT,

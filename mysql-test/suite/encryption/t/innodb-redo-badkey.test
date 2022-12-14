@@ -31,8 +31,6 @@ call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space="
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
 --source include/wait_condition.inc
 
-SET GLOBAL innodb_file_per_table = ON;
-
 create table t1(a int not null primary key auto_increment, c char(250), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes encryption_key_id=4;
 create table t2(a int not null primary key auto_increment, c char(250), b blob, index(b(10))) engine=innodb row_format=compressed;
 create table t3(a int not null primary key auto_increment, c char(250), b blob, index(b(10))) engine=innodb encrypted=yes encryption_key_id=4;

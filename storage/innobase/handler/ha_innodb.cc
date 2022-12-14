@@ -18846,7 +18846,7 @@ static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   fast_shutdown_validate, NULL, 1, 0, 3, 0);
 
 static MYSQL_SYSVAR_BOOL(file_per_table, srv_file_per_table,
-  PLUGIN_VAR_NOCMDARG,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_DEPRECATED,
   "Stores each InnoDB table to an .ibd file in the database dir.",
   NULL, NULL, TRUE);
 
