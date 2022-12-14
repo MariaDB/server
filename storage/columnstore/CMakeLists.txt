@@ -28,6 +28,10 @@ CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_subdirectory(columnstore)
 
     IF(TARGET columnstore)
+	# Redo logic in cmake/plugin to prevent the attempted creation of *Symlinks package
+	SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} columnstore-engineSymlinks)
+	SET(CPACK_COMPONENT_COLUMNSTORE-ENGINESYMLINKS_GROUP columnstore-engine PARENT_SCOPE)
+        SET(CPACK_COMPONENT_COLUMNSTORE-ENGINE_GROUP columnstore-engine PARENT_SCOPE)
         # Needed to bump the component changes up to the main scope
         APPEND_FOR_CPACK(CPACK_COMPONENTS_ALL)
         IF (RPM)
