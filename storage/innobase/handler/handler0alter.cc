@@ -10201,6 +10201,7 @@ commit_try_rebuild(
 
 	/* We must be still holding a table handle. */
 	DBUG_ASSERT(user_table->get_ref_count() == 1);
+	rebuilt_table->row_id = uint64_t{user_table->row_id};
 	DBUG_EXECUTE_IF("ib_rebuild_cannot_rename", error = DB_ERROR;);
 
 	switch (error) {

@@ -44,39 +44,6 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	uint32_t*		space_id);	/*!< out: space id
 						(not assigned if NULL) */
-/** Update dict_sys.row_id in the dictionary header file page. */
-void dict_hdr_flush_row_id(row_id_t id);
-/** @return A new value for GEN_CLUST_INDEX(DB_ROW_ID) */
-inline row_id_t dict_sys_t::get_new_row_id()
-{
-  row_id_t id= row_id.fetch_add(1);
-  if (!(id % ROW_ID_WRITE_MARGIN))
-    dict_hdr_flush_row_id(id);
-  return id;
-}
-
-/** Ensure that row_id is not smaller than id, on IMPORT TABLESPACE */
-inline void dict_sys_t::update_row_id(row_id_t id)
-{
-  row_id_t sys_id= row_id;
-  while (id >= sys_id)
-  {
-    if (!row_id.compare_exchange_strong(sys_id, id))
-      continue;
-    if (!(id % ROW_ID_WRITE_MARGIN))
-      dict_hdr_flush_row_id(id);
-    break;
-  }
-}
-
-/**********************************************************************//**
-Writes a row id to a record or other 6-byte stored form. */
-inline void dict_sys_write_row_id(byte *field, row_id_t row_id)
-{
-  static_assert(DATA_ROW_ID_LEN == 6, "compatibility");
-  mach_write_to_6(field, row_id);
-}
-
 /*****************************************************************//**
 Initializes the data dictionary memory structures when the database is
 started. This function is also called when the data dictionary is created.
@@ -116,7 +83,7 @@ inline bool dict_is_sys_table(table_id_t id) { return id < DICT_HDR_FIRST_ID; }
 
 /*-------------------------------------------------------------*/
 /* Dictionary header offsets */
-#define DICT_HDR_ROW_ID		0	/* The latest assigned row id */
+//#define DICT_HDR_ROW_ID	0	/* Was: latest assigned DB_ROW_ID */
 #define DICT_HDR_TABLE_ID	8	/* The latest assigned table id */
 #define DICT_HDR_INDEX_ID	16	/* The latest assigned index id */
 #define DICT_HDR_MAX_SPACE_ID	24	/* The latest assigned space id,or 0*/
