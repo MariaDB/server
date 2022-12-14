@@ -35,14 +35,3 @@ galera_ssl_reload : MDEV-24097 MTR sporadaically fails: Failed to start mysqld o
 galera_toi_vote : MDEV-24097 MTR sporadaically fails: Failed to start mysqld or mysql_shutdown failed
 galera_wsrep_schema_init : MDEV-24097 MTR sporadaically fails: Failed to start mysqld or mysql_shutdown failed
 galera_parallel_apply_3nodes : MDEV-29774 Galera test galera_parallel_apply_3nodes is unstable
-
-# Work around MDEV-30157
-# Galera SST or IST is incompatible with innodb_undo_tablespaces>0
-GCF-376 : MDEV-30157
-galera-features#119 : MDEV-30157
-galera_allowlist : MDEV-30157
-galera_certification_ccc : MDEV-30157
-galera_evs_suspect_timeout : MDEV-30157
-galera_garbd_backup : MDEV-30157
-galera_pc_weight: MDEV-30157
-galera_var_dirty_reads2: MDEV-30157

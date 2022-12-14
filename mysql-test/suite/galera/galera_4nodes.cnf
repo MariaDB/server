@@ -10,8 +10,6 @@ wsrep-provider=@ENV.WSREP_PROVIDER
 # enforce read-committed characteristics across the cluster
 # wsrep-causal-reads=ON
 wsrep-sync-wait=15
-# work around MDEV-30157
-wsrep-sst-method=mariabackup
 
 [mysqld.1]
 wsrep-on=1

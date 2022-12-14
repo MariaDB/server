@@ -11,9 +11,3 @@
 ##############################################################################
 
 GCF-1060 : MDEV-26528 wrong usage of mutex LOCK_thd_kill and LOCK_thd_kill
-
-# Work around MDEV-30157
-# Galera SST or IST is incompatible with innodb_undo_tablespaces>0
-galera_sr_kill_slave : MDEV-30157
-galera_evs_suspect_timeout : MDEV-30157
-galera-features#119 : MDEV-30157
