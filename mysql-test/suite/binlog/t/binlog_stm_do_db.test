@@ -37,7 +37,7 @@
 -- source include/have_log_bin.inc
 -- source include/have_innodb.inc
 -- source include/have_binlog_format_statement.inc
-
+RESET MASTER; # clear up binlogs
 SET @old_isolation_level= @@session.tx_isolation;
 SET @@session.tx_isolation= 'READ-COMMITTED';
 

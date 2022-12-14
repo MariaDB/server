@@ -1635,17 +1635,6 @@ long long spider_direct_sql_body(
         goto error;
       }
       TABLE_LIST *tables = &direct_sql->table_list[roop_count];
-#ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
-      table_list.init_one_table(
-        &table_list.db, &table_list.table_name, 0, TL_WRITE);
-#else
-      tables->init_one_table(
-        SPIDER_TABLE_LIST_db_str(&table_list),
-        SPIDER_TABLE_LIST_db_length(&table_list),
-        SPIDER_TABLE_LIST_table_name_str(&table_list),
-        SPIDER_TABLE_LIST_table_name_length(&table_list),
-        SPIDER_TABLE_LIST_table_name_str(&table_list), TL_WRITE);
-#endif
       MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE,
         SPIDER_TABLE_LIST_db_str(&table_list),
         SPIDER_TABLE_LIST_table_name_str(&table_list),

@@ -1,0 +1,50 @@
+CREATE TABLE t1 (
+pkey int NOT NULL PRIMARY KEY,
+c int
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1);
+CREATE TABLE t2 (
+pkey int NOT NULL PRIMARY KEY,
+c int
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+INSERT INTO t2 VALUES (2, NULL);
+CREATE TABLE t3 (c int) engine = InnoDB;
+INSERT INTO t3 VALUES (10), (20), (30), (40), (50);
+connect con1, localhost,root,,;
+connection default;
+START TRANSACTION;
+UPDATE t3 SET c=c+1000;
+SELECT * FROM t1 FOR UPDATE;
+pkey	c
+1	1
+connection con1;
+START TRANSACTION;
+DELETE FROM t2 WHERE c NOT IN (SELECT ref_0.pkey FROM t1 AS ref_0 INNER JOIN t1 AS ref_1 ON ref_0.c = ref_0.pkey);
+connection default;
+SELECT * FROM t2 FOR UPDATE;
+pkey	c
+2	NULL
+COMMIT;
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+COMMIT;
+connection default;
+START TRANSACTION;
+UPDATE t3 SET c=c+1000;
+SELECT * FROM t1 FOR UPDATE;
+pkey	c
+1	1
+connection con1;
+START TRANSACTION;
+UPDATE t2 SET pkey=pkey+10 WHERE c NOT IN (SELECT ref_0.pkey FROM t1 AS ref_0 INNER JOIN t1 AS ref_1 ON ref_0.c = ref_0.pkey);
+connection default;
+SELECT * FROM t2 FOR UPDATE;
+pkey	c
+2	NULL
+COMMIT;
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+COMMIT;
+disconnect con1;
+connection default;
+DROP TABLE t1,t2,t3;

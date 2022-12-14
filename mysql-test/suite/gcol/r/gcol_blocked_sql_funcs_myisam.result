@@ -173,6 +173,9 @@ as (match(a) against ('' in boolean mode)) virtual;
 ERROR HY000: Function or expression 'match ... against()' cannot be used in the GENERATED ALWAYS AS clause of `r`
 drop table t1;
 #
+# End of 10.3 tests
+#
+#
 # MDEV-29029 Index corruption and/or assertion failure upon using RANDOM_BYTES for indexed virtual column
 #
 create table t1 (a int);

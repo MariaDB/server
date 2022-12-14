@@ -202,7 +202,7 @@ count(concat(User))
 22
 show grants;
 Grants for foo@localhost
-GRANT SELECT (User) ON `mysql`.`roles_mapping` TO `role1`
+GRANT SELECT (`User`) ON `mysql`.`roles_mapping` TO `role1`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `role10`
 GRANT USAGE ON *.* TO `role1`
@@ -236,8 +236,8 @@ count(concat(User,Host))
 22
 show grants;
 Grants for foo@localhost
-GRANT SELECT (Host) ON `mysql`.`roles_mapping` TO `role3`
-GRANT SELECT (User) ON `mysql`.`roles_mapping` TO `role1`
+GRANT SELECT (`Host`) ON `mysql`.`roles_mapping` TO `role3`
+GRANT SELECT (`User`) ON `mysql`.`roles_mapping` TO `role1`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `role10`
 GRANT USAGE ON *.* TO `role1`

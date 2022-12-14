@@ -249,6 +249,10 @@ as (match(a) against ('' in boolean mode)) virtual;
 drop table t1;
 
 --echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
 --echo # MDEV-29029 Index corruption and/or assertion failure upon using RANDOM_BYTES for indexed virtual column
 --echo #
 

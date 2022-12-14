@@ -27,7 +27,7 @@
 set sql_mode='';
 set default_storage_engine=Aria;
 set enforce_storage_engine=NULL;
-set alter_algorithm=DEFAULT;
+set alter_algorithm='DEFAULT';
 
 
 --

@@ -79,6 +79,32 @@ DROP TABLE t2;
 DROP TABLE t3;
 
 --echo #
+--echo # MDEV-28299: Server crashes in
+--echo #             XINDXS::Range/CntIndexRange (Connect engine)
+--echo #
+
+CREATE TABLE t1 ( a int not null, KEY (a))engine=CONNECT;
+SELECT * FROM t1 WHERE a=1;
+
+INSERT INTO t1 values (1),(2),(1);
+SELECT * FROM t1 WHERE a=1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int, b int, pk int, PRIMARY KEY (pk)) engine=CONNECT;
+SELECT x.a
+FROM t1 AS x JOIN t1 AS y ON (x.a = y.b)
+WHERE x.pk > 3;
+INSERT INTO t1 values (1,2,1),(2,1,2),(1,2,3),(3,4,4);
+SELECT x.a
+FROM t1 AS x JOIN t1 AS y ON (x.a = y.b)
+WHERE x.pk > 3;
+INSERT INTO t1 values (1,2,5);
+SELECT x.a
+FROM t1 AS x JOIN t1 AS y ON (x.a = y.b)
+WHERE x.pk > 3;
+DROP TABLE t1;
+
+--echo #
 --echo # MDEV-27591 Connect tables (FIX/DOS) don't work with DESC keys - wrong results
 --echo #
 --error ER_UNKNOWN_ERROR

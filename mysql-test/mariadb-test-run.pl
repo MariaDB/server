@@ -4441,6 +4441,7 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|io_uring_queue_init\(\) failed with|,
      qr|InnoDB: liburing disabled|,
+     qr/InnoDB: Failed to set (O_DIRECT|DIRECTIO_ON) on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,

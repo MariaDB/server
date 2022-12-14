@@ -4,6 +4,12 @@
 #
 # Test the effect of gmcast.isolate on master during an SR transaction
 #
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
@@ -41,7 +47,7 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
 --source include/wait_condition.inc
 --source include/galera_wait_ready.inc
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 --source include/galera_wait_ready.inc
@@ -125,3 +131,5 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --connection node_1
 CALL mtr.add_suppression("failed to send SR rollback for");
 DROP TABLE t1;
+
+--source ../galera/include/auto_increment_offset_restore.inc

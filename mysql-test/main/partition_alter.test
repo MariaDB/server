@@ -196,6 +196,16 @@ delete from t order by b limit 1;
 # cleanup
 drop table t;
 
+--echo #
+--echo # MDEV-30112 ASAN errors in Item_ident::print / generate_partition_syntax
+--echo #
+create table t (a int) partition by hash(a);
+--error ER_BAD_FIELD_ERROR
+alter table t change a b int, drop a;
+show create table t;
+# Cleanup
+drop table t;
+
 --echo # End of 10.3 tests
 
 --echo #

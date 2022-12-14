@@ -58,6 +58,9 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'st_geomfromgeo
 SELECT st_astext(st_geomfromgeojson('{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] } }'));
 st_astext(st_geomfromgeojson('{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] } }'))
 POINT(102 0.5)
+SELECT st_astext(st_geomfromgeojson('{ "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "type": "Feature" }'));
+st_astext(st_geomfromgeojson('{ "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "type": "Feature" }'))
+POINT(102 0.5)
 SELECT st_astext(st_geomfromgeojson('{ "type": "FeatureCollection", "features": [{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "properties": { "prop0": "value0" } }]}'));
 st_astext(st_geomfromgeojson('{ "type": "FeatureCollection", "features": [{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "properties": { "prop0": "value0" } }]}'))
 GEOMETRYCOLLECTION(POINT(102 0.5))

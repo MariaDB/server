@@ -43,6 +43,7 @@ Created 2012-02-08 by Sunny Bains.
 #include "lock0lock.h"
 #include "lzo/lzo1x.h"
 #include "snappy-c.h"
+#include "log.h"
 
 #include "scope.h"
 
@@ -583,6 +584,18 @@ protected:
 	uint32_t		m_space_flags;
 };
 
+ATTRIBUTE_COLD static dberr_t invalid_space_flags(uint32_t flags)
+{
+  if (fsp_flags_is_incompatible_mysql(flags))
+  {
+    sql_print_error("InnoDB: unsupported MySQL tablespace");
+    return DB_UNSUPPORTED;
+  }
+
+  sql_print_error("InnoDB: Invalid FSP_SPACE_FLAGS=0x%" PRIx32, flags);
+  return DB_CORRUPTION;
+}
+
 /** Determine the page size to use for traversing the tablespace
 @param file_size size of the tablespace file in bytes
 @param block contents of the first page in the tablespace file.
@@ -598,7 +611,7 @@ AbstractCallback::init(
 	if (!fil_space_t::is_valid_flags(m_space_flags, true)) {
 		uint32_t cflags = fsp_flags_convert_from_101(m_space_flags);
 		if (cflags == UINT32_MAX) {
-			return(DB_CORRUPTION);
+			return DB_CORRUPTION;
 		}
 		m_space_flags = cflags;
 	}
@@ -3078,7 +3091,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   if (!success)
     return DB_IO_ERROR;
 
-  if (os_file_get_size(file) < srv_page_size * 4)
+  if (os_file_get_size(file) < srv_page_size)
     return DB_CORRUPTION;
 
   SCOPE_EXIT([&file]() { os_file_close(file); });
@@ -3097,10 +3110,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   {
     auto cflags= fsp_flags_convert_from_101(space_flags);
     if (cflags == UINT32_MAX)
-    {
-      ib::error() << "Invalid FSP_SPACE_FLAGS=" << ib::hex(space_flags);
-      return DB_CORRUPTION;
-    }
+      return invalid_space_flags(space_flags);
     space_flags= static_cast<decltype(space_flags)>(cflags);
   }
 
@@ -4394,7 +4404,7 @@ row_import_for_mysql(
 
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INTERNAL_ERROR,
-			"Cannot reset LSNs in table %s : %s",
+			"Error importing tablespace for table %s : %s",
 				table_name, ut_strerr(err));
 		}
 
