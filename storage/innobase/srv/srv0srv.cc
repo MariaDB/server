@@ -223,9 +223,6 @@ ulong	srv_read_ahead_threshold;
 buffer in terms of percentage of the buffer pool. */
 uint	srv_change_buffer_max_size;
 
-ulong	srv_file_flush_method;
-
-
 /** copy of innodb_open_files; @see innodb_init_params() */
 ulint	srv_max_n_open_files;
 

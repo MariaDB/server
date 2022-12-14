@@ -51,35 +51,6 @@ using space_list_t= ilist<fil_space_t, space_list_tag_t>;
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
 
-/** Possible values of innodb_flush_method */
-enum srv_flush_t
-{
-  /** fsync, the default */
-  SRV_FSYNC= 0,
-  /** open log files in O_DSYNC mode */
-  SRV_O_DSYNC,
-  /** do not call os_file_flush() when writing data files, but do flush
-  after writing to log files */
-  SRV_LITTLESYNC,
-  /** do not flush after writing */
-  SRV_NOSYNC,
-  /** invoke os_file_set_nocache() on data files. This implies using
-  unbuffered I/O but still fdatasync(), because some filesystems might
-  not flush meta-data on write completion */
-  SRV_O_DIRECT,
-  /** Like O_DIRECT, but skip fdatasync(), assuming that the data is
-  durable on write completion */
-  SRV_O_DIRECT_NO_FSYNC
-#ifdef _WIN32
-  /** Traditional Windows appoach to open all files without caching,
-  and do FileFlushBuffers() */
-  ,SRV_ALL_O_DIRECT_FSYNC
-#endif
-};
-
-/** innodb_flush_method */
-extern ulong srv_file_flush_method;
-
 /** Undo tablespaces starts with space_id. */
 extern uint32_t srv_undo_space_id_start;
 /** The number of UNDO tablespaces that are open and ready to use. */
@@ -631,6 +602,8 @@ private:
   }
 
 public:
+  /** Reopen all files on set_write_through() or set_buffered(). */
+  static void reopen_all();
   /** Try to close a file to adhere to the innodb_open_files limit.
   @param print_info   whether to diagnose why a file cannot be closed
   @return whether a file was closed */
@@ -1414,6 +1387,20 @@ public:
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
+
+  /** whether each write to data files is durable (O_DSYNC) */
+  my_bool write_through;
+  /** whether data files are buffered (not O_DIRECT) */
+  my_bool buffered;
+
+  /** Try to enable or disable write-through of data files */
+  void set_write_through(bool write_through);
+  /** Try to enable or disable file system caching of data files */
+  void set_buffered(bool buffered);
+
+  TPOOL_SUPPRESS_TSAN bool is_write_through() const { return write_through; }
+  TPOOL_SUPPRESS_TSAN bool is_buffered() const { return buffered; }
+
   /** tablespaces for which fil_space_t::needs_flush() holds */
   sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
   /** number of currently open files; protected by mutex */
@@ -1527,12 +1514,7 @@ template<bool have_reference> inline void fil_space_t::flush()
   mysql_mutex_assert_not_owner(&fil_system.mutex);
   ut_ad(!have_reference || (pending() & PENDING));
   ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT);
-  if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
-  {
-    ut_ad(!is_in_unflushed_spaces);
-    ut_ad(!needs_flush());
-  }
-  else if (have_reference)
+  if (have_reference)
     flush_low();
   else if (!(acquire_low() & STOPPING))
   {
