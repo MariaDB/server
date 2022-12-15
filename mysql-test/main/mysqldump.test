@@ -1921,6 +1921,8 @@ SHOW EVENTS;
 --echo #           with --all-databases
 --echo #
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --ignore-database test --all-databases > $MYSQLTEST_VARDIR/tmp/mysqldump-MDEV-13336.sql
+# Starting with MariaDB 10.6, ensure that DDL recovery will have completed.
+SET GLOBAL innodb_max_purge_lag_wait=0;
 DROP DATABASE test;
 --exec $MYSQL < $MYSQLTEST_VARDIR/tmp/mysqldump-MDEV-13336.sql
 SHOW DATABASES LIKE 'test';

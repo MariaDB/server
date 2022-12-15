@@ -31,6 +31,8 @@ RENAME TABLE t1 TO `t2_new..............................................end`;
 show warnings;
 drop table t1;
 
+# Starting with MariaDB 10.6, ensure that DDL recovery will have completed.
+SET GLOBAL innodb_max_purge_lag_wait=0;
 drop database test;
 create database test;
 use test;
