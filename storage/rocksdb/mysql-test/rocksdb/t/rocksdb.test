@@ -266,8 +266,8 @@ select * from t10;
 select * from t11;
 --replace_column 9 #
 EXPLAIN
-SELECT * FROM t10, t11 WHERE i=j;
-SELECT * FROM t10, t11 WHERE i=j;
+SELECT * FROM t11 straight_join t10 WHERE i=j;
+SELECT * FROM t11 straight_join t10 WHERE i=j;
 
 DROP TABLE t10,t11;
 
