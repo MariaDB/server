@@ -33,8 +33,15 @@ INCLUDE_DIRECTORIES(BEFORE
 ## We will need libeay32.dll and ssleay32.dll when running client executables.
 COPY_OPENSSL_DLLS(copy_openssl_client)
 
-add_library(cli_utils STATIC cli_utils.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
+set(CLI_UTILS_SOURCES cli_utils.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
+if(WIN32)
+ # Right now, credential manager support is only a Windows thing.
+ list(APPEND CLI_UTILS_SOURCES credmgr.cc)
+endif()
+
+add_library(cli_utils STATIC ${CLI_UTILS_SOURCES})
 target_link_libraries(cli_utils mysys mariadbclient)
+add_dependencies(cli_utils GenError)
 
 SET(CLIENT_LIB mariadbclient mysys cli_utils)
 
