@@ -695,12 +695,13 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
   if (!parsing_failed)
   {
     thd->lex->set_trg_event_type_for_tables();
+    adjust_sql_command(thd->lex);
+    parsing_failed= on_after_expr_parsing(thd);
+
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)
       setup_table_fields_for_trigger(thd, sp,
                                      saved_ptr_to_next_trg_items_list);
 
-    adjust_sql_command(thd->lex);
-    parsing_failed= on_after_expr_parsing(thd);
     /*
       Assign the list of items created on parsing to the current
       stored routine instruction.
@@ -1056,6 +1057,27 @@ sp_instr_set_trigger_field::print(String *str)
                                     QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
+
+bool sp_instr_set_trigger_field::on_after_expr_parsing(THD *thd)
+{
+  DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
+
+  value= thd->lex->current_select->item_list.head();
+  DBUG_ASSERT(value != nullptr);
+
+  trigger_field = new (thd->mem_root)
+    Item_trigger_field(thd, thd->lex->current_context(),
+                       Item_trigger_field::NEW_ROW,
+                       m_trigger_field_name, UPDATE_ACL, false);
+
+  if (!value || !trigger_field)
+    return true;
+
+  thd->spcont->m_sp->m_cur_instr_trig_field_items.link_in_list(
+    trigger_field, &trigger_field->next_trg_field);
+
+  return false;
+}
 
 
 /*

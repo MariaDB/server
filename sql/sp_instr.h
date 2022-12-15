@@ -601,12 +601,11 @@ protected:
   {
     DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
 
-    // TODO: how to get an item corresponding to an expression in
-    // the statement SET var=expr ?
     m_value= thd->lex->current_select->item_list.head();
     DBUG_ASSERT(m_value != nullptr);
 
-    return false;
+    // Return error in release version if m_value == nullptr
+    return m_value == nullptr;
   }
 
   sp_rcontext *get_rcontext(THD *thd) const;
@@ -714,7 +713,11 @@ public:
       trigger_field(trg_fld),
       value(val),
       m_expr_str(value_query)
-  {}
+  {
+    m_trigger_field_name=
+      LEX_CSTRING{strdup_root(current_thd->mem_root, trg_fld->field_name.str),
+                              trg_fld->field_name.length};
+  }
 
   int execute(THD *thd, uint *nextp) override;
 
@@ -732,6 +735,8 @@ public:
     value= nullptr;
   }
 
+  bool on_after_expr_parsing(THD *thd) override;
+
 protected:
   LEX_CSTRING get_expr_query() const override
   {
@@ -746,6 +751,7 @@ private:
   */
   LEX_CSTRING m_expr_str;
 
+  LEX_CSTRING m_trigger_field_name;
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
@@ -925,7 +931,8 @@ protected:
     m_expr= thd->lex->current_select->item_list.head();
     DBUG_ASSERT(m_expr != nullptr);
 
-    return false;
+    // Return error in release version if m_expr == nullptr
+    return m_expr == nullptr;
   }
 
 private:
@@ -1013,8 +1020,6 @@ protected:
 
   void invalidate() override
   {
-    /* TODO: be careful and check that the object referenced by m_value
-       is not leaked */
     m_value= nullptr;
   }
 
@@ -1022,6 +1027,9 @@ protected:
   {
     DBUG_ASSERT(thd->lex->current_select->item_list.elements == 1);
     m_value= thd->lex->current_select->item_list.head();
+    DBUG_ASSERT(m_value != nullptr);
+
+    // Return error in release version if m_value == nullptr
     return m_value == nullptr;
   }
 
@@ -1228,6 +1236,12 @@ protected:
   LEX_CSTRING get_expr_query() const override
   {
     return m_cursor_query;
+  }
+
+  bool on_after_expr_parsing(THD *) override
+  {
+    m_metadata_changed= false;
+    return false;
   }
 
 private:
@@ -1544,7 +1558,8 @@ protected:
     m_case_expr= thd->lex->current_select->item_list.head();
     DBUG_ASSERT(m_case_expr != nullptr);
 
-    return false;
+    // Return error in release version if m_case_expr == nullptr
+    return m_case_expr == nullptr;
   }
 
 private:
