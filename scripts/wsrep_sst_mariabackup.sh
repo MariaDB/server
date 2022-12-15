@@ -94,9 +94,9 @@ sst_ver=1
 
 declare -a RC
 
-BACKUP_BIN=$(commandex 'mariabackup')
+BACKUP_BIN=$(commandex 'mariadb-backup')
 if [ -z "$BACKUP_BIN" ]; then
-    wsrep_log_error 'mariabackup binary not found in path'
+    wsrep_log_error 'mariadb-backup binary not found in path'
     exit 42
 fi
 
@@ -683,7 +683,7 @@ cleanup_at_exit()
         if [ -n "$BACKUP_PID" ]; then
             if check_pid "$BACKUP_PID" 1; then
                 wsrep_log_error \
-                    "mariabackup process is still running. Killing..."
+                    "mariadb-backup process is still running. Killing..."
                 cleanup_pid $CHECK_PID "$BACKUP_PID"
             fi
         fi
@@ -759,7 +759,7 @@ check_extra()
         if [ "$thread_handling" = 'pool-of-threads' ]; then
             local eport=$(parse_cnf '--mysqld' 'extra-port')
             if [ -n "$eport" ]; then
-                # mariabackup works only locally.
+                # mariadb-backup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally:
                 wsrep_log_info "SST through extra_port $eport"
                 INNOEXTRA="$INNOEXTRA --host=127.0.0.1 --port=$eport"
@@ -928,7 +928,7 @@ cd "$OLD_PWD"
 
 if [ $ssyslog -eq 1 ]; then
     if [ -n "$(commandex logger)" ]; then
-        wsrep_log_info "Logging all stderr of SST/mariabackup to syslog"
+        wsrep_log_info "Logging all stderr of SST/mariadb-backup to syslog"
 
         exec 2> >(logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE)
 
@@ -1051,11 +1051,11 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
             xtmpdir=$(TMPDIR="$tmpdir"; mktemp '-d')
         fi
 
-        wsrep_log_info "Using '$xtmpdir' as mariabackup temporary directory"
+        wsrep_log_info "Using '$xtmpdir' as mariadb-backup temporary directory"
         tmpopts=" --tmpdir='$xtmpdir'"
 
         itmpdir="$(mktemp -d)"
-        wsrep_log_info "Using '$itmpdir' as mariabackup working directory"
+        wsrep_log_info "Using '$itmpdir' as mariadb-abackup working directory"
 
         usrst=0
         if [ -n "$WSREP_SST_OPT_USER" ]; then
@@ -1146,7 +1146,7 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         fi
 
         # if compression is enabled for backup files, then add the
-        # appropriate options to the mariabackup command line:
+        # appropriate options to the mariadb-backup command line:
         if [ "$compress" != 'none' ]; then
             iopts="--compress${compress:+=$compress}${iopts:+ }$iopts"
             if [ -n "$compress_threads" ]; then
@@ -1168,7 +1168,7 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         set -e
 
         if [ ${RC[0]} -ne 0 ]; then
-            wsrep_log_error "mariabackup finished with error: ${RC[0]}." \
+            wsrep_log_error "mariadb-backup finished with error: ${RC[0]}." \
                             "Check syslog or '$INNOBACKUPLOG' for details"
             exit 22
         elif [ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]; then
@@ -1176,7 +1176,7 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
             exit 22
         fi
 
-        # mariabackup implicitly writes PID to fixed location in $xtmpdir
+        # mariadb-backup implicitly writes PID to fixed location in $xtmpdir
         BACKUP_PID="$xtmpdir/xtrabackup_pid"
 
     else # BYPASS FOR IST
@@ -1419,14 +1419,14 @@ else # joiner
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
             wsrep_log_error "xtrabackup_checkpoints missing," \
-                            "failed mariabackup/SST on donor"
+                            "failed mariadb-backup/SST on donor"
             exit 2
         fi
 
-        # Compact backups are not supported by mariabackup
+        # Compact backups are not supported by mariadb-backup
         if grep -qw -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
             wsrep_log_info "Index compaction detected"
-            wsrel_log_error "Compact backups are not supported by mariabackup"
+            wsrel_log_error "Compact backups are not supported by mariadb-backup"
             exit 2
         fi
 
@@ -1478,9 +1478,9 @@ else # joiner
 
         wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
-        timeit 'mariabackup prepare stage' "$INNOAPPLY"
+        timeit 'mariadb-backup prepare stage' "$INNOAPPLY"
         if [ $? -ne 0 ]; then
-            wsrep_log_error "mariabackup apply finished with errors." \
+            wsrep_log_error "mariadb-backup apply finished with errors." \
                             "Check syslog or '$INNOAPPLYLOG' for details."
             exit 22
         fi
@@ -1521,7 +1521,7 @@ else # joiner
         MAGIC_FILE="$TDATA/$INFO_FILE"
 
         wsrep_log_info "Moving the backup to $TDATA"
-        timeit 'mariabackup move stage' "$INNOMOVE"
+        timeit 'mariadb-backup move stage' "$INNOMOVE"
         if [ $? -eq 0 ]; then
             wsrep_log_info "Move successful, removing $DATA"
             rm -rf "$DATA"
