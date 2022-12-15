@@ -21,3 +21,4 @@ galera_gtid_2_cluster : MDEV-29877 Galera test failure on galera_2_cluster
 galera_ssl_reload : MDEV-30172 At line 50: mysql_shutdown failed
 GCF-354 : mysqltest: At line 39: query 'DROP TABLE test.t1' failed: 1047: WSREP has not yet prepared node for application use
 GCF-354 : mysqltest: At line 30: query 'INSERT INTO test.t1 values (1)' failed: 1180: Got error 6 "No such device or address"
+galera_ipv6_mysqldump : mysql_shutdown failed
