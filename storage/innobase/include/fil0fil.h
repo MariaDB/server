@@ -1516,9 +1516,10 @@ template<bool have_reference> inline void fil_space_t::flush()
   ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT);
   if (have_reference)
     flush_low();
-  else if (!(acquire_low() & STOPPING))
+  else
   {
-    flush_low();
+    if (!(acquire_low() & (STOPPING | CLOSING)))
+      flush_low();
     release();
   }
 }

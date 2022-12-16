@@ -10119,6 +10119,7 @@ commit_try_rebuild(
 	ha_innobase_inplace_ctx*ctx,
 	TABLE*			altered_table,
 	const TABLE*		old_table,
+	bool			statistics_exist,
 	trx_t*			trx,
 	const char*		table_name)
 {
@@ -10189,7 +10190,9 @@ commit_try_rebuild(
 		if (error == DB_SUCCESS) {
 			/* The statistics for the surviving indexes will be
 			re-inserted in alter_stats_rebuild(). */
-			error = trx->drop_table_statistics(old_name);
+			if (statistics_exist) {
+				error = trx->drop_table_statistics(old_name);
+			}
 			if (error == DB_SUCCESS) {
 				error = trx->drop_table(*user_table);
 			}
@@ -11335,6 +11338,7 @@ fail:
 
 			if (commit_try_rebuild(ha_alter_info, ctx,
 					       altered_table, table,
+					       table_stats && index_stats,
 					       trx,
 					       table_share->table_name.str)) {
 				goto fail;
