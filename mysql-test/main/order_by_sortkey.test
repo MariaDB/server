@@ -61,9 +61,21 @@ SHOW SESSION STATUS LIKE 'Sort%';
 explain SELECT * FROM t1 ORDER BY f2 LIMIT 100;
 SELECT * FROM t1 ORDER BY f2 LIMIT 100;
 
-# Check that Sort_priority_queue_sorts is used
-SHOW SESSION STATUS LIKE 'Sort%';
-# Check that we did scan the whole table and did LIMIT lookups
-SHOW STATUS LIKE 'Handler_read_rnd%';
+create table t2
+select * from information_schema.SESSION_STATUS
+where
+  variable_name like 'handler_read_rnd%' or
+  variable_name like 'Sort%';
 
-DROP TABLE t1, tmp;
+# Check that Sort_priority_queue_sorts is used
+select * from t2 where variable_name like 'Sort%';
+
+# Check that we did scan the whole table and did LIMIT lookups
+select * from t2 where variable_name='HANDLER_READ_RND';
+
+select
+  if(variable_value in (87701, 87802), 'OK', 'FAIL') as RES
+from t2 where variable_name='HANDLER_READ_RND_NEXT';
+
+
+DROP TABLE t1, tmp, t2;
