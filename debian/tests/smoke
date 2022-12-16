@@ -45,28 +45,28 @@ else
   systemctl restart mariadb
 fi
 
-mysql <<EOT
+mariadb <<EOT
 CREATE DATABASE testdatabase;
 CREATE USER 'testuser'@'localhost' identified by 'testpassword';
 GRANT ALL ON testdatabase.* TO 'testuser'@'localhost';
 EOT
 
-mysql testdatabase <<EOT
+mariadb testdatabase <<EOT
 CREATE TABLE foo (bar INTEGER);
 INSERT INTO foo (bar) VALUES (41);
 EOT
 
-result=$(echo 'SELECT bar+1 FROM foo;'|mysql --batch --skip-column-names --user=testuser --password=testpassword testdatabase)
+result=$(echo 'SELECT bar+1 FROM foo;'|mariadb --batch --skip-column-names --user=testuser --password=testpassword testdatabase)
 if [ "$result" != "42" ]; then
        echo "Unexpected result" >&2
        exit 1
 fi
 
-mysql --user=testuser --password=testpassword testdatabase <<EOT
+mariadb --user=testuser --password=testpassword testdatabase <<EOT
 DROP TABLE foo;
 EOT
 
-mysql <<EOT
+mariadb <<EOT
 DROP DATABASE testdatabase;
 DROP USER 'testuser'@'localhost';
 EOT
@@ -94,7 +94,7 @@ if [ "$(dpkg-architecture -qDEB_HOST_ARCH_BITS)" != 32 ] &&
   LOG=/var/lib/mysql/#rocksdb/LOG
   # XXX: The server may only be started during the install of
   #      mariadb-server, which happens before that of the plugin.
-  [ -e $LOG ] || mysql -e "INSTALL PLUGIN RocksDB SONAME 'ha_rocksdb';"
+  [ -e $LOG ] || mariadb -e "INSTALL PLUGIN RocksDB SONAME 'ha_rocksdb';"
   # XXX: rocksdb_supported_compression_types variable does not report ZSTD.
 
   # Print RocksDB supported items so test log is easier to debug
