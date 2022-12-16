@@ -20,35 +20,67 @@ select count(*) from t1 where c=5 and b=5;
 set optimizer_trace="enabled=on";
 select count(*) from t1 where a=2 and b=5 and c=10;
 
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set @trace=(select trace from INFORMATION_SCHEMA.OPTIMIZER_TRACE);
 
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+# The second JSON_EXTRACT is for --view-protocol which wraps every select:
+select 
+  JSON_DETAILED(
+    JSON_EXTRACT(
+      JSON_EXTRACT(@trace, '$**.considered_execution_plans'),
+      '$[0]'
+    )
+  ) as JS;
+
+select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.selectivity_for_indexes')) as JS;
 
 select count(*) from t1 where a=2 and b=5 and c=5;
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set @trace=(select trace from INFORMATION_SCHEMA.OPTIMIZER_TRACE);
+
+# The second JSON_EXTRACT is for --view-protocol which wraps every select:
+select 
+  JSON_DETAILED(
+    JSON_EXTRACT(
+      JSON_EXTRACT(@trace, '$**.considered_execution_plans'),
+      '$[0]'
+    )
+  ) as JS;
+select JSON_DETAILED(JSON_EXTRACT(@trace, '$**.selectivity_for_indexes')) as JS;
 
 --echo # Ensure that we only use selectivity from non used index for simple cases
 
 
 select count(*) from t1 where (a=2 and b= 5);
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 --echo # All of the following should have selectivity=1 for index 'b'
 select count(*) from t1 where (a=2 and b between 0 and 100);
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 select count(*) from t1 where (a in (2,3) and b between 0 and 100);
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 select count(*) from t1 where (a>2 and b between 0 and 100);
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 select count(*) from t1 where (a>=2 and b between 0 and 100);
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 select count(*) from t1 where (a<=2 and b between 0 and 100);
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 select count(*) from t1 where (a<2 and b between 0 and 100);
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 select count(*) from t1 where (a between 2 and 3 and b between 0 and 100);
-select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_indexes')) as JS
+from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 drop table t1;
 set optimizer_trace='enabled=off';
