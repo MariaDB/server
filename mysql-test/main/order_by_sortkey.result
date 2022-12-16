@@ -157,16 +157,24 @@ f0	f1	f2
 9701	0	0
 9801	0	0
 9901	0	0
-SHOW SESSION STATUS LIKE 'Sort%';
-Variable_name	Value
-Sort_merge_passes	0
-Sort_priority_queue_sorts	1
-Sort_range	0
-Sort_rows	100
-Sort_scan	1
-SHOW STATUS LIKE 'Handler_read_rnd%';
-Variable_name	Value
-Handler_read_rnd	100
-Handler_read_rnd_deleted	0
-Handler_read_rnd_next	87701
-DROP TABLE t1, tmp;
+create table t2
+select * from information_schema.SESSION_STATUS
+where
+variable_name like 'handler_read_rnd%' or
+variable_name like 'Sort%';
+select * from t2 where variable_name like 'Sort%';
+VARIABLE_NAME	VARIABLE_VALUE
+SORT_MERGE_PASSES	0
+SORT_PRIORITY_QUEUE_SORTS	1
+SORT_RANGE	0
+SORT_ROWS	100
+SORT_SCAN	1
+select * from t2 where variable_name='HANDLER_READ_RND';
+VARIABLE_NAME	VARIABLE_VALUE
+HANDLER_READ_RND	100
+select
+if(variable_value in (87701, 87802), 'OK', 'FAIL') as RES
+from t2 where variable_name='HANDLER_READ_RND_NEXT';
+RES
+OK
+DROP TABLE t1, tmp, t2;
