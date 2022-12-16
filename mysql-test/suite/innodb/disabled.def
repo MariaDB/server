@@ -9,4 +9,8 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-update : MDEV-30165 see commit message
+
+create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+innodb_log_size_online : MENT-1271 Wait condition timeout or wrong result
+innodb.innodb_information_schema : MDEV-30165 just record result if decide to merge
+innodb.innodb_trx_weight : MDEV-30165 see commit comment

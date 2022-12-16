@@ -1168,7 +1168,7 @@ lock_rec_create_low(
 
 	if (UNIV_UNLIKELY(heap_no == PAGE_HEAP_NO_SUPREMUM)) {
 		ut_ad(!(type_mode & LOCK_REC_NOT_GAP));
-		type_mode = type_mode & ~(LOCK_GAP | LOCK_REC_NOT_GAP);
+		type_mode = type_mode | LOCK_GAP;
 	}
 
 	if (UNIV_LIKELY(!(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))) {
@@ -1419,7 +1419,7 @@ static void lock_rec_add_to_queue(unsigned type_mode, hash_cell_t &cell,
 		/* There should never be LOCK_REC_NOT_GAP on a supremum
 		record, but let us play safe */
 
-		type_mode &= ~(LOCK_GAP | LOCK_REC_NOT_GAP);
+		type_mode |= LOCK_GAP;
 	}
 
 	if (type_mode & LOCK_WAIT) {
@@ -1532,7 +1532,8 @@ lock_rec_lock(
     if (lock_rec_get_next_on_page(lock) ||
         lock->trx != trx ||
         lock->type_mode != mode ||
-        lock_rec_get_n_bits(lock) <= heap_no)
+        lock_rec_get_n_bits(lock) <= heap_no ||
+        heap_no == PAGE_HEAP_NO_SUPREMUM)
     {
       /* Do nothing if the trx already has a strong enough lock on rec */
       if (!lock_rec_has_expl(mode, g.cell(), id, heap_no, trx))
@@ -4085,10 +4086,7 @@ static bool lock_release_on_prepare_try(trx_t *trx)
     {
       ut_ad(!lock->index->table->is_temporary());
       if (lock->mode() == LOCK_X && !lock->is_gap()) {
-        ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
-              /* Insert-intention lock is valid for supremum for isolation
-              level > TRX_ISO_READ_COMMITTED */
-              lock->mode() == LOCK_X ||
+        ut_ad(lock->mode() == LOCK_X ||
               !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
         continue;
       }
@@ -4157,10 +4155,7 @@ void lock_release_on_prepare(trx_t *trx)
       if (lock->mode() != LOCK_X || lock->is_gap())
         lock_rec_dequeue_from_page(lock, false);
       else
-        ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
-              /* Insert-intention lock is valid for supremum for isolation
-              level > TRX_ISO_READ_COMMITTED */
-              lock->mode() == LOCK_X ||
+        ut_ad(lock->mode() == LOCK_X ||
               !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
     }
     else

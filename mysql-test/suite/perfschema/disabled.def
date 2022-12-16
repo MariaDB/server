@@ -63,3 +63,5 @@ dml_processlist: todo
 processlist_57: todo
 processlist_anonymous: todo
 processlist_reg_user: todo
+
+memory_aggregate_32bit: MDEV-30165 as the number of lock objects is increased, just re-record result
