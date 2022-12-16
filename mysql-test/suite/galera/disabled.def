@@ -20,4 +20,9 @@ galera_var_notify_ssl_ipv6 : MDEV-29861 Galera test case hangs
 galera_var_node_address : MDEV-20485 Galera test failure
 MDEV-26575 : MDEV-29878 Galera test failure on MDEV-26575
 galera_bf_abort_shutdown : MDEV-29918 Assertion failure on galera_bf_abort_shutdown
+# Links to below failures in MDEV-30172
 galera_wan : [ERROR] WSREP: /home/buildbot/buildbot/build/gcs/src/gcs_state_msg.cpp:gcs_state_msg_get_quorum():947: Failed to establish quorum.
+galera_var_ignore_apply_errors : 28: "Server did not transition to READY state"
+galera_bf_kill_debug : timeout after 900 seconds
+galera_ssl_upgrade : [Warning] Failed to load slave replication state from table mysql.gtid_slave_pos: 130: Incorrect file format 'gtid_slave_pos'
+galera_parallel_simple : timeout related to wsrep_sync_wait
