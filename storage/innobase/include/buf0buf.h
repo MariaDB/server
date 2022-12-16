@@ -1385,12 +1385,6 @@ public:
   }
 
 public:
-  /** @return whether the buffer pool contains a page
-  @param page_id       page identifier
-  @param chain         hash table chain for page_id.fold() */
-  TRANSACTIONAL_TARGET
-  bool page_hash_contains(const page_id_t page_id, hash_chain &chain);
-
   /** @return whether less than 1/4 of the buffer pool is available */
   TPOOL_SUPPRESS_TSAN
   bool running_out() const

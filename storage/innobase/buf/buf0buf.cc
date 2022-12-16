@@ -2095,7 +2095,7 @@ lookup:
   return bpage;
 
 must_read_page:
-  if (dberr_t err= buf_read_page(page_id, zip_size, chain))
+  if (dberr_t err= buf_read_page(page_id, zip_size))
   {
     ib::error() << "Reading compressed page " << page_id
                 << " failed with error: " << err;
@@ -2319,7 +2319,7 @@ loop:
 	corrupted, or if an encrypted page with a valid
 	checksum cannot be decypted. */
 
-	if (dberr_t local_err = buf_read_page(page_id, zip_size, chain)) {
+	if (dberr_t local_err = buf_read_page(page_id, zip_size)) {
 		if (local_err != DB_CORRUPTION
 		    && mode != BUF_GET_POSSIBLY_FREED
 		    && retries++ < BUF_PAGE_READ_MAX_RETRIES) {
