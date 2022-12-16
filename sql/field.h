@@ -667,8 +667,10 @@ public:
    */
   virtual void set_max()
   { DBUG_ASSERT(0); }
-  virtual bool is_max()
+  virtual bool is_max(const uchar *) const
   { DBUG_ASSERT(0); return false; }
+  virtual bool is_max()
+  { return is_max(ptr); }
 
   uchar		*ptr;			// Position to field in record
 
@@ -2368,8 +2370,8 @@ public:
   {
     return unpack_int64(to, from, from_end);
   }
-  void set_max();
-  bool is_max();
+  void set_max() final;
+  bool is_max(const uchar *ptr_arg) const final;
   virtual ulonglong get_max_int_value() const
   {
     return unsigned_flag ? 0xFFFFFFFFFFFFFFFFULL : 0x7FFFFFFFFFFFFFFFULL;
@@ -2843,7 +2845,7 @@ public:
     return memcmp(a_ptr, b_ptr, pack_length());
   }
   void set_max();
-  bool is_max();
+  bool is_max(const uchar *) const final;
   void store_TIME(my_time_t timestamp, ulong sec_part);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   my_time_t get_timestamp(ulong *sec_part) const

@@ -4514,17 +4514,17 @@ void Field_longlong::set_max()
   int8store(ptr, unsigned_flag ? ULONGLONG_MAX : LONGLONG_MAX);
 }
 
-bool Field_longlong::is_max()
+bool Field_longlong::is_max(const uchar *ptr_arg) const
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   if (unsigned_flag)
   {
     ulonglong j;
-    j= uint8korr(ptr);
+    j= uint8korr(ptr_arg);
     return j == ULONGLONG_MAX;
   }
   longlong j;
-  j= sint8korr(ptr);
+  j= sint8korr(ptr_arg);
   return j == LONGLONG_MAX;
 }
 
@@ -5578,13 +5578,13 @@ void Field_timestampf::set_max()
   DBUG_VOID_RETURN;
 }
 
-bool Field_timestampf::is_max()
+bool Field_timestampf::is_max(const uchar *ptr_arg) const
 {
   DBUG_ENTER("Field_timestampf::is_max");
   ASSERT_COLUMN_MARKED_FOR_READ;
 
-  DBUG_RETURN(mi_sint4korr(ptr) == TIMESTAMP_MAX_VALUE &&
-              mi_sint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
+  DBUG_RETURN(mi_sint4korr(ptr_arg) == TIMESTAMP_MAX_VALUE &&
+              mi_sint3korr(ptr_arg + 4) == TIME_MAX_SECOND_PART);
 }
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,
