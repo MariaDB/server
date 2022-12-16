@@ -65,41 +65,6 @@ lock_rec_get_n_bits(
 	return(lock->un_member.rec_lock.n_bits);
 }
 
-/**********************************************************************//**
-Sets the nth bit of a record lock to TRUE. */
-inline
-void
-lock_rec_set_nth_bit(
-/*=================*/
-	lock_t*	lock,	/*!< in: record lock */
-	ulint	i)	/*!< in: index of the bit */
-{
-	ulint	byte_index;
-	ulint	bit_index;
-
-	ut_ad(!lock->is_table());
-	ut_ad(i < lock->un_member.rec_lock.n_bits);
-
-	byte_index = i / 8;
-	bit_index = i % 8;
-
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wconversion" /* GCC 4 and 5 need this here */
-#endif
-	((byte*) &lock[1])[byte_index] |= static_cast<byte>(1 << bit_index);
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic pop
-#endif
-#ifdef SUX_LOCK_GENERIC
-	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
-#else
-	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
-	      || (xtest() && !lock->trx->mutex_is_locked()));
-#endif
-	lock->trx->lock.n_rec_locks++;
-}
-
 /*********************************************************************//**
 Gets the first or next record lock on a page.
 @return	next lock, NULL if none exists */

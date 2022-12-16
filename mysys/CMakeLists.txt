@@ -152,7 +152,7 @@ ELSE()
 ENDIF()
 
 IF(UNIX)
- SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_addr_resolve.c my_setuser.c)
+ SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_addr_resolve.c my_setuser.c my_generate_core.cc)
 ENDIF()
 
 IF(HAVE_ALARM)

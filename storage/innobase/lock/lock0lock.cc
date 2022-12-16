@@ -1729,6 +1729,9 @@ func_exit:
 }
 #endif /* HAVE_REPLICATION */
 
+#include "my_generate_core.h"
+extern "C" int thd_is_slave(const MYSQL_THD thd);
+
 /** Wait for a lock to be released.
 @retval DB_DEADLOCK if this transaction was chosen as the deadlock victim
 @retval DB_INTERRUPTED if the execution was interrupted by the user
@@ -1875,6 +1878,16 @@ check_trx_error:
       {
         trx->error_state= DB_LOCK_WAIT_TIMEOUT;
         lock_sys.timeouts++;
+#ifdef HAVE_REPLICATION
+        trx_t *waited_trx= trx->lock.wait_trx;
+        if (thd_is_slave(trx->mysql_thd) && waited_trx &&
+            waited_trx->state == TRX_STATE_PREPARED)
+        {
+#ifndef _WIN32
+          my_generate_coredump(LOCK_WAIT_TIMEOUT, mysql_real_data_home);
+#endif /* _WIN32 */
+        }
+#endif /* HAVE_REPLICATION */
       }
     }
     break;
@@ -4576,6 +4589,50 @@ lock_print_info_all_transactions(
 	lock_sys.wr_unlock();
 
 	ut_d(lock_validate());
+}
+
+#include "my_generate_core.h"
+
+/**********************************************************************//**
+Sets the nth bit of a record lock to TRUE. */
+void
+lock_rec_set_nth_bit(
+/*=================*/
+	lock_t*	lock,	/*!< in: record lock */
+	ulint	i)	/*!< in: index of the bit */
+{
+	ulint	byte_index;
+	ulint	bit_index;
+
+	ut_ad(!lock->is_table());
+	ut_ad(i < lock->un_member.rec_lock.n_bits);
+
+        if (lock->trx->is_not_inheriting_locks()
+	    && (i == PAGE_HEAP_NO_SUPREMUM || lock->is_gap())
+	    && lock->mode() != LOCK_X) {
+#ifndef _WIN32
+	  my_generate_coredump(LOCK_REC_SET_NTH_BIT, mysql_real_data_home);
+#endif /* _WIN32 */
+	}
+
+	byte_index = i / 8;
+	bit_index = i % 8;
+
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 4 and 5 need this here */
+#endif
+	((byte*) &lock[1])[byte_index] |= static_cast<byte>(1 << bit_index);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
+#ifdef SUX_LOCK_GENERIC
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
+#else
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || (xtest() && !lock->trx->mutex_is_locked()));
+#endif
+	lock->trx->lock.n_rec_locks++;
 }
 
 #ifdef UNIV_DEBUG

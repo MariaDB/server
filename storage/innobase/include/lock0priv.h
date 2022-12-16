@@ -459,7 +459,6 @@ lock_rec_get_n_bits(
 
 /**********************************************************************//**
 Sets the nth bit of a record lock to TRUE. */
-inline
 void
 lock_rec_set_nth_bit(
 /*=================*/
