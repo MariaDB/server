@@ -736,7 +736,7 @@ sub set_myisam_vals
 {
    print "set_myisam_vals\n" if $op{debug};
 
-# should be moved elsewere
+# should be moved elsewhere
    $questions = $stats{'Questions'};
 
    $key_read_ratio = sprintf "%.2f",
@@ -1397,7 +1397,7 @@ format QCACHE =
 __ Query Cache _________________________________________________________
 Memory usage  @>>>>>> of  @>>>>>>  %Usage: @>>>>>
 make_short($qc_mem_used, 1), make_short($vars{'query_cache_size'}, 1), perc($qc_mem_used, $vars{'query_cache_size'})
-Block Fragmnt @>>>>>%
+Block Fragment @>>>>>%
 perc($stats{'Qcache_free_blocks'}, $stats{'Qcache_total_blocks'})
 Hits          @>>>>>>    @>>>>>/s
 make_short($stats{'Qcache_hits'}), t($stats{'Qcache_hits'})
