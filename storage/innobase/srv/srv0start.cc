@@ -110,9 +110,6 @@ lsn_t	srv_shutdown_lsn;
 /** TRUE if a raw partition is in use */
 ibool	srv_start_raw_disk_in_use;
 
-/** Number of IO threads to use */
-uint	srv_n_file_io_threads;
-
 /** UNDO tablespaces starts with space id. */
 ulint	srv_undo_space_id_start;
 
@@ -1208,17 +1205,10 @@ dberr_t srv_start(bool create_new_db)
 		return(srv_init_abort(err));
 	}
 
-	srv_n_file_io_threads = srv_n_read_io_threads + srv_n_write_io_threads;
-
-	if (!srv_read_only_mode) {
-		/* Add the log and ibuf IO threads. */
-		srv_n_file_io_threads += 2;
-	} else {
+	if (srv_read_only_mode) {
 		ib::info() << "Disabling background log and ibuf IO write"
 			<< " threads.";
 	}
-
-	ut_a(srv_n_file_io_threads <= SRV_MAX_N_IO_THREADS);
 
 	if (os_aio_init()) {
 		ib::error() << "Cannot initialize AIO sub-system";

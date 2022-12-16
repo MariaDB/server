@@ -2091,7 +2091,6 @@ static bool innodb_init_param()
 	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
 	srv_buf_pool_chunk_unit = (ulong)srv_buf_pool_size;
 
-	srv_n_file_io_threads = (uint) innobase_file_io_threads;
 	srv_n_read_io_threads = (uint) innobase_read_io_threads;
 	srv_n_write_io_threads = (uint) innobase_write_io_threads;
 
@@ -4486,7 +4485,6 @@ fail:
 	xb_filters_init();
 
 	xb_fil_io_init();
-	srv_n_file_io_threads = srv_n_read_io_threads;
 
 	if (os_aio_init()) {
 		msg("Error: cannot initialize AIO subsystem");
@@ -5964,12 +5962,6 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	fil_system.freeze_space_list = 0;
-
-	/* increase IO threads */
-	if (srv_n_file_io_threads < 10) {
-		srv_n_read_io_threads = 4;
-		srv_n_write_io_threads = 4;
-	}
 
 	msg("Starting InnoDB instance for recovery.");
 

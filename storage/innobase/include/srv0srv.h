@@ -313,7 +313,6 @@ extern ulong srv_buf_pool_load_pages_abort;
 /** Lock table size in bytes */
 extern ulint	srv_lock_table_size;
 
-extern uint	srv_n_file_io_threads;
 extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
 extern uint	srv_n_read_io_threads;
@@ -433,8 +432,6 @@ extern bool	srv_log_file_created;
 #endif /* UNIV_DEBUG */
 
 extern ulint	srv_dml_needed_delay;
-
-#define SRV_MAX_N_IO_THREADS	130
 
 /** innodb_purge_threads; the number of purge tasks to use */
 extern uint srv_n_purge_threads;
