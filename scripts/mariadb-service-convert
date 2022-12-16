@@ -25,7 +25,7 @@
 
 tz_old=$TZ
 
-. /usr/bin/mysqld_safe --dry-run
+. /usr/bin/mariadbd-safe --dry-run
 
 echo "# converted using $0"
 echo "#"
@@ -36,7 +36,7 @@ echo '[Service]'
 echo
 
 
-if [[ ( "$user" != "root" && "$user" != "mysql" ) || "${SET_USER}" == 1 ]]; then
+if [[ ( ! -z "$user" && "$user" != "root" && "$user" != "mysql" ) || "${SET_USER}" == 1 ]]; then
   echo User=$user
 fi
 
