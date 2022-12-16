@@ -335,7 +335,7 @@ build mariadbclient consumer Python-MySQLdb:
   image: debian:${RELEASE}
   script:
     - *test-prepare-container
-    # Run each step separately to avoitda 800+ lines chunk that lacks the
+    # Run each step separately to avoid an 800+ line chunk that lacks the
     # commands themselves printed and Gitlab-CI cutting off the output
     - apt-get install -y pkg-config ./libmariadb-dev*.deb ./libmariadb3_*.deb ./mariadb-common*.deb
     - pkg-config --cflags --libs mysqlclient # See what MySQLdb builds with
