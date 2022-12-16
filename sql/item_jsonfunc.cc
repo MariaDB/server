@@ -287,11 +287,14 @@ static int json_nice(json_engine_t *je, String *nice_js,
   int first_value= 1;
   int value_size = 0;
   int curr_state= -1;
-
+  int value_len= 0;
+  String curr_str{};
+  
   nice_js->length(0);
   nice_js->set_charset(je->s.cs);
   nice_js->alloc(je->s.str_end - je->s.c_str + 32);
-
+  
+  
   DBUG_ASSERT(mode != Item_func_json_format::DETAILED ||
               (tab_size >= 0 && tab_size <= TAB_SIZE_LIMIT));
 
@@ -361,7 +364,10 @@ handle_value:
         if (append_simple(nice_js, je->value_begin,
                           je->value_end - je->value_begin))
           goto error;
-
+        
+        curr_str.copy((const char *)je->value_begin,
+                      je->value_end - je->value_begin, je->s.cs);
+        value_len= je->value_end - je->value_begin;
         first_value= 0;
         if (value_size != -1)
           value_size++;
@@ -386,6 +392,21 @@ handle_value:
       if (mode == Item_func_json_format::DETAILED && (value_size > 1 || value_size == -1) &&
           append_tab(nice_js, depth, tab_size))
         goto error;
+        
+      if (mode == Item_func_json_format::DETAILED && 
+          value_size == 1 && je->state != JST_OBJ_END)
+      {
+        for (auto i = 0; i < value_len; i++)
+        {
+          nice_js->chop();
+        }
+        for (auto i = 0; i < (depth + 1) * tab_size + 1; i++)
+        {
+          nice_js->chop();
+        }
+        nice_js->append(curr_str);
+      }
+      
       nice_js->append((je->state == JST_OBJ_END) ? "}": "]", 1);
       first_value= 0;
       value_size= -1;
@@ -395,7 +416,7 @@ handle_value:
       break;
     };
   } while (json_scan_next(je) == 0);
-
+  
   return je->s.error || *je->killed_ptr;
 
 error:

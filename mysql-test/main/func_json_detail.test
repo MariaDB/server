@@ -50,7 +50,8 @@ insert into t200 values
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
                     },
-                    "analyzing_index_merge_union": []
+                    "analyzing_index_merge_union": [],
+                    "test_one_line_array":["123"]
                   },
                   "chosen_range_access_summary": {
                     "range_access_plan": {
@@ -92,4 +93,4 @@ insert into t200 values
 
 select JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
 
-#select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
+select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
