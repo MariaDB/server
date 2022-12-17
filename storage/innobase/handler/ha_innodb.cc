@@ -19335,7 +19335,7 @@ static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
 static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
   PLUGIN_VAR_OPCMDARG,
   "Enable or Disable Truncate of UNDO tablespace.",
-  NULL, NULL, TRUE);
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
