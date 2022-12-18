@@ -6976,6 +6976,11 @@ public:
   bool is_expensive() { return m_item->is_expensive(); }
   Item* build_clone(THD *thd) { return get_copy(thd); }
 
+  void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
+                      List<Item> &fields, uint flags)
+  {
+    m_item->split_sum_func(thd, ref_pointer_array, fields, flags);
+  }
   /*
     This processor states that this is safe for virtual columns
     (because this Item transparency)
