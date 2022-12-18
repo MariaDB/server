@@ -2468,7 +2468,8 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
 
     if (unlikely((!(used_tables() & ~PARAM_TABLE_BIT) ||
                   (type() == REF_ITEM &&
-                   ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF))))
+                   ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF &&
+                   ((Item_ref*)this)->ref_type() != Item_ref::DIRECT_REF))))
         return;
   }
 
