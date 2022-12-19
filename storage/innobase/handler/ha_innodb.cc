@@ -20078,7 +20078,7 @@ innobase_rename_vc_templ(
 */
 
 bool innobase_allocate_row_for_vcol(THD *thd, const dict_index_t *index,
-                                    mem_heap_t **heap, TABLE *maria_table,
+                                    mem_heap_t **heap, const TABLE *maria_table,
                                     VCOL_STORAGE *storage)
 {
   String *blob_value_storage;
@@ -20111,7 +20111,7 @@ bool innobase_allocate_row_for_vcol(THD *thd, const dict_index_t *index,
 
 void innobase_free_row_for_vcol(VCOL_STORAGE *storage)
 {
-	TABLE *maria_table= storage->maria_table;
+	const TABLE *maria_table= storage->maria_table;
 	maria_table->move_fields(maria_table->field, storage->maria_record,
                                  storage->innobase_record);
         maria_table->restore_blob_values(storage->blob_value_storage);

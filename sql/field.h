@@ -4667,8 +4667,8 @@ public:
   void print_key_value(String *out, uint32 length) override;
   Binlog_type_info binlog_type_info() const override;
 
-  friend void TABLE::remember_blob_values(String *blob_storage);
-  friend void TABLE::restore_blob_values(String *blob_storage);
+  friend void TABLE::remember_blob_values(String *blob_storage) const;
+  friend void TABLE::restore_blob_values(String *blob_storage) const;
 };
 
 

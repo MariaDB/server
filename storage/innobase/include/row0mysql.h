@@ -719,7 +719,7 @@ struct SysIndexCallback {
 class String;
 struct VCOL_STORAGE
 {
-	TABLE *maria_table;
+	const TABLE *maria_table;
 	byte *innobase_record;
 	byte *maria_record;
 	String *blob_value_storage;
@@ -745,7 +745,7 @@ struct VCOL_STORAGE
 bool innobase_allocate_row_for_vcol(THD *thd,
 				    const dict_index_t* index,
 				    mem_heap_t**  heap,
-				    TABLE*	  maria_table,
+				    const TABLE*  maria_table,
 				    VCOL_STORAGE* storage);
 
 /** Free memory allocated by innobase_allocate_row_for_vcol() */
@@ -759,7 +759,7 @@ public:
 
   ib_vcol_row(mem_heap_t *heap) : heap(heap) {}
 
-  byte *record(THD *thd, const dict_index_t *index, TABLE *table)
+  byte *record(THD *thd, const dict_index_t *index, const TABLE *table)
   {
     if (!storage.innobase_record &&
         !innobase_allocate_row_for_vcol(thd, index, &heap, table, &storage))

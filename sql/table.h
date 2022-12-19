@@ -1315,7 +1315,8 @@ public:
   ORDER		*group;
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
-  MY_BITMAP     def_read_set, def_write_set, tmp_set;
+  MY_BITMAP     def_read_set, def_write_set;
+  mutable MY_BITMAP tmp_set;
   MY_BITMAP     def_rpl_write_set;
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
   MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
@@ -1686,13 +1687,13 @@ public:
   my_ptrdiff_t default_values_offset() const
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
 
-  void move_fields(Field **ptr, const uchar *to, const uchar *from);
-  void remember_blob_values(String *blob_storage);
-  void restore_blob_values(String *blob_storage);
+  void move_fields(Field **ptr, const uchar *to, const uchar *from) const;
+  void remember_blob_values(String *blob_storage) const;
+  void restore_blob_values(String *blob_storage) const;
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
-  int update_virtual_field(Field *vf, bool ignore_warnings);
+  int update_virtual_field(Field *vf, bool ignore_warnings) const;
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool ignore_errors);
   void evaluate_update_default_function();
@@ -3178,7 +3179,7 @@ typedef struct st_open_table_list{
 } OPEN_TABLE_LIST;
 
 
-static inline MY_BITMAP *tmp_use_all_columns(TABLE *table,
+static inline MY_BITMAP *tmp_use_all_columns(const TABLE *table,
                                              MY_BITMAP **bitmap)
 {
   MY_BITMAP *old= *bitmap;
@@ -3218,7 +3219,7 @@ static inline void dbug_tmp_restore_column_map(MY_BITMAP **bitmap,
   Variant of the above : handle both read and write sets.
   Provide for the possiblity of the read set being the same as the write set
 */
-static inline void dbug_tmp_use_all_columns(TABLE *table,
+static inline void dbug_tmp_use_all_columns(const TABLE *table,
                                             MY_BITMAP **save,
                                             MY_BITMAP **read_set,
                                             MY_BITMAP **write_set)
