@@ -19,12 +19,7 @@ IF(GIT_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
     SET(update_result 0)
   ELSE()
     SET(UPDATE_SUBMODULES_COMMAND
-        "${GIT_EXECUTABLE}" submodule update --init --recursive)
-    # Old Git may not work with "--depth 1".
-    # See also: https://github.com/git/git/commit/fb43e31f2b43076e7a30c9cd00d0241cb8cf97eb
-    IF(NOT GIT_VERSION_STRING VERSION_LESS "2.8.0")
-      SET(UPDATE_SUBMODULES_COMMAND ${UPDATE_SUBMODULES_COMMAND} --depth 1)
-    ENDIF()
+        "${GIT_EXECUTABLE}" submodule update --init --recursive --remote)
     IF(cmake_update_submodules MATCHES force)
       MESSAGE(STATUS "Updating submodules (forced)")
       EXECUTE_PROCESS(COMMAND ${UPDATE_SUBMODULES_COMMAND} --force

@@ -1,6 +1,8 @@
 [submodule "libmariadb"]
 	path = libmariadb
 	url = https://github.com/MariaDB/mariadb-connector-c
+	branch = 3.3
 [submodule "storage/rocksdb/rocksdb"]
 	path = storage/rocksdb/rocksdb
 	url = https://github.com/facebook/rocksdb.git
+	branch = 6.8.fb
