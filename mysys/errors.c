@@ -60,7 +60,7 @@ const char *globerrs[GLOBERRS]=
   "Lock Pages in memory access rights required",
   "Memcntl %s cmd %s error",
   "Warning: Charset id '%d' csname '%s' trying to replace existing csname '%s'",
-  "Notice: %s is deprecated and will be removed in a future release, use command '%s'"
+  "Deprecated program name. It will be removed in a future release, use '%s' instead"
 };
 
 void init_glob_errs(void)

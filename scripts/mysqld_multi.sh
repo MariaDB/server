@@ -50,6 +50,8 @@ $homedir = $ENV{HOME};
 $my_progname = $0;
 $my_progname =~ s/.*[\/]//;
 
+warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-multi' instead\n"
+  if $0 =~ m/mysqld_multi$/;
 
 if (defined($ENV{UMASK})) {
   my $UMASK = $ENV{UMASK};

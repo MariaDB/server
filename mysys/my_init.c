@@ -179,7 +179,7 @@ my_bool my_init(void)
     */
     if (strncmp(my_progname_short, "mariadb", 7)
         && my_readlink(link_name, my_progname, MYF(0)) == 0)
-      my_error(EE_NAME_DEPRECATED, MYF(MY_WME), my_progname, link_name);
+      my_error(EE_NAME_DEPRECATED, MYF(MY_WME), link_name);
   }
 
   /* Initialize our mutex handling */

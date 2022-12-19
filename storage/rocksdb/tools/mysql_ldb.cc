@@ -8,6 +8,7 @@
 #include "rocksdb/ldb_tool.h"
 
 int main(int argc, char **argv) {
+  MY_INIT(argv[0]);
   rocksdb::Options db_options;
   myrocks::Rdb_pk_comparator pk_comparator;
   db_options.comparator = &pk_comparator;
