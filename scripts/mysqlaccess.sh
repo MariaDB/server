@@ -32,6 +32,8 @@ BEGIN {
         $script      = 'MySQLAccess' unless $script;
 	$script_conf = "$script.conf";
 	$script_log  = $ENV{'HOME'}."/$script.log";
+        warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-access' instead\n"
+          if $0 =~ m/mysqlaccess$/;
 
 	# ****************************
 	# information on MariaDB

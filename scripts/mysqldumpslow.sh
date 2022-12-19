@@ -26,6 +26,9 @@
 use strict;
 use Getopt::Long;
 
+warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-dumpslow' instead\n"
+  if $0 =~ m/mysqldumpslow$/;
+
 # t=time, l=lock time, r=rows, a=rows affected
 # at, al, ar and aa are the corresponding averages
 

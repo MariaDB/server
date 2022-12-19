@@ -27,6 +27,9 @@ use Sys::Hostname;
 use File::Copy;
 use File::Temp qw(tempfile);
 
+warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-hotcopy' instead\n"
+  if $0 =~ m/mysqlhotcopy$/;
+
 =head1 NAME
 
 mysqlhotcopy - fast on-line hot-backup utility for local MySQL databases and tables

@@ -43,6 +43,13 @@ static void setup_codepages();
 #define _SC_PAGESIZE _SC_PAGE_SIZE
 #endif
 
+#if defined(__linux__)
+#define EXE_LINKPATH "/proc/self/exe"
+#elif defined(__FreeBSD__)
+/* unfortunately, not mounted by default */
+#define EXE_LINKPATH "/proc/curproc/file"
+#endif
+
 extern pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 
 #define SCALE_SEC       100
@@ -174,12 +181,21 @@ my_bool my_init(void)
     char link_name[FN_REFLEN];
     my_progname_short= my_progname + dirname_length(my_progname);
     /*
-      If its a link a different program that doesn't begin with mariadb
-      like mariadb-repair might link to mariadb-check.
+      if my_progname_short doesn't start from "mariadb", but it's
+      a symlink to an actual executable, that does - warn the user.
+      First try to find the actual name via /proc, but if it's unmounted
+      (which it usually is on FreeBSD) resort to my_progname
     */
-    if (strncmp(my_progname_short, "mariadb", 7)
-        && my_readlink(link_name, my_progname, MYF(0)) == 0)
-      my_error(EE_NAME_DEPRECATED, MYF(MY_WME), my_progname, link_name);
+    if (strncmp(my_progname_short, "mariadb", 7))
+    {
+      int res= 1;
+#ifdef EXE_LINKPATH
+      res= my_readlink(link_name, EXE_LINKPATH, MYF(0));
+#endif
+      if ((res == 0 || my_readlink(link_name, my_progname, MYF(0)) == 0) &&
+           strncmp(link_name + dirname_length(link_name), "mariadb", 7) == 0)
+      my_error(EE_NAME_DEPRECATED, MYF(MY_WME), link_name);
+    }
   }
 
   /* Initialize our mutex handling */

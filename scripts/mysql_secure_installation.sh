@@ -30,8 +30,8 @@ defaults_extra_file=
 no_defaults=
 
 case "$0" in
-  *mysql*)
-    echo "Notice: $0 is deprecated and will be removed in a future release, use command mariadb-secure-installation" 1>&2
+  *mysql_secure_installation)
+    echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-secure-installation' instead" 1>&2
     ;;
 esac
 
