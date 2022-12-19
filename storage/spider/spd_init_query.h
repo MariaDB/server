@@ -538,6 +538,10 @@ static LEX_STRING spider_init_queries[] = {
     "        engine=Aria transactional=1;"
     "    end if;"
     "  end if;"
+/*
+  tables for ddl pushdown
+*/
+/*
     "  if @server_name = 'MariaDB' and"
     "    ("
     "      @server_major_version > 10 or"
@@ -547,7 +551,6 @@ static LEX_STRING spider_init_queries[] = {
     "      )"
     "    )"
     "  then"
-    "    /* table for ddl pushdown */"
     "    create table if not exists mysql.spider_rewrite_tables("
     "      table_id bigint unsigned not null auto_increment,"
     "      db_name char(64) not null default '',"
@@ -602,6 +605,7 @@ static LEX_STRING spider_init_queries[] = {
     "      primary key (db_name, table_name, table_id, partition_id)"
     "    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;"
     "  end if;"
+*/
 /*
   Fix for version 3.4
 */
@@ -798,6 +802,10 @@ static LEX_STRING spider_init_queries[] = {
     "        soname 'ha_spider.dll';"
     "    end if;"
     "  end if;"
+/*
+  Install spider_rewrite plugin
+*/
+/*
     "  if @server_name = 'MariaDB' and"
     "    ("
     "      @server_major_version > 10 or"
@@ -807,9 +815,6 @@ static LEX_STRING spider_init_queries[] = {
     "      )"
     "    )"
     "  then"
-/*
-  Install spider_rewrite plugin
-*/
     "    set @have_spider_i_s_rewrite_plugin := 0;"
     "    select @have_spider_i_s_rewrite_plugin := 1"
     "      from INFORMATION_SCHEMA.plugins"
@@ -819,11 +824,6 @@ static LEX_STRING spider_init_queries[] = {
     "      where name = 'spider_rewrite';"
     "    if @have_spider_i_s_rewrite_plugin = 0 then"
     "      if @have_spider_rewrite_plugin = 1 then"
-    "        /*"
-    "          spider_rewrite plugin is present in mysql.plugin but not in"
-    "          information_schema.plugins. Remove spider_rewrite plugin entry"
-    "          in mysql.plugin first."
-    "        */"
     "        delete from mysql.plugin where name = 'spider_rewrite';"
     "      end if;"
     "      if @win_plugin = 0 then "
@@ -845,6 +845,7 @@ static LEX_STRING spider_init_queries[] = {
     "      end if;"
     "    end if;"
     "  end if;"
+*/
     "end;"
   )},
   {C_STRING_WITH_LEN(
