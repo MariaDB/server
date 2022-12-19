@@ -224,6 +224,8 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
 {
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
   mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
+  WSREP_DEBUG("JAN2: wsrep_thd_bf_abort: bf thd: %p victim thd %p", bf_thd, victim_thd);
+
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not
@@ -247,6 +249,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   } else {
     WSREP_DEBUG("wsrep_thd_bf_abort skipped awake");
+    WSREP_DEBUG("JAN3: wsrep_thd_bf_abort: bf thd: %p victim thd %p", bf_thd, victim_thd);
   }
   return ret;
 }

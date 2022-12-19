@@ -345,6 +345,9 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
   WSREP_LOG_THD(bf_thd, "BF aborter before");
   WSREP_LOG_THD(victim_thd, "victim before");
 
+  WSREP_DEBUG("JAN3: wsrep_thd_abort: bf thd: %p victim thd %p", bf_thd, victim_thd);
+
+
 #ifdef ENABLED_DEBUG_SYNC
   DBUG_EXECUTE_IF("sync.wsrep_bf_abort",
                   {
@@ -388,7 +391,9 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
   else
   {
     DBUG_ASSERT(WSREP(victim_thd) ? victim_thd->wsrep_trx().active() : 1);
+    WSREP_DEBUG("JAN4: victim_thd->wsrep_cs().bf_abort before: bf thd: %p victim thd %p", bf_thd, victim_thd);
     ret= victim_thd->wsrep_cs().bf_abort(bf_seqno);
+    WSREP_DEBUG("JAN5: victim_thd->wsrep_cs().bf_abort after: bf thd: %p victim thd %p", bf_thd, victim_thd);
   }
   if (ret)
   {

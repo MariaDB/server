@@ -18636,9 +18636,10 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
           /* fall through */
         case TRX_STATE_ACTIVE:
           WSREP_LOG_CONFLICT(bf_thd, vthd, TRUE);
-          WSREP_DEBUG("Aborter BF trx_id: " TRX_ID_FMT " thread: %ld "
+          WSREP_DEBUG("Aborter BF THD: %p trx_id: " TRX_ID_FMT " thread: %ld "
                       "seqno: %lld client_state: %s "
                       "client_mode: %s transaction_mode: %s query: %s",
+                      bf_thd,
                       bf_trx->id,
                       thd_get_thread_id(bf_thd),
                       wsrep_thd_trx_seqno(bf_thd),
@@ -18646,10 +18647,11 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
                       wsrep_thd_client_mode_str(bf_thd),
                       wsrep_thd_transaction_state_str(bf_thd),
                       wsrep_thd_query(bf_thd));
-          WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %ld "
+          WSREP_DEBUG("Victim %s THD: %p trx_id: " TRX_ID_FMT " thread: %ld "
                       "seqno: %lld client_state: %s "
                       "client_mode: %s transaction_mode: %s query: %s",
                       wsrep_thd_is_BF(vthd, false) ? "BF" : "normal",
+		      vthd,
                       vtrx->id,
                       thd_get_thread_id(vthd),
                       wsrep_thd_trx_seqno(vthd),
@@ -18677,12 +18679,13 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
       lock_sys.cancel_lock_wait_for_trx(vtrx);
 
       DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+      WSREP_DEBUG("JAN: wsrep_thd_bf_abort: bf thd: %p victim thd %p", bf_thd, vthd);
       if (!wsrep_thd_bf_abort(bf_thd, vthd, true))
       {
         wsrep_thd_LOCK(bf_thd);
         wsrep_thd_set_wsrep_aborter(NULL, bf_thd);
         wsrep_thd_UNLOCK(bf_thd);
-        WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim will survive");
+        WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim thd %p will survive", vthd);
       }
     }
     wsrep_thd_kill_UNLOCK(vthd);
