@@ -55,6 +55,9 @@ use vars qw($dbh $sth $hostname $opt_user $opt_password $opt_help $opt_host
 my $sqlhost = "";
 my $user = "";
 
+warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-setpermission' instead\n"
+  if $0 =~ m/mysql_setpermission$/;
+
 $dbh=$host=$opt_user= $opt_password= $opt_help= $opt_host= $opt_socket= "";
 $opt_port=3306;
 

@@ -564,3 +564,4 @@
 #endif
 
 #cmakedefine HAVE_VFORK 1
+#cmakedefine EXE_LINKPATH @EXE_LINKPATH@
