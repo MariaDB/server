@@ -1,5 +1,5 @@
---- galera_sst_rsync_data_dir.result
-+++ galera_sst_rsync_data_dir.reject
+--- galera_sst_rsync_innodb_dir.result
++++ galera_sst_rsync_innodb_dir.reject
 @@ -286,3 +286,111 @@
  DROP TABLE t1;
  COMMIT;

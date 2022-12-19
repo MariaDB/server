@@ -11,13 +11,25 @@
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_clean_slave.inc
 
+--let CHECK_HOME_1=$MYSQLTEST_VARDIR/mysqld.1/datadir1
+--let CHECK_HOME_2=$MYSQLTEST_VARDIR/mysqld.2/datadir2
+--let CHECK_REDO_1=$MYSQLTEST_VARDIR/mysqld.1/datadir1
+--let CHECK_REDO_2=$MYSQLTEST_VARDIR/mysqld.2/datadir2
+--let CHECK_UNDO_1=$MYSQLTEST_VARDIR/mysqld.1/datadir1
+--let CHECK_UNDO_2=$MYSQLTEST_VARDIR/mysqld.2/datadir2
+--let CHECK_BP_1=ib_buffer_pool
+--let CHECK_BP_2=ib_buffer_pool
+
+--source galera_sst_dir_check.inc
+
+--let $wsrep_recover_additional=$MTR_BOOTSTRAP_OPTS_2
+
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
 
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc
 
---source include/galera_end.inc
+--source galera_sst_dir_check.inc
 
-# cleanup temporary database files:
---remove_files_wildcard $MYSQL_TMP_DIR/data_dir_test *
+--source include/galera_end.inc

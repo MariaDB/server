@@ -1,5 +1,5 @@
---- r/galera_sst_mariabackup_data_dir.result	2018-12-12 13:59:56.525554689 +0100
-+++ r/galera_sst_mariabackup_data_dir.reject	2018-12-12 14:33:50.868181956 +0100
+---- r/galera_sst_mariabackup_data_dir.result   2018-12-12 13:59:56.525554689 +0100
+-+++ r/galera_sst_mariabackup_data_dir.reject   2018-12-12 14:33:50.868181956 +0100
 @@ -286,5 +286,113 @@
  DROP TABLE t1;
  COMMIT;
