@@ -5984,19 +5984,17 @@ private:
 public:
   sp_cursor()
    :result(NULL, false),
-    m_lex_keeper(NULL),
     server_side_cursor(NULL)
   { }
-  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, bool view_structure_only)
+  sp_cursor(THD *thd_arg, bool view_structure_only)
    :result(thd_arg, view_structure_only),
-    m_lex_keeper(lex_keeper),
     server_side_cursor(NULL)
   {}
 
   virtual ~sp_cursor()
   { destroy(); }
 
-  sp_lex_keeper *get_lex_keeper() { return m_lex_keeper; }
+  virtual sp_lex_keeper *get_lex_keeper() { return nullptr; }
 
   int open(THD *thd);
 
@@ -6009,17 +6007,15 @@ public:
 
   bool export_structure(THD *thd, Row_definition_list *list);
 
-  void reset(THD *thd_arg, sp_lex_keeper *lex_keeper)
+  void reset(THD *thd_arg)
   {
     sp_cursor_statistics::reset();
     result.reset(thd_arg);
-    m_lex_keeper= lex_keeper;
     server_side_cursor= NULL;
   }
 
 private:
   Select_fetch_into_spvars result;
-  sp_lex_keeper *m_lex_keeper;
   Server_side_cursor *server_side_cursor;
   void destroy();
 };
