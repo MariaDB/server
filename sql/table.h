@@ -1733,7 +1733,7 @@ public:
   int update_virtual_field(Field *vf, bool ignore_warnings);
   inline size_t key_storage_length(uint index)
   {
-    if (file->is_clustering_key(index))
+    if (is_clustering_key(index))
       return s->stored_rec_length;
     return key_info[index].key_length + file->ref_length;
   }
@@ -1875,6 +1875,27 @@ public:
   {
     if (opt_range_condition_rows > rows)
       opt_range_condition_rows= rows;
+  }
+
+  /* Return true if the key is a clustered key */
+  inline bool is_clustering_key(uint index) const
+  {
+    return key_info[index].index_flags & HA_CLUSTERED_INDEX;
+  }
+
+  /*
+    Return true if we can use rowid filter with this index
+    rowid filter can be used if
+    - filter pushdown is supported by the engine for the index. If this is set then
+      file->ha_table_flags() should not contain HA_NON_COMPARABLE_ROWID!
+    - The index is not a clustered primary index
+  */
+
+  inline bool can_use_rowid_filter(uint index) const
+  {
+    return ((key_info[index].index_flags &
+             (HA_DO_RANGE_FILTER_PUSHDOWN | HA_CLUSTERED_INDEX)) ==
+            HA_DO_RANGE_FILTER_PUSHDOWN);
   }
 
   ulonglong vers_start_id() const;

@@ -381,9 +381,7 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   */
   while ((key_no= it++) != key_map::Iterator::BITMAP_END)
   {
-    if (!(file->index_flags(key_no, 0, 1) & HA_DO_RANGE_FILTER_PUSHDOWN))  // !1
-      continue;
-    if (file->is_clustering_key(key_no))                              // !2
+  if (!can_use_rowid_filter(key_no))                                // 1 & 2
       continue;
    if (opt_range[key_no].rows >
        get_max_range_rowid_filter_elems_for_table(thd, this,
@@ -483,6 +481,9 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
     and chooses the element for the range filter that promise the greatest
     gain with the the ref or range access of the table by access_key_no.
 
+    The function assumes that caller has checked that the key is not a clustered
+    key. See best_access_path().
+
   @retval  Pointer to the cost info for the range filter that promises
            the greatest gain, NULL if there is no such range filter
 */
@@ -500,10 +501,9 @@ TABLE::best_range_rowid_filter(uint access_key_no, double records,
     is accessed by the clustered primary key. It does not make sense
     if a full key is used. If the table is accessed by a partial
     clustered primary key it would, but the current InnoDB code does not
-    allow it. Later this limitation will be lifted
+    allow it. Later this limitation may be lifted.
   */
-  if (file->is_clustering_key(access_key_no))
-    return 0;
+  DBUG_ASSERT(!file->is_clustering_key(access_key_no));
 
   // Disallow use of range filter if the key contains partially-covered
   // columns.
