@@ -10440,14 +10440,15 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     {
       key_part_map quick_key_map= (key_part_map(1) <<
                                    table->opt_range[key].key_parts) - 1;
-      if ((table->opt_range[key].rows &&
-           !(quick_key_map & ~table->const_key_parts[key])) ||
-          s->type == JT_RANGE)
+      if (s->type == JT_RANGE ||
+          (table->opt_range[key].rows && (table->const_key_parts[key] & 1)))
       {
-        /* 
-          Ok, there is an equality for each of the key parts used by the
-          quick select. This means, quick select's estimate can be reused to
-          discount the selectivity of a prefix of a ref access.
+        /*
+          We are either using a range or we are using a REF which the
+          same key as an active range and the first key part is a constant.
+
+          In both cases we have to discount the selectivity for the range
+          as otherwise we are using the selectivity twice.
         */
         for (; quick_key_map & 1 ; quick_key_map>>= 1)
         {
