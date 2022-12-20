@@ -39,7 +39,7 @@ select @@innodb_ft_user_stopword_table;
 --error 1231
 set global innodb_ft_server_stopword_table = "not_defined";
 
-# Define a correct formated user stopword table
+# Define a correct formatted user stopword table
 create table user_stopword(value varchar(30)) engine = innodb;
 
 # The set operation should be successful
@@ -319,11 +319,11 @@ INSERT INTO articles (title,body) VALUES
 # No records expeced for select
 SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN MODE);
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
-# Define a correct formated user stopword table
+# Define a correct formatted user stopword table
 create table user_stopword(value varchar(30)) engine = innodb;
 # The set operation should be successful
 set session innodb_ft_user_stopword_table = "test/user_stopword";
-# Define a correct formated server stopword table
+# Define a correct formatted server stopword table
 create table server_stopword(value varchar(30)) engine = innodb;
 # The set operation should be successful
 set global innodb_ft_server_stopword_table = "test/server_stopword";
@@ -422,7 +422,7 @@ INSERT INTO articles (title,body) VALUES
 # No records expeced for select
 SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN MODE);
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
-# Define a correct formated user stopword table
+# Define a correct formatted user stopword table
 create table user_stopword(value varchar(30)) engine = innodb;
 # The set operation should be successful
 set session innodb_ft_user_stopword_table = "test/user_stopword";
@@ -444,7 +444,7 @@ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('mysqld');
 
 # set user stopword list empty
 set session innodb_ft_user_stopword_table = default;
-# Define a correct formated user stopword table
+# Define a correct formatted user stopword table
 create table server_stopword(value varchar(30)) engine = innodb;
 # The set operation should be successful
 set global innodb_ft_server_stopword_table = "test/server_stopword";
@@ -580,7 +580,7 @@ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('"the will"@11' IN BOOL
 
 --connection con1
 SET SESSION innodb_ft_enable_stopword = 1;
-# Define a correct formated user stopword table
+# Define a correct formatted user stopword table
 create table user_stopword(value varchar(30)) engine = innodb;
 # The set operation should be successful
 set session innodb_ft_user_stopword_table = "test/user_stopword";
@@ -599,7 +599,7 @@ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
 SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN MODE);
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
 select @@innodb_ft_user_stopword_table;
-# Define a correct formated user stopword table
+# Define a correct formatted user stopword table
 create table user_stopword_1(value varchar(30)) engine = innodb;
 # The set operation should be successful
 set session innodb_ft_user_stopword_table = "test/user_stopword_1";
@@ -620,7 +620,7 @@ SET SESSION innodb_ft_enable_stopword = 1;
 SET SESSION innodb_ft_user_stopword_table=default;
 select @@innodb_ft_user_stopword_table;
 select @@innodb_ft_server_stopword_table;
-# Define a correct formated server stopword table
+# Define a correct formatted server stopword table
 create table server_stopword(value varchar(30)) engine = innodb;
 # The set operation should be successful
 SET GLOBAL innodb_ft_server_stopword_table = "test/server_stopword";
