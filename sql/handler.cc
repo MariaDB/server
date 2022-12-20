@@ -3498,7 +3498,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
       m_psi= PSI_CALL_open_table(ha_table_share_psi(), this);
     }
 
-    if (table->s->db_options_in_use & HA_OPTION_READ_ONLY_DATA)
+    if (table_share->db_options_in_use & HA_OPTION_READ_ONLY_DATA)
       table->db_stat|=HA_READ_ONLY;
     (void) extra(HA_EXTRA_NO_READCHECK);	// Not needed in SQL
 
@@ -3512,14 +3512,19 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
     else
       dup_ref=ref+ALIGN_SIZE(ref_length);
     cached_table_flags= table_flags();
-    if (!table->s->optimizer_costs_inited)
+    /* Cache index flags */
+    for (uint index= 0 ; index < table_share->keys ; index++)
+      table->key_info[index].index_flags= index_flags(index, 0, 1);
+
+    if (!table_share->optimizer_costs_inited)
     {
-      table->s->optimizer_costs_inited=1;
+      table_share->optimizer_costs_inited=1;
       /* Copy data from global 'engine'.optimizer_costs to TABLE_SHARE */
-      table->s->update_optimizer_costs(partition_ht());
+      table_share->update_optimizer_costs(partition_ht());
       /* Update costs depend on table structure */
-      update_optimizer_costs(&table->s->optimizer_costs);
+      update_optimizer_costs(&table_share->optimizer_costs);
     }
+
     /* Copy current optimizer costs. Needed in case clone() is used */
     reset_statistics();
   }
@@ -3818,7 +3823,7 @@ int handler::read_first_row(uchar * buf, uint primary_key)
     TODO remove the test for HA_READ_ORDER
   */
   if (stats.deleted < 10 || primary_key >= MAX_KEY ||
-      !(index_flags(primary_key, 0, 0) & HA_READ_ORDER))
+      !(table->key_info[primary_key].index_flags & HA_READ_ORDER))
   {
     if (likely(!(error= ha_rnd_init(1))))
     {

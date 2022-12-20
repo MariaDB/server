@@ -96,12 +96,22 @@ class engine_option_value;
 struct ha_index_option_struct;
 
 typedef struct st_key {
-  uint	key_length;			/* total length of user defined key parts  */
-  ulong flags;                          /* dupp key and pack flags */
+  ulong flags;                     /* dupp key and pack flags */
+  ulong ext_key_flags;             /* Flags for extended key              */
+  ulong index_flags;               /* Copy of handler->index_flags(index_number, 0, 1) */
+  uint	key_length;		   /* total length of user defined key parts  */
   uint	user_defined_key_parts;	   /* How many key_parts */
   uint	usable_key_parts; /* Should normally be = user_defined_key_parts */
-  uint ext_key_parts;              /* Number of key parts in extended key */
-  ulong ext_key_flags;             /* Flags for extended key              */
+  uint  ext_key_parts;             /* Number of key parts in extended key */
+  uint  block_size;
+  /*
+    The flag is on if statistical data for the index prefixes
+    has to be taken from the system statistical tables.
+  */
+  bool is_statistics_from_stat_tables;
+  bool without_overlaps;
+  bool is_ignored; // TRUE if index needs to be ignored
+
   /*
     Parts of primary key that are in the extension of this index. 
 
@@ -123,13 +133,7 @@ typedef struct st_key {
   /* Set of keys constraint correlated with this key */
   key_map constraint_correlated;
   LEX_CSTRING name;
-  uint  block_size;
   enum  ha_key_alg algorithm;
-  /* 
-    The flag is on if statistical data for the index prefixes
-    has to be taken from the system statistical tables.
-  */
-  bool is_statistics_from_stat_tables;
   /*
     Note that parser is used when the table is opened for use, and
     parser_name is used when the table is being created.
@@ -167,12 +171,6 @@ typedef struct st_key {
   ha_index_option_struct *option_struct;                  /* structure with parsed options */
 
   double actual_rec_per_key(uint i);
-
-  bool without_overlaps;
-  /*
-    TRUE if index needs to be ignored
-  */
-  bool is_ignored;
 } KEY;
 
 
