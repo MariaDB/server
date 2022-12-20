@@ -7399,7 +7399,7 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
   DBUG_ENTER("TABLE::prepare_for_keyread");
   if (!no_keyread)
     file->ha_start_keyread(index);
-  if (map != read_set || !(file->index_flags(index, 0, 1) & HA_CLUSTERED_INDEX))
+  if (map != read_set || !is_clustering_key(index))
   {
     mark_index_columns(index, map);
     column_bitmaps_set(map);
@@ -8330,6 +8330,11 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
     key_start= FALSE;
     key_part_info++;
   }
+  /*
+    We have to cache index_flags here as the table may be used by the
+    optimizer before it's opened.
+  */
+  keyinfo->index_flags= file->index_flags(key, 0, 1);
 
   /*
     For the case when there is a derived table that would give distinct rows,

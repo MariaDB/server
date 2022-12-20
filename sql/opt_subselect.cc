@@ -4861,7 +4861,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     DBUG_PRINT("info",("Creating group key in temporary table"));
     share->keys=1;
     share->uniques= MY_TEST(using_unique_constraint);
-    table->key_info=keyinfo;
+    table->key_info= share->key_info= keyinfo;
     keyinfo->key_part=key_part_info;
     keyinfo->flags=HA_NOSAME;
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts= 1;

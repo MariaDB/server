@@ -674,7 +674,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       if ((c_key->flags & HA_SPATIAL) ||
            c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
           (ha_rkey_mode != HA_READ_KEY_EXACT &&
-           (table->file->index_flags(handler->keyno, 0, TRUE) &
+           (table->key_info[handler->keyno].index_flags &
             (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
@@ -690,8 +690,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       }
 
       if (key_expr->elements < keyinfo->user_defined_key_parts &&
-               (table->file->index_flags(handler->keyno, 0, TRUE) &
-                HA_ONLY_WHOLE_INDEX))
+          (table->key_info[handler->keyno].index_flags & HA_ONLY_WHOLE_INDEX))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
                  table->file->index_type(handler->keyno), keyinfo->name.str);
