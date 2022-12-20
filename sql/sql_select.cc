@@ -8466,7 +8466,7 @@ best_access_path(JOIN      *join,
             records.
           */
           if ((found_part & 1) &&
-              (!(file->index_flags(key, 0, 0) & HA_ONLY_WHOLE_INDEX) ||
+              (!(table->key_info[key].index_flags & HA_ONLY_WHOLE_INDEX) ||
                found_part == PREV_BITS(uint,keyinfo->user_defined_key_parts)))
           {
             double extra_cost= 0;
@@ -8662,7 +8662,8 @@ best_access_path(JOIN      *join,
         Check if we can use a filter.
         Records can be 0 in case of empty tables.
       */
-      if ((found_part & 1) && records)
+      if ((found_part & 1) && records &&
+          table->can_use_rowid_filter(start_key->key))
       {
         filter= table->best_range_rowid_filter(start_key->key,
                                                records,
@@ -8941,27 +8942,31 @@ best_access_path(JOIN      *join,
                      range->cost.total_cost() / s->quick->read_time >= 0.9999999));
 
         range->get_costs(&tmp);
-        filter= table->best_range_rowid_filter(key_no,
-                                               rows2double(range->rows),
-                                               file->cost(&tmp),
-                                               file->cost(tmp.index_cost),
-                                               record_count,
-                                               &records_best_filter);
-        set_if_smaller(best.records_out, records_best_filter);
-        if (filter)
+        if (table->can_use_rowid_filter(key_no))
         {
-          filter= filter->apply_filter(thd, table, &tmp,
-                                       &records_after_filter,
-                                       &startup_cost,
-                                       range->ranges,
-                                       record_count);
+          filter= table->best_range_rowid_filter(key_no,
+                                                 rows2double(range->rows),
+                                                 file->cost(&tmp),
+                                                 file->cost(tmp.index_cost),
+                                                 record_count,
+                                                 &records_best_filter);
+          set_if_smaller(best.records_out, records_best_filter);
           if (filter)
           {
-            tmp.row_cost.cpu+= records_after_filter * WHERE_COST_THD(thd);
-            cur_cost= file->cost_for_reading_multiple_times(record_count, &tmp);
-            cur_cost= COST_ADD(cur_cost, startup_cost);
-            startup_cost= 0;                    // Avoid adding it again later
-            table->opt_range[key_no].selectivity= filter->selectivity;
+            filter= filter->apply_filter(thd, table, &tmp,
+                                         &records_after_filter,
+                                         &startup_cost,
+                                         range->ranges,
+                                         record_count);
+            if (filter)
+            {
+              tmp.row_cost.cpu+= records_after_filter * WHERE_COST_THD(thd);
+              cur_cost= file->cost_for_reading_multiple_times(record_count,
+                                                              &tmp);
+              cur_cost= COST_ADD(cur_cost, startup_cost);
+              startup_cost= 0;                    // Avoid adding it again later
+              table->opt_range[key_no].selectivity= filter->selectivity;
+            }
           }
         }
         if (best.key && key_no == best.key->key &&
@@ -21039,6 +21044,8 @@ bool Create_tmp_table::finalize(THD *thd,
       m_key_part_info++;
     }
   }
+  if (share->keys)
+    keyinfo->index_flags= table->file->index_flags(0, 0, 1);
 
   if (unlikely(thd->is_fatal_error))             // If end of memory
     goto err;					 /* purecov: inspected */
@@ -21493,6 +21500,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	  keydef.flag|= HA_NULL_ARE_EQUAL;
       }
     }
+    if (share->keys)
+      keyinfo->index_flags= table->file->index_flags(0, 0, 1);
   }
   bzero((char*) &create_info,sizeof(create_info));
   create_info.data_file_length= table->in_use->variables.tmp_disk_table_size;
@@ -21686,6 +21695,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 	  keydef.flag|= HA_NULL_ARE_EQUAL;
       }
     }
+    if (share->keys)
+      keyinfo->index_flags= table->file->index_flags(0, 0, 1);
   }
   MI_CREATE_INFO create_info;
   bzero((char*) &create_info,sizeof(create_info));
@@ -25591,7 +25602,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
         ((select_limit >= table_records) &&
          ((tab->type == JT_ALL || tab->type == JT_RANGE) &&
          tab->join->table_count > tab->join->const_tables + 1) &&
-         !(table->file->index_flags(best_key, 0, 1) & HA_CLUSTERED_INDEX)))
+         !table->is_clustering_key(best_key)))
       goto use_filesort;
 
     if (table->opt_range_keys.is_set(best_key) && best_key != ref_key)
@@ -30559,9 +30570,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
       possible_key.add("can_resolve_order", true);
       possible_key.add("direction", direction);
       bool is_covering= (table->covering_keys.is_set(nr) ||
-                         (table->file->index_flags(nr, 0, 1) &
-                          HA_CLUSTERED_INDEX));
-      /* 
+                         table->is_clustering_key(nr));
+      /*
         Don't use an index scan with ORDER BY without limit.
         For GROUP BY without limit always use index scan
         if there is a suitable index. 
@@ -31512,7 +31522,8 @@ void JOIN::init_join_cache_and_keyread()
       /* purecov: end */
     }
 
-    if (table->file->keyread_enabled())
+    if (table->file->keyread_enabled() &&
+        !table->is_clustering_key(table->file->keyread))
     {
       /*
         Here we set the read_set bitmap for all covering keys
@@ -31547,8 +31558,7 @@ void JOIN::init_join_cache_and_keyread()
           c, which is not a problem as we read all the columns from the index
           tuple.
       */
-      if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
-        table->mark_index_columns(table->file->keyread, table->read_set);
+      table->mark_index_columns(table->file->keyread, table->read_set);
     }
     if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
       revise_cache_usage(tab);

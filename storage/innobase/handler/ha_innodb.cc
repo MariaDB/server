@@ -5039,13 +5039,11 @@ ha_innobase::index_flags(
 	}
 
 	ulong flags= key == table_share->primary_key
-		? HA_CLUSTERED_INDEX : HA_KEYREAD_ONLY;
+		? HA_CLUSTERED_INDEX : HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN;
 
 	flags |= HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER
-		| HA_READ_RANGE
-		| HA_DO_INDEX_COND_PUSHDOWN
-		| HA_DO_RANGE_FILTER_PUSHDOWN;
-
+              | HA_READ_RANGE
+              | HA_DO_INDEX_COND_PUSHDOWN;
 	return(flags);
 }
 

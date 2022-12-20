@@ -7326,8 +7326,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     if (!tree->ror_scans_map.is_set(idx))
       continue;
     key_no= param->real_keynr[idx];
-    if (key_no != cpk_no &&
-        param->table->file->index_flags(key_no,0,0) & HA_CLUSTERED_INDEX)
+    if (key_no != cpk_no && param->table->file->is_clustering_key(key_no))
     {
       /* Ignore clustering keys */
       tree->n_ror_scans--;
@@ -11906,7 +11905,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   param->max_key_parts=0;
 
   seq.is_ror_scan= TRUE;
-  if (file->index_flags(keynr, 0, TRUE) & HA_KEY_SCAN_NOT_ROR)
+  if (param->table->key_info[keynr].index_flags & HA_KEY_SCAN_NOT_ROR)
     seq.is_ror_scan= FALSE;
   
   *mrr_flags= param->force_default_mrr? HA_MRR_USE_DEFAULT_IMPL: 0;
@@ -11919,9 +11918,9 @@ ha_rows check_quick_select(PARAM *param, uint idx, ha_rows limit,
   // Passing wrong second argument to index_flags() makes no difference for
   // most storage engines but might be an issue for MyRocks with certain
   // datatypes.
+  // Note that HA_KEYREAD_ONLY implies that this is not a clustered index
   if (index_only && 
-      (file->index_flags(keynr, param->max_key_parts, 1) & HA_KEYREAD_ONLY) &&
-      !(file->index_flags(keynr, param->max_key_parts, 1) & HA_CLUSTERED_INDEX))
+      (file->index_flags(keynr, param->max_key_parts, 1) & HA_KEYREAD_ONLY))
      *mrr_flags |= HA_MRR_INDEX_ONLY;
   
   if (param->thd->lex->sql_command != SQLCOM_SELECT)

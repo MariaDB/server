@@ -4551,6 +4551,7 @@ public:
 
    For a clustered (primary) key, the following should also hold:
    index_flags() should contain HA_CLUSTERED_INDEX
+   index_flags() should not contain HA_KEYREAD_ONLY or HA_DO_RANGE_FILTER_PUSHDOWN
    table_flags() should contain HA_TABLE_SCAN_ON_INDEX
 
    For a reference key the following should also hold:
@@ -4561,20 +4562,9 @@ public:
  */
 
  /* The following code is for primary keys */
- bool pk_is_clustering_key(uint index) const
- {
-   /*
-     We have to check for MAX_INDEX as table->s->primary_key can be
-     MAX_KEY in the case where there is no primary key.
-   */
-   return index != MAX_KEY && is_clustering_key(index);
- }
+ inline bool pk_is_clustering_key(uint index) const;
  /* Same as before but for other keys, in which case we can skip the check */
- bool is_clustering_key(uint index) const
- {
-   DBUG_ASSERT(index != MAX_KEY);
-   return (index_flags(index, 0, 1) & HA_CLUSTERED_INDEX);
- }
+ inline bool is_clustering_key(uint index) const;
 
  virtual int cmp_ref(const uchar *ref1, const uchar *ref2)
  {

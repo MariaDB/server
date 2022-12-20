@@ -7430,6 +7430,21 @@ inline void handler::set_table(TABLE* table_arg)
   costs= &table_arg->s->optimizer_costs;
 }
 
+inline bool handler::pk_is_clustering_key(uint index) const
+{
+   /*
+     We have to check for MAX_INDEX as table->s->primary_key can be
+     MAX_KEY in the case where there is no primary key.
+   */
+   return index != MAX_KEY && is_clustering_key(index);
+}
+
+inline bool handler::is_clustering_key(uint index) const
+{
+  DBUG_ASSERT(index != MAX_KEY);
+  return table->is_clustering_key(index);
+}
+
 inline int handler::ha_ft_read(uchar *buf)
 {
   int error= ft_read(buf);
