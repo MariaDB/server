@@ -713,6 +713,10 @@ lock_rec_has_to_wait(
 		/* if BF-BF conflict, we have to look at write set order */
 		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
 		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
+			WSREP_DEBUG("lock_rec_has_to_wait: BF1 thd: %p thread: %lu trx_id %lu",
+				trx->mysql_thd, thd_get_thread_id(trx->mysql_thd), trx->id);
+			WSREP_DEBUG("lock_rec_has_to_wait: BF2 thd: %p thread: %lu trx_id %lu",
+				lock2->trx->mysql_thd, thd_get_thread_id(lock2->trx->mysql_thd), lock2->trx->id);
 			mtr_t mtr;
 			if (wsrep_debug) {
 				WSREP_INFO("BF-BF lock conflict");
@@ -722,9 +726,11 @@ lock_rec_has_to_wait(
 						   lock2->trx->mysql_thd) &&
 			    (type_mode & LOCK_MODE_MASK) == LOCK_X &&
 			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X) {
+				WSREP_DEBUG("lock_rec_has_to_wait: NO");
 				return false;
 			}
 		}
+		WSREP_DEBUG("lock_rec_has_to_wait: YES");
 		/* We very well can let bf to wait normally as other
 		BF will be replayed in case of conflict. For debug
 		builds we will do additional sanity checks to catch
