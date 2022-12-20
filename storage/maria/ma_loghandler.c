@@ -956,7 +956,7 @@ char *translog_filename_by_fileno(uint32 file_no, char *path)
   DBUG_ENTER("translog_filename_by_fileno");
   DBUG_ASSERT(file_no <= 0xfffffff);
 
-  /* log_descriptor.directory is already formated */
+  /* log_descriptor.directory is already formatted */
   end= strxmov(path, log_descriptor.directory, "aria_log.0000000", NullS);
   length= (uint) (int10_to_str(file_no, buff, 10) - buff);
   strmov(end - length +1, buff);

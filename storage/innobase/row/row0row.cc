@@ -1191,7 +1191,7 @@ row_raw_format_int(
 	ulint		buf_size,	/*!< in: output buffer size
 					in bytes */
 	ibool*		format_in_hex)	/*!< out: should the data be
-					formated in hex */
+					formatted in hex */
 {
 	ulint	ret;
 
@@ -1239,7 +1239,7 @@ row_raw_format_str(
 	ulint		buf_size,	/*!< in: output buffer size
 					in bytes */
 	ibool*		format_in_hex)	/*!< out: should the data be
-					formated in hex */
+					formatted in hex */
 {
 	ulint	charset_coll;
 
