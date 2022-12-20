@@ -516,12 +516,15 @@ sub main {
 
   if ( not @$completed ) {
     my $test_name= mtr_grab_file($path_testlog);
-    $test_name =~ s/^CURRENT_TEST:\s//;
-    chomp($test_name);
-    my $tinfo = My::Test->new(name => $test_name);
-    $tinfo->{result}= 'MTR_RES_FAILED';
-    $tinfo->{comment}=' ';
-    mtr_report_test($tinfo);
+    if (defined($test_name))
+    {
+      $test_name =~ s/^CURRENT_TEST:\s//;
+      chomp($test_name);
+      my $tinfo = My::Test->new(name => $test_name);
+      $tinfo->{result}= 'MTR_RES_FAILED';
+      $tinfo->{comment}=' ';
+      mtr_report_test($tinfo);
+    }
     mtr_error("Test suite aborted");
   }
 
