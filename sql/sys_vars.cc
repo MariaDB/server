@@ -2602,6 +2602,23 @@ static bool if_checking_enabled(sys_var *self, THD *thd,  set_var *var)
 
   return false;
 }
+
+/**
+ * @brief Reset user login failed hash table
+ * 
+ * @param self 
+ * @param thd 
+ * @param type 
+ * @return true  update var error
+ * @return false update var success
+ */
+bool update_failed_threshold(sys_var *self, THD *thd, enum_var_type type){
+     if(clear_user_login_faild_hash()){
+       return true;
+     }
+     return false;
+}
+
 // non-standard session_value_ptr() here
 static Sys_var_max_user_conn Sys_max_user_connections(
        "max_user_connections",
@@ -2610,6 +2627,27 @@ static Sys_var_max_user_conn Sys_max_user_connections(
        SESSION_VAR(max_user_connections), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(-1, INT_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(if_checking_enabled));
+
+static Sys_var_uint Sys_max_user_delay(
+       "max_user_delay",
+       "The maximum number of delay  response",
+       READ_ONLY GLOBAL_VAR(global_system_variables.max_user_delay), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(UINT_MAX), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(0),ON_UPDATE(0));
+
+static Sys_var_uint Sys_min_user_delay(
+       "min_user_delay",
+       "The minnum number of delay  response",
+       READ_ONLY GLOBAL_VAR(global_system_variables.min_user_delay), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(1000), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(0),ON_UPDATE(0));
+
+static Sys_var_uint Sys_failed_threshold(
+       "failed_threshold",
+       "The failed threshold connection control",
+       GLOBAL_VAR(global_system_variables.failed_threshold), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(3), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(0),ON_UPDATE(update_failed_threshold));       
 
 static Sys_var_ulong Sys_max_tmp_tables(
        "max_tmp_tables", "Unused, will be removed.",

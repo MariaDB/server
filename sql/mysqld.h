@@ -510,6 +510,7 @@ extern PSI_memory_key key_memory_rpl_slave_check_temp_dir;
 extern PSI_memory_key key_memory_TABLE;
 extern PSI_memory_key key_memory_binlog_statement_buffer;
 extern PSI_memory_key key_memory_user_conn;
+extern PSI_memory_key key_memory_user_login_failed;
 extern PSI_memory_key key_memory_dboptions_hash;
 extern PSI_memory_key key_memory_dbnames_cache;
 extern PSI_memory_key key_memory_hash_index_key_buffer;

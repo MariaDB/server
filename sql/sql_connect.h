@@ -70,7 +70,19 @@ public:
 
 class THD;
 typedef struct user_conn USER_CONN;
+typedef struct user_login_failed_record {
+    /*
+     Pointer to user@host key (concat by '@') defining the entity
+     for which resources are counted (By default it is user account thus
+     priv_user/priv_host pair is used.)
+  */
+  char* key;
+  uint32 failed_count;
+  uint16 key_length;
+}st_user_login_failed_record;
 
+void init_user_login_failed(void);
+void free_user_login_failed(void);
 void init_max_user_conn(void);
 void init_global_user_stats(void);
 void init_global_table_stats(void);
@@ -108,8 +120,11 @@ void end_connection(THD *thd);
 void update_global_user_stats(THD* thd, bool create_user, time_t now);
 int get_or_create_user_conn(THD *thd, const char *user,
                             const char *host, const USER_RESOURCES *mqh);
+int get_or_create_user_login_failed_record(THD *thd,st_user_login_failed_record ** result);  
+int get_user_login_failed_record(THD *thd, st_user_login_failed_record ** result);                          
 int check_for_max_user_connections(THD *thd, USER_CONN *uc);
-
+int check_delay_for_user(THD* thd, st_user_login_failed_record * record);
+int delete_user_login_failed_record(THD* thd, st_user_login_failed_record * record);
 extern HASH global_user_stats;
 extern HASH global_client_stats;
 extern HASH global_table_stats;

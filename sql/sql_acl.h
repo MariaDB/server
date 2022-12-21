@@ -61,6 +61,7 @@ extern LEX_CSTRING current_user_and_current_role;
 extern LEX_CSTRING none;
 extern LEX_CSTRING public_name;
 
+int clear_user_login_faild_hash();
 
 static inline int access_denied_error_code(int passwd_used)
 {
