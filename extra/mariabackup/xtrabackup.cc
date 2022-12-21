@@ -190,6 +190,7 @@ struct xb_filter_entry_t{
 lsn_t checkpoint_lsn_start;
 lsn_t checkpoint_no_start;
 static lsn_t log_copy_scanned_lsn;
+/** whether log_copying_thread() is active; protected by log_sys.mutex */
 static bool log_copying_running;
 
 int xtrabackup_parallel;
@@ -3092,16 +3093,18 @@ static void log_copying_thread()
   my_thread_end();
 }
 
+/** whether io_watching_thread() is active; protected by log_sys.mutex */
 static bool have_io_watching_thread;
-static pthread_t io_watching_thread_id;
 
 /* io throttle watching (rough) */
-static void *io_watching_thread(void*)
+static void io_watching_thread()
 {
+  my_thread_init();
   /* currently, for --backup only */
-  ut_a(xtrabackup_backup);
+  ut_ad(xtrabackup_backup);
 
   mysql_mutex_lock(&log_sys.mutex);
+  ut_ad(have_io_watching_thread);
 
   while (log_copying_running && !metadata_to_lsn)
   {
@@ -3114,9 +3117,10 @@ static void *io_watching_thread(void*)
 
   /* stop io throttle */
   xtrabackup_throttle= 0;
+  have_io_watching_thread= false;
   mysql_cond_broadcast(&wait_throttle);
   mysql_mutex_unlock(&log_sys.mutex);
-  return nullptr;
+  my_thread_end();
 }
 
 #ifndef DBUG_OFF
@@ -4377,27 +4381,29 @@ end:
 # define xb_set_max_open_files(x) 0UL
 #endif
 
-static void stop_backup_threads(bool running)
+static void stop_backup_threads()
 {
-  if (running)
+  mysql_cond_broadcast(&log_copying_stop);
+
+  if (log_copying_running || have_io_watching_thread)
   {
+    mysql_mutex_unlock(&log_sys.mutex);
     fputs("mariabackup: Stopping log copying thread", stderr);
     fflush(stderr);
-    while (log_copying_running)
+    mysql_mutex_lock(&log_sys.mutex);
+    while (log_copying_running || have_io_watching_thread)
     {
+      mysql_cond_broadcast(&log_copying_stop);
+      mysql_mutex_unlock(&log_sys.mutex);
       putc('.', stderr);
       fflush(stderr);
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      mysql_mutex_lock(&log_sys.mutex);
     }
     putc('\n', stderr);
-    mysql_cond_destroy(&log_copying_stop);
   }
 
-  if (have_io_watching_thread)
-  {
-    pthread_join(io_watching_thread_id, nullptr);
-    mysql_cond_destroy(&wait_throttle);
-  }
+  mysql_cond_destroy(&log_copying_stop);
 }
 
 /** Implement the core of --backup
@@ -4427,11 +4433,7 @@ static bool xtrabackup_backup_low()
 			msg("Error: recv_find_max_checkpoint() failed.");
 		}
 
-		mysql_cond_broadcast(&log_copying_stop);
-		const bool running= log_copying_running;
-		mysql_mutex_unlock(&log_sys.mutex);
-		stop_backup_threads(running);
-		mysql_mutex_lock(&log_sys.mutex);
+		stop_backup_threads();
 	}
 
 	if (metadata_to_lsn && xtrabackup_copy_logfile(true)) {
@@ -4532,9 +4534,8 @@ fail:
 		if (log_copying_running) {
 			mysql_mutex_lock(&log_sys.mutex);
 			metadata_to_lsn = 1;
-			mysql_cond_broadcast(&log_copying_stop);
+			stop_backup_threads();
 			mysql_mutex_unlock(&log_sys.mutex);
-			stop_backup_threads(true);
 		}
 
 		log_file_op = NULL;
@@ -4695,13 +4696,15 @@ reread_log_header:
 
 	aligned_free(log_hdr_buf);
 	log_copying_running = true;
+
+	mysql_cond_init(0, &log_copying_stop, nullptr);
+
 	/* start io throttle */
-	if(xtrabackup_throttle) {
+	if (xtrabackup_throttle) {
 		io_ticket = xtrabackup_throttle;
 		have_io_watching_thread = true;
 		mysql_cond_init(0, &wait_throttle, nullptr);
-		mysql_thread_create(0, &io_watching_thread_id, nullptr,
-				    io_watching_thread, nullptr);
+		std::thread(io_watching_thread).detach();
 	}
 
 	/* Populate fil_system with tablespaces to copy */
@@ -4729,7 +4732,6 @@ fail_before_log_copying_thread_start:
 
 	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started", {});
 
-	mysql_cond_init(0, &log_copying_stop, nullptr);
 	std::thread(log_copying_thread).detach();
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */

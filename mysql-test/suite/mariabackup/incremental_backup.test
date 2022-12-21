@@ -34,7 +34,7 @@ INSERT INTO t VALUES(1);
 
 echo # Create full backup , modify table, then create incremental/differential backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir --throttle=1000;
 --enable_result_log
 BEGIN;
 INSERT INTO t VALUES(0);
