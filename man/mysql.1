@@ -1630,28 +1630,29 @@ SELECT
 statements when using
 \fB\-\-safe\-updates\fR\&. (Default value is 1,000\&.)
 .RE
-.\" MYSQL_HISTFILE environment variable
-.\" environment variable: MYSQL_HISTFILE
+.\" MARIADB_HISTFILE environment variable
+.\" environment variable: MARIADB_HISTFILE
 .\" HOME environment variable
 .\" environment variable: HOME
 .\" mysql history file
 .\" command-line history: mysql
-.\" .mysql_history file
+.\" .mariadb_history file
 .PP
 On Unix, the
 \fBmysql\fR
 client writes a record of executed statements to a history file\&. By default, this file is named
-\&.mysql_history
-and is created in your home directory\&. To specify a different file, set the value of the
-MYSQL_HISTFILE
-environment variable\&.
+\&.mariadb_history
+and is created in your home directory\&. For backwards compatibility \&.mysql_history will be used if present and
+\&.mariadb_history is missing\&. To specify a different file, set the value of the
+MARIADB_HISTFILE
+environment variable\&. The environment variable MYSQL_HISTFILE will be used if MARIADB_HISTFILE isn't present\&.
 .PP
 The
-\&.mysql_history
+\&.mariadb_history
 should be protected with a restrictive access mode because sensitive information might be written to it, such as the text of SQL statements that contain passwords\&.
 .PP
 If you do not want to maintain a history file, first remove
-\&.mysql_history
+\&.mariadb_history
 if it exists, and then use either of the following techniques:
 .sp
 .RS 4
@@ -1663,7 +1664,7 @@ if it exists, and then use either of the following techniques:
 .IP \(bu 2.3
 .\}
 Set the
-MYSQL_HISTFILE
+MARIADB_HISTFILE
 variable to
 /dev/null\&. To cause this setting to take effect each time you log in, put the setting in one of your shell\'s startup files\&.
 .RE
@@ -1677,7 +1678,7 @@ variable to
 .IP \(bu 2.3
 .\}
 Create
-\&.mysql_history
+\&.mariadb_history
 as a symbolic link to
 /dev/null:
 .sp
@@ -1685,7 +1686,7 @@ as a symbolic link to
 .RS 4
 .\}
 .nf
-shell> \fBln \-s /dev/null $HOME/\&.mysql_history\fR
+shell> \fBln \-s /dev/null $HOME/\&.mariadb_history\fR
 .fi
 .if n \{\
 .RE

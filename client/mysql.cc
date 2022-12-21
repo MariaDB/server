@@ -1337,26 +1337,38 @@ int main(int argc,char *argv[])
   initialize_readline();
   if (!status.batch && !quick && !opt_html && !opt_xml)
   {
-    /* read-history from file, default ~/.mysql_history*/
-    if (getenv("MYSQL_HISTFILE"))
-      histfile=my_strdup(PSI_NOT_INSTRUMENTED, getenv("MYSQL_HISTFILE"),MYF(MY_WME));
-    else if (getenv("HOME"))
+    const char *home;
+    /* read-history from file, default ~/.mariadb_history*/
+    if ((histfile= getenv("MARIADB_HISTFILE"))
+        || (histfile= getenv("MYSQL_HISTFILE")))
+      histfile=my_strdup(PSI_NOT_INSTRUMENTED, histfile, MYF(MY_WME));
+    else if ((home= getenv("HOME")))
     {
       histfile=(char*) my_malloc(PSI_NOT_INSTRUMENTED,
-            strlen(getenv("HOME")) + strlen("/.mysql_history")+2, MYF(MY_WME));
+            strlen(home) + strlen("/.mariadb_history")+2, MYF(MY_WME));
       if (histfile)
-	sprintf(histfile,"%s/.mysql_history",getenv("HOME"));
-      char link_name[FN_REFLEN];
-      if (my_readlink(link_name, histfile, 0) == 0 &&
-          strncmp(link_name, "/dev/null", 10) == 0)
       {
-        /* The .mysql_history file is a symlink to /dev/null, don't use it */
-        my_free(histfile);
-        histfile= 0;
+        sprintf(histfile,"%s/.mariadb_history", home);
+        if (my_access(histfile, F_OK))
+        {
+          /* no .mariadb_history, look for historical name and use if present */
+          sprintf(histfile,"%s/.mysql_history", home);
+          /* and go back to original if not found */
+          if (my_access(histfile, F_OK))
+            sprintf(histfile,"%s/.mariadb_history", home);
+        }
+        char link_name[FN_REFLEN];
+        if (my_readlink(link_name, histfile, 0) == 0 &&
+            strncmp(link_name, "/dev/null", 10) == 0)
+        {
+          /* The .mariadb_history file is a symlink to /dev/null, don't use it */
+          my_free(histfile);
+          histfile= 0;
+        }
       }
     }
 
-    /* We used to suggest setting MYSQL_HISTFILE=/dev/null. */
+    /* We used to suggest setting MARIADB_HISTFILE=/dev/null. */
     if (histfile && strncmp(histfile, "/dev/null", 10) == 0)
       histfile= NULL;
 
