@@ -10,7 +10,7 @@ TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 11	SYS_FOREIGN	0	7	0	Redundant	0	System
 12	SYS_FOREIGN_COLS	0	7	0	Redundant	0	System
 13	SYS_VIRTUAL	0	6	0	Redundant	0	System
-16	mysql/transaction_registry	33	8	3	Dynamic	0	Single
+16	mysql/transaction_registry	33	8	6	Dynamic	0	Single
 SELECT table_id,pos,mtype,prtype,len,name
 FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS
 WHERE table_id NOT IN (@table_stats_id, @index_stats_id)
