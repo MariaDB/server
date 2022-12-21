@@ -1,0 +1,295 @@
+#-----------------------------------------------------------------------
+# Setup
+# Install connection_control plugin
+INSTALL PLUGIN connection_control SONAME 'CONNECTION_CONTROL_LIB';
+INSTALL PLUGIN connection_control_failed_login_attempts SONAME 'CONNECTION_CONTROL_LIB';
+CREATE USER no_privs@localhost IDENTIFIED BY 'abcd';
+connect conn_no_privs, localhost, no_privs, abcd,,,,;
+connection default;
+#-----------------------------------------------------------------------
+# Case 1 : failed_connections_threshold
+SET @saved_value = @@global.failed_connections_threshold;
+SELECT @saved_value;
+@saved_value
+3
+SET @@global.failed_connections_threshold = @saved_value;
+# 1.1 : Setting failed_connections_threshold to valid
+#       value
+SET @@global.failed_connections_threshold = 20;
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+20
+SET @@global.failed_connections_threshold = 2000;
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+2000
+SET @@global.failed_connections_threshold = 2147483647;
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+2147483647
+SET @@global.failed_connections_threshold = DEFAULT;
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+# 1.2 : Setting failed_connections_threshold to
+#       invalid value
+SET @@global.failed_connections_threshold = NULL;
+ERROR 42000: Incorrect argument type to variable 'failed_connections_threshold'
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+SET @@global.failed_connections_threshold = `SELECT * FROM mysql.user`;
+ERROR 42000: Incorrect argument type to variable 'failed_connections_threshold'
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+SET @@global.failed_connections_threshold = -20;
+ERROR 42000: Variable 'failed_connections_threshold' can't be set to the value of '-20'
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+SET @@global.failed_connections_threshold = 9223372036854775808;
+ERROR 42000: Variable 'failed_connections_threshold' can't be set to the value of '9223372036854775808'
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+SET @@global.failed_connections_threshold = -9223372036854775808;
+ERROR 42000: Variable 'failed_connections_threshold' can't be set to the value of '-9223372036854775808'
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+# Switch to conn_no_privs
+connection conn_no_privs;
+# 1.3 : Use no_privs@localhost to set
+#       failed_connections_threshold to valid value
+SET @@global.failed_connections_threshold = 2147483647;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+SET @@global.failed_connections_threshold = DEFAULT;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+# 1.4 : Use no_privs@localhost to set
+#       failed_connections_threshold to invalid value
+SET @@global.failed_connections_threshold = NULL;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+SET @@global.failed_connections_threshold = 9223372036854775808;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+connection default;
+SET @@global.failed_connections_threshold = @saved_value;
+SELECT @@global.failed_connections_threshold;
+@@global.failed_connections_threshold
+3
+#-----------------------------------------------------------------------
+# Case 2 : min_connection_delay
+SET @saved_value= @@global.min_connection_delay;
+SELECT @saved_value;
+@saved_value
+1000
+# 2.1 : Setting min_connection_delay to valid
+#       value
+SET @@global.min_connection_delay = 20000;
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+20000
+SET @@global.min_connection_delay = 2000;
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+2000
+SET @@global.min_connection_delay = 2147483647;
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+2147483647
+SET @@global.min_connection_delay = DEFAULT;
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+# 2.2 : Setting min_connection_delay to
+#       invalid value
+SET @@global.min_connection_delay = NULL;
+ERROR 42000: Incorrect argument type to variable 'min_connection_delay'
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+SET @@global.min_connection_delay = `SELECT * FROM mysql.user`;
+ERROR 42000: Incorrect argument type to variable 'min_connection_delay'
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+SET @@global.min_connection_delay = -20;
+ERROR 42000: Variable 'min_connection_delay' can't be set to the value of '-20'
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+SET @@global.min_connection_delay = 9223372036854775808;
+ERROR 42000: Variable 'min_connection_delay' can't be set to the value of '9223372036854775808'
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+SET @@global.min_connection_delay = -9223372036854775808;
+ERROR 42000: Variable 'min_connection_delay' can't be set to the value of '-9223372036854775808'
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+SET@@global.min_connection_delay = 20;
+ERROR 42000: Variable 'min_connection_delay' can't be set to the value of '20'
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+# Switch to conn_no_privs
+connection conn_no_privs;
+# 2.3 : Use no_privs@localhost to set
+#       min_connection_delay to valid value
+SET @@global.min_connection_delay = 2147483647;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+SET @@global.min_connection_delay = DEFAULT;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+# 2.4 : Use no_privs@localhost to set
+#       min_connection_delay to invalid value
+SET @@global.min_connection_delay = NULL;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+SET @@global.min_connection_delay = 9223372036854775808;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+# Switch to default connection
+connection default;
+# 2.5 : Setting min_connection_delay to a value
+#       greater than max_connection_delay
+SET @saved_max_delay= @@global.max_connection_delay;
+SET @@global.max_connection_delay= 10000;
+SET @@global.min_connection_delay= 11000;
+ERROR 42000: Variable 'min_connection_delay' can't be set to the value of '11000'
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+SET @@global.max_connection_delay= @saved_max_delay;
+SET @@global.min_connection_delay = @saved_value;
+SELECT @@global.min_connection_delay;
+@@global.min_connection_delay
+1000
+#-----------------------------------------------------------------------
+# Case 3 : max_connection_delay
+SET @saved_value= @@global.max_connection_delay;
+SELECT @saved_value;
+@saved_value
+2147483647
+# 3.1 : Setting max_connection_delay to valid
+#       value
+SET @@global.max_connection_delay = 20000;
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+20000
+SET @@global.max_connection_delay = 2000;
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2000
+SET @@global.max_connection_delay = 2147483647;
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.max_connection_delay = DEFAULT;
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+# 3.2 : Setting max_connection_delay to
+#       invalid value
+SET @@global.max_connection_delay = NULL;
+ERROR 42000: Incorrect argument type to variable 'max_connection_delay'
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.max_connection_delay = `SELECT * FROM mysql.user`;
+ERROR 42000: Incorrect argument type to variable 'max_connection_delay'
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.max_connection_delay = -20;
+ERROR 42000: Variable 'max_connection_delay' can't be set to the value of '-20'
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.max_connection_delay = 9223372036854775808;
+ERROR 42000: Variable 'max_connection_delay' can't be set to the value of '9223372036854775808'
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.max_connection_delay = -9223372036854775808;
+ERROR 42000: Variable 'max_connection_delay' can't be set to the value of '-9223372036854775808'
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.max_connection_delay = 20;
+ERROR 42000: Variable 'max_connection_delay' can't be set to the value of '20'
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+# Switch to conn_no_privs
+connection conn_no_privs;
+# 3.3 : Use no_privs@localhost to set
+#       max_connection_delay to valid value
+SET @@global.max_connection_delay = 2147483647;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.max_connection_delay = DEFAULT;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+# 3.4 : Use no_privs@localhost to set
+#       max_connection_delay to invalid value
+SET @@global.max_connection_delay = NULL;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.max_connection_delay = 9223372036854775808;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+# Switch to default connection
+connection default;
+# 3.5 : Setting min_connection_delay to a value
+#       greater than max_connection_delay
+SET @saved_min_delay= @@global.min_connection_delay;
+SET @@global.min_connection_delay= 11000;
+SET @@global.max_connection_delay= 10000;
+ERROR 42000: Variable 'max_connection_delay' can't be set to the value of '10000'
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+SET @@global.min_connection_delay= @saved_min_delay;
+SET @@global.max_connection_delay = @saved_value;
+SELECT @@global.max_connection_delay;
+@@global.max_connection_delay
+2147483647
+#-----------------------------------------------------------------------
+# Cleanup
+disconnect conn_no_privs;
+DROP USER no_privs@localhost;
+# Uninstall connection_control plugin
+UNINSTALL PLUGIN connection_control;
+UNINSTALL PLUGIN connection_control_failed_login_attempts;
+#-----------------------------------------------------------------------

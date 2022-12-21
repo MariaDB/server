@@ -123,7 +123,7 @@ int get_or_create_user_conn(THD *thd, const char *user,
 int get_or_create_user_login_failed_record(THD *thd,st_user_login_failed_record ** result);  
 int get_user_login_failed_record(THD *thd, st_user_login_failed_record ** result);                          
 int check_for_max_user_connections(THD *thd, USER_CONN *uc);
-int check_delay_for_user(THD* thd, st_user_login_failed_record * record);
+int check_connection_delay_for_user(THD* thd, st_user_login_failed_record * record);
 int delete_user_login_failed_record(THD* thd, st_user_login_failed_record * record);
 extern HASH global_user_stats;
 extern HASH global_client_stats;

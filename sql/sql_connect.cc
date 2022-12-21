@@ -386,10 +386,10 @@ uint32 get_user_delay_wait_time(uint32 count)
                     max_delay)
   */
   return (uint32)
-      ((count_millisecond >= global_system_variables.min_user_delay      
-       && count_millisecond < global_system_variables.max_user_delay)
-          ? (count_millisecond < global_system_variables.min_user_delay    ? global_system_variables.min_user_delay    : count_millisecond)
-          : global_system_variables.max_user_delay);
+      ((count_millisecond >= global_system_variables.min_connection_delay      
+       && count_millisecond < global_system_variables.max_connection_delay)
+          ? (count_millisecond < global_system_variables.min_connection_delay    ? global_system_variables.min_connection_delay    : count_millisecond)
+          : global_system_variables.max_connection_delay);
 }
 
 
@@ -450,9 +450,12 @@ void condition_wait(THD* thd, uint32 time)
 }
 
 
-int delay_response(THD* thd, uint32 count){
+int delay_response(THD* thd,  char* key, uint32 count){
     uint32 wait_time = get_user_delay_wait_time(count);
-    printf("Wait %u seconds\n",wait_time);
+    my_printf_error(ME_NOTE, "%s wait %u miliseconds",MYF(ME_NOTE|ME_ERROR_LOG), key, wait_time);
+    #ifdef DEBUG
+    my_printf_error(ME_NOTE, "%s key wait %u miliseconds",MYF(0), key, wait_time);
+    #endif
     condition_wait(thd, wait_time);
     return 0;
 }
@@ -468,14 +471,14 @@ int delete_user_login_failed_record(THD* thd, st_user_login_failed_record * reco
  * 
  * @return int 
  */
-int check_delay_for_user(THD *thd, st_user_login_failed_record* record){
+int check_connection_delay_for_user(THD *thd, st_user_login_failed_record* record){
 
     if(record){
       printf("user@host: %s , failed count: %d\n",record->key,record->failed_count);
 
       /* if threshold < 0 , disable connection control check */
-      if(global_system_variables.failed_threshold > 0 &&  record->failed_count > global_system_variables.failed_threshold){
-        delay_response(thd,record->failed_count - global_system_variables.failed_threshold);
+      if(global_system_variables.failed_connections_threshold > 0 &&  record->failed_count > global_system_variables.failed_connections_threshold){
+        delay_response(thd,record->key,record->failed_count - global_system_variables.failed_connections_threshold);
       }
     }
 
