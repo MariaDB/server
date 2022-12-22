@@ -59,7 +59,11 @@
 #include "wsrep_mysqld.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
-
+extern HASH user_login_failed_hash;
+int clear_user_login_faild_hash(){
+  my_hash_reset(&user_login_failed_hash);
+  return 0;
+}
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
