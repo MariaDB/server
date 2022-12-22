@@ -907,62 +907,35 @@ WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_N
 A.DIVISION=C1.DIVISION AND A.RECEIVABLE_GROUP=C1.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=C1.CREDIT_LIMIT
 ORDER BY TOTAL DESC;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived3>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived4>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived5>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived6>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived7>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived8>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived9>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived10>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived11>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived12>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived13>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived14>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived15>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived16>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived17>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived18>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived19>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived20>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived21>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived22>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived23>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived24>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived25>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived26>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived27>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived28>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived29>	system	NULL	NULL	NULL	NULL	0	Const row not found
-29	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-28	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-27	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-26	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-25	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-24	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-23	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-22	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-21	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-20	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-19	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-18	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-17	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-16	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-15	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-14	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-13	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-12	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-11	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-10	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-9	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-8	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-7	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-6	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+29	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+28	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+27	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+26	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+25	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+24	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+23	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+22	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+21	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+20	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+19	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+18	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+17	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+16	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+15	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+14	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+13	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+12	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+11	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+10	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+9	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+8	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+7	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+6	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 DROP TABLES t1,t2;
 set optimizer_switch=@save_derived_optimizer_switch;
 #

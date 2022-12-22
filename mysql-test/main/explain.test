@@ -370,3 +370,12 @@ drop table t1;
 
 explain
 VALUES ( (VALUES (2))) UNION VALUES ( (SELECT 3));
+
+--echo #
+--echo # MDEV-20501: Assertion `maybe_null || !null_value' failed in Item_func_round::date_op
+--echo #
+
+CREATE TABLE t1 (t TIMESTAMP NOT NULL) ENGINE=MyISAM;
+SELECT * FROM t1 WHERE TRUNCATE( t, 1 );
+DROP TABLE t1;
+

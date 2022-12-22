@@ -1214,7 +1214,7 @@ insert into t1 values (5);
 explain select min(a1) from t1 where 7 in (select max(b1) from t2 group by b1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 select min(a1) from t1 where 7 in (select max(b1) from t2 group by b1);
 min(a1)
 NULL
@@ -1224,7 +1224,7 @@ set @@optimizer_switch='materialization=off,in_to_exists=on';
 explain select min(a1) from t1 where 7 in (select max(b1) from t2 group by b1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 select min(a1) from t1 where 7 in (select max(b1) from t2 group by b1);
 min(a1)
 NULL
@@ -1233,7 +1233,7 @@ set @@optimizer_switch='semijoin=off';
 explain select min(a1) from t1 where 7 in (select b1 from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 select min(a1) from t1 where 7 in (select b1 from t2);
 min(a1)
 NULL
@@ -1243,7 +1243,7 @@ set @@optimizer_switch='materialization=off,in_to_exists=on';
 explain select min(a1) from t1 where 7 in (select b1 from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 select min(a1) from t1 where 7 in (select b1 from t2);
 min(a1)
 NULL
@@ -1251,7 +1251,7 @@ NULL
 explain select min(a1) from t1 where 7 in (select b1 from t2) or 2> 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 select min(a1) from t1 where 7 in (select b1 from t2) or 2> 4;
 min(a1)
 NULL
@@ -1406,9 +1406,9 @@ explain SELECT a FROM (
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a > 3 OR t2.b IN (SELECT a FROM t1)
 ) table1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT a FROM (
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a > 3 OR t2.b IN (SELECT a FROM t1)
 ) table1;
@@ -1888,7 +1888,7 @@ FROM t2 AS alias3, t2 AS alias4
 WHERE alias4.c = alias3.b
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 3	MATERIALIZED	alias3	ALL	NULL	NULL	NULL	NULL	2	
 3	MATERIALIZED	alias4	index	c	c	11	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 DROP TABLE t1,t2;
@@ -2757,7 +2757,7 @@ SELECT i FROM t1 LEFT JOIN t2 ON (j) IN (SELECT k FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	MATERIALIZED	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT i FROM t1 LEFT JOIN t2 ON (j) IN (SELECT k FROM t3);
 i
 10
@@ -2766,7 +2766,7 @@ SELECT i FROM t1 LEFT JOIN t2 ON (j) IN (SELECT max(k) FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	MATERIALIZED	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT i FROM t1 LEFT JOIN t2 ON (j) IN (SELECT max(k) FROM t3);
 i
 10
@@ -2854,7 +2854,7 @@ SELECT * FROM t2 WHERE (SELECT f3a FROM t3) NOT IN (SELECT f1a FROM t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t2 WHERE (SELECT f3a FROM t3) NOT IN (SELECT f1a FROM t1);
 f2
 EXPLAIN
@@ -2862,7 +2862,7 @@ SELECT (SELECT f3a FROM t3) NOT IN (SELECT f1a FROM t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (SELECT f3a FROM t3) NOT IN (SELECT f1a FROM t1);
 (SELECT f3a FROM t3) NOT IN (SELECT f1a FROM t1)
 NULL
@@ -2871,7 +2871,7 @@ SELECT * FROM t2 WHERE (SELECT f3a, f3b FROM t3) NOT IN (SELECT f1a, f1b FROM t1
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t2 WHERE (SELECT f3a, f3b FROM t3) NOT IN (SELECT f1a, f1b FROM t1);
 f2
 EXPLAIN
@@ -2879,7 +2879,7 @@ SELECT (SELECT f3a, f3b FROM t3) NOT IN (SELECT f1a, f1b FROM t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (SELECT f3a, f3b FROM t3) NOT IN (SELECT f1a, f1b FROM t1);
 (SELECT f3a, f3b FROM t3) NOT IN (SELECT f1a, f1b FROM t1)
 NULL
@@ -2994,8 +2994,8 @@ select 1 from t1 where exists
 (select 1 from t1 where t1.v1 in (select t2.v1 from t2 having t2.v1 < 'j')) ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 select 1 from t1 where exists
 (select 1 from t1 where t1.v1 in (select t2.v1 from t2 having t2.v1 < 'j')) ;
 1

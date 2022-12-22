@@ -302,7 +302,7 @@ create table t1(a int);
 prepare stmt from "analyze select * from t1";
 execute stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 drop table t1;
 #
 # MDEV-7674: ANALYZE shows r_rows=0

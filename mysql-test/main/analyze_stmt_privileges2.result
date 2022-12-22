@@ -1452,18 +1452,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 DELETE FROM t1 USING t1, t2;
 EXPLAIN DELETE FROM t1 USING t1, t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 ANALYZE DELETE FROM t1 USING t1, t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
 EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1;
 ERROR 42000: SELECT command denied to user 'privtest'@'localhost' for table `privtest_db`.`t1`
 EXPLAIN SELECT * FROM t1;
@@ -1797,42 +1796,41 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 DELETE FROM t1 USING t1, t2;
 EXPLAIN DELETE FROM t1 USING t1, t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 ANALYZE DELETE FROM t1 USING t1, t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
 EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1;
 a	b
 EXPLAIN SELECT * FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 ANALYZE SELECT * FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE a = 10;
 a	b
 EXPLAIN SELECT * FROM t1 WHERE a = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 ANALYZE SELECT * FROM t1 WHERE a = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
 a	b
 EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 #------------------------------------------------------------------------
 # I/R/U/D/S on the inner view
 # Expectation: Can run everything

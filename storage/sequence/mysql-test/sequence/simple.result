@@ -141,7 +141,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	1	Using where; Using index
 explain select * from seq_1_to_15_step_2 where seq between  4 and  4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 explain select * from seq_1_to_15_step_2 where seq between  5 and  5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	seq_1_to_15_step_2	const	PRIMARY	PRIMARY	8	const	1	Using index

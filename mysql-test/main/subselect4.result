@@ -21,7 +21,7 @@ ORDER BY count(*);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	index	NULL	a	5	NULL	2	Using index
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 # should not crash the next statement
 SELECT 1 FROM t1
 WHERE NOT EXISTS (SELECT 1 FROM t2 WHERE 1 = (SELECT MIN(t2.b) FROM t3))
@@ -778,28 +778,28 @@ EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, min(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, min(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3+f4, min(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3+f4, min(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, min(f4)+max(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, min(f4)+max(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT (2, 0) NOT IN (SELECT f3, min(f4) FROM t2) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT f3, min(f4) FROM t2) as not_in;
 not_in
 NULL
@@ -807,21 +807,21 @@ EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, count(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, count(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, f3 + count(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, f3 + count(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2) as not_in;
 not_in
 NULL
@@ -829,7 +829,7 @@ EXPLAIN
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2 HAVING max(f4) > 7) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2 HAVING max(f4) > 7) as not_in;
 not_in
 1
@@ -837,7 +837,7 @@ EXPLAIN
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2 HAVING max(f4) is null) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2 HAVING max(f4) is null) as not_in;
 not_in
 NULL
@@ -845,7 +845,7 @@ EXPLAIN
 SELECT (2, 0) NOT IN (SELECT max(f3+f3), count(f4) FROM t2) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT max(f3+f3), count(f4) FROM t2) as not_in;
 not_in
 NULL
@@ -853,7 +853,7 @@ EXPLAIN
 SELECT (2, 0) NOT IN (SELECT max(f3+f3), count(f4)+f3 FROM t2) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT max(f3+f3), count(f4)+f3 FROM t2) as not_in;
 not_in
 NULL
@@ -869,28 +869,28 @@ EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, min(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, min(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3+f4, min(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3+f4, min(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, min(f4)+max(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, min(f4)+max(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT (2, 0) NOT IN (SELECT f3, min(f4) FROM t2) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT f3, min(f4) FROM t2) as not_in;
 not_in
 NULL
@@ -898,21 +898,21 @@ EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, count(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, count(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, f3 + count(f4) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT * FROM t1 WHERE (2, 0) NOT IN (SELECT f3, f3 + count(f4) FROM t2);
 f1	f2
 EXPLAIN
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2) as not_in;
 not_in
 NULL
@@ -920,7 +920,7 @@ EXPLAIN
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2 HAVING max(f4) > 7) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2 HAVING max(f4) > 7) as not_in;
 not_in
 1
@@ -928,7 +928,7 @@ EXPLAIN
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2 HAVING max(f4) is null) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT f3, count(f4) FROM t2 HAVING max(f4) is null) as not_in;
 not_in
 NULL
@@ -936,7 +936,7 @@ EXPLAIN
 SELECT (2, 0) NOT IN (SELECT max(f3+f3), count(f4) FROM t2) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT max(f3+f3), count(f4) FROM t2) as not_in;
 not_in
 NULL
@@ -944,7 +944,7 @@ EXPLAIN
 SELECT (2, 0) NOT IN (SELECT max(f3+f3), count(f4)+f3 FROM t2) as not_in;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (2, 0) NOT IN (SELECT max(f3+f3), count(f4)+f3 FROM t2) as not_in;
 not_in
 NULL
@@ -1480,7 +1480,7 @@ EXPLAIN
 SELECT (SELECT f1 FROM t1) AS field1 FROM t2 GROUP BY field1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (SELECT f1 FROM t1) AS field1 FROM t2 GROUP BY field1;
 field1
 NULL
@@ -1488,7 +1488,7 @@ EXPLAIN
 SELECT (SELECT f1 FROM t1) AS field1 FROM t2 ORDER BY field1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT (SELECT f1 FROM t1) AS field1 FROM t2 ORDER BY field1;
 field1
 NULL
@@ -2008,7 +2008,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using filesort
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 PREPARE st1 FROM "
 SELECT t2.f1, (SELECT f2 FROM t1 WHERE (7) IN (SELECT f1 FROM t1))
 FROM t2 JOIN t3 ON t3.f4 = t2.f4
@@ -2193,7 +2193,7 @@ INSERT INTO t2 VALUES (1);
 EXPLAIN
 SELECT MAX(a), ( SELECT 1 FROM t2 ) AS bb FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	
 SELECT MAX(a), ( SELECT 1 FROM t2 ) AS bb FROM t1;
 MAX(a)	bb
@@ -2201,7 +2201,7 @@ NULL	1
 EXPLAIN
 SELECT MAX(a), 1 in ( SELECT b FROM t2 ) AS bb FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	
 SELECT MAX(a), 1 in ( SELECT b FROM t2 ) AS bb FROM t1;
 MAX(a)	bb
@@ -2209,7 +2209,7 @@ NULL	1
 EXPLAIN
 SELECT MAX(a), 1 >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT MAX(a), 1 >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
 MAX(a)	bb
@@ -2217,7 +2217,7 @@ NULL	1
 EXPLAIN
 SELECT MAX(a), ( SELECT 1 FROM t2 where b = a) AS bb FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT MAX(a), ( SELECT 1 FROM t2 where b = a) AS bb FROM t1;
 MAX(a)	bb
@@ -2225,7 +2225,7 @@ NULL	NULL
 EXPLAIN
 SELECT MAX(a), a in ( SELECT b FROM t2 ) AS bb FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	DEPENDENT SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	
 SELECT MAX(a), a in ( SELECT b FROM t2 ) AS bb FROM t1;
 MAX(a)	bb
@@ -2233,7 +2233,7 @@ NULL	NULL
 EXPLAIN
 SELECT MAX(a), a >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	DEPENDENT SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	
 SELECT MAX(a), a >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
 MAX(a)	bb
@@ -2706,7 +2706,7 @@ EXPLAIN
 SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
 a
@@ -2718,7 +2718,7 @@ EXPLAIN
 SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
 a

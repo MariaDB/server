@@ -373,7 +373,7 @@ SELECT SUM( c )
 FROM t2
 WHERE (SELECT DISTINCT b FROM t3) > 0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	1	Using temporary
 SELECT *
@@ -402,7 +402,7 @@ GROUP BY 1
 )
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	1	
 SELECT MAX( f1 ) FROM t2
@@ -696,10 +696,10 @@ WHERE a = b
       AND (a,b) IN (SELECT t2.x, COUNT(t2.y) FROM t2 WHERE 1=2 GROUP BY t2.x);";
 execute stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from  <materialize> (/* select#2 */ select `test`.`t2`.`x`,count(`test`.`t2`.`y`) from `test`.`t2` where 0 group by `test`.`t2`.`x` having `COUNT(t2.y)` = `test`.`t2`.`x`) join `test`.`t1` where 0
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from  <materialize> (/* select#2 */ select `test`.`t2`.`x`,count(`test`.`t2`.`y`) from `test`.`t2` where 0 group by `test`.`t2`.`x` having `COUNT(t2.y)` = `test`.`t2`.`x`) join `test`.`t1` where multiple equal(`test`.`t1`.`a`, `test`.`t1`.`b`)
 # here re-execution of the pushdown does not crash:
 prepare stmt from "
 SELECT * FROM t1

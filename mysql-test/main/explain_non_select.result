@@ -173,7 +173,7 @@ partition p2 values less than (30)
 insert into t1 values (9,9), (19,19), (29,29);
 explain partitions select * from t1 where a in (32,33);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 explain partitions delete from t1 where a in (32,33);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching rows after partition pruning

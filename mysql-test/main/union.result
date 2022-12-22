@@ -1640,8 +1640,8 @@ UNION
 SELECT a FROM t1
 ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
-2	UNION	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
 Warnings:
 Note	1003	/* select#1 */ select NULL AS `a` from `test`.`t1` union /* select#2 */ select NULL AS `a` from `test`.`t1` order by `a`
@@ -2179,8 +2179,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	t4	eq_ref	PRIMARY	PRIMARY	4	func	1	Using where
 3	SUBQUERY	t2	ref	PRIMARY	PRIMARY	4	const	4	Using index
 4	UNION	t2	ref	PRIMARY	PRIMARY	4	func	1	Using where; Using index
-5	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-6	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+5	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
+6	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 select
 (
@@ -2320,9 +2320,9 @@ GROUP BY i
 HAVING i = 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 Warnings:
-Note	1003	/* select#1 */ select 1 AS `1`,2 AS `2` union all /* select#2 */ select 1 AS `i`,count(0) AS `COUNT(*)` from `test`.`t2` where 0 group by 1 having 1
+Note	1003	/* select#1 */ select 1 AS `1`,2 AS `2` union all /* select#2 */ select 1 AS `i`,count(0) AS `COUNT(*)` from (`test`.`t2`) where 0 group by 1 having 1
 DROP TABLE t1,t2;
 #
 # MDEV-10120: Wrong result of UNION .. ORDER BY GROUP_CONCAT()
