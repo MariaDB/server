@@ -16,13 +16,9 @@ CREATE USER u1 IDENTIFIED BY 'abcd';
 
 --echo # Save original values of connection_control variables
 SET @saved_connections_threshold = @@global.failed_connections_threshold;
-SET @saved_max_delay = @@global.max_connection_delay;
-SET @saved_min_delay= @@global.min_connection_delay;
 
 -- echo # Set small values for connection_control variables
 SET @@global.failed_connections_threshold = 3;
-SET @@global.max_connection_delay = 4000;
-SET @@global.min_connection_delay = 2000;
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
@@ -52,8 +48,23 @@ connect (con5,"127.0.0.1",u1,'111',test,$MASTER_MYPORT,);
 --echo
 --echo # ----------------------------------------------------------------------
 --echo #Show failed login 
---replace_result santa.claus.ipv4.example.com fakehost
-SELECT  * FROM  information_schema.CONNECTION_CONTROL_FAILED_LOGIN_ATTEMPTS;
+
+let $USER=u1;
+let $HOST=santa.claus.ipv4.example.com;
+let $count=1;
+
+--echo # Search user@anta.claus.ipv4.example.com failed count
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=$USER@$HOST have login failed $count times
+--source include/search_pattern_in_file.inc
+
+
+let $HOST=localhost;
+--echo # Search user@localhost failed count
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=$USER@$HOST have login failed $count times
+--source include/search_pattern_in_file.inc
+
 
 --echo
 --echo # ----------------------------------------------------------------------
@@ -65,8 +76,6 @@ connection default;
 
 --echo # Restore original values of conenction_control variables
 SET @@global.failed_connections_threshold = @saved_connections_threshold;
-SET @@global.max_connection_delay = @saved_max_delay;
-SET @@global.min_connection_delay = @saved_min_delay;
 
 --echo # Remove user accounts created for the test
 DROP USER u1;

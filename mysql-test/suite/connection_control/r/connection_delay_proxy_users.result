@@ -1,16 +1,9 @@
 #-----------------------------------------------------------------------
 # Setup
-# Install connection_control plugin
-INSTALL PLUGIN connection_control SONAME 'CONNECTION_CONTROL_LIB';
-INSTALL PLUGIN connection_control_failed_login_attempts SONAME 'CONNECTION_CONTROL_LIB';
 # Do proxy setup
 CALL mtr.add_suppression("Plugin test_plugin_server reported: 'Wrong password supplied for proxied'");
 SET @saved_connections_threshold = @@global.failed_connections_threshold;
-SET @saved_max_delay = @@global.max_connection_delay;
-SET @saved_min_delay= @@global.min_connection_delay;
 SET @@global.failed_connections_threshold = 3;
-SET @@global.max_connection_delay = 4000;
-SET @@global.min_connection_delay = 2000;
 #-----------------------------------------------------------------------
 # Case 1 : Testss for valid user accounts
 # Make enough failed attempts to trigger delays
@@ -35,85 +28,45 @@ connect fail_con_u1, localhost, u3,efgh,,,,;
 # Following attempts will experience delay in server respose
 connection default;
 # Connection attempt should fail.
-Connection_control_delay_generated should be 1
-Variable_name	Value
-Connection_control_delay_generated	1
-abs(@server_response_time - 2) <= 2
-1
+FOUND 1 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-Connection_control_delay_generated should be 2
-Variable_name	Value
-Connection_control_delay_generated	2
-abs(@server_response_time - 2) <= 2
-1
+FOUND 1 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-Connection_control_delay_generated should be 3
-Variable_name	Value
-Connection_control_delay_generated	3
-abs(@server_response_time - 2) <= 2
-1
+FOUND 1 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-Connection_control_delay_generated should be 4
-Variable_name	Value
-Connection_control_delay_generated	4
-abs(@server_response_time - 2) <= 2
-1
+FOUND 2 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-Connection_control_delay_generated should be 5
-Variable_name	Value
-Connection_control_delay_generated	5
-abs(@server_response_time - 2) <= 2
-1
+FOUND 2 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-Connection_control_delay_generated should be 6
-Variable_name	Value
-Connection_control_delay_generated	6
-abs(@server_response_time - 2) <= 2
-1
+FOUND 2 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
 # Following attempts will not experience any delay in server respose
 connection default;
 # Connection attempt should fail.
-Connection_control_delay_generated should be 6
-Variable_name	Value
-Connection_control_delay_generated	6
+FOUND 2 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-Connection_control_delay_generated should be 6
-Variable_name	Value
-Connection_control_delay_generated	6
+FOUND 2 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-Connection_control_delay_generated should be 6
-Variable_name	Value
-Connection_control_delay_generated	6
+FOUND 2 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
+# Successful login
 connection default;
 # Connection attempt should succeed.
-Connection_control_delay_generated should be 6
-Variable_name	Value
-Connection_control_delay_generated	6
+FOUND 2 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-Connection_control_delay_generated should be 6
-Variable_name	Value
-Connection_control_delay_generated	6
+FOUND 2 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-Connection_control_delay_generated should be 6
-Variable_name	Value
-Connection_control_delay_generated	6
+FOUND 2 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
 #-----------------------------------------------------------------------
 # Cleanup
 connection default;
 SET @@global.failed_connections_threshold = @saved_connections_threshold;
-SET @@global.max_connection_delay = @saved_max_delay;
-SET @@global.min_connection_delay = @saved_min_delay;
 # Remove user accounts
-# Uninstall connection_control plugin
-UNINSTALL PLUGIN connection_control;
-UNINSTALL PLUGIN connection_control_failed_login_attempts;
 #-----------------------------------------------------------------------

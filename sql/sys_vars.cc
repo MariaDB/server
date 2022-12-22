@@ -2631,22 +2631,22 @@ static Sys_var_max_user_conn Sys_max_user_connections(
 static Sys_var_uint Sys_max_connection_delay(
        "max_connection_delay",
        "The maximum number of connection  response delay ",
-       GLOBAL_VAR(global_system_variables.max_connection_delay), CMD_LINE(REQUIRED_ARG),
+       READ_ONLY GLOBAL_VAR(global_system_variables.max_connection_delay), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(UINT_MAX), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0),ON_UPDATE(0));
 
 static Sys_var_uint Sys_min_connection_delay(
        "min_connection_delay",
        "The minnum number of connection response delay ",
-       GLOBAL_VAR(global_system_variables.min_connection_delay), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(1000), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       READ_ONLY GLOBAL_VAR(global_system_variables.min_connection_delay), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(2000), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0),ON_UPDATE(0));
 
 static Sys_var_uint Sys_failed_threshold(
        "failed_connections_threshold",
        "The failed login threshold connection control",
        GLOBAL_VAR(global_system_variables.failed_connections_threshold), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(3), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0),ON_UPDATE(update_failed_threshold));       
 
 static Sys_var_ulong Sys_max_tmp_tables(

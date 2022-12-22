@@ -1,3 +1,4 @@
+--source include/have_debug.inc
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
@@ -10,19 +11,17 @@
 
 --echo # Setup
 --echo # Install connection_control plugin
---source ../inc/install_connection_control_plugin.inc
 
 --echo # Save original values of connection_control variables
 SET @saved_connections_threshold = @@global.failed_connections_threshold;
-SET @saved_max_delay = @@global.max_connection_delay;
 
 -- echo # Set small values for connection_control variables
 SET @@global.failed_connections_threshold = 3;
-SET @@global.max_connection_delay = 1000;
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
-
+let $HOST=localhost;
+let $DELAY_MIN_RESPONSE_TIME= 2000;
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
@@ -32,56 +31,90 @@ let $USE_AUTH_PLUGIN= 0;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
+
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
+
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
+
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
 --echo
 --echo # Following attempts will experience delay in server respose
@@ -89,44 +122,58 @@ let $DELAY_STATS=0;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=1;
+
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=2;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=3;
 --source ../inc/check_connection_delay.inc
 
---sorted_result
-SELECT * FROM INFORMATION_SCHEMA.connection_control_failed_login_attempts;
-
-let $USER=u3;
-let $PASSWORD=abcd;
-let $SUCCESS=0;
-let $DELAY_STATS=4;
---source ../inc/check_connection_delay.inc
-
-let $USER=u2;
-let $PASSWORD=abcd;
-let $SUCCESS=0;
-let $DELAY_STATS=5;
---source ../inc/check_connection_delay.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
 let $USER=u1;
-let $PASSWORD=abcd;
+let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=6;
+
 --source ../inc/check_connection_delay.inc
 
---sorted_result
-SELECT * FROM INFORMATION_SCHEMA.connection_control_failed_login_attempts;
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
 --echo
 --echo # ----------------------------------------------------------------------
@@ -138,8 +185,6 @@ connection default;
 
 --echo # Restore original values of conenction_control variables
 SET @@global.failed_connections_threshold = @saved_connections_threshold;
-SET @@global.max_connection_delay = @saved_max_delay;
-
 
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc

@@ -1,3 +1,4 @@
+--source include/have_debug.inc
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
@@ -18,17 +19,12 @@ CALL mtr.add_suppression("Plugin test_plugin_server reported: 'Wrong password su
 
 # Save original values of connection_control variables
 SET @saved_connections_threshold = @@global.failed_connections_threshold;
-SET @saved_max_delay = @@global.max_connection_delay;
-SET @saved_min_delay= @@global.min_connection_delay;
 
 # Set a small values for connection_control variables
 SET @@global.failed_connections_threshold = 3;
-SET @@global.max_connection_delay = 4000;
-SET @@global.min_connection_delay = 2000;
 
 # We will use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 1;
-let $CLIENT_AUTH_PLUGIN= $CONNECTION_CONTROL_PLUGIN_OPT;
 
 --echo #-----------------------------------------------------------------------
 
@@ -70,39 +66,39 @@ connect(fail_con_u1, localhost, u3,efgh,,,,);
 
 enable_result_log;
 
---echo # Following attempts will experience delay in server respose
+let $HOST=localhost;
+let $DELAY_MIN_RESPONSE_TIME= 2000;
 
+--echo # Following attempts will experience delay in server respose
 # Trying with invalid passwords
 
---source ../inc/set_before_marker.inc
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=1;
+
 --source ../inc/check_connection_delay.inc
 
-let $SERVER_RESPONSE_TIME= 2;
---source ../inc/set_after_marker.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
---source ../inc/set_before_marker.inc
+
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=2;
 --source ../inc/check_connection_delay.inc
 
-let $SERVER_RESPONSE_TIME= 2;
---source ../inc/set_after_marker.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
---source ../inc/set_before_marker.inc
+
+
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=3;
 --source ../inc/check_connection_delay.inc
 
-let $SERVER_RESPONSE_TIME= 2;
---source ../inc/set_after_marker.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
 # Trying with valid passwords
 # Even though u1@localhost, u2@localhost and u3@localhost are
@@ -112,35 +108,31 @@ let $SERVER_RESPONSE_TIME= 2;
 # So each of the following should get delay of 2 seconds
 # or more.
 
---source ../inc/set_before_marker.inc
 let $USER=u3;
 let $PASSWORD=proxied;
 let $SUCCESS=1;
-let $DELAY_STATS=4;
 --source ../inc/check_connection_delay.inc
 
-let $SERVER_RESPONSE_TIME= 2;
---source ../inc/set_after_marker.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
---source ../inc/set_before_marker.inc
+
 let $USER=u2;
 let $PASSWORD=proxied;
 let $SUCCESS=1;
-let $DELAY_STATS=5;
 --source ../inc/check_connection_delay.inc
 
-let $SERVER_RESPONSE_TIME= 2;
---source ../inc/set_after_marker.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
---source ../inc/set_before_marker.inc
+
 let $USER=u1;
 let $PASSWORD=proxied;
 let $SUCCESS=1;
-let $DELAY_STATS=6;
 --source ../inc/check_connection_delay.inc
 
-let $SERVER_RESPONSE_TIME= 2;
---source ../inc/set_after_marker.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
 
 --echo # Following attempts will not experience any delay in server respose
@@ -148,39 +140,52 @@ let $SERVER_RESPONSE_TIME= 2;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=6;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=6;
 --source ../inc/check_connection_delay.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=6;
 --source ../inc/check_connection_delay.inc
 
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+--echo # Successful login
 let $USER=u1;
 let $PASSWORD=proxied;
 let $SUCCESS=1;
-let $DELAY_STATS=6;
 --source ../inc/check_connection_delay.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u2;
 let $PASSWORD=proxied;
 let $SUCCESS=1;
-let $DELAY_STATS=6;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
 let $USER=u3;
 let $PASSWORD=proxied;
 let $SUCCESS=1;
-let $DELAY_STATS=6;
 --source ../inc/check_connection_delay.inc
 
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 --echo #-----------------------------------------------------------------------
 --echo # Cleanup
 
@@ -188,8 +193,6 @@ connection default;
 
 # Restore original values of conenction_control variables
 SET @@global.failed_connections_threshold = @saved_connections_threshold;
-SET @@global.max_connection_delay = @saved_max_delay;
-SET @@global.min_connection_delay = @saved_min_delay;
 
 --echo # Remove user accounts
 --source ../inc/cleanup_proxy_accounts.inc

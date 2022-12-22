@@ -2,7 +2,6 @@
 # $USER                 Name of the user
 # $PASSWORD             Password to be supplied
 # $SUCCESS              Whether a successful connection is expected or not
-# $DELAY_STATS           Expected value of Connection_control_delay_generated
 # $USE_AUTH_PLUGIN      Whether an authentication plugin is to be used or not
 # $CLIENT_AUTH_PLUGIN   Authentication plugin
 
@@ -39,6 +38,4 @@ if ($SUCCESS != 0)
 }
 
 enable_result_log;
---echo Connection_control_delay_generated should be $DELAY_STATS
-SHOW STATUS LIKE 'Connection_control_delay_generated';
 enable_query_log;

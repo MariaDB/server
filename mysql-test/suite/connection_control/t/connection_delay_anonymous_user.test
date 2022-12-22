@@ -1,4 +1,5 @@
 
+--source include/have_debug.inc
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
@@ -14,15 +15,16 @@
 CREATE USER ''@'localhost';
 --echo # Save original values of connection_control variables
 SET @saved_connections_threshold = @@global.failed_connections_threshold;
-SET @saved_max_delay = @@global.max_connection_delay;
 
+
+let $DELAY_MIN_RESPONSE_TIME= 2000;
 -- echo # Set small values for connection_control variables
 SET @@global.failed_connections_threshold = 3;
-SET @global.max_connection_delay = 1000;
+
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
-
+let $HOST=localhost;
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
@@ -32,20 +34,19 @@ let $USE_AUTH_PLUGIN= 0;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
@@ -54,20 +55,25 @@ let $DELAY_STATS=0;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
+
 --source ../inc/check_connection_delay.inc
+
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
+
+
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
+
+
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
@@ -76,19 +82,18 @@ let $DELAY_STATS=0;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
+
 --source ../inc/check_connection_delay.inc
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=0;
 --source ../inc/check_connection_delay.inc
 
 --echo
@@ -97,20 +102,30 @@ let $DELAY_STATS=0;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=1;
+
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=2;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u3;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
-let $DELAY_STATS=3;
 --source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
 
 --echo
 --echo # ----------------------------------------------------------------------
@@ -122,7 +137,6 @@ connection default;
 
 --echo # Restore original values of conenction_control variables
 SET @@global.failed_connections_threshold = @saved_connections_threshold;
-SET @@global.max_connection_delay = @saved_max_delay;
 
 --echo # Drop anonymous user
 DROP USER ''@'localhost';

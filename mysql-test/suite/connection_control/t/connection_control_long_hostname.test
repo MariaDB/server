@@ -4,10 +4,13 @@
 --source include/count_sessions.inc
 
 --echo # Setup
---echo # Install connection_control plugin
---source ../inc/install_connection_control_plugin.inc
 
 # We don't need to use client side authentication plugin for this test.
+
+SET @saved_value = @@global.failed_connections_threshold;
+SELECT @saved_value;
+SET @@global.failed_connections_threshold = @saved_value;
+
 --echo # Create user accounts for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
 FLUSH HOSTS;
@@ -20,10 +23,13 @@ connect('con1','127.0.0.1','u1',,test,$MASTER_MYPORT,);
 
 SET GLOBAL DEBUG_DBUG=@old_debug;
 
--- echo # Try various queries
-
---sorted_result
-SELECT * FROM INFORMATION_SCHEMA.connection_control_failed_login_attempts;
+let $USER=u1;
+let $HOST=host5678901_345678902_345678903_345678904_345678905_345678906_345678907_345678908_345678909_345678910_345678911_345678912_345678913_345678914_345678915_345678916_345678917_345678918_345678919_345678920_345678921_345678922_345678923_345678924_345678925_345;
+let $count=1;
+--echo # Search user@host failed count
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=$USER@$HOST have login failed $count times
+--source include/search_pattern_in_file.inc
   
 -- echo # Cleanup.
 DROP USER u1;
