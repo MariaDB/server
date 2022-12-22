@@ -57,8 +57,7 @@ FUNCTION(INSTALL_MANPAGES COMP)
     IF(NOT ${n})
       MESSAGE(FATAL_ERROR "Wrong filename in INSTALL_MANPAGE(${f})")
     ENDIF()
-    INSTALL(FILES ${f} DESTINATION ${INSTALL_MANDIR}/man${n}
-            COMPONENT ManPages${COMP})
+    INSTALL(FILES ${f} DESTINATION ${INSTALL_MANDIR}/man${n} COMPONENT ${COMP})
 
     STRING(REGEX REPLACE "\\.${n}$" "" f ${f})
     LIST(FIND MARIADB_SYMLINK_FROMS ${f} i)
@@ -67,7 +66,7 @@ FUNCTION(INSTALL_MANPAGES COMP)
       SET(dst "${CMAKE_CURRENT_BINARY_DIR}/${s}.${n}")
       FILE(WRITE ${dst} ".so man${n}/${f}.${n}")
       INSTALL(FILES ${dst} DESTINATION ${INSTALL_MANDIR}/man${n}
-              COMPONENT ManPages${COMP})
+              COMPONENT ${COMP})
     ENDIF()
   ENDFOREACH()
 ENDFUNCTION()

@@ -16,11 +16,11 @@
 IF(NOT WITHOUT_SERVER)
   INSTALL_MANPAGES(Server
     innochecksum.1 myisam_ftdump.1 myisamchk.1 aria_chk.1 aria_dump_log.1
-    aria_ftdump.1 aria_pack.1 aria_read_log.1 aria_s3_copy.1 myisamlog.1
+    aria_ftdump.1 aria_pack.1 aria_read_log.1 myisamlog.1
     myisampack.1 mysql.server.1 mariadb-conv.1 mariadb-fix-extensions.1
     mariadb-install-db.1 mariadb-upgrade.1 mariadbd-multi.1 mariadbd-safe.1
-    resolveip.1 mariadb-service-convert.1 mariadbd-safe-helper.1 mariadb-ldb.1
-    myrocks_hotbackup.1 mbstream.1 mariadb-backup.1 mariadbd.8)
+    resolveip.1 mariadb-service-convert.1 mariadbd-safe-helper.1 mariadbd.8)
+  INSTALL_MANPAGES(Backup mbstream.1 mariadb-backup.1)
   IF(WITH_WSREP)
     INSTALL_MANPAGES(Server
       wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1

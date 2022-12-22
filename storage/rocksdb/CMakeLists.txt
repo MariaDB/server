@@ -155,6 +155,8 @@ IF(NOT TARGET rocksdb)
   RETURN()
 ENDIF()
 
+INSTALL_MANPAGES(rocksdb-engine mariadb-ldb.1 myrocks_hotbackup.1)
+
 CHECK_CXX_SOURCE_COMPILES("
 #if defined(_MSC_VER) && !defined(__thread)
 #define __thread __declspec(thread)
