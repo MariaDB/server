@@ -11468,8 +11468,7 @@ int ha_spider::create(
   {
     String charset_option;
     charset_option.append(STRING_WITH_LEN("CHARSET "));
-    charset_option.append(
-        STRING_WITH_LEN(info->default_table_charset->cs_name.str));
+    charset_option.append(info->default_table_charset->cs_name);
     my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "SPIDER",
              charset_option.c_ptr());
     error_num= ER_ILLEGAL_HA_CREATE_OPTION;
