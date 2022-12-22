@@ -9758,7 +9758,7 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_dboptions_hash, "dboptions_hash", 0},
   { &key_memory_dbnames_cache, "dbnames_cache", 0},
   { &key_memory_user_conn, "user_conn", 0},
-    { &key_memory_user_login_failed, "user_login_failed", 0},
+  { &key_memory_user_login_failed, "user_login_failed", 0},
 //  { &key_memory_LOG_POS_COORD, "LOG_POS_COORD", 0},
 //  { &key_memory_XID_STATE, "XID_STATE", 0},
   { &key_memory_MPVIO_EXT_auth_info, "MPVIO_EXT::auth_info", 0},
