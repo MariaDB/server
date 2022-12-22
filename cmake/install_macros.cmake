@@ -51,43 +51,25 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
   ENDIF()
 ENDFUNCTION()
 
-# Installs manpage for given file (either script or executable)
-#
-FUNCTION(INSTALL_MANPAGE file)
-  IF(NOT UNIX)
-    RETURN()
-  ENDIF()
-  GET_FILENAME_COMPONENT(file_name "${file}" NAME)
-  SET(GLOB_EXPR 
-    ${CMAKE_SOURCE_DIR}/man/*${file}man.1*
-    ${CMAKE_SOURCE_DIR}/man/*${file}man.8*
-    ${CMAKE_BINARY_DIR}/man/*${file}man.1*
-    ${CMAKE_BINARY_DIR}/man/*${file}man.8*
-   )
-  IF(MYSQL_DOC_DIR)
-    SET(GLOB_EXPR
-      ${MYSQL_DOC_DIR}/man/*${file}man.1*
-      ${MYSQL_DOC_DIR}/man/*${file}man.8*
-      ${MYSQL_DOC_DIR}/man/*${file}.1*
-      ${MYSQL_DOC_DIR}/man/*${file}.8*
-      ${GLOB_EXPR}
-      )
-  ENDIF()
-
-  FILE(GLOB_RECURSE MANPAGES ${GLOB_EXPR})
-
-  IF(MANPAGES)
-    LIST(GET MANPAGES 0 MANPAGE)
-    STRING(REPLACE "${file}man.1" "${file}.1" MANPAGE "${MANPAGE}")
-    STRING(REPLACE "${file}man.8" "${file}.8" MANPAGE "${MANPAGE}")
-    IF(MANPAGE MATCHES "${file}.1")
-      SET(SECTION man1)
-    ELSE()
-      SET(SECTION man8)
+FUNCTION(INSTALL_MANPAGES COMP)
+  FOREACH(f ${ARGN})
+    STRING(REGEX REPLACE "^.*\\.([1-8])$" "\\1" n ${f})
+    IF(NOT ${n})
+      MESSAGE(FATAL_ERROR "Wrong filename in INSTALL_MANPAGE(${f})")
     ENDIF()
-    INSTALL(FILES "${MANPAGE}" DESTINATION "${INSTALL_MANDIR}/${SECTION}"
-      COMPONENT ManPages)
-  ENDIF()
+    INSTALL(FILES ${f} DESTINATION ${INSTALL_MANDIR}/man${n}
+            COMPONENT ManPages${COMP})
+
+    STRING(REGEX REPLACE "\\.${n}$" "" f ${f})
+    LIST(FIND MARIADB_SYMLINK_FROMS ${f} i)
+    IF(i GREATER -1)
+      LIST(GET MARIADB_SYMLINK_TOS ${i} s)
+      SET(dst "${CMAKE_CURRENT_BINARY_DIR}/${s}.${n}")
+      FILE(WRITE ${dst} ".so man${n}/${f}.${n}")
+      INSTALL(FILES ${dst} DESTINATION ${INSTALL_MANDIR}/man${n}
+              COMPONENT ManPages${COMP})
+    ENDIF()
+  ENDFOREACH()
 ENDFUNCTION()
 
 FUNCTION(INSTALL_SCRIPT)
@@ -109,8 +91,6 @@ FUNCTION(INSTALL_SCRIPT)
   ENDIF()
 
   INSTALL(PROGRAMS ${script} DESTINATION ${ARG_DESTINATION} COMPONENT ${COMP})
-  get_filename_component(dest "${script}" NAME)
-  INSTALL_MANPAGE(${dest})
 ENDFUNCTION()
 
 
@@ -245,10 +225,6 @@ FUNCTION(MYSQL_INSTALL_TARGETS)
     # If signing is required, sign executables before installing
     IF(SIGNCODE)
       SIGN_TARGET(${target} ${COMP})
-    ENDIF()
-    # Install man pages on Unix
-    IF(UNIX)
-      INSTALL_MANPAGE($<TARGET_FILE:${target}>)
     ENDIF()
   ENDFOREACH()
 
