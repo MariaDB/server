@@ -1406,7 +1406,7 @@ explain SELECT a FROM (
 SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a > 3 OR t2.b IN (SELECT a FROM t1)
 ) table1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 SELECT a FROM (
@@ -1888,7 +1888,7 @@ FROM t2 AS alias3, t2 AS alias4
 WHERE alias4.c = alias3.b
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 3	MATERIALIZED	alias3	ALL	NULL	NULL	NULL	NULL	2	
 3	MATERIALIZED	alias4	index	c	c	11	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 DROP TABLE t1,t2;
@@ -2757,7 +2757,7 @@ SELECT i FROM t1 LEFT JOIN t2 ON (j) IN (SELECT k FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	MATERIALIZED	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 SELECT i FROM t1 LEFT JOIN t2 ON (j) IN (SELECT k FROM t3);
 i
 10
@@ -2766,7 +2766,7 @@ SELECT i FROM t1 LEFT JOIN t2 ON (j) IN (SELECT max(k) FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	MATERIALIZED	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 SELECT i FROM t1 LEFT JOIN t2 ON (j) IN (SELECT max(k) FROM t3);
 i
 10

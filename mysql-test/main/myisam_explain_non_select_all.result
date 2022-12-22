@@ -765,9 +765,9 @@ FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	select NULL AS `a` from `test`.`t1` where 0 order by NULL
+Note	1003	select NULL AS `a` from `test`.`t1` where NULL > 0 order by NULL
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
 Variable_name	Value
 Handler_read_key	3
@@ -3021,12 +3021,12 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN INSERT INTO v1 SELECT * FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED INSERT INTO v1 SELECT * FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 # Status of EXPLAIN EXTENDED query
 Variable_name	Value
 Handler_read_key	4
@@ -3035,7 +3035,7 @@ FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED SELECT * FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	select NULL AS `a` from `test`.`t1`
 # Status of EXPLAIN EXTENDED "equivalent" SELECT query execution
@@ -3247,7 +3247,7 @@ JOIN t1 AS a12 ON a12.c1 = a11.c1
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 DROP TABLE t1, t2, t3;
 #73
 CREATE TABLE t1 (id INT);
@@ -3367,7 +3367,7 @@ CALL p16();
 DROP PROCEDURE p16;
 CALL p15();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 DROP PROCEDURE p15;
 CALL p14();
 DROP PROCEDURE p14;
@@ -3379,7 +3379,7 @@ CALL p12();
 DROP PROCEDURE p12;
 CALL p11();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 DROP PROCEDURE p11;
 CALL p10();
 DROP PROCEDURE p10;

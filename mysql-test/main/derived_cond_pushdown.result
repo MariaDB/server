@@ -16845,7 +16845,7 @@ pk
 EXPLAIN EXTENDED WITH cte AS ( SELECT pk FROM t1 WHERE pk IS NULL GROUP BY pk )
 SELECT * FROM cte;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	with cte as (/* select#2 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` where 0 group by `test`.`t1`.`pk`)/* select#1 */ select NULL AS `pk` from `cte`
@@ -16937,10 +16937,10 @@ f	f
 EXPLAIN EXTENDED
 SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	/* select#1 */ select NULL AS `f`,`v2`.`f` AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where 0
+Note	1003	/* select#1 */ select NULL AS `f`,NULL AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where multiple equal(NULL, NULL)
 DROP VIEW v1,v2;
 DROP TABLE t1;
 #
@@ -18207,7 +18207,7 @@ select * from v1;
 f
 explain select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary
 drop view v1;

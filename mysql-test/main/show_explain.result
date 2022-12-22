@@ -582,7 +582,7 @@ WHERE a1 IN ( SELECT a1 FROM t2, t4 )
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	index	NULL	a1	5	NULL	20	Using where; Using index
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	87	Using join buffer (flat, BNL join)
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_do_select';
 SELECT count(*) FROM t2, t3

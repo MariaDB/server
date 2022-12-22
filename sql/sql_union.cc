@@ -1740,6 +1740,7 @@ bool st_select_lex_unit::exec()
         if (describe)
         {
           /*
+            UglySubqueryReoptimization:
             In EXPLAIN command, constant subqueries that do not use any
             tables are executed two times:
              - 1st time is a real evaluation to get the subquery value

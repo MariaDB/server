@@ -370,3 +370,23 @@ drop table t1;
 
 explain
 VALUES ( (VALUES (2))) UNION VALUES ( (SELECT 3));
+
+--echo #
+--echo # MDEV-20501: Assertion `maybe_null || !null_value' failed in Item_func_round::date_op
+--echo #
+
+CREATE TABLE t1 (t TIMESTAMP NOT NULL) ENGINE=MyISAM;
+SELECT * FROM t1 WHERE TRUNCATE( t, 1 );
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26536: Assertion `maybe_null() || !null_value' failed in Item_func_ceiling::time_op
+--echo #
+CREATE TABLE t1 (a INT,b TIME NOT NULL DEFAULT 1) ENGINE=MyISAM;
+SELECT b FROM t1 GROUP BY b HAVING CEILING (b)>0;
+drop table t1;
+
+create table t1 (b time not null ) engine=myisam;
+select floor(b) as f from t1 group by b having f=1;
+drop table t1;
+

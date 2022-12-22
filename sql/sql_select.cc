@@ -2382,6 +2382,9 @@ int JOIN::optimize_stage2()
   if (subq_exit_fl)
     goto setup_subq_exit;
 
+  if (zero_result_cause)
+    goto setup_subq_exit;
+
   if (unlikely(thd->check_killed()))
     DBUG_RETURN(1);
 
@@ -2418,6 +2421,8 @@ int JOIN::optimize_stage2()
     DBUG_PRINT("error",("Error: initialize_tables() failed"));
     DBUG_RETURN(1);				// error == -1
   }
+
+  /* ConstRowNotFoundShortcut-2: */
   if (const_table_map != found_const_table_map &&
       !(select_options & SELECT_DESCRIBE))
   {
@@ -2603,6 +2608,7 @@ int JOIN::optimize_stage2()
     }
   }
 
+  /* ConstRowNotFoundShortcut-3: */
   if (conds && const_table_map != found_const_table_map &&
       (select_options & SELECT_DESCRIBE))
   {
@@ -5392,7 +5398,32 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
     }
   } while (ref_changed);
- 
+
+  /*
+    ConstRowNotFoundShortcut-1:
+    Some constant/system tables have mo matching rows. This means that
+    the join operation output will be empty.
+    Short-cut further optimization steps.
+    Note that some query plan steps will still be performed to handle
+    implicit grouping, join result setup, etc.
+    See also: ConstRowNotFoundShortcut-{2,3}.
+
+    Do not do this if we're optimizing for some UNION's fake_select_lex.
+    We might be running UglySubqueryReoptimization (grep for name) and
+    in this case constant tables are not reliable.
+  */
+  if ((join->const_table_map & ~found_const_table_map) &&
+       !(join->select_lex->master_unit() &&
+         join->select_lex->master_unit()->fake_select_lex == join->select_lex))
+  {
+    join->zero_result_cause= "no matching row in const table";
+    join->table_count=0;
+    join->const_tables= 0;
+    join->join_tab= NULL;
+
+    DBUG_RETURN(0);
+  }
+
   join->sort_by_table= get_sort_by_table(join->order, join->group_list,
                                          join->select_lex->leaf_tables,
                                          join->const_table_map);

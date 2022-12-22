@@ -2,7 +2,7 @@ drop table if exists t1;
 create table t1 (id int not null, str char(10), unique(str));
 explain select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 insert into t1 values (1, null),(2, null),(3, "foo"),(4, "bar");
 select * from t1 where str is null;
 id	str
@@ -217,11 +217,10 @@ SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
 EXPLAIN EXTENDED SELECT 1 FROM t1
 WHERE f1 > ALL( SELECT t.f1 FROM t1,t1 AS t );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
-2	SUBQUERY	t	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
-Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where 0
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where <not>(<in_optimizer>(NULL,(/* select#2 */ select max(NULL) from `test`.`t1` join `test`.`t1` `t`) >= <cache>(NULL)))
 SET SESSION sql_mode=@old_sql_mode;
 DROP TABLE t1;
 End of 5.0 tests.
@@ -299,7 +298,7 @@ INSERT INTO t2 VALUES ('1'), ('2'), ('3');
 FLUSH TABLES;
 EXPLAIN SELECT 1 FROM t1 WHERE a = (SELECT 1 FROM t1 t JOIN t2 WHERE b <= 1 AND t.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 DROP TABLE t1, t2;
 #
@@ -393,7 +392,7 @@ set optimizer_switch='derived_merge=off,derived_with_keys=off';
 EXPLAIN EXTENDED
 SELECT * FROM ( SELECT t1.a FROM t1,t2 WHERE t2.a = t1.a ) AS t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	/* select#1 */ select NULL AS `a` from (/* select#2 */ select NULL AS `a` from `test`.`t1` where 0) `t`
@@ -459,3 +458,21 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1249	Select 4 was reduced during optimization
+#
+# MDEV-20501: Assertion `maybe_null || !null_value' failed in Item_func_round::date_op
+#
+CREATE TABLE t1 (t TIMESTAMP NOT NULL) ENGINE=MyISAM;
+SELECT * FROM t1 WHERE TRUNCATE( t, 1 );
+t
+DROP TABLE t1;
+#
+# MDEV-26536: Assertion `maybe_null() || !null_value' failed in Item_func_ceiling::time_op
+#
+CREATE TABLE t1 (a INT,b TIME NOT NULL DEFAULT 1) ENGINE=MyISAM;
+SELECT b FROM t1 GROUP BY b HAVING CEILING (b)>0;
+b
+drop table t1;
+create table t1 (b time not null ) engine=myisam;
+select floor(b) as f from t1 group by b having f=1;
+f
+drop table t1;

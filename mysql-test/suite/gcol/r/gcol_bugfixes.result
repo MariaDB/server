@@ -170,7 +170,7 @@ ON ( p1 . gcol_int_key = p2 . pk )
 AND gp1 . col_varchar_nokey = 'b'
 HAVING g1 > 6;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT
 gp1 . gcol_datetime_key AS g1
 FROM cc AS gp1 LEFT JOIN c AS gp2 ON ( gp2 . gcol_datetime_key <> gp1 .
@@ -374,7 +374,7 @@ EXPLAIN SELECT 1 FROM t WHERE ( SELECT 1 FROM t ) >=ANY( SELECT c FROM v );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Const row not found
 SELECT 1 FROM t WHERE ( SELECT 1 FROM t ) >=ANY( SELECT c FROM v );
 1
 EXPLAIN SELECT (SELECT MAX(c) FROM v);
