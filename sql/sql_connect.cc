@@ -1370,7 +1370,7 @@ void setup_connection_thread_globals(THD *thd)
 {
   DBUG_EXECUTE_IF("CONNECT_wait", {
     extern Dynamic_array<MYSQL_SOCKET> listen_sockets;
-    DBUG_ASSERT(listen_sockets.size());    
+    DBUG_ASSERT(listen_sockets.size());
     while (listen_sockets.size())
       my_sleep(1000);
   });
