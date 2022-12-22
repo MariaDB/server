@@ -5531,18 +5531,42 @@ public:
 
 class Item_ref :public Item_ident
 {
+public:
+
+#define NO_NULL_TABLE (reinterpret_cast<TABLE *>(0x1))
+
+  void set_null_ref_table()
+  {
+      null_ref_table= NO_NULL_TABLE;
+  }
+
+  bool check_null_ref()
+  {
+    if( !null_ref_table )
+      return FALSE;
+    if (null_ref_table != NO_NULL_TABLE && null_ref_table->null_row)
+    {
+      null_value= 1;
+      return TRUE;
+    }
+    return FALSE;
+  }
+
+
 protected:
   void set_properties();
   bool set_properties_only; // the item doesn't need full fix_fields
 public:
   enum Ref_Type { REF, DIRECT_REF, VIEW_REF, OUTER_REF, AGGREGATE_REF };
   Item **ref;
+  TABLE *null_ref_table;
   bool reference_trough_name;
   Item_ref(THD *thd, Name_resolution_context *context_arg,
            const LEX_CSTRING &db_arg, const LEX_CSTRING &table_name_arg,
            const LEX_CSTRING &field_name_arg):
     Item_ident(thd, context_arg, db_arg, table_name_arg, field_name_arg),
-    set_properties_only(0), ref(0), reference_trough_name(1) {}
+    set_properties_only(0), ref(0), null_ref_table(NULL),
+    reference_trough_name(1) {}
   Item_ref(THD *thd, Name_resolution_context *context_arg,
            const LEX_CSTRING &field_name_arg)
    :Item_ref(thd, context_arg, null_clex_str, null_clex_str, field_name_arg)
@@ -6002,26 +6026,12 @@ class Item_direct_view_ref :public Item_direct_ref
 {
   Item_equal *item_equal;
   TABLE_LIST *view;
-  TABLE *null_ref_table;
-
-#define NO_NULL_TABLE (reinterpret_cast<TABLE *>(0x1))
 
   void set_null_ref_table()
   {
     if (!view->is_inner_table_of_outer_join() ||
         !(null_ref_table= view->get_real_join_table()))
       null_ref_table= NO_NULL_TABLE;
-  }
-
-  bool check_null_ref()
-  {
-    DBUG_ASSERT(null_ref_table);
-    if (null_ref_table != NO_NULL_TABLE && null_ref_table->null_row)
-    {
-      null_value= 1;
-      return TRUE;
-    }
-    return FALSE;
   }
 
 public:
@@ -6031,8 +6041,7 @@ public:
                        LEX_CSTRING &field_name_arg,
                        TABLE_LIST *view_arg):
     Item_direct_ref(thd, context_arg, item, table_name_arg, field_name_arg),
-    item_equal(0), view(view_arg),
-    null_ref_table(NULL)
+    item_equal(0), view(view_arg)
   {
     if (fixed())
       set_null_ref_table();

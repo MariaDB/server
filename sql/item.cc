@@ -7893,7 +7893,7 @@ Item_ref::Item_ref(THD *thd, Name_resolution_context *context_arg,
                    const LEX_CSTRING &field_name_arg,
                    bool alias_name_used_arg):
   Item_ident(thd, context_arg, null_clex_str, table_name_arg, field_name_arg),
-  ref(item), reference_trough_name(0)
+  ref(item), null_ref_table(0), reference_trough_name(0)
 {
   alias_name_used= alias_name_used_arg;
   /*
@@ -7942,7 +7942,7 @@ Item_ref::Item_ref(THD *thd, TABLE_LIST *view_arg, Item **item,
                    const LEX_CSTRING &field_name_arg,
                    bool alias_name_used_arg):
   Item_ident(thd, view_arg, field_name_arg),
-  ref(item), reference_trough_name(0)
+  ref(item), null_ref_table(0), reference_trough_name(0)
 {
   alias_name_used= alias_name_used_arg;
   /*
@@ -8586,6 +8586,12 @@ int Item_ref::save_in_field(Field *to, bool no_conversions)
     to->set_notnull();
     res= field_conv(to, result_field);
     null_value= 0;
+    return res;
+  }
+  if (check_null_ref())
+  {
+    null_value= 1;
+    res= set_field_to_null_with_conversions(to, no_conversions);
     return res;
   }
   res= (*ref)->save_in_field(to, no_conversions);

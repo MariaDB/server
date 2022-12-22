@@ -2622,7 +2622,7 @@ enum_nested_loop_state JOIN_CACHE::join_null_complements(bool skip_last)
       get_record();
       /* The outer row is complemented by nulls for each inner table */
       restore_record(join_tab->table, s->default_values);
-      mark_as_null_row(join_tab->table);  
+      mark_as_null_row(join_tab->table);
       rc= generate_full_extensions(get_curr_rec());
       if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
         goto finish;
