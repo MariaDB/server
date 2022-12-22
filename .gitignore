@@ -239,6 +239,7 @@ storage/perfschema/pfs_config.h
 storage/rocksdb/ldb
 storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/mysql_ldb
+storage/rocksdb/mysql_ldb.1
 storage/rocksdb/rdb_source_revision.h
 storage/rocksdb/sst_dump
 strings/conf_to_src
@@ -579,7 +580,6 @@ man/mysql_embedded.1
 man/mysql_find_rows.1
 man/mysql_fix_extensions.1
 man/mysql_install_db.1
-man/mysql_ldb.1
 man/mysql_plugin.1
 man/mysql_secure_installation.1
 man/mysql_setpermission.1

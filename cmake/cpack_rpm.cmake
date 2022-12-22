@@ -10,16 +10,13 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
 SET(CPACK_RPM_COMPONENT_INSTALL ON)
 
 SET(CPACK_COMPONENT_SERVER_GROUP "server")
-SET(CPACK_COMPONENT_MANPAGESSERVER_GROUP "server")
 SET(CPACK_COMPONENT_INIFILES_GROUP "server")
 SET(CPACK_COMPONENT_SERVER_SCRIPTS_GROUP "server")
 SET(CPACK_COMPONENT_SUPPORTFILES_GROUP "server")
 SET(CPACK_COMPONENT_DEVELOPMENT_GROUP "devel")
 SET(CPACK_COMPONENT_MANPAGESDEVELOPMENT_GROUP "devel")
 SET(CPACK_COMPONENT_TEST_GROUP "test")
-SET(CPACK_COMPONENT_MANPAGESTEST_GROUP "test")
 SET(CPACK_COMPONENT_CLIENT_GROUP "client")
-SET(CPACK_COMPONENT_MANPAGESCLIENT_GROUP "client")
 SET(CPACK_COMPONENT_README_GROUP "server")
 SET(CPACK_COMPONENT_SHAREDLIBRARIES_GROUP "shared")
 SET(CPACK_COMPONENT_COMMON_GROUP "common")
@@ -27,11 +24,9 @@ SET(CPACK_COMPONENT_CLIENTPLUGINS_GROUP "common")
 SET(CPACK_COMPONENT_COMPAT_GROUP "compat")
 SET(CPACK_COMPONENT_BACKUP_GROUP "backup")
 
-SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
-                         SupportFiles Development ManPagesDevelopment
-                         ManPagesTest Readme ManPagesClient Test
-                         Common Client SharedLibraries ClientPlugins
-                         Backup
+SET(CPACK_COMPONENTS_ALL Server IniFiles Server_Scripts SupportFiles
+                         Development ManPagesDevelopment Readme Test Common
+                         Client SharedLibraries ClientPlugins Backup
 )
 
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
