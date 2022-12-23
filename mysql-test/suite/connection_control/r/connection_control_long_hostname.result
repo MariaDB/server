@@ -3,7 +3,7 @@ SET @saved_value = @@global.failed_connections_threshold;
 SELECT @saved_value;
 @saved_value
 0
-SET @@global.failed_connections_threshold = @saved_value;
+SET @@global.failed_connections_threshold = 3;
 # Create user accounts for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
 FLUSH HOSTS;
@@ -17,3 +17,4 @@ SET GLOBAL DEBUG_DBUG=@old_debug;
 FOUND 1 /u1@host5678901_345678902_345678903_345678904_345678905_345678906_345678907_345678908_345678909_345678910_345678911_345678912_345678913_345678914_345678915_345678916_345678917_345678918_345678919_345678920_345678921_345678922_345678923_345678924_345678925_345 have login failed 1 times/ in mysqld.1.err
 # Cleanup.
 DROP USER u1;
+SET @@global.failed_connections_threshold = @saved_value;

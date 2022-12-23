@@ -9,8 +9,8 @@
 
 SET @saved_value = @@global.failed_connections_threshold;
 SELECT @saved_value;
-SET @@global.failed_connections_threshold = @saved_value;
 
+SET @@global.failed_connections_threshold = 3;
 --echo # Create user accounts for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
 FLUSH HOSTS;
@@ -34,6 +34,6 @@ let $count=1;
 -- echo # Cleanup.
 DROP USER u1;
 
-
+SET @@global.failed_connections_threshold = @saved_value;
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc
