@@ -35,7 +35,7 @@ CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
         # Needed to bump the component changes up to the main scope
         APPEND_FOR_CPACK(CPACK_COMPONENTS_ALL)
         IF (RPM)
-            APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES " binutils net-tools python3")
+            APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_REQUIRES " binutils net-tools python3 MariaDB-client-compat MariaDB-server-compat")
             APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_RECOMMENDS " jemalloc")
             APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_USER_FILELIST ";%ignore /var/lib;%ignore /var")
             APPEND_FOR_CPACK(CPACK_RPM_columnstore-engine_PACKAGE_CONFLICTS " thrift MariaDB-columnstore-platform MariaDB-columnstore-libs")
