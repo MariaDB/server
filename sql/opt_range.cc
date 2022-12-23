@@ -4073,6 +4073,20 @@ end:
     table->all_partitions_pruned_away= true;
     retval= TRUE;
   }
+
+  if (unlikely(thd->trace_started()))
+  {
+    String parts;
+    String_list parts_list;
+
+    make_used_partitions_str(thd->mem_root, prune_param.part_info, &parts,
+                               parts_list);
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_prune(thd, "prune_partitions");
+    trace_prune.add_table_name(table);
+    trace_prune.add("used_partitions", parts.c_ptr());
+  }
+
   DBUG_RETURN(retval);
 }
 

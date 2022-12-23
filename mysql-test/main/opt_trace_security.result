@@ -128,10 +128,13 @@ select * from db1.t1	{
               "attached_conditions_summary": [
                 {
                   "table": "t1",
-                  "attached": null
+                  "attached_condition": null
                 }
               ]
             }
+          },
+          {
+            "make_join_readinfo": []
           }
         ]
       }
@@ -257,10 +260,13 @@ select * from db1.v1	{
               "attached_conditions_summary": [
                 {
                   "table": "t1",
-                  "attached": null
+                  "attached_condition": null
                 }
               ]
             }
+          },
+          {
+            "make_join_readinfo": []
           }
         ]
       }

@@ -254,10 +254,18 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
               "attached_conditions_summary": [
                 {
                   "table": "t1",
-                  "attached": "t1.pk1 <> 0"
+                  "attached_condition": "t1.pk1 <> 0"
                 }
               ]
             }
+          },
+          {
+            "make_join_readinfo": [
+              {
+                "table": "t1",
+                "index_condition": "t1.pk1 <> 0"
+              }
+            ]
           }
         ]
       }

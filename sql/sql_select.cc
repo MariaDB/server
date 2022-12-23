@@ -12297,6 +12297,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
   DBUG_ENTER("make_join_select");
   if (select)
   {
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_conditions(thd, "attaching_conditions_to_tables");
+    Json_writer_array trace_attached_comp(thd,
+                                          "attached_conditions_computation");
     add_not_null_conds(join);
     table_map used_tables;
     /*
@@ -12369,6 +12373,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           {
             add_cond_and_fix(thd, &outer_ref_cond, join->outer_ref_cond);
             join->outer_ref_cond= outer_ref_cond;
+
+            Json_writer_object trace(thd);
+            trace.add("outer_ref_cond", outer_ref_cond);
           }
         }
         else
@@ -12384,6 +12391,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             add_cond_and_fix(thd, &pseudo_bits_cond,
                              join->pseudo_bits_cond);
             join->pseudo_bits_cond= pseudo_bits_cond;
+
+            Json_writer_object trace(thd);
+            trace.add("pseudo_bits_cond", pseudo_bits_cond);
           }
         }
       }
@@ -12392,10 +12402,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     /*
       Step #2: Extract WHERE/ON parts
     */
-    Json_writer_object trace_wrapper(thd);
-    Json_writer_object trace_conditions(thd, "attaching_conditions_to_tables");
-    Json_writer_array trace_attached_comp(thd,
-                                        "attached_conditions_computation");
+
     uint i;
     for (i= join->top_join_tab_count - 1; i >= join->const_tables; i--)
     {
@@ -12966,7 +12973,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         Item *const cond = tab->select_cond;
         Json_writer_object trace_one_table(thd);
         trace_one_table.add_table_name(tab);
-        trace_one_table.add("attached", cond);
+        trace_one_table.add("attached_condition", cond);
       }
     }
   }
@@ -14038,6 +14045,9 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
   uint i;
   DBUG_ENTER("make_join_readinfo");
 
+  Json_writer_object  trace_wrapper(join->thd);
+  Json_writer_array   trace_arr(join->thd, "make_join_readinfo");
+
   bool statistics= MY_TEST(!(join->select_options & SELECT_DESCRIBE));
   bool sorted= 1;
 
@@ -14076,7 +14086,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
   }
  
   check_join_cache_usage_for_tables(join, options, no_jbuf_after);
-  
+
   JOIN_TAB *first_tab;
   for (tab= first_tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
        tab; 
@@ -31112,7 +31122,6 @@ bool JOIN::transform_all_conds_and_on_exprs_in_join_list(
   }
   return false;
 }
-
 
 /**
   @} (end of group Query_Optimizer)

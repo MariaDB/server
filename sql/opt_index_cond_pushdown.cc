@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "sql_test.h"
+#include "opt_trace.h"
 
 /****************************************************************************
  * Index Condition Pushdown code starts
@@ -355,6 +356,8 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
     {
       Item *idx_remainder_cond= 0;
       tab->pre_idx_push_select_cond= tab->select_cond;
+      Json_writer_object trace(tab->join->thd);
+      trace.add_table_name(tab);
       /*
         For BKA cache we store condition to special BKA cache field
         because evaluation of the condition requires additional operations
@@ -387,6 +390,7 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
           idx_remainder_cond= NULL;
         }
       }
+      trace.add("index_condition", idx_cond);
 
       /*
         Disable eq_ref's "lookup cache" if we've pushed down an index
@@ -424,6 +428,10 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
       }
       else
         tab->select_cond= idx_remainder_cond;
+
+      if (tab->select_cond)
+        trace.add("row_condition", tab->select_cond);
+
       if (tab->select)
       {
         DBUG_EXECUTE("where",
