@@ -299,6 +299,8 @@ The following specify which files/extra groups are read (specified before remain
  --extra-port=#      Extra port number to use for tcp connections in a
  one-thread-per-connection manner. 0 means don't use
  another port
+ --failed-connections-threshold=# 
+ The failed login threshold connection control
  --flashback         Setup the server to use flashback. This enables binary
  log in row mode and will enable extra logging for DDL's
  needed by flashback feature
@@ -592,6 +594,8 @@ The following specify which files/extra groups are read (specified before remain
  If there is more than this number of interrupted
  connections from a host this host will be blocked from
  further connections
+ --max-connection-delay=# 
+ The maximum number of connection  response delay 
  --max-connections=# The number of simultaneous clients allowed
  --max-delayed-threads=# 
  Don't start more than this number of threads to handle
@@ -650,6 +654,8 @@ The following specify which files/extra groups are read (specified before remain
  Unused
  --metadata-locks-hash-instances=# 
  Unused
+ --min-connection-delay=# 
+ The minnum number of connection response delay 
  --min-examined-row-limit=# 
  Alias for log_slow_min_examined_row_limit. Don't write
  queries to slow log that examine fewer rows than that
@@ -1613,6 +1619,7 @@ explicit-defaults-for-timestamp TRUE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
+failed-connections-threshold 0
 flashback FALSE
 flush FALSE
 flush-time 0
@@ -1696,6 +1703,7 @@ max-binlog-cache-size 18446744073709547520
 max-binlog-size 1073741824
 max-binlog-stmt-cache-size 18446744073709547520
 max-connect-errors 100
+max-connection-delay 18446744073709551615
 max-delayed-threads 20
 max-digest-length 1024
 max-error-count 64
@@ -1718,6 +1726,7 @@ max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
+min-connection-delay 2000
 min-examined-row-limit 0
 mrr-buffer-size 262144
 myisam-block-size 1024
