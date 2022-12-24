@@ -1018,7 +1018,11 @@ table_map Item_subselect::used_tables() const
 bool Item_subselect::const_item() const
 {
   DBUG_ASSERT(thd);
-  return (thd->lex->context_analysis_only || with_recursive_reference ?
+  if (unit->executed_at_prepare_phase() && !thd->lex->context_analysis_only)
+    return true;
+  return (!(thd->lex->m_sql_cmd &&
+            thd->lex->m_sql_cmd->is_prepared()) ||
+          with_recursive_reference ?
           FALSE :
           forced_const || const_item_cache);
 }

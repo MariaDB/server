@@ -84,7 +84,7 @@ protected:
 
  private:
   /**
-    @biefSpecial handling of single-table deletes after prepare phase
+    @brief Special handling of single-table deletes after prepare phase
   */
   bool delete_from_single_table(THD *thd);
 

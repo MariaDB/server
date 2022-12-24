@@ -5544,3 +5544,130 @@ void select_create::abort_result_set()
     (void) create_info->finalize_locked_tables(thd, true);
   DBUG_VOID_RETURN;
 }
+
+
+bool Sql_cmd_insert_base::precheck(THD *thd)
+{
+#if 0
+  /*
+    Since INSERT DELAYED doesn't support temporary tables, we could
+    not pre-open temporary tables for SQLCOM_INSERT / SQLCOM_REPLACE.
+    Open them here instead.
+  */
+  if (first_table->lock_type != TL_WRITE_DELAYED &&
+      thd->open_temporary_tables(lex->query_tables))
+    return true;
+
+  if (insert_precheck(thd, lex->query_tables))
+    return true;
+
+  WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
+
+  return false;
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+#endif
+#endif
+  return true;
+}
+
+
+bool Sql_cmd_insert_base::prepare_inner(THD *thd)
+{
+#if 0
+  SELECT_LEX *const select_lex= thd->lex->first_select_lex();
+  TABLE_LIST *const table_list= select_lex->get_table_list();
+  Name_resolution_context *context= &select_lex->context;
+  Name_resolution_context_state ctx_state;
+  const bool select_insert= insert_many_values.elements == 0;
+  bool insert_into_view= (table_list->view != 0);
+  TABLE *table;
+
+  DBUG_ENTER("Sql_cmd_insert_base::prepare_inner");
+
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
+
+  {
+    if (mysql_handle_derived(lex, DT_INIT))
+      DBUG_RETURN(TRUE);
+    if (mysql_handle_derived(lex, DT_MERGE_FOR_INSERT))
+      DBUG_RETURN(TRUE);
+    if (mysql_handle_derived(lex, DT_PREPARE))
+      DBUG_RETURN(TRUE);
+  }
+
+  insert_field_list= thd->lex->field_list;
+
+  if (duplicates == DUP_UPDATE)
+  {
+    /* it should be allocated before Item::fix_fields() */
+    if (table_list->set_insert_values(thd->mem_root))
+      DBUG_RETURN(TRUE);
+  }
+
+  table= table_list->table;
+
+  if (table->file->check_if_updates_are_ignored("INSERT"))
+    DBUG_RETURN(-1);
+
+  if (!table_list->single_table_updatable())
+  {
+    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias.str, "INSERT");
+    DBUG_RETURN(TRUE);
+  }
+
+  /*
+     first table in list is the one we'll INSERT into, requires INSERT_ACL.
+     all others require SELECT_ACL only. the ACL requirement below is for
+     new leaves only anyway (view-constituents), so check for SELECT rather
+     than INSERT.
+  */
+  if (setup_tables_and_check_access(thd,
+                                    &select_lex->context,
+                                    &select_lex->top_join_list,
+                                    table_list,
+                                    select_lex->leaf_tables,
+                                    select_insert, INSERT_ACL, SELECT_ACL,
+                                    TRUE))
+    DBUG_RETURN(TRUE);
+
+  if (insert_into_view && !insert_field_list.elements)
+  {
+    thd->lex->empty_field_list_on_rset= 1;
+    if (!table_list->table || table_list->is_multitable())
+    {
+      my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),
+               table_list->view_db.str, table_list->view_name.str);
+      DBUG_RETURN(TRUE);
+    }
+    if (insert_view_fields(thd, &insert_field_list, table_list))
+      DBUG_RETURN(TRUE);
+  }
+
+  if (thd->lex->has_returning())
+  {
+    status_var_increment(thd->status_var.feature_insert_returning);
+
+    /* This is INSERT ... RETURNING. It will return output to the client */
+    if (thd->lex->analyze_stmt)
+    {
+      /*
+        Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
+        output and then discard it.
+      */
+      result= new (thd->mem_root) select_send_analyze(thd);
+      save_protocol= thd->protocol;
+      thd->protocol= new Protocol_discard(thd);
+    }
+    else
+    {
+      if (!(result= new (thd->mem_root) select_send(thd)))
+        DBUG_RETURN(TRUE);
+    }
+  }
+#else
+  return false;
+#endif
+}
+

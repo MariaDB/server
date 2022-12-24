@@ -398,7 +398,6 @@ a
 00
 select a from t1 where a=y2k();
 a
-00
 select a from t1 where a=b;
 a
 drop table t1;

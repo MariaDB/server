@@ -2268,6 +2268,48 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       lex->m_sql_cmd->unprepare(thd);
     break;
 
+  case SQLCOM_SELECT:
+#if 0
+    if (lex->m_sql_cmd == NULL &&
+        !(lex->m_sql_cmd=
+	  new (thd->mem_root) Sql_cmd_select(thd->lex->result)))
+    {
+      res= 1;
+      break;
+    }
+#endif
+    lex->m_sql_cmd->set_owner(stmt);
+    res = lex->m_sql_cmd->prepare(thd);
+    if (res == 2)
+    {
+      /* Statement and field info has already been sent */
+      DBUG_RETURN(FALSE);
+    }
+    if (!res && !lex->describe && !lex->analyze_stmt && !stmt->is_sql_prepare())
+    {
+      SELECT_LEX_UNIT *const unit = &lex->unit;
+      /* Make copy of item list, as change_columns may change it */
+      SELECT_LEX_UNIT* master_unit= unit->first_select()->master_unit();
+      bool is_union_op=
+           master_unit->is_unit_op() || master_unit->fake_select_lex;
+
+      List<Item> fields(is_union_op ? unit->item_list :
+                                      lex->first_select_lex()->item_list);
+
+      /* Change columns if a procedure like analyse() */
+      res= (unit->last_procedure &&
+            unit->last_procedure->change_columns(thd, fields));
+
+      if (res || send_prep_stmt(stmt, lex->result->field_count(fields)) ||
+          lex->result->send_result_set_metadata(fields,
+                                                Protocol::SEND_EOF) ||
+           thd->protocol->flush())
+         res= true;
+    }
+    if (!res)
+      lex->m_sql_cmd->unprepare(thd);
+    break;
+
   /* The following allow WHERE clause, so they must be tested like SELECT */
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
@@ -2285,7 +2327,9 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_SHOW_STATUS_FUNC:
   case SQLCOM_SHOW_STATUS_PACKAGE:
   case SQLCOM_SHOW_STATUS_PACKAGE_BODY:
+#if 0
   case SQLCOM_SELECT:
+#endif
     res= mysql_test_select(stmt, tables);
     if (res == 2)
     {
@@ -2469,12 +2513,14 @@ static bool check_prepared_statement(Prepared_statement *stmt)
                                           lex->describe, lex->analyze_stmt) ||
               send_prep_stmt(stmt, result.field_count(field_list)) ||
               result.send_result_set_metadata(field_list,
-                                                    Protocol::SEND_EOF);
+                                                    Protocol::SEND_EOF) ||
+              thd->protocol->flush();
        }
-       else
-         res= send_prep_stmt(stmt, 0);
-       if (!res)
-         thd->protocol->flush();
+       else if (lex->sql_command != SQLCOM_SELECT)
+       {
+         res= send_prep_stmt(stmt, 0) ||
+              thd->protocol->flush();
+       }
     }
     DBUG_RETURN(FALSE);
   }

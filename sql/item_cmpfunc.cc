@@ -5704,6 +5704,8 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
                      bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
                      int *escape)
 {
+  if (thd->lex->context_analysis_only)
+    return false;
   /*
     ESCAPE clause accepts only constant arguments and Item_param.
 
@@ -5713,9 +5715,13 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
     reach val_int(), so we won't need the value.
     CONTEXT_ANALYSIS_ONLY_DERIVED being a notable exception here.
   */
+#if 0
   if (!escape_item->const_during_execution() ||
      (!escape_item->const_item() &&
       !(thd->lex->context_analysis_only & ~CONTEXT_ANALYSIS_ONLY_DERIVED)))
+#else
+    if (!escape_item->const_item())
+#endif
   {
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"ESCAPE");
     return TRUE;

@@ -1034,6 +1034,8 @@ public:
 
   bool explainable() const;
 
+  bool executed_at_prepare_phase();
+
   void reset_distinct();
   void fix_distinct();
 
@@ -1475,6 +1477,8 @@ public:
                           ORDER *order,
                           enum_query_type query_type);
   void print_limit(THD *thd, String *str, enum_query_type query_type);
+  bool prepare(THD *thd, select_result *result);
+  bool exec(THD *thd);
   void fix_prepare_information(THD *thd, Item **conds, Item **having_conds);
   /*
     Destroy the used execution plan (JOIN) of this subtree (this
@@ -1648,6 +1652,7 @@ public:
   bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
   void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
   bool is_sj_conversion_prohibited(THD *thd);
+  bool executed_at_prepare_phase();
 };
 typedef class st_select_lex SELECT_LEX;
 

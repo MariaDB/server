@@ -1,0 +1,5 @@
+drop temporary table if exists not_exists;
+drop table if exists not_exists_table;
+prepare stmt from "show count(*) warnings;";
+execute stmt;
+deallocate prepare stmt;

@@ -1324,6 +1324,24 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
 
   describe= additional_options & SELECT_DESCRIBE;
 
+  if (describe)
+  {
+    for (SELECT_LEX *sl= first_sl; sl; sl= sl->next_select())
+    {
+      sl->set_explain_type(FALSE);
+      sl->options|= SELECT_DESCRIBE;
+    }
+    if (is_unit_op() || fake_select_lex)
+    {
+      if (union_needs_tmp_table() && fake_select_lex)
+      {
+        fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
+        fake_select_lex->type= unit_operation_text[common_op()];
+        fake_select_lex->options|= SELECT_DESCRIBE;
+      }
+    }
+  }
+
   /*
     Save fake_select_lex in case we don't need it for anything but
     global parameters.
@@ -2159,6 +2177,8 @@ bool st_select_lex_unit::exec()
   DBUG_ENTER("st_select_lex_unit::exec");
   bool was_executed= executed;
 
+  describe= thd->lex->describe;
+
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
   executed= 1;
@@ -2167,6 +2187,9 @@ bool st_select_lex_unit::exec()
     item->make_const();
   
   saved_error= optimize();
+
+  if (outer_select() == NULL)
+    thd->accessed_rows_and_keys_at_exec_start= thd->accessed_rows_and_keys;
   
   create_explain_query_if_not_exists(thd->lex, thd->mem_root);
 
@@ -2238,6 +2261,7 @@ bool st_select_lex_unit::exec()
 	  saved_error= sl->join->optimize();
 	}
       }
+
       if (likely(!saved_error))
       {
 	records_at_start= table->file->stats.records;

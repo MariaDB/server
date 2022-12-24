@@ -1387,7 +1387,9 @@ bool Field::can_optimize_range(const Item_bool_func *cond,
 {
   DBUG_ASSERT(cmp_type() != TIME_RESULT);   // Handled in Field_temporal
   DBUG_ASSERT(cmp_type() != STRING_RESULT); // Handled in Field_str descendants
-  return item->cmp_type() != TIME_RESULT;
+  return (item->cmp_type() != TIME_RESULT) &&
+         !(item->type() == Item::SUBSELECT_ITEM &&
+           ((Item_subselect *)item)->is_expensive());
 }
 
 

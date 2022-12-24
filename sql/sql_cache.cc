@@ -4216,6 +4216,8 @@ my_bool Query_cache::ask_handler_allowance(THD *thd,
 
   for (; tables_used; tables_used= tables_used->next_global)
   {
+    if (tables_used->is_view_or_derived())
+      continue;
     TABLE *table;
     handler *handler;
     if (!(table= tables_used->table))

@@ -3903,7 +3903,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SHOW_COLLATIONS:
   case SQLCOM_SHOW_STORAGE_ENGINES:
   case SQLCOM_SHOW_PROFILE:
+#if 0
   case SQLCOM_SELECT:
+#endif
   {
 #ifdef WITH_WSREP
     if (lex->sql_command == SQLCOM_SELECT)
@@ -4376,6 +4378,17 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res = mysql_checksum_table(thd, first_table, &lex->check_opt);
     break;
   }
+  case SQLCOM_SELECT:
+  {
+    res = lex->m_sql_cmd->execute(thd);
+    break;
+  }
+#if 0
+  case SQLCOM_REPLACE:
+  case SQLCOM_INSERT:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_INSERT_SELECT:
+#endif
   case SQLCOM_UPDATE:
   case SQLCOM_UPDATE_MULTI:
   case SQLCOM_DELETE:
@@ -4388,6 +4401,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     thd->abort_on_warning= 0;
     break;
   }
+#if 1
   case SQLCOM_REPLACE:
     if ((res= generate_incident_event(thd)))
       break;
@@ -4647,6 +4661,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     break;
   }
+#endif
   case SQLCOM_DROP_SEQUENCE:
   case SQLCOM_DROP_TABLE:
   {
@@ -7346,6 +7361,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   get_stmt_da()->reset_for_next_command();
   m_sent_row_count= m_examined_row_count= 0;
   accessed_rows_and_keys= 0;
+  accessed_rows_and_keys_at_exec_start= 0;
 
   reset_slow_query_state();
 
@@ -7485,6 +7501,8 @@ void create_select_for_variable(THD *thd, LEX_CSTRING *var_name)
   lex= thd->lex;
   lex->init_select();
   lex->sql_command= SQLCOM_SELECT;
+  lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_select(thd->lex->result);
+
   /*
     We set the name of Item to @@session.var_name because that then is used
     as the column name in the output.

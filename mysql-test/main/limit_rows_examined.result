@@ -125,7 +125,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from t0, t1 where c0 = 'bb' and c1 > c0 LIMIT ROWS EXAMINED 0;
 c0	c1
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 2 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
 set @@join_cache_level = @save_join_cache_level;
 drop table t0;
 =========================================================================
@@ -681,7 +681,7 @@ INSERT INTO t3 VALUES ('USASpanish',8),('USATagalog',0),('USAVietnamese',0);
 EXPLAIN
 SELECT DISTINCT a AS field1 FROM t1, t2 
 WHERE EXISTS (SELECT c FROM t3 LEFT JOIN t2 ON b = d) 
-HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 20;
+HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
@@ -689,10 +689,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
 SELECT DISTINCT a AS field1 FROM t1, t2 
 WHERE EXISTS (SELECT c FROM t3 LEFT JOIN t2 ON b = d) 
-HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 20;
+HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 15;
 field1
+USA
+CAN
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 21 rows, which exceeds LIMIT ROWS EXAMINED (20). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 16 rows, which exceeds LIMIT ROWS EXAMINED (15). The query result may be incomplete
 EXPLAIN
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -833,13 +835,15 @@ CREATE TABLE t2 ( b INT, c INT, KEY(c) );
 INSERT INTO t2 VALUES 
 (5, 0),(3, 4),(6, 1),
 (5, 8),(4, 9),(8, 1);
+set expensive_subquery_limit=5;
 SELECT (SELECT MAX(c) FROM t1, t2)
 FROM t2
 WHERE c = (SELECT MAX(b) FROM t2)
 LIMIT ROWS EXAMINED 3;
 (SELECT MAX(c) FROM t1, t2)
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 12 rows, which exceeds LIMIT ROWS EXAMINED (3). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 5 rows, which exceeds LIMIT ROWS EXAMINED (3). The query result may be incomplete
+set expensive_subquery_limit=default;
 drop table t1, t2;
 
 MDEV-178: LIMIT ROWS EXAMINED: Assertion `0' failed in net_end_statement(THD*) on the
