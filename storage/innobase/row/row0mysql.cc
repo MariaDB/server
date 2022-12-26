@@ -1672,7 +1672,7 @@ row_fts_update_or_delete(
 
 		if (new_doc_id == 0) {
 			ib::error() << "InnoDB FTS: Doc ID cannot be 0";
-			return(DB_FTS_INVALID_DOCID);
+			DBUG_RETURN(DB_FTS_INVALID_DOCID);
 		}
 		row_fts_do_update(trx, table, old_doc_id, new_doc_id);
 	}
