@@ -12,7 +12,7 @@
 # Examples
 #
 #   export OLD_BINDIR="/home/midenok/src/mariadb/10.3b/build"
-#   mtr innodb_fts.versioning,orig_stopword,prepare
+#   ./mtr innodb_fts.versioning,prepare
 #
 
 if ($MTR_COMBINATION_PREPARE)
@@ -56,11 +56,16 @@ if ($MTR_COMBINATION_PREPARE)
 
   --exec mkdir -p $std_dir
   --exec cp -af $datadir/ibdata1 $datadir/test/*.frm $std_dir
+  # zero out the doublewrite buffer
+  --exec dd if=/dev/zero of=$std_dir/ibdata1 bs=16k seek=64 count=128 conv=notrunc
   --exec gzip -9f $std_dir/ibdata1 $std_dir/*.frm
 }
 
 if ($MTR_COMBINATION_UPGRADE)
 {
+--disable_query_log
+call mtr.add_suppression("InnoDB: Table `mysql`.\`innodb_(table|index)_stats`");
+--enable_query_log
   --source include/shutdown_mysqld.inc
   --exec rm -f $datadir/test/*.ibd $datadir/ib*
   --exec cp -af $std_dir/ibdata1.gz $datadir

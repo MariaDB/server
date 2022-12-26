@@ -2059,39 +2059,48 @@ row_ins_dupl_error_with_rec(
 	return(!rec_get_deleted_flag(rec, rec_offs_comp(offsets)));
 }
 
-/** @return true if history row was inserted by this transaction
-           (row TRX_ID is the same as current TRX_ID). */
-static
-dberr_t vers_row_same_trx(dict_index_t* index, const rec_t* rec,
-                          que_thr_t* thr, bool *same_trx)
+/** Determine whether a history row was inserted by this transaction
+(row TRX_ID is the same as current TRX_ID).
+@param index  secondary index
+@param rec    secondary index record
+@param trx    transaction
+@return error code
+@retval DB_SUCCESS                on success
+@retval DB_FOREIGN_DUPLICATE_KEY  if a history row was inserted by trx */
+static dberr_t vers_row_same_trx(dict_index_t* index, const rec_t* rec,
+                                 const trx_t& trx)
 {
   mtr_t mtr;
   dberr_t ret= DB_SUCCESS;
-  ulint trx_id_len;
-  const byte *trx_id_bytes;
-  trx_id_t trx_id;
   dict_index_t *clust_index= dict_table_get_first_index(index->table);
   ut_ad(index != clust_index);
 
   mtr.start();
 
-  rec_t *clust_rec=
-      row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr);
-  rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
-  rec_offs *clust_offs= offsets_;
-  rec_offs_init(offsets_);
-  mem_heap_t *heap= NULL;
-
-  if (clust_rec)
+  if (const rec_t *clust_rec=
+      row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr))
   {
+    rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+    rec_offs *clust_offs= offsets_;
+    rec_offs_init(offsets_);
+    mem_heap_t *heap= NULL;
+
     clust_offs=
-        rec_get_offsets(clust_rec, clust_index, clust_offs,
-                        clust_index->n_core_fields, ULINT_UNDEFINED, &heap);
-    if (!clust_index->vers_history_row(clust_rec, clust_offs))
+      rec_get_offsets(clust_rec, clust_index, clust_offs,
+                      clust_index->n_core_fields, ULINT_UNDEFINED, &heap);
+    if (clust_index->vers_history_row(clust_rec, clust_offs))
     {
-      *same_trx= false;
-      goto end;
+      ulint trx_id_len;
+      const byte *trx_id= rec_get_nth_field(clust_rec, clust_offs,
+                                            clust_index->n_uniq, &trx_id_len);
+      ut_ad(trx_id_len == DATA_TRX_ID_LEN);
+
+      if (trx.id == trx_read_trx_id(trx_id))
+        ret= DB_FOREIGN_DUPLICATE_KEY;
     }
+
+    if (UNIV_LIKELY_NULL(heap))
+      mem_heap_free(heap);
   }
   else
   {
@@ -2099,21 +2108,8 @@ dberr_t vers_row_same_trx(dict_index_t* index, const rec_t* rec,
                    " of table " << index->table->name << " is out of sync";
     ut_ad("secondary index is out of sync" == 0);
     ret= DB_TABLE_CORRUPT;
-    goto end;
   }
 
-  trx_id_bytes= rec_get_nth_field(clust_rec, clust_offs,
-                                  clust_index->n_uniq, &trx_id_len);
-  ut_ad(trx_id_len == DATA_TRX_ID_LEN);
-
-  trx_id= trx_read_trx_id(trx_id_bytes);
-
-  if (UNIV_LIKELY_NULL(heap))
-    mem_heap_free(heap);
-
-  *same_trx= thr_get_trx(thr)->id == trx_id;
-
-end:
   mtr.commit();
   return ret;
 }
@@ -2141,9 +2137,6 @@ row_ins_scan_sec_index_for_duplicate(
 	ulint		n_fields_cmp;
 	btr_pcur_t	pcur;
 	dberr_t		err		= DB_SUCCESS;
-	dberr_t		err2;
-	bool		same_trx;
-	ulint		allow_duplicates;
 	rec_offs	offsets_[REC_OFFS_SEC_INDEX_SIZE];
 	rec_offs*	offsets		= offsets_;
 	DBUG_ENTER("row_ins_scan_sec_index_for_duplicate");
@@ -2181,7 +2174,7 @@ row_ins_scan_sec_index_for_duplicate(
 		      : BTR_SEARCH_LEAF,
 		      &pcur, mtr);
 
-	allow_duplicates = thr_get_trx(thr)->duplicates;
+	trx_t* const trx = thr_get_trx(thr);
 
 	/* Scan index records and check if there is a duplicate */
 
@@ -2202,7 +2195,7 @@ row_ins_scan_sec_index_for_duplicate(
 		if (flags & BTR_NO_LOCKING_FLAG) {
 			/* Set no locks when applying log
 			in online table rebuild. */
-		} else if (allow_duplicates) {
+		} else if (trx->duplicates) {
 
 			/* If the SQL-query will update or replace
 			duplicate key we will take X-lock for
@@ -2239,20 +2232,14 @@ row_ins_scan_sec_index_for_duplicate(
 
 				err = DB_DUPLICATE_KEY;
 
-				thr_get_trx(thr)->error_info = index;
+				trx->error_info = index;
 
-				if (index->table->versioned()) {
-					err2 = vers_row_same_trx(index, rec,
-								 thr, &same_trx);
-					if (err2 != DB_SUCCESS) {
-						err = err2;
-						goto end_scan;
-					}
-
-					if (same_trx) {
-						err = DB_FOREIGN_DUPLICATE_KEY;
-						goto end_scan;
-					}
+				if (!index->table->versioned()) {
+				} else if (dberr_t e =
+					   vers_row_same_trx(index, rec,
+							     *trx)) {
+					err = e;
+					goto end_scan;
 				}
 
 				/* If the duplicate is on hidden FTS_DOC_ID,
