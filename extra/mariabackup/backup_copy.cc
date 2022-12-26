@@ -1544,8 +1544,6 @@ bool backup_start(CorruptedPages &corrupted_pages)
 		if (!write_galera_info(mysql_connection)) {
 			return(false);
 		}
-                // copied from xtrabackup. what is it needed for here?
-		write_current_binlog_file(mysql_connection);
 	}
 
 	if (opt_binlog_info == BINLOG_INFO_ON) {
