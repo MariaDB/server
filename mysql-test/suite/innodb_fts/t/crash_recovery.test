@@ -7,6 +7,7 @@
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 --source include/maybe_debug.inc
+--source include/maybe_versioning.inc
 
 FLUSH TABLES;
 # Following are test for crash recovery on FTS index, the first scenario
@@ -21,6 +22,16 @@ CREATE TABLE articles (
         body TEXT,
         FULLTEXT (title,body)
         ) ENGINE=InnoDB;
+
+let $vers= $MTR_COMBINATION_VERS + $MTR_COMBINATION_VERS_TRX;
+if ($vers)
+{
+  --disable_query_log
+  INSERT INTO articles (title,body) VALUES
+          ('history','Deleted row ...');
+  DELETE FROM articles;
+  --enable_query_log
+}
 
 # Drop the FTS index before more insertion. The FTS_DOC_ID should
 # be kept
@@ -58,6 +69,13 @@ INSERT INTO articles (title,body) VALUES
 
 # Recreate fulltext index to see if everything is OK
 CREATE FULLTEXT INDEX idx ON articles (title,body);
+
+if ($vers)
+{
+  --disable_query_log
+  UPDATE articles SET id= id - 1;
+  --enable_query_log
+}
 
 # Should return 3 rows
 SELECT * FROM articles
@@ -98,6 +116,13 @@ disconnect dml;
 INSERT INTO articles (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...');
 
+if ($vers)
+{
+  --disable_query_log
+  UPDATE articles SET id= id - 1 WHERE id > 8;
+  --enable_query_log
+}
+
 # Should return 6 rows
 SELECT * FROM articles
         WHERE MATCH (title,body)
@@ -133,6 +158,15 @@ BEGIN;
 # so we can skip the above flush_redo_log trick.
 INSERT INTO articles VALUES
         (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
+
+if ($vers)
+{
+  --disable_query_log
+  DELETE FROM articles WHERE id = 100;
+  INSERT INTO articles VALUES
+          (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
+  --enable_query_log
+}
 
 connect(dml2, localhost, root,,);
 

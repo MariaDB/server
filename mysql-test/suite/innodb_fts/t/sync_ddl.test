@@ -4,6 +4,7 @@
 
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/maybe_versioning.inc
 
 #--------------------------------------
 # Check FTS_sync vs TRUNCATE (1)

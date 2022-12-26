@@ -398,8 +398,10 @@ fts_read_stopword(
 	fts_string_t	str;
 	mem_heap_t*	heap;
 	ib_rbt_bound_t	parent;
+	dict_table_t*	table;
 
 	sel_node = static_cast<sel_node_t*>(row);
+	table = sel_node->table_list->table;
 	stopword_info = static_cast<fts_stopword_t*>(user_arg);
 
 	stop_words = stopword_info->cached_stopword;
@@ -414,6 +416,27 @@ fts_read_stopword(
 	str.f_n_char = 0;
 	str.f_str = static_cast<byte*>(dfield_get_data(dfield));
 	str.f_len = dfield_get_len(dfield);
+	exp = que_node_get_next(exp);
+	ut_ad(exp);
+
+	if (table->versioned()) {
+		dfield = que_node_get_val(exp);
+		ut_ad(dfield_get_type(dfield)->vers_sys_end());
+		void* data = dfield_get_data(dfield);
+		ulint len = dfield_get_len(dfield);
+		if (table->versioned_by_id()) {
+			ut_ad(len == sizeof trx_id_max_bytes);
+			if (0 != memcmp(data, trx_id_max_bytes, len)) {
+				return true;
+			}
+		} else {
+			ut_ad(len == sizeof timestamp_max_bytes);
+			if (0 != memcmp(data, timestamp_max_bytes, len)) {
+				return true;
+			}
+		}
+	}
+	ut_ad(!que_node_get_next(exp));
 
 	/* Only create new node if it is a value not already existed */
 	if (str.f_len != UNIV_SQL_NULL
@@ -457,7 +480,9 @@ fts_load_user_stopword(
 
 	/* Validate the user table existence in the right format */
 	bool ret= false;
-	stopword_info->charset = fts_valid_stopword_table(stopword_table_name);
+	const char* row_end;
+	stopword_info->charset = fts_valid_stopword_table(stopword_table_name,
+							  &row_end);
 	if (!stopword_info->charset) {
 cleanup:
 		if (!fts->dict_locked) {
@@ -482,6 +507,7 @@ cleanup:
 	pars_info_t* info = pars_info_create();
 
 	pars_info_bind_id(info, "table_stopword", stopword_table_name);
+	pars_info_bind_id(info, "row_end", row_end);
 
 	pars_info_bind_function(info, "my_func", fts_read_stopword,
 				stopword_info);
@@ -490,7 +516,7 @@ cleanup:
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
-		" SELECT value"
+		" SELECT value, $row_end"
 		" FROM $table_stopword;\n"
 		"BEGIN\n"
 		"\n"
@@ -1925,9 +1951,16 @@ fts_create_common_tables(
 		goto func_exit;
 	}
 
-	index = dict_mem_index_create(table, FTS_DOC_ID_INDEX_NAME,
-				      DICT_UNIQUE, 1);
-	dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
+	if (table->versioned()) {
+		index = dict_mem_index_create(table, FTS_DOC_ID_INDEX_NAME,
+					      DICT_UNIQUE, 2);
+		dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
+		dict_mem_index_add_field(index, table->cols[table->vers_end].name(*table), 0);
+	} else {
+		index = dict_mem_index_create(table, FTS_DOC_ID_INDEX_NAME,
+					      DICT_UNIQUE, 1);
+		dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
+	}
 
 	op = trx_get_dict_operation(trx);
 
@@ -3427,7 +3460,8 @@ fts_add_doc_by_id(
 
 	/* Search based on Doc ID. Here, we'll need to consider the case
 	when there is no primary index on Doc ID */
-	tuple = dtuple_create(heap, 1);
+	const ulint n_uniq = table->fts_n_uniq();
+	tuple = dtuple_create(heap, n_uniq);
 	dfield = dtuple_get_nth_field(tuple, 0);
 	dfield->type.mtype = DATA_INT;
 	dfield->type.prtype = DATA_NOT_NULL | DATA_UNSIGNED | DATA_BINARY_TYPE;
@@ -3435,12 +3469,27 @@ fts_add_doc_by_id(
 	mach_write_to_8((byte*) &temp_doc_id, doc_id);
 	dfield_set_data(dfield, &temp_doc_id, sizeof(temp_doc_id));
 
+	if (n_uniq == 2) {
+		ut_ad(table->versioned());
+		ut_ad(fts_id_index->fields[1].col->vers_sys_end());
+		dfield = dtuple_get_nth_field(tuple, 1);
+		dfield->type.mtype = fts_id_index->fields[1].col->mtype;
+		dfield->type.prtype = fts_id_index->fields[1].col->prtype;
+		if (table->versioned_by_id()) {
+			dfield_set_data(dfield, trx_id_max_bytes,
+					sizeof(trx_id_max_bytes));
+		} else {
+			dfield_set_data(dfield, timestamp_max_bytes,
+					sizeof(timestamp_max_bytes));
+		}
+	}
+
 	btr_pcur_open_with_no_init(
 		fts_id_index, tuple, PAGE_CUR_LE, BTR_SEARCH_LEAF,
 		&pcur, &mtr);
 
 	/* If we have a match, add the data to doc structure */
-	if (btr_pcur_get_low_match(&pcur) == 1) {
+	if (btr_pcur_get_low_match(&pcur) == n_uniq) {
 		const rec_t*	rec;
 		btr_pcur_t*	doc_pcur;
 		const rec_t*	clust_rec;
@@ -3637,19 +3686,33 @@ fts_get_max_doc_id(
 
 	if (!page_is_empty(btr_pcur_get_page(&pcur))) {
 		const rec_t*    rec = NULL;
-		rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
-		rec_offs*	offsets = offsets_;
-		mem_heap_t*	heap = NULL;
-		ulint		len;
-		const void*	data;
-
-		rec_offs_init(offsets_);
+		const ulint	doc_id_len= 8;
 
 		do {
 			rec = btr_pcur_get_rec(&pcur);
 
-			if (page_rec_is_user_rec(rec)) {
+			if (!page_rec_is_user_rec(rec)) {
+				continue;
+			}
+
+			if (index->n_uniq == 1) {
 				break;
+			}
+
+			ut_ad(table->versioned());
+			ut_ad(index->n_uniq == 2);
+
+			const byte *data = rec + doc_id_len;
+			if (table->versioned_by_id()) {
+				if (0 == memcmp(data, trx_id_max_bytes,
+						sizeof trx_id_max_bytes)) {
+					break;
+				}
+			} else {
+				if (0 == memcmp(data, timestamp_max_bytes,
+						sizeof timestamp_max_bytes)) {
+					break;
+				}
 			}
 		} while (btr_pcur_move_to_prev(&pcur, &mtr));
 
@@ -3658,14 +3721,8 @@ fts_get_max_doc_id(
 		}
 
 		ut_ad(!rec_is_metadata(rec, index));
-		offsets = rec_get_offsets(
-			rec, index, offsets, index->n_core_fields,
-			ULINT_UNDEFINED, &heap);
 
-		data = rec_get_nth_field(rec, offsets, 0, &len);
-
-		doc_id = static_cast<doc_id_t>(fts_read_doc_id(
-			static_cast<const byte*>(data)));
+		doc_id = fts_read_doc_id(rec);
 	}
 
 func_exit:
@@ -5967,12 +6024,16 @@ void fts_drop_orphaned_tables()
 /**********************************************************************//**
 Check whether user supplied stopword table is of the right format.
 Caller is responsible to hold dictionary locks.
-@return the stopword column charset if qualifies */
+@param stopword_table_name   table name
+@param row_end   name of the system-versioning end column, or "value"
+@return the stopword column charset
+@retval NULL if the table does not exist or qualify */
 CHARSET_INFO*
 fts_valid_stopword_table(
 /*=====================*/
-	const char*	stopword_table_name)	/*!< in: Stopword table
+	const char*	stopword_table_name,	/*!< in: Stopword table
 						name */
+	const char**	row_end) /* row_end value of system-versioned table */
 {
 	dict_table_t*	table;
 	dict_col_t*     col = NULL;
@@ -6014,6 +6075,13 @@ fts_valid_stopword_table(
 	}
 
 	ut_ad(col);
+	ut_ad(!table->versioned() || col->ind != table->vers_end);
+
+	if (row_end) {
+		*row_end = table->versioned()
+			? dict_table_get_col_name(table, table->vers_end)
+			: "value"; /* for fts_load_user_stopword() */
+	}
 
 	return(fts_get_charset(col->prtype));
 }
@@ -6149,18 +6217,20 @@ cleanup:
 /**********************************************************************//**
 Callback function when we initialize the FTS at the start up
 time. It recovers the maximum Doc IDs presented in the current table.
+Tested by innodb_fts.crash_recovery
 @return: always returns TRUE */
 static
 ibool
 fts_init_get_doc_id(
 /*================*/
 	void*	row,			/*!< in: sel_node_t* */
-	void*	user_arg)		/*!< in: fts cache */
+	void*	user_arg)		/*!< in: table with fts */
 {
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	sel_node_t*	node = static_cast<sel_node_t*>(row);
 	que_node_t*	exp = node->select_list;
-	fts_cache_t*    cache = static_cast<fts_cache_t*>(user_arg);
+	dict_table_t*	table = static_cast<dict_table_t *>(user_arg);
+	fts_cache_t*    cache = table->fts->cache;
 
 	ut_ad(ib_vector_is_empty(cache->get_docs));
 
@@ -6174,6 +6244,29 @@ fts_init_get_doc_id(
 
 		doc_id = static_cast<doc_id_t>(mach_read_from_8(
 			static_cast<const byte*>(data)));
+
+		exp = que_node_get_next(que_node_get_next(exp));
+		if (exp) {
+			ut_ad(table->versioned());
+			dfield = que_node_get_val(exp);
+			type = dfield_get_type(dfield);
+			ut_ad(type->vers_sys_end());
+			data = dfield_get_data(dfield);
+			ulint len = dfield_get_len(dfield);
+			if (table->versioned_by_id()) {
+				ut_ad(len == sizeof trx_id_max_bytes);
+				if (0 != memcmp(data, trx_id_max_bytes, len)) {
+					return true;
+				}
+			} else {
+				ut_ad(len == sizeof timestamp_max_bytes);
+				if (0 != memcmp(data, timestamp_max_bytes, len)) {
+					return true;
+				}
+			}
+			ut_ad(!(exp = que_node_get_next(exp)));
+		}
+		ut_ad(!exp);
 
 		if (doc_id >= cache->next_doc_id) {
 			cache->next_doc_id = doc_id + 1;
@@ -6340,7 +6433,7 @@ fts_init_index(
 
 		fts_doc_fetch_by_doc_id(NULL, start_doc, index,
 					FTS_FETCH_DOC_BY_ID_LARGE,
-					fts_init_get_doc_id, cache);
+					fts_init_get_doc_id, table);
 	} else {
 		if (table->fts->cache->stopword_info.status
 		    & STOPWORD_NOT_INIT) {
