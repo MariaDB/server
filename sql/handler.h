@@ -4642,7 +4642,11 @@ public:
  virtual void cancel_pushed_rowid_filter()
  {
    pushed_rowid_filter= NULL;
-   rowid_filter_is_active= false;
+   if (rowid_filter_is_active)
+   {
+     rowid_filter_is_active= false;
+     rowid_filter_changed();
+   }
  }
 
  virtual void disable_pushed_rowid_filter()
