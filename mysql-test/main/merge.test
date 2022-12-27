@@ -2886,3 +2886,16 @@ drop table tm, t;
 --echo #
 --echo # End of 10.8 tests
 --echo #
+
+--echo #
+--echo # MDEV-30088 Assertion `cond_selectivity <= 1.0' failed in get_range_limit_read_cost
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP, KEY(a)) ENGINE=MRG_MyISAM;
+explain SELECT a, COUNT(*) FROM t1 WHERE a >= '2000-01-01 00:00:00' GROUP BY a;
+SELECT a, COUNT(*) FROM t1 WHERE a >= '2000-01-01 00:00:00' GROUP BY a;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #
