@@ -4135,7 +4135,7 @@ public:
   virtual int multi_range_read_next(range_id_t *range_info);
 private:
   inline void calculate_costs(Cost_estimate *cost, uint keyno,
-                              uint ranges, uint flags,
+                              uint ranges, uint multi_row_ranges, uint flags,
                               ha_rows total_rows,
                               ulonglong io_blocks,
                               ulonglong unassigned_single_point_ranges);

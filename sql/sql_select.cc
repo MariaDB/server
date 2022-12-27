@@ -7850,6 +7850,8 @@ static double matching_candidates_in_table(JOIN_TAB *s,
 /*
   Calculate the cost of reading a set of rows trough an index
 
+  @param eq_ref   True if there is only one matching key (EQ_REF)
+
   Logically this is identical to the code in multi_range_read_info_const()
   excepts the function also takes into account io_blocks and multiple
   ranges.
@@ -7865,15 +7867,20 @@ static double matching_candidates_in_table(JOIN_TAB *s,
   KEY_COPY_COST as for filtering there is no copying of not accepted
   keys.
 
+  If eq_ref is not set, it means that we have to do one extra 'read_next'
+  on the index to verify that there is not more keys with the same value.
+
   WHERE_COST cost is not added to any result.
 */
 
 static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
-                                         uint key, ha_rows records)
+                                         uint key, ha_rows records,
+                                         bool eq_ref)
 {
   ALL_READ_COST cost;
   handler *file= table->file;
   ha_rows max_seeks;
+  ha_rows extra_reads= eq_ref ? 0 : 1;
   DBUG_ENTER("cost_for_index_read");
 
   max_seeks= (ha_rows) thd->variables.max_seeks_for_key;
@@ -7882,7 +7889,7 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
   if (file->is_clustering_key(key))
   {
     cost.index_cost=
-      file->ha_keyread_clustered_time(key, 1, records, 0);
+      file->ha_keyread_clustered_time(key, 1, records+extra_reads, 0);
     cost.copy_cost= rows2double(records) * file->ROW_COPY_COST;
     /* There is no 'index_only_read' with a clustered index */
     cost.row_cost= {0,0};
@@ -7892,7 +7899,7 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
   }
   else if (table->covering_keys.is_set(key) && !table->no_keyread)
   {
-    cost.index_cost= file->ha_keyread_time(key, 1, records, 0);
+    cost.index_cost= file->ha_keyread_time(key, 1, records + extra_reads, 0);
     cost.row_cost= {0,0};
     cost.copy_cost= rows2double(records) * file->KEY_COPY_COST;
     cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
@@ -7900,7 +7907,7 @@ static ALL_READ_COST cost_for_index_read(const THD *thd, const TABLE *table,
   }
   else
   {
-    cost.index_cost= file->ha_keyread_time(key, 1, records, 0);
+    cost.index_cost= file->ha_keyread_time(key, 1, records + extra_reads, 0);
     /* ha_rnd_pos_time() includes time for copying the row */
     cost.row_cost= file->ha_rnd_pos_time(records);
     cost.max_index_blocks= MY_MIN(file->index_blocks(key), max_seeks);
@@ -8343,7 +8350,7 @@ best_access_path(JOIN      *join,
             }
             else
             {
-              tmp= cost_for_index_read(thd, table, key, 1);
+              tmp= cost_for_index_read(thd, table, key, 1, 1);
             }
             /*
               Calculate an adjusted cost based on how many records are read
@@ -8409,8 +8416,8 @@ best_access_path(JOIN      *join,
                     ((double) (table->s->max_key_length-keyinfo->key_length) /
                      (double) table->s->max_key_length)));
                 set_if_smaller(records, (double)s->records);
-                if (records < 2.0)
-                  records=2.0;               /* Can't be as good as a unique */
+                if (records < 1.0)
+                  records= 1.0;     /* Can't be as good as a unique */
               }
 
               /*
@@ -8451,7 +8458,7 @@ best_access_path(JOIN      *join,
             }
             /* Calculate the cost of the index access */
             tmp= cost_for_index_read(thd, table, key,
-                                     (ha_rows) records);
+                                     (ha_rows) records, 0);
           }
         }
         else
@@ -8635,7 +8642,7 @@ best_access_path(JOIN      *join,
             }
 
             set_if_smaller(records, (double) s->records);
-            tmp= cost_for_index_read(thd, table, key, (ha_rows)records);
+            tmp= cost_for_index_read(thd, table, key, (ha_rows)records, 0);
             tmp.copy_cost+= extra_cost;
           }
           else
@@ -9035,7 +9042,7 @@ best_access_path(JOIN      *join,
             {
               ALL_READ_COST cost= cost_for_index_read(thd, table,
                                                       forced_index,
-                                                      s->records);
+                                                      s->records, 0);
               cur_cost= file->cost(cost);
               /* Calculate cost of checking the attached WHERE */
               cur_cost= COST_ADD(cur_cost,
@@ -30357,7 +30364,7 @@ static bool get_range_limit_read_cost(const POSITION *pos,
     <=> N > refkey_rows_estimate.
   */
   ALL_READ_COST cost= cost_for_index_read(table->in_use, table, keynr,
-                                          rows_to_scan);
+                                          rows_to_scan, 0);
   *read_cost= (table->file->cost(&cost) +
                rows_to_scan * WHERE_COST_THD(table->in_use));
   *read_rows= rows2double(rows_to_scan);

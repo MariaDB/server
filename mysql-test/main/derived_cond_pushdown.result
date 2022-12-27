@@ -1008,7 +1008,7 @@ explain select * from v_double as v,t2_double as t where
 (v.a=t.a) and (v.avg_a>0.45) and (v.b>10);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t.a	1	Using where
 2	DERIVED	t1_double	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_double as v,t2_double as t where
 (v.a=t.a) and (v.avg_a>0.45) and (v.b>10);
@@ -1039,7 +1039,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v.avg_a > 0.45 and v.b > 10",
@@ -1085,7 +1085,7 @@ explain select * from v_decimal as v,t2_decimal as t where
 (v.a=t.a) and (v.avg_c>15) and (v.b>1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	3	test.t.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	3	test.t.a	1	Using where
 2	DERIVED	t1_decimal	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_decimal as v,t2_decimal as t where
 (v.a=t.a) and (v.avg_c>15) and (v.b>1);
@@ -1116,7 +1116,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v.avg_c > 15 and v.b > 1",
@@ -2308,7 +2308,7 @@ explain select * from v_decimal as v,t2_decimal as t where
 (v.a=v.b) and (v.b=t.b) and ((t.b>1) or (v.a=1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	6	test.t.b,test.t.b	2	
+1	PRIMARY	<derived2>	ref	key0	key0	6	test.t.b,test.t.b	1	
 2	DERIVED	t1_decimal	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_decimal as v,t2_decimal as t where
 (v.a=v.b) and (v.b=t.b) and ((t.b>1) or (v.a=1));
@@ -2339,7 +2339,7 @@ EXPLAIN
           "used_key_parts": ["a", "b"],
           "ref": ["test.t.b", "test.t.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -2716,7 +2716,7 @@ explain select * from v_double as v,t2_double as t where
 (v.b=v.c) and (v.c=t.c) and ((t.c>10) or (v.a=1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	18	test.t.c,test.t.c	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	18	test.t.c,test.t.c	1	Using where
 2	DERIVED	t1_double	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_double as v,t2_double as t where
 (v.b=v.c) and (v.c=t.c) and ((t.c>10) or (v.a=1));
@@ -2747,7 +2747,7 @@ EXPLAIN
           "used_key_parts": ["b", "c"],
           "ref": ["test.t.c", "test.t.c"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t.c > 10 or v.a = 1",
@@ -2799,7 +2799,7 @@ explain select * from v_double as v,t2_double as t where
 (((v.a>0.2) or (v.b<17)) or (t.c>17)) and (t.c=v.c) and (v.c>18);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	9	test.t.c	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.t.c	1	Using where
 2	DERIVED	t1_double	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_double as v,t2_double as t where
 (((v.a>0.2) or (v.b<17)) or (t.c>17)) and (t.c=v.c) and (v.c>18);
@@ -2830,7 +2830,7 @@ EXPLAIN
           "used_key_parts": ["c"],
           "ref": ["test.t.c"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v.a > 0.2 or v.b < 17 or t.c > 17",
@@ -6276,7 +6276,7 @@ explain select * from v_char as v,t2_char as t where
 (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	2	test.t.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	2	test.t.a	1	Using where
 2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 explain format=json select * from v_char as v,t2_char as t where
 (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
@@ -6307,7 +6307,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t.a"],
           "loops": 12,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v.b = 'Vika' and v.max_c > 2",
@@ -9016,7 +9016,7 @@ EXPLAIN
                 "used_key_parts": ["c"],
                 "ref": ["func"],
                 "loops": 1,
-                "rows": 2,
+                "rows": 1,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
                 "materialized": {
@@ -9072,7 +9072,7 @@ SELECT d FROM v4 WHERE s > a
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
-3	DEPENDENT SUBQUERY	<derived5>	index_subquery	key0	key0	5	func	2	Using where
+3	DEPENDENT SUBQUERY	<derived5>	index_subquery	key0	key0	5	func	1	Using where
 5	DERIVED	t4	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 explain format=json SELECT * FROM t1 WHERE a IN (
 SELECT b FROM v2 WHERE b < a OR b IN (
@@ -9123,7 +9123,7 @@ EXPLAIN
                 "used_key_parts": ["d"],
                 "ref": ["func"],
                 "loops": 1,
-                "rows": 2,
+                "rows": 1,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
                 "materialized": {
@@ -9279,7 +9279,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t1.a"],
           "loops": 2,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "trigcond(v2.b is null) and trigcond(trigcond(t1.a is not null))",
@@ -9417,7 +9417,7 @@ EXPLAIN
                 "used_key_parts": ["pk2"],
                 "ref": ["func"],
                 "loops": 1,
-                "rows": 2,
+                "rows": 1,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
                 "materialized": {
@@ -9488,7 +9488,7 @@ EXPLAIN
                 "used_key_parts": ["pk2"],
                 "ref": ["func"],
                 "loops": 1,
-                "rows": 2,
+                "rows": 1,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
                 "materialized": {
@@ -10728,7 +10728,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t1.a"],
           "loops": 7,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -10796,7 +10796,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t1.a"],
           "loops": 7,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -10867,7 +10867,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t1.a"],
           "loops": 7,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -10932,7 +10932,7 @@ EXPLAIN
           "used_key_parts": ["m"],
           "ref": ["test.t1.a"],
           "loops": 7,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -11194,7 +11194,7 @@ EXPLAIN
           "used_key_parts": ["id2"],
           "ref": ["test.t1.id2"],
           "loops": 4,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "vc.ct > 0",
@@ -12244,7 +12244,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t1.a"],
           "loops": 2,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -12320,7 +12320,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t1.a"],
           "loops": 2,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -12511,7 +12511,7 @@ EXPLAIN
           "used_key_parts": ["c"],
           "ref": ["test.t2.a"],
           "loops": 5,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t2.a = t.c and t.a >= 3",
@@ -13014,7 +13014,7 @@ EXPLAIN
           "table_name": "<derived2>",
           "access_type": "ALL",
           "loops": 1,
-          "rows": 16,
+          "rows": 8,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t.f is not null",
@@ -13044,7 +13044,7 @@ EXPLAIN
                     "used_key_parts": ["f"],
                     "ref": ["test.t1.f"],
                     "loops": 8,
-                    "rows": 2,
+                    "rows": 1,
                     "cost": "COST_REPLACED",
                     "filtered": 100,
                     "materialized": {
@@ -13126,7 +13126,7 @@ EXPLAIN
           "used_key_parts": ["f2"],
           "ref": ["test.t1.f2"],
           "loops": 2,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -13711,7 +13711,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -13743,7 +13743,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -14052,7 +14052,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14084,7 +14084,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c > 200",
@@ -14168,7 +14168,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14200,7 +14200,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c > 110",
@@ -14285,7 +14285,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14317,7 +14317,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b > 27 or v1.b < 19",
@@ -14407,7 +14407,7 @@ explain select * from v1,t2 where
 (v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14440,7 +14440,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c > 200 or v1.c < 105",
@@ -14717,7 +14717,7 @@ where
 ((d1.a<4) and (d1.c<200)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14759,7 +14759,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t2.c = 909 and t2.b > 13 or d1.a < 4 and d1.c < 200",
@@ -14853,7 +14853,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14885,7 +14885,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -15202,7 +15202,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15234,7 +15234,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c > 500",
@@ -15318,7 +15318,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15350,7 +15350,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c > 500",
@@ -15437,7 +15437,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15469,7 +15469,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b > 27 or v1.b < 19",
@@ -15559,7 +15559,7 @@ explain select * from v1,t2 where
 (v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15592,7 +15592,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c < 400 or v1.c > 800",
@@ -15863,7 +15863,7 @@ where
 ((d1.a>4) and (d1.c>500)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15905,7 +15905,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t2.c = 988 and t2.b > 13 or d1.a > 4 and d1.c > 500",
@@ -16641,7 +16641,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16674,7 +16674,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c < 150",
@@ -16791,7 +16791,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16826,7 +16826,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c < 130",
@@ -17186,7 +17186,7 @@ a	b	c	a	b	c
 explain select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -17219,7 +17219,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v2.c < 150",
@@ -17338,7 +17338,7 @@ a	b	c	a	b	c
 explain select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -17371,7 +17371,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v2.c < 150",
@@ -17487,7 +17487,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17519,7 +17519,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b > 12 and v1.c < 450",
@@ -17610,7 +17610,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17642,7 +17642,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.b < 30 and v1.c > 450",
@@ -17735,7 +17735,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17767,7 +17767,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.c > 450",
@@ -18022,7 +18022,7 @@ a	b	max_c	a	b	c
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	1	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	5	Using index condition
 explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 EXPLAIN
@@ -18052,7 +18052,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.a < 5",
@@ -18107,7 +18107,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	1	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	2	Using index condition
 3	UNION	t3	range	i1	i1	5	NULL	1	Using index condition
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -18139,7 +18139,7 @@ EXPLAIN
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
           "loops": 9,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "v1.a < 4",
@@ -19224,7 +19224,7 @@ on t1.a=t.a
 where t1.b < 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	range	idx_b	idx_b	5	NULL	4	100.00	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	50.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	100.00	
 2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`c`) AS `m` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` < 3
@@ -19265,9 +19265,9 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t1.a"],
           "loops": 4,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
-          "filtered": 50,
+          "filtered": 100,
           "materialized": {
             "lateral": 1,
             "query_block": {
@@ -19353,7 +19353,7 @@ on t1.a=t.a
 where t1.b <= 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	50.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	100.00	
 2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`b`) AS `m` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <= 5
@@ -19390,9 +19390,9 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t1.a"],
           "loops": 10,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
-          "filtered": 50,
+          "filtered": 100,
           "materialized": {
             "lateral": 1,
             "query_block": {
@@ -19476,7 +19476,7 @@ from t1 left join
 on t1.a=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	100.00	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	50.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	100.00	Using where
 2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t1` left join (/* select#2 */ select `test`.`t2`.`a` AS `a`,max(`test`.`t2`.`b`) AS `max`,min(`test`.`t2`.`b`) AS `min` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` on(`t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where 1
@@ -19511,9 +19511,9 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t1.a"],
           "loops": 12,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
-          "filtered": 50,
+          "filtered": 100,
           "attached_condition": "trigcond(trigcond(t1.a is not null))",
           "materialized": {
             "lateral": 1,
@@ -19586,7 +19586,7 @@ on t3.a=t.a and t3.c=t.c
 where t3.b > 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	1	100.00	
 2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`c` AS `c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t3` join (/* select#2 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a` and `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`a`,`test`.`t4`.`c`) `t` where `t`.`a` = `test`.`t3`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t3`.`b` > 15
@@ -19627,7 +19627,7 @@ EXPLAIN
           "used_key_parts": ["a", "c"],
           "ref": ["test.t3.a", "test.t3.c"],
           "loops": 2,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -19683,7 +19683,7 @@ on t3.a=t.a and t3.c=t.c
 where t3.b <= 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	50.00	
+1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	1	100.00	
 2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`c` AS `c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t3` join (/* select#2 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a` and `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`a`,`test`.`t4`.`c`) `t` where `t`.`a` = `test`.`t3`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t3`.`b` <= 15
@@ -19720,9 +19720,9 @@ EXPLAIN
           "used_key_parts": ["a", "c"],
           "ref": ["test.t3.a", "test.t3.c"],
           "loops": 10,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
-          "filtered": 50,
+          "filtered": 100,
           "materialized": {
             "lateral": 1,
             "query_block": {
@@ -19776,7 +19776,7 @@ on t3.a=t.a and t3.c=t.c
 where t3.b > 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	1	100.00	
 2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`c` AS `c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t3` join (/* select#2 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a` and `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`c`,`test`.`t4`.`a`) `t` where `t`.`a` = `test`.`t3`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t3`.`b` > 15
@@ -19817,7 +19817,7 @@ EXPLAIN
           "used_key_parts": ["a", "c"],
           "ref": ["test.t3.a", "test.t3.c"],
           "loops": 2,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -19873,7 +19873,7 @@ on t3.a=t.a and t3.c=t.c
 where t3.b <= 15;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	50.00	
+1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	1	100.00	
 2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`c` AS `c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t3` join (/* select#2 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a` and `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`c`,`test`.`t4`.`a`) `t` where `t`.`a` = `test`.`t3`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t3`.`b` <= 15
@@ -19910,9 +19910,9 @@ EXPLAIN
           "used_key_parts": ["a", "c"],
           "ref": ["test.t3.a", "test.t3.c"],
           "loops": 10,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
-          "filtered": 50,
+          "filtered": 100,
           "materialized": {
             "lateral": 1,
             "query_block": {
@@ -19979,7 +19979,7 @@ where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
 1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	1	100.00	
 2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	2	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`t`.`c` AS `t_c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` between 80 and 85 and `test`.`t2`.`c` in ('y','z')
@@ -20034,7 +20034,7 @@ EXPLAIN
           "used_key_parts": ["c"],
           "ref": ["test.t3.c"],
           "loops": 3,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -20271,7 +20271,7 @@ where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
 1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	1	100.00	
 2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	2	100.00	Using temporary
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t3`.`c` AS `c`,`t`.`c` AS `c`,`t`.`b` AS `b`,`t`.`sum(b) over (partition by c)` AS `sum(b) over (partition by c)` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,`test`.`t4`.`b` AS `b`,sum(`test`.`t4`.`b`) over ( partition by `test`.`t4`.`c`) AS `sum(b) over (partition by c)` from `test`.`t4` where `test`.`t4`.`c` = `test`.`t3`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` between 80 and 85 and `test`.`t2`.`c` in ('y','z')
@@ -20326,7 +20326,7 @@ EXPLAIN
           "used_key_parts": ["c"],
           "ref": ["test.t3.c"],
           "loops": 3,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -20818,7 +20818,7 @@ a	c
 explain extended SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 ) and a < 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t4	range	a	a	5	NULL	1	100.00	Using index condition; Using where
-1	PRIMARY	<derived3>	ref	key0	key0	128	test.t4.c	2	50.00	FirstMatch(t4)
+1	PRIMARY	<derived3>	ref	key0	key0	128	test.t4.c	1	100.00	FirstMatch(t4)
 3	LATERAL DERIVED	t3	ref	c	c	128	test.t4.c	2	100.00	
 3	LATERAL DERIVED	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
@@ -20858,9 +20858,9 @@ EXPLAIN
           "used_key_parts": ["c"],
           "ref": ["test.t4.c"],
           "loops": 1,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
-          "filtered": 50,
+          "filtered": 100,
           "first_match": "t4",
           "materialized": {
             "lateral": 1,
@@ -21003,7 +21003,7 @@ pk1	f	pk2	cnt
 EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN v2 ON pk1 = pk2 WHERE f <> 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.pk1	2	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.pk1	1	100.00	
 2	LATERAL DERIVED	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.pk1	1	100.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`f` AS `f`,`v2`.`pk2` AS `pk2`,`v2`.`cnt` AS `cnt` from `test`.`t1` join `test`.`v2` where `v2`.`pk2` = `test`.`t1`.`pk1` and `test`.`t1`.`f` <> 5
@@ -21036,7 +21036,7 @@ EXPLAIN
           "used_key_parts": ["pk2"],
           "ref": ["test.t1.pk1"],
           "loops": 2,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -21229,7 +21229,7 @@ GROUP BY t1.b,t2.c) dt
 WHERE t3.d = dt.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.d	2	50.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.d	1	100.00	
 2	LATERAL DERIVED	t1	ref	idx_b	idx_b	5	test.t3.d	1	100.00	Using index; Using temporary; Using filesort
 2	LATERAL DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
 Warnings:
@@ -21264,7 +21264,7 @@ left join
 on u.id=auditlastlogin.userid;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	u	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.u.id	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.u.id	1	
 2	DERIVED	au	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
 select * from t1 as u
 left join
@@ -21568,8 +21568,8 @@ where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
 1	PRIMARY	t1	ref	a	a	5	test.t3.id	1	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	1	
 1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1007	
 2	DERIVED	cp2	range	NULL	a	5	NULL	7	Using index for group-by
 explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
@@ -21608,6 +21608,43 @@ EXPLAIN
       },
       {
         "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t3.id"],
+          "loops": 2,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "cost": "COST_REPLACED",
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "cp2",
+                    "access_type": "range",
+                    "key": "a",
+                    "key_length": "5",
+                    "used_key_parts": ["a"],
+                    "loops": 1,
+                    "rows": 7,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "using_index_for_group_by": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "table": {
           "table_name": "<subquery3>",
           "access_type": "eq_ref",
           "possible_keys": ["distinct_key"],
@@ -21636,43 +21673,6 @@ EXPLAIN
             }
           }
         }
-      },
-      {
-        "table": {
-          "table_name": "<derived2>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "ref": ["test.t3.id"],
-          "loops": 2,
-          "rows": 2,
-          "cost": "COST_REPLACED",
-          "filtered": 100,
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "cost": "COST_REPLACED",
-              "nested_loop": [
-                {
-                  "table": {
-                    "table_name": "cp2",
-                    "access_type": "range",
-                    "key": "a",
-                    "key_length": "5",
-                    "used_key_parts": ["a"],
-                    "loops": 1,
-                    "rows": 7,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100,
-                    "using_index_for_group_by": true
-                  }
-                }
-              ]
-            }
-          }
-        }
       }
     ]
   }
@@ -21688,8 +21688,8 @@ where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
 1	PRIMARY	t1	ref	a	a	5	test.t3.id	1	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	1	
 1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1007	
 2	LATERAL DERIVED	cp2	ref	a	a	5	test.t1.a	1	Using where; Using index
 explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
@@ -21728,37 +21728,6 @@ EXPLAIN
       },
       {
         "table": {
-          "table_name": "<subquery3>",
-          "access_type": "eq_ref",
-          "possible_keys": ["distinct_key"],
-          "key": "distinct_key",
-          "key_length": "4",
-          "used_key_parts": ["a"],
-          "ref": ["func"],
-          "rows": 1,
-          "filtered": 100,
-          "materialized": {
-            "unique": 1,
-            "query_block": {
-              "select_id": 3,
-              "nested_loop": [
-                {
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "ALL",
-                    "loops": 1,
-                    "rows": 1007,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100
-                  }
-                }
-              ]
-            }
-          }
-        }
-      },
-      {
-        "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
           "possible_keys": ["key0"],
@@ -21767,7 +21736,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "ref": ["test.t3.id"],
           "loops": 2,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -21792,6 +21761,37 @@ EXPLAIN
                     "filtered": 100,
                     "attached_condition": "cp2.a = t3.`id`",
                     "using_index": true
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery3>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 3,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 1007,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100
                   }
                 }
               ]
@@ -21909,7 +21909,7 @@ WHERE t1.id BETWEEN 200 AND 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	range	t1_id	t1_id	5	NULL	47	Using where; Using index
 1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.t1_id	1	Using index
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.t1_id	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.t1_id	1	
 2	LATERAL DERIVED	t2	ref	t1_id	t1_id	5	test.t1.id	1	Using index condition; Using where
 EXPLAIN FORMAT=JSON SELECT t1.id
 FROM t1
@@ -21966,9 +21966,9 @@ EXPLAIN
           "used_key_parts": ["t1_id"],
           "ref": ["test.t3.t1_id"],
           "loops": 47,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
-          "filtered": 50,
+          "filtered": 100,
           "materialized": {
             "lateral": 1,
             "query_block": {
@@ -22144,7 +22144,7 @@ from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	charges	ref	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	fk_charge_to_ledger	8	const	8	
-1	PRIMARY	<derived2>	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	2	
+1	PRIMARY	<derived2>	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	1	
 2	LATERAL DERIVED	transaction_items	ref	fk_items_transaction,fk_items_charge	fk_items_charge	9	test.charges.id	2	
 2	LATERAL DERIVED	transactions	eq_ref	PRIMARY,fk_transactions_ledger	PRIMARY	8	test.transaction_items.transaction_id	1	Using where
 EXPLAIN FORMAT=JSON SELECT
@@ -22200,7 +22200,7 @@ EXPLAIN
           "used_key_parts": ["ledger_id", "charge_id"],
           "ref": ["test.charges.from_ledger_id", "test.charges.id"],
           "loops": 8,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
@@ -22351,7 +22351,7 @@ from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	charges	ref	fk_charge_to_ledger	fk_charge_to_ledger	8	const	10	
-1	PRIMARY	<derived2>	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	2	
+1	PRIMARY	<derived2>	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	1	
 2	LATERAL DERIVED	transaction_items	ref	fk_items_transaction,fk_items_charge	fk_items_charge	9	test.charges.id	2	
 2	LATERAL DERIVED	transactions	eq_ref	PRIMARY,fk_transactions_ledger	PRIMARY	8	test.transaction_items.transaction_id	1	Using where
 EXPLAIN FORMAT=JSON SELECT
@@ -22403,7 +22403,7 @@ EXPLAIN
           "used_key_parts": ["ledger_id", "charge_id"],
           "ref": ["test.charges.from_ledger_id", "test.charges.id"],
           "loops": 10,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "materialized": {
