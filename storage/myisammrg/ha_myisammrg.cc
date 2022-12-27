@@ -361,7 +361,8 @@ IO_AND_CPU_COST ha_myisammrg::keyread_time(uint index, ulong ranges,
     cost.cpu*= file->tables;
   }
   /* Add the cost of having to do a key lookup in all trees */
-  cost.cpu+= (file->tables-1) * (ranges * KEY_LOOKUP_COST);
+  if (file->tables)
+    cost.cpu+= (file->tables-1) * (ranges * KEY_LOOKUP_COST);
   return cost;
 }
 
