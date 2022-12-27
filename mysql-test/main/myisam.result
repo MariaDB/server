@@ -2818,3 +2818,44 @@ drop table t;
 #
 # End of 10.8 tests
 #
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY(pk), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,NULL),(2,NULL),(3,1),(4,5);
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='index_merge_sort_intersection=on';
+SELECT pk FROM t1 WHERE pk > 2 AND a IS NULL;
+pk
+SET @@optimizer_switch= @save_optimizer_switch;
+drop table t1;
+#
+# MDEV-30104 Server crashes in handler_rowid_filter_check upon ANALYZE TABLE
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2);
+CREATE TABLE t4 (pk INT, f CHAR(8), PRIMARY KEY(pk), KEY(f)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,'o'),(2,'x');
+ANALYZE TABLE t1, t2, t3, t4 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON 1) ON 2 IN (SELECT pk FROM t4 WHERE f < 's');
+a	b	c
+1	NULL	NULL
+2	NULL	NULL
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	Table is already up to date
+DROP TABLE t1, t2, t3, t4;
+#
+# End of 11.0 tests
+#
