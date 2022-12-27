@@ -61,9 +61,9 @@ name	ST_AsText(square)
 small	POLYGON((0 0,0 1,1 1,1 0,0 0))
 SELECT name, ST_AsText(square) from t1 where MBRDisjoint(@p, square);
 name	ST_AsText(square)
-right3	POLYGON((3 0,3 2,5 2,5 0,3 0))
 up3	POLYGON((0 3,0 5,2 5,2 3,0 3))
 down3	POLYGON((0 -3,0 -1,2 -1,2 -3,0 -3))
+right3	POLYGON((3 0,3 2,5 2,5 0,3 0))
 left3	POLYGON((-3 0,-3 2,-1 2,-1 0,-3 0))
 SELECT name, ST_AsText(square) from t1 where MBREquals(@p, square);
 name	ST_AsText(square)

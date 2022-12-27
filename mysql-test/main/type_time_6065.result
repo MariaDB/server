@@ -220,7 +220,7 @@ t1 force INDEX (col_time_key)
 WHERE col_time_key = col_datetime_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-1	SIMPLE	t1	ref	col_time_key	col_time_key	4	test.t2.col_datetime_key	2	100.00	Using where; Using index
+1	SIMPLE	t1	ref	col_time_key	col_time_key	4	test.t2.col_datetime_key	1	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t2`.`col_datetime_key` AS `col_datetime_key`,`test`.`t1`.`col_time_key` AS `col_time_key` from `test`.`t2` IGNORE INDEX (`col_datetime_key`) straight_join `test`.`t1` FORCE INDEX (`col_time_key`) where `test`.`t1`.`col_time_key` = `test`.`t2`.`col_datetime_key`
 SELECT * FROM
@@ -241,7 +241,7 @@ t1 force INDEX (col_time_key)
 WHERE col_datetime_key = col_time_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-1	SIMPLE	t1	ref	col_time_key	col_time_key	4	test.t2.col_datetime_key	2	100.00	Using where; Using index
+1	SIMPLE	t1	ref	col_time_key	col_time_key	4	test.t2.col_datetime_key	1	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t2`.`col_datetime_key` AS `col_datetime_key`,`test`.`t1`.`col_time_key` AS `col_time_key` from `test`.`t2` IGNORE INDEX (`col_datetime_key`) straight_join `test`.`t1` FORCE INDEX (`col_time_key`) where `test`.`t2`.`col_datetime_key` = `test`.`t1`.`col_time_key`
 SELECT * FROM
@@ -304,7 +304,7 @@ t1 force INDEX (col_time_key)
 WHERE col_time_key = col_datetime_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	index	col_datetime_key	col_datetime_key	6	NULL	5	100.00	Using where; Using index
-1	SIMPLE	t1	ref	col_time_key	col_time_key	4	test.t2.col_datetime_key	2	100.00	Using where; Using index
+1	SIMPLE	t1	ref	col_time_key	col_time_key	4	test.t2.col_datetime_key	1	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t2`.`col_datetime_key` AS `col_datetime_key`,`test`.`t1`.`col_time_key` AS `col_time_key` from `test`.`t2` FORCE INDEX (`col_datetime_key`) straight_join `test`.`t1` FORCE INDEX (`col_time_key`) where `test`.`t1`.`col_time_key` = `test`.`t2`.`col_datetime_key`
 SELECT * FROM
@@ -325,7 +325,7 @@ t1 force INDEX (col_time_key)
 WHERE col_datetime_key = col_time_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	index	col_datetime_key	col_datetime_key	6	NULL	5	100.00	Using where; Using index
-1	SIMPLE	t1	ref	col_time_key	col_time_key	4	test.t2.col_datetime_key	2	100.00	Using where; Using index
+1	SIMPLE	t1	ref	col_time_key	col_time_key	4	test.t2.col_datetime_key	1	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t2`.`col_datetime_key` AS `col_datetime_key`,`test`.`t1`.`col_time_key` AS `col_time_key` from `test`.`t2` FORCE INDEX (`col_datetime_key`) straight_join `test`.`t1` FORCE INDEX (`col_time_key`) where `test`.`t2`.`col_datetime_key` = `test`.`t1`.`col_time_key`
 SELECT * FROM

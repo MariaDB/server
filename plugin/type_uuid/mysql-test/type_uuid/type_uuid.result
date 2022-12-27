@@ -2524,7 +2524,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT * FROM t1 WHERE b IN (SELECT a AS a_inner FROM t1 GROUP BY a_inner);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	17	func	2	Using index; Using where
+2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	17	func	1	Using index; Using where
 SET @@optimizer_switch=DEFAULT;
 DROP TABLE t1;
 #

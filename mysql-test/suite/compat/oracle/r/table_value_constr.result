@@ -819,7 +819,7 @@ select * from (values (1)) tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
@@ -1052,7 +1052,7 @@ select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
@@ -1145,7 +1145,7 @@ select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:

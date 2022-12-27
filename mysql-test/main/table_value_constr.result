@@ -821,7 +821,7 @@ select * from (values (1)) tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
@@ -1054,7 +1054,7 @@ select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
@@ -1147,7 +1147,7 @@ select * from (values (1)) as tvc_0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	2	100.00	
+3	DEPENDENT UNION	<derived4>	ref	key0	key0	4	func	1	100.00	
 4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
@@ -2837,7 +2837,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 6	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	11	Using where
-3	SUBQUERY	<derived5>	ref	key0	key0	8	test.t3.a	2	Using where; FirstMatch(t3)
+3	SUBQUERY	<derived5>	ref	key0	key0	8	test.t3.a	1	Using where; FirstMatch(t3)
 5	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
 prepare stmt from "select
 (values ((select * from t3 where a in (select * from v1))))";
@@ -2862,7 +2862,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 6	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	11	Using where
-3	SUBQUERY	<derived5>	ref	key0	key0	8	test.t3.a	2	Using where; FirstMatch(t3)
+3	SUBQUERY	<derived5>	ref	key0	key0	8	test.t3.a	1	Using where; FirstMatch(t3)
 5	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
 prepare stmt from "select
 (values ((select * from t3
