@@ -563,9 +563,9 @@ JOIN t5 ON t4.f3 ON t3.f1 = t5.f5 ON t2.f4 = t3.f4
 WHERE t3.f2 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t5	ref	f5	f5	5	test.t3.f1	2	Using where; Using index
+1	SIMPLE	t5	ref	f5	f5	5	test.t3.f1	1	Using where; Using index
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	SIMPLE	t2	ref	f4	f4	1003	test.t3.f4	2	Using where
+1	SIMPLE	t2	ref	f4	f4	1003	test.t3.f4	1	Using where
 # ^^ The above must not produce a QEP of t3,t5,t2,t4
 #    as that violates the "no interleaving of outer join nests" rule.
 DROP TABLE t1,t2,t3,t4,t5;
@@ -970,7 +970,7 @@ group by yyy;
 explain select t1.* from t1 left join v2e on v2e.yyy=t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	Using where
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 create table t2 (a int, b int, c int);
 insert into t2 select A.seq, B.seq, 123 from seq_1_to_3 A, seq_1_to_3 B;
@@ -980,14 +980,14 @@ explain select t1.* from t1 left join
 (select a, count(*) as cnt from t2 group by a, b) D on D.a=t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	Using where
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
 # Still no elimination 'cause field D.b is just an alias for t2.a
 explain select t1.* from t1 left join 
 (select a, a as b, count(*) as cnt from t2 group by a, b) D on D.a=t1.a and D.b=t1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t1.a,test.t1.b	2	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	10	test.t1.a,test.t1.b	1	Using where
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
 Warnings:
 Warning	1052	Column 'b' in group statement is ambiguous

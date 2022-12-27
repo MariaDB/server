@@ -696,7 +696,7 @@ EXPLAIN
           "used_key_parts": ["cnt"],
           "ref": ["test.tbl2.a"],
           "loops": 10,
-          "rows": 2,
+          "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "tbl1.cnt = tbl2.a",

@@ -118,7 +118,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1000,
-                        "cost": 0.19579056,
+                        "cost": 0.19598856,
                         "chosen": false,
                         "cause": "cost"
                       },
@@ -129,7 +129,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 0.00415068,
+                        "cost": 0.00424968,
                         "chosen": true
                       }
                     ],
@@ -168,7 +168,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "ranges": ["(1) <= (key1) <= (1)"]
                     },
                     "rows_for_plan": 1,
-                    "cost_for_plan": 0.00415068,
+                    "cost_for_plan": 0.00424968,
                     "chosen": true
                   }
                 }
@@ -216,7 +216,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                           "index": "key1",
                           "used_range_estimates": true,
                           "rows": 1,
-                          "cost": 0.00335956,
+                          "cost": 0.00345856,
                           "chosen": true
                         },
                         {
@@ -229,7 +229,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "type": "ref",
                         "rows_read": 1,
                         "rows_out": 1,
-                        "cost": 0.00335956,
+                        "cost": 0.00345856,
                         "uses_join_buffering": false
                       }
                     }
@@ -240,14 +240,14 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 1,
-                "cost_for_plan": 0.00335956
+                "cost_for_plan": 0.00345856
               }
             ]
           },
           {
             "best_join_order": ["t1"],
             "rows": 1,
-            "cost": 0.00335956
+            "cost": 0.00345856
           },
           {
             "substitute_best_equal": {
