@@ -392,7 +392,7 @@ SELECT a FROM t1 AS t, t2 as t2_out
 WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
 a
 24
-Last_query_cost	0.119652
+Last_query_cost	0.120558
 DROP TABLE t1,t2;
 #
 # LP Bug #923236: hash join + extended_keys = on 

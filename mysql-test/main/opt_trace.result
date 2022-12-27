@@ -1218,7 +1218,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                               "used_range_estimates": false,
                               "reason": "not available",
                               "rows": 1,
-                              "cost": 0.1731074,
+                              "cost": 0.1821659,
                               "chosen": true
                             },
                             {
@@ -1235,7 +1235,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                             "type": "ref",
                             "rows_read": 1,
                             "rows_out": 1,
-                            "cost": 0.1731074,
+                            "cost": 0.1821659,
                             "uses_join_buffering": false
                           }
                         }
@@ -1246,7 +1246,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                     "plan_prefix": "t1",
                     "table": "t2",
                     "rows_for_plan": 100,
-                    "cost_for_plan": 0.1987835
+                    "cost_for_plan": 0.207842
                   }
                 ]
               },
@@ -1272,7 +1272,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                               "used_range_estimates": false,
                               "reason": "not available",
                               "rows": 1,
-                              "cost": 0.1731074,
+                              "cost": 0.1821659,
                               "chosen": true
                             },
                             {
@@ -1289,7 +1289,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                             "type": "ref",
                             "rows_read": 1,
                             "rows_out": 1,
-                            "cost": 0.1731074,
+                            "cost": 0.1821659,
                             "uses_join_buffering": false
                           }
                         }
@@ -1300,10 +1300,10 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                     "plan_prefix": "t2",
                     "table": "t1",
                     "rows_for_plan": 100,
-                    "cost_for_plan": 0.1987835,
+                    "cost_for_plan": 0.207842,
                     "pruned_by_cost": true,
-                    "current_cost": 0.1987835,
-                    "best_cost": 0.1987835
+                    "current_cost": 0.207842,
+                    "best_cost": 0.207842
                   }
                 ]
               }
@@ -1312,7 +1312,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
           {
             "best_join_order": ["t1", "t2"],
             "rows": 100,
-            "cost": 0.1987835
+            "cost": 0.207842
           },
           {
             "substitute_best_equal": {
@@ -1760,7 +1760,7 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
                   "direction": 1,
                   "rows_to_examine": 7,
                   "range_scan": false,
-                  "scan_cost": 0.001667847,
+                  "scan_cost": 0.001758432,
                   "chosen": true
                 }
               ]
@@ -2338,7 +2338,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 180,
-                        "cost": 0.223346519,
+                        "cost": 0.223677504,
                         "chosen": false,
                         "cause": "cost"
                       },
@@ -2349,7 +2349,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 41,
-                        "cost": 0.051838728,
+                        "cost": 0.051929313,
                         "chosen": true
                       }
                     ],
@@ -2370,7 +2370,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "ranges": ["(1,2) <= (a,b) <= (1,2)"]
                     },
                     "rows_for_plan": 41,
-                    "cost_for_plan": 0.051838728,
+                    "cost_for_plan": 0.051929313,
                     "chosen": true
                   }
                 }
@@ -2430,7 +2430,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                           "index": "a_c",
                           "used_range_estimates": true,
                           "rows": 180,
-                          "cost": 0.222796377,
+                          "cost": 0.222922562,
                           "chosen": true
                         },
                         {
@@ -2438,7 +2438,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                           "index": "a_b",
                           "used_range_estimates": true,
                           "rows": 41,
-                          "cost": 0.051288586,
+                          "cost": 0.051379171,
                           "chosen": true
                         },
                         {
@@ -2451,7 +2451,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "type": "ref",
                         "rows_read": 41,
                         "rows_out": 41,
-                        "cost": 0.051288586,
+                        "cost": 0.051379171,
                         "uses_join_buffering": false
                       }
                     }
@@ -2462,14 +2462,14 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                 "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 41,
-                "cost_for_plan": 0.051288586
+                "cost_for_plan": 0.051379171
               }
             ]
           },
           {
             "best_join_order": ["t1"],
             "rows": 41,
-            "cost": 0.051288586
+            "cost": 0.051379171
           },
           {
             "substitute_best_equal": {
@@ -2497,7 +2497,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
               "table": "t1",
               "rows_estimation": 41,
               "filesort_cost": 9.387121e-4,
-              "read_cost": 0.052227298,
+              "read_cost": 0.052317883,
               "filesort_type": "priority_queue with addon fields",
               "fanout": 1,
               "possible_keys": [
@@ -2507,7 +2507,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "direction": 1,
                   "rows_to_examine": 24,
                   "range_scan": false,
-                  "scan_cost": 0.030312813,
+                  "scan_cost": 0.030403398,
                   "chosen": true
                 },
                 {
@@ -2516,7 +2516,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "direction": 1,
                   "rows_to_examine": 4.390243902,
                   "range_scan": true,
-                  "scan_cost": 0.023380552,
+                  "scan_cost": 0.023415994,
                   "chosen": true
                 },
                 {
@@ -2557,8 +2557,8 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                     "using_mrr": false,
                     "index_only": false,
                     "rows": 180,
-                    "cost": 0.223346519,
-                    "cost_with_limit": 0.002483968,
+                    "cost": 0.223677504,
+                    "cost_with_limit": 0.002574553,
                     "chosen": true
                   }
                 ],
@@ -2579,7 +2579,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "ranges": ["(1) <= (a) <= (1)"]
                 },
                 "rows_for_plan": 180,
-                "cost_for_plan": 0.223346519,
+                "cost_for_plan": 0.223677504,
                 "chosen": true
               }
             }
@@ -3752,7 +3752,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 0.002483968,
+                        "cost": 0.002574553,
                         "chosen": true
                       },
                       {
@@ -3762,7 +3762,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 0.002483968,
+                        "cost": 0.002574553,
                         "chosen": false,
                         "cause": "cost"
                       },
@@ -3773,7 +3773,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                         "using_mrr": false,
                         "index_only": true,
                         "rows": 1,
-                        "cost": 0.001388369,
+                        "cost": 0.001478954,
                         "chosen": true
                       }
                     ],
@@ -3822,7 +3822,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "ranges": ["(2,5,1) <= (pk,a,b) <= (2,5,1)"]
                     },
                     "rows_for_plan": 1,
-                    "cost_for_plan": 0.001388369,
+                    "cost_for_plan": 0.001478954,
                     "chosen": true
                   }
                 }
@@ -3887,7 +3887,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                           "index": "pk",
                           "used_range_estimates": true,
                           "rows": 1,
-                          "cost": 0.001933826,
+                          "cost": 0.002024411,
                           "chosen": true
                         },
                         {
@@ -3895,7 +3895,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                           "index": "pk_a",
                           "used_range_estimates": true,
                           "rows": 1,
-                          "cost": 0.001933826,
+                          "cost": 0.002024411,
                           "chosen": false,
                           "cause": "cost"
                         },
@@ -3904,7 +3904,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                           "index": "pk_a_b",
                           "used_range_estimates": true,
                           "rows": 1,
-                          "cost": 0.000838227,
+                          "cost": 0.000928812,
                           "chosen": true
                         },
                         {
@@ -3917,7 +3917,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                         "type": "ref",
                         "rows_read": 1,
                         "rows_out": 1,
-                        "cost": 0.000838227,
+                        "cost": 0.000928812,
                         "uses_join_buffering": false
                       }
                     }
@@ -3928,14 +3928,14 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                 "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 1,
-                "cost_for_plan": 0.000838227
+                "cost_for_plan": 0.000928812
               }
             ]
           },
           {
             "best_join_order": ["t1"],
             "rows": 1,
-            "cost": 0.000838227
+            "cost": 0.000928812
           },
           {
             "substitute_best_equal": {
@@ -4309,7 +4309,7 @@ explain delete from t0 where t0.a<3	{
               "using_mrr": false,
               "index_only": false,
               "rows": 3,
-              "cost": 0.004951706,
+              "cost": 0.005042291,
               "chosen": true
             }
           ],
@@ -4327,7 +4327,7 @@ explain delete from t0 where t0.a<3	{
             "ranges": ["(NULL) < (a) < (3)"]
           },
           "rows_for_plan": 3,
-          "cost_for_plan": 0.004951706,
+          "cost_for_plan": 0.005042291,
           "chosen": true
         }
       }
@@ -4454,7 +4454,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                         "using_mrr": false,
                         "index_only": true,
                         "rows": 3,
-                        "cost": 0.001664909,
+                        "cost": 0.001755494,
                         "chosen": true
                       }
                     ],
@@ -4475,7 +4475,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "ranges": ["(NULL) < (a) < (3)"]
                     },
                     "rows_for_plan": 3,
-                    "cost_for_plan": 0.001664909,
+                    "cost_for_plan": 0.001755494,
                     "chosen": true
                   }
                 }
@@ -4519,7 +4519,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                         "using_mrr": false,
                         "index_only": true,
                         "rows": 3,
-                        "cost": 0.001664909,
+                        "cost": 0.001755494,
                         "chosen": true
                       }
                     ],
@@ -4540,7 +4540,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                       "ranges": ["(NULL) < (a) < (3)"]
                     },
                     "rows_for_plan": 3,
-                    "cost_for_plan": 0.001664909,
+                    "cost_for_plan": 0.001755494,
                     "chosen": true
                   }
                 }
@@ -4575,7 +4575,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "rows": 3,
                           "rows_after_filter": 3,
                           "rows_out": 3,
-                          "cost": 0.001664909,
+                          "cost": 0.001755494,
                           "chosen": true
                         }
                       ],
@@ -4583,7 +4583,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                         "type": "range",
                         "rows_read": 3,
                         "rows_out": 3,
-                        "cost": 0.001664909,
+                        "cost": 0.001755494,
                         "uses_join_buffering": false
                       }
                     }
@@ -4601,7 +4601,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "rows": 3,
                           "rows_after_filter": 3,
                           "rows_out": 3,
-                          "cost": 0.001664909,
+                          "cost": 0.001755494,
                           "chosen": true
                         }
                       ],
@@ -4609,7 +4609,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                         "type": "range",
                         "rows_read": 3,
                         "rows_out": 3,
-                        "cost": 0.001664909,
+                        "cost": 0.001755494,
                         "uses_join_buffering": false
                       }
                     }
@@ -4620,7 +4620,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "plan_prefix": "",
                 "table": "t0",
                 "rows_for_plan": 3,
-                "cost_for_plan": 0.001664909,
+                "cost_for_plan": 0.001755494,
                 "rest_of_plan": [
                   {
                     "plan_prefix": "t0",
@@ -4638,7 +4638,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                               "used_range_estimates": false,
                               "reason": "not better than ref estimates",
                               "rows": 1,
-                              "cost": 0.002105081,
+                              "cost": 0.002376836,
                               "chosen": true
                             },
                             {
@@ -4651,7 +4651,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                             "type": "ref",
                             "rows_read": 1,
                             "rows_out": 1,
-                            "cost": 0.002105081,
+                            "cost": 0.002376836,
                             "uses_join_buffering": false
                           }
                         }
@@ -4662,7 +4662,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                     "plan_prefix": "t0",
                     "table": "t1",
                     "rows_for_plan": 3,
-                    "cost_for_plan": 0.00376999
+                    "cost_for_plan": 0.00413233
                   }
                 ]
               },
@@ -4670,7 +4670,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 3,
-                "cost_for_plan": 0.001664909,
+                "cost_for_plan": 0.001755494,
                 "rest_of_plan": [
                   {
                     "plan_prefix": "t1",
@@ -4688,8 +4688,8 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                               "rec_per_key_stats_missing": true,
                               "used_range_estimates": false,
                               "reason": "not better than ref estimates",
-                              "rows": 2,
-                              "cost": 0.002519891,
+                              "rows": 1.166666667,
+                              "cost": 0.002392836,
                               "chosen": true
                             },
                             {
@@ -4700,9 +4700,9 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           ],
                           "chosen_access_method": {
                             "type": "ref",
-                            "rows_read": 2,
-                            "rows_out": 2,
-                            "cost": 0.002519891,
+                            "rows_read": 1.166666667,
+                            "rows_out": 1.166666667,
+                            "cost": 0.002392836,
                             "uses_join_buffering": false
                           }
                         }
@@ -4712,11 +4712,11 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                   {
                     "plan_prefix": "t1",
                     "table": "t0",
-                    "rows_for_plan": 6,
-                    "cost_for_plan": 0.0041848,
+                    "rows_for_plan": 3.5,
+                    "cost_for_plan": 0.00414833,
                     "pruned_by_cost": true,
-                    "current_cost": 0.0041848,
-                    "best_cost": 0.00376999
+                    "current_cost": 0.00414833,
+                    "best_cost": 0.00413233
                   }
                 ]
               }
@@ -4725,7 +4725,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
           {
             "best_join_order": ["t0", "t1"],
             "rows": 3,
-            "cost": 0.00376999
+            "cost": 0.00413233
           },
           {
             "substitute_best_equal": {
@@ -10386,7 +10386,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": true,
                 "rows": 1,
-                "cost": 0.001388369,
+                "cost": 0.001478954,
                 "chosen": true
             }
         ],
@@ -10415,7 +10415,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": true,
                 "rows": 107,
-                "cost": 0.016044989,
+                "cost": 0.016135574,
                 "chosen": true
             }
         ],
@@ -10447,7 +10447,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1000,
-                "cost": 1.235599899,
+                "cost": 1.235690484,
                 "chosen": true
             }
         ],
@@ -10487,7 +10487,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 4,
-                "cost": 0.006185575,
+                "cost": 0.00627616,
                 "chosen": true
             }
         ],
@@ -10521,7 +10521,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 0.002483968,
+                "cost": 0.002574553,
                 "chosen": true
             }
         ],
@@ -10550,7 +10550,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 0.002483968,
+                "cost": 0.002574553,
                 "chosen": true
             }
         ],
@@ -10587,7 +10587,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 0.002483968,
+                "cost": 0.002574553,
                 "chosen": true
             }
         ],
@@ -10617,7 +10617,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 0.002483968,
+                "cost": 0.002574553,
                 "chosen": true
             }
         ],
@@ -10647,7 +10647,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 0.002483968,
+                "cost": 0.002574553,
                 "chosen": true
             }
         ],
@@ -10680,7 +10680,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 0.002483968,
+                "cost": 0.002574553,
                 "chosen": true
             }
         ],
@@ -10716,7 +10716,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 0.002483968,
+                "cost": 0.002574553,
                 "chosen": true
             }
         ],
@@ -10750,7 +10750,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 2,
-                "cost": 0.003717837,
+                "cost": 0.003808422,
                 "chosen": true
             }
         ],
@@ -10774,7 +10774,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 1.235599899,
+    "cost": 1.235690484,
     "nested_loop": [
       {
         "table": {
@@ -10786,7 +10786,7 @@ EXPLAIN
           "used_key_parts": ["start_date", "end_date"],
           "loops": 1,
           "rows": 1000,
-          "cost": 1.235599899,
+          "cost": 1.235690484,
           "filtered": 100,
           "index_condition": "t1.start_date >= '2019-02-10' and t1.end_date < '2019-04-01'"
         }
@@ -10808,7 +10808,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1000,
-                "cost": 1.235599899,
+                "cost": 1.235690484,
                 "chosen": true
             }
         ],
@@ -11086,7 +11086,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "used_range_estimates": false,
                                         "reason": "not available",
                                         "rows": 1,
-                                        "cost": 0.01810946,
+                                        "cost": 0.01901531,
                                         "chosen": true
                                     },
                                     {
@@ -11100,7 +11100,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                     "type": "ref",
                                     "rows_read": 1,
                                     "rows_out": 1,
-                                    "cost": 0.01810946,
+                                    "cost": 0.01901531,
                                     "uses_join_buffering": false
                                 }
                             }
@@ -11111,7 +11111,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     "plan_prefix": "A",
                     "table": "B",
                     "rows_for_plan": 10,
-                    "cost_for_plan": 0.02970911,
+                    "cost_for_plan": 0.03061496,
                     "pushdown_cond_selectivity": 0.8,
                     "filtered": 80,
                     "rows_out": 0.8,
@@ -11127,7 +11127,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             "cost_for_plan": 0.1669214,
             "pruned_by_cost": true,
             "current_cost": 0.1669214,
-            "best_cost": 0.02970911
+            "best_cost": 0.03061496
         }
     ]
 ]
@@ -11156,7 +11156,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 1,
-                "cost": 0.002483968,
+                "cost": 0.002574553,
                 "chosen": true
             }
         ],
@@ -11216,7 +11216,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
             "using_mrr": false,
             "index_only": true,
             "rows": 1,
-            "cost": 0.001388369,
+            "cost": 0.001478954,
             "chosen": true
         }
     ]
@@ -11332,7 +11332,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "used_range_estimates": false,
                                         "reason": "not available",
                                         "rows": 1,
-                                        "cost": 0.01749506,
+                                        "cost": 0.01840091,
                                         "chosen": true
                                     },
                                     {
@@ -11346,7 +11346,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                     "type": "ref",
                                     "rows_read": 1,
                                     "rows_out": 1,
-                                    "cost": 0.01749506,
+                                    "cost": 0.01840091,
                                     "uses_join_buffering": false
                                 }
                             }
@@ -11357,7 +11357,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     "plan_prefix": "t1",
                     "table": "t2",
                     "rows_for_plan": 10,
-                    "cost_for_plan": 0.02909471,
+                    "cost_for_plan": 0.03000056,
                     "cost_for_sorting": 0.006368384
                 }
             ]
@@ -11389,7 +11389,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "used_range_estimates": false,
                                         "reason": "not available",
                                         "rows": 1,
-                                        "cost": 0.1731074,
+                                        "cost": 0.1821659,
                                         "chosen": true
                                     },
                                     {
@@ -11421,7 +11421,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                     "cost_for_plan": 0.13622835,
                     "pruned_by_cost": true,
                     "current_cost": 0.13622835,
-                    "best_cost": 0.035463094
+                    "best_cost": 0.036368944
                 }
             ]
         }
@@ -12003,7 +12003,7 @@ on t1.a=t.a
 where t1.b < 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	range	idx_b	idx_b	5	NULL	4	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	
 2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	
 select
 json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
@@ -12035,7 +12035,7 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                                         "used_range_estimates": false,
                                         "reason": "not available",
                                         "rows": 1.8367,
-                                        "cost": 0.0019606,
+                                        "cost": 0.002051185,
                                         "chosen": true
                                     },
                                     {
@@ -12049,7 +12049,7 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                                     "type": "ref",
                                     "rows_read": 1.8367,
                                     "rows_out": 1.8367,
-                                    "cost": 0.0019606,
+                                    "cost": 0.002051185,
                                     "uses_join_buffering": false
                                 }
                             }
@@ -12060,7 +12060,7 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                     "plan_prefix": "",
                     "table": "t2",
                     "rows_for_plan": 1.8367,
-                    "cost_for_plan": 0.0019606,
+                    "cost_for_plan": 0.002051185,
                     "cost_for_sorting": 0.001155201
                 }
             ]
@@ -12070,14 +12070,14 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
             {
                 "table": "t2",
                 "key": "idx_a",
-                "org_cost": 0.0019606,
+                "org_cost": 0.002051185,
                 "postjoin_cost": 0.001135418,
-                "one_splitting_cost": 0.003096018,
+                "one_splitting_cost": 0.003186603,
                 "unsplit_postjoin_cost": 0.036032575,
                 "unsplit_cost": 0.060625425,
                 "rows": 1.8367,
                 "outer_rows": 4,
-                "total_splitting_cost": 0.012384072,
+                "total_splitting_cost": 0.012746412,
                 "chosen": true
             }
         }
@@ -12235,7 +12235,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 9,
-                        "cost": 0.01235492,
+                        "cost": 0.012445505,
                         "chosen": true
                       },
                       {
@@ -12245,7 +12245,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 21,
-                        "cost": 0.027161348,
+                        "cost": 0.027251933,
                         "chosen": false,
                         "cause": "cost"
                       }
@@ -12267,7 +12267,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                       "ranges": ["(NULL) < (a) < (10)"]
                     },
                     "rows_for_plan": 9,
-                    "cost_for_plan": 0.01235492,
+                    "cost_for_plan": 0.012445505,
                     "chosen": true
                   }
                 }
@@ -12324,18 +12324,18 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                         {
                           "filter": {
                             "rowid_filter_index": "b",
-                            "index_only_cost": 0.001515222,
+                            "index_only_cost": 0.001605807,
                             "filter_startup_cost": 3.004222e-4,
                             "find_key_and_filter_lookup_cost": 7.827422e-4,
                             "filter_selectivity": 0.021,
                             "original_rows": 9,
                             "new_rows": 0.189,
-                            "original_access_cost": 0.011516778,
-                            "with_filter_access_cost": 0.002507997,
+                            "original_access_cost": 0.011607363,
+                            "with_filter_access_cost": 0.002598582,
                             "original_found_rows_cost": 0.010001556,
                             "with_filter_found_rows_cost": 2.100327e-4,
-                            "org_cost": 0.011804778,
-                            "filter_cost": 0.002814467,
+                            "org_cost": 0.011895363,
+                            "filter_cost": 0.002905052,
                             "filter_used": true
                           },
                           "access_type": "range",
@@ -12343,7 +12343,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                           "rows": 9,
                           "rows_after_filter": 0.189,
                           "rows_out": 0.017766,
-                          "cost": 0.002814467,
+                          "cost": 0.002905052,
                           "chosen": true
                         }
                       ],
@@ -12351,7 +12351,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                         "type": "range",
                         "rows_read": 0.189,
                         "rows_out": 0.017766,
-                        "cost": 0.002814467,
+                        "cost": 0.002905052,
                         "uses_join_buffering": false,
                         "rowid_filter_index": "b"
                       }
@@ -12363,7 +12363,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                 "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 0.017766,
-                "cost_for_plan": 0.002814467,
+                "cost_for_plan": 0.002905052,
                 "pushdown_cond_selectivity": 0.094,
                 "filtered": 0.1974,
                 "rows_out": 0.017766
@@ -12373,7 +12373,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
           {
             "best_join_order": ["t1"],
             "rows": 0.017766,
-            "cost": 0.002814467
+            "cost": 0.002905052
           },
           {
             "table": "t1",
@@ -12400,7 +12400,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                     "using_mrr": false,
                     "index_only": true,
                     "rows": 21,
-                    "cost": 0.004153769,
+                    "cost": 0.004244354,
                     "chosen": true
                   }
                 ]
@@ -12413,7 +12413,7 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                   "ranges": ["(10) <= (b) <= (50)"]
                 },
                 "rows_for_plan": 21,
-                "cost_for_plan": 0.004153769,
+                "cost_for_plan": 0.004244354,
                 "chosen": true
               }
             }
@@ -12470,7 +12470,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 2.30309056,
+    "cost": 2.303362315,
     "nested_loop": [
       {
         "table": {
@@ -12502,7 +12502,7 @@ EXPLAIN
           },
           "loops": 3,
           "rows": 1000,
-          "cost": 2.292585745,
+          "cost": 2.2928575,
           "filtered": 43.11999893,
           "attached_condition": "t1.b < 5000 and t1.c < 1000"
         }
@@ -12652,7 +12652,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 4312,
-                        "cost": 5.325058827,
+                        "cost": 5.325149412,
                         "chosen": false,
                         "cause": "cost"
                       }
@@ -12778,22 +12778,22 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                               "reason": "not available",
                               "filter": {
                                 "rowid_filter_index": "b",
-                                "index_only_cost": 0.092006157,
+                                "index_only_cost": 0.092096742,
                                 "filter_startup_cost": 0.149564727,
                                 "find_key_and_filter_lookup_cost": 0.129350121,
                                 "filter_selectivity": 0.4312,
                                 "original_rows": 1000,
                                 "new_rows": 431.2,
-                                "original_access_cost": 1.203290157,
-                                "with_filter_access_cost": 0.700541939,
+                                "original_access_cost": 1.203380742,
+                                "with_filter_access_cost": 0.700632524,
                                 "original_found_rows_cost": 1.111284,
                                 "with_filter_found_rows_cost": 0.479185661,
-                                "org_cost": 3.705870471,
-                                "filter_cost": 2.292585745,
+                                "org_cost": 3.706142226,
+                                "filter_cost": 2.2928575,
                                 "filter_used": true
                               },
                               "rows": 431.2,
-                              "cost": 2.292585745,
+                              "cost": 2.2928575,
                               "chosen": true
                             },
                             {
@@ -12880,7 +12880,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                           "using_mrr": false,
                           "index_only": false,
                           "rows": 4312,
-                          "cost": 5.325058827,
+                          "cost": 5.325149412,
                           "chosen": false,
                           "cause": "cost"
                         }
@@ -12934,7 +12934,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 0.003717837,
+    "cost": 0.003808422,
     "nested_loop": [
       {
         "table": {
@@ -12946,7 +12946,7 @@ EXPLAIN
           "used_key_parts": ["a"],
           "loops": 1,
           "rows": 2,
-          "cost": 0.003717837,
+          "cost": 0.003808422,
           "filtered": 100,
           "index_condition": "t10.a < 3 and t10.b <> 5",
           "attached_condition": "t10.c < 10"

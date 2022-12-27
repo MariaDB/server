@@ -312,7 +312,7 @@ ANALYZE
           "ref": ["test.t1.a"],
           "loops": 10,
           "r_loops": 10,
-          "rows": 2,
+          "rows": 1,
           "r_rows": 0.2,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",

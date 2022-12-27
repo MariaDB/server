@@ -3033,17 +3033,17 @@ EXPLAIN
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	4	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	6	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 DROP TABLE t1,t2;
 #
 # MDEV-4974 memory leak in 5.5.32-MariaDB-1~wheezy-log

@@ -27,10 +27,25 @@ static void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted,
 
 
 
-/* The following calculation is the same as in multi_range_read_info() */
+/*
+  The following calculation is the same as in multi_range_read_info()
+
+  @param cost              Total cost is stored here
+  @param keyno             Key number
+  @param n_ranges          Number of different ranges
+  @param multi_row_ranges  Number of ranges that are not EQ_REF
+  @param flags             Flags. Only HA_MRR_INDEX_ONLY is used.
+  @param total_rows        Number of rows expected to be read.
+  @param io_blocks         Number of blocks we expect to read for
+                           a not clustered index.
+  @param unassigned_single_point_ranges
+                           Number of blocks we have not yet read for
+                           a clustered index.
+*/
 
 void handler::calculate_costs(Cost_estimate *cost, uint keyno,
-                              uint n_ranges, uint flags,
+                              uint n_ranges, uint multi_row_ranges,
+                              uint flags,
                               ha_rows total_rows,
                               ulonglong io_blocks,
                               ulonglong unassigned_single_point_ranges)
@@ -39,7 +54,9 @@ void handler::calculate_costs(Cost_estimate *cost, uint keyno,
 
   if (!is_clustering_key(keyno))
   {
-    cost->index_cost= ha_keyread_time(keyno, n_ranges, total_rows, io_blocks);
+    cost->index_cost= ha_keyread_time(keyno, n_ranges,
+                                      total_rows + multi_row_ranges,
+                                      io_blocks);
 
     if (!(flags & HA_MRR_INDEX_ONLY))
     {
@@ -58,7 +75,9 @@ void handler::calculate_costs(Cost_estimate *cost, uint keyno,
   {
     /* Clustered index */
     io_blocks= unassigned_single_point_ranges;
-    cost->index_cost= ha_keyread_time(keyno, n_ranges, total_rows, io_blocks);
+    cost->index_cost= ha_keyread_time(keyno, n_ranges,
+                                      total_rows + multi_row_ranges,
+                                      io_blocks);
     cost->copy_cost=  rows2double(total_rows) * ROW_COPY_COST;
   }
   /* Adjust io cost to data size */
@@ -355,7 +374,9 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   {
     set_if_smaller(total_rows, max_rows);
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
-    calculate_costs(cost, keyno, n_ranges, *flags, total_rows,
+    calculate_costs(cost, keyno, n_ranges,
+                    n_ranges - (uint) single_point_ranges,
+                    *flags, total_rows,
                     io_blocks, unassigned_single_point_ranges);
     if (top_limit < total_rows)
     {
@@ -365,8 +386,10 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
         when we find the 'accepted rows' at once.
       */
       Cost_estimate limit_cost;
-      calculate_costs(&limit_cost, keyno, n_ranges, *flags, top_limit,
-                      io_blocks, unassigned_single_point_ranges);
+      calculate_costs(&limit_cost, keyno, n_ranges,
+                      n_ranges - (uint)single_point_ranges,
+                      *flags, top_limit, io_blocks,
+                      unassigned_single_point_ranges);
       cost->limit_cost= limit_cost.total_cost();
     }
     DBUG_PRINT("statistics",
