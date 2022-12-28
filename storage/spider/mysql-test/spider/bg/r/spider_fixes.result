@@ -481,7 +481,6 @@ DELETE FROM t1;
 Warnings:
 Error	12702	Remote table 'auto_test_remote.ter1_1' is not found
 Error	12702	Remote table 'auto_test_remote.ter1_1' is not found
-Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
 TRUNCATE t1;
 Warnings:
 Error	1146	Table 'auto_test_remote.ter1_1' doesn't exist
