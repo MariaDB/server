@@ -1047,7 +1047,9 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   sq_select->add_where_field(derived_unit->first_select());
   sq_select->context.table_list= sq_select->table_list.first;
   sq_select->context.first_name_resolution_table= sq_select->table_list.first;
-  sq_select->table_list.first->derived_type= DTYPE_TABLE | DTYPE_MATERIALIZE;
+  sq_select->table_list.first->derived_type= (DTYPE_TABLE |
+                                              DTYPE_MATERIALIZE |
+                                              DTYPE_IN_PREDICATE);
   lex->derived_tables|= DERIVED_SUBQUERY;
 
   sq_select->where= 0;

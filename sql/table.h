@@ -1993,7 +1993,8 @@ class IS_table_read_plan;
 #define DTYPE_MERGE                  4U
 #define DTYPE_MATERIALIZE            8U
 #define DTYPE_MULTITABLE             16U
-#define DTYPE_MASK                   (DTYPE_VIEW|DTYPE_TABLE|DTYPE_MULTITABLE)
+#define DTYPE_IN_PREDICATE           32U
+#define DTYPE_MASK                   (DTYPE_VIEW|DTYPE_TABLE|DTYPE_MULTITABLE|DTYPE_IN_PREDICATE)
 
 /*
   Phases of derived tables/views handling, see sql_derived.cc
