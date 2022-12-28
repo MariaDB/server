@@ -674,6 +674,25 @@ SELECT * FROM t1;
 a	b	c
 3	2	2
 DROP TABLE t1;
+# MDEV-30046 wrong row targeted with "insert ... on duplicate" and
+# "replace", leading to data corruption
+create table t (s blob, n int, unique (s)) engine=innodb;
+insert into t values ('Hrecvx_0004ln-00',1), ('Hrecvx_0004mm-00',1);
+replace into t values ('Hrecvx_0004mm-00',2);
+select * from t;
+s	n
+Hrecvx_0004ln-00	1
+Hrecvx_0004mm-00	2
+drop table t;
+create table t (s blob, n int, unique (s)) engine=innodb;
+insert into t values ('Hrecvx_0004ln-00',1), ('Hrecvx_0004mm-00',1);
+insert into t values ('Hrecvx_0004mm-00',2)
+on duplicate key update n = values (n);
+select * from t;
+s	n
+Hrecvx_0004ln-00	1
+Hrecvx_0004mm-00	2
+drop table t;
 #
 # End of 10.5 tests
 #

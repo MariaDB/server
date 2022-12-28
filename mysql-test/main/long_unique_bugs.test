@@ -655,6 +655,21 @@ REPLACE INTO t1 VALUES (3,2,2);
 SELECT * FROM t1;
 DROP TABLE t1;
 
+--echo # MDEV-30046 wrong row targeted with "insert ... on duplicate" and
+--echo # "replace", leading to data corruption
+--source include/have_innodb.inc
+create table t (s blob, n int, unique (s)) engine=innodb;
+insert into t values ('Hrecvx_0004ln-00',1), ('Hrecvx_0004mm-00',1);
+replace into t values ('Hrecvx_0004mm-00',2);
+select * from t;
+drop table t;
+
+create table t (s blob, n int, unique (s)) engine=innodb;
+insert into t values ('Hrecvx_0004ln-00',1), ('Hrecvx_0004mm-00',1);
+insert into t values ('Hrecvx_0004mm-00',2)
+    on duplicate key update n = values (n);
+select * from t;
+drop table t;
 --echo #
 --echo # End of 10.5 tests
 --echo #
