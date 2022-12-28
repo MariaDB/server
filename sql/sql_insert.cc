@@ -918,7 +918,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     {
       create_lookup_handler= true;
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      if (table->file->ha_table_flags() & HA_DUPLICATE_POS ||
+          table->s->long_unique_table)
       {
         if (table->file->ha_rnd_init_with_error(0))
           goto abort;
@@ -1179,7 +1180,8 @@ values_loop_end:
     if (duplic != DUP_ERROR || ignore)
     {
       table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      if (table->file->ha_table_flags() & HA_DUPLICATE_POS ||
+          table->s->long_unique_table)
         table->file->ha_rnd_end();
     }
 
@@ -1884,7 +1886,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
       if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
           key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
 	goto err;
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      if (table->file->has_dup_ref())
       {
         DBUG_ASSERT(table->file->inited == handler::RND);
 	if (table->file->ha_rnd_pos(table->record[1],table->file->dup_ref))
