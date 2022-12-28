@@ -9327,11 +9327,25 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {
-    WSREP_DEBUG("sql_kill called");
     if (thd->wsrep_applier)
     {
       WSREP_DEBUG("KILL in applying, bailing out here");
       return;
+    }
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction.stmt.mark_trans_did_ddl();
     }
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
   }
@@ -9368,6 +9382,21 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     {
       WSREP_DEBUG("KILL in applying, bailing out here");
       return;
+    }
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction.stmt.mark_trans_did_ddl();
     }
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
   }
