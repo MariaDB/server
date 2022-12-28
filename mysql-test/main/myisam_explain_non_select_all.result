@@ -2978,8 +2978,7 @@ JOIN t1 AS a12 ON a12.c1 = a11.c1
 ) d1
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DROP TABLE t1, t2, t3;
 #73
 CREATE TABLE t1 (id INT);
@@ -3106,7 +3105,7 @@ CALL p10();
 DROP PROCEDURE p10;
 CALL p9();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DROP PROCEDURE p9;
 CALL p8();
 DROP PROCEDURE p8;
