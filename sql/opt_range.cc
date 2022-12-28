@@ -2716,8 +2716,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   SEL_ARG **backup_keys= 0;
   ha_rows table_records= head->stat_records();
   handler *file= head->file;
-  /* We trust that if stat_records() is 0 the table is really empty! */
-  bool impossible_range= table_records == 0;
+  bool impossible_range= 0;
   DBUG_ENTER("SQL_SELECT::test_quick_select");
   DBUG_PRINT("enter",("keys_to_use: %lu  prev_tables: %lu  const_tables: %lu",
 		      (ulong) keys_to_use.to_ulonglong(), (ulong) prev_tables,

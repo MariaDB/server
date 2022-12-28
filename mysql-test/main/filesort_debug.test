@@ -86,6 +86,8 @@ CREATE TABLE t1 (
   primary key (pk)
 );
 
+insert into t1 (pk) values (1),(2),(3);
+
 CALL mtr.add_suppression("Out of sort memory");
 
 --error ER_OUT_OF_SORTMEMORY
