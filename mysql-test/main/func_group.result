@@ -1820,7 +1820,7 @@ CREATE TABLE t1(f1 YEAR(4));
 INSERT INTO t1 VALUES (0000),(2001);
 (SELECT MAX(f1) FROM t1) UNION (SELECT MAX(f1) FROM t1);
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				MAX(f1)	MAX(f1)	13	4	4	Y	32864	0	63
+def				MAX(f1)	MAX(f1)	13	4	4	Y	49248	0	63
 MAX(f1)
 2001
 DROP TABLE t1;
