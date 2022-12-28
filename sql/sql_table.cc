@@ -13063,6 +13063,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
       DEBUG_SYNC(thd, "wsrep_create_table_as_select");
 
+      Write_record write;
+
       /*
         select_create is currently not re-execution friendly and
         needs to be created for every execution of a PS/SP.
@@ -13074,7 +13076,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
                                                      select_lex->item_list,
                                                      lex->duplicates,
                                                      lex->ignore,
-                                                     select_tables)))
+                                                     select_tables,
+                                                     &write)))
       {
         /*
           CREATE from SELECT give its SELECT_LEX for SELECT,

@@ -5003,12 +5003,6 @@ uint handler::get_dup_key(int error)
   DBUG_RETURN(errkey);
 }
 
-bool handler::has_dup_ref() const
-{
-  DBUG_ASSERT(lookup_errkey != (uint)-1 || errkey != (uint)-1);
-  return ha_table_flags() & HA_DUPLICATE_POS || lookup_errkey != (uint)-1;
-}
-
 
 /**
   Delete all files with extension from bas_ext().
