@@ -145,7 +145,7 @@ DROP TABLE t1;
 create table t1 (i int);
 explain partitions update t1 set i = 3;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	0	
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 create table t2 (a int, b int) partition by hash(a) partitions 5;
 insert into t2 values (0,0),(1,1),(2,2),(3,3),(4,4);
 explain partitions update t2 set b=3 where a in (3,4);

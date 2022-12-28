@@ -581,8 +581,10 @@ int mysql_update(THD *thd,
   set_statistics_for_table(thd, table);
 
   select= make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
-  if (unlikely(error || !limit || thd->is_error() ||
-               (select && select->check_quick(thd, safe_update, limit))))
+  if (unlikely(error || thd->is_error() || !limit ||
+               (select && select->check_quick(thd, safe_update, limit)) ||
+               table->stat_records() == 0))
+
   {
     query_plan.set_impossible_where();
     if (thd->lex->describe || thd->lex->analyze_stmt)
