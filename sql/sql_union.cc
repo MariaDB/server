@@ -354,8 +354,6 @@ select_unit::create_result_table(THD *thd_arg, List<Item> *column_types,
     return TRUE;
 
   table->keys_in_use_for_query.clear_all();
-  for (uint i=0; i < table->s->fields; i++)
-    table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   if (create_table)
   {
@@ -393,8 +391,6 @@ select_union_recursive::create_result_table(THD *thd_arg,
     return true;
 
   incr_table->keys_in_use_for_query.clear_all();
-  for (uint i=0; i < table->s->fields; i++)
-    incr_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   return false;
 }
