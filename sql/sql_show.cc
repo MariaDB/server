@@ -8899,6 +8899,10 @@ bool optimize_schema_tables_reads(JOIN *join)
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
+    /*
+      The following is true for the temporary table that will hold the
+      final result.
+    */
     if (!tab->table || !tab->table->pos_in_table_list)
       continue;
 
@@ -8970,6 +8974,10 @@ bool get_schema_tables_result(JOIN *join,
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
+    /*
+      The following is true for the temporary table that will hold the
+      final result.
+    */
     if (!tab->table || !tab->table->pos_in_table_list)
       break;
 

@@ -4268,7 +4268,6 @@ JOIN::add_sorting_to_table(JOIN_TAB *tab, ORDER *order)
 
   TABLE *table= tab->table;
   if ((tab == join_tab + const_tables) &&
-       table->pos_in_table_list &&
        table->pos_in_table_list->is_sjm_scan_table())
   {
     tab->filesort->set_all_read_bits= TRUE;
@@ -7393,6 +7392,10 @@ static void remember_if_eq_ref_key(JOIN *join, KEYUSE *use)
   Special treatment for ft-keys.
   Update join->eq_ref_tables with a bitmap of all tables that can possible
   have a EQ_REF key.
+
+  Note that the keys are generated to be used by best_access_path() during
+  the optimization stage. Unused keys will later be deleted by
+  JOIN::drop_unused_derived_keys().
 */
 
 bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
@@ -7442,7 +7445,9 @@ bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
         }
         else
         {
-          /* Key changed, check if previous key was a primary/unique key lookup */
+          /*
+            Key changed, check if previous key was a primary/unique key lookup
+          */
           if (prev != &key_end && !found_unprefixed_key_part)
             remember_if_eq_ref_key(join, prev);
           found_unprefixed_key_part= 0;
@@ -13751,36 +13756,45 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
 static
 bool generate_derived_keys(DYNAMIC_ARRAY *keyuse_array)
 {
-  KEYUSE *keyuse= dynamic_element(keyuse_array, 0, KEYUSE*);
+  KEYUSE *keyuse, *end_keyuse;
   size_t elements= keyuse_array->elements;
   TABLE *prev_table= 0;
-  for (size_t i= 0; i < elements; i++, keyuse++)
+
+  DBUG_ASSERT(elements > 0);
+  /* The last element is an end marker */
+  DBUG_ASSERT(dynamic_element(keyuse_array, elements-1,
+                              KEYUSE*)[0].table == 0);
+
+  for (keyuse= dynamic_element(keyuse_array, 0, KEYUSE*),
+         end_keyuse= keyuse + elements - 1;
+       keyuse < end_keyuse;
+       keyuse++)
   {
-    if (!keyuse->table)
-      break;
+    DBUG_ASSERT(keyuse->table);
+
     KEYUSE *first_table_keyuse= NULL;
     table_map last_used_tables= 0;
     uint count= 0;
     uint keys= 0;
     TABLE_LIST *derived= NULL;
+
     if (keyuse->table != prev_table)
       derived= keyuse->table->pos_in_table_list;
-    while (derived && derived->is_materialized_derived())
+
+    if (!derived->is_materialized_derived())
+      continue;
+
+    for (;;)
     {
       if (keyuse->table != prev_table)
       {
         prev_table= keyuse->table;
         while (keyuse->table == prev_table && keyuse->key != MAX_KEY)
-	{
           keyuse++;
-          i++;
-        }
         if (keyuse->table != prev_table)
 	{
           keyuse--;
-          i--;
-          derived= NULL;
-          continue;
+          break;
         }
         first_table_keyuse= keyuse;
         last_used_tables= keyuse->used_tables;
@@ -13794,14 +13808,12 @@ bool generate_derived_keys(DYNAMIC_ARRAY *keyuse_array)
       }
       count++;
       keyuse++;
-      i++;
       if (keyuse->table != prev_table)
       {
         if (generate_derived_keys_for_table(first_table_keyuse, count, ++keys))
           return TRUE;
         keyuse--;
-        i--;
-	derived= NULL;
+        break;
       }
     }
   }
