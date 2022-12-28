@@ -1206,5 +1206,24 @@ from t1;
 drop table t1, duplicates_tbl;
 
 --echo #
+--echo # MDEV-30310
+--echo # Assertion failure in best_access_path upon IN exceeding
+--echo # IN_PREDICATE_CONVERSION_THRESHOLD, derived_with_keys=off
+--echo #
+
+CREATE TABLE t1 (l_orderkey int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (o_orderkey int);
+INSERT INTO t2 VALUES (3),(4);
+SET IN_PREDICATE_CONVERSION_THRESHOLD= 2;
+SET OPTIMIZER_SWITCH='derived_with_keys=on';
+SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2, 3);
+SET OPTIMIZER_SWITCH='derived_with_keys=off';
+SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2, 3);
+SET @@IN_PREDICATE_CONVERSION_THRESHOLD=@@global.IN_PREDICATE_CONVERSION_THRESHOLD;
+SET @@OPTIMIZER_SWITCH=@@global.OPTIMIZER_SWITCH;
+DROP TABLE t1, t2;
+
+--echo #
 --echo # End of 11.0 tests
 --echo #
