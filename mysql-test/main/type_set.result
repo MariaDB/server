@@ -403,7 +403,7 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t2;
 SELECT c_int FROM t1 UNION SELECT c_set FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				c_int	c_int	253	33	0	Y	0	0	33
+def				c_int	c_int	253	33	0	Y	16384	0	33
 c_int
 SELECT COALESCE(c_int, c_set)  FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
