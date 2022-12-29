@@ -1605,6 +1605,26 @@ SET @json2 = '{"kk":{"k1":"v1","k2":"v2","k3":"v3"}}';
 SELECT JSON_OVERLAPS(@json2, @json1);
 SELECT JSON_OVERLAPS(@json1, @json2);
 
+
+--echo #
+--echo # MDEV-29381: JSON paths containing dashes are reported as
+--echo # syntax errors in procedures
+--echo #
+
+DROP PROCEDURE IF EXISTS my_proc;
+ 
+DELIMITER $$;
+CREATE PROCEDURE my_proc()
+BEGIN
+DECLARE result TEXT;
+SET result = JSON_EXTRACT('{ "my-key": 1 }', '$."my-key"');
+END $$
+DELIMITER ;$$
+ 
+CALL my_proc();
+
+DROP PROCEDURE IF EXISTS my_proc;
+
 --echo #
 --echo # End of 10.9 Test
 --echo #
