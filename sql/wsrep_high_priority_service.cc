@@ -619,6 +619,9 @@ Wsrep_replayer_service::Wsrep_replayer_service(THD* replayer_thd, THD* orig_thd)
      transactional locks */
   DBUG_ASSERT(!orig_thd->mdl_context.has_transactional_locks());
 
+  replayer_thd->system_thread_info.rpl_sql_info=
+    new rpl_sql_thread_info(replayer_thd->wsrep_rgi->rli->mi->rpl_filter);
+
   /* Make a shadow copy of diagnostics area and reset */
   m_da_shadow.status= orig_thd->get_stmt_da()->status();
   if (m_da_shadow.status == Diagnostics_area::DA_OK)
@@ -669,6 +672,8 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
 
   DBUG_ASSERT(!orig_thd->get_stmt_da()->is_sent());
   DBUG_ASSERT(!orig_thd->get_stmt_da()->is_set());
+
+  delete replayer_thd->system_thread_info.rpl_sql_info;
 
   if (m_replay_status == wsrep::provider::success)
   {
