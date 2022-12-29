@@ -1019,9 +1019,9 @@ String *Item_func_json_extract::read_json(String *str,
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
     json_path_with_flags *c_path= paths + n_arg - 1;
-    c_path->p.types_used= JSON_PATH_KEY_NULL;
     if (!c_path->parsed)
     {
+      c_path->p.types_used= JSON_PATH_KEY_NULL;
       String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-1));
       if (s_p)
       {
