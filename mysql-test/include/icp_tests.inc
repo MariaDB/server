@@ -456,6 +456,7 @@ INSERT INTO t2 VALUES (11,1);
 INSERT INTO t2 VALUES (12,2);
 INSERT INTO t2 VALUES (15,4);
 
+analyze table t1,t2 persistent for all;
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='semijoin=off';
 

@@ -422,6 +422,12 @@ CREATE TABLE t2 (pk INTEGER PRIMARY KEY, i INTEGER NOT NULL);
 INSERT INTO t2 VALUES (11,1);
 INSERT INTO t2 VALUES (12,2);
 INSERT INTO t2 VALUES (15,4);
+analyze table t1,t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='semijoin=off';
 EXPLAIN
