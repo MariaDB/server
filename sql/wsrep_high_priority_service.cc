@@ -1,4 +1,4 @@
-/* Copyright 2018-2021 Codership Oy <info@codership.com>
+/* Copyright 2018-2023 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -619,6 +619,9 @@ Wsrep_replayer_service::Wsrep_replayer_service(THD* replayer_thd, THD* orig_thd)
      transactional locks */
   DBUG_ASSERT(!orig_thd->mdl_context.has_transactional_locks());
 
+  replayer_thd->system_thread_info.rpl_sql_info=
+    new rpl_sql_thread_info(replayer_thd->wsrep_rgi->rli->mi->rpl_filter);
+
   /* Make a shadow copy of diagnostics area and reset */
   m_da_shadow.status= orig_thd->get_stmt_da()->status();
   if (m_da_shadow.status == Diagnostics_area::DA_OK)
@@ -657,35 +660,35 @@ Wsrep_replayer_service::Wsrep_replayer_service(THD* replayer_thd, THD* orig_thd)
 
 Wsrep_replayer_service::~Wsrep_replayer_service()
 {
-  THD* replayer_thd= m_thd;
-  THD* orig_thd= m_orig_thd;
-
   /* Switch execution context back to original. */
-  wsrep_after_apply(replayer_thd);
-  wsrep_after_command_ignore_result(replayer_thd);
-  wsrep_close(replayer_thd);
-  wsrep_reset_threadvars(replayer_thd);
-  wsrep_store_threadvars(orig_thd);
+  wsrep_after_apply(m_thd);
+  wsrep_after_command_ignore_result(m_thd);
+  wsrep_close(m_thd);
+  wsrep_reset_threadvars(m_thd);
+  wsrep_store_threadvars(m_orig_thd);
 
-  DBUG_ASSERT(!orig_thd->get_stmt_da()->is_sent());
-  DBUG_ASSERT(!orig_thd->get_stmt_da()->is_set());
+  DBUG_ASSERT(!m_orig_thd->get_stmt_da()->is_sent());
+  DBUG_ASSERT(!m_orig_thd->get_stmt_da()->is_set());
+
+  delete m_thd->system_thread_info.rpl_sql_info;
+  m_thd->system_thread_info.rpl_sql_info= nullptr;
 
   if (m_replay_status == wsrep::provider::success)
   {
-    DBUG_ASSERT(replayer_thd->wsrep_cs().current_error() == wsrep::e_success);
-    orig_thd->reset_kill_query();
-    my_ok(orig_thd, m_da_shadow.affected_rows, m_da_shadow.last_insert_id);
+    DBUG_ASSERT(m_thd->wsrep_cs().current_error() == wsrep::e_success);
+    m_orig_thd->reset_kill_query();
+    my_ok(m_orig_thd, m_da_shadow.affected_rows, m_da_shadow.last_insert_id);
   }
   else if (m_replay_status == wsrep::provider::error_certification_failed)
   {
-    wsrep_override_error(orig_thd, ER_LOCK_DEADLOCK);
+    wsrep_override_error(m_orig_thd, ER_LOCK_DEADLOCK);
   }
   else
   {
     DBUG_ASSERT(0);
     WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
                 m_replay_status,
-                orig_thd->db.str, wsrep_thd_query(orig_thd));
+                m_orig_thd->db.str, wsrep_thd_query(m_orig_thd));
     unireg_abort(1);
   }
 }
