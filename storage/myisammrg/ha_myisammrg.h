@@ -159,6 +159,4 @@ public:
                                           Query_cache_block_table **block,
                                           uint *n);
   virtual void set_lock_type(enum thr_lock_type lock);
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 };

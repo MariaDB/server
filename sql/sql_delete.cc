@@ -332,12 +332,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool delete_record= false;
   bool delete_while_scanning;
   bool portion_of_time_through_update;
-  bool ops_batch_started= false;
   DBUG_ENTER("mysql_delete");
 
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
-  query_plan.using_batched_ops= can_use_operations_batch(table_list);
 
   create_explain_query(thd->lex, thd->mem_root);
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
@@ -367,6 +365,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   table->map=1;
   query_plan.select_lex= thd->lex->first_select_lex();
   query_plan.table= table;
+  Mini_transaction_guard mini_transaction(table->file);
 
   thd->lex->promote_select_describe_flag_if_needed();
 
@@ -595,7 +594,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   query_plan.select= select;
   query_plan.possible_keys= select? select->possible_keys: key_map(0);
-  
+  query_plan.using_mini_transaction=
+      can_use_mini_transaction(table_list, select, has_triggers,
+                               table->file->referenced_by_foreign_key());
+
   /*
     Ok, we have generated a query plan for the DELETE.
      - if we're running EXPLAIN DELETE, goto produce explain output 
@@ -658,52 +660,44 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         /* Direct deleting is supported */
         DBUG_PRINT("info", ("Using direct delete"));
         THD_STAGE_INFO(thd, stage_updating);
+        if (query_plan.using_mini_transaction)
+          mini_transaction.start();
         if (!(error= table->file->ha_direct_delete_rows(&deleted)))
           error= -1;
         goto terminate_delete;
       }
     }
   }
-  table->file->end_operations_batch();
 
   if (query_plan.using_filesort)
   {
-    {
-      if (query_plan.using_batched_ops)
-      {
-        table->file->start_operations_batch();
-        ops_batch_started= true;
-      }
-      Filesort fsort(order, HA_POS_ERROR, true, select);
-      DBUG_ASSERT(query_plan.index == MAX_KEY);
+    Mini_transaction_guard row_search_batch(table->file);
+    if (query_plan.using_mini_transaction)
+      row_search_batch.start();
+    Filesort fsort(order, HA_POS_ERROR, true, select);
+    DBUG_ASSERT(query_plan.index == MAX_KEY);
 
-      Filesort_tracker *fs_tracker=
+    Filesort_tracker *fs_tracker=
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
-        goto got_error;
+    if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
+      goto got_error;
 
-      thd->inc_examined_row_count(file_sort->examined_rows);
-      /*
-        Filesort has already found and selected the rows we want to delete,
-        so we don't need the where clause
-      */
-      delete select;
+    thd->inc_examined_row_count(file_sort->examined_rows);
+    /*
+      Filesort has already found and selected the rows we want to delete,
+      so we don't need the where clause
+    */
+    delete select;
 
-      /*
-        If we are not in DELETE ... RETURNING, we can free subqueries. (in
-        DELETE ... RETURNING we can't, because the RETURNING part may have
-        a subquery in it)
-      */
-      if (!returning)
-        free_underlaid_joins(thd, select_lex);
-      select= 0;
-      if (ops_batch_started)
-      {
-        table->file->end_operations_batch();
-        ops_batch_started= false;
-      }
-    }
+    /*
+      If we are not in DELETE ... RETURNING, we can free subqueries. (in
+      DELETE ... RETURNING we can't, because the RETURNING part may have
+      a subquery in it)
+    */
+    if (!returning)
+      free_underlaid_joins(thd, select_lex);
+    select= 0;
   }
 
   /* If quick select is used, initialize it before retrieving rows. */
@@ -820,13 +814,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &deleted);
-
-  if (query_plan.using_batched_ops)
-  {
-    table->file->start_operations_batch();
-    ops_batch_started= true;
-  }
-
+  if (query_plan.using_mini_transaction)
+    mini_transaction.start();
   thd->get_stmt_da()->reset_current_row_for_warning(0);
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
          likely(!thd->is_error()))
@@ -906,12 +895,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       table->file->unlock_row();  // Row failed selection, release lock on it
     else
       break;
-  }
-
-  if (ops_batch_started)
-  {
-    table->file->end_operations_batch();
-    ops_batch_started= false;
   }
 
   thd->get_stmt_da()->reset_current_row_for_warning(1);
@@ -1036,12 +1019,6 @@ send_nothing_and_leave:
   DBUG_RETURN((return_error || thd->is_error() || thd->killed) ? 1 : 0);
 
 got_error:
-  if (ops_batch_started)
-  {
-    table->file->end_operations_batch();
-    ops_batch_started= false;
-  }
-
   return_error= 1;
   goto send_nothing_and_leave;
 }

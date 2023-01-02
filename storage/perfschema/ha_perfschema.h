@@ -204,8 +204,7 @@ public:
 
   virtual void print_error(int error, myf errflags);
 
-  void start_operations_batch() {}
-  void end_operations_batch() {}
+
 private:
   /**
      Check if the caller is a replication thread or the caller is called
