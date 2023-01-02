@@ -1,0 +1,21 @@
+-- source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-30321: blob data corrupted by row_merge_write_blob_to_tmp_file()
+--echo #
+
+SET UNIQUE_CHECKS=0;
+SET FOREIGN_KEY_CHECKS=0;
+
+CREATE TABLE t1 (
+  data LONGBLOB NOT NULL
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES 
+  (REPEAT('X', @@innodb_sort_buffer_size)),
+  (REPEAT('X', @@innodb_sort_buffer_size))
+;
+
+SELECT COUNT(*) AS nb_corrupted_rows FROM t1 WHERE data != REPEAT('X', @@innodb_sort_buffer_size);
+
+DROP TABLE IF EXISTS t1;

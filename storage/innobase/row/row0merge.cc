@@ -1066,7 +1066,7 @@ static dberr_t row_merge_write_blob_to_tmp_file(
   uint32_t len= field->len;
   dberr_t err= os_file_write(
     IORequestWrite, "(bulk insert)", blob_file->fd,
-    field->data, blob_file->offset * srv_page_size, len);
+    field->data, blob_file->offset, len);
 
   if (err != DB_SUCCESS)
     return err;
