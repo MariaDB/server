@@ -90,6 +90,11 @@ extern void (*log_file_op)(ulint space_id, bool create,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
 
+/** Report an operation which does undo log tablespace truncation
+during backup
+@param	space_id	undo tablespace identifier */
+extern void (*undo_space_trunc)(uint32_t space_id);
+
 /** Stored redo log record */
 struct log_rec_t
 {

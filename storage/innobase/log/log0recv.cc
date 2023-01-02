@@ -596,6 +596,8 @@ void (*log_file_op)(ulint space_id, bool create,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
 
+void (*undo_space_trunc)(uint32_t space_id);
+
 /** Information about initializing page contents during redo log processing.
 FIXME: Rely on recv_sys.pages! */
 class mlog_init_t
@@ -1949,6 +1951,8 @@ same_page:
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
           truncated_undo_spaces[space_id - srv_undo_space_id_start]=
             { recovered_lsn, page_no };
+          if (undo_space_trunc)
+            undo_space_trunc(space_id);
 #endif
           last_offset= 1; /* the next record must not be same_page  */
           continue;

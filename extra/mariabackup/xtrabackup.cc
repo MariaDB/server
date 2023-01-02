@@ -247,6 +247,10 @@ long innobase_file_io_threads = 4;
 ulong innobase_read_io_threads = 4;
 ulong innobase_write_io_threads = 4;
 
+/** Store the failed read of undo tablespace ids. Protected by
+backup mutex */
+static std::set<uint32_t> fail_undo_ids;
+
 longlong innobase_page_size = (1LL << 14); /* 16KB */
 char*	innobase_buffer_pool_filename = NULL;
 
@@ -365,6 +369,10 @@ struct ddl_tracker_t {
 };
 
 static ddl_tracker_t ddl_tracker;
+
+/** Store the space ids of truncated undo log tablespaces. Protected
+by recv_sys.mutex */
+static std::set<uint32_t> undo_trunc_ids;
 
 // Convert non-null terminated filename to space name
 std::string filename_to_spacename(const byte *filename, size_t len);
@@ -874,6 +882,10 @@ static void backup_file_op_fail(ulint space_id, bool create,
 	}
 }
 
+static void backup_undo_trunc(uint32_t space_id)
+{
+  undo_trunc_ids.insert(space_id);
+}
 
 /*
   Retrieve default data directory, to be used with --copy-back.
@@ -2780,15 +2792,27 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 	}
 
 	/* The main copy loop */
-	while ((res = xb_fil_cur_read(&cursor, corrupted_pages)) ==
-		XB_FIL_CUR_SUCCESS) {
+	while (1) {
+		res = xb_fil_cur_read(&cursor, corrupted_pages);
+		if (res == XB_FIL_CUR_ERROR) {
+		       goto error;
+		}
+
+		if (res == XB_FIL_CUR_EOF) {
+			break;
+		}
+
 		if (!write_filter.process(&write_filt_ctxt, dstfile)) {
 			goto error;
 		}
-	}
 
-	if (res == XB_FIL_CUR_ERROR) {
-		goto error;
+		if (res == XB_FIL_CUR_SKIP) {
+			pthread_mutex_lock(&backup_mutex);
+			fail_undo_ids.insert(
+				static_cast<uint32_t>(cursor.space_id));
+			pthread_mutex_unlock(&backup_mutex);
+			break;
+		}
 	}
 
 	if (write_filter.finalize
@@ -4368,6 +4392,23 @@ static bool xtrabackup_backup_low()
 
 	dst_log_file = NULL;
 
+	std::vector<uint32_t> failed_ids;
+	std::set_difference(
+		fail_undo_ids.begin(), fail_undo_ids.end(),
+		undo_trunc_ids.begin(), undo_trunc_ids.end(),
+		std::inserter(failed_ids, failed_ids.begin()));
+
+	for (uint32_t id : failed_ids) {
+		msg("mariabackup: Failed to read undo log "
+		    "tablespace space id %d and there is no undo "
+		    "tablespace truncation redo record.",
+		    id);
+	}
+
+	if (failed_ids.size() > 0) {
+		return false;
+	}
+
 	if(!xtrabackup_incremental) {
 		strcpy(metadata_type, "full-backuped");
 		metadata_from_lsn = 0;
@@ -4442,6 +4483,7 @@ static bool xtrabackup_backup_func()
 
 	srv_operation = SRV_OPERATION_BACKUP;
 	log_file_op = backup_file_op;
+	undo_space_trunc = backup_undo_trunc;
 	metadata_to_lsn = 0;
 
 	/* initialize components */
@@ -4450,6 +4492,7 @@ fail:
 		metadata_to_lsn = log_copying_running;
 		stop_backup_threads();
 		log_file_op = NULL;
+		undo_space_trunc = NULL;
 		if (dst_log_file) {
 			ds_close(dst_log_file);
 			dst_log_file = NULL;
@@ -4741,6 +4784,7 @@ fail_before_log_copying_thread_start:
 
 	innodb_shutdown();
 	log_file_op = NULL;
+	undo_space_trunc = NULL;
 	pthread_mutex_destroy(&backup_mutex);
 	pthread_cond_destroy(&scanned_lsn_cond);
 	if (!corrupted_pages.empty()) {
