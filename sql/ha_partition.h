@@ -1642,8 +1642,5 @@ public:
   bool can_convert_blob(
       const Field_blob* field,
       const Column_definition& new_field) const override;
-
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 };
 #endif /* HA_PARTITION_INCLUDED */

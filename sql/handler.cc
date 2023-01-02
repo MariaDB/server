@@ -8661,13 +8661,3 @@ Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
   }
   return false;
 }
-
-void handler::ha_start_operations_batch() // currently useless??
-{
-  table->file->start_operations_batch();
-}
-
-void handler::ha_end_operations_batch() // currently useless??
-{
-  table->file->end_operations_batch();
-}

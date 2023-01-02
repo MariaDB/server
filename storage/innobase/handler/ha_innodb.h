@@ -444,8 +444,8 @@ public:
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
 
-	void start_operations_batch();
-	void end_operations_batch();
+	void start_mini_transaction() override;
+	void end_mini_transaction() override;
 protected:
 	dberr_t innobase_get_autoinc(ulonglong* value);
 	dberr_t innobase_lock_autoinc();

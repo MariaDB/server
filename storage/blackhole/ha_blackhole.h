@@ -100,9 +100,6 @@ public:
   {
     return 0;
   }
-
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 private:
   virtual int write_row(const uchar *buf);
   virtual int update_row(const uchar *old_data, const uchar *new_data);

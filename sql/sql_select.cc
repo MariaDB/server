@@ -21183,14 +21183,12 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (pfs_batch_update)
     join_tab->table->file->start_psi_batch_mode();
 
-
-  bool ops_batch_started= false;
   /*
     A crude check to employ the optimization only if this is a one-table
     select.
     Check the list of open tables. It must have one table open (2), but just
     one table (3).
-  */
+
   if (join_tab->next_select == end_send &&
       join->thd->open_tables &&  //  (2)
       !join->thd->open_tables->next) // (3)
@@ -21198,7 +21196,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     join_tab->table->file->start_operations_batch();
     ops_batch_started= true;
   }
-
+*/
 
   if (rc != NESTED_LOOP_NO_MORE_ROWS)
   {
@@ -21246,9 +21244,6 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     
     rc= evaluate_join_record(join, join_tab, error);
   }
-
-  if (ops_batch_started)
-    join_tab->table->file->end_operations_batch();
 
   if (rc == NESTED_LOOP_NO_MORE_ROWS &&
       join_tab->last_inner && !join_tab->found)

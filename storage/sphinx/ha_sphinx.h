@@ -135,8 +135,6 @@ public:
 #endif	
 	virtual void			cond_pop ();
 
-	void start_operations_batch() {}
-	void end_operations_batch() {}
 private:
 	uint32			m_iFields;
 	char **			m_dFields;

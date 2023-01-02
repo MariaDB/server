@@ -339,10 +339,16 @@ int cut_fields_for_portion_of_time(THD *thd, TABLE *table,
   return res;
 }
 
-
-bool can_use_operations_batch(TABLE_LIST *query_tables) 
+bool can_use_mini_transaction(const TABLE_LIST *query_tables,
+                              const SQL_SELECT *select,
+                              bool has_triggers,
+                              bool is_referenced_by_foreign_keys)
 {
-  return (query_tables->next_global==NULL);
+  return
+      !(query_tables->next_global != nullptr /* more than one table involved */
+      || has_triggers || is_referenced_by_foreign_keys ||
+      (select && select->quick &&
+       !select->quick->are_mini_transactions_applicable()));
 }
 /*
   Process usual UPDATE
@@ -405,7 +411,6 @@ int mysql_update(THD *thd,
   TABLE_LIST *update_source_table;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
-  bool ops_batch_started= false;
 
   // For System Versioning (may need to insert new fields to a table).
   ha_rows rows_inserted= 0;
@@ -457,14 +462,14 @@ int mysql_update(THD *thd,
     DBUG_RETURN(1);
 
   table= table_list->table;
+  Mini_transaction_guard mini_transaction(table->file);
 
   if (!table_list->single_table_updatable())
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     DBUG_RETURN(1);
   }
-  
-  query_plan.using_batched_ops= can_use_operations_batch(table_list);
+
   /* Calculate "table->covering_keys" based on the WHERE */
   table->covering_keys= table->s->keys_in_use;
   table->opt_range_keys.clear_all();
@@ -680,38 +685,13 @@ int mysql_update(THD *thd,
     }
   }
   
-  /* 
+  /*
     Query optimization is finished at this point.
      - Save the decisions in the query plan
      - if we're running EXPLAIN UPDATE, get out
   */
   query_plan.select= select;
   query_plan.possible_keys= select? select->possible_keys: key_map(0);
-  
-  if (used_key_is_modified || order ||
-      partition_key_modified(table, table->write_set))
-  {
-    if (order && need_sort)
-      query_plan.using_filesort= true;
-    else
-      query_plan.using_io_buffer= true;
-  }
-
-  /*
-    Ok, we have generated a query plan for the UPDATE.
-     - if we're running EXPLAIN UPDATE, goto produce explain output 
-     - otherwise, execute the query plan
-  */
-  if (thd->lex->describe)
-    goto produce_explain_and_leave;
-  if (!(explain= query_plan.save_explain_update_data(query_plan.mem_root, thd)))
-    goto err;
-
-  ANALYZE_START_TRACKING(thd, &explain->command_tracker);
-
-  DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
-                  dbug_serve_apcs(thd, 1););
-
   has_triggers= (table->triggers &&
                  (table->triggers->has_triggers(TRG_EVENT_UPDATE,
                                                 TRG_ACTION_BEFORE) ||
@@ -726,6 +706,34 @@ int mysql_update(THD *thd,
                                                     TRG_ACTION_AFTER)
                    || has_triggers);
   DBUG_PRINT("info", ("has_triggers: %s", has_triggers ? "TRUE" : "FALSE"));
+  query_plan.using_mini_transaction=
+      can_use_mini_transaction(table_list, select, has_triggers,
+                               table->file->referenced_by_foreign_key());
+
+  if (used_key_is_modified || order ||
+      partition_key_modified(table, table->write_set))
+  {
+    if (order && need_sort)
+      query_plan.using_filesort= true;
+    else
+      query_plan.using_io_buffer= true;
+  }
+
+  /*
+    Ok, we have generated a query plan for the UPDATE.
+     - if we're running EXPLAIN UPDATE, goto produce explain output
+     - otherwise, execute the query plan
+  */
+  if (thd->lex->describe)
+    goto produce_explain_and_leave;
+  if (!(explain= query_plan.save_explain_update_data(query_plan.mem_root, thd)))
+    goto err;
+
+  ANALYZE_START_TRACKING(thd, &explain->command_tracker);
+
+  DBUG_EXECUTE_IF("show_explain_probe_update_exec_start",
+                  dbug_serve_apcs(thd, 1););
+
   binlog_is_row= thd->is_current_stmt_binlog_format_row();
   DBUG_PRINT("info", ("binlog_is_row: %s", binlog_is_row ? "TRUE" : "FALSE"));
 
@@ -802,11 +810,9 @@ int mysql_update(THD *thd,
 
       note: We avoid sorting if we sort on the used index
     */
-    if (query_plan.using_batched_ops)
-    {
-      table->file->start_operations_batch();
-      ops_batch_started= true;
-    }
+    Mini_transaction_guard row_search_mini_trx(table->file);
+    if (query_plan.using_mini_transaction)
+      row_search_mini_trx.start();
     if (query_plan.using_filesort)
     {
       /*
@@ -957,14 +963,12 @@ int mysql_update(THD *thd,
       table->file->ha_end_keyread();
       table->column_bitmaps_set(save_read_set, save_write_set);
     }
-    if (ops_batch_started)
-    {
-      table->file->end_operations_batch();
-      ops_batch_started= false;
-    }
   }
 
 update_begin:
+  if (query_plan.using_mini_transaction)
+    mini_transaction.start();
+
   if (ignore)
     table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
   
@@ -1029,12 +1033,6 @@ update_begin:
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
   thd->get_stmt_da()->reset_current_row_for_warning(1);
   
-  if (query_plan.using_batched_ops)
-  {
-    table->file->start_operations_batch();
-    ops_batch_started= true;
-  }
-
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -1248,12 +1246,6 @@ error:
       break;
     }
   }
-  
-  if (ops_batch_started)
-  {
-    table->file->end_operations_batch();
-    ops_batch_started= false;
-  }
 
   ANALYZE_STOP_TRACKING(thd, &explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
@@ -1298,6 +1290,7 @@ error:
     table->file->end_bulk_update();
 
 update_end:
+
   table->file->try_semi_consistent_read(0);
 
   if (!transactional_table && updated > 0)
@@ -1396,12 +1389,9 @@ update_end:
   
   if (unlikely(thd->lex->analyze_stmt))
     goto emit_explain_and_leave;
-
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
 err:
-  if (ops_batch_started)
-    table->file->end_operations_batch();
   delete select;
   delete file_sort;
   free_underlaid_joins(thd, select_lex);

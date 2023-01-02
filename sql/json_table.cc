@@ -235,8 +235,6 @@ public:
     buf->length(0);
     return TRUE;
   }
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 };
 
 

@@ -2483,6 +2483,52 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               bool *is_simplifiable_cond);
 
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
-bool can_use_operations_batch(TABLE_LIST *query_tables);
+bool can_use_mini_transaction(const TABLE_LIST *query_tables,
+                              const SQL_SELECT *select,
+                              bool has_triggers,
+                              bool is_referenced_by_foreign_keys);
+
+/*
+  This class provides automatic call of handler::end_mini_transaction()
+  on destruction (going out of scope), so one doesn't have to track all the
+  execution paths to call end_mini_transaction() explicitly.
+
+  Example of usage:
+
+  {
+    Mini_transaction_guard mini_trx(table->file);
+    mini_trx.start(); // start_mini_transaction() is called
+    ...
+    if (cond)
+      goto label1; // end_mini_transaction() is called on mini_trx going out
+                   // of scope and destruction
+    ...
+  } // end_mini_transaction() is called on mini_trx going out
+    // of scope and destruction
+*/
+class Mini_transaction_guard
+{
+public:
+  explicit Mini_transaction_guard(handler *h) : hnd(h)
+  {}
+
+  Mini_transaction_guard()= delete;
+
+  void start()
+  {
+    hnd->start_mini_transaction();
+    started= true;
+  }
+
+  ~Mini_transaction_guard()
+  {
+    if (started)
+      hnd->end_mini_transaction();
+  }
+
+private:
+  handler *hnd= nullptr;
+  bool started= false;
+};
 
 #endif /* SQL_SELECT_INCLUDED */

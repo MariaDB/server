@@ -20643,14 +20643,14 @@ Compare_keys ha_innobase::compare_key_parts(
   return Compare_keys::Equal;
 }
 
-void ha_innobase::start_operations_batch()
+void ha_innobase::start_mini_transaction()
 {
   ut_ad(!m_prebuilt->batch_mtr);
   if (!m_prebuilt->table->is_temporary())
     m_prebuilt->batch_mtr= new row_batch_mtr_t();
 }
 
-void ha_innobase::end_operations_batch()
+void ha_innobase::end_mini_transaction()
 {
   if (m_prebuilt->batch_mtr)
   {

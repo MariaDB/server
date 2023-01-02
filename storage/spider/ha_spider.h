@@ -821,6 +821,4 @@ public:
   int append_lock_tables_list();
   int lock_tables();
   int dml_init();
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 };
