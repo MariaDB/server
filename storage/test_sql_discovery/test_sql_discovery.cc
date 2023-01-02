@@ -93,8 +93,6 @@ public:
 
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 };
 
 TSD_share *ha_tsd::get_share()

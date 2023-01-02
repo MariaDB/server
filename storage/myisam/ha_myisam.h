@@ -174,8 +174,6 @@ public:
   Item *idx_cond_push(uint keyno, Item* idx_cond);
   bool rowid_filter_push(Rowid_filter* rowid_filter);
 
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 private:
   DsMrr_impl ds_mrr;
   friend check_result_t index_cond_func_myisam(void *arg);

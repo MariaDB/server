@@ -1637,8 +1637,5 @@ public:
 
   bool can_convert_nocopy(const Field &field,
                           const Column_definition &new_filed) const override;
-
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 };
 #endif /* HA_PARTITION_INCLUDED */

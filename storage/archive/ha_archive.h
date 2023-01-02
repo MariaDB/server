@@ -157,8 +157,6 @@ public:
   unsigned int pack_row(const uchar *record, azio_stream *writer);
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
   int external_lock(THD *thd, int lock_type);
-  void start_operations_batch() {}
-  void end_operations_batch() {}
 private:
   void flush_and_clear_pending_writes();
 };

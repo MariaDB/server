@@ -3001,7 +3001,7 @@ public:
   bool using_filesort;
   bool using_io_buffer;
 
-  bool using_batched_ops;
+  bool using_mini_transaction;
   
   /* Set this plan to be a plan to do nothing because of impossible WHERE */
   void set_impossible_where() { impossible_where= true; }

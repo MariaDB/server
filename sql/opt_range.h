@@ -1263,6 +1263,8 @@ public:
     This is used by an optimization in filesort.
   */
   virtual void add_used_key_part_to_set()=0;
+
+  virtual bool are_mini_transactions_applicable() const= 0;
 };
 
 
@@ -1360,6 +1362,8 @@ public:
   QUICK_SELECT_I *make_reverse(uint used_key_parts_arg);
 
   virtual void add_used_key_part_to_set();
+  bool are_mini_transactions_applicable() const override
+  { return !in_ror_merged_scan && !mrr_flags; }
 
 private:
   /* Default copy ctor used by QUICK_SELECT_DESC */
@@ -1396,7 +1400,6 @@ private:
                                 Unique **unique_ptr);
 
 };
-
 
 class QUICK_RANGE_SELECT_GEOM: public QUICK_RANGE_SELECT
 {
@@ -1530,6 +1533,7 @@ public:
   READ_RECORD read_record;
 
   virtual void add_used_key_part_to_set();
+  bool are_mini_transactions_applicable() const override { return false; }
 };
 
 
@@ -1641,6 +1645,8 @@ public:
     return valid;
   }
 
+  bool are_mini_transactions_applicable() const override { return false; }
+
   /*
     Merged quick select that uses Clustered PK, if there is one. This quick
     select is not used for row retrieval, it is used for row retrieval.
@@ -1708,6 +1714,8 @@ public:
     }
     return valid;
   }
+
+  bool are_mini_transactions_applicable() const override { return false; }
 
   QUEUE queue;    /* Priority queue for merge operation */
   MEM_ROOT alloc; /* Memory pool for this and merged quick selects data. */
@@ -1835,6 +1843,7 @@ public:
   bool is_agg_distinct() { return have_agg_distinct; }
   bool loose_scan_is_scanning() { return is_index_scan; }
   Explain_quick_select *get_explain(MEM_ROOT *alloc);
+  bool are_mini_transactions_applicable() const override { return true; }
 };
 
 
