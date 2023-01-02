@@ -2361,8 +2361,15 @@ Item *Item_sum_variance::result_item(THD *thd, Field *field)
 void Item_sum_min_max::clear()
 {
   DBUG_ENTER("Item_sum_min_max::clear");
-  value->clear();
-  null_value= 1;
+  /*
+    We should not clear const items (from SELECT MIN(key) from t1) as then we would loose the
+    value cached in opt_sum_query() where we replace MIN/MAX/COUNT with constants.
+  */
+  if (!const_item())
+  {
+    value->clear();
+    null_value= 1;
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -2475,9 +2482,12 @@ void Item_sum_min_max::no_rows_in_result()
   /* We may be called here twice in case of ref field in function */
   if (was_values)
   {
+    bool org_const_item_cache= const_item_cache;
     was_values= FALSE;
     was_null_value= value->null_value;
+    const_item_cache= 0;             // Ensure that clear works on const items
     clear();
+    const_item_cache= org_const_item_cache;
   }
   DBUG_VOID_RETURN;
 }
