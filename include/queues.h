@@ -24,7 +24,7 @@
 */
 
 /*
-  Code for generell handling of priority Queues.
+  Code for general handling of priority Queues.
   Implementation of queues from "Algorithms in C" by Robert Sedgewick.
 */
 

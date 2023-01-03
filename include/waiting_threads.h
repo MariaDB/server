@@ -81,7 +81,7 @@ typedef struct st_wt_thd {
     1. Latest
         Keep all weights equal.
     2. Random
-        Assight weights at random.
+        Assign weights at random.
         (variant: modify a weight randomly before every lock request)
     3. Youngest
         Set weight to -NOW()

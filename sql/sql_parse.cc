@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2023, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2579,7 +2579,7 @@ void log_slow_statement(THD *thd)
   if ((thd->server_status &
        (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
       !(thd->query_plan_flags & QPLAN_STATUS) &&
-      !slow_filter_masked(thd, QPLAN_NOT_USING_INDEX))
+      (thd->variables.log_slow_filter & QPLAN_NOT_USING_INDEX))
   {
     thd->query_plan_flags|= QPLAN_NOT_USING_INDEX;
     /* We are always logging no index queries if enabled in filter */

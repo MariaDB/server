@@ -1,6 +1,7 @@
 # This is the DDL function tests for innodb FTS
 
 -- source include/have_innodb.inc
+-- source include/maybe_versioning.inc
 
 # Create FTS table
 CREATE TABLE fts_test (
@@ -54,7 +55,21 @@ SELECT * FROM fts_test WHERE MATCH (title,body)
         AGAINST ('+MySQL -YourSQL' IN BOOLEAN MODE);
 
 # Truncate table
+let $vers=$MTR_COMBINATION_VERS+$MTR_COMBINATION_VERS_TRX;
+
+if ($vers)
+{
+--disable_query_log
+CREATE TABLE fts_test2 LIKE fts_test;
+DROP TABLE fts_test;
+RENAME TABLE fts_test2 TO fts_test;
+--enable_query_log
+--echo TRUNCATE TABLE fts_test;
+}
+if (!$vers)
+{
 TRUNCATE TABLE fts_test;
+}
 
 DROP INDEX idx ON fts_test;
 

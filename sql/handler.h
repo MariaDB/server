@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2009, 2023, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -2066,7 +2066,8 @@ struct Vers_parse_info: public Table_period_info
   Vers_parse_info() :
     Table_period_info(STRING_WITH_LEN("SYSTEM_TIME")),
     versioned_fields(false),
-    unversioned_fields(false)
+    unversioned_fields(false),
+    can_native(-1)
   {}
 
   Table_period_info::start_end_t as_row;
@@ -2095,6 +2096,9 @@ protected:
   bool need_check(const Alter_info *alter_info) const;
   bool check_conditions(const Lex_table_name &table_name,
                         const Lex_table_name &db) const;
+  bool create_sys_field(THD *thd, const char *field_name,
+                        Alter_info *alter_info, int flags);
+
 public:
   static const Lex_ident default_start;
   static const Lex_ident default_end;
@@ -2112,6 +2116,7 @@ public:
   */
   bool versioned_fields : 1;
   bool unversioned_fields : 1;
+  int can_native;
 };
 
 /**
@@ -2228,6 +2233,7 @@ struct Table_scope_and_contents_source_st:
                     int select_count= 0);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
+  void vers_check_native();
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
                               const TABLE_LIST &create_table);
 
@@ -2235,7 +2241,6 @@ struct Table_scope_and_contents_source_st:
                                 const Lex_table_name &table_name,
                                 const Lex_table_name &db,
                                 int select_count= 0);
-
 };
 
 

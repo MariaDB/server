@@ -90,7 +90,7 @@ C_MODE_START
   how to ensure that it can be accessed.
   On AARCH64, we use the generic timer base register. We override clang
   implementation for aarch64 as it access a PMU register which is not
-  guarenteed to be active.
+  guaranteed to be active.
 
   Sadly, we have nothing for the Digital Alpha, MIPS, Motorola m68k,
   HP PA-RISC or other non-mainstream (or obsolete) processors.

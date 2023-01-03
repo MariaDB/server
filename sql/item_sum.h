@@ -1,7 +1,7 @@
 #ifndef ITEM_SUM_INCLUDED
 #define ITEM_SUM_INCLUDED
 /* Copyright (c) 2000, 2013 Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation.
+   Copyright (c) 2008, 2023, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1069,7 +1069,8 @@ class Item_sum_std final :public Item_sum_variance
   enum Sumfunctype sum_func () const override final { return STD_FUNC; }
   double val_real() override final;
   Item *result_item(THD *thd, Field *field) override final;
-  const char *func_name() const override final { return "std("; }
+  const char *func_name() const override final
+  { return sample ? "stddev_samp(" : "std("; }
   Item *copy_or_same(THD* thd) override final;
   Item *get_copy(THD *thd) override final
   { return get_item_copy<Item_sum_std>(thd, this); }

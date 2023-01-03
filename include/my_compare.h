@@ -132,7 +132,7 @@ extern HA_KEYSEG *ha_find_null(HA_KEYSEG *keyseg, const uchar *a);
 
   0=CHECK_NEG  - The filter is not satisfied. The engine should discard this
                  index tuple and continue the scan.
-  1=CHECK_POS  - The filter is statisfied. Current index tuple should be
+  1=CHECK_POS  - The filter is satisfied. Current index tuple should be
                  returned to the SQL layer.
   2=CHECK_OUT_OF_RANGE - the index tuple is outside of the range that we're
                  scanning. (Example: if we're scanning "t.key BETWEEN 10 AND

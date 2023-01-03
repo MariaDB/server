@@ -5,12 +5,6 @@ body TEXT,
 FULLTEXT (title,body)
 ) ENGINE=InnoDB;
 ERROR HY000: Cannot create FULLTEXT index on temporary InnoDB table
-CREATE TABLE articles (
-id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
-title VARCHAR(200),
-body TEXT,
-FULLTEXT (title,body)
-) ENGINE=InnoDB;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...')  ,
 ('How To Use MySQL Well','After you went through a ...'),

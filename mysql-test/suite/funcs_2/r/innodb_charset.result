@@ -1,3 +1,4 @@
+SET GLOBAL innodb_max_purge_lag_wait=0;
 set @save_character_set_database= @@character_set_database;
 DROP TABLE IF EXISTS test.t1;
 SET NAMES armscii8;

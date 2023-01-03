@@ -297,6 +297,8 @@ select count(*) > -1 from i_trx;
 select count(*) > -1 from d_trx;
 
 connection default;
+# Starting with MariaDB 10.6, ensure that DDL recovery will have completed.
+SET GLOBAL innodb_max_purge_lag_wait=0;
 drop database test;
 create database test;
 drop user select_only@localhost;

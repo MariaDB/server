@@ -7988,7 +7988,9 @@ best_access_path(JOIN      *join,
       } /* not ft_key */
 
       if (records < DBL_MAX &&
-	  (found_part & 1))   // start_key->key can be used for index access
+	  (found_part & 1) &&   // start_key->key can be used for index access
+          (table->file->index_flags(start_key->key,0,1) &
+           HA_DO_RANGE_FILTER_PUSHDOWN))
       {
         double rows= record_count * records;
 
@@ -8013,23 +8015,50 @@ best_access_path(JOIN      *join,
              cost_of_fetching_1_row = tmp/rows
              cost_of_fetching_1_key_tuple = keyread_tmp/rows
 
-          Note that access_cost_factor may be greater than 1.0. In this case
-          we still can expect a gain of using rowid filter due to smaller number
-          of checks for conditions pushed to the joined table.
+          access_cost_factor is the gain we expect for using rowid filter.
+          An access_cost_factor of 1.0 means that keyread_tmp is 0
+          (using key read is infinitely fast) and the gain for each row when
+          using filter is great.
+          An access_cost_factor if 0.0 means that using keyread has the
+          same cost as reading rows, so there is no gain to get with
+          filter.
+          access_cost_factor should never be bigger than 1.0 (if all
+          calculations are correct) as the cost of keyread should always be
+          smaller than the cost of fetching the same number of keys + rows.
+          access_cost_factor should also never be smaller than 0.0.
+          The one exception is if number of records is 1 (eq_ref), then
+          because we are comparing rows to cost of keyread_tmp, keyread_tmp
+          is higher by 1.0. This is a big that will be fixed in a later
+          version.
+
+          If we have limited the cost (=tmp) of reading rows with 'worst_seek'
+          we cannot use filters as the cost calculation below would cause
+          tmp to become negative.  The future resultion is to not limit
+          cost with worst_seek.
+
+          We cannot use filter with JT_EQ_REF as in this case 'tmp' is
+          number of rows from prev_record_read() and keyread_tmp is 0. These
+          numbers are not usable with rowid filter code.
 	*/
-        double rows_access_cost= MY_MIN(rows, s->worst_seeks);
-        double access_cost_factor= MY_MIN((rows_access_cost - keyread_tmp) /
-                                           rows, 1.0);
-        filter=
-          table->best_range_rowid_filter_for_partial_join(start_key->key, rows,
-                                                          access_cost_factor);
-        if (filter)
-	{
-          filter->get_cmp_gain(rows);
-          tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
-          DBUG_ASSERT(tmp >= 0);
-          trace_access_idx.add("rowid_filter_key",
-                               table->key_info[filter->key_no].name);
+        double access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
+        if (!(records < s->worst_seeks &&
+              records <= thd->variables.max_seeks_for_key))
+          trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+        else if (access_cost_factor <= 0.0)
+          trace_access_idx.add("rowid_filter_skipped", "cost_factor <= 0");
+        else if (type != JT_EQ_REF)
+        {
+          filter=
+            table->best_range_rowid_filter_for_partial_join(start_key->key,
+                                                            rows,
+                                                            access_cost_factor);
+          if (filter)
+          {
+            tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
+            DBUG_ASSERT(tmp >= 0);
+            trace_access_idx.add("rowid_filter_key",
+                                 table->key_info[filter->key_no].name);
+          }
         }
       }
       trace_access_idx.add("rows", records).add("cost", tmp);
@@ -8171,7 +8200,7 @@ best_access_path(JOIN      *join,
         access (see first else-branch below), but we don't take it into 
         account here for range/index_merge access. Find out why this is so.
       */
-      double cmp_time= (s->found_records - rnd_records)/TIME_FOR_COMPARE;
+      double cmp_time= (s->found_records - rnd_records) / TIME_FOR_COMPARE;
       tmp= COST_MULT(record_count,
                      COST_ADD(s->quick->read_time, cmp_time));
 
@@ -8182,16 +8211,24 @@ best_access_path(JOIN      *join,
         uint key_no= s->quick->index;
 
         /* See the comment concerning using rowid filter for with ref access */
-        keyread_tmp= s->table->opt_range[key_no].index_only_cost;
+        keyread_tmp= s->table->opt_range[key_no].index_only_cost *
+          record_count;
         access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
-        filter=
-        s->table->best_range_rowid_filter_for_partial_join(key_no, rows,
-                                                           access_cost_factor);
-        if (filter)
+        if (access_cost_factor > 0.0)
         {
-          tmp-= filter->get_adjusted_gain(rows);
-          DBUG_ASSERT(tmp >= 0);
+          filter=
+            s->table->
+            best_range_rowid_filter_for_partial_join(key_no, rows,
+                                                     access_cost_factor);
+          if (filter)
+          {
+            tmp-= filter->get_adjusted_gain(rows);
+            DBUG_ASSERT(tmp >= 0);
+          }
         }
+        else
+          trace_access_scan.add("rowid_filter_skipped", "cost_factor <= 0");
+
         type= JT_RANGE;
       }
       else
