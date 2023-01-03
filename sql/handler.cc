@@ -763,9 +763,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   savepoint_alloc_size+= tmp;
   hton2plugin[hton->slot]=plugin;
 
-  if (plugin->plugin->type == MYSQL_STORAGE_ENGINE_PLUGIN &&
-      !(hton->flags & HTON_HIDDEN) &&
-      update_optimizer_costs(hton))
+  if (!(hton->flags & HTON_HIDDEN) && update_optimizer_costs(hton))
     goto err_deinit;
 
   if (hton->prepare)
