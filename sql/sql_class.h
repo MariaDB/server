@@ -968,7 +968,6 @@ typedef struct system_status_var
   ulong feature_window_functions;   /* +1 when window functions are used */
   ulong feature_into_outfile;       /* +1 when INTO OUTFILE is used */
   ulong feature_into_variable;      /* +1 when INTO VARIABLE is used */
-  ulong feature_into_old_syntax;    /* +1 when INTO is used with old syntax*/
 
   /* From MASTER_GTID_WAIT usage */
   ulong master_gtid_wait_timeouts;          /* Number of timeouts */

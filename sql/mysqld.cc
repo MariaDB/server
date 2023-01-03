@@ -7413,7 +7413,6 @@ SHOW_VAR status_vars[]= {
   {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
   {"Feature_gis",              (char*) offsetof(STATUS_VAR, feature_gis), SHOW_LONG_STATUS},
   {"Feature_insert_returning", (char*)offsetof(STATUS_VAR, feature_insert_returning), SHOW_LONG_STATUS},
-  {"Feature_into_old_syntax",  (char*) offsetof(STATUS_VAR, feature_into_old_syntax), SHOW_LONG_STATUS},
   {"Feature_into_outfile",     (char*) offsetof(STATUS_VAR, feature_into_outfile), SHOW_LONG_STATUS},
   {"Feature_into_variable",    (char*) offsetof(STATUS_VAR, feature_into_variable), SHOW_LONG_STATUS},
   {"Feature_invisible_columns",(char*) offsetof(STATUS_VAR, feature_invisible_columns), SHOW_LONG_STATUS},

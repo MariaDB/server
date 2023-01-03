@@ -12503,7 +12503,7 @@ opt_procedure_or_into:
         | into opt_select_lock_type
           {
             $$= $2;
-            status_var_increment(thd->status_var.feature_into_old_syntax);
+            status_var_increment(thd->status_var.feature_into_outfile);
           }
         ;
 
