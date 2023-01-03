@@ -1,5 +1,5 @@
 This file is intended to explain some of the optimizer cost variables
-in MariaDB 10.11.
+in MariaDB 11.0
 
 Background
 ==========
