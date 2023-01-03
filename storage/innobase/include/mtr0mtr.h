@@ -91,11 +91,11 @@ struct mtr_t {
   /** Release latches of unmodified buffer pages.
   @param begin   first slot to release */
   void rollback_to_savepoint(ulint begin)
-  { rollback_to_savepoint(begin, m_memo->size()); }
+  { rollback_to_savepoint(begin, m_memo.size()); }
 
   /** Release the last acquired buffer page latch. */
   void release_last_page()
-  { auto s= m_memo->size(); rollback_to_savepoint(s - 1, s); }
+  { auto s= m_memo.size(); rollback_to_savepoint(s - 1, s); }
 
   /** Commit a mini-transaction that is shrinking a tablespace.
   @param space   tablespace that is being shrunk */
@@ -119,7 +119,7 @@ struct mtr_t {
   ulint get_savepoint() const
   {
     ut_ad(is_active());
-    return m_memo ? m_memo->size() : 0;
+    return m_memo.size();
   }
 
   /** Release the (index tree) s-latch stored in an mtr memo after a savepoint.
@@ -128,7 +128,7 @@ struct mtr_t {
   void release_s_latch_at_savepoint(ulint savepoint, index_lock *lock)
   {
     ut_ad(is_active());
-    mtr_memo_slot_t &slot= m_memo->at(savepoint);
+    mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.object == lock);
     ut_ad(slot.type == MTR_MEMO_S_LOCK);
     slot.object= nullptr;
@@ -138,7 +138,7 @@ struct mtr_t {
   void release_block_at_savepoint(ulint savepoint, buf_block_t *block)
   {
     ut_ad(is_active());
-    mtr_memo_slot_t &slot= m_memo->at(savepoint);
+    mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.object == block);
     ut_ad(!(slot.type & MTR_MEMO_MODIFY));
     slot.object= nullptr;
@@ -172,7 +172,7 @@ struct mtr_t {
     ut_ad(is_active());
     ut_ad(!memo_contains_flagged(block, MTR_MEMO_PAGE_S_FIX |
                                  MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
-    mtr_memo_slot_t &slot= m_memo->at(savepoint);
+    mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.object == block);
     ut_ad(slot.type == MTR_MEMO_BUF_FIX);
     slot.type= MTR_MEMO_PAGE_X_FIX;
@@ -189,7 +189,7 @@ struct mtr_t {
     ut_ad(is_active());
     ut_ad(!memo_contains_flagged(block, MTR_MEMO_PAGE_S_FIX |
                                  MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
-    mtr_memo_slot_t &slot= m_memo->at(savepoint);
+    mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.object == block);
     ut_ad(slot.type == MTR_MEMO_BUF_FIX);
     slot.type= MTR_MEMO_PAGE_SX_FIX;
@@ -409,7 +409,7 @@ public:
   @param latch   latch type */
   void u_lock_register(ulint savepoint)
   {
-    mtr_memo_slot_t &slot= m_memo->at(savepoint);
+    mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.type == MTR_MEMO_BUF_FIX);
     slot.type= MTR_MEMO_PAGE_SX_FIX;
   }
@@ -418,7 +418,7 @@ public:
   @param latch   latch type */
   void s_lock_register(ulint savepoint)
   {
-    mtr_memo_slot_t &slot= m_memo->at(savepoint);
+    mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.type == MTR_MEMO_BUF_FIX);
     slot.type= MTR_MEMO_PAGE_S_FIX;
   }
@@ -477,10 +477,7 @@ public:
       m_made_dirty=
         is_block_dirtied(*static_cast<const buf_page_t*>(object));
 
-    if (!m_memo)
-      m_memo= new std::vector<mtr_memo_slot_t>(1, {object, type});
-    else
-      m_memo->emplace_back(mtr_memo_slot_t{object, type});
+    m_memo.emplace_back(mtr_memo_slot_t{object, type});
   }
 
   /** @return the size of the log is empty */
@@ -790,7 +787,7 @@ private:
 #endif /* UNIV_DEBUG */
 
   /** acquired dict_index_t::lock, fil_space_t::latch, buf_block_t */
-  std::vector<mtr_memo_slot_t> *m_memo= nullptr;
+  std::vector<mtr_memo_slot_t> m_memo;
 
   /** mini-transaction log */
   mtr_buf_t m_log;

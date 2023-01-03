@@ -79,7 +79,7 @@ void mtr_memo_slot_t::release() const
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-  ut_ad(!m_memo);
+  ut_ad(m_memo.empty());
   ut_ad(!m_freed_pages);
   ut_ad(!m_freed_space);
   MEM_UNDEFINED(this, sizeof *this);
@@ -110,24 +110,20 @@ void mtr_t::start()
 inline void mtr_t::release_resources()
 {
   ut_ad(is_active());
-  ut_ad(!m_memo);
+  ut_ad(m_memo.empty());
   m_log.erase();
   ut_d(m_commit= true);
 }
 
 void mtr_t::release()
 {
-  if (m_memo)
+  for (auto it= m_memo.rbegin(); it != m_memo.rend(); it++)
   {
-    for (auto it= m_memo->rbegin(); it != m_memo->rend(); it++)
-    {
-      mtr_memo_slot_t &slot= *it;
-      if (slot.object)
-        slot.release();
-    }
-    delete m_memo;
-    m_memo= nullptr;
+    mtr_memo_slot_t &slot= *it;
+    if (slot.object)
+      slot.release();
   }
+  m_memo.clear();
 }
 
 /** Commit a mini-transaction. */
@@ -190,17 +186,14 @@ void mtr_t::commit()
     else
       ut_ad(!m_freed_space);
 
-    if (m_memo)
+    for (const mtr_memo_slot_t &slot : m_memo)
     {
-      for (const mtr_memo_slot_t &slot : *m_memo)
+      if (slot.object && slot.type & MTR_MEMO_MODIFY)
       {
-        if (slot.object && slot.type & MTR_MEMO_MODIFY)
-        {
-          ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
-                slot.type == MTR_MEMO_PAGE_SX_MODIFY);
-          buf_flush_note_modification(static_cast<buf_block_t*>(slot.object),
-                                      lsns.first, m_commit_lsn);
-        }
+        ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
+              slot.type == MTR_MEMO_PAGE_SX_MODIFY);
+        buf_flush_note_modification(static_cast<buf_block_t*>(slot.object),
+                                    lsns.first, m_commit_lsn);
       }
     }
 
@@ -223,14 +216,13 @@ void mtr_t::commit()
 
 void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 {
-  ut_ad(m_memo);
-  ut_ad(end <= m_memo->size());
+  ut_ad(end <= m_memo.size());
   ut_ad(begin <= end);
   ulint s= end;
 
   while (s-- > begin)
   {
-    const mtr_memo_slot_t &slot= (*m_memo)[s];
+    const mtr_memo_slot_t &slot= m_memo[s];
     if (!slot.object)
       continue;
     /* This is intended for releasing latches on indexes or unmodified
@@ -240,7 +232,7 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
     slot.release();
   }
 
-  m_memo->erase(m_memo->begin() + begin, m_memo->begin() + end);
+  m_memo.erase(m_memo.begin() + begin, m_memo.begin() + end);
 }
 
 /** Commit a mini-transaction that is shrinking a tablespace.
@@ -252,7 +244,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   ut_ad(!high_level_read_only);
   ut_ad(m_modifications);
   ut_ad(m_made_dirty);
-  ut_ad(m_memo);
+  ut_ad(!m_memo.empty());
   ut_ad(!recv_recovery_is_on());
   ut_ad(m_log_mode == MTR_LOG_ALL);
   ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
@@ -292,7 +284,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   const page_id_t high{space.id, space.size};
 
-  for (mtr_memo_slot_t &slot : *m_memo)
+  for (mtr_memo_slot_t &slot : m_memo)
   {
     if (!slot.object)
       continue;
@@ -539,19 +531,18 @@ void mtr_t::x_lock_space(fil_space_t *space)
 void mtr_t::release(const void *object)
 {
   ut_ad(is_active());
-  ut_ad(m_memo);
 
   auto it=
-    std::find_if(m_memo->begin(), m_memo->end(),
+    std::find_if(m_memo.begin(), m_memo.end(),
                  [object](const mtr_memo_slot_t& slot)
                  { return slot.object == object; });
-  ut_ad(it != m_memo->end());
+  ut_ad(it != m_memo.end());
   ut_ad(!(it->type & MTR_MEMO_MODIFY));
   it->release();
-  m_memo->erase(it);
-  ut_ad(std::find_if(m_memo->begin(), m_memo->end(),
+  m_memo.erase(it);
+  ut_ad(std::find_if(m_memo.begin(), m_memo.end(),
                      [object](const mtr_memo_slot_t& slot)
-                     { return slot.object == &object; }) == m_memo->end());
+                     { return slot.object == &object; }) == m_memo.end());
 }
 
 static bool log_margin_warned;
@@ -810,11 +801,11 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 #ifndef DBUG_OFF
   do
   {
-    if (!m_memo || m_log_mode != MTR_LOG_ALL)
+    if (m_log_mode != MTR_LOG_ALL)
       continue;
     DBUG_EXECUTE_IF("skip_page_checksum", continue;);
 
-    for (const mtr_memo_slot_t& slot : *m_memo)
+    for (const mtr_memo_slot_t& slot : m_memo)
       if (slot.type & MTR_MEMO_MODIFY)
       {
         const buf_page_t &b= *static_cast<const buf_page_t*>(slot.object);
@@ -891,12 +882,9 @@ piecewise:
 
 bool mtr_t::have_x_latch(const buf_block_t &block) const
 {
-  if (!m_memo)
-    return false;
-
   ut_d(const mtr_memo_slot_t *found= nullptr);
 
-  for (const mtr_memo_slot_t &slot : *m_memo)
+  for (const mtr_memo_slot_t &slot : m_memo)
   {
     if (slot.object != &block)
       continue;
@@ -916,16 +904,13 @@ bool mtr_t::have_x_latch(const buf_block_t &block) const
 
 bool mtr_t::have_u_or_x_latch(const buf_block_t &block) const
 {
-  if (m_memo)
+  for (const mtr_memo_slot_t &slot : m_memo)
   {
-    for (const mtr_memo_slot_t &slot : *m_memo)
+    if (slot.object == &block &&
+        slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX))
     {
-      if (slot.object == &block &&
-          slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX))
-      {
-        ut_ad(block.page.lock.have_u_or_x());
-        return true;
-      }
+      ut_ad(block.page.lock.have_u_or_x());
+      return true;
     }
   }
   return false;
@@ -937,18 +922,15 @@ bool mtr_t::have_u_or_x_latch(const buf_block_t &block) const
 @return whether space.latch is being held */
 bool mtr_t::memo_contains(const fil_space_t& space, bool shared) const
 {
-  if (m_memo)
-  {
-    const mtr_memo_type_t type= shared
-      ? MTR_MEMO_SPACE_S_LOCK : MTR_MEMO_SPACE_X_LOCK;
+  const mtr_memo_type_t type= shared
+    ? MTR_MEMO_SPACE_S_LOCK : MTR_MEMO_SPACE_X_LOCK;
 
-    for (const mtr_memo_slot_t &slot : *m_memo)
+  for (const mtr_memo_slot_t &slot : m_memo)
+  {
+    if (slot.object == &space && slot.type == type)
     {
-      if (slot.object == &space && slot.type == type)
-      {
-        ut_ad(shared || space.is_owner());
-        return true;
-      }
+      ut_ad(shared || space.is_owner());
+      return true;
     }
   }
 
@@ -958,9 +940,8 @@ bool mtr_t::memo_contains(const fil_space_t& space, bool shared) const
 void mtr_t::page_lock_upgrade(const buf_block_t &block)
 {
   ut_ad(block.page.lock.have_x());
-  ut_ad(m_memo);
 
-  for (mtr_memo_slot_t &slot : *m_memo)
+  for (mtr_memo_slot_t &slot : m_memo)
     if (slot.object == &block && slot.type & MTR_MEMO_PAGE_SX_FIX)
       slot.type= mtr_memo_type_t(slot.type ^
                                  (MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_PAGE_X_FIX));
@@ -973,9 +954,8 @@ void mtr_t::page_lock_upgrade(const buf_block_t &block)
 void mtr_t::lock_upgrade(const index_lock &lock)
 {
   ut_ad(lock.have_x());
-  ut_ad(m_memo);
 
-  for (mtr_memo_slot_t &slot : *m_memo)
+  for (mtr_memo_slot_t &slot : m_memo)
     if (slot.object == &lock && slot.type == MTR_MEMO_SX_LOCK)
       slot.type= MTR_MEMO_X_LOCK;
 }
@@ -1028,10 +1008,9 @@ done:
 void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
 {
   ut_ad(is_active());
-  ut_ad(m_memo);
-  ut_ad(savepoint < m_memo->size());
+  ut_ad(savepoint < m_memo.size());
 
-  mtr_memo_slot_t &slot= (*m_memo)[savepoint];
+  mtr_memo_slot_t &slot= m_memo[savepoint];
   ut_ad(slot.type == MTR_MEMO_BUF_FIX);
   buf_block_t *block= static_cast<buf_block_t*>(slot.object);
   ut_d(const auto state= block->page.state());
@@ -1070,27 +1049,24 @@ bool mtr_t::memo_contains(const index_lock &lock, mtr_memo_type_t type) const
   ut_ad(type == MTR_MEMO_X_LOCK || type == MTR_MEMO_S_LOCK ||
         type == MTR_MEMO_SX_LOCK);
 
-  if (m_memo)
+  for (const mtr_memo_slot_t &slot : m_memo)
   {
-    for (const mtr_memo_slot_t &slot : *m_memo)
+    if (slot.object == &lock && slot.type == type)
     {
-      if (slot.object == &lock && slot.type == type)
-      {
-        switch (type) {
-        case MTR_MEMO_X_LOCK:
-          ut_ad(lock.have_x());
-          break;
-        case MTR_MEMO_SX_LOCK:
-          ut_ad(lock.have_u_or_x());
-          break;
-        case MTR_MEMO_S_LOCK:
-          ut_ad(lock.have_s());
-          break;
-        default:
-          break;
-        }
-        return true;
+      switch (type) {
+      case MTR_MEMO_X_LOCK:
+        ut_ad(lock.have_x());
+        break;
+      case MTR_MEMO_SX_LOCK:
+        ut_ad(lock.have_u_or_x());
+        break;
+      case MTR_MEMO_S_LOCK:
+        ut_ad(lock.have_s());
+        break;
+      default:
+        break;
       }
+      return true;
     }
   }
 
@@ -1118,7 +1094,7 @@ bool mtr_t::memo_contains_flagged(const void *object, ulint flags) const
                    MTR_MEMO_MODIFY)) ==
         !!(flags & (MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK | MTR_MEMO_S_LOCK)));
 
-  for (const mtr_memo_slot_t &slot : *m_memo)
+  for (const mtr_memo_slot_t &slot : m_memo)
   {
     if (object != slot.object)
       continue;
@@ -1153,7 +1129,7 @@ buf_block_t* mtr_t::memo_contains_page_flagged(const byte *ptr, ulint flags)
 {
   ptr= page_align(ptr);
 
-  for (const mtr_memo_slot_t &slot : *m_memo)
+  for (const mtr_memo_slot_t &slot : m_memo)
   {
     if (!slot.object || !(flags & slot.type))
       continue;
@@ -1178,16 +1154,9 @@ buf_block_t* mtr_t::memo_contains_page_flagged(const byte *ptr, ulint flags)
 @param block   page that will be modified */
 void mtr_t::modify(const buf_block_t &block)
 {
-  if (UNIV_UNLIKELY(!m_memo))
-  {
-    /* This must be PageConverter::update_page() in IMPORT TABLESPACE. */
-    ut_ad(!block.page.in_LRU_list);
-    return;
-  }
-
   mtr_memo_slot_t *found= nullptr;
 
-  for (mtr_memo_slot_t &slot : *m_memo)
+  for (mtr_memo_slot_t &slot : m_memo)
   {
     if (slot.object == &block &&
         slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX))
@@ -1199,7 +1168,9 @@ void mtr_t::modify(const buf_block_t &block)
 
   if (UNIV_UNLIKELY(!found))
   {
-    ut_ad("modifying an unlatched page" == 0);
+    /* This must be PageConverter::update_page() in IMPORT TABLESPACE. */
+    ut_ad(m_memo.empty());
+    ut_ad(!block.page.in_LRU_list);
     return;
   }
   found->type= static_cast<mtr_memo_type_t>(found->type | MTR_MEMO_MODIFY);
@@ -1217,11 +1188,10 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
 
   if (is_logged())
   {
-    ut_ad(m_memo);
     buf_block_t *freed= nullptr;
     const page_id_t id{space.id, offset};
 
-    for (auto it= m_memo->rbegin(); it != m_memo->rend(); it++)
+    for (auto it= m_memo.rbegin(); it != m_memo.rend(); it++)
     {
       mtr_memo_slot_t &slot= *it;
       buf_block_t *block= static_cast<buf_block_t*>(slot.object);
