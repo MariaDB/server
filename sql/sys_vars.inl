@@ -1257,10 +1257,7 @@ public:
                    substitute)
   {
     if (arg_cost_adjust == 1000)
-    {
-      show_val_type= SHOW_OPTIMIZER_COST;     // For select @@var
       option.var_type|= GET_ADJUST_VALUE;
-    }
     cost_adjust= (double) arg_cost_adjust;
   }
   bool session_update(THD *thd, set_var *var)
@@ -1280,6 +1277,22 @@ public:
   {
     var->save_result.double_value= getopt_ulonglong2double(option.def_value)*
       cost_adjust;
+  }
+  const uchar *tmp_ptr(THD *thd) const
+  {
+    if (thd->sys_var_tmp.double_value > 0)
+      thd->sys_var_tmp.double_value*= cost_adjust;
+    return (uchar*) &thd->sys_var_tmp.double_value;
+  }
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  {
+    thd->sys_var_tmp.double_value= session_var(thd, double);
+    return tmp_ptr(thd);
+  }
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  {
+    thd->sys_var_tmp.double_value= global_var(double);
+    return tmp_ptr(thd);
   }
 };
 
@@ -1360,7 +1373,8 @@ class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
     OPTIMIZER_COSTS *optimizer_costs= get_optimizer_costs(base);
     if (!optimizer_costs)
       optimizer_costs= &default_optimizer_costs;
-    return cost_var_ptr(optimizer_costs, offset);
+    thd->sys_var_tmp.double_value= cost_var(optimizer_costs, offset);
+    return tmp_ptr(thd);
   }
 };
 
