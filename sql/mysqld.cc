@@ -135,7 +135,6 @@
 
 #define mysqld_charset &my_charset_latin1
 
-
 extern "C" {					// Because of SCO 3.2V4.2
 #include <sys/stat.h>
 #ifndef __GNU_LIBRARY__
@@ -2291,7 +2290,7 @@ static void activate_tcp_port(uint port,
                               Dynamic_array<MYSQL_SOCKET> *sockets,
                               bool is_extra_port= false)
 {
-  struct addrinfo *ai, *a;
+  struct addrinfo *ai, *a = NULL, *head = NULL;
   struct addrinfo hints;
   int error;
   int	arg;
@@ -2312,16 +2311,52 @@ static void activate_tcp_port(uint port,
     real_bind_addr_str= my_bind_addr_str;
 
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
-  error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
-  if (unlikely(error != 0))
-  {
-    DBUG_PRINT("error",("Got error: %d from getaddrinfo()", error));
 
-    sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR), gai_strerror(error));
-    unireg_abort(1);				/* purecov: tested */
+  if (real_bind_addr_str && *real_bind_addr_str)
+  {
+
+    char *end;
+    char address[FN_REFLEN];
+
+    do
+    {
+      end= strcend(real_bind_addr_str, ',');
+      strmake(address, real_bind_addr_str, (uint) (end - real_bind_addr_str));
+
+      error= getaddrinfo(address, port_buf, &hints, &ai);
+      if (unlikely(error != 0))
+      {
+        DBUG_PRINT("error", ("Got error: %d from getaddrinfo()", error));
+
+        sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
+                        gai_strerror(error));
+        unireg_abort(1); /* purecov: tested */
+      }
+
+      if (!head)
+      {
+        head= ai;
+      }
+      if (a)
+      {
+        a->ai_next= ai;
+      }
+      a= ai;
+      while (a->ai_next)
+      {
+        a= a->ai_next;
+      }
+
+      real_bind_addr_str= end + 1;
+    } while (*end);
+  }
+  else
+  {
+    error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
+    head= ai;
   }
 
-  for (a= ai; a != NULL; a= a->ai_next)
+  for (a= head; a != NULL; a= a->ai_next)
   {
     ip_sock= mysql_socket_socket(key_socket_tcpip, a->ai_family,
                                  a->ai_socktype, a->ai_protocol);
@@ -2410,9 +2445,31 @@ static void activate_tcp_port(uint port,
       if (ret < 0)
       {
         char buff[100];
+        int s_errno= socket_errno;
         sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
-                (int) socket_errno);
+                (int) s_errno);
         sql_perror(buff);
+        /*
+          Linux will quite happily bind to addresses not present. The
+          mtr test main.bind_multiple_addresses_resolution relies on this.
+          For Windows, this is fatal and generates the error:
+            WSAEADDRNOTAVAIL: The requested address is not valid in its context
+          In this case, where multiple addresses where specified, maybe
+          we can live with an error in the log and hope the other addresses
+          are successful. We catch if no successful bindings occur at the
+          end of this function.
+
+          FreeBSD returns EADDRNOTAVAIL, and EADDRNOTAVAIL is even in Linux
+          manual pages. So may was well apply uniform behaviour.
+        */
+#ifdef _WIN32
+        if (s_errno == WSAEADDRNOTAVAIL)
+	  continue;
+#endif
+#ifdef EADDRNOTAVAIL
+        if (s_errno == EADDRNOTAVAIL)
+	  continue;
+#endif
         sql_print_error("Do you already have another server running on "
                         "port: %u ?", port);
         unireg_abort(1);
@@ -2433,7 +2490,12 @@ static void activate_tcp_port(uint port,
     }
   }
 
-  freeaddrinfo(ai);
+  freeaddrinfo(head);
+  if (head && sockets->size() == 0)
+  {
+    sql_print_error("No TCP address could be bound to");
+    unireg_abort(1);
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -4128,8 +4190,8 @@ static int init_common_variables()
     files= my_set_max_open_files(max_open_files);
     SYSVAR_AUTOSIZE_IF_CHANGED(open_files_limit, files, ulong);
 
-    if (files < wanted_files && global_system_variables.log_warnings)
-      sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
+    if (files < max_open_files && global_system_variables.log_warnings)
+      sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, max_open_files);
 
     /* If we required too much tc_instances than we reduce */
     SYSVAR_AUTOSIZE_IF_CHANGED(tc_instances,
@@ -4653,10 +4715,9 @@ static void init_ssl()
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
-      sql_print_warning("Failed to setup SSL");
-      sql_print_warning("SSL error: %s", sslGetErrString(error));
-      opt_use_ssl = 0;
-      have_ssl= SHOW_OPTION_DISABLED;
+      sql_print_error("Failed to setup SSL");
+      sql_print_error("SSL error: %s", sslGetErrString(error));
+      unireg_abort(1);
     }
     else
       ssl_acceptor_stats.init();
@@ -6274,7 +6335,7 @@ void handle_connections_sockets()
     }
 #endif // HAVE_POLL
 
-    for (uint retry=0; retry < MAX_ACCEPT_RETRY; retry++)
+    for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
     {
       size_socket length= sizeof(struct sockaddr_storage);
       MYSQL_SOCKET new_sock;
@@ -7055,7 +7116,9 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
     rpl_semi_sync_master_show_##name
 
 #define DEF_SHOW_FUNC(name, show_type)                                       \
-    static  int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR *var, char *buff)   \
+    static  int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR *var, void *buff,   \
+                                 system_status_var *status_var,              \
+                                 enum_var_type var_type)                     \
     {                                                                        \
       repl_semisync_master.set_export_stats();                                 \
       var->type= show_type;                                                  \
@@ -7332,7 +7395,7 @@ SHOW_VAR status_vars[]= {
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
   {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables_), SHOW_LONG_STATUS},
 #ifndef DBUG_OFF
-  {"Debug",                    (char*) &debug_status_func,  SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Debug",     &debug_status_func),
 #endif
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
@@ -7385,7 +7448,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_tmp_write",        (char*) offsetof(STATUS_VAR, ha_tmp_write_count), SHOW_LONG_STATUS},
   {"Handler_update",           (char*) offsetof(STATUS_VAR, ha_update_count), SHOW_LONG_STATUS},
   {"Handler_write",            (char*) offsetof(STATUS_VAR, ha_write_count), SHOW_LONG_STATUS},
-  {"Key",                      (char*) &show_default_keycache, SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Key",       &show_default_keycache),
   {"optimizer_join_prefixes_check_calls",     (char*) offsetof(STATUS_VAR, optimizer_join_prefixes_check_calls), SHOW_LONG_STATUS},
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
 #ifndef DBUG_OFF
@@ -7414,20 +7477,20 @@ SHOW_VAR status_vars[]= {
   {"Rows_read",                (char*) offsetof(STATUS_VAR, rows_read), SHOW_LONGLONG_STATUS},
   {"Rows_tmp_read",            (char*) offsetof(STATUS_VAR, rows_tmp_read), SHOW_LONGLONG_STATUS},
 #ifdef HAVE_REPLICATION
-  {"Rpl_semi_sync_master_status", (char*) &SHOW_FNAME(status), SHOW_FUNC},
-  {"Rpl_semi_sync_master_clients", (char*) &SHOW_FNAME(clients), SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_status", &SHOW_FNAME(status)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_clients", &SHOW_FNAME(clients)),
   {"Rpl_semi_sync_master_yes_tx", (char*) &rpl_semi_sync_master_yes_transactions, SHOW_LONG},
   {"Rpl_semi_sync_master_no_tx", (char*) &rpl_semi_sync_master_no_transactions, SHOW_LONG},
-  {"Rpl_semi_sync_master_wait_sessions", (char*) &SHOW_FNAME(wait_sessions), SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_wait_sessions", &SHOW_FNAME(wait_sessions)),
   {"Rpl_semi_sync_master_no_times", (char*) &rpl_semi_sync_master_off_times, SHOW_LONG},
   {"Rpl_semi_sync_master_timefunc_failures", (char*) &rpl_semi_sync_master_timefunc_fails, SHOW_LONG},
   {"Rpl_semi_sync_master_wait_pos_backtraverse", (char*) &rpl_semi_sync_master_wait_pos_backtraverse, SHOW_LONG},
-  {"Rpl_semi_sync_master_tx_wait_time", (char*) &SHOW_FNAME(trx_wait_time), SHOW_FUNC},
-  {"Rpl_semi_sync_master_tx_waits", (char*) &SHOW_FNAME(trx_wait_num), SHOW_FUNC},
-  {"Rpl_semi_sync_master_tx_avg_wait_time", (char*) &SHOW_FNAME(avg_trx_wait_time), SHOW_FUNC},
-  {"Rpl_semi_sync_master_net_wait_time", (char*) &SHOW_FNAME(net_wait_time), SHOW_FUNC},
-  {"Rpl_semi_sync_master_net_waits", (char*) &SHOW_FNAME(net_wait_num), SHOW_FUNC},
-  {"Rpl_semi_sync_master_net_avg_wait_time", (char*) &SHOW_FNAME(avg_net_wait_time), SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_tx_wait_time", &SHOW_FNAME(trx_wait_time)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_tx_waits", &SHOW_FNAME(trx_wait_num)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_tx_avg_wait_time", &SHOW_FNAME(avg_trx_wait_time)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_wait_time", &SHOW_FNAME(net_wait_time)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_waits", &SHOW_FNAME(net_wait_num)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_avg_wait_time", &SHOW_FNAME(avg_net_wait_time)),
   {"Rpl_semi_sync_master_request_ack", (char*) &rpl_semi_sync_master_request_ack, SHOW_LONGLONG},
   {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
   {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
@@ -7551,7 +7614,7 @@ SHOW_VAR status_vars[]= {
   {"wsrep_applier_thread_count", (char*) &wsrep_running_applier_threads, SHOW_LONG_NOFLUSH},
   {"wsrep_rollbacker_thread_count", (char *) &wsrep_running_rollbacker_threads, SHOW_LONG_NOFLUSH},
   {"wsrep_cluster_capabilities", (char*) &wsrep_cluster_capabilities, SHOW_CHAR_PTR},
-  {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
+  SHOW_FUNC_ENTRY("wsrep",     &wsrep_show_status),
 #endif
   {NullS, NullS, SHOW_LONG}
 };
@@ -8008,7 +8071,7 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
       global_system_variables.log_warnings= atoi(argument);
     break;
   case 'T':
-    test_flags= argument ? (uint) atoi(argument) : 0;
+    test_flags= argument ? ((uint) atoi(argument) & ~TEST_BLOCKING) : 0;
     opt_endinfo=1;
     break;
   case OPT_THREAD_CONCURRENCY:

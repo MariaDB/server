@@ -315,6 +315,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include <mysql/plugin.h>
+#include <mysql.h>
 #include "ha_federatedx.h"
 #include "sql_servers.h"
 #include "sql_analyse.h"                        // append_escaped()
@@ -610,7 +611,7 @@ error:
     parse_url()
     mem_root            MEM_ROOT pointer for memory allocation
     share               pointer to FEDERATEDX share
-    table               pointer to current TABLE class
+    table_s             pointer to current TABLE_SHARE class
     table_create_flag   determines what error to throw
 
   DESCRIPTION

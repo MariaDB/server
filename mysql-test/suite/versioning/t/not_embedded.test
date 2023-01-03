@@ -50,7 +50,7 @@ create database mysqltest;
 --enable_warnings
 
 create user mysqltest_1@localhost;
-connect (user1,localhost,mysqltest_1,,test);
+connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
 
 connection root;

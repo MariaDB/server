@@ -469,46 +469,6 @@ row_upd_changes_field_size_or_external(
 	return(FALSE);
 }
 
-/***********************************************************//**
-Returns true if row update contains disowned external fields.
-@return true if the update contains disowned external fields. */
-bool
-row_upd_changes_disowned_external(
-/*==============================*/
-	const upd_t*	update)	/*!< in: update vector */
-{
-	const upd_field_t*	upd_field;
-	const dfield_t*		new_val;
-	ulint			new_len;
-	ulint                   n_fields;
-	ulint			i;
-
-	n_fields = upd_get_n_fields(update);
-
-	for (i = 0; i < n_fields; i++) {
-		const byte*	field_ref;
-
-		upd_field = upd_get_nth_field(update, i);
-		new_val = &(upd_field->new_val);
-		new_len = dfield_get_len(new_val);
-
-		if (!dfield_is_ext(new_val)) {
-			continue;
-		}
-
-		ut_ad(new_len >= BTR_EXTERN_FIELD_REF_SIZE);
-
-		field_ref = static_cast<const byte*>(dfield_get_data(new_val))
-			    + new_len - BTR_EXTERN_FIELD_REF_SIZE;
-
-		if (field_ref[BTR_EXTERN_LEN] & BTR_EXTERN_OWNER_FLAG) {
-			return(true);
-		}
-	}
-
-	return(false);
-}
-
 /***************************************************************//**
 Builds an update vector from those fields which in a secondary index entry
 differ from a record that has the equal ordering fields. NOTE: we compare
@@ -1880,7 +1840,7 @@ row_upd_sec_index_entry(
 	btr_cur_t*		btr_cur;
 	dberr_t			err	= DB_SUCCESS;
 	trx_t*			trx	= thr_get_trx(thr);
-	ulint			mode;
+	btr_latch_mode		mode;
 	ulint			flags;
 	enum row_search_result	search_result;
 
@@ -1910,14 +1870,16 @@ row_upd_sec_index_entry(
 			    "before_row_upd_sec_index_entry");
 
 	mtr.start();
+	mode = BTR_MODIFY_LEAF;
 
 	switch (index->table->space_id) {
 	case SRV_TMP_SPACE_ID:
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		flags = BTR_NO_LOCKING_FLAG;
-		mode = index->is_spatial()
-			? ulint(BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK)
-			: ulint(BTR_MODIFY_LEAF);
+		if (index->is_spatial()) {
+			mode = btr_latch_mode(BTR_MODIFY_LEAF
+					      | BTR_RTREE_DELETE_MARK);
+		}
 		break;
 	default:
 		index->set_modified(mtr);
@@ -1927,18 +1889,19 @@ row_upd_sec_index_entry(
 		/* We can only buffer delete-mark operations if there
 		are no foreign key constraints referring to the index. */
 		mode = index->is_spatial()
-			? ulint(BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK)
+			? btr_latch_mode(BTR_MODIFY_LEAF
+					 | BTR_RTREE_DELETE_MARK)
 			: referenced
-			? ulint(BTR_MODIFY_LEAF) : ulint(BTR_DELETE_MARK_LEAF);
+			? BTR_MODIFY_LEAF : BTR_DELETE_MARK_LEAF;
 		break;
 	}
 
 	/* Set the query thread, so that ibuf_insert_low() will be
 	able to invoke thd_get_trx(). */
 	btr_pcur_get_btr_cur(&pcur)->thr = thr;
+	pcur.btr_cur.page_cur.index = index;
 
-	search_result = row_search_index_entry(index, entry, mode,
-					       &pcur, &mtr);
+	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
 
 	btr_cur = btr_pcur_get_btr_cur(&pcur);
 
@@ -2630,13 +2593,13 @@ row_upd_clust_step(
 
 	ut_a(pcur->rel_pos == BTR_PCUR_ON);
 
-	ulint	mode;
+	btr_latch_mode mode;
 
 	DEBUG_SYNC_C_IF_THD(trx->mysql_thd, "innodb_row_upd_clust_step_enter");
 
 	if (dict_index_is_online_ddl(index)) {
 		ut_ad(node->table->id != DICT_INDEXES_ID);
-		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+		mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
 		mtr_s_lock_index(index, &mtr);
 	} else {
 		mode = BTR_MODIFY_LEAF;

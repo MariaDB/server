@@ -84,7 +84,7 @@ row_undo_mod_clust_low(
 	que_thr_t*	thr,	/*!< in: query thread */
 	mtr_t*		mtr,	/*!< in: mtr; must be committed before
 				latching any further pages */
-	ulint		mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
+	btr_latch_mode	mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
 {
 	btr_pcur_t*	pcur;
 	btr_cur_t*	btr_cur;
@@ -106,8 +106,8 @@ row_undo_mod_clust_low(
 	      || node->update->info_bits == REC_INFO_METADATA_ALTER);
 
 	if (mode != BTR_MODIFY_TREE) {
-		ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
-		      == BTR_MODIFY_LEAF);
+		ut_ad(mode == BTR_MODIFY_LEAF
+		      || mode == BTR_MODIFY_LEAF_ALREADY_LATCHED);
 
 		err = btr_cur_optimistic_update(
 			BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG
@@ -216,26 +216,23 @@ static ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index)
 }
 
 /** Determine if rollback must execute a purge-like operation.
-@param[in,out]	node	row undo
-@param[in,out]	mtr	mini-transaction
+@param node   row undo
 @return	whether the record should be purged */
-static bool row_undo_mod_must_purge(undo_node_t* node, mtr_t* mtr)
+static bool row_undo_mod_must_purge(const undo_node_t &node)
 {
-	ut_ad(node->rec_type == TRX_UNDO_UPD_DEL_REC);
-	ut_ad(!node->table->is_temporary());
+  ut_ad(node.rec_type == TRX_UNDO_UPD_DEL_REC);
+  ut_ad(!node.table->is_temporary());
 
-	btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&node->pcur);
-	ut_ad(btr_cur->index->is_primary());
-	DEBUG_SYNC_C("rollback_purge_clust");
+  const btr_cur_t &btr_cur= node.pcur.btr_cur;
+  ut_ad(btr_cur.index()->is_primary());
+  DEBUG_SYNC_C("rollback_purge_clust");
 
-	if (!purge_sys.changes_visible(node->new_trx_id, node->table->name)) {
-		return false;
-	}
+  if (!purge_sys.is_purgeable(node.new_trx_id))
+    return false;
 
-	const rec_t* rec = btr_cur_get_rec(btr_cur);
-
-	return trx_read_trx_id(rec + row_trx_id_offset(rec, btr_cur->index))
-		== node->new_trx_id;
+  const rec_t *rec= btr_cur_get_rec(&btr_cur);
+  return trx_read_trx_id(rec + row_trx_id_offset(rec, btr_cur.index())) ==
+    node.new_trx_id;
 }
 
 /***********************************************************//**
@@ -251,7 +248,6 @@ row_undo_mod_clust(
 {
 	btr_pcur_t*	pcur;
 	mtr_t		mtr;
-	bool		have_latch = false;
 	dberr_t		err;
 	dict_index_t*	index;
 
@@ -347,9 +343,7 @@ row_undo_mod_clust(
 			btr_pcur_commit_specify_mtr(pcur, &mtr);
 		} else {
 			index->set_modified(mtr);
-			have_latch = true;
-			purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-			if (!row_undo_mod_must_purge(node, &mtr)) {
+			if (!row_undo_mod_must_purge(*node)) {
 				goto mtr_commit_exit;
 			}
 			err = btr_cur_optimistic_delete(&pcur->btr_cur, 0,
@@ -358,14 +352,11 @@ row_undo_mod_clust(
 				goto mtr_commit_exit;
 			}
 			err = DB_SUCCESS;
-			purge_sys.latch.rd_unlock();
 			btr_pcur_commit_specify_mtr(pcur, &mtr);
-			have_latch = false;
 		}
 
 		mtr.start();
-		if (pcur->restore_position(
-			    BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE, &mtr) !=
+		if (pcur->restore_position(BTR_PURGE_TREE, &mtr) !=
 		    btr_pcur_t::SAME_ALL) {
 			goto mtr_commit_exit;
 		}
@@ -376,9 +367,7 @@ row_undo_mod_clust(
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
-			have_latch = true;
-			purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-			if (!row_undo_mod_must_purge(node, &mtr)) {
+			if (!row_undo_mod_must_purge(*node)) {
 				goto mtr_commit_exit;
 			}
 			index->set_modified(mtr);
@@ -400,17 +389,12 @@ row_undo_mod_clust(
 
 		mtr.start();
 		if (pcur->restore_position(BTR_MODIFY_LEAF, &mtr)
-		    != btr_pcur_t::SAME_ALL) {
-			goto mtr_commit_exit;
-		}
-		rec_t* rec = btr_pcur_get_rec(pcur);
-		have_latch = true;
-		purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-		if (!purge_sys.changes_visible(node->new_trx_id,
-					       node->table->name)) {
+		    != btr_pcur_t::SAME_ALL
+		    || !purge_sys.is_purgeable(node->new_trx_id)) {
 			goto mtr_commit_exit;
 		}
 
+		rec_t* rec = btr_pcur_get_rec(pcur);
 		ulint trx_id_offset = index->trx_id_offset;
 		ulint trx_id_pos = index->n_uniq ? index->n_uniq : 1;
 		/* Reserve enough offsets for the PRIMARY KEY and
@@ -477,10 +461,6 @@ row_undo_mod_clust(
 	}
 
 mtr_commit_exit:
-	if (have_latch) {
-		purge_sys.latch.rd_unlock();
-	}
-
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
 
 func_exit:
@@ -502,7 +482,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	que_thr_t*	thr,	/*!< in: query thread */
 	dict_index_t*	index,	/*!< in: index */
 	dtuple_t*	entry,	/*!< in: index entry */
-	ulint		mode)	/*!< in: latch mode BTR_MODIFY_LEAF or
+	btr_latch_mode	mode)	/*!< in: latch mode BTR_MODIFY_LEAF or
 				BTR_MODIFY_TREE */
 {
 	btr_pcur_t		pcur;
@@ -515,15 +495,25 @@ row_undo_mod_del_mark_or_remove_sec_low(
 
 	row_mtr_start(&mtr, index, !modify_leaf);
 
-	if (!index->is_committed()) {
+	pcur.btr_cur.page_cur.index = index;
+	btr_cur = btr_pcur_get_btr_cur(&pcur);
+
+	if (index->is_spatial()) {
+		mode = modify_leaf
+			? btr_latch_mode(BTR_MODIFY_LEAF
+					 | BTR_RTREE_DELETE_MARK
+					 | BTR_RTREE_UNDO_INS)
+			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
+		btr_cur->thr = thr;
+	} else if (!index->is_committed()) {
 		/* The index->online_status may change if the index is
 		or was being created online, but not committed yet. It
 		is protected by index->lock. */
 		if (modify_leaf) {
-			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+			mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
 			mtr_s_lock_index(index, &mtr);
 		} else {
-			ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
+			ut_ad(mode == BTR_PURGE_TREE);
 			mtr_sx_lock_index(index, &mtr);
 		}
 	} else {
@@ -533,18 +523,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		ut_ad(!dict_index_is_online_ddl(index));
 	}
 
-	btr_cur = btr_pcur_get_btr_cur(&pcur);
-
-	if (dict_index_is_spatial(index)) {
-		if (modify_leaf) {
-			btr_cur->thr = thr;
-			mode |= BTR_RTREE_DELETE_MARK;
-		}
-		mode |= BTR_RTREE_UNDO_INS;
-	}
-
-	search_result = row_search_index_entry(index, entry, mode,
-					       &pcur, &mtr);
+	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
 
 	switch (UNIV_EXPECT(search_result, ROW_FOUND)) {
 	case ROW_NOT_FOUND:
@@ -653,7 +632,7 @@ row_undo_mod_del_mark_or_remove_sec(
 	}
 
 	err = row_undo_mod_del_mark_or_remove_sec_low(node, thr, index,
-		entry, BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE);
+		entry, BTR_PURGE_TREE);
 	return(err);
 }
 
@@ -671,7 +650,7 @@ static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_undo_mod_del_unmark_sec_and_undo_update(
 /*========================================*/
-	ulint		mode,	/*!< in: search mode: BTR_MODIFY_LEAF or
+	btr_latch_mode	mode,	/*!< in: search mode: BTR_MODIFY_LEAF or
 				BTR_MODIFY_TREE */
 	que_thr_t*	thr,	/*!< in: query thread */
 	dict_index_t*	index,	/*!< in: index */
@@ -687,8 +666,9 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	const ulint		flags
 		= BTR_KEEP_SYS_FLAG | BTR_NO_LOCKING_FLAG;
 	row_search_result	search_result;
-	ulint			orig_mode = mode;
+	const auto		orig_mode = mode;
 
+	pcur.btr_cur.page_cur.index = index;
 	ut_ad(trx->id != 0);
 
 	if (dict_index_is_spatial(index)) {
@@ -698,7 +678,7 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 		secondary index updates to avoid this. */
 		static_assert(BTR_MODIFY_TREE == (8 | BTR_MODIFY_LEAF), "");
 		ut_ad(!(mode & 8));
-		mode |= BTR_RTREE_DELETE_MARK;
+		mode = btr_latch_mode(mode | BTR_RTREE_DELETE_MARK);
 	}
 
 try_again:
@@ -706,8 +686,7 @@ try_again:
 
 	btr_cur->thr = thr;
 
-	search_result = row_search_index_entry(index, entry, mode,
-					       &pcur, &mtr);
+	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
 
 	switch (search_result) {
 		mem_heap_t*	heap;

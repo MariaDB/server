@@ -270,8 +270,7 @@ SET(INNOBASE_SOURCES
 	include/handler0alter.h
 	include/hash0hash.h
 	include/ibuf0ibuf.h
-	include/ibuf0ibuf.inl/
-	include/ibuf0types.h
+	include/ibuf0ibuf.inl
 	include/lock0iter.h
 	include/lock0lock.h
 	include/lock0lock.inl
@@ -289,7 +288,6 @@ SET(INNOBASE_SOURCES
 	include/mem0mem.inl
 	include/mtr0log.h
 	include/mtr0mtr.h
-	include/mtr0mtr.inl
 	include/mtr0types.h
 	include/os0file.h
 	include/os0file.inl
@@ -326,7 +324,6 @@ SET(INNOBASE_SOURCES
 	include/row0row.h
 	include/row0row.inl
 	include/row0sel.h
-	include/row0sel.inl
 	include/row0types.h
 	include/row0uins.h
 	include/row0umod.h
@@ -341,7 +338,6 @@ SET(INNOBASE_SOURCES
 	include/srv0start.h
 	include/srw_lock.h
 	include/sux_lock.h
-	include/sql_funcs.h
 	include/trx0i_s.h
 	include/trx0purge.h
 	include/trx0rec.h

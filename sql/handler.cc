@@ -1001,12 +1001,30 @@ void ha_end_backup()
                            PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
 }
 
-void handler::log_not_redoable_operation(const char *operation)
+/*
+  Take a lock to block MDL_BACKUP_DDL (used by maria-backup) until
+  the DDL operation is taking place
+*/
+
+bool handler::log_not_redoable_operation(const char *operation)
 {
   DBUG_ENTER("log_not_redoable_operation");
   if (table->s->tmp_table == NO_TMP_TABLE)
   {
+    /*
+      Take a lock to ensure that mariadb-backup will notice the
+      new log entry (and re-copy the table if needed).
+    */
+    THD *thd= table->in_use;
+    MDL_request mdl_backup;
     backup_log_info ddl_log;
+
+    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_DDL,
+                     MDL_STATEMENT);
+    if (thd->mdl_context.acquire_lock(&mdl_backup,
+                                      thd->variables.lock_wait_timeout))
+      DBUG_RETURN(1);
+
     bzero(&ddl_log, sizeof(ddl_log));
     lex_string_set(&ddl_log.query, operation);
     /*
@@ -1022,7 +1040,7 @@ void handler::log_not_redoable_operation(const char *operation)
     ddl_log.org_table_id=     table->s->tabledef_version;
     backup_log_ddl(&ddl_log);
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 /*
@@ -4535,7 +4553,7 @@ void handler::print_error(int error, myf errflag)
     break;
   case HA_ERR_AUTOINC_ERANGE:
     textno= error;
-    my_error(textno, errflag, table->next_number_field->field_name.str,
+    my_error(textno, errflag, table->found_next_number_field->field_name.str,
              table->in_use->get_stmt_da()->current_row_for_warning());
     DBUG_VOID_RETURN;
     break;
@@ -4933,32 +4951,17 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type != F_UNLCK);
 
-  const ulong v= table->s->mysql_version;
-
-  if ((v >= MYSQL_VERSION_ID) &&
+  if ((table->s->mysql_version >= MYSQL_VERSION_ID) &&
       (check_opt->sql_flags & TT_FOR_UPGRADE))
     return 0;
 
-  if (v < MYSQL_VERSION_ID)
+  if (table->s->mysql_version < MYSQL_VERSION_ID)
   {
     if (unlikely((error= check_old_types())))
       return error;
     error= ha_check_for_upgrade(check_opt);
     if (unlikely(error && (error != HA_ADMIN_NEEDS_CHECK)))
       return error;
-    if (table->s->table_category == TABLE_CATEGORY_USER &&
-        (v < 100142 ||
-         (v >= 100200 && v < 100228) ||
-         (v >= 100300 && v < 100319) ||
-         (v >= 100400 && v < 100409)))
-    {
-      for (const KEY *key= table->key_info,
-           *end= table->key_info + table->s->keys; key < end; key++)
-      {
-        if (key->flags & HA_BINARY_PACK_KEY && key->flags & HA_VAR_LENGTH_KEY)
-          return HA_ADMIN_NEEDS_UPGRADE;
-      }
-    }
     if (unlikely(!error && (check_opt->sql_flags & TT_FOR_UPGRADE)))
       return 0;
   }
@@ -4992,7 +4995,7 @@ void handler::mark_trx_read_write_internal()
       table_share can be NULL, for example, in ha_delete_table() or
       ha_rename_table().
     */
-    if (table_share == NULL || table_share->tmp_table <= NO_TMP_TABLE)
+    if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
   }
 }
@@ -5029,11 +5032,6 @@ int handler::ha_end_bulk_insert()
   DBUG_ENTER("handler::ha_end_bulk_insert");
   DBUG_EXECUTE_IF("crash_end_bulk_insert",
                   { extra(HA_EXTRA_FLUSH) ; DBUG_SUICIDE();});
-  if (DBUG_IF("ha_end_bulk_insert_fail"))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  }
   estimation_rows_to_insert= 0;
   DBUG_RETURN(end_bulk_insert());
 }
@@ -6205,7 +6203,7 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name, LEX_CUSTRING *table_id,
                      LEX_CSTRING *partition_engine_name,
-                     handlerton **hton, bool *is_sequence, uint flags)
+                     handlerton **hton, bool *is_sequence)
 {
   handlerton *dummy;
   bool dummy2;
@@ -6260,7 +6258,7 @@ retry_from_frm:
 #endif
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
-                                         db->str, table_name->str, "", flags);
+                                         db->str, table_name->str, "", 0);
   st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
 
   if (file_ext_exists(path, path_len, reg_ext))
@@ -7041,7 +7039,8 @@ int handler::binlog_log_row(TABLE *table,
   THD *thd= table->in_use;
   DBUG_ENTER("binlog_log_row");
 
-  if (!thd->binlog_table_maps && thd->binlog_write_table_maps(table))
+  if (!thd->binlog_table_maps &&
+      thd->binlog_write_table_maps())
     DBUG_RETURN(HA_ERR_RBR_LOGGING_FAILED);
 
   error= (*log_func)(thd, table, row_logging_has_trans,
@@ -7341,8 +7340,13 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
       {
         int error;
         field= keypart->field;
-        /* Compare fields if they are different then check for duplicates */
-        if (field->cmp_binary_offset(reclength))
+        /*
+          Compare fields if they are different then check for duplicates
+          cmp_binary_offset cannot differentiate between null and empty string
+          So also check for that too
+        */
+        if((field->is_null(0) != field->is_null(reclength)) ||
+                               field->cmp_binary_offset(reclength))
         {
           if((error= check_duplicate_long_entry_key(new_rec, i)))
             return error;
@@ -7590,7 +7594,7 @@ int handler::ha_write_row(const uchar *buf)
       error= binlog_log_row(table, 0, buf, log_func);
     }
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table <= NO_TMP_TABLE &&
+    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
         ht->flags & HTON_WSREP_REPLICATION &&
         !error && (error= wsrep_after_row(ha_thd())))
     {
@@ -7664,7 +7668,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
                       " can not mark as PA unsafe");
       }
 
-      if (!error && table_share->tmp_table <= NO_TMP_TABLE &&
+      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
           ht->flags & HTON_WSREP_REPLICATION)
         error= wsrep_after_row(thd);
     }
@@ -7742,7 +7746,7 @@ int handler::ha_delete_row(const uchar *buf)
                       " can not mark as PA unsafe");
       }
 
-      if (!error && table_share->tmp_table <= NO_TMP_TABLE &&
+      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
           ht->flags & HTON_WSREP_REPLICATION)
         error= wsrep_after_row(thd);
     }
@@ -8190,7 +8194,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
-        const Lex_table_name &db)
+        const Lex_table_name &db, int select_count)
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
@@ -8211,7 +8215,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
          SELECT go last there.
        */
       bool is_dup= false;
-      if (fieldnr >= alter_info->field_count())
+      if (fieldnr >= alter_info->create_list.elements - select_count)
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
@@ -8618,11 +8622,12 @@ bool Table_period_info::check_field(const Create_field* f,
 }
 
 bool Table_scope_and_contents_source_st::check_fields(
-    THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
-    const Lex_table_name &db)
+  THD *thd, Alter_info *alter_info,
+  const Lex_table_name &table_name, const Lex_table_name &db, int select_count)
 {
-  return (vers_check_system_fields(thd, alter_info, table_name, db) ||
-          check_period_fields(thd, alter_info));
+  return vers_check_system_fields(thd, alter_info,
+                                  table_name, db, select_count) ||
+    check_period_fields(thd, alter_info);
 }
 
 bool Table_scope_and_contents_source_st::check_period_fields(

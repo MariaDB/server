@@ -348,7 +348,6 @@ public:
   partition_info *get_clone(THD *thd, bool empty_data_and_index_file= FALSE);
   bool set_named_partition_bitmap(const char *part_name, size_t length);
   bool set_partition_bitmaps(List<String> *partition_names);
-  bool set_partition_bitmaps_from_table(TABLE_LIST *table_list);
   /* Answers the question if subpartitioning is used for a certain table */
   bool is_sub_partitioned()
   {
@@ -435,7 +434,12 @@ public:
     return NULL;
   }
   uint next_part_no(uint new_parts) const;
+
+  int gen_part_type(THD *thd, String *str) const;
 };
+
+void part_type_error(THD *thd, partition_info *work_part_info,
+                     const char *part_type, partition_info *tab_part_info);
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
 bool check_partition_dirs(partition_info *part_info);

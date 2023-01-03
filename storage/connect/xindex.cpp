@@ -2029,6 +2029,10 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
   PXCOL kp = To_KeyCol;
   OPVAL op = Op;
 
+// In case single column index doesn't exist return
+  if (!kp)
+    return 0;
+
   switch (limit) {
     case 1: Op = (incl) ? OP_GE : OP_GT; break;
     case 2: Op = (incl) ? OP_GT : OP_GE; break;

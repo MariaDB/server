@@ -183,6 +183,37 @@ INSERT INTO t VALUES (0);
 INSERT INTO t VALUES (1),(0),(1);
 DROP TABLE t;
 #
+# MDEV-28327 InnoDB persistent statistics fail to update
+#		after bulk insert
+#
+CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO t1 SELECT * FROM seq_1_to_4096;
+# Wait till statistics update after bulk insert operation
+SELECT n_rows>=4000 FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
+n_rows>=4000
+1
+DROP TABLE t1;
+#
+# MDEV-27214 Import with disabled keys corrupts meta-data like rows, indexes, ...
+#
+SET UNIQUE_CHECKS=0;
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE `t1` (
+`id` int(11) NOT NULL,
+`a` int(11) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO `t1` VALUES (1,2),(2,3),(3,4);
+# Wait till statistics update after bulk insert operation
+SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+TABLE_ROWS	AVG_ROW_LENGTH>0
+3	1
+DROP TABLE t1;
+# End of 10.6 tests
+#
 # MDEV-26947 UNIQUE column checks fail in InnoDB resulting
 #	in table corruption
 #
@@ -314,3 +345,46 @@ PARTITION pn VALUES LESS THAN (20));
 INSERT INTO t1 VALUES (1),(21);
 ERROR HY000: Table has no partition for value 21
 DROP TABLE t1;
+#
+#  MDEV-29761  Bulk insert fails to rollback
+#	during insert..select
+#
+CREATE TABLE t1 (f1 INT)ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INT, UNIQUE INDEX(f1)) ENGINE=InnoDB;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES(1);
+BEGIN;
+INSERT t1 SELECT 1 FROM seq_1_to_2;
+COMMIT;
+SELECT * FROM t1;
+f1
+SELECT * FROM t2;
+f1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+CHECK TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t1, t2;
+#
+#   MDEV-29801  Inconsistent ER_TOO_BIG_ROWSIZE during bulk
+#			insert operation
+#
+call mtr.add_suppression("InnoDB: Cannot add field `(c0[36]|c11)` in table");
+SET @format= @@innodb_default_row_format;
+CREATE TABLE t1 (pk int primary key, c01 text, c02 text, c03 text,
+c04 text, c05 text, c06 text, c07 text, c08 text,
+c09 text, c10 text, c11 text, c12 text) ENGINE=InnoDB;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= COMPACT;
+ALTER TABLE t1 FORCE;
+Warnings:
+Warning	139	Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+INSERT IGNORE INTO t1 VALUES
+(1, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107)),
+(2, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107));
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= @format;
+# End of 10.7 tests

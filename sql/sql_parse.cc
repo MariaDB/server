@@ -1136,7 +1136,7 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
     if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
       return false;
   }
-  return true;
+  return tables != NULL;
 }
 
 static bool wsrep_command_no_result(char command)
@@ -2798,9 +2798,15 @@ bool sp_process_definer(THD *thd)
   }
   else
   {
-    LEX_USER *d= lex->definer= get_current_user(thd, lex->definer);
+    LEX_USER *d= get_current_user(thd, lex->definer);
     if (!d)
       DBUG_RETURN(TRUE);
+    if (d->user.str == public_name.str)
+    {
+      my_error(ER_INVALID_ROLE, MYF(0), lex->definer->user.str);
+      DBUG_RETURN(TRUE);
+    }
+    lex->definer= d;
 
     /*
       If the specified definer differs from the current user or role, we
@@ -2823,12 +2829,9 @@ bool sp_process_definer(THD *thd)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (!is_acl_user(lex->definer->host.str, lex->definer->user.str))
   {
-    push_warning_printf(thd,
-                        Sql_condition::WARN_LEVEL_NOTE,
-                        ER_NO_SUCH_USER,
-                        ER_THD(thd, ER_NO_SUCH_USER),
-                        lex->definer->user.str,
-                        lex->definer->host.str);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_NO_SUCH_USER, ER_THD(thd, ER_NO_SUCH_USER),
+                        lex->definer->user.str, lex->definer->host.str);
   }
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
@@ -3120,8 +3123,7 @@ mysql_create_routine(THD *thd, LEX *lex)
     */
     if (thd->slave_thread && is_acl_user(definer->host.str, definer->user.str))
     {
-      security_context.change_security_context(thd,
-                                               &thd->lex->definer->user,
+      security_context.change_security_context(thd, &thd->lex->definer->user,
                                                &thd->lex->definer->host,
                                                &thd->lex->sphead->m_db,
                                                &backup);
@@ -3687,6 +3689,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
           (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0)    &&
         !wsrep_tables_accessible_when_detached(all_tables)                 &&
         lex->sql_command != SQLCOM_SET_OPTION                              &&
+        lex->sql_command != SQLCOM_CHANGE_DB                               &&
+        !(lex->sql_command == SQLCOM_SELECT && !all_tables)                &&
         !wsrep_is_show_query(lex->sql_command))
     {
       my_message(ER_UNKNOWN_COM_ERROR,
@@ -6760,10 +6764,7 @@ check_access(THD *thd, privilege_t want_access,
     {
       if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
       {
-        db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, db,
-                           db_is_pattern);
-        if (sctx->priv_role[0])
-          db_access|= acl_get("", "", sctx->priv_role, db, db_is_pattern);
+        db_access= acl_get_all3(sctx, db, db_is_pattern);
       }
       else
       {
@@ -6808,14 +6809,7 @@ check_access(THD *thd, privilege_t want_access,
   }
 
   if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
-  {
-    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, db,
-                       db_is_pattern);
-    if (sctx->priv_role[0])
-    {
-      db_access|= acl_get("", "", sctx->priv_role, db, db_is_pattern);
-    }
-  }
+    db_access= acl_get_all3(sctx, db, db_is_pattern);
   else
     db_access= sctx->db_access;
   DBUG_PRINT("info",("db_access: %llx  want_access: %llx",
@@ -7049,13 +7043,13 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
   @brief Check if the requested privileges exists in either User-, Host- or
     Db-tables.
   @param thd          Thread context
-  @param want_access  Privileges requested
+  @param requirements Privileges requested
   @param tables       List of tables to be compared against
-  @param no_errors    Don't report error to the client (using my_error() call).
   @param any_combination_of_privileges_will_do TRUE if any privileges on any
     column combination is enough.
   @param number       Only the first 'number' tables in the linked list are
                       relevant.
+  @param no_errors    Don't report error to the client (using my_error() call).
 
   The suppled table list contains cached privileges. This functions calls the
   help functions check_access and check_grant to verify the first three steps
@@ -7082,7 +7076,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
 
 bool
 check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
-		   bool any_combination_of_privileges_will_do,
+                   bool any_combination_of_privileges_will_do,
                    uint number, bool no_errors)
 {
   TABLE_LIST *org_tables= tables;
@@ -7510,11 +7504,9 @@ void THD::reset_for_next_command(bool do_clear_error)
   DBUG_ENTER("THD::reset_for_next_command");
   DBUG_ASSERT(!spcont); /* not for substatements of routines */
   DBUG_ASSERT(!in_sub_stmt);
-  DBUG_ASSERT(transaction->on);
-
   /*
     Table maps should have been reset after previous statement except in the
-    case where we have locked ables
+    case where we have locked tables
   */
   DBUG_ASSERT(binlog_table_maps == 0 ||
               locked_tables_mode == LTM_LOCK_TABLES);
@@ -9016,7 +9008,6 @@ push_new_name_resolution_context(THD *thd,
   Name_resolution_context *on_context;
   if (!(on_context= new (thd->mem_root) Name_resolution_context))
     return TRUE;
-  on_context->init();
   on_context->first_name_resolution_table=
     left_op->first_leaf_for_name_resolution();
   on_context->last_name_resolution_table=

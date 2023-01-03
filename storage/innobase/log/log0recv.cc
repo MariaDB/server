@@ -651,22 +651,12 @@ static struct
     {
       /* Replace absolute DATA DIRECTORY file paths with
       short names relative to the backup directory. */
-      const char *name= strrchr(filename, '/');
-#ifdef _WIN32
-      if (const char *last= strrchr(filename, '\\'))
-        if (last > name)
-          name= last;
-#endif
-      if (name)
+      if (const char *name= strrchr(filename, '/'))
       {
-        while (--name > filename &&
-#ifdef _WIN32
-               *name != '\\' &&
-#endif
-               *name != '/');
+        while (--name > filename && *name != '/');
         if (name > filename)
           filename= name + 1;
-       }
+      }
     }
 
     char *fil_path= fil_make_filepath(nullptr, {filename, strlen(filename)},
@@ -832,21 +822,9 @@ processed:
     const char *filename= name.c_str();
     if (srv_operation == SRV_OPERATION_RESTORE)
     {
-      const char* tbl_name = strrchr(filename, '/');
-#ifdef _WIN32
-      if (const char *last = strrchr(filename, '\\'))
+      if (const char *tbl_name= strrchr(filename, '/'))
       {
-        if (last > tbl_name)
-          tbl_name = last;
-      }
-#endif
-      if (tbl_name)
-      {
-        while (--tbl_name > filename &&
-#ifdef _WIN32
-               *tbl_name != '\\' &&
-#endif
-               *tbl_name != '/');
+        while (--tbl_name > filename && *tbl_name != '/');
         if (tbl_name > filename)
           filename= tbl_name + 1;
       }
@@ -986,6 +964,21 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
         DB_SUCCESS == os_file_punch_hole(node->handle, 0, 4096) &&
         !my_test_if_thinly_provisioned(node->handle);
 #endif
+      /* Mimic fil_node_t::read_page0() in case the file exists and
+      has already been extended to a larger size. */
+      ut_ad(node->size == size);
+      const os_offset_t file_size= os_file_get_size(node->handle);
+      if (file_size != os_offset_t(-1))
+      {
+        const uint32_t n_pages=
+          uint32_t(file_size / fil_space_t::physical_size(flags));
+        if (n_pages > size)
+        {
+          space->size= node->size= n_pages;
+          space->set_committed_size();
+          goto size_set;
+        }
+      }
       if (!os_file_set_size(node->name, node->handle,
                             (size * fil_space_t::physical_size(flags)) &
                             ~4095ULL, is_sparse))
@@ -993,6 +986,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
         space->release();
         goto release_and_fail;
       }
+    size_set:
       node->deferred= false;
       space->release();
       it->second.space= space;
@@ -1148,6 +1142,7 @@ public:
 		}
 
 		mtr.commit();
+		clear();
 	}
 
 	/** Clear the data structure */
@@ -1173,14 +1168,6 @@ inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
 		if (r->second.trim(lsn)) {
 			pages.erase(r);
 		}
-	}
-	if (fil_space_t* space = fil_space_get(page_id.space())) {
-		ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-		fil_node_t* file = UT_LIST_GET_FIRST(space->chain);
-		ut_ad(file->is_open());
-		os_file_truncate(file->name, file->handle,
-				 os_offset_t{page_id.page_no()}
-				 << srv_page_size_shift, true);
 	}
 	DBUG_VOID_RETURN;
 }
@@ -1332,40 +1319,22 @@ same_space:
 		case FIL_LOAD_INVALID:
 			ut_ad(space == NULL);
 			if (srv_force_recovery == 0) {
-				sql_print_warning(
-					"InnoDB: We do not continue the crash"
-					" recovery, because the table may"
-					" become corrupt if we cannot apply"
-					" the log records in the InnoDB log to"
-					" it. To fix the problem and start"
-					" mariadbd:");
-				sql_print_information(
-					"InnoDB: 1) If there is a permission"
-					" problem in the file and mysqld"
-					" cannot open the file, you should"
-					" modify the permissions.");
-				sql_print_information(
-					"InnoDB: 2) If the tablespace is not"
-					" needed, or you can restore an older"
-					" version from a backup, then you can"
-					" remove the .ibd file, and use"
-					" --innodb_force_recovery=1 to force"
-					" startup without this file.");
-				sql_print_information(
-					"InnoDB: 3) If the file system or the"
-					" disk is broken, and you cannot"
-					" remove the .ibd file, you can set"
-					" --innodb_force_recovery.");
+				sql_print_error("InnoDB: Recovery cannot access"
+						" file %s (tablespace "
+						UINT32PF ")", name, space_id);
+				sql_print_information("InnoDB: You may set "
+						      "innodb_force_recovery=1"
+						      " to ignore this and"
+						      " possibly get a"
+						      " corrupted database.");
 				recv_sys.set_corrupt_fs();
 				break;
 			}
 
-			sql_print_information(
-				"InnoDB: innodb_force_recovery was set to %lu."
-				" Continuing crash recovery even though"
-				" we cannot access the files for tablespace "
-				UINT32PF ".", srv_force_recovery, space_id);
-			break;
+			sql_print_warning("InnoDB: Ignoring changes to"
+					  " file %s (tablespace " UINT32PF ")"
+					  " due to innodb_force_recovery",
+					  name, space_id);
 		}
 	}
 }
@@ -1661,7 +1630,10 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
     sql_print_error("InnoDB: Cannot decrypt log for upgrading."
                     " The encrypted log was created before MariaDB 10.2.2.");
   else
-    sql_print_error("%s%s.", uag, pre_10_2);
+    sql_print_error("%s%s. You must start up and shut down"
+                    " MariaDB 10.1 or MySQL 5.6 or earlier"
+                    " on the data directory.",
+                    uag, pre_10_2);
 
   return DB_ERROR;
 }
@@ -1679,7 +1651,7 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
   if (lsn_offset < (log_sys.is_pmem() ? log_sys.file_size : 4096))
     memcpy_aligned<512>(buf, &log_sys.buf[lsn_offset & ~511], 512);
   else
-    recv_sys.read(lsn_offset & ~511, {buf, 512});
+    recv_sys.read(lsn_offset & ~lsn_t{511}, {buf, 512});
 
   if (!recv_check_log_block(buf))
   {
@@ -1939,11 +1911,24 @@ dberr_t recv_sys_t::find_checkpoint()
 
   if (dberr_t err= recv_log_recover_10_5(lsn_offset))
   {
-    sql_print_error("%s The redo log was created with %s%s",
-                    srv_operation == SRV_OPERATION_NORMAL
-                    ? "InnoDB: Upgrade after a crash is not supported."
-                    : "mariadb-backup --prepare is not possible.", creator,
-                    (err == DB_ERROR ? "." : ", and it appears corrupted."));
+    const char *msg1, *msg2, *msg3;
+    msg1= srv_operation == SRV_OPERATION_NORMAL
+      ? "InnoDB: Upgrade after a crash is not supported."
+      : "mariadb-backup --prepare is not possible.";
+
+    if (err == DB_ERROR)
+    {
+      msg2= srv_operation == SRV_OPERATION_NORMAL
+        ? ". You must start up and shut down MariaDB "
+        : ". You must use mariadb-backup ";
+      msg3= (log_sys.format & ~log_t::FORMAT_ENCRYPTED) == log_t::FORMAT_10_5
+        ? "10.7 or earlier." : "10.4 or earlier.";
+    }
+    else
+      msg2= ", and it appears corrupted.", msg3= "";
+
+    sql_print_error("%s The redo log was created with %s%s%s",
+                    msg1, creator, msg2, msg3);
     return err;
   }
 
@@ -3469,7 +3454,17 @@ void recv_sys_t::apply(bool last_batch)
     {
       const trunc& t= truncated_undo_spaces[id];
       if (t.lsn)
-        trim(page_id_t(id + srv_undo_space_id_start, t.pages), t.lsn);
+      {
+        trim(page_id_t(id + srv_undo_space_id_start, 0), t.lsn);
+        if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
+        {
+          ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+          fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
+          ut_ad(file->is_open());
+          os_file_truncate(file->name, file->handle,
+                           os_offset_t{t.pages} << srv_page_size_shift, true);
+        }
+      }
     }
 
     fil_system.extend_to_recv_size();

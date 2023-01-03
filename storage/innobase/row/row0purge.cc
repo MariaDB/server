@@ -67,7 +67,7 @@ static
 ibool
 row_purge_reposition_pcur(
 /*======================*/
-	ulint		mode,	/*!< in: latching mode */
+	btr_latch_mode	mode,	/*!< in: latching mode */
 	purge_node_t*	node,	/*!< in: row purge node */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
@@ -104,7 +104,7 @@ bool
 row_purge_remove_clust_if_poss_low(
 /*===============================*/
 	purge_node_t*	node,	/*!< in/out: row purge node */
-	ulint		mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
+	btr_latch_mode	mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
 {
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;
@@ -216,7 +216,7 @@ close_and_exit:
 			btr_pcur_get_btr_cur(&node->pcur), 0, &mtr);
 	} else {
 		dberr_t	err;
-		ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
+		ut_ad(mode == BTR_PURGE_TREE);
 		btr_cur_pessimistic_delete(
 			&err, FALSE, btr_pcur_get_btr_cur(&node->pcur), 0,
 			false, &mtr);
@@ -257,8 +257,7 @@ row_purge_remove_clust_if_poss(
 	for (ulint n_tries = 0;
 	     n_tries < BTR_CUR_RETRY_DELETE_N_TIMES;
 	     n_tries++) {
-		if (row_purge_remove_clust_if_poss_low(
-			    node, BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE)) {
+		if (row_purge_remove_clust_if_poss_low(node, BTR_PURGE_TREE)) {
 			return(true);
 		}
 
@@ -348,11 +347,10 @@ row_purge_remove_sec_if_poss_tree(
 	log_free_check();
 	mtr.start();
 	index->set_modified(mtr);
+	pcur.btr_cur.page_cur.index = index;
 
-	search_result = row_search_index_entry(
-				index, entry,
-				BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				&pcur, &mtr);
+	search_result = row_search_index_entry(entry, BTR_PURGE_TREE,
+					       &pcur, &mtr);
 
 	switch (search_result) {
 	case ROW_NOT_FOUND:
@@ -455,6 +453,7 @@ row_purge_remove_sec_if_poss_leaf(
 	virtual index. */
 	mode = (index->type & (DICT_SPATIAL | DICT_VIRTUAL))
 		? BTR_MODIFY_LEAF : BTR_PURGE_LEAF;
+	pcur.btr_cur.page_cur.index = index;
 
 	/* Set the purge node for the call to row_purge_poss_sec(). */
 	pcur.btr_cur.purge_node = node;
@@ -462,7 +461,7 @@ row_purge_remove_sec_if_poss_leaf(
 		pcur.btr_cur.thr = NULL;
 		index->lock.u_lock(SRW_LOCK_CALL);
 		search_result = row_search_index_entry(
-			index, entry, mode, &pcur, &mtr);
+			entry, mode, &pcur, &mtr);
 		index->lock.u_unlock();
 	} else {
 		/* Set the query thread, so that ibuf_insert_low() will be
@@ -470,7 +469,7 @@ row_purge_remove_sec_if_poss_leaf(
 		pcur.btr_cur.thr = static_cast<que_thr_t*>(
 			que_node_get_parent(node));
 		search_result = row_search_index_entry(
-			index, entry, mode, &pcur, &mtr);
+			entry, mode, &pcur, &mtr);
 	}
 
 	switch (search_result) {
@@ -1343,11 +1342,11 @@ purge_node_t::validate_pcur()
 		return(true);
 	}
 
-	if (!pcur.old_stored) {
+	if (!pcur.old_rec) {
 		return(true);
 	}
 
-	dict_index_t*	clust_index = pcur.btr_cur.index;
+	dict_index_t* clust_index = pcur.index();
 
 	rec_offs* offsets = rec_get_offsets(
 		pcur.old_rec, clust_index, NULL, pcur.old_n_core_fields,

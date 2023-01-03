@@ -1359,7 +1359,7 @@ static dberr_t fts_drop_table(trx_t *trx, const char *table_name, bool rename)
       char *tmp= dict_mem_create_temporary_tablename(heap, table->name.m_name,
                                                      table->id);
       dberr_t err= row_rename_table_for_mysql(table->name.m_name, tmp, trx,
-                                              RENAME_IGNORE_FK);
+                                              false);
       mem_heap_free(heap);
       if (err != DB_SUCCESS)
       {
@@ -1373,6 +1373,13 @@ static dberr_t fts_drop_table(trx_t *trx, const char *table_name, bool rename)
       return err;
     }
 
+#ifdef UNIV_DEBUG
+    for (auto &p : trx->mod_tables)
+    {
+      if (p.first == table)
+	p.second.set_aux_table();
+    }
+#endif /* UNIV_DEBUG */
     return DB_SUCCESS;
   }
 
@@ -1410,7 +1417,7 @@ fts_rename_one_aux_table(
 	fts_table_new_name[table_new_name_len] = 0;
 
 	return row_rename_table_for_mysql(
-		fts_table_old_name, fts_table_new_name, trx, RENAME_IGNORE_FK);
+		fts_table_old_name, fts_table_new_name, trx, false);
 }
 
 /****************************************************************//**
@@ -3340,7 +3347,6 @@ fts_add_doc_by_id(
 	is_id_cluster = (clust_index == fts_id_index);
 
 	mtr_start(&mtr);
-	btr_pcur_init(&pcur);
 
 	/* Search based on Doc ID. Here, we'll need to consider the case
 	when there is no primary index on Doc ID */
@@ -3351,9 +3357,10 @@ fts_add_doc_by_id(
 
 	mach_write_to_8((byte*) &temp_doc_id, doc_id);
 	dfield_set_data(dfield, &temp_doc_id, sizeof(temp_doc_id));
+	pcur.btr_cur.page_cur.index = fts_id_index;
 
 	/* If we have a match, add the data to doc structure */
-	if (btr_pcur_open_with_no_init(fts_id_index, tuple, PAGE_CUR_LE,
+	if (btr_pcur_open_with_no_init(tuple, PAGE_CUR_LE,
 				       BTR_SEARCH_LEAF, &pcur, &mtr)
 	    == DB_SUCCESS
 	    && btr_pcur_get_low_match(&pcur) == 1) {
@@ -3380,7 +3387,6 @@ fts_add_doc_by_id(
 			dtuple_t*	clust_ref;
 			ulint		n_fields;
 
-			btr_pcur_init(&clust_pcur);
 			n_fields = dict_index_get_n_unique(clust_index);
 
 			clust_ref = dtuple_create(heap, n_fields);
@@ -3388,8 +3394,9 @@ fts_add_doc_by_id(
 
 			row_build_row_ref_in_tuple(
 				clust_ref, rec, fts_id_index, NULL);
+			clust_pcur.btr_cur.page_cur.index = clust_index;
 
-			if (btr_pcur_open_with_no_init(clust_index, clust_ref,
+			if (btr_pcur_open_with_no_init(clust_ref,
 						       PAGE_CUR_LE,
 						       BTR_SEARCH_LEAF,
 						       &clust_pcur, &mtr)
@@ -3545,12 +3552,11 @@ fts_get_max_doc_id(
 	ut_ad(innobase_strcasecmp(FTS_DOC_ID_COL_NAME, dfield->name) == 0);
 #endif
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	/* fetch the largest indexes value */
-	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF, &pcur,
-					true, 0, &mtr) != DB_SUCCESS) {
-	} else if (!page_is_empty(btr_pcur_get_page(&pcur))) {
+	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr) == DB_SUCCESS
+	    && !page_is_empty(btr_pcur_get_page(&pcur))) {
 		const rec_t*    rec = NULL;
 
 		do {
@@ -3569,7 +3575,7 @@ fts_get_max_doc_id(
 	}
 
 func_exit:
-	mtr_commit(&mtr);
+	mtr.commit();
 	return(doc_id);
 }
 

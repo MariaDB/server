@@ -2915,7 +2915,7 @@ struct Item_change_record: public ilink
 
 
 /*
-  Register an item tree transformation, performed by the query
+  Register an item tree tree transformation, performed by the query
   optimizer. We need a pointer to runtime_memroot because it may be !=
   thd->mem_root (due to possible set_n_backup_active_arena called for thd).
 */
@@ -3720,8 +3720,10 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     {
       cache= val_item->get_cache(thd);
       set_op(val_item->type_handler());
+      cache->setup(thd, val_item);
     }
-    cache->store(val_item);
+    else
+      cache->store(val_item);
     it->store(0, cache);
   }
   it->assigned(1);
@@ -5110,11 +5112,21 @@ void reset_thd(MYSQL_THD thd)
   before writing response to client, to provide durability
   guarantees, in other words, server can't send OK packet
   before modified data is durable in redo log.
-*/
-extern "C" void thd_increment_pending_ops(MYSQL_THD thd)
+
+  NOTE: system THD (those that are not associated with client
+        connection) do not allows async operations yet.
+
+  @param thd  a THD
+  @return thd
+  @retval nullptr   if this is system THD */
+extern "C" MYSQL_THD thd_increment_pending_ops(MYSQL_THD thd)
 {
+  if (!thd || thd->system_thread != NON_SYSTEM_THREAD)
+    return nullptr;
   thd->async_state.inc_pending_ops();
+  return thd;
 }
+
 
 /**
   This function can be used by plugin/engine to indicate
@@ -5126,6 +5138,8 @@ extern "C" void thd_increment_pending_ops(MYSQL_THD thd)
 extern "C" void thd_decrement_pending_ops(MYSQL_THD thd)
 {
   DBUG_ASSERT(thd);
+  DBUG_ASSERT(thd->system_thread == NON_SYSTEM_THREAD);
+
   thd_async_state::enum_async_state state;
   if (thd->async_state.dec_pending_ops(&state) == 0)
   {
@@ -6024,11 +6038,7 @@ void THD::get_definer(LEX_USER *definer, bool role)
 {
   binlog_invoker(role);
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-#ifdef WITH_WSREP
-  if ((wsrep_applier || slave_thread) && has_invoker())
-#else
-  if (slave_thread && has_invoker())
-#endif
+  if ((IF_WSREP(wsrep_applier, 0) || slave_thread) && has_invoker())
   {
     definer->user= invoker.user;
     definer->host= invoker.host;

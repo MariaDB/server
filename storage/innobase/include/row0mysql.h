@@ -263,7 +263,7 @@ row_update_for_mysql(
 
 /** This can only be used when the current transaction is at
 READ COMMITTED or READ UNCOMMITTED isolation level.
-Before calling this function row_search_for_mysql() must have
+Before calling this function row_search_mvcc() must have
 initialized prebuilt->new_rec_locks to store the information which new
 record locks really were set. This function removes a newly set
 clustered index record lock under prebuilt->pcur or
@@ -369,17 +369,6 @@ row_import_tablespace_for_mysql(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL */
         MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-enum rename_fk {
-  /** ignore FOREIGN KEY constraints */
-  RENAME_IGNORE_FK= 0,
-  /** parse and enforce FOREIGN KEY constaints */
-  RENAME_FK,
-  /** Rename a table as part of a native table-rebuilding DDL operation */
-  RENAME_REBUILD,
-  /** Rename as part of ALTER TABLE...ALGORITHM=COPY */
-  RENAME_ALTER_COPY
-};
-
 /*********************************************************************//**
 Renames a table for MySQL.
 @return error code or DB_SUCCESS */
@@ -389,25 +378,9 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	rename_fk	fk)		/*!< in: how to handle
+	bool		use_fk)		/*!< in: whether to parse and enforce
 					FOREIGN KEY constraints */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/*********************************************************************//**
-Scans an index for either COOUNT(*) or CHECK TABLE.
-If CHECK TABLE; Checks that the index contains entries in an ascending order,
-unique constraint is not broken, and calculates the number of index entries
-in the read view of the current transaction.
-@return DB_SUCCESS or other error */
-dberr_t
-row_scan_index_for_mysql(
-/*=====================*/
-	row_prebuilt_t*		prebuilt,	/*!< in: prebuilt struct
-						in MySQL handle */
-	const dict_index_t*	index,		/*!< in: index */
-	ulint*			n_rows)		/*!< out: number of entries
-						seen in the consistent read */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /* A struct describing a place for an individual column in the MySQL
 row format which is presented to the table handler in ha_innobase.
@@ -617,7 +590,7 @@ struct row_prebuilt_t {
 					ROW_READ_TRY_SEMI_CONSISTENT and
 					to simply skip the row.	 If
 					the row matches, the next call to
-					row_search_for_mysql() will lock
+					row_search_mvcc() will lock
 					the row.
 					This eliminates lock waits in some
 					cases; note that this breaks
@@ -626,7 +599,7 @@ struct row_prebuilt_t {
 					the session is using READ
 					COMMITTED or READ UNCOMMITTED
 					isolation level, set in
-					row_search_for_mysql() if we set a new
+					row_search_mvcc() if we set a new
 					record lock on the secondary
 					or clustered index; this is
 					used in row_unlock_for_mysql()
@@ -858,7 +831,7 @@ innobase_rename_vc_templ(
 #define ROW_MYSQL_REC_FIELDS	1
 #define ROW_MYSQL_NO_TEMPLATE	2
 #define ROW_MYSQL_DUMMY_TEMPLATE 3	/* dummy template used in
-					row_scan_and_check_index */
+					row_check_index() */
 
 /* Values for hint_need_to_fetch_extra_cols */
 #define ROW_RETRIEVE_PRIMARY_KEY	1

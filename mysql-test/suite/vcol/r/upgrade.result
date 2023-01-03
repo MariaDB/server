@@ -6,7 +6,7 @@ show create table vcol_autoinc;
 Table	Create Table
 vcol_autoinc	CREATE TABLE `vcol_autoinc` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
-  `v3` int(11) GENERATED ALWAYS AS (`pk`) VIRTUAL,
+  `v3` int(11) GENERATED ALWAYS AS (`pk`) STORED,
   PRIMARY KEY (`pk`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from vcol_autoinc;

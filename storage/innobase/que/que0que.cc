@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -260,16 +260,9 @@ que_graph_free_recursive(
 	ind_node_t*	cre_ind;
 	purge_node_t*	purge;
 
-	DBUG_ENTER("que_graph_free_recursive");
-
 	if (node == NULL) {
-
-		DBUG_VOID_RETURN;
+		return;
 	}
-
-	DBUG_PRINT("que_graph_free_recursive",
-		   ("node: %p, type: " ULINTPF, node,
-		    que_node_get_type(node)));
 
 	switch (que_node_get_type(node)) {
 
@@ -329,13 +322,9 @@ que_graph_free_recursive(
 	case QUE_NODE_UPDATE:
 		upd = static_cast<upd_node_t*>(node);
 
-		if (upd->in_mysql_interface) {
-
-			btr_pcur_free_for_mysql(upd->pcur);
-			upd->in_mysql_interface = false;
-		}
-
 		que_graph_free_recursive(upd->cascade_node);
+		ut_free(upd->pcur->old_rec_buf);
+		upd->pcur->old_rec_buf = NULL;
 
 		if (upd->cascade_heap) {
 			mem_heap_free(upd->cascade_heap);
@@ -410,8 +399,6 @@ que_graph_free_recursive(
 	default:
 		ut_error;
 	}
-
-	DBUG_VOID_RETURN;
 }
 
 /**********************************************************************//**
@@ -507,64 +494,25 @@ que_node_get_containing_loop_node(
 	return(node);
 }
 
-#ifdef DBUG_TRACE
-/** Gets information of an SQL query graph node.
-@return type description */
-static MY_ATTRIBUTE((warn_unused_result, nonnull))
-const char*
-que_node_type_string(
-/*=================*/
-	const que_node_t*	node)	/*!< in: query graph node */
+/**********************************************************************//**
+Performs an execution step of an open or close cursor statement node.
+@param thr query thread */
+static void open_step(que_thr_t *thr)
 {
-	switch (que_node_get_type(node)) {
-	case QUE_NODE_SELECT:
-		return("SELECT");
-	case QUE_NODE_INSERT:
-		return("INSERT");
-	case QUE_NODE_UPDATE:
-		return("UPDATE");
-	case QUE_NODE_WHILE:
-		return("WHILE");
-	case QUE_NODE_ASSIGNMENT:
-		return("ASSIGNMENT");
-	case QUE_NODE_IF:
-		return("IF");
-	case QUE_NODE_FETCH:
-		return("FETCH");
-	case QUE_NODE_OPEN:
-		return("OPEN");
-	case QUE_NODE_PROC:
-		return("STORED PROCEDURE");
-	case QUE_NODE_FUNC:
-		return("FUNCTION");
-	case QUE_NODE_LOCK:
-		return("LOCK");
-	case QUE_NODE_THR:
-		return("QUERY THREAD");
-	case QUE_NODE_COMMIT:
-		return("COMMIT");
-	case QUE_NODE_UNDO:
-		return("UNDO ROW");
-	case QUE_NODE_PURGE:
-		return("PURGE ROW");
-	case QUE_NODE_ROLLBACK:
-		return("ROLLBACK");
-	case QUE_NODE_CREATE_TABLE:
-		return("CREATE TABLE");
-	case QUE_NODE_CREATE_INDEX:
-		return("CREATE INDEX");
-	case QUE_NODE_FOR:
-		return("FOR LOOP");
-	case QUE_NODE_RETURN:
-		return("RETURN");
-	case QUE_NODE_EXIT:
-		return("EXIT");
-	default:
-		ut_ad(0);
-		return("UNKNOWN NODE TYPE");
-	}
+  open_node_t *node= static_cast<open_node_t*>(thr->run_node);
+  ut_ad(que_node_get_type(node) == QUE_NODE_OPEN);
+  sel_node_t *sel_node= node->cursor_def;
+
+  if (node->op_type == ROW_SEL_OPEN_CURSOR)
+    sel_node->state= SEL_NODE_OPEN;
+  else
+  {
+    ut_ad(sel_node->state != SEL_NODE_CLOSED);
+    sel_node->state= SEL_NODE_CLOSED;
+  }
+
+  thr->run_node= que_node_get_parent(node);
 }
-#endif /* DBUG_TRACE */
 
 /**********************************************************************//**
 Performs an execution step on a query thread.
@@ -592,10 +540,6 @@ que_thr_step(
 	type = que_node_get_type(node);
 
 	old_thr = thr;
-
-	DBUG_PRINT("ib_que", ("Execute %u (%s) at %p",
-			      unsigned(type), que_node_type_string(node),
-			      (const void*) node));
 
 	if (type & QUE_NODE_CONTROL_STAT) {
 		if ((thr->prev_node != que_node_get_parent(node))
@@ -636,7 +580,7 @@ que_thr_step(
 	} else if (type == QUE_NODE_FETCH) {
 		thr = fetch_step(thr);
 	} else if (type == QUE_NODE_OPEN) {
-		thr = open_step(thr);
+		open_step(thr);
 	} else if (type == QUE_NODE_FUNC) {
 		proc_eval_step(thr);
 

@@ -3,6 +3,8 @@
 #
 # FIXME: Unlike MySQL, maybe MariaDB should not read the .ibd files
 # of tables with .isl file or DATA DIRECTORY attribute.
+call mtr.add_suppression("\\[ERROR\\] InnoDB: MySQL-8\\.0 tablespace in ");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Restart in MySQL for migration/recovery\\.");
 # FIXME: This is much more noisy than MariaDB 10.1!
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Tablespace flags are invalid in datafile: .*test.t[rcd]\\.ibd");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Operating system error number .* in a file operation\\.");
@@ -40,3 +42,11 @@ Warning	1210	innodb_buffer_pool_size must be at least MIN_VAL for innodb_page_si
 Error	1231	Variable 'innodb_buffer_pool_size' can't be set to the value of 'WRONG_VALUE'
 EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size);
 SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;
+#
+# MDEV-27882 Innodb - recognise MySQL-8.0 innodb flags and give a specific error message
+#
+FOUND 1 /InnoDB: MySQL-8\.0 tablespace in \./ibdata1/ in attempted_start.err
+# restart
+#
+# End of 10.3 tests
+#

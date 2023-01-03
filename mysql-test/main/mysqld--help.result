@@ -42,7 +42,8 @@ The following specify which files/extra groups are read (specified before remain
  by saving all temporary sets to disk, avoiding 'table
  full' errors. No longer needed, as the server now handles
  this automatically.
- --bind-address=name IP address to bind to.
+ --bind-address=name IP address to bind to. Several addresses may be
+ specified, separated by a comma (,).
  --binlog-alter-two-phase 
  When set, split ALTER at binary logging into 2
  statements: START ALTER and COMMIT/ROLLBACK ALTER

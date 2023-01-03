@@ -5,8 +5,11 @@
 --echo #
 
 --let $replace=create user '$USER'
+--let $greplace=grant select on test.* to '$USER'
 --replace_result $replace "create user 'USER'"
 eval create user '$USER' identified via unix_socket;
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval grant select on test.* to '$USER';
 
 --write_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
 --let $replace1=$USER@localhost
@@ -49,3 +52,5 @@ grant SELECT ON test.* TO '' identified via unix_socket;
 delete from mysql.user where user='';
 FLUSH PRIVILEGES;
 --remove_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+
+delete from mysql.db;

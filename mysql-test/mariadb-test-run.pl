@@ -1769,7 +1769,8 @@ sub collect_mysqld_features {
            and $1 ne "innodb-buffer-page"
            and $1 ne "innodb-lock-waits"
            and $1 ne "innodb-locks"
-           and $1 ne "innodb-trx";
+           and $1 ne "innodb-trx"
+           and $1 ne "gssapi";
       next;
     }
 
@@ -1854,9 +1855,9 @@ sub executable_setup () {
   $exe_patch='patch' if `patch -v`;
 
   # Look for the client binaries
-  $exe_mysqladmin=     mtr_exe_exists("$path_client_bindir/mysqladmin");
-  $exe_mysql=          mtr_exe_exists("$path_client_bindir/mysql");
-  $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mysql_plugin");
+  $exe_mysqladmin=     mtr_exe_exists("$path_client_bindir/mariadb-admin");
+  $exe_mysql=          mtr_exe_exists("$path_client_bindir/mariadb");
+  $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mariadb-plugin");
   $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
 
   $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mysql_embedded");
@@ -1879,7 +1880,7 @@ sub executable_setup () {
     }
     else
     {
-      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mysqltest");
+      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test");
     }
   }
 
@@ -1890,7 +1891,7 @@ sub client_debug_arg($$) {
   my ($args, $client_name)= @_;
 
   # Workaround for Bug #50627: drop any debug opt
-  return if $client_name =~ /^mysqlbinlog/;
+  return if $client_name =~ /^mariadb-binlog/;
 
   if ( $opt_debug ) {
     mtr_add_arg($args,
@@ -1921,7 +1922,7 @@ sub client_arguments ($;$) {
 
 
 sub mysqlbinlog_arguments () {
-  my $exe= mtr_exe_exists("$path_client_bindir/mysqlbinlog");
+  my $exe= mtr_exe_exists("$path_client_bindir/mariadb-binlog");
 
   my $args;
   mtr_init_args(\$args);
@@ -1933,14 +1934,14 @@ sub mysqlbinlog_arguments () {
 
 
 sub mysqlslap_arguments () {
-  my $exe= mtr_exe_maybe_exists("$path_client_bindir/mysqlslap");
+  my $exe= mtr_exe_maybe_exists("$path_client_bindir/mariadb-slap");
   if ( $exe eq "" ) {
     # mysqlap was not found
 
     if (defined $mysql_version_id and $mysql_version_id >= 50100 ) {
-      mtr_error("Could not find the mysqlslap binary");
+      mtr_error("Could not find the mariadb-slap binary");
     }
-    return ""; # Don't care about mysqlslap
+    return ""; # Don't care about mariadb-slap
   }
 
   my $args;
@@ -1953,7 +1954,7 @@ sub mysqlslap_arguments () {
 
 sub mysqldump_arguments ($) {
   my($group_suffix) = @_;
-  my $exe= mtr_exe_exists("$path_client_bindir/mysqldump");
+  my $exe= mtr_exe_exists("$path_client_bindir/mariadb-dump");
 
   my $args;
   mtr_init_args(\$args);
@@ -2128,17 +2129,17 @@ sub environment_setup {
   # ----------------------------------------------------
   # mysql clients
   # ----------------------------------------------------
-  $ENV{'MYSQL_CHECK'}=              client_arguments("mysqlcheck");
+  $ENV{'MYSQL_CHECK'}=              client_arguments("mariadb-check");
   $ENV{'MYSQL_DUMP'}=               mysqldump_arguments(".1");
   $ENV{'MYSQL_DUMP_SLAVE'}=         mysqldump_arguments(".2");
   $ENV{'MYSQL_SLAP'}=               mysqlslap_arguments();
-  $ENV{'MYSQL_IMPORT'}=             client_arguments("mysqlimport");
-  $ENV{'MYSQL_SHOW'}=               client_arguments("mysqlshow");
+  $ENV{'MYSQL_IMPORT'}=             client_arguments("mariadb-import");
+  $ENV{'MYSQL_SHOW'}=               client_arguments("mariadb-show");
   $ENV{'MYSQL_BINLOG'}=             mysqlbinlog_arguments();
-  $ENV{'MYSQL'}=                    client_arguments("mysql");
-  $ENV{'MYSQL_SLAVE'}=              client_arguments("mysql", ".2");
-  $ENV{'MYSQL_UPGRADE'}=            client_arguments("mysql_upgrade");
-  $ENV{'MYSQLADMIN'}=               client_arguments("mysqladmin");
+  $ENV{'MYSQL'}=                    client_arguments("mariadb");
+  $ENV{'MYSQL_SLAVE'}=              client_arguments("mariadb", ".2");
+  $ENV{'MYSQL_UPGRADE'}=            client_arguments("mariadb-upgrade");
+  $ENV{'MYSQLADMIN'}=               client_arguments("mariadb-admin");
   $ENV{'MYSQL_CLIENT_TEST'}=        mysql_client_test_arguments();
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
@@ -2146,8 +2147,8 @@ sub environment_setup {
   $ENV{'MARIADB_CONV'}=             "$exe_mariadb_conv --character-sets-dir=$path_charsetsdir";
   if(IS_WINDOWS)
   {
-     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mysql_install_db",
-       "$bindir/bin/mysql_install_db");
+     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
+       "$bindir/bin/mariadb-install-db");
   }
 
   my $client_config_exe=
@@ -2230,9 +2231,9 @@ sub environment_setup {
   # ----------------------------------------------------
   # mysql_tzinfo_to_sql
   # ----------------------------------------------------
-  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$multiconfig/mysql_tzinfo_to_sql",
-                                 "$path_client_bindir/mysql_tzinfo_to_sql",
-                                 "$bindir/sql$multiconfig/mysql_tzinfo_to_sql");
+  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$multiconfig/mariadb-tzinfo-to-sql",
+                                 "$path_client_bindir/mariadb-tzinfo-to-sql",
+                                 "$bindir/sql$multiconfig/mariadb-tzinfo-to-sql");
   $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
 
   # ----------------------------------------------------
@@ -3132,9 +3133,8 @@ sub mysql_install_db {
       # Append sys schema
       mtr_appendfile_to_file("$gis_sp_path/mysql_sys_schema.sql",
            $bootstrap_sql_file);
-      # Create test database
-      mtr_appendfile_to_file("$sql_dir/mysql_test_db.sql",
-                            $bootstrap_sql_file);
+
+      mtr_tofile($bootstrap_sql_file, "CREATE DATABASE IF NOT EXISTS test CHARACTER SET latin1 COLLATE latin1_swedish_ci;\n");
 
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
       # run without InnoDB. Alter it to Aria now
@@ -4441,6 +4441,7 @@ sub extract_warning_lines ($$) {
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|io_uring_queue_init\(\) failed with|,
      qr|InnoDB: liburing disabled|,
+     qr/InnoDB: Failed to set (O_DIRECT|DIRECTIO_ON) on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,

@@ -326,5 +326,43 @@ id
 DROP TABLE t1;
 DROP TABLE t2;
 #
+# MDEV-28489 / MDEV-26722 UTF8 bytes calculated incorrectly
+#
+CREATE TABLE t1 (name varchar(20)) CHARSET=utf8;
+INSERT INTO t1 (name) VALUES ('Иванова'), ('Ivanova');
+CREATE TABLE t2 (name varchar(1)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT' CHARSET=utf8;
+SELECT hex(name) from t1;
+hex(name)
+C390CB9CC390C2B2C390C2B0C390C2BDC390C2BEC390C2B2C390C2B0
+4976616E6F7661
+SELECT hex(name) from t2;
+hex(name)
+C390
+49
+Warnings:
+Warning	1105	Out of range value for column name at row 1
+Warning	1265	Data truncated for column 'name' at row 1
+Warning	1105	Out of range value �? for column 'name' at row 1
+Warning	1105	Out of range value for column name at row 2
+Warning	1265	Data truncated for column 'name' at row 2
+Warning	1105	Out of range value Iva for column 'name' at row 2
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (col char(5)) CHARSET=utf8;
+INSERT INTO t1 (col) VALUES ('glace'), ('glacé');
+Warnings:
+Warning	1406	Data too long for column 'col' at row 2
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT' CHARSET=utf8;
+SELECT hex(col) from t1;
+hex(col)
+676C616365
+676C6163C383
+SELECT hex(col) from t2;
+hex(col)
+676C616365
+676C6163C383
+DROP TABLE t2;
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #

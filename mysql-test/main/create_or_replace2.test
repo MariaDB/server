@@ -1,0 +1,35 @@
+#
+# Check CREATE OR REPLACE TABLE for test that requires DEBUG
+#
+
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+SET @old_debug= @@session.debug;
+
+#
+# MDEV-5854
+# Interrupted CREATE OR REPLACE is written into binlog, and in a wrong format
+#
+
+CREATE TABLE t1 (i INT, KEY(i)) ENGINE=InnoDB;
+CREATE OR REPLACE TEMPORARY TABLE tmp (a int, b int, key(a)) engine=myisam;
+SET debug_dbug='+d,send_kill_after_delete';
+CREATE OR REPLACE TABLE t1 LIKE tmp;
+SET debug_dbug=@old_debug;
+SHOW TABLES;
+show create table t1;
+--sync_slave_with_master
+SHOW TABLES;
+--connection master
+
+--disable_warnings
+drop temporary table if exists tmp;
+--enable_warnings
+drop table t1;
+--source include/rpl_end.inc

@@ -4440,6 +4440,30 @@ row_number() OVER (order by a)
 3
 drop table t1;
 #
+# MDEV-28206 SIGSEGV in Item_field::fix_fields when using LEAD...OVER
+#
+CREATE TABLE t(c1 INT);
+CREATE FUNCTION f() RETURNS INT READS SQL DATA BEGIN
+DECLARE v INT;
+SELECT 1 INTO v FROM (SELECT c1,COALESCE(LEAD(a2.c1) OVER (PARTITION BY a2.c1 ORDER BY a2.c1),a2.c1) AS a1 FROM (t a2 JOIN t a3 USING (c1))) a4;
+RETURN 1;
+END//
+SELECT f(),f();
+f()	f()
+1	1
+EXECUTE IMMEDIATE "SELECT LEAD(c1) OVER (ORDER BY c1) FROM t NATURAL JOIN t AS a;";
+LEAD(c1) OVER (ORDER BY c1)
+EXECUTE IMMEDIATE "SELECT SUM(c1) OVER (ORDER BY c1) FROM t NATURAL JOIN t AS a;";
+SUM(c1) OVER (ORDER BY c1)
+EXECUTE IMMEDIATE "SELECT LEAD(c) OVER (ORDER BY c) FROM (SELECT 1 AS c) AS a NATURAL JOIN (SELECT 1 AS c) AS b;";
+LEAD(c) OVER (ORDER BY c)
+NULL
+DROP FUNCTION f;
+DROP TABLE t;
+#
+# End of 10.6 tests
+#
+#
 # MDEV-23867: select crash in compute_window_func
 #
 set @save_sort_buffer_size=@@sort_buffer_size;

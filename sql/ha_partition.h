@@ -1415,7 +1415,8 @@ private:
     if (!part_share->auto_inc_initialized &&
         (ha_thd()->lex->sql_command == SQLCOM_INSERT ||
          ha_thd()->lex->sql_command == SQLCOM_INSERT_SELECT ||
-         ha_thd()->lex->sql_command == SQLCOM_REPLACE) &&
+         ha_thd()->lex->sql_command == SQLCOM_REPLACE ||
+         ha_thd()->lex->sql_command == SQLCOM_REPLACE_SELECT) &&
         table->found_next_number_field)
       bitmap_set_all(&m_part_info->read_partitions);
   }
@@ -1633,16 +1634,8 @@ public:
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
   friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
-  bool can_convert_string(
-      const Field_string* field,
-      const Column_definition& new_field) const override;
 
-  bool can_convert_varstring(
-      const Field_varstring* field,
-      const Column_definition& new_field) const override;
-
-  bool can_convert_blob(
-      const Field_blob* field,
-      const Column_definition& new_field) const override;
+  bool can_convert_nocopy(const Field &field,
+                          const Column_definition &new_field) const override;
 };
 #endif /* HA_PARTITION_INCLUDED */

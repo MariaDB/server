@@ -6,6 +6,13 @@
 # The master transitions to a non-prim view and back to prim. Its ongoing
 # should fail to commit.
 #
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--LET $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 
@@ -78,3 +85,4 @@ DROP TABLE t1;
 
 --connection node_2
 CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+--source ../galera/include/auto_increment_offset_restore.inc

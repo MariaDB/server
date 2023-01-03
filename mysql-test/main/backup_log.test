@@ -24,8 +24,6 @@ create table mysqltest.t91 (a int primary key, b int) engine=innodb;
 alter database mysqltest character set utf8;
 drop database mysqltest;
 
---source backup_log_print.inc
-
 --echo #
 --echo # MENT-222 bug testing
 --echo #
@@ -38,5 +36,4 @@ CREATE TABLE IF NOT EXISTS t_exists LIKE t_exists_template;
 --echo #
 DROP TABLE t_exists;
 DROP TABLE t_exists_template;
---source backup_log_print.inc
 disconnect con1;

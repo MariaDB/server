@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,10 +24,7 @@ The B-tree
 Created 6/2/1994 Heikki Tuuri
 *******************************************************/
 
-#include "mach0data.h"
-#include "mtr0mtr.h"
 #include "mtr0log.h"
-#include "page0zip.h"
 
 /**************************************************************//**
 Gets the index id field of a page.
@@ -111,39 +108,4 @@ btr_node_ptr_get_child_page_no(
 	ut_ad(page_no > 1);
 
 	return(page_no);
-}
-
-/**************************************************************//**
-Releases the latches on a leaf page and bufferunfixes it. */
-UNIV_INLINE
-void
-btr_leaf_page_release(
-/*==================*/
-	buf_block_t*	block,		/*!< in: buffer block */
-	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF or
-					BTR_MODIFY_LEAF */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	ut_ad(latch_mode == BTR_SEARCH_LEAF
-	      || latch_mode == BTR_MODIFY_LEAF
-	      || latch_mode == BTR_NO_LATCHES);
-
-	ut_ad(!mtr->memo_contains_flagged(block, MTR_MEMO_MODIFY));
-
-	mtr_memo_type_t mode;
-	switch (latch_mode) {
-		case BTR_SEARCH_LEAF:
-			mode = MTR_MEMO_PAGE_S_FIX;
-			break;
-		case BTR_MODIFY_LEAF:
-			mode = MTR_MEMO_PAGE_X_FIX;
-			break;
-		case BTR_NO_LATCHES:
-			mode = MTR_MEMO_BUF_FIX;
-			break;
-		default:
-			ut_a(0);
-	}
-
-	mtr->memo_release(block, mode);
 }

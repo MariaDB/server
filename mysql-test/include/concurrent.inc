@@ -49,7 +49,7 @@ let $keep_locks= `SELECT @@global.tx_isolation IN ('REPEATABLE-READ','SERIALIZAB
 #
 # Set up privileges and remove user level locks, if exist.
 #
-GRANT USAGE ON test.* TO mysqltest@localhost;
+GRANT ALL ON test.* TO mysqltest@localhost;
 
 --echo
 --echo **

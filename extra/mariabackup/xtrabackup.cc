@@ -1015,8 +1015,10 @@ enum options_xtrabackup
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_LOCK_WAIT_TIMEOUT,
   OPT_INNODB_LOG_BUFFER_SIZE,
+#if defined __linux__ || defined _WIN32
+  OPT_INNODB_LOG_FILE_BUFFERING,
+#endif
   OPT_INNODB_LOG_FILE_SIZE,
-  OPT_INNODB_LOG_FILES_IN_GROUP,
   OPT_INNODB_OPEN_FILES,
   OPT_XTRA_DEBUG_SYNC,
   OPT_INNODB_CHECKSUM_ALGORITHM,
@@ -1577,6 +1579,13 @@ struct my_option xb_server_options[] =
    (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
    IF_WIN(GET_ULL,GET_ULONG), REQUIRED_ARG, 2U << 20,
    2U << 20, SIZE_T_MAX, 0, 4096, 0},
+#if defined __linux__ || defined _WIN32
+  {"innodb_log_file_buffering", OPT_INNODB_LOG_FILE_BUFFERING,
+   "Whether the file system cache for ib_logfile0 is enabled during --backup",
+   (G_PTR*) &log_sys.log_buffered,
+   (G_PTR*) &log_sys.log_buffered, 0, GET_BOOL, NO_ARG,
+   TRUE, 0, 0, 0, 0, 0},
+#endif
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
@@ -1892,10 +1901,6 @@ xb_get_one_option(const struct my_option *opt,
   case OPT_INNODB_LOG_GROUP_HOME_DIR:
 
     ADD_PRINT_PARAM_OPT(srv_log_group_home_dir);
-    break;
-
-  case OPT_INNODB_LOG_FILES_IN_GROUP:
-  case OPT_INNODB_LOG_FILE_SIZE:
     break;
 
   case OPT_INNODB_FLUSH_METHOD:
@@ -3826,6 +3831,21 @@ next_datadir_item:
 	return(err);
 }
 
+/** Close all undo tablespaces while applying incremental delta */
+static void xb_close_undo_tablespaces()
+{
+  if (srv_undo_space_id_start == 0)
+    return;
+  for (uint32_t space_id= srv_undo_space_id_start;
+       space_id < srv_undo_space_id_start + srv_undo_tablespaces_open;
+       space_id++)
+  {
+     fil_space_t *space= fil_space_get(space_id);
+     ut_ad(space);
+     space->close();
+  }
+}
+
 /****************************************************************************
 Populates the tablespace memory cache by scanning for and opening data files.
 @returns DB_SUCCESS or error code.*/
@@ -3878,6 +3898,10 @@ xb_load_tablespaces()
 	err = enumerate_ibd_files(xb_load_single_table_tablespace);
 	if (err != DB_SUCCESS) {
 		return(err);
+	}
+
+	if (srv_operation == SRV_OPERATION_RESTORE_DELTA) {
+		xb_close_undo_tablespaces();
 	}
 
 	DBUG_MARIABACKUP_EVENT("after_load_tablespaces", {});
@@ -5224,7 +5248,8 @@ xtrabackup_apply_delta(
 		offset = ((incremental_buffers * (page_size / 4))
 			 << page_size_shift);
 		if (os_file_read(IORequestRead, src_file,
-				 incremental_buffer, offset, page_size)
+				 incremental_buffer, offset, page_size,
+				 nullptr)
 		    != DB_SUCCESS) {
 			goto error;
 		}
@@ -5257,7 +5282,7 @@ xtrabackup_apply_delta(
 		/* read whole of the cluster */
 		if (os_file_read(IORequestRead, src_file,
 				 incremental_buffer,
-				 offset, page_in_buffer * page_size)
+				 offset, page_in_buffer * page_size, nullptr)
 		    != DB_SUCCESS) {
 			goto error;
 		}

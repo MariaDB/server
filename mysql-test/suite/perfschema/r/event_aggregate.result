@@ -83,7 +83,7 @@ root	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	1	1
-connect  con1, localhost, user1, , ;
+connect  con1, localhost, user1, ,test;
 connection default;
 "================== Step 2 =================="
 call dump_thread();
@@ -339,7 +339,7 @@ user1	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	2	2
-connect  con2, localhost, user2, , ;
+connect  con2, localhost, user2, ,test;
 connection default;
 "================== Step 4 =================="
 call dump_thread();
@@ -663,7 +663,7 @@ user2	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	3	3
-connect  con3, localhost, user3, , ;
+connect  con3, localhost, user3, ,test;
 connection default;
 "================== Step 6 =================="
 call dump_thread();
@@ -1045,7 +1045,7 @@ user3	1	1
 execute dump_hosts;
 HOST	CURRENT_CONNECTIONS	TOTAL_CONNECTIONS
 localhost	4	4
-connect  con4, localhost, user4, , ;
+connect  con4, localhost, user4, ,test;
 connection default;
 "================== Step 8 =================="
 call dump_thread();

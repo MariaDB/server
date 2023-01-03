@@ -193,22 +193,6 @@ page_rec_is_first(
 }
 
 /************************************************************//**
-true if the record is the second user record on a page.
-@return true if the second user record */
-UNIV_INLINE
-bool
-page_rec_is_second(
-/*===============*/
-	const rec_t*	rec,	/*!< in: record */
-	const page_t*	page)	/*!< in: page */
-{
-  ut_ad(page_get_n_recs(page) > 1);
-  if (const rec_t *first= page_rec_get_next_const(page_get_infimum_rec(page)))
-    return page_rec_get_next_const(first) == rec;
-  return false;
-}
-
-/************************************************************//**
 true if the record is the last user record on a page.
 @return true if the last user record */
 UNIV_INLINE
@@ -221,24 +205,6 @@ page_rec_is_last(
 	ut_ad(page_get_n_recs(page) > 0);
 
 	return(page_rec_get_next_const(rec) == page_get_supremum_rec(page));
-}
-
-/************************************************************//**
-true if the record is the second last user record on a page.
-@return true if the second last user record */
-UNIV_INLINE
-bool
-page_rec_is_second_last(
-/*====================*/
-	const rec_t*	rec,	/*!< in: record */
-	const page_t*	page)	/*!< in: page */
-{
-  ut_ad(page_get_n_recs(page) > 1);
-  ut_ad(!page_rec_is_last(rec, page));
-
-  if (const rec_t *next= page_rec_get_next_const(rec))
-    return page_rec_is_supremum(page_rec_get_next_const(next));
-  return false;
 }
 
 /************************************************************//**

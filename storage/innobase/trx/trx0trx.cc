@@ -399,7 +399,8 @@ void trx_t::free()
     autoinc_locks= NULL;
   }
 
-  MEM_NOACCESS(&n_ref, sizeof n_ref);
+  MEM_NOACCESS(&skip_lock_inheritance_and_n_ref,
+               sizeof skip_lock_inheritance_and_n_ref);
   /* do not poison mutex */
   MEM_NOACCESS(&id, sizeof id);
   MEM_NOACCESS(&state, sizeof state);
@@ -485,6 +486,7 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_state()
 /** Release any explicit locks of a committing transaction. */
 inline void trx_t::release_locks()
 {
+  DEBUG_SYNC_C("trx_t_release_locks_enter");
   DBUG_ASSERT(state == TRX_STATE_COMMITTED_IN_MEMORY);
   DBUG_ASSERT(!is_referenced());
 
@@ -498,6 +500,7 @@ inline void trx_t::release_locks()
   }
 
   lock.table_locks.clear();
+  reset_skip_lock_inheritance();
   id= 0;
   while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
   {
@@ -591,7 +594,7 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
 
       if (undo_block != block)
       {
-        mtr.memo_release(undo_block, MTR_MEMO_PAGE_S_FIX);
+        mtr.release(*undo_block);
         undo_block= block;
       }
       trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info,
@@ -727,7 +730,7 @@ corrupted:
 
 	if (trx_sys.is_undo_empty()) {
 func_exit:
-		purge_sys.clone_oldest_view();
+		purge_sys.clone_oldest_view<true>();
 		return DB_SUCCESS;
 	}
 
@@ -1135,8 +1138,8 @@ trx_finalize_for_fts(
 	trx->fts_trx = NULL;
 }
 
-
-extern "C" void thd_decrement_pending_ops(MYSQL_THD);
+extern "C" MYSQL_THD thd_increment_pending_ops(MYSQL_THD);
+extern "C" void  thd_decrement_pending_ops(MYSQL_THD);
 
 
 #include "../log/log0sync.h"
@@ -1159,7 +1162,7 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
   completion_callback cb, *callback= nullptr;
 
   if (trx->state != TRX_STATE_PREPARED && !log_sys.is_pmem() &&
-      (cb.m_param= innodb_thd_increment_pending_ops(trx->mysql_thd)))
+      (cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
   {
     cb.m_callback= (void (*)(void *)) thd_decrement_pending_ops;
     callback= &cb;
@@ -2171,6 +2174,7 @@ trx_set_rw_mode(
 	ut_ad(trx->rsegs.m_redo.rseg != 0);
 
 	trx_sys.register_rw(trx);
+	ut_ad(trx->id);
 
 	/* So that we can see our own changes. */
 	if (trx->read_view.is_open()) {

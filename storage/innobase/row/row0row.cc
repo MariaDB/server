@@ -1183,32 +1183,28 @@ row_build_row_ref_in_tuple(
 /***************************************************************//**
 Searches the clustered index record for a row, if we have the row reference.
 @return TRUE if found */
-ibool
+bool
 row_search_on_row_ref(
 /*==================*/
 	btr_pcur_t*		pcur,	/*!< out: persistent cursor, which must
 					be closed by the caller */
-	ulint			mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	const dict_table_t*	table,	/*!< in: table */
 	const dtuple_t*		ref,	/*!< in: row reference */
 	mtr_t*			mtr)	/*!< in/out: mtr */
 {
-	ulint		low_match;
-	rec_t*		rec;
-	dict_index_t*	index;
-
 	ut_ad(dtuple_check_typed(ref));
 
-	index = dict_table_get_first_index(table);
+	dict_index_t *index = dict_table_get_first_index(table);
+	btr_pcur_init(pcur);
+	pcur->btr_cur.page_cur.index = index;
 
 	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
 		ut_ad(ref->is_metadata());
 		ut_ad(ref->n_fields <= index->n_uniq);
-		if (btr_pcur_open_at_index_side(
-			    true, index, mode, pcur, true, 0, mtr)
-		    != DB_SUCCESS
+		if (pcur->open_leaf(true, index, mode, mtr) != DB_SUCCESS
 		    || !btr_pcur_move_to_next_user_rec(pcur, mtr)) {
-			return FALSE;
+			return false;
 		}
 		/* We do not necessarily have index->is_instant() here,
 		because we could be executing a rollback of an
@@ -1220,27 +1216,14 @@ row_search_on_row_ref(
 			& REC_INFO_MIN_REC_FLAG;
 	} else {
 		ut_a(ref->n_fields == index->n_uniq);
-		if (btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr)
+		if (btr_pcur_open(ref, PAGE_CUR_LE, mode, pcur, 0, mtr)
 		    != DB_SUCCESS) {
-			return FALSE;
+			return false;
 		}
 	}
 
-	low_match = btr_pcur_get_low_match(pcur);
-
-	rec = btr_pcur_get_rec(pcur);
-
-	if (page_rec_is_infimum(rec)) {
-
-		return(FALSE);
-	}
-
-	if (low_match != dtuple_get_n_fields(ref)) {
-
-		return(FALSE);
-	}
-
-	return(TRUE);
+	return !page_rec_is_infimum(btr_pcur_get_rec(pcur))
+		&& btr_pcur_get_low_match(pcur) == dtuple_get_n_fields(ref);
 }
 
 /*********************************************************************//**
@@ -1250,7 +1233,7 @@ on the secondary index record are preserved.
 rec_t*
 row_get_clust_rec(
 /*==============*/
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	const rec_t*	rec,	/*!< in: record in a secondary index */
 	dict_index_t*	index,	/*!< in: secondary index */
 	dict_index_t**	clust_index,/*!< out: clustered index */
@@ -1283,9 +1266,8 @@ Searches an index record.
 enum row_search_result
 row_search_index_entry(
 /*===================*/
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	entry,	/*!< in: index entry */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor, which must
 				be closed by the caller */
 	mtr_t*		mtr)	/*!< in: mtr */
@@ -1296,12 +1278,12 @@ row_search_index_entry(
 
 	ut_ad(dtuple_check_typed(entry));
 
-	if (index->is_spatial()) {
-		if (rtr_pcur_open(index, entry, mode, pcur, mtr)) {
+	if (pcur->index()->is_spatial()) {
+		if (rtr_pcur_open(pcur->index(), entry, mode, pcur, mtr)) {
 			return ROW_NOT_FOUND;
 		}
 	} else {
-		if (btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr)
+		if (btr_pcur_open(entry, PAGE_CUR_LE, mode, pcur, 0, mtr)
 		    != DB_SUCCESS) {
 			return ROW_NOT_FOUND;
 		}
@@ -1310,7 +1292,7 @@ row_search_index_entry(
 	switch (btr_pcur_get_btr_cur(pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
 		ut_ad(!(~mode & BTR_DELETE));
-		ut_ad(!index->is_spatial());
+		ut_ad(!pcur->index()->is_spatial());
 		return(ROW_NOT_DELETED_REF);
 
 	case BTR_CUR_DEL_MARK_IBUF:

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -78,7 +78,7 @@ dberr_t
 row_ins_clust_index_entry_low(
 /*==========================*/
 	ulint		flags,	/*!< in: undo logging and locking flags */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: clustered index */
@@ -94,13 +94,13 @@ same fields is found, the other record is necessarily marked deleted.
 It is then unmarked. Otherwise, the entry is just inserted to the index.
 @retval DB_SUCCESS on success
 @retval DB_LOCK_WAIT on lock wait when !(flags & BTR_NO_LOCKING_FLAG)
-@retval DB_FAIL if retry with BTR_MODIFY_TREE is needed
+@retval DB_FAIL if retry with BTR_INSERT_TREE is needed
 @return error code */
 dberr_t
 row_ins_sec_index_entry_low(
 /*========================*/
 	ulint		flags,	/*!< in: undo logging and locking flags */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE,
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF or BTR_INSERT_TREE,
 				depending on whether we wish optimistic or
 				pessimistic descent down the index tree */
 	dict_index_t*	index,	/*!< in: secondary index */

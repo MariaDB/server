@@ -1348,6 +1348,9 @@ public:
   */
   table_map select_list_tables;
 
+  /* Set to 1 if any field in field list has ROWNUM() */
+  bool rownum_in_field_list;
+
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;
   table_map with_dep;
@@ -3779,8 +3782,10 @@ public:
   bool table_or_sp_used();
 
   bool is_partition_management() const;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   bool part_values_current(THD *thd);
   bool part_values_history(THD *thd);
+#endif
 
   /**
     @brief check if the statement is a single-level join

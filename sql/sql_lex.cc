@@ -2925,6 +2925,7 @@ void st_select_lex::init_query()
   min_max_opt_list.empty();
   limit_params.clear();
   join= 0;
+  cur_pos_in_select_list= UNDEF_POS;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
   attach_to_conds.empty();
@@ -2975,6 +2976,8 @@ void st_select_lex::init_query()
   prep_leaf_list_state= UNINIT;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   select_list_tables= 0;
+  rownum_in_field_list= 0;
+
   window_specs.empty();
   window_funcs.empty();
   tvc= 0;
@@ -9739,6 +9742,7 @@ bool Lex_ident_sys_st::to_size_number(ulonglong *to) const
 }
 
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 bool LEX::part_values_current(THD *thd)
 {
   partition_element *elem= part_info->curr_part_elem;
@@ -9746,7 +9750,7 @@ bool LEX::part_values_current(THD *thd)
   {
     if (unlikely(part_info->part_type != VERSIONING_PARTITION))
     {
-      my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
+      part_type_error(thd, NULL, "SYSTEM_TIME", part_info);
       return true;
     }
   }
@@ -9773,7 +9777,7 @@ bool LEX::part_values_history(THD *thd)
   {
     if (unlikely(part_info->part_type != VERSIONING_PARTITION))
     {
-      my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
+      part_type_error(thd, NULL, "SYSTEM_TIME", part_info);
       return true;
     }
   }
@@ -9798,6 +9802,7 @@ bool LEX::part_values_history(THD *thd)
   elem->type= partition_element::HISTORY;
   return false;
 }
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
 
 bool LEX::last_field_generated_always_as_row_start_or_end(Lex_ident *p,
@@ -10859,9 +10864,8 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
   */
   if (cond->get_extraction_flag() == MARKER_FULL_EXTRACTION)
   {
-    Item *result= cond->transform(thd,
-                                  &Item::multiple_equality_transformer,
-                                  (uchar *)this);
+    Item *result= cond->top_level_transform(thd,
+                        &Item::multiple_equality_transformer, (uchar *)this);
     if (!result)
       return true;
     if (result->type() == Item::COND_ITEM &&
@@ -11921,9 +11925,18 @@ bool SELECT_LEX_UNIT::explainable() const
                false;
 }
 
+/*
+  Determines whether the derived table was eliminated during
+  the call of eliminate_tables(JOIN *) made at the optimization stage
+  or completely optimized out (for such degenerate statements like
+  "SELECT 1", for example)
+*/
+
 bool SELECT_LEX_UNIT::is_derived_eliminated() const
 {
   if (!derived)
     return false;
+  if (!derived->table)
+    return true;
   return derived->table->map & outer_select()->join->eliminated_tables;
 }

@@ -2,6 +2,7 @@
 --source include/have_debug_sync.inc
 --source include/have_debug.inc
 --source include/have_sequence.inc
+--source include/no_valgrind_without_big.inc
 
 CREATE TABLE t ENGINE=INNODB SELECT seq%10 i FROM seq_0_to_204796;
 

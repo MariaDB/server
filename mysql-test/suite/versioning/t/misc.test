@@ -4,6 +4,26 @@
 set time_zone='+00:00';
 
 --echo #
+--echo # MDEV-29750 triggers can modify history
+--echo #
+set sql_mode='', timestamp=unix_timestamp('2010-10-10 10:10:10');
+create table t (a int, b int as (a+1), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
+insert into t values (1,1, '2022-01-01','2023-01-01'),(2,2, '2022-02-02','2023-02-02');
+create trigger tr before insert on t for each row set new.b=1, new.s = '2022-03-03', new.e = '2023-03-03';
+insert into t (a) values (3),(4);
+select * from t for system_time all;
+drop table t;
+set sql_mode=default, timestamp=default;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+#
+# simple tests that don't need to be run in multiple various combinations
+#
+set time_zone='+00:00';
+
+--echo #
 --echo # MDEV-29721 Inconsistency upon inserting history with visible system versioning columns
 --echo #
 create table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;

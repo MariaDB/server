@@ -28,9 +28,12 @@ stages:
   - test
   - Salsa-CI
 
-# Base image for builds and tests unless otherwise defined
-# @TODO: Fedora 34 is latest, but fails to start on Gitlab.com with error "shell not found"
-image: fedora:33
+default:
+  # Base image for builds and tests unless otherwise defined
+  image: fedora:latest
+  # Extend build jobs to have longer timeout as the default GitLab
+  # timeout (1h) is often not enough
+  timeout: 3h
 
 # Define common CMAKE_FLAGS for all builds. Skim down build by omitting all
 # submodules (a commit in this repo does not affect their builds anyway) and
@@ -172,6 +175,39 @@ fedora-clang:
       - dependencies.dot
       - dependencies.png
 
+fedora-sanitizer:
+  stage: build
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: normal
+  script:
+    - yum install -y yum-utils rpm-build openssl-devel clang
+    - yum install -y /usr/lib64/libasan.so.6.0.0 /usr/lib64/libtsan.so.0.0.0 /usr/lib64/libubsan.so.1.0.0
+    # This repository does not have any .spec files, so install dependencies based on Fedora spec file
+    - yum-builddep -y mariadb-server
+    - mkdir builddir; cd builddir
+    - export CXX=${CXX:-clang++}
+    - export CC=${CC:-clang}
+    - export CXX_FOR_BUILD=${CXX_FOR_BUILD:-clang++}
+    - export CC_FOR_BUILD=${CC_FOR_BUILD:-clang}
+    - export CFLAGS='-Wno-unused-command-line-argument'
+    - export CXXFLAGS='-Wno-unused-command-line-argument'
+    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS $SANITIZER .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    # @TODO: the build will fail consistently at 24% when trying to make using eatmydata
+    - make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - *rpm_listfiles
+    - mkdir ../rpm; mv *.rpm ../rpm
+  artifacts:
+    when: always  # Must be able to see logs
+    paths:
+      - build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - rpmlist-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - rpm
+      - builddir/_CPack_Packages/Linux/RPM/SPECS/
+  parallel:
+    matrix:
+      - SANITIZER: [-DWITH_ASAN=YES, -DWITH_TSAN=YES, -DWITH_UBSAN=YES, -DWITH_MSAN=YES]
+
 centos8:
   stage: build
   image: quay.io/centos/centos:stream8 # CentOS 8 is deprecated, use this Stream8 instead
@@ -246,10 +282,8 @@ centos7:
       - rpm
       - builddir/_CPack_Packages/Linux/RPM/SPECS/
 
-mysql-test-run:
+.mysql-test-run: &mysql-test-run-def
   stage: test
-  dependencies:
-    - fedora
   script:
     # Install packages so tests and the dependencies install
     # @TODO: RPM missing 'patch' and 'diff' as dependency, so installing it manually for now
@@ -265,7 +299,76 @@ mysql-test-run:
       main.flush_logs_not_windows : query 'flush logs' succeeded - should have failed with error ER_CANT_CREATE_FILE (1004)
       main.mysql_upgrade_noengine : upgrade output order does not match the expected
       " > skiplist
-    - ./mtr --suite=main --force --parallel=auto --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist
+    - ./mtr --suite=main --force --parallel=auto --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist $RESTART_POLICY
+
+mysql-test-run:
+  stage: test
+  dependencies:
+    - fedora
+  <<: *mysql-test-run-def
+  artifacts:
+    when: always  # Also show results when tests fail
+    reports:
+      junit:
+        - junit.xml
+
+# Duplicate of the above jobs, except we use sanitizer build jobs as a dependency. This is so we can keep
+# sanitizer errors separate from functional test failures. Currently, there is no way to run the same
+# job for different dependencies.
+#
+# Additionally, for each sanitizer MTR job, we enable --force-restart so that 
+# sanitizer errors can be traced to individual tests. The difference in test 
+# suite runtime as a result of this flag is negligable (~30s for the entire test suite).
+# (see https://dev.mysql.com/doc/dev/mysql-server/latest/PAGE_MYSQL_TEST_RUN_PL.html)
+mysql-test-run-asan:
+  stage: test
+  variables:
+    RESTART_POLICY: "--force-restart"
+  dependencies:
+    - "fedora-sanitizer: [-DWITH_ASAN=YES]"
+  <<: *mysql-test-run-def
+  artifacts:
+    when: always  # Also show results when tests fail
+    reports:
+      junit:
+        - junit.xml
+
+mysql-test-run-tsan:
+  stage: test
+  variables:
+    RESTART_POLICY: "--force-restart"
+  dependencies:
+    - "fedora-sanitizer: [-DWITH_TSAN=YES]"
+  <<: *mysql-test-run-def
+  allow_failure: true
+  artifacts:
+    when: always  # Also show results when tests fail
+    reports:
+      junit:
+        - junit.xml
+
+mysql-test-run-ubsan:
+  stage: test
+  variables:
+    RESTART_POLICY: "--force-restart"
+  dependencies:
+    - "fedora-sanitizer: [-DWITH_UBSAN=YES]"
+  <<: *mysql-test-run-def
+  allow_failure: true
+  artifacts:
+    when: always  # Also show results when tests fail
+    reports:
+      junit:
+        - junit.xml
+
+mysql-test-run-msan:
+  stage: test
+  variables:
+    RESTART_POLICY: "--force-restart"
+  dependencies:
+    - "fedora-sanitizer: [-DWITH_MSAN=YES]"
+  <<: *mysql-test-run-def
+  allow_failure: true
   artifacts:
     when: always  # Also show results when tests fail
     reports:
@@ -327,14 +430,14 @@ fedora upgrade:
   dependencies:
     - fedora
   script:
-    - yum install -y mariadb-server
+    - dnf install -y mariadb-server
     # Fedora does not support running services in Docker (like Debian packages do) so start it manually
-    - /usr/libexec/mysql-check-socket
-    - /usr/libexec/mysql-prepare-db-dir
-    - sudo -u mysql /usr/libexec/mysqld --basedir=/usr & sleep 10
+    - /usr/libexec/mariadb-check-socket
+    - /usr/libexec/mariadb-prepare-db-dir
+    - sudo -u mysql /usr/libexec/mariadbd --basedir=/usr & sleep 10
     # Dump database contents in installed state
     - mariadb-dump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert > old-installed-database.sql
-    - /usr/libexec/mysql-check-upgrade
+    - /usr/libexec/mariadb-check-upgrade
     # Dump database contents in upgraded state
     - mariadb-dump --all-databases --all-tablespaces --triggers --routines --events --skip-extended-insert > old-upgraded-database.sql
     - mariadb --skip-column-names -e "SELECT @@version, @@version_comment"  # Show version

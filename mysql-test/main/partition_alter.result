@@ -211,7 +211,43 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 delete from t order by b limit 1;
 drop table t;
+#
+# MDEV-30112 ASAN errors in Item_ident::print / generate_partition_syntax
+#
+create table t (a int) partition by hash(a);
+alter table t change a b int, drop a;
+ERROR 42S22: Unknown column 'a' in 't'
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY HASH (`a`)
+drop table t;
 # End of 10.3 tests
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-28545 MyISAM reorganize partition corrupt older table format
+#
+SET GLOBAL mysql56_temporal_format=OFF;
+CREATE TABLE t (ts timestamp, KEY (ts)) ENGINE=MyISAM
+PARTITION BY RANGE (unix_timestamp(ts)) (
+PARTITION p1 VALUES LESS THAN (1645398000),
+PARTITION pn VALUES LESS THAN MAXVALUE
+);
+SET GLOBAL mysql56_temporal_format=ON;
+FLUSH TABLES;
+ALTER TABLE t DROP PARTITION p1;
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+SET GLOBAL mysql56_temporal_format=DEFAULT;
+#
+# End of 10.4 tests
+#
 #
 # MDEV-28576 RENAME COLUMN with NOCOPY algorithm leads to corrupt partitioned table
 #

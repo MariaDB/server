@@ -29,6 +29,7 @@ Created 2013-7-26 by Kevin Lewis
 #include "os0file.h"
 #include "page0page.h"
 #include "srv0start.h"
+#include "log.h"
 
 /** Release the resources. */
 void
@@ -263,12 +264,11 @@ Datafile::read_first_page(bool read_only_mode)
 
 		ulint	n_read = 0;
 
-		err = os_file_read_no_error_handling(
+		err = os_file_read(
 			IORequestReadPartial, m_handle, m_first_page, 0,
 			page_size, &n_read);
 
 		if (err == DB_SUCCESS) {
-			ut_a(n_read == page_size);
 			break;
 		}
 
@@ -306,10 +306,23 @@ Datafile::read_first_page(bool read_only_mode)
 		if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
 			uint32_t cflags = fsp_flags_convert_from_101(m_flags);
 			if (cflags == UINT32_MAX) {
-				ib::error()
-					<< "Invalid flags " << ib::hex(m_flags)
-					<< " in " << m_filepath;
-				return(DB_CORRUPTION);
+				switch (fsp_flags_is_incompatible_mysql(m_flags)) {
+				case 0:
+					sql_print_error("InnoDB: Invalid flags 0x%" PRIx32 " in %s",
+							m_flags, m_filepath);
+					return DB_CORRUPTION;
+				case 3:
+				case 2:
+					sql_print_error("InnoDB: MySQL-8.0 tablespace in %s",
+							m_filepath);
+					break;
+				case 1:
+					sql_print_error("InnoDB: MySQL Encrypted tablespace in %s",
+							m_filepath);
+					break;
+				}
+				sql_print_error("InnoDB: Restart in MySQL for migration/recovery.");
+				return DB_UNSUPPORTED;
 			} else {
 				m_flags = cflags;
 			}
@@ -654,7 +667,7 @@ Datafile::find_space_id()
 
 		for (ulint j = 0; j < page_count; ++j) {
 			if (os_file_read(IORequestRead, m_handle, page,
-					 j * page_size, page_size)) {
+					 j * page_size, page_size, nullptr)) {
 				ib::info()
 					<< "READ FAIL: page_no:" << j;
 				continue;

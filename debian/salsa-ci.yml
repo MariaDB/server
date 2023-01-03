@@ -16,6 +16,11 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   SALSA_CI_GBP_BUILDPACKAGE_ARGS: "--git-submodules" # did not apply to extract-sources
 
+# Extend Salsa-CI build jobs to have longer timeout as the default GitLab
+# timeout (1h) is often not enough
+.build-package:
+  timeout: 3h
+
 stages:
   - provisioning
   - build
@@ -119,6 +124,17 @@ blhc:
   # Upgrade minimal stack first
   apt-get update
   apt-get install -y apt
+
+.test-enable-buster-backports-repos: &test-enable-buster-backports-repos |
+  # Enable buster-backports (assumes environment already Debian Buster)
+  echo 'deb http://deb.debian.org/debian buster-backports main' > /etc/apt/sources.list.d/buster-backports.list
+  # Increase default backports priority policy from '100' to '500' so it can actually be used
+  cat << EOF > /etc/apt/preferences.d/enable-backports-to-satisfy-dependencies
+  Package: *
+  Pin: release n=buster-*
+  Pin-Priority: 500
+  EOF
+  apt-get update
 
 .test-install: &test-install |
   # Install MariaDB built in this commit
@@ -450,8 +466,20 @@ mysql-8.0 Sid to mariadb upgrade:
     - apt-get install -y procps mysql-server 'libmysqlc*'
     - *test-verify-initial
     - *test-install
-    - service mysql status
+    # The Debian version of MariaDB 10.6 still maintains compatibility and there
+    # running 'service mysql status' in Salsa-CI job 'mysql-8.0 Sid to
+    # mariadb-10.6 upgrade' still works.
+    #
+    # However, due to debian/control changes, the upstream MariaDB 10.6 when
+    # installed on a system with a previous installation of MySQL 8.0 will first
+    # fully remove MySQL, including the /etc/init.d/mysql file, so previous
+    # techniques in mariadb-server-10.6.postinst to maintain backwards
+    # compatibility with 'service mysql status' after installing MariaDB on top
+    # MySQL no longer works, and thus the step to test it now intentionally has
+    # a fallback to use the service name 'mariadb' instead, and the fallback is
+    # always used.
     - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server
+    - service mysql status || service mariadb status
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -624,7 +652,6 @@ mariadb.org-10.6 to mariadb upgrade:
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-  allow_failure: true
 
 mariadb.org-10.5 to mariadb upgrade:
   stage: upgrade extras
@@ -640,7 +667,7 @@ mariadb.org-10.5 to mariadb upgrade:
     - *test-prepare-container
     - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.5/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.5/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.5
     - *test-verify-initial
@@ -670,7 +697,7 @@ mariadb.org-10.4 to mariadb upgrade:
     - *test-prepare-container
     - apt install -y curl systemctl # systemctl shim needed on platforms that don't have systemd
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.4/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.4/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.4
@@ -703,7 +730,7 @@ mariadb.org-10.3 to mariadb upgrade:
     - *test-prepare-container
     - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.3/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.3/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.3
@@ -734,7 +761,7 @@ mariadb.org-10.2 to mariadb upgrade:
     - *test-prepare-container
     - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.2/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.2/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.2

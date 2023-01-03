@@ -519,6 +519,8 @@ enum enum_vcol_info_type
   VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE,
   VCOL_USING_HASH,
   /* Additional types should be added here */
+
+  VCOL_GENERATED_VIRTUAL_INDEXED, // this is never written in .frm
   /* Following is the highest value last   */
   VCOL_TYPE_NONE = 127 // Since the 0 value is already in use
 };
@@ -528,6 +530,7 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   switch (type)
   {
   case VCOL_GENERATED_VIRTUAL:
+  case VCOL_GENERATED_VIRTUAL_INDEXED:
   case VCOL_GENERATED_STORED:
     return "GENERATED ALWAYS AS";
   case VCOL_DEFAULT:
@@ -551,10 +554,10 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
 #define VCOL_FIELD_REF         1
 #define VCOL_NON_DETERMINISTIC 2
 #define VCOL_SESSION_FUNC      4  /* uses session data, e.g. USER or DAYNAME */
-#define VCOL_TIME_FUNC         8
+#define VCOL_TIME_FUNC         8  /* safe for SBR */
 #define VCOL_AUTO_INC         16
 #define VCOL_IMPOSSIBLE       32
-#define VCOL_NOT_VIRTUAL      64  /* Function can't be virtual */
+#define VCOL_NEXTVAL          64  /* NEXTVAL is not implemented for vcols */
 #define VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS 128
 
 #define VCOL_NOT_STRICTLY_DETERMINISTIC                       \
@@ -1775,12 +1778,6 @@ public:
     Used by the ALTER TABLE
   */
   virtual bool is_equal(const Column_definition &new_field) const= 0;
-  // Used as double dispatch pattern: calls virtual method of handler
-  virtual bool
-  can_be_converted_by_engine(const Column_definition &new_type) const
-  {
-    return false;
-  }
   /* convert decimal to longlong with overflow check */
   longlong convert_decimal2longlong(const my_decimal *val, bool unsigned_flag,
                                     int *err);
@@ -4070,11 +4067,6 @@ public:
   void sql_type(String &str) const override;
   void sql_rpl_type(String*) const override;
   bool is_equal(const Column_definition &new_field) const override;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-    override
-  {
-    return table->file->can_convert_string(this, new_type);
-  }
   uchar *pack(uchar *to, const uchar *from, uint max_length) override;
   const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
                       uint param_data) override;
@@ -4229,11 +4221,6 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
   bool is_equal(const Column_definition &new_field) const override;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-    override
-  {
-    return table->file->can_convert_varstring(this, new_type);
-  }
   void hash(ulong *nr, ulong *nr2) override;
   uint length_size() const override { return length_bytes; }
   void print_key_value(String *out, uint32 length) override;
@@ -4672,11 +4659,6 @@ public:
   uint32 char_length() const override;
   uint32 character_octet_length() const override;
   bool is_equal(const Column_definition &new_field) const override;
-  bool can_be_converted_by_engine(const Column_definition &new_type) const
-    override
-  {
-    return table->file->can_convert_blob(this, new_type);
-  }
   void print_key_value(String *out, uint32 length) override;
   Binlog_type_info binlog_type_info() const override;
 
@@ -5726,6 +5708,12 @@ public:
   }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
+  static void upgrade_data_types(List<Create_field> &list)
+  {
+    List_iterator<Create_field> it(list);
+    while (Create_field *f= it++)
+      f->type_handler()->Column_definition_implicit_upgrade(f);
+  }
 };
 
 

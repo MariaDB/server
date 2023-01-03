@@ -1,5 +1,6 @@
 install plugin three_attempts soname 'dialog_examples.so';
 create user test_dialog identified via three_attempts using 'SECRET';
+GRANT SELECT ON test.* TO test_dialog;
 #
 # -pSECRET is picked up, no questions asked.
 #

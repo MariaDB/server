@@ -589,7 +589,7 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		DBUG_EXECUTE_IF(
 			"page_intermittent_checksum_mismatch", {
 			static int page_counter;
-			if (page_counter++ == 2) {
+			if (page_counter++ == 3) {
 				crc32++;
 			}
 		});
@@ -724,7 +724,7 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 			DBUG_EXECUTE_IF(
 				"page_intermittent_checksum_mismatch", {
 				static int page_counter;
-				if (page_counter++ == 2) return true;
+				if (page_counter++ == 3) return true;
 			});
 
 			if ((checksum_field1 != crc32
@@ -2114,7 +2114,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   block->page.lock.x_lock();
 #ifdef BTR_CUR_HASH_ADAPT
   if (block->index)
-    btr_search_drop_page_hash_index(block);
+    btr_search_drop_page_hash_index(block, false);
 #endif /* BTR_CUR_HASH_ADAPT */
   block->page.set_freed(block->page.state());
   mtr->memo_push(block, MTR_MEMO_PAGE_X_MODIFY);
@@ -2687,7 +2687,7 @@ wait_for_unfix:
 re_evict:
 	if (mode != BUF_GET_IF_IN_POOL
 	    && mode != BUF_GET_IF_IN_POOL_OR_WATCH) {
-	} else if (!ibuf_debug) {
+	} else if (!ibuf_debug || recv_recovery_is_on()) {
 	} else if (fil_space_t* space = fil_space_t::get(page_id.space())) {
 		/* Try to evict the block from the buffer pool, to use the
 		insert buffer (change buffer) as much as possible. */
@@ -3209,7 +3209,8 @@ retry:
 
 #ifdef BTR_CUR_HASH_ADAPT
     if (drop_hash_entry)
-      btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage));
+      btr_search_drop_page_hash_index(reinterpret_cast<buf_block_t*>(bpage),
+                                      false);
 #endif /* BTR_CUR_HASH_ADAPT */
 
     if (ibuf_exist && !recv_recovery_is_on())

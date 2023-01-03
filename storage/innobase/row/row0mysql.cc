@@ -67,8 +67,6 @@ Created 9/17/2000 Heikki Tuuri
 #include <thread>
 
 
-#include "sql_funcs.h"
-
 /*******************************************************************//**
 Delays an INSERT, DELETE or UPDATE operation if the purge is lagging. */
 static
@@ -706,7 +704,7 @@ handle_new_error:
 			" table. You have to dump + drop + reimport the"
 			" table or, in a case of widespread corruption,"
 			" dump all InnoDB tables and recreate the whole"
-			" tablespace. If the mysqld server crashes after"
+			" tablespace. If the mariadbd server crashes after"
 			" the startup or when you dump the tables. "
 			<< FORCE_RECOVERY_MSG;
 		goto rollback_to_savept;
@@ -1452,11 +1450,8 @@ row_create_update_node_for_mysql(
 
 	node->in_mysql_interface = true;
 	node->is_delete = NO_DELETE;
-	node->searched_update = FALSE;
-	node->select = NULL;
-	node->pcur = btr_pcur_create_for_mysql();
-
-	DBUG_PRINT("info", ("node: %p, pcur: %p", node, node->pcur));
+	node->pcur = new (mem_heap_alloc(heap, sizeof(btr_pcur_t)))
+		btr_pcur_t();
 
 	node->table = table;
 
@@ -1468,10 +1463,6 @@ row_create_update_node_for_mysql(
 	UT_LIST_INIT(node->columns, &sym_node_t::col_var_list);
 
 	node->has_clust_rec_x_lock = TRUE;
-	node->cmpl_info = 0;
-
-	node->table_sym = NULL;
-	node->col_assign_list = NULL;
 
 	DBUG_RETURN(node);
 }
@@ -1646,8 +1637,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	clust_index = dict_table_get_first_index(table);
 
 	btr_pcur_copy_stored_position(node->pcur,
-				      prebuilt->pcur->btr_cur.index
-				      == clust_index
+				      prebuilt->pcur->index() == clust_index
 				      ? prebuilt->pcur
 				      : prebuilt->clust_pcur);
 
@@ -1750,7 +1740,7 @@ error:
 
 /** This can only be used when the current transaction is at
 READ COMMITTED or READ UNCOMMITTED isolation level.
-Before calling this function row_search_for_mysql() must have
+Before calling this function row_search_mvcc() must have
 initialized prebuilt->new_rec_locks to store the information which new
 record locks really were set. This function removes a newly set
 clustered index record lock under prebuilt->pcur or
@@ -1788,7 +1778,7 @@ row_unlock_for_mysql(
 		}
 
 		rec = btr_pcur_get_rec(pcur);
-		index = btr_pcur_get_btr_cur(pcur)->index;
+		index = pcur->index();
 
 		/* If the record has been modified by this
 		transaction, do not unlock it. */
@@ -2546,7 +2536,7 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	rename_fk	fk)		/*!< in: how to handle
+	bool		use_fk)		/*!< in: whether to parse and enforce
 					FOREIGN KEY constraints */
 {
 	dict_table_t*	table			= NULL;
@@ -2631,9 +2621,9 @@ row_rename_table_for_mysql(
 
 		goto funct_exit;
 
-	} else if (fk == RENAME_ALTER_COPY && !old_is_tmp && new_is_tmp) {
-		/* Non-native ALTER TABLE is renaming the
-		original table to a temporary name. We want to preserve
+	} else if (use_fk && !old_is_tmp && new_is_tmp) {
+		/* MySQL is doing an ALTER TABLE command and it renames the
+		original table to a temporary table name. We want to preserve
 		the original foreign key constraint definitions despite the
 		name change. An exception is those constraints for which
 		the ALTER TABLE contained DROP FOREIGN KEY <foreign key id>.*/
@@ -2677,7 +2667,7 @@ row_rename_table_for_mysql(
 		goto rollback_and_exit;
 	}
 
-	if (fk == RENAME_IGNORE_FK || fk == RENAME_FK || !new_is_tmp) {
+	if (!new_is_tmp) {
 		/* Rename all constraints. */
 		char	new_table_name[MAX_TABLE_NAME_LEN + 1];
 		char	old_table_utf8[MAX_TABLE_NAME_LEN + 1];
@@ -2721,16 +2711,73 @@ row_rename_table_for_mysql(
 		}
 
 		pars_info_add_str_literal(info, "new_table_utf8", new_table_name);
-		/* Old foreign ID for temporary constraint was written like this:
-			db_name/\xFFconstraint_name */
-		pars_info_add_int4_literal(info, "old_is_tmp",
-					   (fk == RENAME_FK) && old_is_tmp);
-		/* New foreign ID for temporary constraint is written like this:
-			db_name/\xFF\xFFconstraint_name */
-		pars_info_add_int4_literal(info, "new_is_tmp",
-					   (fk == RENAME_FK) && new_is_tmp);
 
-		err = que_eval_sql(info, rename_constraint_ids, trx);
+		err = que_eval_sql(
+			info,
+			"PROCEDURE RENAME_CONSTRAINT_IDS () IS\n"
+			"gen_constr_prefix CHAR;\n"
+			"new_db_name CHAR;\n"
+			"foreign_id CHAR;\n"
+			"new_foreign_id CHAR;\n"
+			"old_db_name_len INT;\n"
+			"old_t_name_len INT;\n"
+			"new_db_name_len INT;\n"
+			"id_len INT;\n"
+			"offset INT;\n"
+			"found INT;\n"
+			"BEGIN\n"
+			"found := 1;\n"
+			"old_db_name_len := INSTR(:old_table_name, '/')-1;\n"
+			"new_db_name_len := INSTR(:new_table_name, '/')-1;\n"
+			"new_db_name := SUBSTR(:new_table_name, 0,\n"
+			"                      new_db_name_len);\n"
+			"old_t_name_len := LENGTH(:old_table_name);\n"
+			"gen_constr_prefix := CONCAT(:old_table_name_utf8,\n"
+			"                            '_ibfk_');\n"
+			"WHILE found = 1 LOOP\n"
+			"       SELECT ID INTO foreign_id\n"
+			"        FROM SYS_FOREIGN\n"
+			"        WHERE FOR_NAME = :old_table_name\n"
+			"         AND TO_BINARY(FOR_NAME)\n"
+			"           = TO_BINARY(:old_table_name)\n"
+			"         LOCK IN SHARE MODE;\n"
+			"       IF (SQL % NOTFOUND) THEN\n"
+			"        found := 0;\n"
+			"       ELSE\n"
+			"        UPDATE SYS_FOREIGN\n"
+			"        SET FOR_NAME = :new_table_name\n"
+			"         WHERE ID = foreign_id;\n"
+			"        id_len := LENGTH(foreign_id);\n"
+			"        IF (INSTR(foreign_id, '/') > 0) THEN\n"
+			"               IF (INSTR(foreign_id,\n"
+			"                         gen_constr_prefix) > 0)\n"
+			"               THEN\n"
+                        "                offset := INSTR(foreign_id, '_ibfk_') - 1;\n"
+			"                new_foreign_id :=\n"
+			"                CONCAT(:new_table_utf8,\n"
+			"                SUBSTR(foreign_id, offset,\n"
+			"                       id_len - offset));\n"
+			"               ELSE\n"
+			"                new_foreign_id :=\n"
+			"                CONCAT(new_db_name,\n"
+			"                SUBSTR(foreign_id,\n"
+			"                       old_db_name_len,\n"
+			"                       id_len - old_db_name_len));\n"
+			"               END IF;\n"
+			"               UPDATE SYS_FOREIGN\n"
+			"                SET ID = new_foreign_id\n"
+			"                WHERE ID = foreign_id;\n"
+			"               UPDATE SYS_FOREIGN_COLS\n"
+			"                SET ID = new_foreign_id\n"
+			"                WHERE ID = foreign_id;\n"
+			"        END IF;\n"
+			"       END IF;\n"
+			"END LOOP;\n"
+			"UPDATE SYS_FOREIGN SET REF_NAME = :new_table_name\n"
+			"WHERE REF_NAME = :old_table_name\n"
+			"  AND TO_BINARY(REF_NAME)\n"
+			"    = TO_BINARY(:old_table_name);\n"
+			"END;\n", trx);
 
 	} else if (n_constraints_to_drop > 0) {
 		/* Drop some constraints of tmp tables. */
@@ -2794,7 +2841,7 @@ row_rename_table_for_mysql(
 		err = dict_load_foreigns(
 			new_name, nullptr, trx->id,
 			!old_is_tmp || trx->check_foreigns,
-			fk == RENAME_FK || fk == RENAME_ALTER_COPY
+			use_fk
 			? DICT_ERR_IGNORE_NONE
 			: DICT_ERR_IGNORE_FK_NOKEY,
 			fk_tables);
@@ -2859,184 +2906,4 @@ funct_exit:
 	trx->op_info = "";
 
 	return(err);
-}
-
-/*********************************************************************//**
-Scans an index for either COUNT(*) or CHECK TABLE.
-If CHECK TABLE; Checks that the index contains entries in an ascending order,
-unique constraint is not broken, and calculates the number of index entries
-in the read view of the current transaction.
-@return DB_SUCCESS or other error */
-dberr_t
-row_scan_index_for_mysql(
-/*=====================*/
-	row_prebuilt_t*		prebuilt,	/*!< in: prebuilt struct
-						in MySQL handle */
-	const dict_index_t*	index,		/*!< in: index */
-	ulint*			n_rows)		/*!< out: number of entries
-						seen in the consistent read */
-{
-	dtuple_t*	prev_entry	= NULL;
-	ulint		matched_fields;
-	byte*		buf;
-	dberr_t		ret;
-	rec_t*		rec;
-	int		cmp;
-	ibool		contains_null;
-	ulint		i;
-	ulint		cnt;
-	mem_heap_t*	heap		= NULL;
-	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs*	offsets;
-	rec_offs_init(offsets_);
-
-	*n_rows = 0;
-
-	/* Don't support RTree Leaf level scan */
-	ut_ad(!dict_index_is_spatial(index));
-
-	if (dict_index_is_clust(index)) {
-		/* The clustered index of a table is always available.
-		During online ALTER TABLE that rebuilds the table, the
-		clustered index in the old table will have
-		index->online_log pointing to the new table. All
-		indexes of the old table will remain valid and the new
-		table will be unaccessible to MySQL until the
-		completion of the ALTER TABLE. */
-	} else if (dict_index_is_online_ddl(index)
-		   || (index->type & DICT_FTS)) {
-		/* Full Text index are implemented by auxiliary tables,
-		not the B-tree. We also skip secondary indexes that are
-		being created online. */
-		return(DB_SUCCESS);
-	}
-
-	ulint bufsize = std::max<ulint>(srv_page_size,
-					prebuilt->mysql_row_len);
-	buf = static_cast<byte*>(ut_malloc_nokey(bufsize));
-	heap = mem_heap_create(100);
-
-	cnt = 1000;
-
-	ret = row_search_for_mysql(buf, PAGE_CUR_G, prebuilt, 0, 0);
-loop:
-	/* Check thd->killed every 1,000 scanned rows */
-	if (--cnt == 0) {
-		if (trx_is_interrupted(prebuilt->trx)) {
-			ret = DB_INTERRUPTED;
-			goto func_exit;
-		}
-		cnt = 1000;
-	}
-
-	switch (ret) {
-	case DB_SUCCESS:
-		break;
-	case DB_DEADLOCK:
-	case DB_LOCK_TABLE_FULL:
-	case DB_LOCK_WAIT_TIMEOUT:
-	case DB_INTERRUPTED:
-		goto func_exit;
-	default:
-		ib::warn() << "CHECK TABLE on index " << index->name << " of"
-			" table " << index->table->name << " returned " << ret;
-		/* (this error is ignored by CHECK TABLE) */
-		/* fall through */
-	case DB_END_OF_INDEX:
-		ret = DB_SUCCESS;
-func_exit:
-		ut_free(buf);
-		mem_heap_free(heap);
-
-		return(ret);
-	}
-
-	*n_rows = *n_rows + 1;
-
-	/* else this code is doing handler::check() for CHECK TABLE */
-
-	/* row_search... returns the index record in buf, record origin offset
-	within buf stored in the first 4 bytes, because we have built a dummy
-	template */
-
-	rec = buf + mach_read_from_4(buf);
-
-	offsets = rec_get_offsets(rec, index, offsets_, index->n_core_fields,
-				  ULINT_UNDEFINED, &heap);
-
-	if (prev_entry != NULL) {
-		matched_fields = 0;
-
-		cmp = cmp_dtuple_rec_with_match(prev_entry,
-						rec, index, offsets,
-						&matched_fields);
-		contains_null = FALSE;
-
-		/* In a unique secondary index we allow equal key values if
-		they contain SQL NULLs */
-
-		for (i = 0;
-		     i < dict_index_get_n_ordering_defined_by_user(index);
-		     i++) {
-			if (UNIV_SQL_NULL == dfield_get_len(
-				    dtuple_get_nth_field(prev_entry, i))) {
-
-				contains_null = TRUE;
-				break;
-			}
-		}
-
-		const char* msg;
-
-		if (cmp > 0) {
-			ret = DB_INDEX_CORRUPT;
-			msg = "index records in a wrong order in ";
-not_ok:
-			ib::error()
-				<< msg << index->name
-				<< " of table " << index->table->name
-				<< ": " << *prev_entry << ", "
-				<< rec_offsets_print(rec, offsets);
-			/* Continue reading */
-		} else if (dict_index_is_unique(index)
-			   && !contains_null
-			   && matched_fields
-			   >= dict_index_get_n_ordering_defined_by_user(
-				   index)) {
-			ret = DB_DUPLICATE_KEY;
-			msg = "duplicate key in ";
-			goto not_ok;
-		}
-	}
-
-	{
-		mem_heap_t*	tmp_heap = NULL;
-
-		/* Empty the heap on each round.  But preserve offsets[]
-		for the row_rec_to_index_entry() call, by copying them
-		into a separate memory heap when needed. */
-		if (UNIV_UNLIKELY(offsets != offsets_)) {
-			ulint	size = rec_offs_get_n_alloc(offsets)
-				* sizeof *offsets;
-
-			tmp_heap = mem_heap_create(size);
-
-			offsets = static_cast<rec_offs*>(
-				mem_heap_dup(tmp_heap, offsets, size));
-		}
-
-		mem_heap_empty(heap);
-
-		prev_entry = row_rec_to_index_entry(
-			rec, index, offsets, heap);
-
-		if (UNIV_LIKELY_NULL(tmp_heap)) {
-			mem_heap_free(tmp_heap);
-		}
-	}
-
-	ret = row_search_for_mysql(
-		buf, PAGE_CUR_G, prebuilt, 0, ROW_SEL_NEXT);
-
-	goto loop;
 }

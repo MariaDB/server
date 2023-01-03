@@ -662,8 +662,6 @@ public:
     MEM_NOACCESS(frame, srv_page_size);
 #ifdef MADV_FREE
     madvise(frame, srv_page_size, MADV_FREE);
-#elif defined(_WIN32)
-    DiscardVirtualMemory(frame, srv_page_size);
 #endif
   }
 

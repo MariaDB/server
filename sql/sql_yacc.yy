@@ -1580,7 +1580,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
                            field_scale opt_field_scale
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
-                 admin_option_for_role user_maybe_role
+                 admin_option_for_role user_maybe_role role_name
 
 %type <user_auth> opt_auth_str auth_expression auth_token
                   text_or_password
@@ -4814,13 +4814,17 @@ opt_part_values:
           part_values_in {}
         | CURRENT_SYM
           {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
             if (Lex->part_values_current(thd))
               MYSQL_YYABORT;
+#endif
           }
         | HISTORY_SYM
           {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
             if (Lex->part_values_history(thd))
               MYSQL_YYABORT;
+#endif
           }
         | DEFAULT
          {
@@ -5127,11 +5131,13 @@ server_part_option:
 
 opt_versioning_rotation:
          /* empty */ {}
-       | INTERVAL_SYM expr interval opt_versioning_interval_start opt_vers_auto_part
+       | { Lex->clause_that_disallows_subselect= "INTERVAL"; }
+         INTERVAL_SYM expr interval opt_versioning_interval_start opt_vers_auto_part
          {
            partition_info *part_info= Lex->part_info;
            const char *table_name= Lex->create_last_non_select_table->table_name.str;
-           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4, $5, table_name)))
+           if (unlikely(part_info->vers_set_interval(thd, $3, $4, $5, $6,
+                                                     table_name)))
              MYSQL_YYABORT;
          }
        | LIMIT ulonglong_num opt_vers_auto_part
@@ -13814,7 +13820,7 @@ show_param:
           {
             Lex->sql_command= SQLCOM_SHOW_GRANTS;
             if (unlikely(!(Lex->grant_user=
-                          (LEX_USER*)thd->alloc(sizeof(LEX_USER)))))
+                          (LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user_and_current_role;
           }
@@ -13923,7 +13929,7 @@ show_param:
           {
             Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
             if (unlikely(!(Lex->grant_user=
-                          (LEX_USER*)thd->alloc(sizeof(LEX_USER)))))
+                          (LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user;
           }
@@ -16686,12 +16692,12 @@ option_value_no_option_type:
             if (unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
-        | ROLE_SYM ident_or_text
+        | ROLE_SYM role_name
           {
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
             LEX *lex = Lex;
-            set_var_role *var= new (thd->mem_root) set_var_role($2);
+            set_var_role *var= new (thd->mem_root) set_var_role($2->user);
             if (unlikely(var == NULL) ||
                 unlikely(lex->var_list.push_back(var, thd->mem_root)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
@@ -17138,32 +17144,32 @@ current_role:
             if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= current_role;
-            $$->auth= NULL;
           }
           ;
 
-grant_role:
-          ident_or_text
-          {
-            CHARSET_INFO *cs= system_charset_info;
-            /* trim end spaces (as they'll be lost in mysql.user anyway) */
-            $1.length= cs->lengthsp($1.str, $1.length);
-            ((char*) $1.str)[$1.length] = '\0';
-            if (unlikely($1.length == 0))
-              my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
-            if (unlikely(!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
-              MYSQL_YYABORT;
-            $$->user= $1;
-            $$->host= empty_clex_str;
-            $$->auth= NULL;
 
-            if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
-                                                  username_char_length,
-                                                  cs, 0)))
-              MYSQL_YYABORT;
-          }
-        | current_role
-        ;
+role_name: ident_or_text
+           {
+             CHARSET_INFO *cs= system_charset_info;
+             /* trim end spaces (as they'll be lost in mysql.user anyway) */
+             $1.length= cs->lengthsp($1.str, $1.length);
+             ((char*) $1.str)[$1.length] = '\0';
+             if (unlikely($1.length == 0))
+               my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
+             if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+               MYSQL_YYABORT;
+             if (lex_string_eq(&$1, &none))
+               $$->user= none;
+             else if (lex_string_eq(&$1, &public_name))
+               $$->user= public_name;
+             else if (check_string_char_length(&($$->user= $1), ER_USERNAME,
+                                               username_char_length, cs, 0))
+               MYSQL_YYABORT;
+             $$->host= empty_clex_str;
+           }
+           ;
+
+grant_role: role_name | current_role ;
 
 opt_table:
           /* Empty */
@@ -18943,6 +18949,7 @@ package_implementation_function_body:
             sp_head *sp= pkg->m_current_routine->sphead;
             thd->lex= pkg->m_current_routine;
             sp->reset_thd_mem_root(thd);
+            sp->set_c_chistics(thd->lex->sp_chistics);
             sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_body opt_package_routine_end_name
@@ -18961,6 +18968,7 @@ package_implementation_procedure_body:
             sp_head *sp= pkg->m_current_routine->sphead;
             thd->lex= pkg->m_current_routine;
             sp->reset_thd_mem_root(thd);
+            sp->set_c_chistics(thd->lex->sp_chistics);
             sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_body opt_package_routine_end_name

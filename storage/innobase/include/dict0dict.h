@@ -61,11 +61,15 @@ foreign constraint parser to get the referenced table.
 heap memory passed in */
 char*
 dict_get_referenced_table(
-	LEX_CSTRING	database_name,	/*!< in: table db name */
-	LEX_CSTRING	table_name,	/*!< in: table name */
+/*======================*/
+	const char*	name,		/*!< in: foreign key table name */
+	const char*	database_name,	/*!< in: table db name */
+	ulint		database_name_len,/*!< in: db name length */
+	const char*	table_name,	/*!< in: table name */
+	ulint		table_name_len,	/*!< in: table name length */
 	dict_table_t**	table,		/*!< out: table object or NULL */
-	mem_heap_t*	heap)		/*!< in/out: heap memory */
-	MY_ATTRIBUTE((nonnull));
+	mem_heap_t*	heap,		/*!< in: heap memory */
+	CHARSET_INFO*	from_cs);	/*!< in: table name charset */
 /*********************************************************************//**
 Frees a foreign key struct. */
 void
@@ -417,14 +421,6 @@ dict_foreign_add_to_cache(
 	dict_err_ignore_t	ignore_err)
 				/*!< in: error to be ignored */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-/*********************************************************************//**
-Checks if a table is referenced by foreign keys.
-@return TRUE if table is referenced by a foreign key */
-ibool
-dict_table_is_referenced_by_foreign_key(
-/*====================================*/
-	const dict_table_t*	table)	/*!< in: InnoDB table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /**********************************************************************//**
 Replace the index passed in with another equivalent index in the
 foreign key lists of the table.
@@ -1322,7 +1318,7 @@ class dict_sys_t
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
 #ifdef UNIV_DEBUG
   /** whether latch is being held in exclusive mode (by any thread) */
-  bool latch_ex;
+  Atomic_relaxed<pthread_t> latch_ex;
   /** number of S-latch holders */
   Atomic_counter<uint32_t> latch_readers;
 #endif
@@ -1496,11 +1492,12 @@ public:
   /** @return whether any thread (not necessarily the current thread)
   is holding the latch; that is, this check may return false
   positives */
-  bool frozen() const { return latch_readers || locked(); }
+  bool frozen() const { return latch_readers || latch_ex; }
   /** @return whether any thread (not necessarily the current thread)
-  is holding the exclusive latch; that is, this check may return false
-  positives */
-  bool locked() const { return latch_ex; }
+  is holding a shared latch */
+  bool frozen_not_locked() const { return latch_readers; }
+  /** @return whether the current thread holds the exclusive latch */
+  bool locked() const { return latch_ex == pthread_self(); }
 #endif
 private:
   /** Acquire the exclusive latch */
@@ -1519,7 +1516,7 @@ public:
     {
       ut_ad(!latch_readers);
       ut_ad(!latch_ex);
-      ut_d(latch_ex= true);
+      ut_d(latch_ex= pthread_self());
     }
     else
       lock_wait(SRW_LOCK_ARGS(file, line));
@@ -1536,9 +1533,9 @@ public:
   /** Unlock the data dictionary cache. */
   void unlock()
   {
-    ut_ad(latch_ex);
+    ut_ad(latch_ex == pthread_self());
     ut_ad(!latch_readers);
-    ut_d(latch_ex= false);
+    ut_d(latch_ex= 0);
     latch.wr_unlock();
   }
   /** Acquire a shared lock on the dictionary cache. */

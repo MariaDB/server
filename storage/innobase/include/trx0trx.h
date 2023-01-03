@@ -430,6 +430,10 @@ class trx_mod_table_time_t
   /** First modification of a system versioned column
   (NONE= no versioning, BULK= the table was dropped) */
   undo_no_t first_versioned= NONE;
+#ifdef UNIV_DEBUG
+  /** Whether the modified table is a FTS auxiliary table */
+  bool fts_aux_table= false;
+#endif /* UNIV_DEBUG */
 
   /** Buffer to store insert opertion */
   row_merge_bulk_t *bulk_store= nullptr;
@@ -496,6 +500,19 @@ public:
     return false;
   }
 
+#ifdef UNIV_DEBUG
+  void set_aux_table() { fts_aux_table= true; }
+
+  bool is_aux_table() const { return fts_aux_table; }
+#endif /* UNIV_DEBUG */
+
+  /** @return the first undo record that modified the table */
+  undo_no_t get_first() const
+  {
+    ut_ad(valid());
+    return LIMIT & first;
+  }
+
   /** Add the tuple to the transaction bulk buffer for the given index.
   @param entry  tuple to be inserted
   @param index  bulk insert for the index
@@ -508,15 +525,7 @@ public:
 
   /** Do bulk insert operation present in the buffered operation
   @return DB_SUCCESS or error code */
-  dberr_t write_bulk(dict_table_t *table, trx_t *trx)
-  {
-    if (!bulk_store)
-      return DB_SUCCESS;
-    dberr_t err= bulk_store->write_to_table(table, trx);
-    delete bulk_store;
-    bulk_store= nullptr;
-    return err;
-  }
+  dberr_t write_bulk(dict_table_t *table, trx_t *trx);
 
   /** @return whether the buffer storage exist */
   bool bulk_buffer_exist() const
@@ -610,15 +619,20 @@ struct trx_t : ilist_node<>
 {
 private:
   /**
-    Count of references.
+    Least significant 31 bits is count of references.
 
     We can't release the locks nor commit the transaction until this reference
     is 0. We can change the state to TRX_STATE_COMMITTED_IN_MEMORY to signify
     that it is no longer "active".
-  */
 
+    If the most significant bit is set this transaction should stop inheriting
+    (GAP)locks. Generally set to true during transaction prepare for RC or lower
+    isolation, if requested. Needed for replication replay where
+    we don't want to get blocked on GAP locks taken for protecting
+    concurrent unique insert or replace operation.
+  */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE)
-  Atomic_counter<int32_t> n_ref;
+  Atomic_relaxed<uint32_t> skip_lock_inheritance_and_n_ref;
 
 
 public:
@@ -1023,26 +1037,48 @@ public:
   void savepoints_discard(trx_named_savept_t *savept);
 
 
-  bool is_referenced() const { return n_ref > 0; }
+  bool is_referenced() const
+  {
+    return (skip_lock_inheritance_and_n_ref & ~(1U << 31)) > 0;
+  }
 
 
   void reference()
   {
-#ifdef UNIV_DEBUG
-    auto old_n_ref=
-#endif
-    n_ref++;
-    ut_ad(old_n_ref >= 0);
+    ut_d(auto old_n_ref =)
+    skip_lock_inheritance_and_n_ref.fetch_add(1);
+    ut_ad(int32_t(old_n_ref << 1) >= 0);
   }
-
 
   void release_reference()
   {
-#ifdef UNIV_DEBUG
-    auto old_n_ref=
+    ut_d(auto old_n_ref =)
+    skip_lock_inheritance_and_n_ref.fetch_sub(1);
+    ut_ad(int32_t(old_n_ref << 1) > 0);
+  }
+
+  bool is_not_inheriting_locks() const
+  {
+    return skip_lock_inheritance_and_n_ref >> 31;
+  }
+
+  void set_skip_lock_inheritance()
+  {
+    ut_d(auto old_n_ref=) skip_lock_inheritance_and_n_ref.fetch_add(1U << 31);
+    ut_ad(!(old_n_ref >> 31));
+  }
+
+  void reset_skip_lock_inheritance()
+  {
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    __asm__("lock btrl $31, %0" : : "m"(skip_lock_inheritance_and_n_ref));
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
+    _interlockedbittestandreset(
+        reinterpret_cast<volatile long *>(&skip_lock_inheritance_and_n_ref),
+        31);
+#else
+    skip_lock_inheritance_and_n_ref.fetch_and(~1U << 31);
 #endif
-    n_ref--;
-    ut_ad(old_n_ref > 0);
   }
 
   /** @return whether the table has lock on
@@ -1072,6 +1108,7 @@ public:
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(!dict_operation);
     ut_ad(!apply_online_log);
+    ut_ad(!is_not_inheriting_locks());
   }
 
   /** This has to be invoked on SAVEPOINT or at the end of a statement.
@@ -1131,18 +1168,13 @@ public:
   @return DB_SUCCESS or error code */
   dberr_t bulk_insert_apply()
   {
-    if (UNIV_LIKELY(!bulk_insert))
-      return DB_SUCCESS;
-    ut_ad(!check_unique_secondary);
-    ut_ad(!check_foreigns);
-    for (auto& t : mod_tables)
-      if (t.second.is_bulk_insert())
-        if (dberr_t err= t.second.write_bulk(t.first, this))
-          return err;
-    return DB_SUCCESS;
+    return UNIV_UNLIKELY(bulk_insert) ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
 private:
+  /** Apply the buffered bulk inserts. */
+  dberr_t bulk_insert_apply_low();
+
   /** Assign a rollback segment for modifying temporary tables.
   @return the assigned rollback segment */
   trx_rseg_t *assign_temp_rseg();

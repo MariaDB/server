@@ -1406,12 +1406,8 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   if (test_all_bits(sctx->master_access, DB_ACLS))
     db_access=DB_ACLS;
   else
-  {
-    db_access= acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname->str, 0) |
+    db_access= acl_get_all3(sctx, dbname->str, FALSE) |
                sctx->master_access;
-    if (sctx->priv_role[0])
-      db_access|= acl_get("", "", sctx->priv_role, dbname->str, 0);
-  }
 
   if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
   {
@@ -2111,8 +2107,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         !create_info_arg->or_replace_slave_generated()) ||
        create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
-  if (share->tmp_table &&
-      !(create_info_arg && create_info_arg->is_atomic_replace()))
+  if (share->tmp_table)
     packet->append(STRING_WITH_LEN("TEMPORARY "));
   packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg && create_info_arg->if_not_exists())
@@ -4818,7 +4813,7 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     bool is_sequence;
 
     if (ha_table_exists(thd, db_name, table_name, NULL, NULL,
-                        &hton, &is_sequence, 0))
+                        &hton, &is_sequence))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
@@ -5048,7 +5043,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
     init_sql_alloc(key_memory_table_triggers_list,
                    &tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
     if (!Table_triggers_list::check_n_load(thd, db_name,
-                                           table_name, &tbl, true, 0))
+                                           table_name, &tbl, 1))
     {
       table_list.table= &tbl;
       res= schema_table->process_table(thd, &table_list, table,
@@ -5303,7 +5298,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
                        &thd->col_access, NULL, 0, 1) ||
           (!thd->col_access && check_grant_db(thd, db_name->str))) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0))
+        acl_get_all3(sctx, db_name->str, 0))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
@@ -5503,9 +5498,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, false) ||
-        (sctx->priv_role[0] ?
-             acl_get("", "", sctx->priv_role, db_name->str, false) : NO_ACL) ||
+        acl_get_all3(sctx, db_name->str, false) ||
         !check_grant_db(thd, db_name->str))
 #endif
     {
@@ -6097,6 +6090,15 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   show_table->use_all_columns();               // Required for default
   restore_record(show_table, s->default_values);
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  check_access(thd, SELECT_ACL, db_name->str,
+               &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
+  if (is_temporary_table(tables))
+  {
+    tables->grant.privilege|= TMP_TABLE_ACLS;
+  }
+#endif
+
   for (; (field= *ptr) ; ptr++)
   {
     if(field->invisible > INVISIBLE_USER)
@@ -6116,14 +6118,13 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     restore_record(table, s->default_values);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    ulonglong col_access;
-    check_access(thd,SELECT_ACL, db_name->str,
-                 &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
-    col_access= get_column_grant(thd, &tables->grant,
-                                 db_name->str, table_name->str,
-                                 field->field_name.str) & COL_ACLS;
-    if (!tables->schema_table && !col_access)
+    ulonglong col_access=
+      get_column_grant(thd, &tables->grant, db_name->str, table_name->str,
+                       field->field_name.str) & COL_ACLS;
+
+    if (!col_access && !tables->schema_table)
       continue;
+
     char *end= tmp;
     for (uint bitnr=0; col_access ; col_access>>=1,bitnr++)
     {

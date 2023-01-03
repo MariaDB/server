@@ -44,11 +44,6 @@ Pushdown_derived::Pushdown_derived(TABLE_LIST *tbl, derived_handler *h)
 }
 
 
-Pushdown_derived::~Pushdown_derived()
-{
-  delete handler;
-}
-
 
 int Pushdown_derived::execute()
 {
@@ -57,7 +52,7 @@ int Pushdown_derived::execute()
   TABLE *table= handler->table;
   TMP_TABLE_PARAM *tmp_table_param= handler->tmp_table_param;
 
-  DBUG_ENTER("Pushdown_query::execute");
+  DBUG_ENTER("Pushdown_derived::execute");
 
   if ((err= handler->init_scan()))
     goto error;

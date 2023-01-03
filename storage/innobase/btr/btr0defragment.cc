@@ -169,7 +169,7 @@ btr_defragment_find_index(
 @return whether the operation was interrupted */
 bool btr_defragment_add_index(btr_pcur_t *pcur, THD *thd)
 {
-  dict_stats_empty_defrag_summary(pcur->btr_cur.index);
+  dict_stats_empty_defrag_summary(pcur->index());
   pthread_cond_t cond;
   pthread_cond_init(&cond, nullptr);
   btr_defragment_item_t item(pcur, &cond);
@@ -209,7 +209,7 @@ btr_defragment_remove_table(
   mysql_mutex_lock(&btr_defragment_mutex);
   for (auto item : btr_defragment_wq)
   {
-    if (item->cond && table == item->pcur->btr_cur.index->table)
+    if (item->cond && table == item->pcur->index()->table)
     {
       pthread_cond_signal(item->cond);
       item->cond= nullptr;
@@ -405,14 +405,17 @@ btr_defragment_merge_pages(
 		}
 	}
 	btr_cur_t parent;
-	if (!btr_page_get_father(index, from_block, mtr, &parent)) {
+	parent.page_cur.index = index;
+	parent.page_cur.block = from_block;
+
+	if (!btr_page_get_father(mtr, &parent)) {
 		to_block = nullptr;
 	} else if (n_recs_to_move == n_recs) {
 		/* The whole page is merged with the previous page,
 		free it. */
 		lock_update_merge_left(*to_block, orig_pred,
 				       from_block->page.id());
-		btr_search_drop_page_hash_index(from_block);
+		btr_search_drop_page_hash_index(from_block, false);
 		if (btr_level_list_remove(*from_block, *index, mtr)
 		    != DB_SUCCESS
 		    || btr_cur_node_ptr_delete(&parent, mtr) != DB_SUCCESS
@@ -690,7 +693,7 @@ processed:
 		}
 		log_free_check();
 		mtr_start(&mtr);
-		dict_index_t *index = item->pcur->btr_cur.index;
+		dict_index_t *index = item->pcur->index();
 		index->set_modified(mtr);
 		/* To follow the latching order defined in WL#6326,
 		acquire index->lock X-latch.  This entitles us to

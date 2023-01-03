@@ -214,7 +214,7 @@ struct Name_resolution_context: Sql_alloc
     The name resolution context to search in when an Item cannot be
     resolved in this context (the context of an outer select)
   */
-  Name_resolution_context *outer_context;
+  Name_resolution_context *outer_context= nullptr;
 
   /*
     List of tables used to resolve the items of this context.  Usually these
@@ -224,7 +224,7 @@ struct Name_resolution_context: Sql_alloc
     statements we have to change this member dynamically to ensure correct
     name resolution of different parts of the statement.
   */
-  TABLE_LIST *table_list;
+  TABLE_LIST *table_list= nullptr;
   /*
     In most cases the two table references below replace 'table_list' above
     for the purpose of name resolution. The first and last name resolution
@@ -232,62 +232,65 @@ struct Name_resolution_context: Sql_alloc
     join tree in a FROM clause. This is needed for NATURAL JOIN, JOIN ... USING
     and JOIN ... ON. 
   */
-  TABLE_LIST *first_name_resolution_table;
+  TABLE_LIST *first_name_resolution_table= nullptr;
   /*
     Last table to search in the list of leaf table references that begins
     with first_name_resolution_table.
   */
-  TABLE_LIST *last_name_resolution_table;
+  TABLE_LIST *last_name_resolution_table= nullptr;
 
   /* Cache first_name_resolution_table in setup_natural_join_row_types */
-  TABLE_LIST *natural_join_first_table;
+  TABLE_LIST *natural_join_first_table= nullptr;
   /*
     SELECT_LEX item belong to, in case of merged VIEW it can differ from
     SELECT_LEX where item was created, so we can't use table_list/field_list
     from there
   */
-  st_select_lex *select_lex;
+  st_select_lex *select_lex= nullptr;
 
   /*
     Processor of errors caused during Item name resolving, now used only to
     hide underlying tables in errors about views (i.e. it substitute some
     errors for views)
   */
-  void (*error_processor)(THD *, void *);
-  void *error_processor_data;
+  void (*error_processor)(THD *, void *)= &dummy_error_processor;
+  void *error_processor_data= nullptr;
 
   /*
     When TRUE items are resolved in this context both against the
     SELECT list and this->table_list. If FALSE, items are resolved
     only against this->table_list.
   */
-  bool resolve_in_select_list;
+  bool resolve_in_select_list= false;
 
   /*
     Bitmap of tables that should be ignored when doing name resolution.
     Normally it is {0}. Non-zero values are used by table functions.
   */
-  ignored_tables_list_t ignored_tables;
+  ignored_tables_list_t ignored_tables= nullptr;
 
   /*
     Security context of this name resolution context. It's used for views
     and is non-zero only if the view is defined with SQL SECURITY DEFINER.
   */
-  Security_context *security_ctx;
+  Security_context *security_ctx= nullptr;
 
-  Name_resolution_context()
-    :outer_context(0), table_list(0), select_lex(0),
-    error_processor_data(0),
-    ignored_tables(NULL),
-    security_ctx(0)
-    {}
+  Name_resolution_context() = default;
+
+  /**
+    Name resolution context with resolution in only one table
+  */
+  Name_resolution_context(TABLE_LIST *table) :
+    first_name_resolution_table(table), last_name_resolution_table(table)
+  {}
 
   void init()
   {
     resolve_in_select_list= FALSE;
     error_processor= &dummy_error_processor;
-    first_name_resolution_table= NULL;
-    last_name_resolution_table= NULL;
+    ignored_tables= nullptr;
+    first_name_resolution_table= nullptr;
+    last_name_resolution_table= nullptr;
   }
 
   void resolve_in_table_list_only(TABLE_LIST *tables)
@@ -2119,6 +2122,11 @@ public:
   }
 
   virtual Item* transform(THD *thd, Item_transformer transformer, uchar *arg);
+  virtual Item* top_level_transform(THD *thd, Item_transformer transformer,
+                                    uchar *arg)
+  {
+    return transform(thd, transformer, arg);
+  }
 
   /*
     This function performs a generic "compilation" of the Item tree.
@@ -2487,6 +2495,8 @@ public:
   virtual Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg)
   { return this; }
   virtual Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg)
+  { return this; }
+  virtual Item *in_predicate_to_equality_transformer(THD *thd, uchar *arg)
   { return this; }
   virtual Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
@@ -4986,6 +4996,7 @@ class Item_bin_string: public Item_hex_hybrid
 {
 public:
   Item_bin_string(THD *thd, const char *str, size_t str_length);
+  void print(String *str, enum_query_type query_type) override;
 };
 
 

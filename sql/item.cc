@@ -1586,12 +1586,14 @@ bool Item_field::check_vcol_func_processor(void *arg)
       }
     }
   }
-  if (field && (field->unireg_check == Field::NEXT_NUMBER))
-  {
-    // Auto increment fields are unsupported
-    return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
-  }
-  return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
+
+  uint r= VCOL_FIELD_REF;
+  if (field && field->unireg_check == Field::NEXT_NUMBER)
+    r|= VCOL_AUTO_INC;
+  if (field && field->vcol_info &&
+      field->vcol_info->flags & (VCOL_NOT_STRICTLY_DETERMINISTIC | VCOL_AUTO_INC))
+    r|= VCOL_NON_DETERMINISTIC;
+  return mark_unsupported_function(field_name.str, arg, r);
 }
 
 
@@ -3599,11 +3601,6 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
     {
       /* just pull to the upper context */
       ctx->outer_context= context->outer_context->outer_context;
-    }
-    else
-    {
-      /* No upper context (merging Derived/VIEW where context chain ends) */
-      ctx->outer_context= NULL;
     }
     ctx->table_list= context->first_name_resolution_table;
     ctx->select_lex= new_parent;
@@ -6146,6 +6143,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
     if (!thd->lex->current_select->no_wrap_view_item &&
         thd->lex->in_sum_func &&
+        select &&
         thd->lex == select->parent_lex &&
         thd->lex->in_sum_func->nest_level == 
         select->nest_level)
@@ -7246,6 +7244,25 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
     ptr[0]= 0;
 
   collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+}
+
+
+void Item_bin_string::print(String *str, enum_query_type query_type)
+{
+  if (!str_value.length())
+  {
+    /*
+      Historically a bit string such as b'01100001'
+      prints itself in the hex hybrid notation: 0x61
+      In case of an empty bit string b'', the hex hybrid
+      notation would result in a bad syntax: 0x
+      So let's print empty bit strings using bit string notation: b''
+    */
+    static const LEX_CSTRING empty_bit_string= {STRING_WITH_LEN("b''")};
+    str->append(empty_bit_string);
+  }
+  else
+    Item_hex_hybrid::print(str, query_type);
 }
 
 
@@ -9918,6 +9935,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   Item *item= thd->sp_fix_func_item_for_assignment(field, it);
   if (!item)
     return true;
+  if (field->vers_sys_field())
+    return false;
 
   // NOTE: field->table->copy_blobs should be false here, but let's
   // remember the value at runtime to avoid subtle bugs.

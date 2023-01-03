@@ -43,6 +43,7 @@ Created 2012-02-08 by Sunny Bains.
 #include "lock0lock.h"
 #include "lzo/lzo1x.h"
 #include "snappy-c.h"
+#include "log.h"
 
 #include "scope.h"
 
@@ -253,9 +254,10 @@ public:
 	}
 
 	/** Position the cursor on the first user record. */
-	rec_t* open(buf_block_t* block) noexcept
+	rec_t* open(buf_block_t* block, const dict_index_t* index) noexcept
 		MY_ATTRIBUTE((warn_unused_result))
 	{
+		m_cur.index = const_cast<dict_index_t*>(index);
 		page_cur_set_before_first(block, &m_cur);
 		return next();
 	}
@@ -285,10 +287,9 @@ public:
 
 	/** Remove the current record
 	@return true on success */
-	bool remove(
-		const dict_index_t*	index,
-		rec_offs*		offsets) UNIV_NOTHROW
+	bool remove(rec_offs* offsets) UNIV_NOTHROW
 	{
+		const dict_index_t* const index = m_cur.index;
 		ut_ad(page_is_leaf(m_cur.block->page.frame));
 		/* We can't end up with an empty page unless it is root. */
 		if (page_get_n_recs(m_cur.block->page.frame) <= 1) {
@@ -311,7 +312,7 @@ public:
 			     page_zip, m_cur.block->page.frame, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-		page_cur_delete_rec(&m_cur, index, offsets, &m_mtr);
+		page_cur_delete_rec(&m_cur, offsets, &m_mtr);
 
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(
@@ -583,6 +584,18 @@ protected:
 	uint32_t		m_space_flags;
 };
 
+ATTRIBUTE_COLD static dberr_t invalid_space_flags(uint32_t flags)
+{
+  if (fsp_flags_is_incompatible_mysql(flags))
+  {
+    sql_print_error("InnoDB: unsupported MySQL tablespace");
+    return DB_UNSUPPORTED;
+  }
+
+  sql_print_error("InnoDB: Invalid FSP_SPACE_FLAGS=0x%" PRIx32, flags);
+  return DB_CORRUPTION;
+}
+
 /** Determine the page size to use for traversing the tablespace
 @param file_size size of the tablespace file in bytes
 @param block contents of the first page in the tablespace file.
@@ -598,7 +611,7 @@ AbstractCallback::init(
 	if (!fil_space_t::is_valid_flags(m_space_flags, true)) {
 		uint32_t cflags = fsp_flags_convert_from_101(m_space_flags);
 		if (cflags == UINT32_MAX) {
-			return(DB_CORRUPTION);
+			return DB_CORRUPTION;
 		}
 		m_space_flags = cflags;
 	}
@@ -1513,8 +1526,9 @@ inline bool IndexPurge::open() noexcept
   m_mtr.start();
   m_mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-  if (btr_pcur_open_at_index_side(true, m_index, BTR_MODIFY_LEAF,
-                                  &m_pcur, true, 0, &m_mtr) != DB_SUCCESS)
+  btr_pcur_init(&m_pcur);
+
+  if (m_pcur.open_leaf(true, m_index, BTR_MODIFY_LEAF, &m_mtr) != DB_SUCCESS)
     return false;
 
   rec_t *rec= page_rec_get_next(btr_pcur_get_rec(&m_pcur));
@@ -1559,7 +1573,7 @@ dberr_t IndexPurge::next() noexcept
 		return DB_CORRUPTION;
 	}
 	/* The following is based on btr_pcur_move_to_next_user_rec(). */
-	m_pcur.old_stored = false;
+	m_pcur.old_rec = nullptr;
 	ut_ad(m_pcur.latch_mode == BTR_MODIFY_LEAF);
 	do {
 		if (btr_pcur_is_after_last_on_page(&m_pcur)) {
@@ -1586,8 +1600,7 @@ tree structure may be changed during a pessimistic delete. */
 inline dberr_t IndexPurge::purge_pessimistic_delete() noexcept
 {
   dberr_t err;
-  if (m_pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-                              &m_mtr) != btr_pcur_t::CORRUPTED)
+  if (m_pcur.restore_position(BTR_PURGE_TREE, &m_mtr) != btr_pcur_t::CORRUPTED)
   {
     ut_ad(rec_get_deleted_flag(btr_pcur_get_rec(&m_pcur),
                                m_index->table->not_redundant()));
@@ -1722,10 +1735,8 @@ re-organising the B+tree.
 @return true if purge succeeded */
 inline bool PageConverter::purge() UNIV_NOTHROW
 {
-	const dict_index_t*	index = m_index->m_srv_index;
-
 	/* We can't have a page that is empty and not root. */
-	if (m_rec_iter.remove(index, m_offsets)) {
+	if (m_rec_iter.remove(m_offsets)) {
 
 		++m_index->m_stats.m_n_purged;
 
@@ -1789,7 +1800,7 @@ PageConverter::update_records(
 
 	/* This will also position the cursor on the first user record. */
 
-	if (!m_rec_iter.open(block)) {
+	if (!m_rec_iter.open(block, m_index->m_srv_index)) {
 		return DB_CORRUPTION;
 	}
 
@@ -2289,8 +2300,8 @@ row_import_set_sys_max_row_id(
 
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-	if (btr_pcur_open_at_index_side(false, index, BTR_SEARCH_LEAF,
-					&pcur, true, 0, &mtr) == DB_SUCCESS) {
+	if (pcur.open_leaf(false, index, BTR_SEARCH_LEAF, &mtr)
+	    == DB_SUCCESS) {
 		rec = btr_pcur_move_to_prev_on_page(&pcur);
 
 		if (!rec) {
@@ -3080,7 +3091,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   if (!success)
     return DB_IO_ERROR;
 
-  if (os_file_get_size(file) < srv_page_size * 4)
+  if (os_file_get_size(file) < srv_page_size)
     return DB_CORRUPTION;
 
   SCOPE_EXIT([&file]() { os_file_close(file); });
@@ -3089,9 +3100,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       static_cast<byte *>(aligned_malloc(srv_page_size, srv_page_size)),
       &aligned_free);
 
-  if (dberr_t err= os_file_read_no_error_handling(IORequestReadPartial,
-                                                  file, first_page.get(), 0,
-                                                  srv_page_size, nullptr))
+  if (dberr_t err= os_file_read(IORequestReadPartial, file, first_page.get(),
+                                0, srv_page_size, nullptr))
     return err;
 
   auto space_flags= fsp_header_get_flags(first_page.get());
@@ -3100,10 +3110,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   {
     auto cflags= fsp_flags_convert_from_101(space_flags);
     if (cflags == UINT32_MAX)
-    {
-      ib::error() << "Invalid FSP_SPACE_FLAGS=" << ib::hex(space_flags);
-      return DB_CORRUPTION;
-    }
+      return invalid_space_flags(space_flags);
     space_flags= static_cast<decltype(space_flags)>(cflags);
   }
 
@@ -3129,7 +3136,7 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
           aligned_malloc(UNIV_PAGE_SIZE_MAX, UNIV_PAGE_SIZE_MAX)),
       &aligned_free);
 
-  if (dberr_t err= os_file_read_no_error_handling(
+  if (dberr_t err= os_file_read(
           IORequestReadPartial, file, page.get(), 3 * physical_size,
           physical_size, nullptr))
     return err;
@@ -3186,10 +3193,8 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
       uint64_t child_page_no= btr_node_ptr_get_child_page_no(rec, offsets);
 
       if (dberr_t err=
-          os_file_read_no_error_handling(IORequestReadPartial, file,
-                                         page.get(),
-                                         child_page_no * physical_size,
-                                         physical_size, nullptr))
+          os_file_read(IORequestReadPartial, file, page.get(),
+                       child_page_no * physical_size, physical_size, nullptr))
         return err;
 
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
@@ -3268,11 +3273,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
                     &aligned_free);
 
       if (dberr_t err=
-          os_file_read_no_error_handling(IORequestReadPartial, file,
-                                         second_page.get(), physical_size *
-                                         mach_read_from_4(ptr +
-                                                          BTR_EXTERN_PAGE_NO),
-                                         srv_page_size, nullptr))
+          os_file_read(IORequestReadPartial, file, second_page.get(),
+                       physical_size *
+                       mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO),
+                       physical_size, nullptr))
         return err;
 
       if (dberr_t err= decrypt_decompress(space_crypt, space_flags,
@@ -3684,8 +3688,8 @@ dberr_t FetchIndexRootPages::run(const fil_iterator_t& iter,
 
   bool page_compressed= false;
 
-  dberr_t err= os_file_read_no_error_handling(
-    IORequestReadPartial, iter.file, readptr, 3 * size, size, 0);
+  dberr_t err= os_file_read(IORequestReadPartial, iter.file, readptr,
+                            3 * size, size, nullptr);
   if (err != DB_SUCCESS)
   {
     ib::error() << iter.filepath << ": os_file_read() failed";
@@ -3805,9 +3809,8 @@ static dberr_t fil_iterate(
 			? iter.crypt_io_buffer : io_buffer;
 		byte* const writeptr = readptr;
 
-		err = os_file_read_no_error_handling(
-			IORequestReadPartial,
-			iter.file, readptr, offset, n_bytes, 0);
+		err = os_file_read(IORequestReadPartial, iter.file, readptr,
+				   offset, n_bytes, nullptr);
 		if (err != DB_SUCCESS) {
 			ib::error() << iter.filepath
 				    << ": os_file_read() failed";
@@ -4140,10 +4143,10 @@ fil_tablespace_iterate(
 	block->page.frame = page;
 	block->page.init(buf_page_t::UNFIXED + 1, page_id_t{~0ULL});
 
-	/* Read the first page and determine the page and zip size. */
+	/* Read the first page and determine the page size. */
 
-	err = os_file_read_no_error_handling(IORequestReadPartial,
-					     file, page, 0, srv_page_size, 0);
+	err = os_file_read(IORequestReadPartial, file, page, 0, srv_page_size,
+			   nullptr);
 
 	if (err == DB_SUCCESS) {
 		err = callback.init(file_size, block);
@@ -4401,7 +4404,7 @@ row_import_for_mysql(
 
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INTERNAL_ERROR,
-			"Cannot reset LSNs in table %s : %s",
+			"Error importing tablespace for table %s : %s",
 				table_name, ut_strerr(err));
 		}
 

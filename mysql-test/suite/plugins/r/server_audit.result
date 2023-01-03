@@ -247,7 +247,7 @@ connect(localhost,plug,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
 connect plug_con,localhost,plug,plug_dest;
 ERROR 28000: Access denied for user 'plug'@'localhost' (using password: YES)
 GRANT PROXY ON plug_dest TO plug;
-connect plug_con,localhost,plug,plug_dest;
+connect plug_con,localhost,plug,plug_dest,"*NO-ONE*";
 connection plug_con;
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
@@ -476,10 +476,10 @@ TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT PROXY ON plug_dest TO plug',0
-TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,test,,0
-TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,test,`plug_dest`@`%`,0
-TIME,HOSTNAME,plug,localhost,ID,ID,QUERY,test,'select USER(),CURRENT_USER()',0
-TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,test,,0
+TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,,,0
+TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,,`plug_dest`@`%`,0
+TIME,HOSTNAME,plug,localhost,ID,ID,QUERY,,'select USER(),CURRENT_USER()',0
+TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,

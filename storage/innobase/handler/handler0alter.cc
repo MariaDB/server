@@ -30,7 +30,6 @@ Smart ALTER TABLE
 #include <sql_class.h>
 #include <sql_table.h>
 #include <mysql/plugin.h>
-#include <strfunc.h>
 
 /* Include necessary InnoDB headers */
 #include "btr0sea.h"
@@ -2129,8 +2128,7 @@ static bool innobase_table_is_empty(const dict_table_t *table,
   bool next_page= false;
 
   mtr.start();
-  if (btr_pcur_open_at_index_side(true, clust_index, BTR_SEARCH_LEAF,
-                                  &pcur, true, 0, &mtr) != DB_SUCCESS)
+  if (pcur.open_leaf(true, clust_index, BTR_SEARCH_LEAF, &mtr) != DB_SUCCESS)
   {
 non_empty:
     mtr.commit();
@@ -2160,10 +2158,11 @@ next_page:
                          &mtr);
     if (!block)
       goto non_empty;
-    btr_leaf_page_release(page_cur_get_block(cur), BTR_SEARCH_LEAF, &mtr);
     page_cur_set_before_first(block, cur);
     if (UNIV_UNLIKELY(!page_cur_move_to_next(cur)))
       goto non_empty;
+    const auto s= mtr.get_savepoint();
+    mtr.rollback_to_savepoint(s - 2, s - 1);
   }
 
   rec= page_cur_get_rec(cur);
@@ -2239,6 +2238,12 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
+
+	if (!m_prebuilt->table->space) {
+		ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN,
+			    ER_TABLESPACE_DISCARDED,
+			    table->s->table_name.str);
+	}
 
 	if (is_read_only(!high_level_read_only
 			 && (ha_alter_info->handler_flags & ALTER_OPTIONS)
@@ -3191,8 +3196,6 @@ innobase_get_foreign_key_info(
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
 	const CHARSET_INFO*	cs = thd_charset(trx->mysql_thd);
-	char db_name[MAX_DATABASE_NAME_LEN + 1];
-	char t_name[MAX_TABLE_NAME_LEN + 1];
 
 	DBUG_ENTER("innobase_get_foreign_key_info");
 
@@ -3257,51 +3260,14 @@ innobase_get_foreign_key_info(
 
 		add_fk[num_fk] = dict_mem_foreign_create();
 
-		LEX_CSTRING table_name = fk_key->ref_table;
-		CHARSET_INFO* to_cs = &my_charset_filename;
-
-		if (!strncmp(table_name.str, srv_mysql50_table_name_prefix,
-			     sizeof srv_mysql50_table_name_prefix - 1)) {
-			table_name.str
-				+= sizeof srv_mysql50_table_name_prefix - 1;
-			table_name.length
-				-= sizeof srv_mysql50_table_name_prefix - 1;
-			to_cs = system_charset_info;
-		}
-
-		uint errors;
-		LEX_CSTRING t;
-		t.str = t_name;
-		t.length = strconvert(cs, LEX_STRING_WITH_LEN(table_name),
-				      to_cs, t_name, MAX_TABLE_NAME_LEN,
-				      &errors);
-		LEX_CSTRING d = fk_key->ref_db;
-		if (!d.str) {
-			d.str = table->name.m_name;
-			d.length = table->name.dblen();
-		}
-
-		if (!strncmp(d.str, srv_mysql50_table_name_prefix,
-			     sizeof srv_mysql50_table_name_prefix - 1)) {
-			d.str += sizeof srv_mysql50_table_name_prefix - 1;
-			d.length -= sizeof srv_mysql50_table_name_prefix - 1;
-			to_cs = system_charset_info;
-		} else if (d.str == table->name.m_name) {
-			goto name_converted;
-		} else {
-			to_cs = &my_charset_filename;
-		}
-
-		d.length = strconvert(cs, LEX_STRING_WITH_LEN(d), to_cs,
-				      db_name, MAX_DATABASE_NAME_LEN,
-				      &errors);
-		d.str = db_name;
-
-name_converted:
 		dict_sys.lock(SRW_LOCK_CALL);
 
 		referenced_table_name = dict_get_referenced_table(
-			d, t, &referenced_table, add_fk[num_fk]->heap);
+			table->name.m_name,
+			LEX_STRING_WITH_LEN(fk_key->ref_db),
+			LEX_STRING_WITH_LEN(fk_key->ref_table),
+			&referenced_table,
+			add_fk[num_fk]->heap, cs);
 
 		/* Test the case when referenced_table failed to
 		open, if trx->check_foreigns is not set, we should
@@ -5902,7 +5868,16 @@ static bool innobase_instant_try(
 	const dict_col_t* old_cols = user_table->cols;
 	DBUG_ASSERT(user_table->n_cols == ctx->old_n_cols);
 
+#ifdef BTR_CUR_HASH_ADAPT
+	/* Acquire the ahi latch to avoid a race condition
+	between ahi access and instant alter table */
+	srw_spin_lock* ahi_latch = btr_search_sys.get_latch(*index);
+	ahi_latch->wr_lock(SRW_LOCK_CALL);
+#endif /* BTR_CUR_HASH_ADAPT */
 	const bool metadata_changed = ctx->instant_column();
+#ifdef BTR_CUR_HASH_ADAPT
+	ahi_latch->wr_unlock();
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);
 	/* The table may have been emptied and may have lost its
@@ -6078,8 +6053,7 @@ add_all_virtual:
 	mtr.start();
 	index->set_modified(mtr);
 	btr_pcur_t pcur;
-	dberr_t err = btr_pcur_open_at_index_side(true, index, BTR_MODIFY_TREE,
-						  &pcur, true, 0, &mtr);
+	dberr_t err= pcur.open_leaf(true, index, BTR_MODIFY_TREE, &mtr);
 	if (err != DB_SUCCESS) {
 func_exit:
 		mtr.commit();
@@ -7341,13 +7315,10 @@ error_handling_drop_uncached:
 				goto error_handling;
 			}
 
-			ctx->new_table->fts->dict_locked = true;
-
 			error = innobase_fts_load_stopword(
 				ctx->new_table, ctx->trx,
 				ctx->prebuilt->trx->mysql_thd)
 				? DB_SUCCESS : DB_ERROR;
-			ctx->new_table->fts->dict_locked = false;
 
 			if (error != DB_SUCCESS) {
 				goto error_handling;
@@ -9941,7 +9912,7 @@ innobase_update_foreign_cache(
 
 	err = dict_load_foreigns(user_table->name.m_name,
 				 ctx->col_names, 1, true,
-				 DICT_ERR_IGNORE_NONE,
+				 DICT_ERR_IGNORE_FK_NOKEY,
 				 fk_tables);
 
 	if (err == DB_CANNOT_ADD_CONSTRAINT) {
@@ -10149,6 +10120,7 @@ commit_try_rebuild(
 	ha_innobase_inplace_ctx*ctx,
 	TABLE*			altered_table,
 	const TABLE*		old_table,
+	bool			statistics_exist,
 	trx_t*			trx,
 	const char*		table_name)
 {
@@ -10212,16 +10184,16 @@ commit_try_rebuild(
 	char* old_name= mem_heap_strdup(ctx->heap, user_table->name.m_name);
 
 	dberr_t error = row_rename_table_for_mysql(user_table->name.m_name,
-						   ctx->tmp_name, trx,
-						   RENAME_REBUILD);
+						   ctx->tmp_name, trx, false);
 	if (error == DB_SUCCESS) {
 		error = row_rename_table_for_mysql(
-			rebuilt_table->name.m_name, old_name, trx,
-			RENAME_REBUILD);
+			rebuilt_table->name.m_name, old_name, trx, false);
 		if (error == DB_SUCCESS) {
 			/* The statistics for the surviving indexes will be
 			re-inserted in alter_stats_rebuild(). */
-			error = trx->drop_table_statistics(old_name);
+			if (statistics_exist) {
+				error = trx->drop_table_statistics(old_name);
+			}
 			if (error == DB_SUCCESS) {
 				error = trx->drop_table(*user_table);
 			}
@@ -11366,6 +11338,7 @@ fail:
 
 			if (commit_try_rebuild(ha_alter_info, ctx,
 					       altered_table, table,
+					       table_stats && index_stats,
 					       trx,
 					       table_share->table_name.str)) {
 				goto fail;

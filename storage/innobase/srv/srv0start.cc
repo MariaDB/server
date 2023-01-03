@@ -570,19 +570,13 @@ static dberr_t srv_undo_tablespaces_reinitialize()
   tolerate that discrepancy but not the inverse. Because there could
   be unused undo tablespaces for future use. */
 
-  if (srv_undo_tablespaces > srv_undo_tablespaces_open)
+  if (srv_undo_tablespaces != srv_undo_tablespaces_open)
   {
-    ib::error() << "Expected to open innodb_undo_tablespaces="
-		<< srv_undo_tablespaces
-		<< " but was able to find only "
-		<< srv_undo_tablespaces_open;
-
-    return DB_ERROR;
-  }
-  else if (srv_undo_tablespaces < srv_undo_tablespaces_open)
     sql_print_warning("InnoDB: Cannot change innodb_undo_tablespaces=%u "
                       "because previous shutdown was not with "
                       "innodb_fast_shutdown=0", srv_undo_tablespaces);
+    srv_undo_tablespaces= srv_undo_tablespaces_open;
+  }
   else if (srv_undo_tablespaces_open > 0)
     sql_print_information("InnoDB: Opened " UINT32PF " undo tablespaces",
                           srv_undo_tablespaces_open);
@@ -648,7 +642,8 @@ static uint32_t srv_undo_tablespace_open(bool create, const char *name,
   {
     page_t *page= static_cast<byte*>(aligned_malloc(srv_page_size,
                                                     srv_page_size));
-    dberr_t err= os_file_read(IORequestRead, fh, page, 0, srv_page_size);
+    dberr_t err= os_file_read(IORequestRead, fh, page, 0, srv_page_size,
+                              nullptr);
     if (err != DB_SUCCESS)
     {
 err_exit:
@@ -817,9 +812,11 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_undo,
   {
      char name[OS_FILE_MAX_PATH];
      snprintf(name, sizeof name, "%s/undo%03u", srv_undo_dir, i);
-     if (!srv_undo_tablespace_open(create_new_undo, name, i))
+     uint32_t space_id= srv_undo_tablespace_open(create_new_undo, name, i);
+     if (!space_id)
        break;
-     ++srv_undo_tablespaces_open;
+     if (0 == srv_undo_tablespaces_open++)
+       srv_undo_space_id_start= space_id;
   }
 
   return DB_SUCCESS;
@@ -1976,7 +1973,8 @@ void innodb_shutdown()
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
-	ut_ad(ibuf.index || !srv_was_started);
+	ut_ad(ibuf.index || !srv_was_started
+	      || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO);
 
 	dict_stats_deinit();
 

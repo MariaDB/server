@@ -1,0 +1,344 @@
+#
+# MDEV-5215 Granted to PUBLIC
+#
+#
+# Test DB/TABLE/COLUMN privileges in queries
+#
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+create user testuser;
+create database testdb1;
+use testdb1;
+create table t1 (a int, b int);
+insert into t1 values (1,2);
+create database testdb2;
+use testdb2;
+create table t2 (a int, b int);
+insert into t2 values (1,2);
+create table t3 (a int, b int);
+insert into t3 values (1,2);
+connect  testuser,localhost,testuser,,;
+select * from testdb1.t1;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb1`.`t1`
+select * from testdb2.t2;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb2`.`t2`
+select b from testdb2.t3;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb2`.`t3`
+select a from testdb2.t3;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb2`.`t3`
+connection default;
+GRANT SELECT ON testdb1.* to PUBLIC;
+GRANT SELECT ON testdb2.t2 to PUBLIC;
+GRANT SELECT (b) ON testdb2.t3 to PUBLIC;
+connection testuser;
+select * from testdb1.t1;
+a	b
+1	2
+select * from testdb2.t2;
+a	b
+1	2
+select b from testdb2.t3;
+b
+2
+select a from testdb2.t3;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for column 'a' in table 't3'
+show grants;
+Grants for testuser@%
+GRANT USAGE ON *.* TO `testuser`@`%`
+GRANT SELECT ON `testdb1`.* TO PUBLIC
+GRANT SELECT ON `testdb2`.`t2` TO PUBLIC
+GRANT SELECT (`b`) ON `testdb2`.`t3` TO PUBLIC
+show grants for testuser@'%';
+Grants for testuser@%
+GRANT USAGE ON *.* TO `testuser`@`%`
+connection default;
+disconnect testuser;
+# check that the privileges are correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,;
+select * from testdb1.t1;
+a	b
+1	2
+select * from testdb2.t2;
+a	b
+1	2
+select b from testdb2.t3;
+b
+2
+select a from testdb2.t3;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for column 'a' in table 't3'
+connection default;
+use test;
+disconnect testuser;
+REVOKE SELECT ON testdb1.* from PUBLIC;
+REVOKE SELECT ON testdb2.t2 from PUBLIC;
+REVOKE SELECT (b) ON testdb2.t3 from PUBLIC;
+drop user testuser;
+drop database testdb1;
+drop database testdb2;
+#
+# test global process list privilege and EXECUTE db level
+#
+create user testuser;
+create database testdb;
+use testdb;
+create procedure p1 () select 1;
+connect  testuser,localhost,testuser,,;
+select user,db from information_schema.processlist where user='root';
+user	db
+call testdb.p1();
+ERROR 42000: execute command denied to user 'testuser'@'%' for routine 'testdb.p1'
+connection default;
+GRANT PROCESS ON *.* to PUBLIC;
+GRANT EXECUTE ON testdb.* to PUBLIC;
+disconnect testuser;
+connect  testuser,localhost,testuser,,;
+select user,db from information_schema.processlist where user='root';
+user	db
+root	testdb
+call testdb.p1();
+1
+1
+connection default;
+disconnect testuser;
+# check that the privileges are correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,;
+select user,db from information_schema.processlist where user='root';
+user	db
+root	testdb
+call testdb.p1();
+1
+1
+connection default;
+use test;
+disconnect testuser;
+REVOKE PROCESS ON *.* from PUBLIC;
+REVOKE EXECUTE ON testdb.* from PUBLIC;
+drop user testuser;
+drop database testdb;
+#
+# test DB privilege to allow USE statement
+#
+create user testuser;
+create database testdb;
+connect  testuser,localhost,testuser,,;
+use testdb;
+ERROR 42000: Access denied for user 'testuser'@'%' to database 'testdb'
+connection default;
+GRANT LOCK TABLES ON testdb.* to PUBLIC;
+connection testuser;
+use testdb;
+connection default;
+disconnect testuser;
+# check that the privileges are correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,;
+use testdb;
+connection default;
+use test;
+disconnect testuser;
+REVOKE LOCK TABLES ON testdb.* from PUBLIC;
+drop user testuser;
+drop database testdb;
+#
+# test DB privilege to allow USE statement (as above)
+# test current db privileges
+#
+create user testuser;
+create database testdb;
+use testdb;
+create table t1 (a int);
+insert into t1 values (1);
+GRANT LOCK TABLES ON testdb.* to PUBLIC;
+connect  testuser,localhost,testuser,,;
+use testdb;
+update t1 set a=a+1;
+ERROR 42000: UPDATE command denied to user 'testuser'@'localhost' for table `testdb`.`t1`
+connection default;
+GRANT UPDATE,SELECT ON testdb.* to PUBLIC;
+connection testuser;
+use testdb;
+update t1 set a=a+1;
+connection default;
+select * from testdb.t1;
+a
+2
+use test;
+disconnect testuser;
+REVOKE LOCK TABLES ON testdb.* from PUBLIC;
+REVOKE UPDATE,SELECT ON testdb.* from PUBLIC;
+drop user testuser;
+drop database testdb;
+#
+# test DB privilege to allow USE statement (as above)
+# test table/column privileges in current DB
+#
+create user testuser;
+create database testdb;
+use testdb;
+create table t1 (a int);
+insert into t1 values (1);
+create table t2 (a int, b int);
+insert into t2 values (1,2);
+GRANT LOCK TABLES ON testdb.* to PUBLIC;
+connect  testuser,localhost,testuser,,;
+use testdb;
+delete from t1;
+ERROR 42000: DELETE command denied to user 'testuser'@'localhost' for table `testdb`.`t1`
+select b from t2;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb`.`t2`
+select a from t2;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb`.`t2`
+connection default;
+GRANT DELETE ON testdb.t1 to PUBLIC;
+GRANT SELECT (a) ON testdb.t2 to PUBLIC;
+connection testuser;
+use testdb;
+delete from t1;
+select a from t2;
+a
+1
+select b from t2;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for column 'b' in table 't2'
+connection default;
+select * from testdb.t1;
+a
+insert into t1 values (1);
+disconnect testuser;
+# check that the privileges are correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,;
+use testdb;
+delete from t1;
+select a from t2;
+a
+1
+select b from t2;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for column 'b' in table 't2'
+connection default;
+select * from testdb.t1;
+a
+use test;
+disconnect testuser;
+REVOKE ALL PRIVILEGES, GRANT OPTION from `PUBLIC`;
+SHOW GRANTS FOR PUBLIC;
+Grants for PUBLIC
+drop user testuser;
+drop database testdb;
+#
+# test function privilege
+#
+create user testuser;
+create database testdb;
+use testdb;
+create function f1() returns int return 2;
+connect  testuser,localhost,testuser,,;
+alter function testdb.f1 comment "A stupid function";
+ERROR 42000: alter routine command denied to user 'testuser'@'%' for routine 'testdb.f1'
+select testdb.f1();
+ERROR 42000: execute command denied to user 'testuser'@'%' for routine 'testdb.f1'
+connection default;
+GRANT ALTER ROUTINE ON testdb.* to PUBLIC;
+connection testuser;
+alter function testdb.f1 comment "A stupid function";
+select testdb.f1();
+ERROR 42000: execute command denied to user 'testuser'@'%' for routine 'testdb.f1'
+connection default;
+disconnect testuser;
+# check that the privileges are correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,;
+alter function testdb.f1 comment "A stupid function";
+select testdb.f1();
+ERROR 42000: execute command denied to user 'testuser'@'%' for routine 'testdb.f1'
+connection default;
+use test;
+disconnect testuser;
+REVOKE ALTER ROUTINE ON testdb.* from PUBLIC;
+drop function testdb.f1;
+drop user testuser;
+drop database testdb;
+#
+# bug with automatically added PUBLIC role
+#
+# automaticly added PUBLIC
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+GRANT SELECT on test.* to PUBLIC;
+REVOKE SELECT on test.* from PUBLIC;
+create user testuser;
+create database testdb1;
+use testdb1;
+create table t1 (a int, b int);
+insert into t1 values (1,2);
+connect  testuser,localhost,testuser,,;
+select * from testdb1.t1;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb1`.`t1`
+connection default;
+disconnect testuser;
+drop user testuser;
+drop database testdb1;
+#
+# check assigning privileges via GRAND role TO PUBLIC
+#
+create user testuser;
+create database testdb1;
+use testdb1;
+create table t1 (a int, b int);
+# check that user do not have rights
+connect  testuser,localhost,testuser,,*NO-ONE*;
+select * from testdb1.t1;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb1`.`t1`
+connection default;
+give rights to everyone via assigning the role to public
+create role roletest;
+GRANT SELECT ON testdb1.* TO roletest;
+GRANT roletest TO PUBLIC;
+connection testuser;
+select * from testdb1.t1;
+a	b
+connection default;
+disconnect testuser;
+# check that the privileges are correctly read by acl_load
+flush privileges;
+connect  testuser,localhost,testuser,,*NO-ONE*;
+select * from testdb1.t1;
+a	b
+connection default;
+# drop role...
+drop role roletest;
+# ... and check that user does not have rights again
+connection testuser;
+select * from testdb1.t1;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `testdb1`.`t1`
+connection default;
+disconnect testuser;
+drop user testuser;
+drop database testdb1;
+# clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
+#
+# MDEV-29752 SHOW GRANTS FOR PUBLIC should work for all users
+#
+create database dbtest;
+create user `testuser`@`%`;
+GRANT USAGE ON *.* TO `testuser`@`%`;
+GRANT ALL PRIVILEGES ON `dbtest`.* TO `PUBLIC`;
+connect  testuser,localhost,testuser,,;
+show grants for public;
+Grants for PUBLIC
+GRANT ALL PRIVILEGES ON `dbtest`.* TO PUBLIC
+show grants for testuser;
+Grants for testuser@%
+GRANT USAGE ON *.* TO `testuser`@`%`
+connection default;
+disconnect testuser;
+REVOKE ALL PRIVILEGES ON `dbtest`.* FROM `PUBLIC`;
+REVOKE USAGE ON *.* FROM `testuser`@`%`;
+drop user `testuser`@`%`;
+drop database dbtest;
+# clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;

@@ -505,7 +505,7 @@ connection default;
 set @OLD_SQL_MODE=@@SESSION.SQL_MODE;
 set session sql_mode='PAD_CHAR_TO_FULL_LENGTH';
 flush privileges;
-connect  user_32753,localhost,mysqltest_32753,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  user_32753,localhost,mysqltest_32753,,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK;
 select current_user();
 current_user()
 mysqltest_32753@localhost

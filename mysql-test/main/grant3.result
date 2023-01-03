@@ -172,14 +172,14 @@ GRANT SELECT (a), INSERT (b) ON `temp`.`t1` TO 'user2'@'%';
 SHOW GRANTS FOR 'user2'@'%';
 Grants for user2@%
 GRANT USAGE ON *.* TO `user2`@`%`
-GRANT SELECT (a), INSERT (b) ON `temp`.`t1` TO `user2`@`%`
+GRANT SELECT (`a`), INSERT (`b`) ON `temp`.`t1` TO `user2`@`%`
 # Connect as the renamed user
 connect  conn1, localhost, user2,,;
 connection conn1;
 SHOW GRANTS;
 Grants for user2@%
 GRANT USAGE ON *.* TO `user2`@`%`
-GRANT SELECT (a), INSERT (b) ON `temp`.`t1` TO `user2`@`%`
+GRANT SELECT (`a`), INSERT (`b`) ON `temp`.`t1` TO `user2`@`%`
 SELECT a FROM temp.t1;
 a
 1
@@ -201,6 +201,7 @@ set global sql_mode=default;
 create database db1;
 create user foo@localhost;
 grant create on db1.* to foo@localhost;
+grant all privileges on test.* to foo@localhost;
 connect foo,localhost,foo;
 create temporary table t as values (1),(2),(3);
 use db1;

@@ -152,7 +152,8 @@ dberr_t log_file_t::close() noexcept
 dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
 {
   ut_ad(is_opened());
-  return os_file_read(IORequestRead, m_file, buf.data(), offset, buf.size());
+  return os_file_read(IORequestRead, m_file, buf.data(), offset, buf.size(),
+                      nullptr);
 }
 
 void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
@@ -1010,10 +1011,14 @@ func_exit:
 
     if (lsn <= sync_lsn)
     {
+#ifndef DBUG_OFF
+    skip_checkpoint:
+#endif
       log_sys.set_check_flush_or_checkpoint(false);
       goto func_exit;
     }
 
+    DBUG_EXECUTE_IF("ib_log_checkpoint_avoid_hard", goto skip_checkpoint;);
     log_sys.latch.rd_unlock();
 
     /* We must wait to prevent the tail of the log overwriting the head. */
@@ -1110,13 +1115,9 @@ loop:
 	}
 
 	/* We need these threads to stop early in shutdown. */
-	const char* thread_name;
-
-   if (srv_fast_shutdown != 2 && trx_rollback_is_active) {
-		thread_name = "rollback of recovered transactions";
-	} else {
-		thread_name = NULL;
-	}
+	const char* thread_name = srv_fast_shutdown != 2
+		&& trx_rollback_is_active
+		? "rollback of recovered transactions" : nullptr;
 
 	if (thread_name) {
 		ut_ad(!srv_read_only_mode);
@@ -1165,8 +1166,9 @@ wait_suspend_loop:
 
 	if (srv_fast_shutdown == 2 || !srv_was_started) {
 		if (!srv_read_only_mode && srv_was_started) {
-			ib::info() << "Executing innodb_fast_shutdown=2."
-				" Next startup will execute crash recovery!";
+			sql_print_information(
+				"InnoDB: Executing innodb_fast_shutdown=2."
+				" Next startup will execute crash recovery!");
 
 			/* In this fastest shutdown we do not flush the
 			buffer pool:

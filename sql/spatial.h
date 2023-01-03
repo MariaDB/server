@@ -353,6 +353,7 @@ protected:
   const char *get_mbr_for_points(MBR *mbr, const char *data, uint offset)
     const;
 
+public:
   /**
      Check if there're enough data remaining as requested
 
@@ -383,6 +384,7 @@ protected:
             (expected_points > ((m_data_end - data) /
                                 (POINT_DATA_SIZE + extra_point_space))));
   }
+protected:
   const char *m_data;
   const char *m_data_end;
 };

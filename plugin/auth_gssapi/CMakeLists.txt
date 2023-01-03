@@ -46,11 +46,15 @@ ELSE()
  ENDIF()
 ENDIF ()
 
-
+IF(WIN32)
+  SET(AUTH_GSSAPI_DEFAULT DEFAULT)
+ELSE()
+  SET(AUTH_GSSAPI_DEFAULT)
+ENDIF()
 MYSQL_ADD_PLUGIN(auth_gssapi server_plugin.cc ${GSSAPI_SERVER} ${GSSAPI_ERRMSG}
-                 LINK_LIBRARIES ${GSSAPI_LIBS} 
-                 COMPONENT gssapi-server
-                 MODULE_ONLY)
+                 LINK_LIBRARIES ${GSSAPI_LIBS}
+                 ${AUTH_GSSAPI_DEFAULT}
+                 COMPONENT gssapi-server)
 
 # disabled in favor of libmariadb/plugins/auth/auth_gssapi_client.c
 #

@@ -108,7 +108,7 @@ SHOW DATABASES LIKE 'db_datadict_%';
 Database (db_datadict_%)
 db_datadict_1
 db_datadict_2
-connect  testuser3, localhost, testuser3, , test;
+connect  testuser3, localhost, testuser3, ,"*NO-ONE*";
 SELECT * FROM information_schema.schemata
 WHERE schema_name LIKE 'db_datadict_%' ORDER BY schema_name;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
