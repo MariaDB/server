@@ -11,7 +11,6 @@ Feature_dynamic_columns	0
 Feature_fulltext	0
 Feature_gis	0
 Feature_insert_returning	0
-Feature_into_old_syntax	0
 Feature_into_outfile	0
 Feature_into_variable	0
 Feature_invisible_columns	0
@@ -208,6 +207,5 @@ select @x=@y;
 drop table t1;
 show status like "feature_into_%";
 Variable_name	Value
-Feature_into_old_syntax	2
-Feature_into_outfile	2
+Feature_into_outfile	4
 Feature_into_variable	2
