@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -539,7 +539,7 @@ void mtr_t::release(const void *object)
   ut_ad(it != m_memo.end());
   ut_ad(!(it->type & MTR_MEMO_MODIFY));
   it->release();
-  m_memo.erase(it);
+  m_memo.erase(it, it + 1);
   ut_ad(std::find_if(m_memo.begin(), m_memo.end(),
                      [object](const mtr_memo_slot_t& slot)
                      { return slot.object == &object; }) == m_memo.end());
@@ -1231,4 +1231,21 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
       m_made_dirty= is_block_dirtied(freed->page);
     m_log.close(log_write<FREE_PAGE>(id, nullptr));
   }
+}
+
+void small_vector_base::grow(void *small, size_t min_size, size_t element_size)
+{
+  size_t cap= std::max(2 * capacity(), min_size);
+  void *new_begin;
+  if (BeginX == small)
+  {
+    new_begin= my_malloc(PSI_INSTRUMENT_ME, cap * element_size, MYF(0));
+    memcpy(new_begin, BeginX, size() * element_size);
+  }
+  else
+    new_begin= my_realloc(PSI_NOT_INSTRUMENTED, BeginX, cap * element_size,
+                          MYF(0));
+
+  BeginX= new_begin;
+  Capacity = Size_T(cap);
 }
