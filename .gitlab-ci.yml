@@ -485,6 +485,31 @@ fedora upgrade:
       - new-installed-database.sql
       - new-upgraded-database.sql
 
+flawfinder: 
+  stage: test
+  needs: []
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: normal
+  script:
+    - yum install -y python3 python3-pip jq diffutils
+    - pip install flawfinder
+    - flawfinder --falsepositive --quiet --html . > flawfinder-all-vulnerabilities.html
+    - flawfinder --falsepositive --quiet --minlevel=5 --sarif . > flawfinder-output.json
+    # FlawFinder's --sarif output will display all vulnerabilities despite having --minlevel=5 specified.
+    # Therefore, we postprocess the results with jq and filter out findings where the vulnerability level is less than 5.
+    # Also in the SARIF output format, the vulnerabilities are ranked as 0.2/0.4/0.6/0.8/1.0 which correspond to the --minlevel=1/2/3/4/5 of FlawFinder.
+    # Additionally, we sort the results because individual findings are consistent across different runs, but their ordering may not be.
+    # Vulnerabilities can also be ignored in-line (/* Flawfinder: ignore */), but this option was chosen as to not clutter the codebase.
+    - jq 'del(.runs[] | .tool | .driver | .rules) | del(.runs[] | .results[] | select(.rank < 1)) | del(.runs[] | .results[] | .locations[] | .physicalLocation | .region | .startLine) | .runs[0].results|=sort_by(.fingerprints)' flawfinder-output.json > flawfinder-min-level5.json
+    # Diff against known vulnerabilities, but ignore the line number.
+    - diff flawfinder-min-level5.json tests/code_quality/flawfinder-ignorelist.json
+  artifacts:
+    when: always
+    paths:
+      - flawfinder-all-vulnerabilities.html
+      - flawfinder-min-level5.json
+
 # Once all RPM builds and tests have passed, also run the DEB builds and tests
 # @NOTE: This is likely to work well only on salsa.debian.org as the Gitlab.com
 # runners are too small for everything this stage does.
