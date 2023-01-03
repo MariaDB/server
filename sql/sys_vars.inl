@@ -1200,7 +1200,6 @@ public:
     option.var_type|= GET_DOUBLE;
     option.min_value= (longlong) getopt_double2ulonglong(min_val);
     option.max_value= (longlong) getopt_double2ulonglong(max_val);
-    global_var(double)= (double)option.def_value;
     SYSVAR_ASSERT(min_val < max_val);
     SYSVAR_ASSERT(min_val <= def_val);
     SYSVAR_ASSERT(max_val >= def_val);
@@ -1263,7 +1262,6 @@ public:
       option.var_type|= GET_ADJUST_VALUE;
     }
     cost_adjust= (double) arg_cost_adjust;
-    global_var(double)= (double)option.def_value/cost_adjust; // To usec
   }
   bool session_update(THD *thd, set_var *var)
   {
@@ -1287,7 +1285,7 @@ public:
 
 
 /*
-   The class for optimzer costs with structured names, unique for each engine.
+   The class for optimizer costs with structured names, unique for each engine.
    Used as 'engine.variable_name'
 
    Class specific constructor arguments:
@@ -1331,7 +1329,7 @@ class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
   {
     option.var_type|= GET_ASK_ADDR;
     option.value= (uchar**)1; // crash me, please
-    // fix an offset from global_system_variables to be an offset in KEY_CACHE
+    // fix an offset from global_system_variables to be an offset in OPTIMIZER_COSTS
     offset= global_var_ptr() - (uchar*) &default_optimizer_costs;
     SYSVAR_ASSERT(scope() == GLOBAL);
   }
