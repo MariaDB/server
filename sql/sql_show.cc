@@ -3669,9 +3669,6 @@ const char* get_one_variable(THD *thd,
     /* 6 is the default precision for '%f' in sprintf() */
     end= buff + my_fcvt(*value.as_double, 6, buff, NULL);
     break;
-  case SHOW_OPTIMIZER_COST:                 // Stored in 1ms, displayed in us
-    end= buff + my_fcvt(*value.as_double*1000, 6, buff, NULL);
-    break;
   case SHOW_LONG_STATUS:
     value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
