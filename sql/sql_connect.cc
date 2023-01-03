@@ -891,7 +891,7 @@ int thd_set_peer_addr(THD *thd,
     return 1; /* The error is set by my_strdup(). */
   }
   thd->main_security_ctx.host_or_ip = thd->main_security_ctx.ip;
-  if (!(specialflag & SPECIAL_NO_RESOLVE))
+  if (!opt_skip_name_resolve)
   {
     int rc;
 

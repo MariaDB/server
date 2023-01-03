@@ -443,7 +443,7 @@ typedef struct st_io_cache		/* Used when caching files */
   /*
     A caller will use my_b_read() macro to read from the cache
     if the data is already in cache, it will be simply copied with
-    memcpy() and internal variables will be accordinging updated with
+    memcpy() and internal variables will be accordingly updated with
     no functions invoked. However, if the data is not fully in the cache,
     my_b_read() will call read_function to fetch the data. read_function
     must never be invoked directly.
@@ -487,7 +487,7 @@ typedef struct st_io_cache		/* Used when caching files */
   myf	myflags;			/* Flags used to my_read/my_write */
   /*
     alloced_buffer is set to the size of the buffer allocated for the IO_CACHE.
-    Includes the overhead(storing key to ecnrypt and decrypt) for encryption.
+    Includes the overhead(storing key to encrypt and decrypt) for encryption.
     Set to 0 if nothing is allocated.
     Currently READ_NET is the only one that will use a buffer allocated
     somewhere else
@@ -997,7 +997,7 @@ static inline my_hrtime_t make_hr_time(my_time_t time, ulong time_sec_part)
 #define my_munmap(a,b)          munmap((a),(b))
 
 #else
-/* not a complete set of mmap() flags, but only those that nesessary */
+/* not a complete set of mmap() flags, but only those that necessary */
 #define PROT_READ        1
 #define PROT_WRITE       2
 #define MAP_NORESERVE    0

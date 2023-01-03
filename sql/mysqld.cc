@@ -8548,12 +8548,6 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   case (int) OPT_SKIP_HOST_CACHE:
     opt_specialflag|= SPECIAL_NO_HOST_CACHE;
     break;
-  case (int) OPT_SKIP_RESOLVE:
-    if ((opt_skip_name_resolve= (argument != disabled_my_option)))
-      opt_specialflag|= SPECIAL_NO_RESOLVE;
-    else
-      opt_specialflag&= ~SPECIAL_NO_RESOLVE;
-    break;
   case (int) OPT_WANT_CORE:
     test_flags |= TEST_CORE_ON_SIGNAL;
     break;

@@ -3092,12 +3092,15 @@ SELECT IS_USED_LOCK(POINT(1,1));
 --echo #
 --echo # MDEV-26161 crash in Gis_point::calculate_haversine
 --echo #
+#enable after fix MDEV-30229
+--disable_view_protocol
 --error ER_CANT_CREATE_GEOMETRY_OBJECT
 select st_distance_sphere(x'01030000000400000004000000000000', multipoint(point(124,204)), 10);
 --error ER_CANT_CREATE_GEOMETRY_OBJECT
 select st_distance_sphere(x'010300000004000000040000', multipoint(point(124,204)), 10);
 --error ER_CANT_CREATE_GEOMETRY_OBJECT
 select st_distance_sphere(x'010300000001000000040000', multipoint(point(124,204)), 10);
+--enable_view_protocol
 
 --echo #
 --echo # End of 10.3 tests

@@ -6735,7 +6735,9 @@ DROP TABLE t1;
 #
 # MDEV-24314: create view with derived table without default database
 #
-drop database test;
+create database dummy;
+use dummy;
+drop database dummy;
 create database db1;
 create table db1.t1 (a int);
 insert into db1.t1 values (3),(7),(1);
@@ -6765,7 +6767,6 @@ a
 drop view db1.v1;
 drop table db1.t1;
 drop database db1;
-create database test;
 use test;
 #
 # MDEV-16940: update of multi-table view returning error used in SP

@@ -33,12 +33,12 @@ extern "C" {
 #include "my_compare.h"
 #include "my_tree.h"
 
-	/* defines used by heap-funktions */
+	/* defines used by heap-functions */
 
 #define HP_MAX_LEVELS	4		/* 128^5 records is enough */
 #define HP_PTRS_IN_NOD	128
 
-	/* struct used with heap_funktions */
+	/* struct used with heap_functions */
 
 typedef struct st_heapinfo		/* Struct from heap_info */
 {
@@ -107,7 +107,7 @@ typedef struct st_heap_block
   ulong last_allocated; /* number of records there is allocated space for */
 } HP_BLOCK;
 
-struct st_heap_info;			/* For referense */
+struct st_heap_info;			/* For reference */
 
 typedef struct st_hp_keydef		/* Key definition with open */
 {

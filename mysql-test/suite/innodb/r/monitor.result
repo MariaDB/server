@@ -671,7 +671,7 @@ SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 = 'lock_rec_lock_created');
 SELECT @end - @start;
 @end - @start
-0
+1
 DROP TABLE t1;
 SET GLOBAL innodb_monitor_enable=default;
 SET GLOBAL innodb_monitor_disable=default;

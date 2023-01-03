@@ -2501,7 +2501,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     add_table_options(thd, table, create_info_arg,
                       table_list->schema_table != 0, 0, packet);
 
-  if (table->versioned())
+  if (DBUG_EVALUATE_IF("sysvers_hide", 0, table->versioned()))
     packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE

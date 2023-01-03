@@ -1448,14 +1448,18 @@ write_galera_info(MYSQL *connection)
 
 	if ((state_uuid == NULL && state_uuid55 == NULL)
 		|| (last_committed == NULL && last_committed55 == NULL)) {
-		msg("Failed to get master wsrep state from SHOW STATUS.");
-		result = false;
+		msg("Warning: failed to get master wsrep state from SHOW STATUS.");
+		result = true;
 		goto cleanup;
 	}
 
 	result = backup_file_printf(XTRABACKUP_GALERA_INFO,
 		"%s:%s\n", state_uuid ? state_uuid : state_uuid55,
 			last_committed ? last_committed : last_committed55);
+	if (result)
+	{
+		write_current_binlog_file(connection);
+	}
 
 cleanup:
 	free_mysql_variables(status);

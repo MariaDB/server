@@ -1,5 +1,6 @@
 # several FULLTEXT indexes in one table test
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;
