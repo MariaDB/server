@@ -1,3 +1,4 @@
+# Correct Galera library found
 CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
 SET GLOBAL wsrep_provider_repl_max_ws_size=1;
 SHOW VARIABLES LIKE 'wsrep_provider_repl_max_ws_size';

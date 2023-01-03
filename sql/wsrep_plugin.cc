@@ -34,6 +34,7 @@
 #include "wsrep_server_state.h"
 #include "wsrep_var.h" // wsrep_refresh_provider_options()
 
+#ifdef WITH_WSREP
 static bool provider_plugin_enabled= false;
 
 /* Prototype for provider system variables */
@@ -277,12 +278,10 @@ static int wsrep_provider_plugin_init(void *p)
 {
   WSREP_DEBUG("wsrep_provider_plugin_init()");
 
-  if (!WSREP_ON_ || !wsrep_provider ||
-      (wsrep_provider && !strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN)))
+  if (!WSREP_ON)
   {
-	  WSREP_ERROR("plugin-wsrep-provider can't be enabled if wsrep_on==OFF or wsrep_provider is unset or set to 'none'");
-	  my_message(ER_WRONG_ARGUMENTS, "plugin-wsrep-provider can't be enabled if wsrep_on==OFF or wsrep_provider is unset or set to 'none'", MYF(0));
-	  return 1;
+    sql_print_information("Plugin '%s' is disabled.", "wsrep-provider");
+    return 0;
   }
 
   provider_plugin_enabled= true;
@@ -369,3 +368,5 @@ maria_declare_plugin(wsrep)
   MariaDB_PLUGIN_MATURITY_STABLE     /* Maturity */
 }
 maria_declare_plugin_end;
+
+#endif /* WITH_WSREP */
