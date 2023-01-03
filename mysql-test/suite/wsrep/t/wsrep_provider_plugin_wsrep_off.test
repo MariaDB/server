@@ -1,0 +1,6 @@
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+
+SELECT @@wsrep_on;
+
+select variable_type, global_value from information_schema.system_variables where variable_name = 'wsrep_provider%';
