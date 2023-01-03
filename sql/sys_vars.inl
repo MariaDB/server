@@ -1250,14 +1250,12 @@ public:
           on_update_function on_update_func=0,
           const char *substitute=0)
     :Sys_var_double(name_arg, comment, flag_args, off, size, getopt,
-                   min_val, max_val, def_val, lock,
+                   min_val, max_val, def_val * arg_cost_adjust, lock,
                    binlog_status_arg,
                    on_check_func,
                    on_update_func,
                    substitute)
   {
-    if (arg_cost_adjust == 1000)
-      option.var_type|= GET_ADJUST_VALUE;
     cost_adjust= (double) arg_cost_adjust;
   }
   bool session_update(THD *thd, set_var *var)
@@ -1275,8 +1273,7 @@ public:
 
   void global_save_default(THD *thd, set_var *var)
   {
-    var->save_result.double_value= getopt_ulonglong2double(option.def_value)*
-      cost_adjust;
+    var->save_result.double_value= getopt_ulonglong2double(option.def_value);
   }
   const uchar *tmp_ptr(THD *thd) const
   {
@@ -1312,33 +1309,20 @@ public:
 #define COST_VAR(X) GLOBAL_VAR(default_optimizer_costs.X)
 #define cost_var_ptr(KC, OFF) (((uchar*)(KC))+(OFF))
 #define cost_var(KC, OFF) (*(double*)cost_var_ptr(KC, OFF))
-typedef bool (*cost_update_function)(THD *, OPTIMIZER_COSTS *, ptrdiff_t,
-                                     double, double);
-
-static bool update_cost(THD *thd, OPTIMIZER_COSTS *key_cache,
-                        ptrdiff_t offset, double new_value, double cost_adjust)
-{
-  cost_var(key_cache, offset)= new_value / cost_adjust;
-  return 0;
-}
-
 
 class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
 {
-  cost_update_function cost_update;
   public:
   Sys_var_engine_optimizer_cost(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
           double min_val, double max_val, double def_val,
           long cost_adjust, PolyLock *lock= 0,
-          cost_update_function on_update_func= update_cost,
           const char *substitute=0)
     : Sys_var_optimizer_cost(name_arg, comment, flag_args, off, size,
                              getopt, min_val, max_val, def_val, cost_adjust,
                              lock, VARIABLE_NOT_IN_BINLOG, 0,
-                             0, substitute),
-     cost_update(on_update_func)
+                             0, substitute)
   {
     option.var_type|= GET_ASK_ADDR;
     option.value= (uchar**)1; // crash me, please
@@ -1351,7 +1335,6 @@ class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
     double new_value= var->save_result.double_value;
     LEX_CSTRING *base_name= &var->base;
     OPTIMIZER_COSTS *optimizer_costs;
-    bool res;
 
     /* If no basename, assume it's for the default costs */
     if (!base_name->length)
@@ -1364,9 +1347,9 @@ class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
       mysql_mutex_unlock(&LOCK_optimizer_costs);
       return true;
     }
-    res= cost_update(thd, optimizer_costs, offset, new_value, cost_adjust);
+    cost_var(optimizer_costs, offset)= new_value / cost_adjust;
     mysql_mutex_unlock(&LOCK_optimizer_costs);
-    return res;
+    return 0;
   }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {

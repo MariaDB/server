@@ -4863,6 +4863,25 @@ init_gtid_pos_auto_engines(void)
   return 0;
 }
 
+
+#define us_to_ms(X) if (X > 0) X/= 1000;
+static int adjust_optimizer_costs(void *, OPTIMIZER_COSTS *oc, void *)
+{
+  us_to_ms(oc->disk_read_cost);
+  us_to_ms(oc->index_block_copy_cost);
+  us_to_ms(oc->key_cmp_cost);
+  us_to_ms(oc->key_copy_cost);
+  us_to_ms(oc->key_lookup_cost);
+  us_to_ms(oc->key_next_find_cost);
+  us_to_ms(oc->row_copy_cost);
+  us_to_ms(oc->row_lookup_cost);
+  us_to_ms(oc->row_next_find_cost);
+  us_to_ms(oc->rowid_cmp_cost);
+  us_to_ms(oc->rowid_copy_cost);
+  return 0;
+}
+
+
 #define MYSQL_COMPATIBILITY_OPTION(option) \
   { option, OPT_MYSQL_COMPATIBILITY, \
    0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
@@ -5207,8 +5226,15 @@ static int init_server_components()
 
   tc_log= 0; // ha_initialize_handlerton() needs that
 
-  if (!opt_abort && ddl_log_initialize())
-    unireg_abort(1);
+  if (!opt_abort)
+  {
+    if (ddl_log_initialize())
+      unireg_abort(1);
+
+    process_optimizer_costs((process_optimizer_costs_t)adjust_optimizer_costs, 0);
+    us_to_ms(global_system_variables.optimizer_where_cost);
+    us_to_ms(global_system_variables.optimizer_scan_setup_cost);
+  }
 
   if (plugin_init(&remaining_argc, remaining_argv,
                   (opt_noacl ? PLUGIN_INIT_SKIP_PLUGIN_TABLE : 0) |
@@ -8547,31 +8573,6 @@ mysql_getopt_value(const char *name, uint length,
 }
 
 
-static void
-mariadb_getopt_adjust_value(const struct my_option *option, void *value)
-{
-  switch (option->id) {
-  case OPT_COSTS_DISK_READ_COST:
-  case OPT_COSTS_INDEX_BLOCK_COPY_COST:
-  case OPT_COSTS_KEY_CMP_COST:
-  case OPT_COSTS_KEY_COPY_COST:
-  case OPT_COSTS_KEY_LOOKUP_COST:
-  case OPT_COSTS_KEY_NEXT_FIND_COST:
-  case OPT_COSTS_DISK_READ_RATIO:
-  case OPT_COSTS_ROW_COPY_COST:
-  case OPT_COSTS_ROW_LOOKUP_COST:
-  case OPT_COSTS_ROW_NEXT_FIND_COST:
-  case OPT_COSTS_ROWID_CMP_COST:
-  case OPT_COSTS_ROWID_COPY_COST:
-    /* Value from command is line given in usec. Convert to ms */
-    *(double*) value= *(double*) value/1000.0;
-    break;
-  default:
-    break;
-  }
-}
-
-
 static void option_error_reporter(enum loglevel level, const char *format, ...)
 {
   va_list args;
@@ -8610,7 +8611,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   my_getopt_get_addr= mysql_getopt_value;
   my_getopt_error_reporter= option_error_reporter;
-  my_getopt_adjust_value= mariadb_getopt_adjust_value;
 
   /* prepare all_options array */
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &all_options, sizeof(my_option),
