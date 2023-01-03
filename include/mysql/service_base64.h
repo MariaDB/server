@@ -29,7 +29,7 @@ extern "C" {
 #include <stdlib.h>
 #endif
 
-/* Allow multuple chunks 'AAA= AA== AA==', binlog uses this */
+/* Allow multiple chunks 'AAA= AA== AA==', binlog uses this */
 #define MY_BASE64_DECODE_ALLOW_MULTIPLE_CHUNKS 1
 
 extern struct base64_service_st {

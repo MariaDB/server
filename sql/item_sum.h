@@ -1066,7 +1066,7 @@ class Item_sum_std :public Item_sum_variance
   enum Sumfunctype sum_func () const { return STD_FUNC; }
   double val_real();
   Item *result_item(THD *thd, Field *field);
-  const char *func_name() const { return "std("; }
+  const char *func_name() const { return sample ? "stddev_samp(" : "std("; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_std>(thd, this); }

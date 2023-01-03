@@ -1,6 +1,7 @@
 # This is the DDL function tests for innodb FTS
 
 -- source include/have_innodb.inc
+-- source include/maybe_versioning.inc
 
 # Create FTS table
 CREATE TABLE fts_test (

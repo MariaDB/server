@@ -7,6 +7,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 CREATE TABLE t1 (
   i int(10) unsigned not null auto_increment primary key,

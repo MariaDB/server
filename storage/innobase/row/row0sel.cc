@@ -5113,8 +5113,10 @@ wrong_offs:
 			goto no_gap_lock;
 		}
 
+		/* Set next-key lock both for delete- and non-delete-marked
+		records for unique search, because non-delete-marked record can
+		be marked as deleted while transaction suspends. */
 		if (!set_also_gap_locks
-		    || (unique_search && !rec_get_deleted_flag(rec, comp))
 		    || dict_index_is_spatial(index)) {
 
 			goto no_gap_lock;

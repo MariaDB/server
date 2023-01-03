@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB Corporation.
+   Copyright (c) 2010, 2023, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,6 +41,7 @@
                                        // find_item_in_list,
                                        // RESOLVED_AGAINST_ALIAS, ...
 #include "sql_expression_cache.h"
+#include "sql_lex.h"                   // empty_clex_str
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -1280,12 +1281,11 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   Item *conv= example->safe_charset_converter(thd, tocs);
   if (conv == example)
     return this;
-  Item_cache *cache;
-  if (!conv || conv->fix_fields(thd, (Item **) NULL) ||
-      unlikely(!(cache= new (thd->mem_root) Item_cache_str(thd, conv))))
+  if (!conv || conv->fix_fields(thd, (Item **) NULL))
     return NULL; // Safe conversion is not possible, or OEM
-  cache->setup(thd, conv);
-  return cache;
+  setup(thd, conv);
+  thd->change_item_tree(&example, conv);
+  return this;
 }
 
 
@@ -2249,7 +2249,8 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
 
     if (unlikely((!(used_tables() & ~PARAM_TABLE_BIT) ||
                   (type() == REF_ITEM &&
-                   ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF))))
+                   ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF &&
+                   ((Item_ref*)this)->ref_type() != Item_ref::DIRECT_REF))))
         return;
   }
 
@@ -2562,7 +2563,6 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
     safe_args[1]= args[item_sep];
   }
 
-  bool res= FALSE;
   uint i;
 
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
@@ -2582,19 +2582,33 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
         args[item_sep]= safe_args[1];
       }
       my_coll_agg_error(args, nargs, fname, item_sep);
-      res= TRUE;
-      break; // we cannot return here, we need to restore "arena".
+      return TRUE;
     }
 
-    thd->change_item_tree(arg, conv);
+    if (conv->is_fixed())
+      return false;
 
-    if (conv->fix_fields_if_needed(thd, arg))
+    if (conv->fix_fields(thd, arg))
+      return TRUE;
+
+    Query_arena backup;
+    if (Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup))
     {
-      res= TRUE;
-      break; // we cannot return here, we need to restore "arena".
+      Item_direct_ref_to_item *ref=
+        new (thd->mem_root) Item_direct_ref_to_item(thd, *arg);
+      if ((ref == NULL) || ref->fix_fields(thd, (Item **)&ref))
+      {
+        thd->restore_active_arena(arena, &backup);
+        return TRUE;
+      }
+      *arg= ref;
+      thd->restore_active_arena(arena, &backup);
+      ref->change_item(thd, conv);
     }
+    else
+      thd->change_item_tree(arg, conv);
   }
-  return res;
+  return FALSE;
 }
 
 
@@ -10791,11 +10805,52 @@ const char *dbug_print(SELECT_LEX_UNIT *x) { return dbug_print_unit(x);   }
 #endif /*DBUG_OFF*/
 
 
-
 void Item::register_in(THD *thd)
 {
   next= thd->free_list;
   thd->free_list= this;
+}
+
+
+Item_direct_ref_to_item::Item_direct_ref_to_item(THD *thd, Item *item)
+: Item_direct_ref(thd, NULL, NULL, "", &empty_clex_str, FALSE)
+{
+  m_item= item;
+  ref= (Item**)&m_item;
+}
+
+bool Item_direct_ref_to_item::fix_fields(THD *thd, Item **)
+{
+  DBUG_ASSERT(m_item != NULL);
+  if (m_item->fix_fields_if_needed_for_scalar(thd, ref))
+    return TRUE;
+  set_properties();
+  return FALSE;
+}
+
+void Item_direct_ref_to_item::print(String *str, enum_query_type query_type)
+{
+  m_item->print(str, query_type);
+}
+
+Item *Item_direct_ref_to_item::safe_charset_converter(THD *thd,
+                                                      CHARSET_INFO *tocs)
+{
+  Item *conv= m_item->safe_charset_converter(thd, tocs);
+  if (conv != m_item)
+  {
+    if (conv== NULL || conv->fix_fields(thd, &conv))
+      return NULL;
+    change_item(thd, conv);
+  }
+  return this;
+}
+
+void Item_direct_ref_to_item::change_item(THD *thd, Item *i)
+{
+  DBUG_ASSERT(i->is_fixed());
+  thd->change_item_tree(ref, i);
+  set_properties();
 }
 
 

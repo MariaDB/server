@@ -15,7 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-/* This file should be included when using myisam_funktions */
+/* This file should be included when using myisam_functions */
 
 #ifndef _myisam_h
 #define _myisam_h
@@ -159,7 +159,7 @@ typedef struct st_mi_create_info
   my_bool with_auto_increment;
 } MI_CREATE_INFO;
 
-struct st_myisam_info;			/* For referense */
+struct st_myisam_info;			/* For reference */
 struct st_mi_isam_share;
 typedef struct st_myisam_info MI_INFO;
 struct st_mi_s_param;

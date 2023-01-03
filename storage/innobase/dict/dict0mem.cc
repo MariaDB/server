@@ -1370,6 +1370,20 @@ dict_index_t::vers_history_row(
 {
 	ut_ad(!is_primary());
 
+	/*
+	  Get row_end from clustered index
+
+	  TODO (optimization): row_end can be taken from unique secondary index
+	  as well. For that dict_index_t::vers_end member should be added and
+	  updated at index init (dict_index_build_internal_non_clust()).
+
+	  Test case:
+
+		create or replace table t1 (x int unique, y int unique,
+			foreign key r (y) references t1 (x))
+			with system versioning engine innodb;
+		insert into t1 values (1, 1);
+	 */
 	bool error = false;
 	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;

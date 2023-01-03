@@ -6438,7 +6438,9 @@ DROP TABLE t1;
 --echo # MDEV-24314: create view with derived table without default database
 --echo #
 
-drop database test;
+create database dummy;
+use dummy;
+drop database dummy;
 
 create database db1;
 create table db1.t1 (a int);
@@ -6461,7 +6463,6 @@ drop view db1.v1;
 drop table db1.t1;
 drop database db1;
 
-create database test;
 use test;
 
 --echo #

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2023, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -310,7 +310,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   We should not introduce any further shift/reduce conflicts.
 */
-%expect 73
+%expect 84
 
 /*
    Comments for TOKENS.
@@ -1107,7 +1107,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %left   PREC_BELOW_NOT
 
-%nonassoc NOT_SYM
+%nonassoc LOW_PRIORITY_NOT
 %left   '=' EQUAL_SYM GE '>' LE '<' NE
 %nonassoc IS
 %right BETWEEN_SYM
@@ -10180,7 +10180,7 @@ expr:
                 MYSQL_YYABORT;
             }
           }
-        | NOT_SYM expr %prec NOT_SYM
+        | NOT_SYM expr %prec LOW_PRIORITY_NOT
           {
             $$= negate_expression(thd, $2);
             if (unlikely($$ == NULL))

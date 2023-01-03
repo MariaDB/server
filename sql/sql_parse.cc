@@ -5376,7 +5376,7 @@ mysql_execute_command(THD *thd)
       List_iterator <LEX_USER> user_list(lex->users_list);
       while ((user= user_list++))
       {
-        if (specialflag & SPECIAL_NO_RESOLVE &&
+        if (opt_skip_name_resolve &&
             hostname_requires_resolving(user->host.str))
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_HOSTNAME_WONT_WORK,

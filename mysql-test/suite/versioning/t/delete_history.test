@@ -2,6 +2,9 @@
 --source include/have_partition.inc
 --source suite/versioning/engines.inc
 
+set @saved_frequency= @@global.innodb_purge_rseg_truncate_frequency;
+set global innodb_purge_rseg_truncate_frequency= 1;
+
 create table t (a int);
 --error ER_VERS_NOT_VERSIONED
 delete history from t before system_time now();
@@ -194,6 +197,29 @@ drop prepare stmt;
 drop table t1;
 
 --echo #
+--echo # MDEV-25004 Missing row in FTS_DOC_ID_INDEX during DELETE HISTORY
+--echo #
+create table t1 (a integer, c0 varchar(255), fulltext key (c0))
+with system versioning engine innodb;
+set system_versioning_alter_history= keep;
+alter table t1 drop system versioning;
+alter table t1 add system versioning;
+insert into t1 values (1, 'politician');
+update t1 set c0= 'criminal';
+--source suite/innodb/include/wait_all_purged.inc
+delete history from t1;
+drop table t1;
+
+create table t1 (id int primary key, ftx varchar(255))
+with system versioning engine innodb;
+insert into t1 values (1, 'c');
+delete from t1;
+alter table t1 add fulltext key(ftx);
+drop table t1;
+
+set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
+
+--echo #
 --echo # MDEV-28201 Server crashes upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
 --echo #
 CREATE TABLE t1 (a INT) WITH SYSTEM VERSIONING;
@@ -205,5 +231,7 @@ DELETE HISTORY FROM v1 BEFORE SYSTEM_TIME '2021-01-01';
 DELETE HISTORY FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo # End of 10.4 tests
 
 --source suite/versioning/common_finish.inc
