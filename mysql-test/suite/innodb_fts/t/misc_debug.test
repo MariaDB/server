@@ -7,6 +7,7 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/count_sessions.inc
+--source include/maybe_versioning.inc
 
 # Following test is for Bug 14668777 - ASSERT ON IB_VECTOR_SIZE(
 # TABLE->FTS->INDEXES, ALTER TABLE
@@ -91,7 +92,14 @@ SET @saved_debug_dbug= @@debug_dbug;
 
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
+if ($MTR_COMBINATION_ORIG)
+{
 TRUNCATE t1;
+}
+if (!$MTR_COMBINATION_ORIG)
+{
+--echo TRUNCATE t1;
+}
 SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 --echo # End of 10.3 tests

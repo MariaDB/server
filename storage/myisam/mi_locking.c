@@ -508,7 +508,7 @@ int _mi_readinfo(register MI_INFO *info, int lock_type, int check_keybuffer)
 
 
 /*
-  Every isam-function that uppdates the isam-database MUST end with this
+  Every isam-function that updates the isam-database MUST end with this
   request
 */
 

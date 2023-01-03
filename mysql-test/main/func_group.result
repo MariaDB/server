@@ -2553,5 +2553,19 @@ DROP TABLE t1;
 #
 SET STATEMENT sql_mode=ONLY_FULL_GROUP_BY FOR EXECUTE IMMEDIATE 'ALTER TABLE mysql.time_zone_transition ORDER BY Time_zone_id, Transition_time';
 #
+# MDEV-19071 Wrong results when using STDDEV_SAMP() and view
+#
+create table t1(i int);
+insert into t1 values  (1),(2),(3),(4),(5);
+create view v1 as select stddev_samp(i),stddev_pop(i),stddev(i),std(i) from t1;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select stddev_samp(`t1`.`i`) AS `stddev_samp(i)`,std(`t1`.`i`) AS `stddev_pop(i)`,std(`t1`.`i`) AS `stddev(i)`,std(`t1`.`i`) AS `std(i)` from `t1`	latin1	latin1_swedish_ci
+select * from v1;
+stddev_samp(i)	stddev_pop(i)	stddev(i)	std(i)
+1.5811	1.4142	1.4142	1.4142
+drop view v1;
+drop table t1;
+#
 # End of 10.3 tests
 #

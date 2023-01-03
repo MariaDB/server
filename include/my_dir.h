@@ -70,7 +70,7 @@ typedef struct my_stat
   dev_t		st_rdev;	/* more major & minor device numbers (???) */
   off_t		st_size;	/* size of file */
   time_t	st_atime;	/* time for last read */
-  time_t	st_mtime;	/* time for last contens modify */
+  time_t	st_mtime;	/* time for last contents modify */
   time_t	st_ctime;	/* time for last inode or contents modify */
 } MY_STAT;
 

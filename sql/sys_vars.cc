@@ -3019,7 +3019,7 @@ static Sys_var_mybool Sys_skip_name_resolve(
        "skip_name_resolve",
        "Don't resolve hostnames. All hostnames are IP's or 'localhost'.",
        READ_ONLY GLOBAL_VAR(opt_skip_name_resolve),
-       CMD_LINE(OPT_ARG, OPT_SKIP_RESOLVE),
+       CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_skip_show_database(

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2022, MariaDB Corporation.
+Copyright (c) 2014, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -468,6 +468,8 @@ row_merge_buf_redundant_convert(
 @param[in,out]	row		table row
 @param[in]	ext		cache of externally stored
 				column prefixes, or NULL
+@param[in]	history_fts	row is historical in a system-versioned table
+				on which a FTS_DOC_ID_INDEX(FTS_DOC_ID) exists
 @param[in,out]	doc_id		Doc ID if we are creating
 				FTS index
 @param[in,out]	conv_heap	memory heap where to allocate data when
@@ -490,6 +492,7 @@ row_merge_buf_add(
 	fts_psort_t*		psort_info,
 	dtuple_t*		row,
 	const row_ext_t*	ext,
+	const bool		history_fts,
 	doc_id_t*		doc_id,
 	mem_heap_t*		conv_heap,
 	dberr_t*		err,
@@ -554,7 +557,7 @@ error:
 			: NULL;
 
 		/* Process the Doc ID column */
-		if (!v_col && *doc_id
+		if (!v_col && (history_fts || *doc_id)
 		    && col->ind == index->table->fts->doc_col) {
 			fts_write_doc_id((byte*) &write_doc_id, *doc_id);
 
@@ -615,7 +618,7 @@ error:
 			}
 
 			/* Tokenize and process data for FTS */
-			if (index->type & DICT_FTS) {
+			if (!history_fts && (index->type & DICT_FTS)) {
 				fts_doc_item_t*	doc_item;
 				byte*		value;
 				void*		ptr;
@@ -1944,6 +1947,7 @@ corrupted_metadata:
 		dtuple_t*	row;
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
+		bool history_row, history_fts = false;
 
 		stage->n_pk_recs_inc();
 
@@ -2203,6 +2207,11 @@ end_of_index:
 					   row_heap);
 		ut_ad(row);
 
+		history_row = new_table->versioned()
+		       && dtuple_get_nth_field(row, new_table->vers_end)
+		       ->vers_history_row();
+		history_fts = history_row && new_table->fts;
+
 		for (ulint i = 0; i < n_nonnull; i++) {
 			dfield_t*	field	= &row->fields[nonnull[i]];
 
@@ -2231,7 +2240,7 @@ end_of_index:
 		}
 
 		/* Get the next Doc ID */
-		if (add_doc_id) {
+		if (add_doc_id && !history_fts) {
 			doc_id++;
 		} else {
 			doc_id = 0;
@@ -2266,13 +2275,6 @@ end_of_index:
 
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
-
-			bool history_row = false;
-			if (new_table->versioned()) {
-				const dfield_t* dfield = dtuple_get_nth_field(
-				    row, new_table->vers_end);
-				history_row = dfield->vers_history_row();
-			}
 
 			dfield_t* dfield = dtuple_get_nth_field(row,
 								add_autoinc);
@@ -2394,8 +2396,8 @@ write_buffers:
 			if (UNIV_LIKELY
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table, new_table,
-					psort_info, row, ext, &doc_id,
-					conv_heap, &err,
+					psort_info, row, ext, history_fts,
+					&doc_id, conv_heap, &err,
 					&v_heap, eval_table, trx,
 					col_collate)))) {
 
@@ -2722,10 +2724,10 @@ write_buffers:
 				if (UNIV_UNLIKELY
 				    (!(rows_added = row_merge_buf_add(
 						buf, fts_index, old_table,
-						new_table, psort_info, row, ext,
-						&doc_id, conv_heap,
-						&err, &v_heap, eval_table,
-						trx, col_collate)))) {
+						new_table, psort_info,
+						row, ext, history_fts, &doc_id,
+						conv_heap, &err, &v_heap,
+						eval_table, trx, col_collate)))) {
                                         /* An empty buffer should have enough
                                         room for at least one record. */
 					ut_ad(err == DB_COMPUTE_VALUE_FAILED

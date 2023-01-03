@@ -266,6 +266,8 @@ select * from t;
 select * from t for system_time all;
 insert into t values (4, 0);
 select * from t for system_time all;
+alter table t add c int, drop system versioning;
+select * from t;
 
 create or replace table t (a int) with system versioning;
 insert into t values (1), (2), (3);

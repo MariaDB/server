@@ -7,6 +7,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 CREATE TABLE t1 (
   i int(10) unsigned not null auto_increment primary key,
@@ -212,7 +213,17 @@ delete from t1 limit 1;
 #
 # BUG#16489: utf8 + fulltext leads to corrupt index file.
 #
+if ($MTR_COMBINATION_ORIG)
+{
 truncate table t1;
+}
+if (!$MTR_COMBINATION_ORIG)
+{
+--disable_query_log
+delete from t1;
+--enable_query_log
+--echo truncate table t1;
+}
 insert into t1 values('ab c d');
 update t1 set a='ab c d';
 select * from t1 where match a against('ab c' in boolean mode);
