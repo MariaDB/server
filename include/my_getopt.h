@@ -40,7 +40,6 @@ C_MODE_START
 #define GET_FLAGSET   15
 #define GET_BIT       16
 
-#define GET_ADJUST_VALUE 256
 #define GET_ASK_ADDR     128
 #define GET_AUTO          64
 #define GET_TYPE_MASK     63
@@ -101,8 +100,6 @@ typedef my_bool (*my_get_one_option)(const struct my_option *, const char *, con
 typedef void *(*my_getopt_value)(const char *, uint, const struct my_option *,
                                  int *);
 
-typedef void (*my_getopt_adjust)(const struct my_option *, void *);
-
 extern char *disabled_my_option;
 extern char *autoset_my_option;
 extern my_bool my_getopt_print_errors;
@@ -111,7 +108,6 @@ extern my_bool my_getopt_prefix_matching;
 extern my_bool my_handle_options_init_variables;
 extern my_error_reporter my_getopt_error_reporter;
 extern my_getopt_value my_getopt_get_addr;
-extern my_getopt_adjust my_getopt_adjust_value;
 
 extern int handle_options (int *argc, char ***argv, 
 			   const struct my_option *longopts, my_get_one_option)
