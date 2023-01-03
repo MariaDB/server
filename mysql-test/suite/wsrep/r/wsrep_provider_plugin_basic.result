@@ -1,3 +1,4 @@
+# Correct Galera library found
 select variable_type, global_value from information_schema.system_variables where variable_name = 'wsrep_provider_socket_recv_buf_size';
 variable_type	global_value
 VARCHAR	auto
