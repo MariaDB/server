@@ -1750,7 +1750,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
    TRANSACTION can be a non-empty history unit, or can be an identifier
    in bit_expr.
 
-   In the grammar below we use %prec to explicitely tell Bison to go
+   In the grammar below we use %prec to explicitly tell Bison to go
    through the empty branch in the optional rule only when the lookahead
    token does not belong to a small set of selected tokens.
 
