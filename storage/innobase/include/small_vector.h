@@ -31,7 +31,7 @@ protected:
   small_vector_base()= delete;
   small_vector_base(void *small, size_t small_size)
     : BeginX(small), Capacity(Size_T(small_size)) {}
-  ATTRIBUTE_COLD void grow(void *small, size_t min_size, size_t element_size);
+  ATTRIBUTE_COLD void grow_by_1(void *small, size_t element_size);
 public:
   size_t size() const { return Size; }
   size_t capacity() const { return Capacity; }
@@ -52,7 +52,7 @@ class small_vector : public small_vector_base
   void grow_if_needed()
   {
     if (unlikely(size() >= capacity()))
-      grow(small, size() + 1, sizeof small);
+      grow_by_1(small, sizeof *small);
   }
 
 public:
