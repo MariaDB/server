@@ -5504,6 +5504,14 @@ public:
       Item_direct_ref::save_in_result_field(no_conversions);
   }
 
+  int save_in_field(Field *field, bool no_conversions)
+  {
+    if (check_null_ref())
+      return set_field_to_null_with_conversions(field, no_conversions);
+
+    return Item_direct_ref::save_in_field(field, no_conversions);
+  }
+
   void cleanup()
   {
     null_ref_table= NULL;

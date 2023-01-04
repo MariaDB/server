@@ -1,4 +1,5 @@
 drop table if exists t0,t1,t2,t3,t4,t5;
+drop view if exists v0,v1,v2,v3;
 SET @org_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch=ifnull(@optimizer_switch_for_join_outer_test,'outer_join_with_cache=off');
 set join_cache_level=1;
@@ -2822,5 +2823,89 @@ WHERE t3.pk IN (2);
 1
 drop view v4;
 drop table t1,t2,t3,t4;
+#
+# MDEV-28602 Wrong result with outer join, merged derived table and view
+#
+create table t1 (
+Election int(10) unsigned NOT NULL
+);
+insert into t1 (Election) values (1);
+create table t2 (
+VoteID int(10),
+ElectionID int(10),
+UserID int(10)
+);
+insert into t2 (ElectionID, UserID) values (2,  30), (3, 30);
+create view v1 as select * from t1
+left join ( select 'Y' AS Voted, ElectionID from t2 ) AS T 
+on T.ElectionID = t1.Election
+limit 9;
+select * from v1;
+Election	Voted	ElectionID
+1	NULL	NULL
+drop table t1, t2;
+drop view v1;
+#
+# and another contrived example showing a bit of heirarchy
+#
+create table t10 (a int);
+create table t20 (b int);
+insert into t10 values (1),(2);
+insert into t20 values (1),(3);
+create view v10 as select *, 'U' as u from t10 left join (select 'Y' as y, t20.b from t20) dt1 on t10.a= dt1.b limit 3;
+create table t30 (c int);
+insert into t30 values (1),(3);
+create view v20 as select * from t30 left join (select 'X' as x, v10.u, v10.y, v10.b from v10) dt2 on t30.c=dt2.b limit 6;
+select * from v20 limit 9;
+c	x	u	y	b
+1	X	U	Y	1
+3	NULL	NULL	NULL	NULL
+drop view v10, v20;
+drop table t10, t20, t30;
+#
+# More complex testcase
+#
+create table t2 (b int);
+insert into t2 values (3),(7),(1);
+create table t3 (c int);
+insert into t3 values (3),(1);
+create table t1 (a int);
+insert into t1 values (1),(2),(7),(1);
+select * from
+(
+select * from
+(select 'Z' as z, t1.a from t1) dt1
+left join 
+(select 'Y' as y, t2.b from t2) dt2
+left join
+(select 'X' as x, t3.c from t3) dt3
+on dt2.b=dt3.c
+on dt1.a=dt2.b
+limit 9
+) dt;
+z	a	y	b	x	c
+Z	1	Y	1	X	1
+Z	2	NULL	NULL	NULL	NULL
+Z	7	Y	7	NULL	NULL
+Z	1	Y	1	X	1
+create view v3(x,c) as select * from (select 'X' as x, t3.c from t3) dt3;
+create view v2(y,b) as select * from (select 'Y' as y, t2.b from t2) dt2;
+create view v0(y,b,x,c) as select * from v2 left join v3 on v2.b=v3.c;
+create view v1 as  select 'Z' as z, t1.a, v0.*  from t1 left join v0 on t1.a=v0.b limit 9;
+select * from v1;
+z	a	y	b	x	c
+Z	1	Y	1	X	1
+Z	2	NULL	NULL	NULL	NULL
+Z	7	Y	7	NULL	NULL
+Z	1	Y	1	X	1
+set statement join_cache_level=0 for
+select * from v1;
+z	a	y	b	x	c
+Z	1	Y	1	X	1
+Z	2	NULL	NULL	NULL	NULL
+Z	7	Y	7	NULL	NULL
+Z	1	Y	1	X	1
+drop view v0, v1, v2, v3;
+drop table t1, t2, t3;
 # end of 10.3 tests
 SET optimizer_switch=@org_optimizer_switch;
