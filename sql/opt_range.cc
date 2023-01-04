@@ -1893,7 +1893,7 @@ SEL_ARG::SEL_ARG(SEL_ARG &arg) :Sql_alloc()
   next= 0;
   if (next_key_part)
   {
-    ++next_key_part->use_count;
+    next_key_part->increment_use_count(1);
     weight += next_key_part->weight;
   }
 }
@@ -10895,8 +10895,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             Move on to next range in key2
           */
           key2->increment_use_count(-1); // Free not used tree
-          key2=key2_next;
-          continue;
+          key2= key2_next;
         }
         else
         {
@@ -10910,8 +10909,9 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             tmp:     [---------]
           */
           key2->copy_max_to_min(tmp);
-          continue;
+          key2= key2_next;
         }
+        continue;
       }
 
       /*
