@@ -1055,7 +1055,7 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
       if (!strlen(Field[i])) {
         // Generally null fields are not quoted
         if (Quoted > 2)
-          // Except if explicitely required
+          // Except if explicitly required
           strcat(strcat(To_Line, qot), qot);
 
       } else if (Qot && (strchr(Field[i], Sep) || *Field[i] == Qot
