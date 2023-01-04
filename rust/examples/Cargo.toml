@@ -8,3 +8,4 @@ edition = '2021'
 mariadb-server = { path = "../mariadb" }
 ring = "0.16.20"
 sha2 = "0.10.6"
+rand = "0.8.5"

@@ -1,4 +1,4 @@
-// extern crate bindgen;
+//! This file runs `cmake` as needed, then `bindgen` to produce the rust bindings
 
 use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
 use bindgen::EnumVariation;
