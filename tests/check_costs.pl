@@ -231,8 +231,8 @@ sub test_engine()
     my ($i, $engine)= @_;
     my ($cur_rows);
 
-    setup($opt_init_query);
     setup_engine($engine);
+    setup($opt_init_query);
     $table= $base_table . "_$engine";
     if (!defined($opt_skip_create))
     {
