@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2436,6 +2436,9 @@ public:
   /** @return whether the name is
   mysql.innodb_index_stats or mysql.innodb_table_stats */
   bool is_stats_table() const;
+
+  /** @return number of unique columns in FTS_DOC_ID index */
+  unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
 
   /** Create metadata.
   @param name     table name

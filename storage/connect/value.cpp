@@ -1199,7 +1199,7 @@ bool TYPVAL<TYPE>::Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
+/*  constructed from its own value formatted using the fmt format.     */
 /*  This function assumes that the format matches the value type.      */
 /***********************************************************************/
 template <class TYPE>
@@ -1711,7 +1711,7 @@ bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
+/*  constructed from its own value formatted using the fmt format.     */
 /*  This function assumes that the format matches the value type.      */
 /***********************************************************************/
 bool TYPVAL<PSZ>::FormatValue(PVAL vp, PCSZ fmt)
@@ -2325,7 +2325,7 @@ bool BINVAL::IsEqual(PVAL vp, bool chktype)
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
+/*  constructed from its own value formatted using the fmt format.     */
 /*  This function assumes that the format matches the value type.      */
 /***********************************************************************/
 bool BINVAL::FormatValue(PVAL vp, PCSZ fmt)
@@ -2865,7 +2865,7 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
+/*  constructed from its own value formatted using the fmt format.     */
 /*  This function assumes that the format matches the value type.      */
 /***********************************************************************/
 bool DTVAL::FormatValue(PVAL vp, PCSZ fmt)

@@ -71,7 +71,7 @@ variables:
       echo "$package"
       rpm -qlpv "$package" | awk '{print $1 " " $3 "/" $4 " ." $9 " " $10 " " $11}' | sort -k 3
       echo "------------------------------------------------"
-    done >> ../rpmlist-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    done >> "../rpmlist-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log"
   # CPackRPM lists contents in build log, so no need to show the output of this,
   # just store it as a build artifact that can be downloaded and diffed against
   # other builds to detect which files where added/removed/moved
@@ -182,7 +182,7 @@ fedora-sanitizer:
     GIT_SUBMODULE_STRATEGY: normal
   script:
     - yum install -y yum-utils rpm-build openssl-devel clang
-    - yum install -y /usr/lib64/libasan.so.6.0.0 /usr/lib64/libtsan.so.0.0.0 /usr/lib64/libubsan.so.1.0.0
+    - yum install -y libasan libtsan libubsan
     # This repository does not have any .spec files, so install dependencies based on Fedora spec file
     - yum-builddep -y mariadb-server
     - mkdir builddir; cd builddir
@@ -305,6 +305,8 @@ mysql-test-run:
   stage: test
   dependencies:
     - fedora
+  needs:
+    - fedora
   <<: *mysql-test-run-def
   artifacts:
     when: always  # Also show results when tests fail
@@ -326,6 +328,8 @@ mysql-test-run-asan:
     RESTART_POLICY: "--force-restart"
   dependencies:
     - "fedora-sanitizer: [-DWITH_ASAN=YES]"
+  needs:
+    - "fedora-sanitizer: [-DWITH_ASAN=YES]"
   <<: *mysql-test-run-def
   artifacts:
     when: always  # Also show results when tests fail
@@ -338,6 +342,8 @@ mysql-test-run-tsan:
   variables:
     RESTART_POLICY: "--force-restart"
   dependencies:
+    - "fedora-sanitizer: [-DWITH_TSAN=YES]"
+  needs:
     - "fedora-sanitizer: [-DWITH_TSAN=YES]"
   <<: *mysql-test-run-def
   allow_failure: true
@@ -353,6 +359,8 @@ mysql-test-run-ubsan:
     RESTART_POLICY: "--force-restart"
   dependencies:
     - "fedora-sanitizer: [-DWITH_UBSAN=YES]"
+  needs:
+    - "fedora-sanitizer: [-DWITH_UBSAN=YES]"
   <<: *mysql-test-run-def
   allow_failure: true
   artifacts:
@@ -367,6 +375,8 @@ mysql-test-run-msan:
     RESTART_POLICY: "--force-restart"
   dependencies:
     - "fedora-sanitizer: [-DWITH_MSAN=YES]"
+  needs:
+    - "fedora-sanitizer: [-DWITH_MSAN=YES]"
   <<: *mysql-test-run-def
   allow_failure: true
   artifacts:
@@ -378,6 +388,8 @@ mysql-test-run-msan:
 rpmlint:
   stage: test
   dependencies:
+    - fedora
+  needs:
     - fedora
   script:
     - yum install -y rpmlint
@@ -395,6 +407,8 @@ rpmlint:
 fedora install:
   stage: test
   dependencies:
+    - fedora
+  needs:
     - fedora
   script:
     - rm -f rpm/*debuginfo*  # Not relevant in this test
@@ -428,6 +442,8 @@ fedora install:
 fedora upgrade:
   stage: test
   dependencies:
+    - fedora
+  needs:
     - fedora
   script:
     - dnf install -y mariadb-server

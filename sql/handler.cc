@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2023, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8104,7 +8104,6 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   f->flags= flags | NOT_NULL_FLAG;
   if (integer)
   {
-    DBUG_ASSERT(0); // Not implemented yet
     f->set_handler(&type_handler_vers_trx_id);
     f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
     f->flags|= UNSIGNED_FLAG;
@@ -8122,10 +8121,13 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   return f;
 }
 
-static bool vers_create_sys_field(THD *thd, const char *field_name,
-                                  Alter_info *alter_info, int flags)
+bool Vers_parse_info::create_sys_field(THD *thd, const char *field_name,
+                                       Alter_info *alter_info, int flags)
 {
-  Create_field *f= vers_init_sys_field(thd, field_name, flags, false);
+  DBUG_ASSERT(can_native >= 0); /* Requires vers_check_native() called */
+  Create_field *f= vers_init_sys_field(thd, field_name, flags,
+                                       DBUG_IF("sysvers_force_trx") &&
+                                       can_native);
   if (!f)
     return true;
 
@@ -8149,12 +8151,20 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   period= start_end_t(default_start, default_end);
   as_row= period;
 
-  if (vers_create_sys_field(thd, default_start, alter_info, VERS_ROW_START) ||
-      vers_create_sys_field(thd, default_end, alter_info, VERS_ROW_END))
+  if (create_sys_field(thd, default_start, alter_info, VERS_ROW_START) ||
+      create_sys_field(thd, default_end, alter_info, VERS_ROW_END))
   {
     return true;
   }
   return false;
+}
+
+
+void Table_scope_and_contents_source_st::vers_check_native()
+{
+  vers_info.can_native= (db_type->db_type == DB_TYPE_PARTITION_DB ||
+                         ha_check_storage_engine_flag(db_type,
+                                                      HTON_NATIVE_SYS_VERSIONING));
 }
 
 
@@ -8163,9 +8173,11 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 {
   DBUG_ASSERT(!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING));
 
-  DBUG_EXECUTE_IF("sysvers_force", if (!tmp_table()) {
-                  alter_info->flags|= ALTER_ADD_SYSTEM_VERSIONING;
-                  options|= HA_VERSIONED_TABLE; });
+  if (DBUG_IF("sysvers_force") || DBUG_IF("sysvers_force_trx"))
+  {
+    alter_info->flags|= ALTER_ADD_SYSTEM_VERSIONING;
+    options|= HA_VERSIONED_TABLE;
+  }
 
   if (!vers_info.need_check(alter_info))
     return false;
@@ -8196,7 +8208,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     {
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
     }
-  } // while (Create_field *f= it++)
+  } // while
+
+  vers_check_native();
 
   if (vers_info.fix_implicit(thd, alter_info))
     return true;
@@ -8262,7 +8276,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (!DBUG_IF("sysvers_force") && share->tmp_table)
+  if (share->tmp_table &&
+      !DBUG_IF("sysvers_force") && !DBUG_IF("sysvers_force_trx"))
   {
     my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
     return true;

@@ -2,6 +2,7 @@
 # Fulltext configurable parameters
 #
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 # Save ft_boolean_syntax variable
 let $saved_ft_boolean_syntax=`select @@global.ft_boolean_syntax`;

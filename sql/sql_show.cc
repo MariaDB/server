@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2009, 2023, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2449,7 +2449,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     add_table_options(thd, table, create_info_arg,
                       table_list->schema_table != 0, 0, packet);
 
-  if (table->versioned())
+  if (!DBUG_IF("sysvers_hide") && table->versioned())
     packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE

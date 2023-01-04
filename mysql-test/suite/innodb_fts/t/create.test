@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 SET NAMES utf8mb4;
 
 --echo #

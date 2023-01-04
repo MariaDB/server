@@ -7717,7 +7717,7 @@ int rdb_split_normalized_tablename(const std::string &fullname,
  into MyRocks Data Dictionary
  The method is called during create table/partition, truncate table/partition
 
- @param table_name            IN      table's name formated as
+ @param table_name            IN      table's name formatted as
  'dbname.tablename'
  @param table_arg             IN      sql table
  @param auto_increment_value  IN      specified table's auto increment value

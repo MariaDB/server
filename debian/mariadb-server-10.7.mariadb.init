@@ -34,6 +34,12 @@ else
   exit -1
 fi
 
+if [ ! -x /usr/bin/mariadbd-safe ]
+then
+  log_failure_msg "/usr/bin/mariadbd-safe not found or executable! This SysV init script depends on it."
+  exit -1
+fi
+
 # priority can be overridden and "-s" adds output to stderr
 ERR_LOGGER="logger -p daemon.err -t /etc/init.d/mariadb -i"
 
@@ -127,7 +133,7 @@ case "${1:-''}" in
     test -e /run/mysqld || install -m 755 -o mysql -g root -d /run/mysqld
 
     # Start MariaDB!
-    /usr/bin/mysqld_safe "${@:2}" 2>&1 >/dev/null | $ERR_LOGGER &
+    /usr/bin/mariadbd-safe "${@:2}" 2>&1 >/dev/null | $ERR_LOGGER &
 
     for i in $(seq 1 "${MYSQLD_STARTUP_TIMEOUT:-30}"); do
       sleep 1
