@@ -972,7 +972,7 @@ public:
   };
 
   void init_query();
-  st_select_lex* outer_select();
+  st_select_lex* outer_select() const;
   const st_select_lex* first_select() const
   {
     return reinterpret_cast<const st_select_lex*>(slave);
@@ -1040,6 +1040,9 @@ public:
   bool set_lock_to_the_last_select(Lex_select_lock l);
 
   friend class st_select_lex;
+
+private:
+  bool is_derived_eliminated() const;
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
