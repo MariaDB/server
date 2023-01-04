@@ -197,8 +197,6 @@ DROP TABLE t1;
 #
 # MDEV-27214 Import with disabled keys corrupts meta-data like rows, indexes, ...
 #
-SET UNIQUE_CHECKS=0;
-SET FOREIGN_KEY_CHECKS=0;
 CREATE TABLE `t1` (
 `id` int(11) NOT NULL,
 `a` int(11) DEFAULT NULL,
