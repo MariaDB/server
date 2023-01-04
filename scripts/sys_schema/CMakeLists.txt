@@ -130,6 +130,7 @@ ${CMAKE_CURRENT_SOURCE_DIR}/views/p_s/session_ssl_status.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/create_synonym_db.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/execute_prepared_stmt.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/diagnostics.sql
+${CMAKE_CURRENT_SOURCE_DIR}/procedures/optimizer_switch.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/ps_statement_avg_latency_histogram.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/ps_trace_statement_digest.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/ps_trace_thread.sql
