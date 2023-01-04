@@ -405,4 +405,21 @@ CHECK TABLE t1;
 DROP TABLE t1;
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= @format;
 
+--echo #
+--echo #   MDEV-30321 blob data corrupted by row_merge_write_blob_to_tmp_file()
+--echo #
+
+CREATE TABLE t1 (
+  `id` int(11) NOT NULL,
+  `data` LONGBLOB NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES 
+  (1, REPEAT('X', @@innodb_sort_buffer_size)),
+  (2, REPEAT('X', @@innodb_sort_buffer_size));
+
+SELECT COUNT(*) AS nb_corrupted_rows FROM t1 WHERE data != REPEAT('X', @@innodb_sort_buffer_size);
+DROP TABLE t1;
+
 --echo # End of 10.7 tests
