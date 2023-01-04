@@ -373,7 +373,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state);
 
 
 /*
-  Converst JSON string constant into ordinary string constant
+  Convert JSON string constant into ordinary string constant
   which can involve unpacking json escapes and changing character set.
   Returns negative integer in the case of an error,
   the length of the result otherwise.
@@ -384,7 +384,7 @@ int json_unescape(CHARSET_INFO *json_cs,
                   uchar *res, uchar *res_end);
 
 /*
-  Converst ordinary string constant into JSON string constant.
+  Convert ordinary string constant into JSON string constant.
   which can involve appropriate escaping and changing character set.
   Returns negative integer in the case of an error,
   the length of the result otherwise.

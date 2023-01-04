@@ -16,7 +16,7 @@
 
 /**
   @file
-  This service provdes functions to convert between my_time_t and
+  This service provides functions to convert between my_time_t and
   MYSQL_TIME taking into account the current value of the time_zone
   session variable.
 

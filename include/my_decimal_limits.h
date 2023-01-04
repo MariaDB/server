@@ -32,7 +32,7 @@
   digits in one our big digit decreased by 1 (because we always put decimal
   point on the border of our big digits))
 
-  With normal precession we can handle 65 digits. MariaDB can store in
+  With normal precision we can handle 65 digits. MariaDB can store in
   the .frm up to 63 digits.  By default we use DECIMAL_NOT_SPECIFIED digits
   when converting strings to decimal, so we don't want to set this too high.
   To not use up all digits for the scale we limit the number of decimals to

@@ -101,7 +101,7 @@ enum enum_ft_token_type
     <0 Must not be present
     0  Neither; the word is optional but its presence increases the relevance
   With the default settings of the ft_boolean_syntax system variable,
-  >0 corresponds to the '+' operator, <0 corrresponds to the '-' operator,
+  >0 corresponds to the '+' operator, <0 corresponds to the '-' operator,
   and 0 means neither operator was used.
 
   weight_adjust: A weighting factor that determines how much a match

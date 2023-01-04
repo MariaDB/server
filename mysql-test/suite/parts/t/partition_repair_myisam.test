@@ -150,7 +150,7 @@ while ($i)
 # 2 - after _mi_mark_file_changed (only marked index as opened)
 # 3 - after write_record (updated datafile + not closed/updated index)
 # 4 - after flush_cached_blocks (updated index/datafiles, not closed index)
-# 5 - (Not used) after mi_state_info_write (fully uppdated/closed index file)
+# 5 - (Not used) after mi_state_info_write (fully updated/closed index file)
 #     (this was verified to be a harmless crash, since everything was written)
 # 6 - partly updated datafile (insert 6 small records, delete 5,3,1,
 #     insert one larger record (2.5 X small) and break in gdb before it has

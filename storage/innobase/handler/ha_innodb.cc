@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -8650,6 +8650,10 @@ ha_innobase::update_row(
 			? VERSIONED_DELETE
 			: NO_DELETE;
 
+		if (m_prebuilt->upd_node->is_delete) {
+			trx->fts_next_doc_id = 0;
+		}
+
 		error = row_update_for_mysql(m_prebuilt);
 
 		if (error == DB_SUCCESS && vers_ins_row
@@ -8760,6 +8764,7 @@ ha_innobase::delete_row(
 		&& trx->id != table->vers_start_id()
 		? VERSIONED_DELETE
 		: PLAIN_DELETE;
+	trx->fts_next_doc_id = 0;
 
 	error = row_update_for_mysql(m_prebuilt);
 
@@ -9712,9 +9717,12 @@ ha_innobase::ft_init_ext(
 /*****************************************************************//**
 Set up search tuple for a query through FTS_DOC_ID_INDEX on
 supplied Doc ID. This is used by MySQL to retrieve the documents
-once the search result (Doc IDs) is available */
+once the search result (Doc IDs) is available
+
+@return DB_SUCCESS or DB_INDEX_CORRUPT
+*/
 static
-void
+dberr_t
 innobase_fts_create_doc_id_key(
 /*===========================*/
 	dtuple_t*	tuple,		/* in/out: m_prebuilt->search_tuple */
@@ -9726,8 +9734,10 @@ innobase_fts_create_doc_id_key(
 {
 	doc_id_t	temp_doc_id;
 	dfield_t*	dfield = dtuple_get_nth_field(tuple, 0);
+	const ulint	n_uniq = index->table->fts_n_uniq();
 
-	ut_a(dict_index_get_n_unique(index) == 1);
+	if (dict_index_get_n_unique(index) != n_uniq)
+		return DB_INDEX_CORRUPT;
 
 	dtuple_set_n_fields(tuple, index->n_fields);
 	dict_index_copy_types(tuple, index, index->n_fields);
@@ -9745,12 +9755,25 @@ innobase_fts_create_doc_id_key(
 	*doc_id = temp_doc_id;
 	dfield_set_data(dfield, doc_id, sizeof(*doc_id));
 
-        dtuple_set_n_fields_cmp(tuple, 1);
+	if (n_uniq == 2) {
+		ut_ad(index->table->versioned());
+		dfield = dtuple_get_nth_field(tuple, 1);
+		if (index->table->versioned_by_id()) {
+			dfield_set_data(dfield, trx_id_max_bytes,
+					sizeof(trx_id_max_bytes));
+		} else {
+			dfield_set_data(dfield, timestamp_max_bytes,
+					sizeof(timestamp_max_bytes));
+		}
+	}
 
-	for (ulint i = 1; i < index->n_fields; i++) {
+	dtuple_set_n_fields_cmp(tuple, n_uniq);
+
+	for (ulint i = n_uniq; i < index->n_fields; i++) {
 		dfield = dtuple_get_nth_field(tuple, i);
 		dfield_set_null(dfield);
 	}
+	return DB_SUCCESS;
 }
 
 /**********************************************************************//**
@@ -9832,13 +9855,18 @@ next_record:
 		/* We pass a pointer of search_doc_id because it will be
 		converted to storage byte order used in the search
 		tuple. */
-		innobase_fts_create_doc_id_key(tuple, index, &search_doc_id);
+		dberr_t ret = innobase_fts_create_doc_id_key(
+			tuple, index, &search_doc_id);
+
+		if (ret == DB_SUCCESS) {
+			ret = row_search_mvcc(
+				buf, PAGE_CUR_GE, m_prebuilt,
+				ROW_SEL_EXACT, 0);
+		}
 
 		int	error;
 
-		switch (dberr_t ret = row_search_mvcc(buf, PAGE_CUR_GE,
-						      m_prebuilt,
-						      ROW_SEL_EXACT, 0)) {
+		switch (ret) {
 		case DB_SUCCESS:
 			error = 0;
 			table->status = 0;
@@ -17361,7 +17389,7 @@ innodb_stopword_table_validate(
 	/* Validate the stopword table's (if supplied) existence and
 	of the right format */
 	int ret = stopword_table_name && !fts_valid_stopword_table(
-		stopword_table_name);
+		stopword_table_name, NULL);
 
 	row_mysql_unlock_data_dictionary(trx);
 
