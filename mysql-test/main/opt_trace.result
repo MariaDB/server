@@ -7459,17 +7459,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "a_b",
                 "ranges": 
-                [
-                    "(2,4) <= (a,b) <= (2,4)"
-                ],
+                ["(2,4) <= (a,b) <= (2,4)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": true,
@@ -7483,8 +7479,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 explain select * from t1 where a >= 900 and b between 10 and 20;
@@ -7493,17 +7488,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "a_b",
                 "ranges": 
-                [
-                    "(900,10) <= (a,b)"
-                ],
+                ["(900,10) <= (a,b)"],
                 "rowid_ordered": false,
                 "using_mrr": false,
                 "index_only": true,
@@ -7517,8 +7508,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t0,t1;
@@ -7530,17 +7520,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "start_date",
                 "ranges": 
-                [
-                    "(2019-02-10,NULL) < (start_date,end_date)"
-                ],
+                ["(2019-02-10,NULL) < (start_date,end_date)"],
                 "rowid_ordered": false,
                 "using_mrr": false,
                 "index_only": false,
@@ -7554,8 +7540,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t1,one_k;
@@ -7575,17 +7560,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "a_b_c",
                 "ranges": 
-                [
-                    "(1) <= (a,b) < (4,50)"
-                ],
+                ["(1) <= (a,b) < (4,50)"],
                 "rowid_ordered": false,
                 "using_mrr": false,
                 "index_only": false,
@@ -7599,8 +7580,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table ten,t1;
@@ -7614,17 +7594,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "i_b",
                 "ranges": 
-                [
-                    "(\xD9[\x943j\x99F\xA3\x9C\xF5\xB5\x8C\xFEw-\x8C) <= (b) <= (\xD9[\x943j\x99F\xA3\x9C\xF5\xB5\x8C\xFEw-\x8C)"
-                ],
+                ["(\xD9[\x943j\x99F\xA3\x9C\xF5\xB5\x8C\xFEw-\x8C) <= (b) <= (\xD9[\x943j\x99F\xA3\x9C\xF5\xB5\x8C\xFEw-\x8C)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -7638,8 +7614,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 EXPLAIN SELECT * FROM t1 WHERE b IS NULL;
@@ -7648,17 +7623,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "i_b",
                 "ranges": 
-                [
-                    "(NULL) <= (b) <= (NULL)"
-                ],
+                ["(NULL) <= (b) <= (NULL)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -7672,8 +7643,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t1;
@@ -7690,17 +7660,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "i_b",
                 "ranges": 
-                [
-                    "(ab\x0A) <= (b) <= (ab\x0A)"
-                ],
+                ["(ab\x0A) <= (b) <= (ab\x0A)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -7714,8 +7680,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 ALTER TABLE t1 modify column b BINARY(10) AFTER i;
@@ -7725,17 +7690,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "i_b",
                 "ranges": 
-                [
-                    "(ab\x0A\x00\x00\x00\x00\x00\x00\x00) <= (b) <= (ab\x0A\x00\x00\x00\x00\x00\x00\x00)"
-                ],
+                ["(ab\x0A\x00\x00\x00\x00\x00\x00\x00) <= (b) <= (ab\x0A\x00\x00\x00\x00\x00\x00\x00)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -7749,8 +7710,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 ALTER TABLE t1 modify column b VARBINARY(10) AFTER i;
@@ -7760,17 +7720,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "i_b",
                 "ranges": 
-                [
-                    "(ab\x0A) <= (b) <= (ab\x0A)"
-                ],
+                ["(ab\x0A) <= (b) <= (ab\x0A)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -7784,8 +7740,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t1;
@@ -7798,17 +7753,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "i_b",
                 "ranges": 
-                [
-                    "(ab\n) <= (b) <= (ab\n)"
-                ],
+                ["(ab\n) <= (b) <= (ab\n)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -7822,8 +7773,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t1;
@@ -7839,17 +7789,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "i_b",
                 "ranges": 
-                [
-                    "(ab\x0A) <= (b) <= (ab\x0A)"
-                ],
+                ["(ab\x0A) <= (b) <= (ab\x0A)"],
                 "rowid_ordered": false,
                 "using_mrr": false,
                 "index_only": false,
@@ -7863,8 +7809,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t1;
@@ -7878,17 +7823,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "i_b",
                 "ranges": 
-                [
-                    "(ab\n) <= (b) <= (ab\n)"
-                ],
+                ["(ab\n) <= (b) <= (ab\n)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -7902,8 +7843,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t1;
@@ -7934,17 +7874,13 @@ EXPLAIN
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "start_date",
                 "ranges": 
-                [
-                    "(2019-02-10,NULL) < (start_date,end_date)"
-                ],
+                ["(2019-02-10,NULL) < (start_date,end_date)"],
                 "rowid_ordered": false,
                 "using_mrr": false,
                 "index_only": false,
@@ -7958,8 +7894,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t1, t0, one_k;
@@ -7998,19 +7933,15 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
 [
-    
     [
-        
         {
             "plan_prefix": 
-            [
-            ],
+            [],
             "table": "A",
             "best_access_path": 
             {
                 "considered_access_paths": 
                 [
-                    
                     {
                         "access_type": "scan",
                         "resulting_rows": 5.9375,
@@ -8030,18 +7961,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             "cost_for_plan": 4.0171,
             "rest_of_plan": 
             [
-                
                 {
                     "plan_prefix": 
-                    [
-                        "A"
-                    ],
+                    ["A"],
                     "table": "B",
                     "best_access_path": 
                     {
                         "considered_access_paths": 
                         [
-                            
                             {
                                 "access_type": "scan",
                                 "resulting_rows": 804.69,
@@ -8063,17 +7990,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 }
             ]
         },
-        
         {
             "plan_prefix": 
-            [
-            ],
+            [],
             "table": "B",
             "best_access_path": 
             {
                 "considered_access_paths": 
                 [
-                    
                     {
                         "access_type": "scan",
                         "resulting_rows": 804.69,
@@ -8104,19 +8028,15 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
 [
-    
     [
-        
         {
             "plan_prefix": 
-            [
-            ],
+            [],
             "table": "A",
             "best_access_path": 
             {
                 "considered_access_paths": 
                 [
-                    
                     {
                         "access_type": "scan",
                         "resulting_rows": 10,
@@ -8136,18 +8056,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             "cost_for_plan": 4.0171,
             "rest_of_plan": 
             [
-                
                 {
                     "plan_prefix": 
-                    [
-                        "A"
-                    ],
+                    ["A"],
                     "table": "B",
                     "best_access_path": 
                     {
                         "considered_access_paths": 
                         [
-                            
                             {
                                 "access_type": "ref",
                                 "index": "b",
@@ -8158,7 +8074,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "cost": 20,
                                 "chosen": true
                             },
-                            
                             {
                                 "access_type": "scan",
                                 "resulting_rows": 804.69,
@@ -8181,17 +8096,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 }
             ]
         },
-        
         {
             "plan_prefix": 
-            [
-            ],
+            [],
             "table": "B",
             "best_access_path": 
             {
                 "considered_access_paths": 
                 [
-                    
                     {
                         "access_type": "scan",
                         "resulting_rows": 804.69,
@@ -8227,17 +8139,13 @@ a
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "a",
                 "ranges": 
-                [
-                    "() <= (a) <= ()"
-                ],
+                ["() <= (a) <= ()"],
                 "rowid_ordered": false,
                 "using_mrr": false,
                 "index_only": false,
@@ -8251,8 +8159,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 DROP TABLE t1;
@@ -8274,7 +8181,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout'))
 [
-    
     {
         "pulled_out_tables": 
         [
@@ -8295,15 +8201,11 @@ kp1	kp2
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
 [
-    
     [
-        
         {
             "index": "kp1",
             "ranges": 
-            [
-                "(2,4) <= (kp1,kp2) <= (2)"
-            ],
+            ["(2,4) <= (kp1,kp2) <= (2)"],
             "rowid_ordered": false,
             "using_mrr": false,
             "index_only": true,
@@ -8330,19 +8232,15 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
 [
-    
     [
-        
         {
             "plan_prefix": 
-            [
-            ],
+            [],
             "table": "t1",
             "best_access_path": 
             {
                 "considered_access_paths": 
                 [
-                    
                     {
                         "access_type": "scan",
                         "resulting_rows": 10,
@@ -8362,18 +8260,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             "cost_for_plan": 4.022,
             "rest_of_plan": 
             [
-                
                 {
                     "plan_prefix": 
-                    [
-                        "t1"
-                    ],
+                    ["t1"],
                     "table": "t2",
                     "best_access_path": 
                     {
                         "considered_access_paths": 
                         [
-                            
                             {
                                 "access_type": "ref",
                                 "index": "a",
@@ -8384,7 +8278,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "cost": 20,
                                 "chosen": true
                             },
-                            
                             {
                                 "access_type": "scan",
                                 "resulting_rows": 100,
@@ -8407,17 +8300,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                 }
             ]
         },
-        
         {
             "plan_prefix": 
-            [
-            ],
+            [],
             "table": "t2",
             "best_access_path": 
             {
                 "considered_access_paths": 
                 [
-                    
                     {
                         "access_type": "scan",
                         "resulting_rows": 100,
@@ -8438,18 +8328,14 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             "cost_for_plan": 22.22,
             "rest_of_plan": 
             [
-                
                 {
                     "plan_prefix": 
-                    [
-                        "t2"
-                    ],
+                    ["t2"],
                     "table": "t1",
                     "best_access_path": 
                     {
                         "considered_access_paths": 
                         [
-                            
                             {
                                 "access_type": "ref",
                                 "index": "a",
@@ -8460,7 +8346,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "cost": 200,
                                 "chosen": true
                             },
-                            
                             {
                                 "access_type": "scan",
                                 "resulting_rows": 10,
@@ -8504,24 +8389,17 @@ Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` 
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
 [
-    
     [
-        
         {
             "column_name": "a",
             "ranges": 
-            [
-                "1 <= a <= 5"
-            ],
+            ["1 <= a <= 5"],
             "selectivity_from_histogram": 0.0469
         },
-        
         {
             "column_name": "b",
             "ranges": 
-            [
-                "NULL < b <= 5"
-            ],
+            ["NULL < b <= 5"],
             "selectivity_from_histogram": 0.0469
         }
     ]
@@ -8534,9 +8412,7 @@ Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` 
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
 [
-    
     [
-        
         {
             "column_name": "a",
             "ranges": 
@@ -8556,15 +8432,11 @@ Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` 
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
 [
-    
     [
-        
         {
             "column_name": "b",
             "ranges": 
-            [
-                "10 <= b < 25"
-            ],
+            ["10 <= b < 25"],
             "selectivity_from_histogram": 0.1562
         }
     ]
@@ -8582,15 +8454,11 @@ UPDATE t1 SET b=10 WHERE a=1;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
 [
-    
     [
-        
         {
             "index": "PRIMARY",
             "ranges": 
-            [
-                "(1) <= (a) <= (1)"
-            ],
+            ["(1) <= (a) <= (1)"],
             "rowid_ordered": true,
             "using_mrr": false,
             "index_only": false,

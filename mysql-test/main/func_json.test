@@ -718,3 +718,103 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-19160 JSON_DETAILED output unnecessarily verbose
+--echo #
+
+create table t200 (a text);
+
+insert into t200 values
+('{
+  "steps": [
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "rows_estimation": [
+              {
+                "table": "t1",
+                "range_analysis": {
+                  "table_scan": {
+                    "rows": 1000,
+                    "cost": 2e308
+                  },
+                  "potential_range_indexes": [
+                    {
+                      "index": "a_b",
+                      "usable": true,
+                      "key_parts": ["a", "b"]
+                    }
+                  ],
+                  "best_covering_index_scan": {
+                    "index": "a_b",
+                    "cost": 52.195,
+                    "chosen": true
+                  },
+                  "setup_range_conditions": [],
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
+                  },
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [
+                      {
+                        "index": "a_b",
+                        "ranges": ["2 <= a <= 2 AND 4 <= b <= 4", "123"],
+                        "rowid_ordered": true,
+                        "using_mrr": false,
+                        "index_only": true,
+                        "rows": 1,
+                        "cost": 1.1752,
+                        "chosen": true
+                      }
+                    ],
+                    "analyzing_roworder_intersect": {
+                      "cause": "too few roworder scans"
+                    },
+                    "analyzing_index_merge_union": [],
+                    "test_one_line_array":["123"]
+                  },
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "range_scan",
+                      "index": "a_b",
+                      "rows": 1,
+                      "ranges": ["2 <= a <= 2 AND 4 <= b <= 4"]
+                    },
+                    "rows_for_plan": 1,
+                    "cost_for_plan": 1.1752,
+                    "chosen": true
+                  }
+                }
+              },
+              {
+                "selectivity_for_indexes": [
+                  {
+                    "index_name": "a_b",
+                    "selectivity_from_index": 0.001
+                  }
+                ],
+                "selectivity_for_columns": [],
+                "cond_selectivity": 0.001
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}');
+
+
+select JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
+select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;

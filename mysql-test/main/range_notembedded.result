@@ -20,7 +20,6 @@ select json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 from information_schema.optimizer_trace;
 json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 [
-    
     [
         "(1) <= (key1) <= (1)",
         "(2) <= (key1) <= (2)",
