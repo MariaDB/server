@@ -31,6 +31,24 @@ pub enum KeyError {
     Other,
 }
 
+/// Representation of the flags integer
+#[derive(Clone, Copy, PartialEq)]
+pub struct Flags(u32);
+
+impl Flags {
+    fn should_encrypt(&self) -> bool {
+        self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT
+    }
+
+    fn should_decrypt(&self) -> bool {
+        self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT
+    }
+
+    pub fn nopad(&self) -> bool {
+        self.0 & bindings::ENCRYPTION_FLAG_NOPAD
+    }
+}
+
 /// Implement this trait on a struct that will serve as encryption context
 ///
 ///
@@ -47,25 +65,26 @@ pub trait Encryption: Send + Sized {
     ///
     /// Given a key ID and a version, write the key to the `key` buffer. If the
     /// buffer is too small, return [`KeyError::BufferTooSmall`].
-    fn get_key(key_id: u32, key_version: u32, key: &mut [u8]) -> Result<usize, KeyError>;
+    fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<usize, KeyError>;
 
-    /// Calculate the length of a key given its ID and version.
-    /// 
-    /// If the key is not found, return `VersionInvalid`.
+    /// Calculate the length of a key given its ID and version. If the key is
+    /// not found, return `VersionInvalid`.
     /// 
     /// On the C side, this function is combined with `get_key`.
     fn get_key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError>;
 
     /// Initialize the encryption context object
-    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: u32) -> Self {
+    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: Flags) -> Self {
         unimplemented!()
     }
 
-    /// Update the encryption context with new data
+    /// Update the encryption context with new data, return the number of bytes
+    /// written
     fn update(ctx: &mut Self, src: &[u8], dst: &mut [u8]) -> usize {
         unimplemented!()
     }
 
+    /// Write the remaining bytes to the buffer
     fn finish(ctx: &mut Self, dst: &mut [u8]) -> usize {
         unimplemented!()
     }
@@ -75,7 +94,7 @@ pub trait Encryption: Send + Sized {
     /// As this function must have a definitive answer, this API only supports
     /// encryption algorithms where this is possible to compute (i.e.,
     /// compression is not supported).
-    fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) {
+    fn encrypted_length(key_id: u32, key_version: u32, src_len: usize) -> usize {
         unimplemented!()
     }
 }

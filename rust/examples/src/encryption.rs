@@ -1,10 +1,21 @@
+//! Basic encryption plugin using:
+//! 
+//! - SHA256 as the hasher
+
 #![allow(unused)]
 
 use std::time::{Instant, Duration};
 use std::sync::Mutex;
 use rand::{Rng};
+use sha2::{Sha256 as Hasher, Digest};
 
-use mariadb_server::plugin::encryption::{KeyError, Encryption};
+use aes_gcm::{
+    aead::{Aead, KeyInit, OsRng},
+    Aes256Gcm, Nonce // Or `Aes128Gcm`
+};
+
+use mariadb_server::plugin::encryption::{KeyError, Encryption, Flags};
+use mariadb_server::plugin::Init;
 // use mariadb_server::plugin::Init;
 // use mariadb_server::plugin::prelude::*;
 
@@ -23,6 +34,7 @@ use mariadb_server::plugin::encryption::{KeyError, Encryption};
 const KEY_ROTATION_MIN: f32 = 45.0;
 const KEY_ROTATION_MAX: f32 = 90.0;
 const KEY_ROTATION_INTERVAL: f32 = KEY_ROTATION_MAX - KEY_ROTATION_MIN;
+const SHA256_SIZE: usize = 32;
 // const KEY_ROTATION_INTERVAL: Duration =
 //     KEY_ROTATION_MAX - KEY_ROTATION_MIN;
 
@@ -43,7 +55,7 @@ struct KeyVersions {
 
 impl KeyVersions {
     /// Initialize with a new value. Returns the struct 
-    fn new_now() -> (Self, u64) {
+    fn new_now() -> Self {
         let now = Instant::now();
         let mut ret = Self {
             start: now,
@@ -51,8 +63,7 @@ impl KeyVersions {
             next: now
         };
         ret.update_next();
-        let duration = (ret.next - ret.start).as_secs();
-        (ret, duration)
+        ret
     }
 
     fn update_next(&mut self) {
@@ -75,15 +86,14 @@ impl KeyVersions {
 // Uninitialized 
 
 
-// struct RustEncryptionInit;
+struct RustEncryptionInit;
 
-// impl plugin::Init for RustEncryptionInit {
-//     fn init() -> Self {
-//         let mut versions = KEY_VERSIONS.lock();
-//         *versions = Some(KeyVersions::random_from_now());
-//         Self
-//     }
-// }
+impl Init for RustEncryptionInit {
+    fn init() {
+        let mut guard = KEY_VERSIONS.lock().unwrap();
+        *guard = Some(KeyVersions::new_now());
+    }
+}
 
 
 struct RustEncryption;
@@ -91,27 +101,30 @@ struct RustEncryption;
 impl Encryption for RustEncryption {
     fn get_latest_key_version(_key_id: u32) -> Result<u32, KeyError> {
         let mut guard = KEY_VERSIONS.lock().unwrap();
-        if let Some(ref mut vers) = *guard {
-            Ok(vers.update_returning_version() as u32)
-        } else {
-            let (kv, ret) = KeyVersions::new_now();
-            *guard = Some(kv);
-            Ok(ret as u32)
-        }
+        let mut vers = guard.unwrap();
+        Ok(vers.update_returning_version() as u32)
     }
     
-    /// Given a key ID and a 
-    fn get_key(key_id: u32, key_version: u32, key: &mut [u8]) -> Result<usize, KeyError>  {
-        
-        todo!()
+    /// Given a key ID and a version, create its hash
+    fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<usize, KeyError>  {
+        let output_size = Hasher::output_size();
+        if dst.len() < output_size {
+            return Err(KeyError::BufferTooSmall);
+        }
+        let mut hasher = Hasher::new();
+        hasher.update(key_id.to_ne_bytes());
+        hasher.update(key_version.to_ne_bytes());
+        dst[..output_size].copy_from_slice(&hasher.finalize());
+        Ok(output_size)
     }
     
     fn get_key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError> {
-        todo!()
+        // All keys have the same length
+        Ok(Hasher::output_size())
     }
 
     /// Initialize
-    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: u32) -> Self {
+    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: Flags) -> Self {
         todo!()
 
     }

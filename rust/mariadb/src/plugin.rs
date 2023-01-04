@@ -62,3 +62,7 @@ pub enum Maturity {
 //         &*ptr.cast()
 //     }
 // }
+
+pub trait Init {
+    fn init();
+}

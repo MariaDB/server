@@ -6,6 +6,6 @@ edition = '2021'
 
 [dependencies]
 mariadb-server = { path = "../mariadb" }
-ring = "0.16.20"
-sha2 = "0.10.6"
-rand = "0.8.5"
+aes-gcm = "0.10"
+sha2 = "0.10"
+rand = "0.8"
