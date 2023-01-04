@@ -416,7 +416,6 @@ handle_value:
       break;
     };
   } while (json_scan_next(je) == 0);
-  
   return je->s.error || *je->killed_ptr;
 
 error:
