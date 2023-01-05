@@ -4217,7 +4217,10 @@ static void print_last_query_cost()
 
   cur= mysql_fetch_row(result);
   if (strtod(cur[1], &end) != 0.0)
+  {
+    init_pager();
     tee_fprintf(PAGER, "%s: %s\n\n", cur[0], cur[1]);
+  }
 
 end:
   mysql_free_result(result);
