@@ -11273,7 +11273,7 @@ err_index:
 	}
 
 	DBUG_EXECUTE_IF("stats_lock_fail",
-			error = DB_LOCK_WAIT;);
+			error = DB_LOCK_WAIT_TIMEOUT;);
 
 	if (error == DB_SUCCESS) {
 		error = lock_sys_tables(trx);
