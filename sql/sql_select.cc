@@ -30336,7 +30336,8 @@ static bool get_range_limit_read_cost(const POSITION *pos,
       */
       best_rows= pos->records_out;      // Best rows with any key/keys
       double cond_selectivity= best_rows / range_rows;
-      DBUG_ASSERT(cond_selectivity <= 1.0);
+      DBUG_ASSERT(cond_selectivity <= 1.000000001);
+      set_if_smaller(cond_selectivity, 1.0);
 
       /*
         We have to examine more rows in the proportion to the selectivity of the
