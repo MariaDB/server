@@ -1249,16 +1249,16 @@ send_result_message:
       goto err;
     DEBUG_SYNC(thd, "admin_command_kill_after_modify");
   }
+  thd->resume_subsequent_commits(suspended_wfc);
+  DBUG_EXECUTE_IF("inject_analyze_table_sleep", my_sleep(500000););
   if (is_table_modified && is_cmd_replicated &&
       (!opt_readonly || thd->slave_thread) && !thd->lex->no_write_to_binlog)
   {
     if (write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
       goto err;
   }
-
   my_eof(thd);
-  thd->resume_subsequent_commits(suspended_wfc);
-  DBUG_EXECUTE_IF("inject_analyze_table_sleep", my_sleep(500000););
+
   DBUG_RETURN(FALSE);
 
 err:
