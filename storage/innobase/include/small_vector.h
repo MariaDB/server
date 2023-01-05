@@ -56,8 +56,16 @@ class small_vector : public small_vector_base
   }
 
 public:
-  small_vector() : small_vector_base(small, N) {}
-  ~small_vector() { if (small != begin()) my_free(begin()); }
+  small_vector() : small_vector_base(small, N)
+  {
+    TRASH_ALLOC(small, sizeof small);
+  }
+  ~small_vector()
+  {
+    if (small != begin())
+      my_free(begin());
+    MEM_MAKE_ADDRESSABLE(small, sizeof small);
+  }
 
   using iterator= T *;
   using const_iterator= const T *;

@@ -1244,6 +1244,7 @@ void small_vector_base::grow_by_1(void *small, size_t element_size)
   {
     new_begin= my_malloc(PSI_NOT_INSTRUMENTED, s, MYF(0));
     memcpy(new_begin, BeginX, size() * element_size);
+    TRASH_FREE(small, size() * element_size);
   }
   else
     new_begin= my_realloc(PSI_NOT_INSTRUMENTED, BeginX, s, MYF(0));
