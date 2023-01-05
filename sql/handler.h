@@ -3508,6 +3508,10 @@ public:
   int ha_drop_partitions(const char *path);
   int ha_rename_partitions(const char *path);
 
+  virtual void ha_start_operations_batch();
+  virtual void ha_end_operations_batch();
+  virtual void start_operations_batch()=0;
+  virtual void end_operations_batch()=0;
   void adjust_next_insert_id_after_explicit_value(ulonglong nr);
   int update_auto_increment();
   virtual void print_error(int error, myf errflag);

@@ -161,5 +161,8 @@ public:
     file= file_arg;
     init();                                     /* Update cached_table_flags */
   }
+
+  void start_operations_batch() {}
+  void end_operations_batch() {}
 };
 #endif

@@ -21835,6 +21835,15 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (pfs_batch_update)
     join_tab->table->file->start_psi_batch_mode();
 
+#if 0
+  bool ops_batch_started= false;
+  if (join_tab->next_select == end_send)
+  {
+    join_tab->table->file->start_operations_batch();
+    ops_batch_started= true;
+  }
+#endif
+
   if (rc != NESTED_LOOP_NO_MORE_ROWS)
   {
     error= (*join_tab->read_first_record)(join_tab);
@@ -21881,6 +21890,11 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     
     rc= evaluate_join_record(join, join_tab, error);
   }
+
+#if 0
+  if (ops_batch_started)
+    join_tab->table->file->end_operations_batch();
+#endif
 
   if (rc == NESTED_LOOP_NO_MORE_ROWS &&
       join_tab->last_inner && !join_tab->found)

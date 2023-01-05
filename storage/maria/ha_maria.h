@@ -190,6 +190,8 @@ public:
   virtual S3_INFO *s3_open_args() { return 0; }
   virtual void register_handler(MARIA_HA *file) {}
 
+  void start_operations_batch() {}
+  void end_operations_batch() {}
 private:
   DsMrr_impl ds_mrr;
   friend check_result_t index_cond_func_maria(void *arg);

@@ -1636,6 +1636,9 @@ public:
   friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 
   bool can_convert_nocopy(const Field &field,
-                          const Column_definition &new_field) const override;
+                          const Column_definition &new_filed) const override;
+
+  void start_operations_batch() {}
+  void end_operations_batch() {}
 };
 #endif /* HA_PARTITION_INCLUDED */

@@ -104,6 +104,8 @@ public:
   double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
   double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
 
+  void start_operations_batch() {}
+  void end_operations_batch() {}
 private:
   void set(uchar *buf);
   ulonglong nvalues() { return (seqs->to - seqs->from)/seqs->step; }

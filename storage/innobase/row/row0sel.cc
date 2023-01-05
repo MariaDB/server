@@ -3337,6 +3337,18 @@ public:
                      dtuple_t **vrow, mtr_t *mtr);
 };
 
+/** Assign read operation using lock type
+@return latch mode for batch mtr operation */
+btr_latch_mode row_batch_mtr_t::assign_operation(
+  const dict_index_t *index, ulint lock_type)
+{
+  m_read= lock_type != LOCK_X;
+  if (index->is_clust())
+  { return m_read ? BTR_SEARCH_LEAF : BTR_MODIFY_LEAF; }
+
+  return BTR_SEARCH_LEAF;
+}
+
 /*********************************************************************//**
 Retrieves the clustered index record corresponding to a record in a
 non-clustered index. Does the necessary locking. Used in the MySQL
@@ -3370,6 +3382,14 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	dict_index_t*	clust_index;
 	rec_t*		old_vers;
 	trx_t*		trx;
+	btr_latch_mode	batch_latch_mode = BTR_SEARCH_LEAF;
+
+	if (row_batch_mtr_t *batch_mtr= prebuilt->batch_mtr) {
+		ut_ad(batch_mtr->get_mtr() == mtr);
+		if (prebuilt->select_lock_type == LOCK_X) {
+			batch_latch_mode = BTR_MODIFY_LEAF;
+		}
+	}
 
 	prebuilt->clust_pcur->old_rec = nullptr;
 	*out_rec = NULL;
@@ -3382,7 +3402,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	prebuilt->clust_pcur->btr_cur.page_cur.index = clust_index;
 
 	dberr_t err = btr_pcur_open_with_no_init(prebuilt->clust_ref,
-						 PAGE_CUR_LE, BTR_SEARCH_LEAF,
+						 PAGE_CUR_LE, batch_latch_mode,
 						 prebuilt->clust_pcur, mtr);
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		return err;
@@ -4367,6 +4387,7 @@ row_search_mvcc(
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
 	bool		spatial_search			= false;
+	btr_latch_mode	batch_latch_mode = BTR_SEARCH_LEAF;
 
 	ut_ad(index && pcur && search_tuple);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
@@ -4517,8 +4538,15 @@ early_not_found:
 	/* if the query is a plain locking SELECT, and the isolation level
 	is <= TRX_ISO_READ_COMMITTED, then this is set to FALSE */
 	bool did_semi_consistent_read = false;
-	mtr_t mtr;
-	mtr.start();
+	mtr_t *mtr = nullptr;
+	row_batch_mtr_t *batch_mtr = prebuilt->batch_mtr;
+	if (batch_mtr) {
+		mtr = batch_mtr->get_mtr();
+		batch_mtr->start_read();
+		batch_latch_mode = batch_mtr->assign_operation(
+				index, prebuilt->select_lock_type);
+	}
+	else { mtr= new mtr_t(); mtr->start(); }
 
 	mem_heap_t*	heap				= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
@@ -4558,7 +4586,7 @@ early_not_found:
 			dberr_t err = DB_SUCCESS;
 			switch (row_sel_try_search_shortcut_for_mysql(
 					&rec, prebuilt, &offsets, &heap,
-					&mtr)) {
+					mtr)) {
 			case SEL_FOUND:
 				/* At this point, rec is protected by
 				a page latch that was acquired by
@@ -4612,7 +4640,7 @@ aborted:
 			case SEL_EXHAUSTED:
 				err = DB_RECORD_NOT_FOUND;
 			shortcut_done:
-				mtr.commit();
+				mtr->commit();
 
 				/* NOTE that we do NOT store the cursor
 				position */
@@ -4621,6 +4649,7 @@ aborted:
 				if (UNIV_LIKELY_NULL(heap)) {
 					mem_heap_free(heap);
 				}
+				delete mtr;
 				DBUG_RETURN(err);
 
 			case SEL_RETRY:
@@ -4630,8 +4659,13 @@ aborted:
 				ut_ad(0);
 			}
 
-			mtr.commit();
-			mtr.start();
+			if (batch_mtr) {
+				batch_mtr->commit();
+				batch_mtr->start();
+			} else {
+				mtr->commit();
+				mtr->start();
+			}
 		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -4733,13 +4767,17 @@ wait_table_again:
 			goto next_rec;
 		}
 
-		bool	need_to_process = sel_restore_position_for_mysql(
-			&same_user_rec, BTR_SEARCH_LEAF,
-			pcur, moves_up, &mtr);
+		bool	need_to_process = false;
+		if (batch_mtr && !batch_mtr->cursor_stored()) {
+		} else {
+			need_to_process = sel_restore_position_for_mysql(
+				&same_user_rec, batch_latch_mode,
+				pcur, moves_up, mtr);
+		}
 
 		if (UNIV_UNLIKELY(need_to_process)) {
 			if (UNIV_UNLIKELY(!btr_pcur_get_rec(pcur))) {
-				mtr.commit();
+				mtr->commit();
 				trx->op_info = "";
 				if (UNIV_LIKELY_NULL(heap)) {
 					mem_heap_free(heap);
@@ -4790,7 +4828,7 @@ wait_table_again:
 		}
 
 		err = btr_pcur_open_with_no_init(search_tuple, mode,
-						 BTR_SEARCH_LEAF, pcur, &mtr);
+						 BTR_SEARCH_LEAF, pcur, mtr);
 
 		if (err != DB_SUCCESS) {
 page_corrupted:
@@ -4822,7 +4860,7 @@ page_corrupted:
 			err = sel_set_rec_lock(pcur,
 					       next_rec, index, offsets,
 					       prebuilt->select_lock_type,
-					       LOCK_GAP, thr, &mtr);
+					       LOCK_GAP, thr, mtr);
 
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
@@ -4836,7 +4874,7 @@ page_corrupted:
 		}
 	} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_L) {
 		err = pcur->open_leaf(mode == PAGE_CUR_G, index,
-				      BTR_SEARCH_LEAF, &mtr);
+				      BTR_SEARCH_LEAF, mtr);
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
@@ -4895,7 +4933,7 @@ rec_loop:
 	DEBUG_SYNC_C("row_search_rec_loop");
 	if (trx_is_interrupted(trx)) {
 		if (!spatial_search) {
-			btr_pcur_store_position(pcur, &mtr);
+			btr_pcur_store_position(pcur, mtr);
 		}
 		err = DB_INTERRUPTED;
 		goto normal_return;
@@ -4936,7 +4974,7 @@ rec_loop:
 			err = sel_set_rec_lock(pcur,
 					       rec, index, offsets,
 					       prebuilt->select_lock_type,
-					       LOCK_ORDINARY, thr, &mtr);
+					       LOCK_ORDINARY, thr, mtr);
 
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
@@ -5071,7 +5109,7 @@ wrong_offs:
 					pcur,
 					rec, index, offsets,
 					prebuilt->select_lock_type, LOCK_GAP,
-					thr, &mtr);
+					thr, mtr);
 
 				switch (err) {
 				case DB_SUCCESS_LOCKED_REC:
@@ -5082,7 +5120,7 @@ wrong_offs:
 				}
 			}
 
-			btr_pcur_store_position(pcur, &mtr);
+			btr_pcur_store_position(pcur, mtr);
 
 			/* The found record was not a match, but may be used
 			as NEXT record (index_next). Set the relative position
@@ -5107,7 +5145,7 @@ wrong_offs:
 					pcur,
 					rec, index, offsets,
 					prebuilt->select_lock_type, LOCK_GAP,
-					thr, &mtr);
+					thr, mtr);
 
 				switch (err) {
 				case DB_SUCCESS_LOCKED_REC:
@@ -5118,7 +5156,7 @@ wrong_offs:
 				}
 			}
 
-			btr_pcur_store_position(pcur, &mtr);
+			btr_pcur_store_position(pcur, mtr);
 
 			/* The found record was not a match, but may be used
 			as NEXT record (index_next). Set the relative position
@@ -5228,7 +5266,7 @@ no_gap_lock:
 		err = sel_set_rec_lock(pcur,
 				       rec, index, offsets,
 				       prebuilt->select_lock_type,
-				       lock_type, thr, &mtr);
+				       lock_type, thr, mtr);
 
 		switch (err) {
 			const rec_t*	old_vers;
@@ -5262,7 +5300,7 @@ no_gap_lock:
 				row_sel_build_committed_vers_for_mysql(
 					clust_index, prebuilt, rec,
 					&offsets, &heap, &old_vers,
-					need_vrow ? &vrow : NULL, &mtr);
+					need_vrow ? &vrow : NULL, mtr);
 			}
 
 			/* Check whether it was a deadlock or not, if not
@@ -5364,7 +5402,7 @@ no_gap_lock:
 				err = row_sel_build_prev_vers_for_mysql(
 					prebuilt, clust_index,
 					rec, &offsets, &heap, &old_vers,
-					need_vrow ? &vrow : nullptr, &mtr);
+					need_vrow ? &vrow : nullptr, mtr);
 
 				if (err != DB_SUCCESS) {
 
@@ -5493,7 +5531,7 @@ requires_clust_rec:
 		/* It was a non-clustered index and we must fetch also the
 		clustered index record */
 
-		mtr_extra_clust_savepoint = mtr.get_savepoint();
+		mtr_extra_clust_savepoint = mtr->get_savepoint();
 
 		ut_ad(!vrow);
 		/* The following call returns 'offsets' associated with
@@ -5504,7 +5542,7 @@ requires_clust_rec:
 						      thr, &clust_rec,
 						      &offsets, &heap,
 						      need_vrow ? &vrow : NULL,
-						      &mtr);
+						      mtr);
 		if (err == DB_LOCK_WAIT && prebuilt->skip_locked) {
 			err = lock_trx_handle_wait(trx);
 		}
@@ -5730,7 +5768,7 @@ idx_cond_failed:
 		/* Inside an update always store the cursor position */
 
 		if (!spatial_search) {
-			btr_pcur_store_position(pcur, &mtr);
+			  btr_pcur_store_position(pcur, mtr);
 		}
 	}
 
@@ -5766,15 +5804,15 @@ next_rec_after_check:
 
 	if (spatial_search) {
 		/* No need to do store restore for R-tree */
-		mtr.commit();
-		mtr.start();
+		mtr->commit();
+		mtr->start();
 	} else if (mtr_extra_clust_savepoint) {
 		/* We must release any clustered index latches
 		if we are moving to the next non-clustered
 		index record, because we could break the latching
 		order if we would access a different clustered
 		index page right away without releasing the previous. */
-		mtr.rollback_to_savepoint(mtr_extra_clust_savepoint);
+		mtr->rollback_to_savepoint(mtr_extra_clust_savepoint);
 	}
 
 	mtr_extra_clust_savepoint = 0;
@@ -5782,7 +5820,7 @@ next_rec_after_check:
 	if (moves_up) {
 		if (UNIV_UNLIKELY(spatial_search)) {
 			if (rtr_pcur_move_to_next(
-				    search_tuple, mode, pcur, 0, &mtr)) {
+				    search_tuple, mode, pcur, 0, mtr)) {
 				goto rec_loop;
 			}
 		} else {
@@ -5794,7 +5832,7 @@ next_rec_after_check:
 				if (btr_pcur_is_after_last_in_tree(pcur)) {
 					goto not_moved;
 				}
-				err = btr_pcur_move_to_next_page(pcur, &mtr);
+				err = btr_pcur_move_to_next_page(pcur, mtr);
 				if (err != DB_SUCCESS) {
 					goto lock_wait_or_error;
 				}
@@ -5805,7 +5843,7 @@ next_rec_after_check:
 			goto rec_loop;
 		}
 	} else {
-		if (btr_pcur_move_to_prev(pcur, &mtr)) {
+		if (btr_pcur_move_to_prev(pcur, mtr)) {
 			goto rec_loop;
 		}
 		if (UNIV_UNLIKELY(!btr_pcur_get_rec(pcur))) {
@@ -5817,7 +5855,7 @@ corrupted:
 
 not_moved:
 	if (!spatial_search) {
-		btr_pcur_store_position(pcur, &mtr);
+		btr_pcur_store_position(pcur, mtr);
 	}
 
 	err = match_mode ? DB_RECORD_NOT_FOUND : DB_END_OF_INDEX;
@@ -5825,7 +5863,7 @@ not_moved:
 
 lock_wait_or_error:
 	if (!dict_index_is_spatial(index)) {
-		btr_pcur_store_position(pcur, &mtr);
+		btr_pcur_store_position(pcur, mtr);
 	}
 page_read_error:
 	/* Reset the old and new "did semi-consistent read" flags. */
@@ -5836,7 +5874,11 @@ page_read_error:
 	did_semi_consistent_read = false;
 
 lock_table_wait:
-	mtr.commit();
+	if (batch_mtr) {
+		batch_mtr->commit();
+	} else {
+		mtr->commit();
+	}
 	mtr_extra_clust_savepoint = 0;
 
 	trx->error_state = err;
@@ -5846,7 +5888,11 @@ lock_table_wait:
 		/* It was a lock wait, and it ended */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
-		mtr.start();
+		if (batch_mtr) {
+			batch_mtr->start();
+		} else {
+			mtr->start();
+		}
 
 		/* Table lock waited, go try to obtain table lock
 		again */
@@ -5858,8 +5904,8 @@ lock_table_wait:
 
 		if (!dict_index_is_spatial(index)) {
 			sel_restore_position_for_mysql(
-				&same_user_rec, BTR_SEARCH_LEAF, pcur,
-				moves_up, &mtr);
+				&same_user_rec, batch_latch_mode, pcur,
+				moves_up, mtr);
 		}
 
 		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
@@ -5894,7 +5940,11 @@ lock_table_wait:
 	goto func_exit;
 
 normal_return:
-	mtr.commit();
+	if (!batch_mtr) {
+		mtr->commit();
+	} else {
+		batch_mtr->finish_read(mtr_extra_clust_savepoint);
+	}
 
 	DEBUG_SYNC_C("row_search_for_mysql_before_return");
 
@@ -5946,6 +5996,10 @@ func_exit:
 		} else {
 			prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
 		}
+	}
+
+	if (!batch_mtr) {
+		delete mtr;
 	}
 
 	DEBUG_SYNC_C("innodb_row_search_for_mysql_exit");

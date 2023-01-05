@@ -120,6 +120,8 @@ public:
   }
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
   int find_unique_row(uchar *record, uint unique_idx);
+  void start_operations_batch() {}
+  void end_operations_batch() {}
 private:
   void update_key_stats();
 };

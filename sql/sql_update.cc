@@ -400,6 +400,7 @@ int mysql_update(THD *thd,
   TABLE_LIST *update_source_table;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
+  bool ops_batch_started= false;
 
   // For System Versioning (may need to insert new fields to a table).
   ha_rows rows_inserted= 0;
@@ -799,6 +800,8 @@ int mysql_update(THD *thd,
 
       note: We avoid sorting if we sort on the used index
     */
+    table->file->start_operations_batch();
+    ops_batch_started= true;
     if (query_plan.using_filesort)
     {
       /*
@@ -949,6 +952,8 @@ int mysql_update(THD *thd,
       table->file->ha_end_keyread();
       table->column_bitmaps_set(save_read_set, save_write_set);
     }
+    table->file->end_operations_batch();
+    ops_batch_started= false;
   }
 
 update_begin:
@@ -1015,6 +1020,8 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
   thd->get_stmt_da()->reset_current_row_for_warning(1);
+  table->file->start_operations_batch();
+  ops_batch_started= true;
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -1228,6 +1235,9 @@ error:
       break;
     }
   }
+  table->file->end_operations_batch();
+  ops_batch_started= false;
+
   ANALYZE_STOP_TRACKING(thd, &explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
@@ -1373,6 +1383,8 @@ update_end:
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
 err:
+  if (ops_batch_started)
+    table->file->end_operations_batch();
   delete select;
   delete file_sort;
   free_underlaid_joins(thd, select_lex);
