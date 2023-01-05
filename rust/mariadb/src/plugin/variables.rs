@@ -89,11 +89,12 @@ macro_rules! sysvar_atomic {
         $(,)? // trailing comma
     ) => {
         {
+            use ::std::ffi::{c_void, c_int, c_char};
+            use ::std::mem::ManuallyDrop;
+            use ::std::ptr;
+            
             use $crate::bindings;
             use $crate::cstr;
-            use ::std::ffi::{c_void, c_int, c_char};
-            use ::std::ptr;
-            use ::std::mem::ManuallyDrop;
 
             // Just make syntax cleaner
             type IntTy = $ty;
