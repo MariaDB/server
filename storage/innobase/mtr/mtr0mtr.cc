@@ -76,6 +76,9 @@ void mtr_memo_slot_t::release() const
   }
 }
 
+mtr_t::mtr_t()= default;
+mtr_t::~mtr_t()= default;
+
 /** Start a mini-transaction. */
 void mtr_t::start()
 {

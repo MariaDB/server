@@ -77,6 +77,9 @@ struct mtr_memo_slot_t
 
 /** Mini-transaction handle and buffer */
 struct mtr_t {
+  mtr_t();
+  ~mtr_t();
+
   /** Start a mini-transaction. */
   void start();
 
