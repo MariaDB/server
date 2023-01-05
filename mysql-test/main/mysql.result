@@ -637,3 +637,6 @@ drop table t1;
 WARNING: option '--enable-cleartext-plugin' is obsolete.
 1
 1
+#
+# MDEV-30327 Client crashes in print_last_query_cost
+#
