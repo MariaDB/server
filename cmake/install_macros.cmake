@@ -266,7 +266,7 @@ SET(DEBUGBUILDDIR "${BINARY_PARENTDIR}/debug" CACHE INTERNAL "Directory of debug
 FUNCTION(INSTALL_MYSQL_TEST from to)
   IF(INSTALL_MYSQLTESTDIR)
     IF(NOT WITH_WSREP)
-      SET(EXCL_GALERA "(suite/(galera|wsrep|sys_vars/[rt]/(sysvars_)?wsrep).*|include/((w.*)?wsrep.*|.*galera.*)\\.inc|std_data/(galera|wsrep).*)")
+      SET(EXCL_GALERA "(suite/(galera|wsrep|sys_vars/[rt]/(sysvars_)?wsrep).*|std_data/(galera|wsrep).*)")
     ELSE()
       SET(EXCL_GALERA "^DOES_NOT_EXIST$")
     ENDIF()
