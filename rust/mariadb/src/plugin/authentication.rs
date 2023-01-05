@@ -63,12 +63,14 @@ impl AuthInfo {
 }
 
 struct AuthError;
-struct TruncatedError;
 
 trait Authentication { 
-    fn authenticate_user(vio: &Vio, info: &AuthInfo) -> Result<(), AuthError>;
+    fn authenticate_user(vio: &Vio, info: &AuthInfo) -> Result<bool, AuthError>;
 
-    fn hash_password(password: &[u8], buf: X);
+    /// Hash the provided password and write the output to `hash`. Return the
+    /// number of written bytes if successful, or `Err` if not.
+    fn hash_password(password: &[u8], hash: &mut [u8]) -> Result<usize, AuthError>;
 
-    fn preprocess_hash(hash: &[u8], buf: X);
+    /// Prepare the password hash for authentication
+    fn preprocess_hash(hash: &[u8], out: &mut [u8]) -> Result<usize, AuthError>;
 }

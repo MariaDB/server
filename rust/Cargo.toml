@@ -6,5 +6,7 @@ members = [
     "bindings",
     "mariadb",
     "macros",
-    "examples"
+    "examples/basic",
+    "examples/debug-key-management",
+    "examples/encryption"
 ]
