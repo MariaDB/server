@@ -438,6 +438,8 @@ public:
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
 
+	void start_operations_batch();
+	void end_operations_batch();
 protected:
 	bool
 	can_convert_string(const Field_string* field,

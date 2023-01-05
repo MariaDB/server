@@ -216,12 +216,16 @@ row_upd_check_references_constraints(
 
 	entry = row_rec_to_index_entry(rec, index, offsets, heap);
 
-	mtr_commit(mtr);
-
-	DEBUG_SYNC_C("foreign_constraint_check_for_update");
-
-	mtr->start();
-
+	if (thr->prebuilt && thr->prebuilt->upd_node == node
+	    && thr->prebuilt->batch_mtr && index->is_clust()) {
+		/* During foreign key constraint check, commit the
+		batch mtr operation */
+		thr->prebuilt->batch_mtr->finish_update();
+	} else {
+		mtr_commit(mtr);
+		DEBUG_SYNC_C("foreign_constraint_check_for_update");
+		mtr->start();
+	}
 	DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
 			    "foreign_constraint_check_for_insert");
 
@@ -2546,13 +2550,18 @@ row_upd_clust_step(
 	dict_index_t*	index;
 	btr_pcur_t*	pcur;
 	dberr_t		err;
-	mtr_t		mtr;
+	mtr_t		*mtr;
 	rec_t*		rec;
 	mem_heap_t*	heap	= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets;
 	ulint		flags;
 	trx_t*		trx = thr_get_trx(thr);
+	row_batch_mtr_t *batch_mtr = nullptr;
+
+	if (thr->prebuilt && thr->prebuilt->upd_node == node) {
+		batch_mtr = thr->prebuilt->batch_mtr;
+	}
 
 	rec_offs_init(offsets_);
 
@@ -2569,9 +2578,13 @@ row_upd_clust_step(
 
 	pcur = node->pcur;
 
-	/* We have to restore the cursor to its position */
-
-	mtr.start();
+	if (batch_mtr) {
+		mtr = batch_mtr->get_mtr();
+	} else {
+		mtr = new mtr_t();
+		/* We have to restore the cursor to its position */
+		mtr->start();
+	}
 
 	if (node->table->is_temporary()) {
 		/* Disable locking, because temporary tables are
@@ -2580,10 +2593,14 @@ row_upd_clust_step(
 			? BTR_NO_ROLLBACK
 			: BTR_NO_LOCKING_FLAG;
 		/* Redo logging only matters for persistent tables. */
-		mtr.set_log_mode(MTR_LOG_NO_REDO);
+		mtr->set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		flags = node->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
-		index->set_modified(mtr);
+		index->set_modified(*mtr);
+	}
+
+	if (batch_mtr) {
+		goto read_record;
 	}
 
 	/* If the restoration does not succeed, then the same
@@ -2603,16 +2620,17 @@ row_upd_clust_step(
 	if (dict_index_is_online_ddl(index)) {
 		ut_ad(node->table->id != DICT_INDEXES_ID);
 		mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
-		mtr_s_lock_index(index, &mtr);
+		mtr_s_lock_index(index, mtr);
 	} else {
 		mode = BTR_MODIFY_LEAF;
 	}
 
-	if (pcur->restore_position(mode, &mtr) != btr_pcur_t::SAME_ALL) {
+	if (pcur->restore_position(mode, mtr) != btr_pcur_t::SAME_ALL) {
 		err = DB_RECORD_NOT_FOUND;
 		goto exit_func;
 	}
 
+read_record:
 	rec = btr_pcur_get_rec(pcur);
 	offsets = rec_get_offsets(rec, index, offsets_, index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
@@ -2638,7 +2656,7 @@ row_upd_clust_step(
 #ifdef WITH_WSREP
 			foreign,
 #endif
-			&mtr);
+			mtr);
 		goto all_done;
 	}
 
@@ -2655,7 +2673,7 @@ row_upd_clust_step(
 
 	if (!node->is_delete && node->cmpl_info & UPD_NODE_NO_ORD_CHANGE) {
 		err = row_upd_clust_rec(
-			flags, node, index, offsets, &heap, thr, &mtr);
+			flags, node, index, offsets, &heap, thr, mtr);
 		goto exit_func;
 	}
 
@@ -2684,7 +2702,7 @@ row_upd_clust_step(
 #ifdef WITH_WSREP
 			foreign,
 #endif
-			&mtr);
+			mtr);
 all_done:
 		if (err == DB_SUCCESS) {
 			node->state = UPD_NODE_UPDATE_ALL_SEC;
@@ -2693,19 +2711,26 @@ success:
 		}
 	} else {
 		err = row_upd_clust_rec(
-			flags, node, index, offsets, &heap, thr, &mtr);
+			flags, node, index, offsets, &heap, thr, mtr);
 
 		if (err == DB_SUCCESS) {
 			ut_ad(node->is_delete != PLAIN_DELETE);
 			node->state = node->is_delete
 				? UPD_NODE_UPDATE_ALL_SEC
 				: UPD_NODE_UPDATE_SOME_SEC;
+
 			goto success;
 		}
 	}
 
 exit_func:
-	mtr.commit();
+	if (batch_mtr) {
+		batch_mtr->finish_update();
+	} else {
+		mtr->commit();
+		delete mtr;
+	}
+
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}

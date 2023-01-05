@@ -1644,7 +1644,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 				      ? prebuilt->pcur
 				      : prebuilt->clust_pcur);
 
-	ut_a(node->pcur->rel_pos == BTR_PCUR_ON);
+	ut_a(node->pcur->rel_pos == BTR_PCUR_ON || prebuilt->batch_mtr);
 
 	/* MySQL seems to call rnd_pos before updating each row it
 	has cached: we can get the correct cursor position from
@@ -1757,7 +1757,7 @@ releases the latest clustered index record lock we set.
 void
 row_unlock_for_mysql(
 	row_prebuilt_t*	prebuilt,
-	ibool		has_latches_on_recs)
+	bool		has_latches_on_recs)
 {
 	if (prebuilt->new_rec_locks == 1 && prebuilt->index->is_clust()) {
 		trx_t* trx = prebuilt->trx;

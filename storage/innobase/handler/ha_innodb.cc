@@ -8737,8 +8737,12 @@ ha_innobase::unlock_row(void)
 			break;
 		/* fall through */
 	case ROW_READ_TRY_SEMI_CONSISTENT:
-		row_unlock_for_mysql(m_prebuilt, FALSE);
+	{
+		bool hold = (m_prebuilt->batch_mtr
+			     && !m_prebuilt->batch_mtr->cursor_stored());
+		row_unlock_for_mysql(m_prebuilt, hold);
 		break;
+	}
 	case ROW_READ_DID_SEMI_CONSISTENT:
 		m_prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
 		break;
@@ -20672,6 +20676,22 @@ Compare_keys ha_innobase::compare_key_parts(
   }
 
   return Compare_keys::Equal;
+}
+
+void ha_innobase::start_operations_batch()
+{
+  ut_ad(!m_prebuilt->batch_mtr);
+  if (!m_prebuilt->table->is_temporary())
+    m_prebuilt->batch_mtr= new row_batch_mtr_t();
+}
+
+void ha_innobase::end_operations_batch()
+{
+  if (m_prebuilt->batch_mtr)
+  {
+    delete m_prebuilt->batch_mtr;
+    m_prebuilt->batch_mtr= nullptr;
+  }
 }
 
 /******************************************************************//**

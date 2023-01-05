@@ -637,6 +637,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       !table_list->has_period())
   {
     table->mark_columns_needed_for_delete();
+    table->file->start_operations_batch();
     if (!table->check_virtual_columns_marked_for_read())
     {
       DBUG_PRINT("info", ("Trying direct delete"));
@@ -658,10 +659,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         THD_STAGE_INFO(thd, stage_updating);
         if (!(error= table->file->ha_direct_delete_rows(&deleted)))
           error= -1;
+        table->file->end_operations_batch();
         goto terminate_delete;
       }
     }
   }
+  table->file->end_operations_batch();
 
   if (query_plan.using_filesort)
   {
