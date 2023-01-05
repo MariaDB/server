@@ -709,10 +709,19 @@ drop table t1;
 --echo #
 --exec $MYSQL -NHe "select 1 as a"
 
-
 #
 # Test obsolete option --enable-cleartext-plugin
 # This should proceed with a warning
 #
 --echo
 --exec $MYSQL test --enable-cleartext-plugin -e "select 1"
+
+--echo #
+--echo # MDEV-30327 Client crashes in print_last_query_cost
+--echo #
+
+--disable_query_log
+--disable_result_log
+--exec $MYSQL --show-query-costs --port=$MASTER_MYPORT -e "show tables in mysql like 'foo'"
+--enable_result_log
+--enable_query_log
