@@ -413,7 +413,7 @@ test
 drop procedure p1;
 SET global secure_auth=default;
 #
-# MDEV-19282: Log more specific warning with log_warnings=2 if
+# MDEV-19282/MDEV-12274: Log more specific warning at log_warnings=4 if
 # connection is aborted prior to authentication
 # MDEV-19277: Add status variable that gets incremented if
 # connection is aborted prior to authentication
@@ -423,7 +423,7 @@ SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 Variable_name	Value
 Aborted_connects	0
 Aborted_connects_preauth	0
-SET GLOBAL log_warnings=2;
+SET GLOBAL log_warnings=4;
 NOT FOUND /This connection closed normally without authentication/ in mysqld.1.err
 # let tcp to detect disconnect
 select sleep(1);

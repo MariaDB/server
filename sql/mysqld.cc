@@ -2566,7 +2566,7 @@ static void network_init(void)
 
 void close_connection(THD *thd, uint sql_errno)
 {
-  int lvl= (thd->main_security_ctx.user ? 3 : 1);
+  int lvl= 3;
   DBUG_ENTER("close_connection");
 
   if (sql_errno)

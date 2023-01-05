@@ -456,7 +456,7 @@ drop procedure p1;
 SET global secure_auth=default;
 
 --echo #
---echo # MDEV-19282: Log more specific warning with log_warnings=2 if
+--echo # MDEV-19282/MDEV-12274: Log more specific warning at log_warnings=4 if
 --echo # connection is aborted prior to authentication
 --echo # MDEV-19277: Add status variable that gets incremented if
 --echo # connection is aborted prior to authentication
@@ -465,7 +465,7 @@ SET global secure_auth=default;
 flush status;
 SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
 
-SET GLOBAL log_warnings=2;
+SET GLOBAL log_warnings=4;
 --let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
 --let SEARCH_PATTERN= This connection closed normally without authentication
 --source include/search_pattern_in_file.inc
