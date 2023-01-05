@@ -1,9 +1,12 @@
 //! Parent module for all plugin types
 
-use std::cell::UnsafeCell;
+// use std::cell::UnsafeCell;
 
 use mariadb_server_sys as bindings;
 pub mod encryption;
+mod encryption_wrapper;
+mod variables;
+pub use variables::{PluginVarInfo, SysVarAtomic};
 
 /// Defines possible licenses for plugins
 #[non_exhaustive]
@@ -54,15 +57,7 @@ pub enum Maturity {
     Stable = bindings::MariaDB_PLUGIN_MATURITY_STABLE as isize,
 }
 
-// #[repr(transparent)]
-// pub struct PluginContext(pub(crate) UnsafeCell<bindings::st_plugin_init>);
-
-// impl PluginContext {
-//     pub(crate) unsafe fn from_ptr<'a>(ptr: *mut bindings::st_plugin_init) -> &'a Self {
-//         &*ptr.cast()
-//     }
-// }
-
+/// Initialize state
 pub trait Init {
     fn init();
 }

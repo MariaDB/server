@@ -8,8 +8,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 // `math.h` seems to double define some things, To avoid this, we ignore them.
-const IGNORE_MACROS
-: [&str; 20] = [
+const IGNORE_MACROS: [&str; 20] = [
     "FE_DIVBYZERO",
     "FE_DOWNWARD",
     "FE_INEXACT",
@@ -33,9 +32,10 @@ const IGNORE_MACROS
 ];
 
 #[derive(Debug)]
-struct IgnoreMacros(HashSet<String>);
+struct BuildCallbacks(HashSet<String>);
 
-impl ParseCallbacks for IgnoreMacros {
+impl ParseCallbacks for BuildCallbacks {
+    /// Ignore macros that are in the ignored list
     fn will_parse_macro(&self, name: &str) -> MacroParsingBehavior {
         if self.0.contains(name) {
             MacroParsingBehavior::Ignore
@@ -43,12 +43,16 @@ impl ParseCallbacks for IgnoreMacros {
             MacroParsingBehavior::Default
         }
     }
+
+    /// Use a converter to turn doxygen comments into rustdoc
+    fn process_comment(&self, comment: &str) -> Option<String> {
+        Some(doxygen_rs::transform(comment))
+    }
 }
 
-impl IgnoreMacros {
+impl BuildCallbacks {
     fn new() -> Self {
-        Self(IGNORE_MACROS
-            .into_iter().map(|s| s.to_owned()).collect())
+        Self(IGNORE_MACROS.into_iter().map(|s| s.to_owned()).collect())
     }
 }
 
@@ -70,7 +74,7 @@ fn main() {
         // bindings for.
         .header("src/wrapper.h")
         // Fix math.h double defines
-        .parse_callbacks(Box::new(IgnoreMacros::new()))
+        .parse_callbacks(Box::new(BuildCallbacks::new()))
         .clang_arg("-I../../include")
         .clang_arg("-I../../sql")
         .clang_arg("-xc++")

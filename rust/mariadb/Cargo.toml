@@ -6,3 +6,4 @@ edition = '2021'
 
 [dependencies]
 mariadb-server-sys = { path = "../bindings" }
+cstr = "0.2.11"
