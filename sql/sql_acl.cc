@@ -13477,7 +13477,10 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       errors.m_auth_plugin= 1;
       break;
     case CR_AUTH_HANDSHAKE:
-      errors.m_handshake= 1;
+      if (sctx->user)
+        errors.m_handshake= 1;
+      else
+        goto skip_inc_host_errors;
       break;
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;
@@ -13489,6 +13492,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       break;
     }
     inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
+skip_inc_host_errors:
     if (!thd->is_error())
       login_failed_error(thd);
     DBUG_RETURN(1);
