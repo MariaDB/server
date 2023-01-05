@@ -2574,11 +2574,9 @@ void close_connection(THD *thd, uint sql_errno)
     net_send_error(thd, sql_errno, ER_DEFAULT(sql_errno), NULL);
     thd->print_aborted_warning(lvl, ER_DEFAULT(sql_errno));
   }
-  else
-    thd->print_aborted_warning(lvl, (thd->main_security_ctx.user ?
-                                     "This connection closed normally" :
-                                     "This connection closed normally without"
-                                      " authentication"));
+  else if (!thd->main_security_ctx.user)
+    thd->print_aborted_warning(lvl, "This connection closed normally without"
+                                    " authentication");
 
   thd->disconnect();
 
