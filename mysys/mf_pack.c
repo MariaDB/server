@@ -337,6 +337,8 @@ size_t unpack_dirname(char * to, const char *from)
   char buff[FN_REFLEN+1+4],*suffix,*tilde_expansion;
   DBUG_ENTER("unpack_dirname");
 
+  memset(buff, 0, FN_REFLEN + 1 +4);
+
   length= normalize_dirname(buff, from);
 
   if (buff[0] == FN_HOMELIB)
