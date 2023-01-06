@@ -108,10 +108,6 @@ LEX_CSTRING current_user_and_current_role=
 LEX_CSTRING none= {STRING_WITH_LEN("NONE") };
 LEX_CSTRING public_name= {STRING_WITH_LEN("PUBLIC") };
 
-static inline bool is_public(const char *l) { return l == public_name.str; }
-static inline bool is_public(const LEX_CSTRING *l) { return is_public(l->str); }
-static inline bool is_public(const LEX_USER *l) { return is_public(&l->user); }
-
 static plugin_ref old_password_plugin;
 static plugin_ref native_password_plugin;
 
@@ -135,6 +131,10 @@ struct acl_host_and_ip
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static bool compare_hostname(const acl_host_and_ip *, const char *, const char *);
+static inline bool is_public(const char *l) { return l == public_name.str; }
+static inline bool is_public(const LEX_CSTRING *l) { return is_public(l->str); }
+static inline bool is_public(const LEX_USER *l) { return is_public(&l->user); }
+
 #else
 #define compare_hostname(X,Y,Z) 0
 #endif
@@ -2918,7 +2918,6 @@ bool acl_reload(THD *thd)
   int result;
   DBUG_ENTER("acl_reload");
 
-  acl_public= NULL;
 
   Grant_tables tables;
   /*
@@ -2963,6 +2962,7 @@ bool acl_reload(THD *thd)
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
   my_hash_free(&acl_check_hosts);
+  acl_public= NULL;
 
   if ((result= acl_load(thd, tables)))
   {					// Error. Revert to old list

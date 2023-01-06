@@ -109,6 +109,26 @@ flush privileges;
 grant execute on procedure mtr.add_suppression to public;
 revoke execute on procedure mtr.add_suppression from public;
 
+--echo #
+--echo # MDEV-30154: Assertion `strcasecmp(rolename, public_name.str) ||
+--echo # acl_public == role' failed in acl_update_role on GRANT ... TO PUBLIC
+--echo #
+call mtr.add_suppression("Can't open and lock privilege tables");
+USE test;
+GRANT SELECT ON *.* TO PUBLIC;
+LOCK TABLES mysql.time_zone WRITE,mysql.proc WRITE;
+--error 1100
+FLUSH PRIVILEGES;
+--error 1146
+LOCK TABLE nonexisting WRITE;
+GRANT SELECT ON *.* TO PUBLIC;
+
+REVOKE SELECT ON *.* FROM PUBLIC;
+
+--echo #
+--echo # End of 10.11 test
+--echo #
+
 -- echo # clean up
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;
