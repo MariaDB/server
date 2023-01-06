@@ -2513,7 +2513,7 @@ void log_slow_statement(THD *thd)
   if ((thd->server_status &
        (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
       !(thd->query_plan_flags & QPLAN_STATUS) &&
-      !slow_filter_masked(thd, QPLAN_NOT_USING_INDEX))
+      (thd->variables.log_slow_filter & QPLAN_NOT_USING_INDEX))
   {
     thd->query_plan_flags|= QPLAN_NOT_USING_INDEX;
     /* We are always logging no index queries if enabled in filter */
@@ -5248,7 +5248,7 @@ mysql_execute_command(THD *thd)
       List_iterator <LEX_USER> user_list(lex->users_list);
       while ((user= user_list++))
       {
-        if (specialflag & SPECIAL_NO_RESOLVE &&
+        if (opt_skip_name_resolve &&
             hostname_requires_resolving(user->host.str))
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_HOSTNAME_WONT_WORK,

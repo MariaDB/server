@@ -3010,7 +3010,7 @@ class Vcol_expr_context
   bool inited;
   THD *thd;
   TABLE *table;
-  Query_arena backup_arena;
+  Query_arena backup_arena, *stmt_arena;
   table_map old_map;
   Security_context *save_security_ctx;
   sql_mode_t save_sql_mode;
@@ -3020,6 +3020,7 @@ public:
     inited(false),
     thd(_thd),
     table(_table),
+    stmt_arena(thd->stmt_arena),
     old_map(table->map),
     save_security_ctx(thd->security_ctx),
     save_sql_mode(thd->variables.sql_mode) {}
@@ -3040,6 +3041,7 @@ bool Vcol_expr_context::init()
     thd->security_ctx= tl->security_ctx;
 
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
+  thd->stmt_arena= thd;
 
   inited= true;
   return false;
@@ -3053,6 +3055,7 @@ Vcol_expr_context::~Vcol_expr_context()
   thd->security_ctx= save_security_ctx;
   thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
+  thd->stmt_arena= stmt_arena;
 }
 
 

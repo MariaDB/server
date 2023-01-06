@@ -539,7 +539,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 
     if (is_list_of_rows)
     {
-      Item_row *row_list= (Item_row *)(args[i]->build_clone(thd));
+      Item_row *row_list= (Item_row *)(args[i]);
 
       if (!row_list)
         return true;
@@ -564,8 +564,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
         sprintf(col_name, "_col_%i", 1);
         args[i]->set_name(thd, col_name, strlen(col_name), thd->charset());
       }
-      Item *arg_clone= args[i]->build_clone(thd);
-      if (!arg_clone || tvc_value->push_back(arg_clone))
+      if (tvc_value->push_back(args[i]))
         return true;
     }
 
