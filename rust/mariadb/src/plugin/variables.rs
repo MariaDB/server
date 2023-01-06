@@ -1,6 +1,7 @@
 use bindings::st_mysql_sys_var_basic;
 use mariadb_server_sys as bindings;
 use std::mem::ManuallyDrop;
+use std::ptr;
 
 #[repr(C)]
 union SysVar<T> {
@@ -18,6 +19,14 @@ pub struct SysVarAtomic<T>(SysVar<T>);
 
 #[doc(hidden)]
 impl<T> SysVarAtomic<T> {
+    pub const fn as_ptr(&self) -> *const bindings::st_mysql_sys_var {
+        ptr::addr_of!(self.0).cast()
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut bindings::st_mysql_sys_var {
+        ptr::addr_of_mut!(self.0).cast()
+    }
+
     // These functions are all unsafe because preconditions are needed to ensure
     // Send and Sync hold true
     pub const unsafe fn new_basic(val: bindings::st_mysql_sys_var_basic<T>) -> Self {
@@ -92,7 +101,7 @@ macro_rules! sysvar_atomic {
             use ::std::ffi::{c_void, c_int, c_char};
             use ::std::mem::ManuallyDrop;
             use ::std::ptr;
-            
+
             use $crate::bindings;
             use $crate::cstr;
 

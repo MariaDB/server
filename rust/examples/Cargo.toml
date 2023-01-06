@@ -1,8 +1,10 @@
 [package]
-name = "mariadb-examples"
+name = "examples"
 version = "0.1.0"
 edition = '2021'
 
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
 mariadb-server = { path = "../mariadb" }

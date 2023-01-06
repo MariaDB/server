@@ -7,4 +7,4 @@ edition = '2021'
 [build-dependencies]
 bindgen = "0.63.0"
 cmake = "0.1"
-doxygen-rs = { git = "https://github.com/Techie-Pi/doxygen-rs.git", rev = "a7fee318" }
+doxygen-rs = "0.2"

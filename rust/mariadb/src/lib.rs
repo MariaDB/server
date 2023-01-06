@@ -8,3 +8,6 @@ pub use mariadb_server_sys as bindings;
 
 #[doc(hidden)]
 pub use cstr;
+
+#[doc(inline)]
+pub use mariadb_server_macros::plugin;
