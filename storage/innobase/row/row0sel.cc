@@ -3384,8 +3384,8 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	trx_t*		trx;
 	btr_latch_mode	batch_latch_mode = BTR_SEARCH_LEAF;
 
-	if (row_batch_mtr_t *batch_mtr= prebuilt->batch_mtr) {
-		ut_ad(batch_mtr->get_mtr() == mtr);
+	if (prebuilt->batch_mtr) {
+		ut_ad(prebuilt->batch_mtr->get_mtr() == mtr);
 		if (prebuilt->select_lock_type == LOCK_X) {
 			batch_latch_mode = BTR_MODIFY_LEAF;
 		}
@@ -4806,6 +4806,12 @@ wait_table_again:
 		}
 
 	} else if (dtuple_get_n_fields(search_tuple) > 0) {
+
+		if (batch_mtr && batch_mtr->has_lock()) {
+			batch_mtr->commit();
+			batch_mtr->start();
+		}
+
 		pcur->btr_cur.thr = thr;
 		pcur->old_rec = nullptr;
 
@@ -4829,7 +4835,7 @@ wait_table_again:
 			err = rtr_search_leaf(pcur, search_tuple, mode, mtr);
 		} else {
 			err = btr_pcur_open_with_no_init(search_tuple, mode,
-							 BTR_SEARCH_LEAF,
+							 batch_latch_mode,
 							 pcur, mtr);
 		}
 
@@ -4877,7 +4883,7 @@ page_corrupted:
 		}
 	} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_L) {
 		err = pcur->open_leaf(mode == PAGE_CUR_G, index,
-				      BTR_SEARCH_LEAF, mtr);
+				      batch_latch_mode, mtr);
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {

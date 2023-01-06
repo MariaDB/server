@@ -460,6 +460,8 @@ private:
   ulint m_last_clust_savepoint= 0;
   /* whether the batch mini-transaction is active */
   bool m_batch_mtr_active= false;
+  /* Whether mtr held lock on the index */
+  bool m_batch_has_lock= false;
 public:
   /** Start the batch mtr operation */
   void start()
@@ -489,6 +491,9 @@ public:
   /** @return whether cursor stored */
   bool cursor_stored() { return m_batch_cursor_stored; }
 
+  /** @return whether it holds any lock */
+  bool has_lock() { return m_batch_has_lock; }
+
   /** Finish the read part of the batch mtr operation.
   In case of read operation, InnoDB rollbacks to savepoint
   when secondary index is being used
@@ -507,6 +512,7 @@ public:
       }
     }
 
+    m_batch_has_lock= true;
     m_last_clust_savepoint= mtr_extra_clust_savepoint;
     m_batch_cursor_stored= false;
   }
@@ -519,6 +525,7 @@ public:
     /* Copy secondary and clustered index position */
     m_batch_mtr->commit();
     m_batch_cursor_stored= true;
+    m_batch_has_lock= false;
     m_batch_mtr->start();
     m_last_clust_savepoint= 0;
   }
@@ -542,6 +549,7 @@ public:
   {
     m_batch_mtr->commit();
     m_batch_mtr_active= false;
+    m_batch_has_lock= false;
   }
 };
 

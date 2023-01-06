@@ -348,7 +348,10 @@ bool can_use_mini_transaction(const TABLE_LIST *query_tables,
       !(query_tables->next_global != nullptr /* more than one table involved */
       || has_triggers || is_referenced_by_foreign_keys ||
       (select && select->quick &&
-       !select->quick->are_mini_transactions_applicable()));
+       !select->quick->are_mini_transactions_applicable())
+      || query_tables->table->s->long_unique_table
+      || query_tables->table->s->period.unique_keys
+      || query_tables->table->s->versioned);
 }
 /*
   Process usual UPDATE
