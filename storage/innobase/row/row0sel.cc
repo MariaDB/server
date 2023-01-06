@@ -4828,7 +4828,8 @@ wait_table_again:
 		}
 
 		err = btr_pcur_open_with_no_init(search_tuple, mode,
-						 BTR_SEARCH_LEAF, pcur, mtr);
+						 batch_latch_mode,
+						 pcur, mtr);
 
 		if (err != DB_SUCCESS) {
 page_corrupted:
@@ -4874,7 +4875,7 @@ page_corrupted:
 		}
 	} else if (mode == PAGE_CUR_G || mode == PAGE_CUR_L) {
 		err = pcur->open_leaf(mode == PAGE_CUR_G, index,
-				      BTR_SEARCH_LEAF, mtr);
+				      batch_latch_mode, mtr);
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
