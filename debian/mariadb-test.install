@@ -37,8 +37,8 @@ usr/share/mysql/mysql-test/README.stress
 usr/share/mysql/mysql-test/dgcov.pl
 usr/share/mysql/mysql-test/lib
 usr/share/mysql/mysql-test/mariadb-stress-test.pl
-usr/share/mysql/mysql-test/mysql-test-run.pl
 usr/share/mysql/mysql-test/mariadb-test-run.pl
+usr/share/mysql/mysql-test/mysql-test-run.pl
 usr/share/mysql/mysql-test/purify.supp
 usr/share/mysql/mysql-test/suite.pm
 usr/share/mysql/mysql-test/valgrind.supp
