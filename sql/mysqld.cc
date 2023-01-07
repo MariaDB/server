@@ -5249,8 +5249,9 @@ static int init_server_components()
 ￼    Print source revision hash, as one of the first lines, if not the
 ￼    first in error log, for troubleshooting and debugging purposes
 ￼  */
-  sql_print_information("Starting MariaDB %s source revision %s as process %lu",
-		         server_version, SOURCE_REVISION, (ulong) getpid());
+  if (!opt_help)
+    sql_print_information("Starting MariaDB %s source revision %s as process %lu",
+                          server_version, SOURCE_REVISION, (ulong) getpid());
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
