@@ -3928,7 +3928,7 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(0);
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
-  if (store_values(values, info.ignore))
+  if (store_values(values))
     DBUG_RETURN(1);
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
   if (unlikely(thd->is_error()))
@@ -3986,17 +3986,17 @@ int select_insert::send_data(List<Item> &values)
 }
 
 
-bool select_insert::store_values(List<Item> &values, bool ignore_errors)
+bool select_insert::store_values(List<Item> &values)
 {
   DBUG_ENTER("select_insert::store_values");
   bool error;
 
   if (fields->elements)
     error= fill_record_n_invoke_before_triggers(thd, table, *fields, values,
-                                                ignore_errors, TRG_EVENT_INSERT);
+                                                true, TRG_EVENT_INSERT);
   else
     error= fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
-                                                values, ignore_errors, TRG_EVENT_INSERT);
+                                                values, true, TRG_EVENT_INSERT);
 
   DBUG_RETURN(error);
 }
@@ -4669,10 +4669,10 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
   return result;
 }
 
-bool select_create::store_values(List<Item> &values, bool ignore_errors)
+bool select_create::store_values(List<Item> &values)
 {
   return fill_record_n_invoke_before_triggers(thd, table, field, values,
-                                              ignore_errors, TRG_EVENT_INSERT);
+                                              true, TRG_EVENT_INSERT);
 }
 
 
