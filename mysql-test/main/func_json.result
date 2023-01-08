@@ -1253,6 +1253,37 @@ JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
         ["123"]
     }
 ]
+select JSON_PRETTY(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
+JSON_PRETTY(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
+[
+    {
+        "range_scan_alternatives": 
+        [
+            {
+                "index": "a_b",
+                "ranges": 
+                [
+                    "2 <= a <= 2 AND 4 <= b <= 4",
+                    "123"
+                ],
+                "rowid_ordered": true,
+                "using_mrr": false,
+                "index_only": true,
+                "rows": 1,
+                "cost": 1.1752,
+                "chosen": true
+            }
+        ],
+        "analyzing_roworder_intersect": 
+        {
+            "cause": "too few roworder scans"
+        },
+        "analyzing_index_merge_union": 
+        [],
+        "test_one_line_array": 
+        ["123"]
+    }
+]
 select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
 JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
 [{"range_scan_alternatives": [{"index": "a_b", "ranges": ["2 <= a <= 2 AND 4 <= b <= 4", "123"], "rowid_ordered": true, "using_mrr": false, "index_only": true, "rows": 1, "cost": 1.1752, "chosen": true}], "analyzing_roworder_intersect": {"cause": "too few roworder scans"}, "analyzing_index_merge_union": [], "test_one_line_array": ["123"]}]

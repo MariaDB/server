@@ -7351,6 +7351,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_CONTAINS_PATH") }, BUILDER(Create_func_json_contains_path)},
   { { STRING_WITH_LEN("JSON_DEPTH") }, BUILDER(Create_func_json_depth)},
   { { STRING_WITH_LEN("JSON_DETAILED") }, BUILDER(Create_func_json_detailed)},
+  { { STRING_WITH_LEN("JSON_PRETTY") }, BUILDER(Create_func_json_detailed)},
   { { STRING_WITH_LEN("JSON_EXISTS") }, BUILDER(Create_func_json_exists)},
   { { STRING_WITH_LEN("JSON_EXTRACT") }, BUILDER(Create_func_json_extract)},
   { { STRING_WITH_LEN("JSON_INSERT") }, BUILDER(Create_func_json_insert)},
