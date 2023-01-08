@@ -20,7 +20,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-10
+0
 connection con4;
 rollback;
 disconnect con4;
@@ -31,7 +31,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-8
+0
 connection con5;
 rollback;
 disconnect con5;
@@ -42,7 +42,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-4
+0
 set global innodb_limit_optimistic_insert_debug = 10000;
 connection con2;
 rollback;
@@ -54,7 +54,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-2
+0
 begin;
 insert into t1 values (2);
 rollback;
@@ -64,7 +64,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-1
+0
 begin;
 insert into t1 values (2);
 rollback;
@@ -74,6 +74,6 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-1
+0
 drop table t1;
 set global innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;

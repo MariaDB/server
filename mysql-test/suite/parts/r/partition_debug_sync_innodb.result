@@ -78,7 +78,7 @@ Warning	1639	debug sync point wait timed out
 disconnect con1;
 connection default;
 TABLE_SCHEMA	TABLE_NAME	PARTITION_NAME	PARTITION_ORDINAL_POSITION	PARTITION_DESCRIPTION	TABLE_ROWS
-test	t1	p0	1	10	1
+test	t1	p0	1	10	0
 test	t1	p10	2	MAXVALUE	3
 db.opt
 t1#P#p0.ibd

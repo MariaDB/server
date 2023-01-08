@@ -642,6 +642,10 @@ static MYSQL_THDVAR_UINT(default_encryption_key_id, PLUGIN_VAR_RQCMDARG,
 			 NULL, innodb_default_encryption_key_id_update,
 			 FIL_DEFAULT_ENCRYPTION_KEY, 1, UINT_MAX32, 0);
 
+static MYSQL_THDVAR_UINT(stats_percentage, PLUGIN_VAR_RQCMDARG,
+			 "Percentage of total number of pages for stats sampling",
+			 nullptr, nullptr, 0, 0, 100, 0);
+
 /**
   Structure for CREATE TABLE options (table options).
   It needs to be called ha_table_option_struct.
@@ -660,8 +664,11 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
   /* With this option the user can enable encryption for the table */
   HA_TOPTION_ENUM("ENCRYPTED", encryption, "DEFAULT,YES,NO", 0),
-  /* With this option the user defines the key identifier using for the encryption */
+  /* With this option the user defines the key identifier used for the encryption */
   HA_TOPTION_SYSVAR("ENCRYPTION_KEY_ID", encryption_key_id, default_encryption_key_id),
+  /* With this option the user defines the percentage of total pages for stats
+  sampling. Default is 0*/
+  HA_TOPTION_SYSVAR("STATS_PERCENTAGE", stats_percentage, stats_percentage),
 
   HA_TOPTION_END
 };
@@ -2895,7 +2902,8 @@ innobase_copy_frm_flags_from_create_info(
 		create_info->stats_auto_recalc == HA_STATS_AUTO_RECALC_ON,
 		create_info->stats_auto_recalc == HA_STATS_AUTO_RECALC_OFF);
 
-	innodb_table->stats_sample_pages = create_info->stats_sample_pages;
+        innodb_table->stats_sample_pages = create_info->stats_sample_pages;
+        innodb_table->stats_percentage = create_info->stats_percentage & 3;
 }
 
 /*********************************************************************//**
@@ -2931,6 +2939,7 @@ innobase_copy_frm_flags_from_table_share(
 		table_share->stats_auto_recalc == HA_STATS_AUTO_RECALC_OFF);
 
 	innodb_table->stats_sample_pages = table_share->stats_sample_pages;
+        innodb_table->stats_percentage = table_share->stats_percentage & 3;
 }
 
 /*********************************************************************//**
@@ -19807,6 +19816,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(stats_transient_sample_pages),
   MYSQL_SYSVAR(stats_persistent),
   MYSQL_SYSVAR(stats_persistent_sample_pages),
+  MYSQL_SYSVAR(stats_percentage),
   MYSQL_SYSVAR(stats_auto_recalc),
   MYSQL_SYSVAR(stats_modified_counter),
   MYSQL_SYSVAR(stats_traditional),

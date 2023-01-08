@@ -50,6 +50,7 @@ struct ha_table_option_struct
 						value OFF.*/
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
+	uint 	        stats_percentage;	/*!< stats sample percentage */
 };
 
 /** The class defining a handle to an Innodb table */

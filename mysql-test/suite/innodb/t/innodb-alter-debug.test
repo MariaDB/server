@@ -157,6 +157,7 @@ send ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR blocked';
 BEGIN;
+--replace_column 3 TIMESTAMP
 SELECT * FROM mysql.innodb_table_stats FOR UPDATE;
 SET DEBUG_SYNC='now SIGNAL go';
 

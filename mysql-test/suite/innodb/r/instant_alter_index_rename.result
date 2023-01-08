@@ -206,6 +206,26 @@ KEY ind1(c), KEY ind2(b)) ENGINE=InnoDB STATS_PERSISTENT=1;
 INSERT INTO t1 SELECT 1, 1, 'a' FROM seq_1_to_100;
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
+innodb_index_stats	PRIMARY	n_diff_pfx01
+innodb_index_stats	PRIMARY	n_diff_pfx02
+innodb_index_stats	PRIMARY	n_diff_pfx03
+innodb_index_stats	PRIMARY	n_diff_pfx04
+innodb_index_stats	PRIMARY	n_leaf_pages
+innodb_index_stats	PRIMARY	size
+transaction_registry	PRIMARY	n_diff_pfx01
+transaction_registry	PRIMARY	n_leaf_pages
+transaction_registry	PRIMARY	size
+transaction_registry	begin_timestamp	n_diff_pfx01
+transaction_registry	begin_timestamp	n_diff_pfx02
+transaction_registry	begin_timestamp	n_leaf_pages
+transaction_registry	begin_timestamp	size
+transaction_registry	commit_id	n_diff_pfx01
+transaction_registry	commit_id	n_leaf_pages
+transaction_registry	commit_id	size
+transaction_registry	commit_timestamp	n_diff_pfx01
+transaction_registry	commit_timestamp	n_diff_pfx02
+transaction_registry	commit_timestamp	n_leaf_pages
+transaction_registry	commit_timestamp	size
 t1	GEN_CLUST_INDEX	n_diff_pfx01
 t1	GEN_CLUST_INDEX	n_leaf_pages
 t1	GEN_CLUST_INDEX	size
@@ -221,6 +241,26 @@ ALTER TABLE t1 DROP INDEX ind2, ADD INDEX ind3(b),
 DROP INDEX ind1, ADD INDEX ind2(c);
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
+innodb_index_stats	PRIMARY	n_diff_pfx01
+innodb_index_stats	PRIMARY	n_diff_pfx02
+innodb_index_stats	PRIMARY	n_diff_pfx03
+innodb_index_stats	PRIMARY	n_diff_pfx04
+innodb_index_stats	PRIMARY	n_leaf_pages
+innodb_index_stats	PRIMARY	size
+transaction_registry	PRIMARY	n_diff_pfx01
+transaction_registry	PRIMARY	n_leaf_pages
+transaction_registry	PRIMARY	size
+transaction_registry	begin_timestamp	n_diff_pfx01
+transaction_registry	begin_timestamp	n_diff_pfx02
+transaction_registry	begin_timestamp	n_leaf_pages
+transaction_registry	begin_timestamp	size
+transaction_registry	commit_id	n_diff_pfx01
+transaction_registry	commit_id	n_leaf_pages
+transaction_registry	commit_id	size
+transaction_registry	commit_timestamp	n_diff_pfx01
+transaction_registry	commit_timestamp	n_diff_pfx02
+transaction_registry	commit_timestamp	n_leaf_pages
+transaction_registry	commit_timestamp	size
 t1	GEN_CLUST_INDEX	n_diff_pfx01
 t1	GEN_CLUST_INDEX	n_leaf_pages
 t1	GEN_CLUST_INDEX	size
@@ -235,6 +275,26 @@ t1	ind3	size
 ALTER TABLE t1 DROP b, FORCE;
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
+innodb_index_stats	PRIMARY	n_diff_pfx01
+innodb_index_stats	PRIMARY	n_diff_pfx02
+innodb_index_stats	PRIMARY	n_diff_pfx03
+innodb_index_stats	PRIMARY	n_diff_pfx04
+innodb_index_stats	PRIMARY	n_leaf_pages
+innodb_index_stats	PRIMARY	size
+transaction_registry	PRIMARY	n_diff_pfx01
+transaction_registry	PRIMARY	n_leaf_pages
+transaction_registry	PRIMARY	size
+transaction_registry	begin_timestamp	n_diff_pfx01
+transaction_registry	begin_timestamp	n_diff_pfx02
+transaction_registry	begin_timestamp	n_leaf_pages
+transaction_registry	begin_timestamp	size
+transaction_registry	commit_id	n_diff_pfx01
+transaction_registry	commit_id	n_leaf_pages
+transaction_registry	commit_id	size
+transaction_registry	commit_timestamp	n_diff_pfx01
+transaction_registry	commit_timestamp	n_diff_pfx02
+transaction_registry	commit_timestamp	n_leaf_pages
+transaction_registry	commit_timestamp	size
 t1	GEN_CLUST_INDEX	n_diff_pfx01
 t1	GEN_CLUST_INDEX	n_leaf_pages
 t1	GEN_CLUST_INDEX	size
@@ -246,3 +306,23 @@ UPDATE t1 SET a = 1 WHERE c = 'foo';
 DROP TABLE t1;
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
+innodb_index_stats	PRIMARY	n_diff_pfx01
+innodb_index_stats	PRIMARY	n_diff_pfx02
+innodb_index_stats	PRIMARY	n_diff_pfx03
+innodb_index_stats	PRIMARY	n_diff_pfx04
+innodb_index_stats	PRIMARY	n_leaf_pages
+innodb_index_stats	PRIMARY	size
+transaction_registry	PRIMARY	n_diff_pfx01
+transaction_registry	PRIMARY	n_leaf_pages
+transaction_registry	PRIMARY	size
+transaction_registry	begin_timestamp	n_diff_pfx01
+transaction_registry	begin_timestamp	n_diff_pfx02
+transaction_registry	begin_timestamp	n_leaf_pages
+transaction_registry	begin_timestamp	size
+transaction_registry	commit_id	n_diff_pfx01
+transaction_registry	commit_id	n_leaf_pages
+transaction_registry	commit_id	size
+transaction_registry	commit_timestamp	n_diff_pfx01
+transaction_registry	commit_timestamp	n_diff_pfx02
+transaction_registry	commit_timestamp	n_leaf_pages
+transaction_registry	commit_timestamp	size

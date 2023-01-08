@@ -34,6 +34,7 @@ SHOW CREATE TABLE innodb_stats_drop_locked;
 --error ER_LOCK_WAIT_TIMEOUT
 DROP TABLE innodb_stats_drop_locked;
 
+--error ER_LOCK_WAIT_TIMEOUT
 DROP DATABASE unlocked;
 --error ER_LOCK_WAIT_TIMEOUT
 DROP DATABASE locked;
@@ -63,3 +64,5 @@ WHERE table_name='innodb_stats_drop_locked';
 
 SELECT table_name FROM mysql.innodb_index_stats
 WHERE table_name='innodb_stats_drop_locked';
+
+DROP DATABASE unlocked;

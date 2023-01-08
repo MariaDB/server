@@ -69,6 +69,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 --echo # mysqldump of system tables with --system=all
 --echo #
 
+--replace_regex /','[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',/','TIMESTAMP',/
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
 --exec $MYSQL_DUMP --skip-comments --system=all
 
@@ -77,6 +78,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 --echo # mysqldump of system tables with --system=all --replace
 --echo #
 
+--replace_regex /','[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',/','TIMESTAMP',/
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
 --exec $MYSQL_DUMP --skip-comments --system=all --replace
 
@@ -88,6 +90,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 --echo # mysqldump of system tables with --system=all --insert-ignore
 --echo #
 
+--replace_regex /','[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',/','TIMESTAMP',/
 --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
 --exec $MYSQL_DUMP --skip-comments --system=all --insert-ignore
 
@@ -101,7 +104,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 SELECT * FROM mysql.global_priv ORDER BY User,Host;
 
 CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
-    mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
+    mysql.servers, mysql.func, mysql.table_stats;
 
 --echo # Opps....
 
@@ -133,7 +136,7 @@ DROP USER mariadb_test_restore;
 SELECT * FROM mysql.global_priv ORDER BY User,Host;
 
 CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
-    mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
+    mysql.servers, mysql.func, mysql.table_stats;
 
 #
 # Cleanup

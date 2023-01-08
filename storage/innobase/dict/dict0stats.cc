@@ -42,7 +42,7 @@ Created Jan 06, 2010 Vasil Dimov
 
 /* Sampling algorithm description @{
 
-The algorithm is controlled by one number - N_SAMPLE_PAGES(index),
+The algorithm is controlled by one number - n_sample_pages(index),
 let it be A, which is the number of leaf pages to analyze for a given index
 for each n-prefix (if the index is on 3 columns, then 3*A leaf pages will be
 analyzed).
@@ -115,17 +115,33 @@ where n=1..n_uniq.
 #define DEBUG_PRINTF(fmt, ...)	/* noop */
 #endif /* UNIV_STATS_DEBUG */
 
-/* Gets the number of leaf pages to sample in persistent stats estimation */
-#define N_SAMPLE_PAGES(index)					\
-	static_cast<ib_uint64_t>(				\
-		(index)->table->stats_sample_pages != 0		\
-		? (index)->table->stats_sample_pages		\
-		: srv_stats_persistent_sample_pages)
+/* Gets the number of leaf pages to sample in persistent stats estimation 
+   check if table's stats_percentage is 0
+     no > n_sample_pages calculation uses table's sample_percentage
+     yes  > check if table's sample_pages is 0
+       no > n_sample_pages is table's sample_pages number
+       yes > use instance level's sample_pages
+
+   The + 1 is to prevent int truncation after a division, without it the
+   instance could crash
+
+*/
+
+inline ib_uint64_t n_sample_pages(dict_index_t* index) {
+  if (index->table->stats_percentage != 0)
+    return static_cast<ib_uint64_t>(index->stat_index_size * \
+                                    index->table->stats_percentage / 100 \
+                                    + 1);
+  else if (index->table->stats_sample_pages != 0)
+         return index->table->stats_sample_pages;
+  else
+         return srv_stats_persistent_sample_pages;
+}
 
 /* number of distinct records on a given level that are required to stop
-descending to lower levels and fetch N_SAMPLE_PAGES(index) records
+descending to lower levels and fetch n_sample_pages(index) records
 from that level */
-#define N_DIFF_REQUIRED(index)	(N_SAMPLE_PAGES(index) * 10)
+#define N_DIFF_REQUIRED(index)	(n_sample_pages(index) * 10)
 
 /* A dynamic array where we store the boundaries of each distinct group
 of keys. For example if a btree level is:
@@ -820,6 +836,9 @@ dict_stats_assert_initialized(
 	MEM_CHECK_DEFINED(&table->stats_sample_pages,
 			  sizeof table->stats_sample_pages);
 
+	MEM_CHECK_DEFINED(&table->stats_percentage,
+			  sizeof table->stats_percentage);
+
 	MEM_CHECK_DEFINED(&table->stat_n_rows,
 			  sizeof table->stat_n_rows);
 
@@ -957,6 +976,8 @@ members copied in dict_stats_table_clone_create() this function initializes
 the following:
 dict_table_t::stat_initialized
 dict_table_t::stat_persistent
+dict_table_t::stats_auto_recalc
+dict_table_t::stats_percentage
 dict_table_t::stat_n_rows
 dict_table_t::stat_clustered_index_size
 dict_table_t::stat_sum_of_other_index_sizes
@@ -996,6 +1017,7 @@ dict_stats_snapshot_create(
 
 	t->stat_persistent = table->stat_persistent;
 	t->stats_auto_recalc = table->stats_auto_recalc;
+        t->stats_percentage = table->stats_percentage;
 	t->stats_sample_pages = table->stats_sample_pages;
 
 	dict_sys.unlock();
@@ -1687,7 +1709,7 @@ static dberr_t btr_pcur_open_level(btr_pcur_t *pcur, ulint level, mtr_t *mtr,
 
 /* @{ Pseudo code about the relation between the following functions
 
-let N = N_SAMPLE_PAGES(index)
+let N = n_sample_pages(index)
 
 dict_stats_analyze_index()
   for each n_prefix
@@ -2699,14 +2721,14 @@ empty_index:
 	/* If the tree has just one level (and one page) or if the user
 	has requested to sample too many pages then do full scan.
 
-	For each n-column prefix (for n=1..n_uniq) N_SAMPLE_PAGES(index)
-	will be sampled, so in total N_SAMPLE_PAGES(index) * n_uniq leaf
+	For each n-column prefix (for n=1..n_uniq) n_sample_pages(index)
+	will be sampled, so in total n_sample_pages(index) * n_uniq leaf
 	pages will be sampled. If that number is bigger than the total
 	number of leaf pages then do full scan of the leaf level instead
 	since it will be faster and will give better results. */
 
 	if (root_level == 0
-	    || N_SAMPLE_PAGES(index) * n_uniq > result.n_leaf_pages) {
+	    || n_sample_pages(index) * n_uniq > result.n_leaf_pages) {
 
 		if (root_level == 0) {
 			DEBUG_PRINTF("  %s(): just one page,"
@@ -2845,13 +2867,13 @@ empty_index:
 			total_recs is left from the previous iteration when
 			we scanned one level upper or we have not scanned any
 			levels yet in which case total_recs is 1. */
-			if (total_recs > N_SAMPLE_PAGES(index)) {
+			if (total_recs > n_sample_pages(index)) {
 
 				/* if the above cond is true then we are
 				not at the root level since on the root
 				level total_recs == 1 (set before we
 				enter the n-prefix loop) and cannot
-				be > N_SAMPLE_PAGES(index) */
+				be > n_sample_pages(index) */
 				ut_a(level != root_level);
 
 				/* step one level back and be satisfied with
@@ -2906,7 +2928,7 @@ found_level:
 		ut_ad(total_recs > 0);
 		ut_ad(n_diff_on_level[n_prefix - 1] > 0);
 
-		ut_ad(N_SAMPLE_PAGES(index) > 0);
+		ut_ad(n_sample_pages(index) > 0);
 
 		n_diff_data_t*	data = &n_diff_data[n_prefix - 1];
 
@@ -2917,7 +2939,7 @@ found_level:
 		data->n_diff_on_level = n_diff_on_level[n_prefix - 1];
 
 		data->n_leaf_pages_to_analyze = std::min(
-			N_SAMPLE_PAGES(index),
+			n_sample_pages(index),
 			n_diff_on_level[n_prefix - 1]);
 
 		/* pick some records from this level and dive below them for

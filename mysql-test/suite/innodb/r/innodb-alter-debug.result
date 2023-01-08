@@ -119,6 +119,9 @@ SET DEBUG_SYNC='now WAIT_FOR blocked';
 BEGIN;
 SELECT * FROM mysql.innodb_table_stats FOR UPDATE;
 database_name	table_name	last_update	n_rows	clustered_index_size	sum_of_other_index_sizes
+mysql	innodb_index_stats	TIMESTAMP	0	1	0
+mysql	innodb_table_stats	TIMESTAMP	2	1	0
+mysql	transaction_registry	TIMESTAMP	0	1	3
 SET DEBUG_SYNC='now SIGNAL go';
 connection con1;
 connection default;

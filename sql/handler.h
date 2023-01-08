@@ -2195,6 +2195,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
     stats estimation, if used, otherwise 0.
   */
   uint stats_sample_pages;
+  uint stats_percentage;
   uint null_bits;                       /* NULL bits at start of record */
   uint options;				/* OR of HA_CREATE_ options */
   uint merge_insert_method;

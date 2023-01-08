@@ -2270,8 +2270,9 @@ public:
 	#define DICT_STATS_PERSISTENT_OFF	(1 << 2)
 
 	/** Indicates whether the table uses persistent stats or not. See
-	DICT_STATS_PERSISTENT_ON and DICT_STATS_PERSISTENT_OFF. */
-	ib_uint32_t				stat_persistent;
+	DICT_STATS_PERSISTENT_ON and DICT_STATS_PERSISTENT_OFF. Use bit fields
+	to minimize memory footprint */
+	unsigned				stat_persistent:2;
 
 	/** The two bits below are set in the 'stats_auto_recalc' member. They
 	have the following meaning:
@@ -2288,8 +2289,14 @@ public:
 
 	/** Indicates whether the table uses automatic recalc for persistent
 	stats or not. See DICT_STATS_AUTO_RECALC_ON and
-	DICT_STATS_AUTO_RECALC_OFF. */
-	ib_uint32_t				stats_auto_recalc;
+	DICT_STATS_AUTO_RECALC_OFF. Use bit fields to minimize memory
+	footprint */
+	unsigned 				stats_auto_recalc:2;
+
+	/** The percentage of pages to sample for this table during persistent
+	stats estimation. If this is 0, then the value of the stats_sample_pages
+        will be used instead. Use bit fields to minimize memory footprint */
+	unsigned 				stats_percentage:7;
 
 	/** The number of pages to sample for this table during persistent
 	stats estimation. If this is 0, then the value of the global
