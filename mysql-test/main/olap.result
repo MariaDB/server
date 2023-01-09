@@ -695,7 +695,7 @@ CREATE VIEW v1 AS
 SELECT a, LENGTH(a), COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
 DESC v1;
 Field	Type	Null	Key	Default	Extra
-a	int(11)	YES		0	
+a	int(11)	YES		NULL	
 LENGTH(a)	int(10)	YES		NULL	
 COUNT(*)	bigint(21)	NO		0	
 SELECT * FROM v1;
@@ -858,7 +858,7 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE OR REPLACE VIEW v1 AS SELECT a, LENGTH(a), COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
 DESCRIBE v1;
 Field	Type	Null	Key	Default	Extra
-a	int(11)	YES		0	
+a	int(11)	YES		NULL	
 LENGTH(a)	int(10)	YES		NULL	
 COUNT(*)	bigint(21)	NO		0	
 DROP VIEW v1;
@@ -868,7 +868,7 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE OR REPLACE VIEW v1 AS SELECT a, LENGTH(a), COUNT(*) FROM t1 GROUP BY a WITH ROLLUP;
 DESCRIBE v1;
 Field	Type	Null	Key	Default	Extra
-a	bigint(20)	YES		0	
+a	bigint(20)	YES		NULL	
 LENGTH(a)	int(10)	YES		NULL	
 COUNT(*)	bigint(21)	NO		0	
 DROP VIEW v1;
@@ -893,8 +893,8 @@ DROP VIEW v1;
 CREATE VIEW v1 AS SELECT a, b FROM t1 GROUP BY a,b WITH ROLLUP;
 DESC v1;
 Field	Type	Null	Key	Default	Extra
-a	int(11)	YES		0	
-b	int(20)	YES		0	
+a	int(11)	YES		NULL	
+b	int(20)	YES		NULL	
 DROP VIEW v1;
 DROP TABLE t1;
 #

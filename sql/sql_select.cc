@@ -18241,7 +18241,8 @@ Field *Item_field::create_tmp_field_ex(TABLE *table,
   src->set_field(field);
   if (!(result= create_tmp_field_from_item_field(table, NULL, param)))
     return NULL;
-  if (field->eq_def(result))
+  if (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+      field->eq_def(result))
     src->set_default_field(field);
   return result;
 }
