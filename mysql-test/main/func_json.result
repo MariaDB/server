@@ -2350,3 +2350,16 @@ JSON_OVERLAPS(@json1, @json2)
 #
 # End of 10.9 Test
 #
+#
+# MDEV-19160 json_pretty() alias for json_detailed()
+#
+SELECT JSON_DETAILED('["x"]');
+JSON_DETAILED('["x"]')
+[
+    "x"
+]
+SELECT JSON_PRETTY('["x"]');
+JSON_PRETTY('["x"]')
+[
+    "x"
+]

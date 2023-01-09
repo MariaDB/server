@@ -1608,3 +1608,11 @@ SELECT JSON_OVERLAPS(@json1, @json2);
 --echo #
 --echo # End of 10.9 Test
 --echo #
+
+
+--echo #
+--echo # MDEV-19160 json_pretty() alias for json_detailed()
+--echo #
+
+SELECT JSON_DETAILED('["x"]');
+SELECT JSON_PRETTY('["x"]');
