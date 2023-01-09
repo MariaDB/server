@@ -677,14 +677,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
-    bool create_lookup_handler= handle_duplicates != DUP_ERROR;
-    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))
-    {
-      create_lookup_handler= true;
-      if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
-        goto err;
-    }
-    table->file->prepare_for_insert(create_lookup_handler);
+    if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
+      DBUG_RETURN(1);
+
     thd_progress_init(thd, 2);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {
@@ -704,8 +699,8 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                             set_fields, set_values, read_info,
                             *ex->enclosed, skip_lines, ignore);
 
-    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS)
-      table_list->table->file->ha_rnd_end();
+    if (unlikely(finalize_replace(table, handle_duplicates, ignore)))
+      DBUG_RETURN(1);
 
     thd_proc_info(thd, "End bulk insert");
     if (likely(!error))
@@ -972,6 +967,8 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
 
+  Write_record write(thd, table, &info, NULL);
+
   while (!read_info.read_fixed_length())
   {
     if (thd->killed)
@@ -1053,7 +1050,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1101,6 +1098,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   progress_reports= 1;
   if ((thd->progress.max_counter= read_info.file_length()) == ~(my_off_t) 0)
     progress_reports= 0;
+
+  Write_record write(thd, table, &info, NULL);
 
   for (;;it.rewind())
   {
@@ -1195,7 +1194,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
 
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= FALSE;
     if (err)
       DBUG_RETURN(1);
@@ -1239,7 +1238,9 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   DBUG_ENTER("read_xml_field");
   
   no_trans_update_stmt= !table->file->has_transactions_and_rollback();
-  
+
+  Write_record write(thd, table, &info, NULL);
+
   for ( ; ; it.rewind())
   {
     bool err;
@@ -1317,7 +1318,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       DBUG_RETURN(-1);
     }
     
-    err= write_record(thd, table, &info);
+    err= write.write_record();
     table->auto_increment_field_not_null= false;
     if (err)
       DBUG_RETURN(1);
