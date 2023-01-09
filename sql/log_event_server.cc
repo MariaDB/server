@@ -5659,7 +5659,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   {
     master_had_triggers= table->master_had_triggers;
     bool transactional_table= table->file->has_transactions_and_rollback();
-    table->file->prepare_for_insert(get_general_type_code() != WRITE_ROWS_EVENT);
+    this->slave_exec_mode= slave_exec_mode_options; // fix the mode
+
+    table->file->prepare_for_insert(get_general_type_code() != WRITE_ROWS_EVENT
+                              || slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
 
     /*
       table == NULL means that this table should not be replicated
@@ -5704,8 +5707,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     MY_BITMAP *after_image= ((get_general_type_code() == UPDATE_ROWS_EVENT) ?
                              &m_cols_ai : &m_cols);
     bitmap_intersect(table->write_set, after_image);
-
-    this->slave_exec_mode= slave_exec_mode_options; // fix the mode
 
     // Do event specific preparations 
     error= do_before_row_operations(rli);
@@ -7130,6 +7131,11 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
     m_table->mark_auto_increment_column(true);
   }
 
+  if (slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT &&
+      (m_table->file->ha_table_flags() & HA_DUPLICATE_POS ||
+       m_table->s->long_unique_table))
+    error= m_table->file->ha_rnd_init_with_error(0);
+
   return error;
 }
 
@@ -7171,7 +7177,15 @@ Write_rows_log_event::do_after_row_operations(const Slave_reporting_capability *
   {
     m_table->file->print_error(local_error, MYF(0));
   }
-  return error? error : local_error;
+  int rnd_error= 0;
+  if (m_table->file->inited)
+  {
+    DBUG_ASSERT(slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT);
+    DBUG_ASSERT(m_table->file->ha_table_flags() & HA_DUPLICATE_POS ||
+                m_table->s->long_unique_table);
+    rnd_error= m_table->file->ha_rnd_end();
+  }
+  return error? error : local_error ? local_error : rnd_error;
 }
 
 bool Rows_log_event::process_triggers(trg_event_type event,
@@ -7193,17 +7207,6 @@ bool Rows_log_event::process_triggers(trg_event_type event,
                                                 old_row_is_record1);
 
   DBUG_RETURN(result);
-}
-/*
-  Check if there are more UNIQUE keys after the given key.
-*/
-static int
-last_uniq_key(TABLE *table, uint keyno)
-{
-  while (++keyno < table->s->keys)
-    if (table->key_info[keyno].flags & HA_NOSAME)
-      return 0;
-  return 1;
 }
 
 /**
@@ -7369,67 +7372,10 @@ Rows_log_event::write_row(rpl_group_info *rgi,
       table->file->print_error(error, MYF(0));
       DBUG_RETURN(error);
     }
-    /*
-       We need to retrieve the old row into record[1] to be able to
-       either update or delete the offending record.  We either:
 
-       - use rnd_pos() with a row-id (available as dupp_row) to the
-         offending row, if that is possible (MyISAM and Blackhole), or else
-
-       - use index_read_idx() with the key that is duplicated, to
-         retrieve the offending row.
-     */
-    if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
-    {
-      DBUG_PRINT("info",("Locating offending record using rnd_pos()"));
-
-      if ((error= table->file->ha_rnd_init_with_error(0)))
-      {
-        DBUG_RETURN(error);
-      }
-
-      error= table->file->ha_rnd_pos(table->record[1], table->file->dup_ref);
-      if (unlikely(error))
-      {
-        DBUG_PRINT("info",("rnd_pos() returns error %d",error));
-        table->file->print_error(error, MYF(0));
-        DBUG_RETURN(error);
-      }
-      table->file->ha_rnd_end();
-    }
-    else
-    {
-      DBUG_PRINT("info",("Locating offending record using index_read_idx()"));
-
-      if (table->file->extra(HA_EXTRA_FLUSH_CACHE))
-      {
-        DBUG_PRINT("info",("Error when setting HA_EXTRA_FLUSH_CACHE"));
-        DBUG_RETURN(my_errno);
-      }
-
-      if (key.get() == NULL)
-      {
-        key.assign(static_cast<char*>(my_alloca(table->s->max_unique_length)));
-        if (key.get() == NULL)
-        {
-          DBUG_PRINT("info",("Can't allocate key buffer"));
-          DBUG_RETURN(ENOMEM);
-        }
-      }
-
-      key_copy((uchar*)key.get(), table->record[0], table->key_info + keynum,
-               0);
-      error= table->file->ha_index_read_idx_map(table->record[1], keynum,
-                                                (const uchar*)key.get(),
-                                                HA_WHOLE_KEY,
-                                                HA_READ_KEY_EXACT);
-      if (unlikely(error))
-      {
-        DBUG_PRINT("info",("index_read_idx() returns %s", HA_ERR(error)));
-        table->file->print_error(error, MYF(0));
-        DBUG_RETURN(error);
-      }
-    }
+    error= locate_dup_record(thd, table, m_key, keynum);
+    if (unlikely(error))
+      DBUG_RETURN(error);
 
     /*
        Now, record[1] should contain the offending row.  That
@@ -7460,69 +7406,38 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     DBUG_DUMP("record[1] (before)", table->record[1], table->s->reclength);
     DBUG_DUMP("record[0] (after)", table->record[0], table->s->reclength);
 
-    /*
-       REPLACE is defined as either INSERT or DELETE + INSERT.  If
-       possible, we can replace it with an UPDATE, but that will not
-       work on InnoDB if FOREIGN KEY checks are necessary.
+    COPY_INFO info;
+    auto result= replace_row(table, keynum, &info, invoke_triggers,
+                             m_vers_from_plain &&
+                                     m_table->versioned(VERS_TIMESTAMP));
 
-       I (Matz) am not sure of the reason for the last_uniq_key()
-       check as, but I'm guessing that it's something along the
-       following lines.
-
-       Suppose that we got the duplicate key to be a key that is not
-       the last unique key for the table and we perform an update:
-       then there might be another key for which the unique check will
-       fail, so we're better off just deleting the row and inserting
-       the correct row.
-
-       Additionally we don't use UPDATE if rbr triggers should be invoked -
-       when triggers are used we want a simple and predictable execution path.
-     */
-    if (last_uniq_key(table, keynum) && !invoke_triggers &&
-        !table->file->referenced_by_foreign_key())
+    if (result.updated)
     {
-      DBUG_PRINT("info",("Updating row using ha_update_row()"));
-      error= table->file->ha_update_row(table->record[1],
-                                       table->record[0]);
-      switch (error) {
-
+      switch (result.error)
+      {
       case HA_ERR_RECORD_IS_THE_SAME:
-        DBUG_PRINT("info",("ignoring HA_ERR_RECORD_IS_THE_SAME error from"
-                           " ha_update_row()"));
-        error= 0;
-
+        DBUG_PRINT("info", ("ignoring HA_ERR_RECORD_IS_THE_SAME error from"
+                            " ha_update_row()"));
+        result.error= 0;
+        // fall through
       case 0:
         break;
 
       default:
-        DBUG_PRINT("info",("ha_update_row() returns error %d",error));
-        table->file->print_error(error, MYF(0));
+        DBUG_PRINT("info", ("ha_update_row() returns error %d", result.error));
+        table->file->print_error(result.error, MYF(0));
       }
-
-      DBUG_RETURN(error);
+      DBUG_RETURN(result.error);
     }
-    else
+    if (result.error)
     {
-      DBUG_PRINT("info",("Deleting offending row and trying to write new one again"));
-      if (invoke_triggers &&
-          unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_BEFORE,
-                                    TRUE)))
-        error= HA_ERR_GENERIC; // in case if error is not set yet
-      else
-      {
-        if (unlikely((error= table->file->ha_delete_row(table->record[1]))))
-        {
-          DBUG_PRINT("info",("ha_delete_row() returns error %d",error));
-          table->file->print_error(error, MYF(0));
-          DBUG_RETURN(error);
-        }
-        if (invoke_triggers &&
-            unlikely(process_triggers(TRG_EVENT_DELETE, TRG_ACTION_AFTER,
-                                      TRUE)))
-          DBUG_RETURN(HA_ERR_GENERIC); // in case if error is not set yet
-      }
-      /* Will retry ha_write_row() with the offending row removed. */
+      table->file->print_error(result.error, MYF(0));
+      DBUG_RETURN(result.error);
     }
+    if (result.before_trg_error || result.after_trg_error)
+      DBUG_RETURN(HA_ERR_GENERIC);
+
+    /* Will retry ha_write_row() with the offending row removed. */
   }
 
   if (invoke_triggers &&

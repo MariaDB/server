@@ -21,6 +21,41 @@ binlog 'aRf2ZA8BAAAA/AAAAAABAAAAAAQAMTAuNS4xNS1NYXJpYURCLWxvZwAAAAAAAAAAAAAAAAAA
 binlog 'bBf2ZBMBAAAANAAAAJgHAAAAAHEAAAAAAAEABHRlc3QAAnQxAAQDDw8IBP0C4h0AeqMD4A==bBf2ZBcBAAAANAAAAMwHAAAAAHEAAAAAAAEABP/wj6QAAAEAYgEAZa6/VU0JAAAANteqUw==';
 binlog 'bBf2ZBMBAAAANAAAAJgHAAAAAHEAAAAAAAEABHRlc3QAAnQxAAQDDw8IBP0C4h0AeqMD4A==bBf2ZBcBAAAANAAAAMwHAAAAAHEAAAAAAAEABP/wj6QAAAEAYgEAZa6/VU0JAAAANteqUw==';
 binlog 'bBf2ZBMBAAAANAAAAHUkAAAAAHEAAAAAAAEABHRlc3QAAnQxAAQDDw8IBP0C4h0AaTGFIg==bBf2ZBgBAAAASAAAAL0kAAAAAHEAAAAAAAEABP//8I+kAAABAGIBAGWuv1VNCQAAAPBuWwAAAQBiAQBlrr9VTQkAAADxS9Lu';
+select * from t1;
+i1	a1
+1	d
+2	d2
+connection master;
+drop table t1;
+connection slave;
+connection master;
+# Idempotent scenario, which triggers REPLACE code to be used in the
+# event, i.e. duplicated record will be deleted and then re-inserted.
+create table t1 (i1 int, a1 text, unique key i1 (a1)) engine=myisam;
+connection slave;
+connection slave;
+set @save_slave_exec_mode= @@slave_exec_mode;
+set global slave_exec_mode = idempotent;
+insert into t1 values (1,1);
+connection master;
+insert into t1 values (2,1);
+connection slave;
+connection slave;
+select * from t1;
+i1	a1
+2	1
+connection master;
+insert into t1 values (3,3);
+update t1 set a1 = 'd' limit 1;
+update t1 set a1 = 'd2' where i1= 3;
+connection slave;
+connection slave;
+select * from t1;
+i1	a1
+2	d
+3	d2
+set global slave_exec_mode = @save_slave_exec_mode;
+connection master;
 drop table t1;
 set global slave_exec_mode=default;
 #

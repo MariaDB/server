@@ -1180,9 +1180,12 @@ values_loop_end:
     if (duplic != DUP_ERROR || ignore)
     {
       table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS ||
-          table->s->long_unique_table)
+      if (table->file->inited)
+      {
+        DBUG_ASSERT(table->file->ha_table_flags() & HA_DUPLICATE_POS ||
+                    table->s->long_unique_table);
         table->file->ha_rnd_end();
+      }
     }
 
     transactional_table= table->file->has_transactions_and_rollback();
@@ -1786,6 +1789,201 @@ int vers_insert_history_row(TABLE *table)
 }
 
 /*
+  Retrieve the old (duplicated) row into record[1] to be able to
+  either update or delete the offending record.  We either:
+
+  - use ha_rnd_pos() with a row-id (available as dup_ref) to the
+    offending row, if that is possible (MyISAM and Blackhole, also long unique
+    and application-time periods), or else
+
+  - use ha_index_read_idx_map() with the key that is duplicated, to
+    retrieve the offending row.
+ */
+int locate_dup_record(THD *thd, TABLE *table, uchar *&key, uint keynum)
+{
+  handler *h= table->file;
+  int error= 0;
+  if (h->ha_table_flags() & HA_DUPLICATE_POS || h->lookup_errkey != (uint)-1)
+  {
+    DBUG_PRINT("info", ("Locating offending record using rnd_pos()"));
+
+    error= h->ha_rnd_pos(table->record[1], h->dup_ref);
+    if (unlikely(error))
+    {
+      DBUG_PRINT("info", ("rnd_pos() returns error %d",error));
+      h->print_error(error, MYF(0));
+    }
+  }
+  else
+  {
+    DBUG_PRINT("info",
+               ("Locating offending record using ha_index_read_idx_map"));
+
+    if (h->lookup_handler)
+      h= h->lookup_handler;
+
+    error= h->extra(HA_EXTRA_FLUSH_CACHE);
+    if (unlikely(error))
+    {
+      DBUG_PRINT("info",("Error when setting HA_EXTRA_FLUSH_CACHE"));
+      return my_errno;
+    }
+
+    if (unlikely(key == NULL))
+    {
+      key= static_cast<uchar*>(thd->alloc(table->s->max_unique_length));
+      if (key == NULL)
+      {
+        DBUG_PRINT("info",("Can't allocate key buffer"));
+        return ENOMEM;
+      }
+    }
+
+    key_copy(key, table->record[0], table->key_info + keynum, 0);
+
+    error= h->ha_index_read_idx_map(table->record[1], keynum, key,
+                                    HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+    if (unlikely(error))
+    {
+      DBUG_PRINT("info", ("index_read_idx() returns %d", error));
+      h->print_error(error, MYF(0));
+    }
+  }
+
+  if (unlikely(error))
+    return error;
+
+  if (table->vfield)
+  {
+    /*
+      We have not yet called update_virtual_fields()
+      in handler methods for the just read row in record[1].
+    */
+    table->move_fields(table->field, table->record[1], table->record[0]);
+    error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
+    table->move_fields(table->field, table->record[0], table->record[1]);
+  }
+  return error;
+}
+
+
+
+/**
+   REPLACE is defined as either INSERT or DELETE + INSERT.  If
+   possible, we can replace it with an UPDATE, but that will not
+   work on InnoDB if FOREIGN KEY checks are necessary.
+
+   Suppose that we got the duplicate key to be a key that is not
+   the last unique key for the table and we perform an update:
+   then there might be another key for which the unique check will
+   fail, so we're better off just deleting the row and trying to insert again.
+
+   Additionally we don't use ha_update_row in following cases:
+   * when triggers should be invoked, as it may spoil the intermedite NEW_ROW
+     representation
+   * when we have referenced keys, as there can be different ON DELETE/ON UPDATE
+     actions
+*/
+replace_execution_result replace_row(TABLE *table, uint key_nr,
+                                     COPY_INFO *info, bool use_triggers,
+                                     bool versioned)
+{
+  replace_execution_result result{};
+  /*
+    Note, TABLE_SHARE and TABLE see long uniques differently:
+    - TABLE_SHARE sees as HA_KEY_ALG_LONG_HASH and HA_NOSAME
+    - TABLE sees as usual non-unique indexes
+  */
+  bool is_long_unique= table->s->key_info &&
+                       table->s->key_info[key_nr].algorithm ==
+                       HA_KEY_ALG_LONG_HASH;
+  if ((is_long_unique ?
+       /*
+         We have a long unique. Test that there are no in-engine
+         uniques and the current long unique is the last long unique.
+       */
+       !(table->key_info[0].flags & HA_NOSAME) &&
+       last_uniq_key(table, table->s->key_info, key_nr) :
+       /*
+         We have a normal key - not a long unique.
+         Test is the current normal key is unique and
+         it is the last normal unique.
+       */
+       last_uniq_key(table, table->key_info, key_nr)) &&
+      !table->file->referenced_by_foreign_key() && use_triggers)
+  {
+    DBUG_PRINT("info", ("Updating row using ha_update_row()"));
+    if (table->versioned(VERS_TRX_ID))
+    {
+      bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
+      table->file->column_bitmaps_signal();
+      table->vers_start_field()->store(0, false);
+    }
+    result.error= table->file->ha_update_row(table->record[1], table->record[0]);
+    if (unlikely(result.error) && result.error != HA_ERR_RECORD_IS_THE_SAME)
+      return result;
+    if (likely(!result.error))
+    {
+      info->deleted++;
+      if (!table->file->has_transactions())
+        table->in_use->transaction->stmt.modified_non_trans_table= TRUE;
+      if (versioned)
+      {
+        store_record(table, record[2]);
+        result.error= vers_insert_history_row(table);
+        restore_record(table, record[2]);
+      }
+    }
+    else
+      result.error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
+    result.updated= true;
+  }
+  else
+  {
+    DBUG_PRINT("info", ("Deleting offending row and trying to write"
+                        " new one again"));
+
+    if (table->triggers &&
+        table->triggers->process_triggers(table->in_use, TRG_EVENT_DELETE,
+                                          TRG_ACTION_BEFORE, TRUE))
+    {
+      result.before_trg_error= true;
+      return result;
+    }
+
+    if (!versioned)
+      result.error= table->file->ha_delete_row(table->record[1]);
+    else
+    {
+      store_record(table, record[2]);
+      restore_record(table, record[1]);
+      table->vers_update_end();
+      result.error= table->file->ha_update_row(table->record[1],
+                                               table->record[0]);
+      restore_record(table, record[2]);
+    }
+
+    if (unlikely(result.error))
+    {
+      DBUG_PRINT("info", ("ha_delete_row() returns error %d", result.error));
+      return result;
+    }
+    if (!versioned)
+      info->deleted++;
+    else
+      info->updated++;
+    if (!table->file->has_transactions_and_rollback())
+      table->in_use->transaction->stmt.modified_non_trans_table= TRUE;
+    if (table->triggers &&
+        table->triggers->process_triggers(table->in_use, TRG_EVENT_DELETE,
+                                          TRG_ACTION_AFTER, TRUE))
+      result.after_trg_error= true;
+  }
+  return result;
+}
+
+
+/*
   Write a record to table with optional deleting of conflicting records,
   invoke proper triggers if needed.
 
@@ -1816,7 +2014,7 @@ int vers_insert_history_row(TABLE *table)
 int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
 {
   int error, trg_error= 0;
-  char *key=0;
+  uchar *key=0;
   MY_BITMAP *save_read_set, *save_write_set;
   ulonglong prev_insert_id= table->file->next_insert_id;
   ulonglong insert_id_for_cur_row= 0;
@@ -1886,48 +2084,11 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
       if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
           key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
 	goto err;
-      if (table->file->has_dup_ref())
-      {
-        DBUG_ASSERT(table->file->inited == handler::RND);
-	if (table->file->ha_rnd_pos(table->record[1],table->file->dup_ref))
-	  goto err;
-      }
-      else
-      {
-	if (table->file->extra(HA_EXTRA_FLUSH_CACHE)) /* Not needed with NISAM */
-	{
-	  error=my_errno;
-	  goto err;
-	}
 
-	if (!key)
-	{
-	  if (!(key=(char*) my_safe_alloca(table->s->max_unique_length)))
-	  {
-	    error=ENOMEM;
-	    goto err;
-	  }
-	}
-	key_copy((uchar*) key,table->record[0],table->key_info+key_nr,0);
-        key_part_map keypart_map= (1 << table->key_info[key_nr].user_defined_key_parts) - 1;
-	if ((error= (table->file->ha_index_read_idx_map(table->record[1],
-                                                        key_nr, (uchar*) key,
-                                                        keypart_map,
-                                                        HA_READ_KEY_EXACT))))
-	  goto err;
-      }
-      if (table->vfield)
-      {
-        /*
-          We have not yet called update_virtual_fields(VOL_UPDATE_FOR_READ)
-          in handler methods for the just read row in record[1].
-        */
-        table->move_fields(table->field, table->record[1], table->record[0]);
-        int verr = table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
-        table->move_fields(table->field, table->record[0], table->record[1]);
-        if (verr)
-          goto err;
-      }
+      error= locate_dup_record(thd, table, key, key_nr);
+      if (error)
+        goto err;
+
       if (info->handle_duplicates == DUP_UPDATE)
       {
         int res= 0;
@@ -2053,110 +2214,20 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
       }
       else /* DUP_REPLACE */
       {
-	/*
-	  The manual defines the REPLACE semantics that it is either
-	  an INSERT or DELETE(s) + INSERT; FOREIGN KEY checks in
-	  InnoDB do not function in the defined way if we allow MySQL
-	  to convert the latter operation internally to an UPDATE.
-          We also should not perform this conversion if we have 
-          timestamp field with ON UPDATE which is different from DEFAULT.
-          Another case when conversion should not be performed is when
-          we have ON DELETE trigger on table so user may notice that
-          we cheat here. Note that it is ok to do such conversion for
-          tables which have ON UPDATE but have no ON DELETE triggers,
-          we just should not expose this fact to users by invoking
-          ON UPDATE triggers.
-
-          Note, TABLE_SHARE and TABLE see long uniques differently:
-          - TABLE_SHARE sees as HA_KEY_ALG_LONG_HASH and HA_NOSAME
-          - TABLE sees as usual non-unique indexes
-        */
-        bool is_long_unique= table->s->key_info &&
-                             table->s->key_info[key_nr].algorithm ==
-                             HA_KEY_ALG_LONG_HASH;
-        if ((is_long_unique ?
-             /*
-               We have a long unique. Test that there are no in-engine
-               uniques and the current long unique is the last long unique.
-             */
-             !(table->key_info[0].flags & HA_NOSAME) &&
-             last_uniq_key(table, table->s->key_info, key_nr) :
-             /*
-               We have a normal key - not a long unique.
-               Test is the current normal key is unique and
-               it is the last normal unique.
-             */
-             last_uniq_key(table, table->key_info, key_nr)) &&
-            !table->file->referenced_by_foreign_key() &&
-            (!table->triggers || !table->triggers->has_delete_triggers()))
-        {
-          if (table->versioned(VERS_TRX_ID))
-          {
-            bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
-            table->file->column_bitmaps_signal();
-            table->vers_start_field()->store(0, false);
-          }
-          if (unlikely(error= table->file->ha_update_row(table->record[1],
-                                                         table->record[0])) &&
-              error != HA_ERR_RECORD_IS_THE_SAME)
-            goto err;
-          if (likely(!error))
-          {
-            info->deleted++;
-            if (!table->file->has_transactions())
-              thd->transaction->stmt.modified_non_trans_table= TRUE;
-            if (table->versioned(VERS_TIMESTAMP))
-            {
-              store_record(table, record[2]);
-              error= vers_insert_history_row(table);
-              restore_record(table, record[2]);
-              if (unlikely(error))
-                goto err;
-            }
-          }
-          else
-            error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
-          /*
-            Since we pretend that we have done insert we should call
-            its after triggers.
-          */
+        auto result= replace_row(table, key_nr, info,
+                                 table->triggers &&
+                                         table->triggers->has_delete_triggers(),
+                                 table->versioned(VERS_TIMESTAMP));
+        if (result.before_trg_error)
+          goto before_trg_err;
+        if (result.error)
+          goto err;
+        if ((trg_error= result.after_trg_error))
+          goto after_trg_or_ignored_err;
+        if (result.updated)
           goto after_trg_n_copied_inc;
-        }
-        else
-        {
-          if (table->triggers &&
-              table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                TRG_ACTION_BEFORE, TRUE))
-            goto before_trg_err;
 
-          if (!table->versioned(VERS_TIMESTAMP))
-            error= table->file->ha_delete_row(table->record[1]);
-          else
-          {
-            store_record(table, record[2]);
-            restore_record(table, record[1]);
-            table->vers_update_end();
-            error= table->file->ha_update_row(table->record[1],
-                                              table->record[0]);
-            restore_record(table, record[2]);
-          }
-          if (unlikely(error))
-            goto err;
-          if (!table->versioned(VERS_TIMESTAMP))
-            info->deleted++;
-          else
-            info->updated++;
-          if (!table->file->has_transactions_and_rollback())
-            thd->transaction->stmt.modified_non_trans_table= TRUE;
-          if (table->triggers &&
-              table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                TRG_ACTION_AFTER, TRUE))
-          {
-            trg_error= 1;
-            goto after_trg_or_ignored_err;
-          }
-          /* Let us attempt do write_row() once more */
-        }
+        /* Let us attempt write_row() once more */
       }
     }
     

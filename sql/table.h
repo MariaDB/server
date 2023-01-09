@@ -77,6 +77,7 @@ class Range_rowid_filter_cost_info;
 class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
+typedef struct st_copy_info COPY_INFO;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
