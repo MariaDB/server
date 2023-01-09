@@ -23,6 +23,9 @@
 typedef List<Item> List_item;
 typedef struct st_copy_info COPY_INFO;
 
+struct replace_execution_result
+{ int error; bool updated, before_trg_error, after_trg_error; };
+
 int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                          List<Item> &fields, List_item *values,
                          List<Item> &update_fields,
@@ -40,6 +43,10 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
 int vers_insert_history_row(TABLE *table);
 int check_duplic_insert_without_overlaps(THD *thd, TABLE *table,
                                          enum_duplicates duplic);
+int locate_dup_record(THD *thd, TABLE *table, uchar *&key, uint keynum);
+replace_execution_result replace_row(TABLE *table, uint key_nr,
+                                     COPY_INFO *info, bool use_triggers,
+                                     bool versioned);
 int write_record(THD *thd, TABLE *table, COPY_INFO *info,
                  select_result *returning= NULL);
 void kill_delayed_threads(void);
