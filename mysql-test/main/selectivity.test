@@ -1359,3 +1359,20 @@ set optimizer_use_condition_selectivity=2;
 EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
 set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-30360 Assertion `cond_selectivity <= 1.000000001' failed in get_range_limit_read_cost
+--echo # with LIMIT .. OFFSET
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY(b), KEY(a)) engine=myisam;
+INSERT INTO t1 VALUES
+(3,'a'),(2,'g'),(5,'v'),(9,'n'),(6,'u'),
+(7,'s'),(0,'z'),(3,'z'),(NULL,'m'),(6,'r');
+
+CREATE TABLE t2 (pk INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1),(2);
+
+SELECT STRAIGHT_JOIN pk FROM t1 JOIN t2 ON a = pk WHERE b >= 'A' ORDER BY t2.pk LIMIT 8 OFFSET 1;
+
+DROP TABLE t1, t2;
