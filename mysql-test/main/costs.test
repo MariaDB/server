@@ -1,8 +1,12 @@
 #
-# Test of cost calcuations. This test is using the Aria engine as the cost
+# Test of cost calculations. This test is using the Aria engine as the cost
 # calculations are stable for it.
 #
+# This file also includes MDEV's that shows errors in cost calculation functions.
+#
+
 --source include/have_sequence.inc
+--source include/have_innodb.inc
 
 create table t1 (a int primary key, b int, c int, d int, e int, key ba (b,a), key bda (b,d,a), key cba (c,b,a), key cb (c,b), key d (d)) engine=aria;
 insert into t1 select seq,seq,seq,seq,seq from seq_1_to_10;
@@ -73,3 +77,40 @@ explain select a,b,e from t1 where d=10 or d=11;
 --source include/last_query_cost.inc
 
 drop table t1;
+
+--echo #
+--echo # MDEV-30328 Assertion `avg_io_cost != 0.0 || index_cost.io + row_cost.io == 0' failed in
+--echo # Cost_estimate::total_cost()
+--echo #
+
+set @save=@@InnoDB.optimizer_disk_read_ratio;
+set global InnoDB.optimizer_disk_read_ratio=0;
+
+create table t1 (
+    `l_orderkey` int(11) NOT NULL,
+    `l_partkey` int(11) DEFAULT NULL,
+    `l_suppkey` int(11) DEFAULT NULL,
+    `l_linenumber` int(11) NOT NULL,
+    `l_extra` int(11) NOT NULL,
+    `l_quantity` double DEFAULT NULL,
+    `l_extendedprice` double DEFAULT NULL,
+    `l_discount` double DEFAULT NULL,
+    `l_tax` double DEFAULT NULL,
+    `l_returnflag` char(1) DEFAULT NULL,
+    `l_linestatus` char(1) DEFAULT NULL,
+    `l_shipDATE` date DEFAULT NULL,
+    `l_commitDATE` date DEFAULT NULL,
+    `l_receiptDATE` date DEFAULT NULL,
+    `l_shipinstruct` char(25) DEFAULT NULL,
+    `l_shipmode` char(10) DEFAULT NULL,
+    `l_comment` varchar(44) DEFAULT NULL,
+    PRIMARY KEY (`l_orderkey`),
+    UNIQUE (`l_linenumber`),
+    UNIQUE (`l_extra`) ,
+    KEY `l_suppkey`  (l_suppkey, l_partkey),
+    KEY `long_suppkey` (l_partkey, l_suppkey, l_linenumber, l_extra) )
+    ENGINE= InnoDB;
+explain select count(*) from test.t1 force index (l_suppkey) where l_suppkey >= 0 and l_partkey >=0;
+drop table t1;
+
+set global InnoDB.optimizer_disk_read_ratio=@save;
