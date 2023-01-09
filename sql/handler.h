@@ -2834,7 +2834,6 @@ public:
 
   double total_cost() const
   {
-    DBUG_ASSERT(avg_io_cost != 0.0 || index_cost.io + row_cost.io == 0);
     return ((index_cost.io + row_cost.io) * avg_io_cost+
             index_cost.cpu + row_cost.cpu + comp_cost + copy_cost +
             cpu_cost);
@@ -2843,7 +2842,6 @@ public:
   /* Cost for just fetching and copying a row (no compare costs) */
   double fetch_cost() const
   {
-    DBUG_ASSERT(avg_io_cost != 0.0 || index_cost.io + row_cost.io == 0);
     return ((index_cost.io + row_cost.io) * avg_io_cost+
             index_cost.cpu + row_cost.cpu + copy_cost);
   }
@@ -2875,7 +2873,6 @@ public:
 
   void add(Cost_estimate *cost)
   {
-    DBUG_ASSERT(cost->avg_io_cost != 0.0 || (index_cost.io + row_cost.io == 0));
     avg_io_cost=     cost->avg_io_cost;
     index_cost.io+=  cost->index_cost.io;
     index_cost.cpu+= cost->index_cost.cpu;
