@@ -401,7 +401,7 @@ class ha_rocksdb : public my_core::handler {
   void free_key_buffers();
 
   // the buffer size should be at least 2*Rdb_key_def::INDEX_NUMBER_SIZE
-  rocksdb::Range get_range(const int i, uchar buf[]) const;
+  rocksdb::Range get_range(const int i, uchar buf[2 * 4]) const;
 
   /*
     Perf timers for data reads

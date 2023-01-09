@@ -237,7 +237,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
                                         bool del, PHC)
   {
   char   *p;
-  int     i, n;
+  int     n;
   bool    rcop= true;
   PCOL    colp;
 //PCOLUMN cp;
@@ -276,7 +276,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 			n = strlen(p) + 1;
 		} // endfor p
 
-		for (i = 0, colp = tdbp->GetColumns(); colp; i++, colp = colp->GetNext()) {
+		for (colp = tdbp->GetColumns(); colp; colp = colp->GetNext()) {
 			if (colp->InitValue(g))
 				throw 2;
 
@@ -310,7 +310,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 				n = strlen(p) + 1;
 			} // endfor p
 
-			for (i = 0, colp = utp->GetColumns(); colp; i++, colp = colp->GetNext()) {
+			for (colp = utp->GetColumns(); colp; colp = colp->GetNext()) {
 				if (colp->InitValue(g))
 					throw 5;
 
