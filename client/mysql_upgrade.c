@@ -77,6 +77,8 @@ static my_bool opt_write_binlog;
 
 #define OPT_SILENT OPT_MAX_CLIENT_OPTION
 
+#include "credmgr-var.h"
+
 static struct my_option my_long_options[]=
 {
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
@@ -169,6 +171,7 @@ static struct my_option my_long_options[]=
    "issued by mysqlcheck are written to the binary log.",
    &opt_write_binlog, &opt_write_binlog, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
