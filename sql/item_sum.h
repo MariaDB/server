@@ -1,7 +1,7 @@
 #ifndef ITEM_SUM_INCLUDED
 #define ITEM_SUM_INCLUDED
 /* Copyright (c) 2000, 2013 Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation.
+   Copyright (c) 2008, 2023, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1090,8 +1090,9 @@ class Item_sum_std final :public Item_sum_variance
   Item *result_item(THD *thd, Field *field) override final;
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING sum_name= {STRING_WITH_LEN("std(") };
-    return sum_name;
+    static LEX_CSTRING std_name= {STRING_WITH_LEN("std(") };
+    static LEX_CSTRING stddev_samp_name= {STRING_WITH_LEN("stddev_samp(") };
+    return sample ? stddev_samp_name : std_name;
   }
   Item *copy_or_same(THD* thd) override final;
   Item *get_copy(THD *thd) override final

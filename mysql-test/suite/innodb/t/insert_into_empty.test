@@ -216,8 +216,6 @@ DROP TABLE t1;
 --echo # MDEV-27214 Import with disabled keys corrupts meta-data like rows, indexes, ...
 --echo #
 
-SET UNIQUE_CHECKS=0;
-SET FOREIGN_KEY_CHECKS=0;
 CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` int(11) DEFAULT NULL,
@@ -232,7 +230,6 @@ source include/wait_condition.inc;
 SELECT TABLE_ROWS, AVG_ROW_LENGTH>0 FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
 DROP TABLE t1;
-
 
 --echo # End of 10.6 tests
 
@@ -404,5 +401,22 @@ INSERT IGNORE INTO t1 VALUES
 CHECK TABLE t1;
 DROP TABLE t1;
 SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= @format;
+
+--echo #
+--echo #   MDEV-30321 blob data corrupted by row_merge_write_blob_to_tmp_file()
+--echo #
+
+CREATE TABLE t1 (
+  `id` int(11) NOT NULL,
+  `data` LONGBLOB NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES 
+  (1, REPEAT('X', @@innodb_sort_buffer_size)),
+  (2, REPEAT('X', @@innodb_sort_buffer_size));
+
+SELECT COUNT(*) AS nb_corrupted_rows FROM t1 WHERE data != REPEAT('X', @@innodb_sort_buffer_size);
+DROP TABLE t1;
 
 --echo # End of 10.7 tests

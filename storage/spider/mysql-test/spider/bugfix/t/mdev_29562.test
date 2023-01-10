@@ -1,0 +1,54 @@
+--echo #
+--echo # MDEV-29562 Spider table with charset utf32/utf16/ucs2 tries to set client charset to unsupported value
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+eval CREATE TABLE tbl_a (
+    a INT
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+eval CREATE TABLE tbl_a (
+    a INT
+) $MASTER_1_ENGINE CHARSET utf32 COMMENT='table "tbl_a", srv "s_2_1"';
+
+ALTER DATABASE auto_test_local CHARSET="ucs2";
+--error ER_ILLEGAL_HA_CREATE_OPTION
+eval CREATE TABLE tbl_a (
+    a INT
+) $MASTER_1_ENGINE COMMENT='table "tbl_a", srv "s_2_1"';
+
+eval CREATE TABLE tbl_a (
+    a INT
+) $MASTER_1_ENGINE CHARSET utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+SELECT * FROM tbl_a;
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+ALTER TABLE tbl_a CONVERT TO CHARACTER SET utf16;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+ALTER TABLE tbl_a CONVERT TO CHARACTER SET utf16le;
+
+ALTER TABLE tbl_a CONVERT TO CHARACTER SET latin1;
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log

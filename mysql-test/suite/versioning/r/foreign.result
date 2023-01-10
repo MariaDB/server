@@ -445,6 +445,43 @@ pk	f1	f2	left(f3, 4)	check_row_ts(row_start, row_end)
 1	8	8	SHOR	HISTORICAL ROW
 2	8	8	LONG	HISTORICAL ROW
 drop table t1;
+# Shorter case for clustered index (MDEV-25004)
+create table t1 (
+y int primary key, r int, f int, key (r),
+foreign key (f) references t1 (r) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, 6, 6), (2, 6, 6);
+delete from t1;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+y	r	f	check_row_ts(row_start, row_end)
+1	6	6	HISTORICAL ROW
+2	6	6	HISTORICAL ROW
+drop tables t1;
+# Secondary unique index
+create table t1 (
+y int unique null, r int, f int, key (r),
+foreign key (f) references t1 (r) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, 6, 6), (2, 6, 6);
+delete from t1;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+y	r	f	check_row_ts(row_start, row_end)
+1	6	6	HISTORICAL ROW
+2	6	6	HISTORICAL ROW
+drop tables t1;
+# Non-unique index cannot be fixed because it does not trigger duplicate error
+create table t1 (
+y int, r int, f int, key (y), key (r),
+foreign key (f) references t1 (r) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, 6, 6), (2, 6, 6);
+delete from t1;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+y	r	f	check_row_ts(row_start, row_end)
+1	6	6	HISTORICAL ROW
+2	6	NULL	ERROR: row_end == row_start
+2	6	6	HISTORICAL ROW
+drop tables t1;
 #
 # MDEV-21555 Assertion secondary index is out of sync on delete from versioned table
 #

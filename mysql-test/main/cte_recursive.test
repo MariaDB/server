@@ -2732,7 +2732,9 @@ drop table t1;
 --echo # MDEV-24019: query with recursive CTE when no default database is set
 --echo #
 
-drop database test;
+create database dummy;
+use dummy;
+drop database dummy;
 
 let $q=
 with recursive a as
@@ -2760,7 +2762,6 @@ deallocate prepare stmt;
 
 drop database db1;
 
-create database test;
 use test;
 
 --echo #

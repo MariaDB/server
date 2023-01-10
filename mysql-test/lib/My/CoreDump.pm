@@ -108,7 +108,7 @@ for my $f (keys %print_formats)
 
 register_opt('print-core|C', ':s',
   "Print core dump format: ". $print_formats. " (for not printing cores). ".
-  "Defaults to value of MTR_PRINT_CORE or 'short'");
+  "Defaults to value of MTR_PRINT_CORE or 'medium'");
 if (!IS_WINDOWS)
 {
   register_opt('print-method', '=s',
@@ -134,7 +134,7 @@ sub env_or_default($$) {
 }
 
 sub pre_setup() {
-  $config{print_core}= env_or_default('short', 'MTR_PRINT_CORE')
+  $config{print_core}= env_or_default('medium', 'MTR_PRINT_CORE')
     if not defined $config{print_core};
   $config{print_method}= (IS_WINDOWS) ? 'cdb' : 'auto'
     if not defined $config{print_method};

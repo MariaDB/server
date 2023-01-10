@@ -191,7 +191,7 @@ create or replace table t1 (a int, b int as (stddev_pop(a)));
 ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # STDDEV_SAMP()
 create or replace table t1 (a int, b int as (stddev_samp(a)));
-ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'stddev_samp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # STDDEV()
 create or replace table t1 (a int, b int as (stddev(a)));
 ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`

@@ -5,6 +5,7 @@
 # 3) UNCOMMITTED RECORDS CAN BE SEEN WITH QURIES WHICH DO NOT USE FTS INDEX
 # this behavior do not break integratity of tables and "select" which do not use FTS still can view them.
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 
 --disable_warnings

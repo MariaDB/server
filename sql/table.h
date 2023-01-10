@@ -1657,7 +1657,11 @@ public:
   }
 
   /// Return true if table is instantiated, and false otherwise.
-  bool is_created() const { return created; }
+  bool is_created() const
+  {
+    DBUG_ASSERT(!created || file != 0);
+    return created;
+  }
 
   /**
     Set the table as "created", and enable flags in storage engine
@@ -1670,6 +1674,11 @@ public:
     if (file->keyread_enabled())
       file->extra(HA_EXTRA_KEYREAD);
     created= true;
+  }
+
+  void reset_created()
+  {
+    created= 0;
   }
 
   /*

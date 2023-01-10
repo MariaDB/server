@@ -71,6 +71,11 @@ extern void (*log_file_op)(uint32_t space_id, int type,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
 
+/** Report an operation which does undo log tablespace truncation
+during backup
+@param	space_id	undo tablespace identifier */
+extern void (*undo_space_trunc)(uint32_t space_id);
+
 /** Report an operation which does INIT_PAGE for page0 during backup.
 @param	space_id	tablespace identifier */
 extern void (*first_page_init)(uint32_t space_id);

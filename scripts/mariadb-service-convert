@@ -25,7 +25,7 @@
 
 tz_old=$TZ
 
-. /usr/bin/mysqld_safe --dry-run
+. /usr/bin/mariadbd-safe --dry-run
 
 echo "# converted using $0"
 echo "#"

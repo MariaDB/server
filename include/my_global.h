@@ -642,7 +642,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
   the mismatch of CRT and mysys file IO usage on Windows at runtime.
   CRT file descriptors can be in the range 0-2047, whereas descriptors returned
   by my_open() will start with 2048. If a file descriptor with value less then
-  MY_FILE_MIN is passed to mysys IO function, chances are it stemms from
+  MY_FILE_MIN is passed to mysys IO function, chances are it stems from
   open()/fileno() and not my_open()/my_fileno.
 
   For Posix,  mysys functions are light wrappers around libc, and MY_FILE_MIN
@@ -865,7 +865,7 @@ typedef long long	my_ptrdiff_t;
 #define STDCALL
 #endif
 
-/* Typdefs for easyier portability */
+/* Typdefs for easier portability */
 
 #ifndef HAVE_UCHAR
 typedef unsigned char	uchar;	/* Short for unsigned char */

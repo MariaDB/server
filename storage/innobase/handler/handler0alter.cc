@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2547,6 +2547,11 @@ innodb_instant_alter_column_allowed_reason:
 		        < dict_table_get_n_user_cols(m_prebuilt->table)));
 
 	if (fulltext_indexes && m_prebuilt->table->fts) {
+		/* FTS index of versioned table has row_end, need rebuild */
+		if (table->versioned() != altered_table->versioned()) {
+			need_rebuild= true;
+		}
+
 		/* FULLTEXT indexes are supposed to remain. */
 		/* Disallow DROP INDEX FTS_DOC_ID_INDEX */
 
@@ -3959,6 +3964,8 @@ innobase_fts_check_doc_id_index(
 		/* Check if a unique index with the name of
 		FTS_DOC_ID_INDEX_NAME is being created. */
 
+		const ulint fts_n_uniq= altered_table->versioned() ? 2 : 1;
+
 		for (uint i = 0; i < altered_table->s->keys; i++) {
 			const KEY& key = altered_table->key_info[i];
 
@@ -3968,7 +3975,7 @@ innobase_fts_check_doc_id_index(
 			}
 
 			if ((key.flags & HA_NOSAME)
-			    && key.user_defined_key_parts == 1
+			    && key.user_defined_key_parts == fts_n_uniq
 			    && !(key.key_part[0].key_part_flag
 				 & HA_REVERSE_SORT)
 			    && !strcmp(key.name.str, FTS_DOC_ID_INDEX_NAME)
@@ -4000,7 +4007,7 @@ innobase_fts_check_doc_id_index(
 		}
 
 		if (!dict_index_is_unique(index)
-		    || dict_index_get_n_unique(index) != 1
+		    || dict_index_get_n_unique(index) != table->fts_n_uniq()
 		    || strcmp(index->name, FTS_DOC_ID_INDEX_NAME)) {
 			return(FTS_INCORRECT_DOC_ID_INDEX);
 		}
@@ -4042,6 +4049,7 @@ innobase_fts_check_doc_id_index_in_def(
 {
 	/* Check whether there is a "FTS_DOC_ID_INDEX" in the to be built index
 	list */
+	const uint fts_n_uniq= key_info->table->versioned() ? 2 : 1;
 	for (ulint j = 0; j < n_key; j++) {
 		const KEY*	key = &key_info[j];
 
@@ -4052,7 +4060,7 @@ innobase_fts_check_doc_id_index_in_def(
 		/* Do a check on FTS DOC ID_INDEX, it must be unique,
 		named as "FTS_DOC_ID_INDEX" and on column "FTS_DOC_ID" */
 		if (!(key->flags & HA_NOSAME)
-		    || key->user_defined_key_parts != 1
+		    || key->user_defined_key_parts != fts_n_uniq
 		    || (key->key_part[0].key_part_flag & HA_REVERSE_SORT)
 		    || strcmp(key->name.str, FTS_DOC_ID_INDEX_NAME)
 		    || strcmp(key->key_part[0].field->field_name.str,
@@ -4245,14 +4253,24 @@ created_clustered:
 
 	if (add_fts_doc_idx) {
 		index_def_t*	index = indexdef++;
+		uint nfields = 1;
 
+		if (altered_table->versioned())
+			++nfields;
 		index->fields = static_cast<index_field_t*>(
-			mem_heap_alloc(heap, sizeof *index->fields));
-		index->n_fields = 1;
-		index->fields->col_no = fts_doc_id_col;
-		index->fields->prefix_len = 0;
-		index->fields->descending = false;
-		index->fields->is_v_col = false;
+			mem_heap_alloc(heap, sizeof(*index->fields) * nfields));
+		index->n_fields = nfields;
+		index->fields[0].col_no = fts_doc_id_col;
+		index->fields[0].prefix_len = 0;
+		index->fields[0].descending = false;
+		index->fields[0].is_v_col = false;
+		if (nfields == 2) {
+			index->fields[1].col_no
+				= altered_table->s->vers.end_fieldno;
+			index->fields[1].prefix_len = 0;
+			index->fields[1].descending = false;
+			index->fields[1].is_v_col = false;
+		}
 		index->ind_type = DICT_UNIQUE;
 		ut_ad(!rebuild
 		      || !add_fts_doc_id
@@ -11275,7 +11293,7 @@ err_index:
 	}
 
 	DBUG_EXECUTE_IF("stats_lock_fail",
-			error = DB_LOCK_WAIT;);
+			error = DB_LOCK_WAIT_TIMEOUT;);
 
 	if (error == DB_SUCCESS) {
 		error = lock_sys_tables(trx);
