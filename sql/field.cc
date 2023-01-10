@@ -11152,7 +11152,7 @@ Create_field *Create_field::clone(MEM_ROOT *mem_root) const
 }
 
 /**
-   Return true if default is an expression that must be saved explicitely
+   Return true if default is an expression that must be saved explicitly
 
    This is:
      - Not basic constants

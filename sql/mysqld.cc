@@ -127,6 +127,8 @@
 
 #include <my_service_manager.h>
 
+#include <source_revision.h>
+
 #define mysqld_charset &my_charset_latin1
 
 /* We have HAVE_valgrind below as this speeds up the shutdown of MySQL */
@@ -4117,21 +4119,6 @@ static int init_common_variables()
 
   mysql_real_data_home_len= uint(strlen(mysql_real_data_home));
 
-  if (!opt_abort)
-  {
-    if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
-      sql_print_information("%s (mysqld %s) starting as process %lu ...",
-                            my_progname, server_version, (ulong) getpid());
-    else
-    {
-      char real_server_version[SERVER_VERSION_LENGTH];
-      set_server_version(real_server_version, sizeof(real_server_version));
-      sql_print_information("%s (mysqld %s as %s) starting as process %lu ...",
-                            my_progname, real_server_version, server_version,
-                            (ulong) getpid());
-    }
-  }
-
   sf_leaking_memory= 0; // no memory leaks from now on
 
 #ifndef EMBEDDED_LIBRARY
@@ -5013,6 +5000,14 @@ static int init_server_components()
   /* set up the hook before initializing plugins which may use it */
   error_handler_hook= my_message_sql;
   proc_info_hook= set_thd_stage_info;
+
+  /*
+￼    Print source revision hash, as one of the first lines, if not the
+￼    first in error log, for troubleshooting and debugging purposes
+￼  */
+  if (!opt_help)
+    sql_print_information("Starting MariaDB %s source revision %s as process %lu",
+                          server_version, SOURCE_REVISION, (ulong) getpid());
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*

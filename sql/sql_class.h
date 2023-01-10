@@ -5626,7 +5626,7 @@ class select_insert :public select_result_interceptor {
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   virtual int prepare2(JOIN *join);
   virtual int send_data(List<Item> &items);
-  virtual bool store_values(List<Item> &values, bool ignore_errors);
+  virtual bool store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
   bool prepare_eof();
   bool send_ok_packet();
@@ -5668,7 +5668,7 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 
   int binlog_show_create_table(TABLE **tables, uint count);
-  bool store_values(List<Item> &values, bool ignore_errors);
+  bool store_values(List<Item> &values);
   bool send_eof();
   virtual void abort_result_set();
   virtual bool can_rollback_data() { return 1; }
