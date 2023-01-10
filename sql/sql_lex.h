@@ -939,7 +939,7 @@ public:
   bool columns_are_renamed;
 
   void init_query();
-  st_select_lex* outer_select();
+  st_select_lex* outer_select() const;
   const st_select_lex* first_select() const
   {
     return reinterpret_cast<const st_select_lex*>(slave);
@@ -993,6 +993,8 @@ public:
   int save_union_explain_part2(Explain_query *output);
   unit_common_op common_op();
 
+  bool explainable() const;
+
   void reset_distinct();
   void fix_distinct();
 
@@ -1004,6 +1006,9 @@ public:
   bool set_lock_to_the_last_select(Lex_select_lock l);
 
   friend class st_select_lex;
+
+private:
+  bool is_derived_eliminated() const;
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;

@@ -36,6 +36,9 @@ class Index_statistics;
 
 class THD;
 
+/* Array index type for table.field[] */
+typedef uint16 field_index_t;
+
 typedef struct st_date_time_format {
   uchar positions[8];
   char  time_separator;			/* Separator between hour and minute */
