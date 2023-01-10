@@ -1,0 +1,2370 @@
+DROP DATABASE IF EXISTS dbt3_s001;
+CREATE DATABASE dbt3_s001;
+use dbt3_s001;
+create index i_n_name on nation(n_name);
+analyze table nation;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.nation	analyze	status	Engine-independent statistics collected
+dbt3_s001.nation	analyze	status	OK
+# Pullout
+# =======
+explain
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	11	
+1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (7%)	Using where; Using rowid filter
+explain format=json
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "nation",
+          "access_type": "ref",
+          "possible_keys": ["PRIMARY", "i_n_name"],
+          "key": "i_n_name",
+          "key_length": "26",
+          "used_key_parts": ["n_name"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "nation.n_name = 'PERU'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "ref",
+          "possible_keys": ["PRIMARY", "i_c_nationkey"],
+          "key": "i_c_nationkey",
+          "key_length": "5",
+          "used_key_parts": ["c_nationkey"],
+          "ref": ["dbt3_s001.nation.n_nationkey"],
+          "rows": 11,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "ref",
+          "possible_keys": ["i_o_orderdate", "i_o_custkey"],
+          "key": "i_o_custkey",
+          "key_length": "5",
+          "used_key_parts": ["o_custkey"],
+          "ref": ["dbt3_s001.customer.c_custkey"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_o_orderdate",
+              "used_key_parts": ["o_orderDATE"]
+            },
+            "rows": 108,
+            "selectivity_pct": 7.2
+          },
+          "rows": 11,
+          "filtered": 7.199999809,
+          "attached_condition": "orders.o_orderDATE between '1992-01-01' and '1992-06-30'"
+        }
+      }
+    ]
+  }
+}
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201268.06
+2880	145761.99
+3142	16030.15
+5382	138423.03
+5095	184583.99
+737	12984.85
+1729	12137.76
+5121	150334.57
+explain
+update orders set o_totalprice = o_totalprice-50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	11	
+1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (7%)	Using where; Using rowid filter
+explain format=json
+update orders set o_totalprice = o_totalprice-50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "nation",
+          "access_type": "ref",
+          "possible_keys": ["PRIMARY", "i_n_name"],
+          "key": "i_n_name",
+          "key_length": "26",
+          "used_key_parts": ["n_name"],
+          "ref": ["const"],
+          "rows": 1,
+          "filtered": 100,
+          "index_condition": "nation.n_name = 'PERU'"
+        }
+      },
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "ref",
+          "possible_keys": ["PRIMARY", "i_c_nationkey"],
+          "key": "i_c_nationkey",
+          "key_length": "5",
+          "used_key_parts": ["c_nationkey"],
+          "ref": ["dbt3_s001.nation.n_nationkey"],
+          "rows": 11,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "ref",
+          "possible_keys": ["i_o_orderdate", "i_o_custkey"],
+          "key": "i_o_custkey",
+          "key_length": "5",
+          "used_key_parts": ["o_custkey"],
+          "ref": ["dbt3_s001.customer.c_custkey"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_o_orderdate",
+              "used_key_parts": ["o_orderDATE"]
+            },
+            "rows": 108,
+            "selectivity_pct": 7.2
+          },
+          "rows": 11,
+          "filtered": 7.199999809,
+          "attached_condition": "orders.o_orderDATE between '1992-01-01' and '1992-06-30'"
+        }
+      }
+    ]
+  }
+}
+update orders set o_totalprice = o_totalprice-50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201218.06
+2880	145711.99
+3142	15980.15
+5382	138373.03
+5095	184533.99
+737	12934.85
+1729	12087.76
+5121	150284.57
+update orders set o_totalprice= o_totalprice+50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201268.06
+2880	145761.99
+3142	16030.15
+5382	138423.03
+5095	184583.99
+737	12984.85
+1729	12137.76
+5121	150334.57
+explain
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where (ps_partkey, ps_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 910 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	2	
+1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	16	
+1	PRIMARY	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	Using where
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where (ps_partkey, ps_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 910 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+ps_partkey	ps_suppkey	ps_supplycost
+4	1	444.37
+6	1	642.13
+8	1	957.34
+1	8	357.84
+3	8	645.4
+5	8	50.52
+7	8	763.98
+explain
+update partsupp set ps_supplycost = ps_supplycost+2 where (ps_partkey, ps_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 910 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	2	
+1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	16	
+1	PRIMARY	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	Using where
+update partsupp set ps_supplycost = ps_supplycost+2 where (ps_partkey, ps_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 910 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where (ps_partkey, ps_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 910 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+ps_partkey	ps_suppkey	ps_supplycost
+4	1	446.37
+6	1	644.13
+8	1	959.34
+1	8	359.84
+3	8	647.4
+5	8	52.52
+7	8	765.98
+update partsupp set ps_supplycost = ps_supplycost-2 where (ps_partkey, ps_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 910 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where (ps_partkey, ps_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 910 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+ps_partkey	ps_suppkey	ps_supplycost
+4	1	444.37
+6	1	642.13
+8	1	957.34
+1	8	357.84
+3	8	645.4
+5	8	50.52
+7	8	763.98
+explain
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where ps_partkey in (select p_partkey from part
+where p_retailprice between 901 and 910) and
+ps_suppkey in (select s_suppkey from supplier
+where s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	2	
+1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	16	
+1	PRIMARY	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	Using where
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where ps_partkey in (select p_partkey from part
+where p_retailprice between 901 and 910) and
+ps_suppkey in (select s_suppkey from supplier
+where s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+ps_partkey	ps_suppkey	ps_supplycost
+4	1	444.37
+6	1	642.13
+8	1	957.34
+1	8	357.84
+3	8	645.4
+5	8	50.52
+7	8	763.98
+explain
+update partsupp set ps_supplycost = ps_supplycost+10 where ps_partkey in (select p_partkey from part
+where p_retailprice between 901 and 910) and
+ps_suppkey in (select s_suppkey from supplier
+where s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	2	
+1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	16	
+1	PRIMARY	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	Using where
+update partsupp set ps_supplycost = ps_supplycost+10 where ps_partkey in (select p_partkey from part
+where p_retailprice between 901 and 910) and
+ps_suppkey in (select s_suppkey from supplier
+where s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where ps_partkey in (select p_partkey from part
+where p_retailprice between 901 and 910) and
+ps_suppkey in (select s_suppkey from supplier
+where s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+ps_partkey	ps_suppkey	ps_supplycost
+4	1	454.37
+6	1	652.13
+8	1	967.34
+1	8	367.84
+3	8	655.4
+5	8	60.52
+7	8	773.98
+update partsupp set ps_supplycost = ps_supplycost-10 where ps_partkey in (select p_partkey from part
+where p_retailprice between 901 and 910) and
+ps_suppkey in (select s_suppkey from supplier
+where s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where ps_partkey in (select p_partkey from part
+where p_retailprice between 901 and 910) and
+ps_suppkey in (select s_suppkey from supplier
+where s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+ps_partkey	ps_suppkey	ps_supplycost
+4	1	444.37
+6	1	642.13
+8	1	957.34
+1	8	357.84
+3	8	645.4
+5	8	50.52
+7	8	763.98
+explain
+select l_orderkey, l_linenumber, l_tax from lineitem where l_orderkey in (select o_orderkey from orders
+where o_custkey in
+(select c_custkey from customer
+where c_nationkey in
+(select n_nationkey from nation
+where n_name='PERU'))
+and
+o_orderDATE between '1992-06-30' and '1992-12-31')
+and
+(l_partkey, l_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 1000 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	2	
+1	PRIMARY	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey	5	dbt3_s001.supplier.s_suppkey	100	Using where
+1	PRIMARY	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_partkey	1	Using where
+1	PRIMARY	orders	eq_ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY|i_o_orderdate	4|4	dbt3_s001.lineitem.l_orderkey	1 (7%)	Using where; Using rowid filter
+1	PRIMARY	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
+select l_orderkey, l_linenumber, l_tax from lineitem where l_orderkey in (select o_orderkey from orders
+where o_custkey in
+(select c_custkey from customer
+where c_nationkey in
+(select n_nationkey from nation
+where n_name='PERU'))
+and
+o_orderDATE between '1992-06-30' and '1992-12-31')
+and
+(l_partkey, l_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 1000 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+l_orderkey	l_linenumber	l_tax
+4996	1	0.01
+933	1	0.04
+2500	2	0.02
+2500	4	0.02
+explain
+update lineitem set l_tax = (l_tax*100+1)/100 where l_orderkey in (select o_orderkey from orders
+where o_custkey in
+(select c_custkey from customer
+where c_nationkey in
+(select n_nationkey from nation
+where n_name='PERU'))
+and
+o_orderDATE between '1992-06-30' and '1992-12-31')
+and
+(l_partkey, l_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 1000 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	2	
+1	PRIMARY	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey	5	dbt3_s001.supplier.s_suppkey	100	Using where
+1	PRIMARY	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_partkey	1	Using where
+1	PRIMARY	orders	eq_ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY|i_o_orderdate	4|4	dbt3_s001.lineitem.l_orderkey	1 (7%)	Using where; Using rowid filter
+1	PRIMARY	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
+update lineitem set l_tax = (l_tax*100+1)/100 where l_orderkey in (select o_orderkey from orders
+where o_custkey in
+(select c_custkey from customer
+where c_nationkey in
+(select n_nationkey from nation
+where n_name='PERU'))
+and
+o_orderDATE between '1992-06-30' and '1992-12-31')
+and
+(l_partkey, l_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 1000 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select l_orderkey, l_linenumber, l_tax from lineitem where l_orderkey in (select o_orderkey from orders
+where o_custkey in
+(select c_custkey from customer
+where c_nationkey in
+(select n_nationkey from nation
+where n_name='PERU'))
+and
+o_orderDATE between '1992-06-30' and '1992-12-31')
+and
+(l_partkey, l_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 1000 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+l_orderkey	l_linenumber	l_tax
+4996	1	0.02
+933	1	0.05
+2500	2	0.03
+2500	4	0.03
+update lineitem set l_tax = (l_tax*100-1)/100 where l_orderkey in (select o_orderkey from orders
+where o_custkey in
+(select c_custkey from customer
+where c_nationkey in
+(select n_nationkey from nation
+where n_name='PERU'))
+and
+o_orderDATE between '1992-06-30' and '1992-12-31')
+and
+(l_partkey, l_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 1000 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select l_orderkey, l_linenumber, l_tax from lineitem where l_orderkey in (select o_orderkey from orders
+where o_custkey in
+(select c_custkey from customer
+where c_nationkey in
+(select n_nationkey from nation
+where n_name='PERU'))
+and
+o_orderDATE between '1992-06-30' and '1992-12-31')
+and
+(l_partkey, l_suppkey) in
+(select p_partkey, s_suppkey from part, supplier
+where p_retailprice between 901 and 1000 and
+s_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+l_orderkey	l_linenumber	l_tax
+4996	1	0.01
+933	1	0.04
+2500	2	0.02
+2500	4	0.02
+# FirstMatch
+# ==========
+set optimizer_switch='materialization=off';
+explain
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	customer	ALL	PRIMARY,i_c_nationkey	NULL	NULL	NULL	150	Using where
+1	PRIMARY	nation	eq_ref|filter	PRIMARY,i_n_regionkey	PRIMARY|i_n_regionkey	4|5	dbt3_s001.customer.c_nationkey	1 (40%)	Using where; Using rowid filter
+1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (9%)	Using where; FirstMatch(nation); Using rowid filter
+explain format=json
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "ALL",
+          "possible_keys": ["PRIMARY", "i_c_nationkey"],
+          "rows": 150,
+          "filtered": 100,
+          "attached_condition": "customer.c_nationkey is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "nation",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_n_regionkey"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["n_nationkey"],
+          "ref": ["dbt3_s001.customer.c_nationkey"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_n_regionkey",
+              "used_key_parts": ["n_regionkey"]
+            },
+            "rows": 10,
+            "selectivity_pct": 40
+          },
+          "rows": 1,
+          "filtered": 40,
+          "attached_condition": "nation.n_regionkey in (1,2)"
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "ref",
+          "possible_keys": ["i_o_orderdate", "i_o_custkey"],
+          "key": "i_o_custkey",
+          "key_length": "5",
+          "used_key_parts": ["o_custkey"],
+          "ref": ["dbt3_s001.customer.c_custkey"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_o_orderdate",
+              "used_key_parts": ["o_orderDATE"]
+            },
+            "rows": 140,
+            "selectivity_pct": 9.333333333
+          },
+          "rows": 11,
+          "filtered": 9.333333015,
+          "attached_condition": "orders.o_orderDATE between '1992-10-09' and '1993-06-08'",
+          "first_match": "nation"
+        }
+      }
+    ]
+  }
+}
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000007	9561.95
+Customer#000000008	6819.74
+Customer#000000017	6.34
+Customer#000000019	8914.71
+Customer#000000022	591.98
+Customer#000000025	7133.7
+Customer#000000028	1007.18
+Customer#000000037	-917.75
+Customer#000000040	1335.3
+Customer#000000047	274.58
+Customer#000000059	3458.6
+Customer#000000061	1536.24
+Customer#000000064	-646.64
+Customer#000000067	8166.59
+Customer#000000077	1738.87
+Customer#000000082	9468.34
+Customer#000000091	4643.14
+Customer#000000092	1182.91
+Customer#000000094	5500.11
+Customer#000000097	2164.48
+Customer#000000101	7470.96
+Customer#000000103	2757.45
+Customer#000000106	3288.42
+Customer#000000115	7508.92
+Customer#000000121	6428.32
+Customer#000000122	7865.46
+Customer#000000124	1842.49
+Customer#000000127	9280.71
+Customer#000000130	5073.58
+Customer#000000133	2314.67
+Customer#000000139	7897.78
+Customer#000000142	2209.81
+explain
+update customer set c_acctbal = c_acctbal+10 where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	customer	ALL	PRIMARY,i_c_nationkey	NULL	NULL	NULL	150	Using where
+1	PRIMARY	nation	eq_ref|filter	PRIMARY,i_n_regionkey	PRIMARY|i_n_regionkey	4|5	dbt3_s001.customer.c_nationkey	1 (40%)	Using where; Using rowid filter
+1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (9%)	Using where; FirstMatch(nation); Using rowid filter
+explain format=json
+update customer set c_acctbal = c_acctbal+10 where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "ALL",
+          "possible_keys": ["PRIMARY", "i_c_nationkey"],
+          "rows": 150,
+          "filtered": 100,
+          "attached_condition": "customer.c_nationkey is not null"
+        }
+      },
+      {
+        "table": {
+          "table_name": "nation",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY", "i_n_regionkey"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["n_nationkey"],
+          "ref": ["dbt3_s001.customer.c_nationkey"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_n_regionkey",
+              "used_key_parts": ["n_regionkey"]
+            },
+            "rows": 10,
+            "selectivity_pct": 40
+          },
+          "rows": 1,
+          "filtered": 40,
+          "attached_condition": "nation.n_regionkey in (1,2)"
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "ref",
+          "possible_keys": ["i_o_orderdate", "i_o_custkey"],
+          "key": "i_o_custkey",
+          "key_length": "5",
+          "used_key_parts": ["o_custkey"],
+          "ref": ["dbt3_s001.customer.c_custkey"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_o_orderdate",
+              "used_key_parts": ["o_orderDATE"]
+            },
+            "rows": 140,
+            "selectivity_pct": 9.333333333
+          },
+          "rows": 11,
+          "filtered": 9.333333015,
+          "attached_condition": "orders.o_orderDATE between '1992-10-09' and '1993-06-08'",
+          "first_match": "nation"
+        }
+      }
+    ]
+  }
+}
+update customer set c_acctbal = c_acctbal+10 where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000007	9571.95
+Customer#000000008	6829.74
+Customer#000000017	16.34
+Customer#000000019	8924.71
+Customer#000000022	601.98
+Customer#000000025	7143.7
+Customer#000000028	1017.18
+Customer#000000037	-907.75
+Customer#000000040	1345.3
+Customer#000000047	284.58
+Customer#000000059	3468.6
+Customer#000000061	1546.24
+Customer#000000064	-636.64
+Customer#000000067	8176.59
+Customer#000000077	1748.87
+Customer#000000082	9478.34
+Customer#000000091	4653.14
+Customer#000000092	1192.91
+Customer#000000094	5510.11
+Customer#000000097	2174.48
+Customer#000000101	7480.96
+Customer#000000103	2767.45
+Customer#000000106	3298.42
+Customer#000000115	7518.92
+Customer#000000121	6438.32
+Customer#000000122	7875.46
+Customer#000000124	1852.49
+Customer#000000127	9290.71
+Customer#000000130	5083.58
+Customer#000000133	2324.67
+Customer#000000139	7907.78
+Customer#000000142	2219.81
+update customer set c_acctbal = c_acctbal-10 where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000007	9561.95
+Customer#000000008	6819.74
+Customer#000000017	6.34
+Customer#000000019	8914.71
+Customer#000000022	591.98
+Customer#000000025	7133.7
+Customer#000000028	1007.18
+Customer#000000037	-917.75
+Customer#000000040	1335.3
+Customer#000000047	274.58
+Customer#000000059	3458.6
+Customer#000000061	1536.24
+Customer#000000064	-646.64
+Customer#000000067	8166.59
+Customer#000000077	1738.87
+Customer#000000082	9468.34
+Customer#000000091	4643.14
+Customer#000000092	1182.91
+Customer#000000094	5500.11
+Customer#000000097	2164.48
+Customer#000000101	7470.96
+Customer#000000103	2757.45
+Customer#000000106	3288.42
+Customer#000000115	7508.92
+Customer#000000121	6428.32
+Customer#000000122	7865.46
+Customer#000000124	1842.49
+Customer#000000127	9280.71
+Customer#000000130	5073.58
+Customer#000000133	2314.67
+Customer#000000139	7897.78
+Customer#000000142	2209.81
+set optimizer_switch='materialization=default';
+explain
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation where n_name='PERU')
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between "1992-01-09" and "1993-01-08");
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	11	
+1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (14%)	Using where; FirstMatch(customer); Using rowid filter
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation where n_name='PERU')
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between "1992-01-09" and "1993-01-08");
+c_name	c_acctbal
+Customer#000000008	6819.74
+Customer#000000035	1228.24
+Customer#000000061	1536.24
+Customer#000000097	2164.48
+Customer#000000121	6428.32
+Customer#000000133	2314.67
+explain
+update customer set c_acctbal = c_acctbal+20 where c_nationkey in (select n_nationkey from nation where n_name='PERU')
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between "1992-01-09" and "1993-01-08");
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
+1	PRIMARY	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	11	
+1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (14%)	Using where; FirstMatch(customer); Using rowid filter
+update customer set c_acctbal = c_acctbal+20 where c_nationkey in (select n_nationkey from nation where n_name='PERU')
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between "1992-01-09" and "1993-01-08");
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation where n_name='PERU')
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between "1992-01-09" and "1993-01-08");
+c_name	c_acctbal
+Customer#000000008	6839.74
+Customer#000000035	1248.24
+Customer#000000061	1556.24
+Customer#000000097	2184.48
+Customer#000000121	6448.32
+Customer#000000133	2334.67
+update customer set c_acctbal = c_acctbal-20 where c_nationkey in (select n_nationkey from nation where n_name='PERU')
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between "1992-01-09" and "1993-01-08");
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation where n_name='PERU')
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between "1992-01-09" and "1993-01-08");
+c_name	c_acctbal
+Customer#000000008	6819.74
+Customer#000000035	1228.24
+Customer#000000061	1536.24
+Customer#000000097	2164.48
+Customer#000000121	6428.32
+Customer#000000133	2314.67
+# Materialization
+# ===============
+explain
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	28	
+1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	
+2	MATERIALIZED	orders	range	i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	28	Using index condition; Using where
+explain format=json
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
+          "rows": 28,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "orders",
+                    "access_type": "range",
+                    "possible_keys": ["i_o_orderdate", "i_o_custkey"],
+                    "key": "i_o_orderdate",
+                    "key_length": "4",
+                    "used_key_parts": ["o_orderDATE"],
+                    "rows": 28,
+                    "filtered": 100,
+                    "index_condition": "orders.o_orderDATE between '1992-01-09' and '1992-03-08'",
+                    "attached_condition": "orders.o_custkey is not null"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["c_custkey"],
+          "ref": ["dbt3_s001.orders.o_custkey"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7133.7
+Customer#000000013	3857.34
+Customer#000000065	8795.16
+Customer#000000032	3471.53
+Customer#000000023	3332.02
+Customer#000000035	1228.24
+Customer#000000091	4643.14
+Customer#000000016	4681.03
+Customer#000000098	-551.37
+Customer#000000037	-917.75
+Customer#000000136	-842.39
+Customer#000000118	3582.37
+Customer#000000022	591.98
+Customer#000000005	794.47
+Customer#000000109	-716.1
+Customer#000000038	6345.11
+Customer#000000076	5745.33
+Customer#000000056	6530.86
+Customer#000000040	1335.3
+Customer#000000116	8403.99
+Customer#000000115	7508.92
+Customer#000000140	9963.15
+Customer#000000017	6.34
+Customer#000000052	5630.28
+explain
+update customer set c_acctbal = c_acctbal+5 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	28	
+1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	
+2	MATERIALIZED	orders	range	i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	28	Using index condition; Using where
+explain format=json
+update customer set c_acctbal = c_acctbal+5 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
+          "rows": 28,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "orders",
+                    "access_type": "range",
+                    "possible_keys": ["i_o_orderdate", "i_o_custkey"],
+                    "key": "i_o_orderdate",
+                    "key_length": "4",
+                    "used_key_parts": ["o_orderDATE"],
+                    "rows": 28,
+                    "filtered": 100,
+                    "index_condition": "orders.o_orderDATE between '1992-01-09' and '1992-03-08'",
+                    "attached_condition": "orders.o_custkey is not null"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["c_custkey"],
+          "ref": ["dbt3_s001.orders.o_custkey"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+update customer set c_acctbal = c_acctbal+5 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7138.7
+Customer#000000013	3862.34
+Customer#000000065	8800.16
+Customer#000000032	3476.53
+Customer#000000023	3337.02
+Customer#000000035	1233.24
+Customer#000000091	4648.14
+Customer#000000016	4686.03
+Customer#000000098	-546.37
+Customer#000000037	-912.75
+Customer#000000136	-837.39
+Customer#000000118	3587.37
+Customer#000000022	596.98
+Customer#000000005	799.47
+Customer#000000109	-711.1
+Customer#000000038	6350.11
+Customer#000000076	5750.33
+Customer#000000056	6535.86
+Customer#000000040	1340.3
+Customer#000000116	8408.99
+Customer#000000115	7513.92
+Customer#000000140	9968.15
+Customer#000000017	11.34
+Customer#000000052	5635.28
+update customer set c_acctbal = c_acctbal-5 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7133.7
+Customer#000000013	3857.34
+Customer#000000065	8795.16
+Customer#000000032	3471.53
+Customer#000000023	3332.02
+Customer#000000035	1228.24
+Customer#000000091	4643.14
+Customer#000000016	4681.03
+Customer#000000098	-551.37
+Customer#000000037	-917.75
+Customer#000000136	-842.39
+Customer#000000118	3582.37
+Customer#000000022	591.98
+Customer#000000005	794.47
+Customer#000000109	-716.1
+Customer#000000038	6345.11
+Customer#000000076	5745.33
+Customer#000000056	6530.86
+Customer#000000040	1335.3
+Customer#000000116	8403.99
+Customer#000000115	7508.92
+Customer#000000140	9963.15
+Customer#000000017	6.34
+Customer#000000052	5630.28
+explain
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-06-09' and '1993-01-08');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	customer	ALL	PRIMARY	NULL	NULL	NULL	150	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	orders	range	i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	114	Using index condition; Using where
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-06-09' and '1993-01-08');
+c_name	c_acctbal
+Customer#000000001	711.56
+Customer#000000002	121.65
+Customer#000000007	9561.95
+Customer#000000008	6819.74
+Customer#000000010	2753.54
+Customer#000000011	-272.6
+Customer#000000016	4681.03
+Customer#000000017	6.34
+Customer#000000019	8914.71
+Customer#000000022	591.98
+Customer#000000023	3332.02
+Customer#000000025	7133.7
+Customer#000000028	1007.18
+Customer#000000029	7618.27
+Customer#000000031	5236.89
+Customer#000000034	8589.7
+Customer#000000037	-917.75
+Customer#000000040	1335.3
+Customer#000000043	9904.28
+Customer#000000044	7315.94
+Customer#000000046	5744.59
+Customer#000000047	274.58
+Customer#000000049	4573.94
+Customer#000000053	4113.64
+Customer#000000055	4572.11
+Customer#000000061	1536.24
+Customer#000000064	-646.64
+Customer#000000067	8166.59
+Customer#000000070	4867.52
+Customer#000000071	-611.19
+Customer#000000073	4288.5
+Customer#000000074	2764.43
+Customer#000000076	5745.33
+Customer#000000079	5121.28
+Customer#000000080	7383.53
+Customer#000000082	9468.34
+Customer#000000083	6463.51
+Customer#000000085	3386.64
+Customer#000000086	3306.32
+Customer#000000088	8031.44
+Customer#000000091	4643.14
+Customer#000000092	1182.91
+Customer#000000095	5327.38
+Customer#000000097	2164.48
+Customer#000000100	9889.89
+Customer#000000101	7470.96
+Customer#000000103	2757.45
+Customer#000000104	-588.38
+Customer#000000106	3288.42
+Customer#000000109	-716.1
+Customer#000000110	7462.99
+Customer#000000112	2953.35
+Customer#000000118	3582.37
+Customer#000000121	6428.32
+Customer#000000122	7865.46
+Customer#000000127	9280.71
+Customer#000000130	5073.58
+Customer#000000131	8595.53
+Customer#000000133	2314.67
+Customer#000000134	4608.9
+Customer#000000136	-842.39
+Customer#000000137	7838.3
+Customer#000000139	7897.78
+Customer#000000142	2209.81
+Customer#000000143	2186.5
+Customer#000000148	2135.6
+Customer#000000149	8959.65
+explain
+update customer set c_acctbal = c_acctbal+1 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-06-09' and '1993-01-08');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	customer	ALL	PRIMARY	NULL	NULL	NULL	150	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	orders	range	i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	114	Using index condition; Using where
+update customer set c_acctbal = c_acctbal+1 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-06-09' and '1993-01-08');
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-06-09' and '1993-01-08');
+c_name	c_acctbal
+Customer#000000001	712.56
+Customer#000000002	122.65
+Customer#000000007	9562.95
+Customer#000000008	6820.74
+Customer#000000010	2754.54
+Customer#000000011	-271.6
+Customer#000000016	4682.03
+Customer#000000017	7.34
+Customer#000000019	8915.71
+Customer#000000022	592.98
+Customer#000000023	3333.02
+Customer#000000025	7134.7
+Customer#000000028	1008.18
+Customer#000000029	7619.27
+Customer#000000031	5237.89
+Customer#000000034	8590.7
+Customer#000000037	-916.75
+Customer#000000040	1336.3
+Customer#000000043	9905.28
+Customer#000000044	7316.94
+Customer#000000046	5745.59
+Customer#000000047	275.58
+Customer#000000049	4574.94
+Customer#000000053	4114.64
+Customer#000000055	4573.11
+Customer#000000061	1537.24
+Customer#000000064	-645.64
+Customer#000000067	8167.59
+Customer#000000070	4868.52
+Customer#000000071	-610.19
+Customer#000000073	4289.5
+Customer#000000074	2765.43
+Customer#000000076	5746.33
+Customer#000000079	5122.28
+Customer#000000080	7384.53
+Customer#000000082	9469.34
+Customer#000000083	6464.51
+Customer#000000085	3387.64
+Customer#000000086	3307.32
+Customer#000000088	8032.44
+Customer#000000091	4644.14
+Customer#000000092	1183.91
+Customer#000000095	5328.38
+Customer#000000097	2165.48
+Customer#000000100	9890.89
+Customer#000000101	7471.96
+Customer#000000103	2758.45
+Customer#000000104	-587.38
+Customer#000000106	3289.42
+Customer#000000109	-715.1
+Customer#000000110	7463.99
+Customer#000000112	2954.35
+Customer#000000118	3583.37
+Customer#000000121	6429.32
+Customer#000000122	7866.46
+Customer#000000127	9281.71
+Customer#000000130	5074.58
+Customer#000000131	8596.53
+Customer#000000133	2315.67
+Customer#000000134	4609.9
+Customer#000000136	-841.39
+Customer#000000137	7839.3
+Customer#000000139	7898.78
+Customer#000000142	2210.81
+Customer#000000143	2187.5
+Customer#000000148	2136.6
+Customer#000000149	8960.65
+update customer set c_acctbal = c_acctbal-1 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-06-09' and '1993-01-08');
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-06-09' and '1993-01-08');
+c_name	c_acctbal
+Customer#000000001	711.56
+Customer#000000002	121.65
+Customer#000000007	9561.95
+Customer#000000008	6819.74
+Customer#000000010	2753.54
+Customer#000000011	-272.6
+Customer#000000016	4681.03
+Customer#000000017	6.34
+Customer#000000019	8914.71
+Customer#000000022	591.98
+Customer#000000023	3332.02
+Customer#000000025	7133.7
+Customer#000000028	1007.18
+Customer#000000029	7618.27
+Customer#000000031	5236.89
+Customer#000000034	8589.7
+Customer#000000037	-917.75
+Customer#000000040	1335.3
+Customer#000000043	9904.28
+Customer#000000044	7315.94
+Customer#000000046	5744.59
+Customer#000000047	274.58
+Customer#000000049	4573.94
+Customer#000000053	4113.64
+Customer#000000055	4572.11
+Customer#000000061	1536.24
+Customer#000000064	-646.64
+Customer#000000067	8166.59
+Customer#000000070	4867.52
+Customer#000000071	-611.19
+Customer#000000073	4288.5
+Customer#000000074	2764.43
+Customer#000000076	5745.33
+Customer#000000079	5121.28
+Customer#000000080	7383.53
+Customer#000000082	9468.34
+Customer#000000083	6463.51
+Customer#000000085	3386.64
+Customer#000000086	3306.32
+Customer#000000088	8031.44
+Customer#000000091	4643.14
+Customer#000000092	1182.91
+Customer#000000095	5327.38
+Customer#000000097	2164.48
+Customer#000000100	9889.89
+Customer#000000101	7470.96
+Customer#000000103	2757.45
+Customer#000000104	-588.38
+Customer#000000106	3288.42
+Customer#000000109	-716.1
+Customer#000000110	7462.99
+Customer#000000112	2953.35
+Customer#000000118	3582.37
+Customer#000000121	6428.32
+Customer#000000122	7865.46
+Customer#000000127	9280.71
+Customer#000000130	5073.58
+Customer#000000131	8595.53
+Customer#000000133	2314.67
+Customer#000000134	4608.9
+Customer#000000136	-842.39
+Customer#000000137	7838.3
+Customer#000000139	7897.78
+Customer#000000142	2209.81
+Customer#000000143	2186.5
+Customer#000000148	2135.6
+Customer#000000149	8959.65
+# Materialization SJM
+# ===================
+explain
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	28	
+1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	<subquery2>.o_custkey	1	
+2	MATERIALIZED	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	28	Using index condition; Using temporary
+explain format=json
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
+          "rows": 28,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "having_condition": "count(orders.o_custkey) > 1",
+              "temporary_table": {
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "orders",
+                      "access_type": "range",
+                      "possible_keys": ["i_o_orderdate"],
+                      "key": "i_o_orderdate",
+                      "key_length": "4",
+                      "used_key_parts": ["o_orderDATE"],
+                      "rows": 28,
+                      "filtered": 100,
+                      "index_condition": "orders.o_orderDATE between '1992-01-09' and '1992-03-08'"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["c_custkey"],
+          "ref": ["<subquery2>.o_custkey"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3857.34
+Customer#000000032	3471.53
+Customer#000000037	-917.75
+Customer#000000118	3582.37
+Customer#000000056	6530.86
+explain
+update customer set c_acctbal = c_acctbal-5 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	28	
+1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	<subquery2>.o_custkey	1	
+2	MATERIALIZED	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	28	Using index condition; Using temporary
+explain format=json
+update customer set c_acctbal = c_acctbal-5 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "ALL",
+          "possible_keys": ["distinct_key"],
+          "rows": 28,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "having_condition": "count(orders.o_custkey) > 1",
+              "temporary_table": {
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "orders",
+                      "access_type": "range",
+                      "possible_keys": ["i_o_orderdate"],
+                      "key": "i_o_orderdate",
+                      "key_length": "4",
+                      "used_key_parts": ["o_orderDATE"],
+                      "rows": 28,
+                      "filtered": 100,
+                      "index_condition": "orders.o_orderDATE between '1992-01-09' and '1992-03-08'"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "eq_ref",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["c_custkey"],
+          "ref": ["<subquery2>.o_custkey"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+update customer set c_acctbal = c_acctbal-5 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3852.34
+Customer#000000032	3466.53
+Customer#000000037	-922.75
+Customer#000000118	3577.37
+Customer#000000056	6525.86
+update customer set c_acctbal = c_acctbal+5 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3857.34
+Customer#000000032	3471.53
+Customer#000000037	-917.75
+Customer#000000118	3582.37
+Customer#000000056	6530.86
+explain
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	customer	ALL	PRIMARY	NULL	NULL	NULL	150	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.customer.c_custkey	1	
+2	MATERIALIZED	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	242	Using index condition; Using temporary
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+c_name	c_acctbal
+Customer#000000007	9561.95
+Customer#000000016	4681.03
+Customer#000000037	-917.75
+Customer#000000046	5744.59
+Customer#000000091	4643.14
+Customer#000000103	2757.45
+Customer#000000118	3582.37
+Customer#000000133	2314.67
+Customer#000000134	4608.9
+explain
+update customer set c_acctbal = c_acctbal-1 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	customer	ALL	PRIMARY	NULL	NULL	NULL	150	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.customer.c_custkey	1	
+2	MATERIALIZED	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	242	Using index condition; Using temporary
+update customer set c_acctbal = c_acctbal-1 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+c_name	c_acctbal
+Customer#000000007	9560.95
+Customer#000000016	4680.03
+Customer#000000037	-918.75
+Customer#000000046	5743.59
+Customer#000000091	4642.14
+Customer#000000103	2756.45
+Customer#000000118	3581.37
+Customer#000000133	2313.67
+Customer#000000134	4607.9
+update customer set c_acctbal = c_acctbal+1 where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+c_name	c_acctbal
+Customer#000000007	9561.95
+Customer#000000016	4681.03
+Customer#000000037	-917.75
+Customer#000000046	5744.59
+Customer#000000091	4643.14
+Customer#000000103	2757.45
+Customer#000000118	3582.37
+Customer#000000133	2314.67
+Customer#000000134	4608.9
+# Pullout PS
+# ==========
+prepare stmt from "
+update orders set o_totalprice = o_totalprice+? where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+";
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201268.06
+2880	145761.99
+3142	16030.15
+5382	138423.03
+5095	184583.99
+737	12984.85
+1729	12137.76
+5121	150334.57
+set @a1=-20;
+execute stmt using @a1;
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201248.06
+2880	145741.99
+3142	16010.15
+5382	138403.03
+5095	184563.99
+737	12964.85
+1729	12117.76
+5121	150314.57
+set @a2=-10;
+execute stmt using @a2;
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201238.06
+2880	145731.99
+3142	16000.15
+5382	138393.03
+5095	184553.99
+737	12954.85
+1729	12107.76
+5121	150304.57
+execute stmt using -(@a1+@a2);
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201268.06
+2880	145761.99
+3142	16030.15
+5382	138423.03
+5095	184583.99
+737	12984.85
+1729	12137.76
+5121	150334.57
+deallocate prepare stmt;
+# FirstMatch PS
+# =============
+prepare stmt from "
+update customer set c_acctbal = c_acctbal+? where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+";
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000059	3458.6
+Customer#000000106	3288.42
+Customer#000000017	6.34
+Customer#000000047	274.58
+Customer#000000092	1182.91
+Customer#000000101	7470.96
+Customer#000000022	591.98
+Customer#000000040	1335.3
+Customer#000000064	-646.64
+Customer#000000122	7865.46
+Customer#000000028	1007.18
+Customer#000000037	-917.75
+Customer#000000091	4643.14
+Customer#000000115	7508.92
+Customer#000000067	8166.59
+Customer#000000094	5500.11
+Customer#000000103	2757.45
+Customer#000000130	5073.58
+Customer#000000139	7897.78
+Customer#000000142	2209.81
+Customer#000000025	7133.7
+Customer#000000008	6819.74
+Customer#000000061	1536.24
+Customer#000000077	1738.87
+Customer#000000097	2164.48
+Customer#000000121	6428.32
+Customer#000000133	2314.67
+Customer#000000007	9561.95
+Customer#000000019	8914.71
+Customer#000000082	9468.34
+Customer#000000124	1842.49
+Customer#000000127	9280.71
+set @a1=15;
+execute stmt using @a1;
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000059	3473.6
+Customer#000000106	3303.42
+Customer#000000017	21.34
+Customer#000000047	289.58
+Customer#000000092	1197.91
+Customer#000000101	7485.96
+Customer#000000022	606.98
+Customer#000000040	1350.3
+Customer#000000064	-631.64
+Customer#000000122	7880.46
+Customer#000000028	1022.18
+Customer#000000037	-902.75
+Customer#000000091	4658.14
+Customer#000000115	7523.92
+Customer#000000067	8181.59
+Customer#000000094	5515.11
+Customer#000000103	2772.45
+Customer#000000130	5088.58
+Customer#000000139	7912.78
+Customer#000000142	2224.81
+Customer#000000025	7148.7
+Customer#000000008	6834.74
+Customer#000000061	1551.24
+Customer#000000077	1753.87
+Customer#000000097	2179.48
+Customer#000000121	6443.32
+Customer#000000133	2329.67
+Customer#000000007	9576.95
+Customer#000000019	8929.71
+Customer#000000082	9483.34
+Customer#000000124	1857.49
+Customer#000000127	9295.71
+set @a2=5;
+execute stmt using @a2;
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000059	3478.6
+Customer#000000106	3308.42
+Customer#000000017	26.34
+Customer#000000047	294.58
+Customer#000000092	1202.91
+Customer#000000101	7490.96
+Customer#000000022	611.98
+Customer#000000040	1355.3
+Customer#000000064	-626.64
+Customer#000000122	7885.46
+Customer#000000028	1027.1799999999998
+Customer#000000037	-897.75
+Customer#000000091	4663.14
+Customer#000000115	7528.92
+Customer#000000067	8186.59
+Customer#000000094	5520.11
+Customer#000000103	2777.45
+Customer#000000130	5093.58
+Customer#000000139	7917.78
+Customer#000000142	2229.81
+Customer#000000025	7153.7
+Customer#000000008	6839.74
+Customer#000000061	1556.24
+Customer#000000077	1758.87
+Customer#000000097	2184.48
+Customer#000000121	6448.32
+Customer#000000133	2334.67
+Customer#000000007	9581.95
+Customer#000000019	8934.71
+Customer#000000082	9488.34
+Customer#000000124	1862.49
+Customer#000000127	9300.71
+execute stmt using -(@a1+@a2);
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000059	3458.6
+Customer#000000106	3288.42
+Customer#000000017	6.34
+Customer#000000047	274.58
+Customer#000000092	1182.91
+Customer#000000101	7470.96
+Customer#000000022	591.98
+Customer#000000040	1335.3
+Customer#000000064	-646.64
+Customer#000000122	7865.46
+Customer#000000028	1007.1799999999998
+Customer#000000037	-917.75
+Customer#000000091	4643.14
+Customer#000000115	7508.92
+Customer#000000067	8166.59
+Customer#000000094	5500.11
+Customer#000000103	2757.45
+Customer#000000130	5073.58
+Customer#000000139	7897.78
+Customer#000000142	2209.81
+Customer#000000025	7133.7
+Customer#000000008	6819.74
+Customer#000000061	1536.24
+Customer#000000077	1738.87
+Customer#000000097	2164.48
+Customer#000000121	6428.32
+Customer#000000133	2314.67
+Customer#000000007	9561.95
+Customer#000000019	8914.71
+Customer#000000082	9468.34
+Customer#000000124	1842.49
+Customer#000000127	9280.71
+deallocate prepare stmt;
+# Materialization PS
+# ==================
+prepare stmt from "
+update customer set c_acctbal = c_acctbal+? where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+";
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7133.7
+Customer#000000013	3857.34
+Customer#000000065	8795.16
+Customer#000000032	3471.53
+Customer#000000023	3332.02
+Customer#000000035	1228.24
+Customer#000000091	4643.14
+Customer#000000016	4681.03
+Customer#000000098	-551.37
+Customer#000000037	-917.75
+Customer#000000136	-842.39
+Customer#000000118	3582.37
+Customer#000000022	591.98
+Customer#000000005	794.47
+Customer#000000109	-716.1
+Customer#000000038	6345.11
+Customer#000000076	5745.33
+Customer#000000056	6530.86
+Customer#000000040	1335.3
+Customer#000000116	8403.99
+Customer#000000115	7508.92
+Customer#000000140	9963.15
+Customer#000000017	6.34
+Customer#000000052	5630.28
+set @a1=7;
+execute stmt using @a1;
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7140.7
+Customer#000000013	3864.34
+Customer#000000065	8802.16
+Customer#000000032	3478.53
+Customer#000000023	3339.02
+Customer#000000035	1235.24
+Customer#000000091	4650.14
+Customer#000000016	4688.03
+Customer#000000098	-544.37
+Customer#000000037	-910.75
+Customer#000000136	-835.39
+Customer#000000118	3589.37
+Customer#000000022	598.98
+Customer#000000005	801.47
+Customer#000000109	-709.1
+Customer#000000038	6352.11
+Customer#000000076	5752.33
+Customer#000000056	6537.86
+Customer#000000040	1342.3
+Customer#000000116	8410.99
+Customer#000000115	7515.92
+Customer#000000140	9970.15
+Customer#000000017	13.34
+Customer#000000052	5637.28
+set @a2=3;
+execute stmt using @a2;
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7143.7
+Customer#000000013	3867.34
+Customer#000000065	8805.16
+Customer#000000032	3481.53
+Customer#000000023	3342.02
+Customer#000000035	1238.24
+Customer#000000091	4653.14
+Customer#000000016	4691.03
+Customer#000000098	-541.37
+Customer#000000037	-907.75
+Customer#000000136	-832.39
+Customer#000000118	3592.37
+Customer#000000022	601.98
+Customer#000000005	804.47
+Customer#000000109	-706.1
+Customer#000000038	6355.11
+Customer#000000076	5755.33
+Customer#000000056	6540.86
+Customer#000000040	1345.3
+Customer#000000116	8413.99
+Customer#000000115	7518.92
+Customer#000000140	9973.15
+Customer#000000017	16.34
+Customer#000000052	5640.28
+execute stmt using -(@a1+@a2);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7133.7
+Customer#000000013	3857.34
+Customer#000000065	8795.16
+Customer#000000032	3471.53
+Customer#000000023	3332.02
+Customer#000000035	1228.24
+Customer#000000091	4643.14
+Customer#000000016	4681.03
+Customer#000000098	-551.37
+Customer#000000037	-917.75
+Customer#000000136	-842.39
+Customer#000000118	3582.37
+Customer#000000022	591.98
+Customer#000000005	794.47
+Customer#000000109	-716.1
+Customer#000000038	6345.11
+Customer#000000076	5745.33
+Customer#000000056	6530.86
+Customer#000000040	1335.3
+Customer#000000116	8403.99
+Customer#000000115	7508.92
+Customer#000000140	9963.15
+Customer#000000017	6.34
+Customer#000000052	5630.28
+deallocate prepare stmt;
+# Materialization SJM PS
+# ======================
+prepare stmt from "
+update customer set c_acctbal = c_acctbal+? where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+";
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3857.34
+Customer#000000032	3471.53
+Customer#000000037	-917.75
+Customer#000000118	3582.37
+Customer#000000056	6530.86
+set @a1=-2;
+execute stmt using @a1;
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3855.34
+Customer#000000032	3469.53
+Customer#000000037	-919.75
+Customer#000000118	3580.37
+Customer#000000056	6528.86
+set @a2=-1;
+execute stmt using @a2;
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3854.34
+Customer#000000032	3468.53
+Customer#000000037	-920.75
+Customer#000000118	3579.37
+Customer#000000056	6527.86
+execute stmt using -(@a1+@a2);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3857.34
+Customer#000000032	3471.53
+Customer#000000037	-917.75
+Customer#000000118	3582.37
+Customer#000000056	6530.86
+deallocate prepare stmt;
+# Pullout SP
+# ==========
+create procedure p(d int)
+update orders set o_totalprice = o_totalprice+d where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201268.06
+2880	145761.99
+3142	16030.15
+5382	138423.03
+5095	184583.99
+737	12984.85
+1729	12137.76
+5121	150334.57
+call p(-10);
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201258.06
+2880	145751.99
+3142	16020.15
+5382	138413.03
+5095	184573.99
+737	12974.85
+1729	12127.76
+5121	150324.57
+call p(-20);
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201238.06
+2880	145731.99
+3142	16000.15
+5382	138393.03
+5095	184553.99
+737	12954.85
+1729	12107.76
+5121	150304.57
+call p(10+20);
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (select n_nationkey from nation
+where n_name='PERU'));
+o_orderkey	o_totalprice
+644	201268.06
+2880	145761.99
+3142	16030.15
+5382	138423.03
+5095	184583.99
+737	12984.85
+1729	12137.76
+5121	150334.57
+drop procedure p;
+# FirstMatch SP
+# =============
+create procedure p(d int)
+update customer set c_acctbal = c_acctbal+d where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000059	3458.6
+Customer#000000106	3288.42
+Customer#000000017	6.34
+Customer#000000047	274.58
+Customer#000000092	1182.91
+Customer#000000101	7470.96
+Customer#000000022	591.98
+Customer#000000040	1335.3
+Customer#000000064	-646.64
+Customer#000000122	7865.46
+Customer#000000028	1007.1799999999998
+Customer#000000037	-917.75
+Customer#000000091	4643.14
+Customer#000000115	7508.92
+Customer#000000067	8166.59
+Customer#000000094	5500.11
+Customer#000000103	2757.45
+Customer#000000130	5073.58
+Customer#000000139	7897.78
+Customer#000000142	2209.81
+Customer#000000025	7133.7
+Customer#000000008	6819.74
+Customer#000000061	1536.24
+Customer#000000077	1738.87
+Customer#000000097	2164.48
+Customer#000000121	6428.32
+Customer#000000133	2314.67
+Customer#000000007	9561.95
+Customer#000000019	8914.71
+Customer#000000082	9468.34
+Customer#000000124	1842.49
+Customer#000000127	9280.71
+call p(5);
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000059	3463.6
+Customer#000000106	3293.42
+Customer#000000017	11.34
+Customer#000000047	279.58
+Customer#000000092	1187.91
+Customer#000000101	7475.96
+Customer#000000022	596.98
+Customer#000000040	1340.3
+Customer#000000064	-641.64
+Customer#000000122	7870.46
+Customer#000000028	1012.1799999999998
+Customer#000000037	-912.75
+Customer#000000091	4648.14
+Customer#000000115	7513.92
+Customer#000000067	8171.59
+Customer#000000094	5505.11
+Customer#000000103	2762.45
+Customer#000000130	5078.58
+Customer#000000139	7902.78
+Customer#000000142	2214.81
+Customer#000000025	7138.7
+Customer#000000008	6824.74
+Customer#000000061	1541.24
+Customer#000000077	1743.87
+Customer#000000097	2169.48
+Customer#000000121	6433.32
+Customer#000000133	2319.67
+Customer#000000007	9566.95
+Customer#000000019	8919.71
+Customer#000000082	9473.34
+Customer#000000124	1847.49
+Customer#000000127	9285.71
+call p(15);
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000059	3478.6
+Customer#000000106	3308.42
+Customer#000000017	26.34
+Customer#000000047	294.58
+Customer#000000092	1202.91
+Customer#000000101	7490.96
+Customer#000000022	611.98
+Customer#000000040	1355.3
+Customer#000000064	-626.64
+Customer#000000122	7885.46
+Customer#000000028	1027.1799999999998
+Customer#000000037	-897.75
+Customer#000000091	4663.14
+Customer#000000115	7528.92
+Customer#000000067	8186.59
+Customer#000000094	5520.11
+Customer#000000103	2777.45
+Customer#000000130	5093.58
+Customer#000000139	7917.78
+Customer#000000142	2229.81
+Customer#000000025	7153.7
+Customer#000000008	6839.74
+Customer#000000061	1556.24
+Customer#000000077	1758.87
+Customer#000000097	2184.48
+Customer#000000121	6448.32
+Customer#000000133	2334.67
+Customer#000000007	9581.95
+Customer#000000019	8934.71
+Customer#000000082	9488.34
+Customer#000000124	1862.49
+Customer#000000127	9300.71
+call p(-(5+15));
+select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
+where n_regionkey in (1,2))
+and
+c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-10-09' and '1993-06-08');
+c_name	c_acctbal
+Customer#000000059	3458.6
+Customer#000000106	3288.42
+Customer#000000017	6.34
+Customer#000000047	274.58
+Customer#000000092	1182.91
+Customer#000000101	7470.96
+Customer#000000022	591.98
+Customer#000000040	1335.3
+Customer#000000064	-646.64
+Customer#000000122	7865.46
+Customer#000000028	1007.1799999999998
+Customer#000000037	-917.75
+Customer#000000091	4643.14
+Customer#000000115	7508.92
+Customer#000000067	8166.59
+Customer#000000094	5500.11
+Customer#000000103	2757.45
+Customer#000000130	5073.58
+Customer#000000139	7897.78
+Customer#000000142	2209.81
+Customer#000000025	7133.7
+Customer#000000008	6819.74
+Customer#000000061	1536.24
+Customer#000000077	1738.87
+Customer#000000097	2164.48
+Customer#000000121	6428.32
+Customer#000000133	2314.67
+Customer#000000007	9561.95
+Customer#000000019	8914.71
+Customer#000000082	9468.34
+Customer#000000124	1842.49
+Customer#000000127	9280.71
+drop procedure p;
+# Materialization SP
+# ==================
+create procedure p(d int)
+update customer set c_acctbal = c_acctbal+d where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7133.7
+Customer#000000013	3857.34
+Customer#000000065	8795.16
+Customer#000000032	3471.53
+Customer#000000023	3332.02
+Customer#000000035	1228.24
+Customer#000000091	4643.14
+Customer#000000016	4681.03
+Customer#000000098	-551.37
+Customer#000000037	-917.75
+Customer#000000136	-842.39
+Customer#000000118	3582.37
+Customer#000000022	591.98
+Customer#000000005	794.47
+Customer#000000109	-716.1
+Customer#000000038	6345.11
+Customer#000000076	5745.33
+Customer#000000056	6530.86
+Customer#000000040	1335.3
+Customer#000000116	8403.99
+Customer#000000115	7508.92
+Customer#000000140	9963.15
+Customer#000000017	6.34
+Customer#000000052	5630.28
+call p(3);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7136.7
+Customer#000000013	3860.34
+Customer#000000065	8798.16
+Customer#000000032	3474.53
+Customer#000000023	3335.02
+Customer#000000035	1231.24
+Customer#000000091	4646.14
+Customer#000000016	4684.03
+Customer#000000098	-548.37
+Customer#000000037	-914.75
+Customer#000000136	-839.39
+Customer#000000118	3585.37
+Customer#000000022	594.98
+Customer#000000005	797.47
+Customer#000000109	-713.1
+Customer#000000038	6348.11
+Customer#000000076	5748.33
+Customer#000000056	6533.86
+Customer#000000040	1338.3
+Customer#000000116	8406.99
+Customer#000000115	7511.92
+Customer#000000140	9966.15
+Customer#000000017	9.34
+Customer#000000052	5633.28
+call p(7);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7143.7
+Customer#000000013	3867.34
+Customer#000000065	8805.16
+Customer#000000032	3481.53
+Customer#000000023	3342.02
+Customer#000000035	1238.24
+Customer#000000091	4653.14
+Customer#000000016	4691.03
+Customer#000000098	-541.37
+Customer#000000037	-907.75
+Customer#000000136	-832.39
+Customer#000000118	3592.37
+Customer#000000022	601.98
+Customer#000000005	804.47
+Customer#000000109	-706.1
+Customer#000000038	6355.11
+Customer#000000076	5755.33
+Customer#000000056	6540.86
+Customer#000000040	1345.3
+Customer#000000116	8413.99
+Customer#000000115	7518.92
+Customer#000000140	9973.15
+Customer#000000017	16.34
+Customer#000000052	5640.28
+call p(-(3+7));
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08');
+c_name	c_acctbal
+Customer#000000025	7133.7
+Customer#000000013	3857.34
+Customer#000000065	8795.16
+Customer#000000032	3471.53
+Customer#000000023	3332.02
+Customer#000000035	1228.24
+Customer#000000091	4643.14
+Customer#000000016	4681.03
+Customer#000000098	-551.37
+Customer#000000037	-917.75
+Customer#000000136	-842.39
+Customer#000000118	3582.37
+Customer#000000022	591.98
+Customer#000000005	794.47
+Customer#000000109	-716.1
+Customer#000000038	6345.11
+Customer#000000076	5745.33
+Customer#000000056	6530.86
+Customer#000000040	1335.3
+Customer#000000116	8403.99
+Customer#000000115	7508.92
+Customer#000000140	9963.15
+Customer#000000017	6.34
+Customer#000000052	5630.28
+drop procedure p;
+# Materialization SJM SP
+# ======================
+create procedure p(d int)
+update customer set c_acctbal = c_acctbal+d where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3857.34
+Customer#000000032	3471.53
+Customer#000000037	-917.75
+Customer#000000118	3582.37
+Customer#000000056	6530.86
+call p(-1);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3856.34
+Customer#000000032	3470.53
+Customer#000000037	-918.75
+Customer#000000118	3581.37
+Customer#000000056	6529.86
+call p(-2);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3854.34
+Customer#000000032	3468.53
+Customer#000000037	-920.75
+Customer#000000118	3579.37
+Customer#000000056	6527.86
+call p(1+2);
+select c_name, c_acctbal from customer where c_custkey in (select o_custkey from orders
+where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+c_name	c_acctbal
+Customer#000000013	3857.34
+Customer#000000032	3471.53
+Customer#000000037	-917.75
+Customer#000000118	3582.37
+Customer#000000056	6530.86
+drop procedure p;
+# Checking limitations
+# ====================
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2));
+o_orderkey	o_totalprice
+1221	117397.16
+324	26868.85
+1856	189361.42
+1344	43809.37
+1925	146382.71
+3139	40975.96
+4903	34363.63
+5607	24660.06
+# Should not use semi-join conversion because has ORDER BY ... LIMIT
+explain
+update orders set o_totalprice = o_totalprice-50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2))
+order by o_totalprice limit 500;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	108	Using where; Using filesort
+2	DEPENDENT SUBQUERY	customer	unique_subquery|filter	PRIMARY,i_c_nationkey	PRIMARY|i_c_nationkey	4|5	func	1 (10%)	Using where; Using rowid filter
+update orders set o_totalprice = o_totalprice-50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2))
+order by o_totalprice limit 500;
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2));
+o_orderkey	o_totalprice
+1221	117347.16
+324	26818.85
+1856	189311.42
+1344	43759.37
+1925	146332.71
+3139	40925.96
+4903	34313.63
+5607	24610.06
+update orders set o_totalprice = o_totalprice+50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2))
+order by o_totalprice limit 500;
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2));
+o_orderkey	o_totalprice
+1221	117397.16
+324	26868.85
+1856	189361.42
+1344	43809.37
+1925	146382.71
+3139	40975.96
+4903	34363.63
+5607	24660.06
+# Should use semi-join converion
+explain
+update orders set o_totalprice = o_totalprice-50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	customer	range	PRIMARY,i_c_nationkey	i_c_nationkey	5	NULL	15	Using index condition
+1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (7%)	Using where; Using rowid filter
+update orders set o_totalprice = o_totalprice-50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2));
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2));
+o_orderkey	o_totalprice
+1221	117347.16
+324	26818.85
+1856	189311.42
+1344	43759.37
+1925	146332.71
+3139	40925.96
+4903	34313.63
+5607	24610.06
+update orders set o_totalprice = o_totalprice+50 where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2));
+select o_orderkey, o_totalprice from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey in (select c_custkey from customer
+where c_nationkey in (1,2));
+o_orderkey	o_totalprice
+1221	117397.16
+324	26868.85
+1856	189361.42
+1344	43809.37
+1925	146382.71
+3139	40975.96
+4903	34363.63
+5607	24660.06
+DROP DATABASE dbt3_s001;

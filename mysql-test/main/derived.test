@@ -1128,8 +1128,6 @@ select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a fr
 
 drop table t1,t2,t3;
 
-<<<<<<< 19b8dada4ce79622366d392e092ddb9a6e32b5b5
-
 --echo #
 --echo # MDEV-16549: Server crashes in Item_field::fix_fields on query with
 --echo # view and subquery, Assertion `context' failed, Assertion `field' failed
@@ -1148,8 +1146,6 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
-=======
---echo # End of 10.3 tests
 
 --echo #
 --echo # MDEV-28883: single/multi-table UPDATE/DELETE whose WHERE condition
@@ -1357,5 +1353,4 @@ deallocate prepare stmt;
 
 drop table t1,t2,t3;
 
---echo # End of MariaDB 10.10 tests
->>>>>>> MDEV-28965 Assertion failure when preparing UPDATE with derived table in WHERE
+--echo # End of MariaDB 11.0 tests
