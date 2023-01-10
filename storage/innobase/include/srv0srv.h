@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -260,8 +260,6 @@ extern ulint	srv_lock_table_size;
 
 /** the value of innodb_checksum_algorithm */
 extern ulong	srv_checksum_algorithm;
-
-extern uint	srv_n_file_io_threads;
 extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
 extern uint	srv_n_read_io_threads;
@@ -385,8 +383,6 @@ extern bool	srv_log_file_created;
 #endif /* UNIV_DEBUG */
 
 extern ulint	srv_dml_needed_delay;
-
-#define SRV_MAX_N_IO_THREADS	130
 
 /** innodb_purge_threads; the number of purge tasks to use */
 extern uint srv_n_purge_threads;

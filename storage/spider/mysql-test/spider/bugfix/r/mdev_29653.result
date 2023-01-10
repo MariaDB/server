@@ -1,0 +1,33 @@
+#
+# MDEV-29653 Assertion `0' failed in Item_cache_row::illegal_method_call on SELECT from Spider table
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE t (
+c INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE ts (
+c INT
+) ENGINE=Spider COMMENT='table "t", srv "s_2_1"';
+SELECT 1 FROM ts WHERE ROW(c, c) NOT IN ((0,0),(1,1));
+1
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

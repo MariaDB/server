@@ -438,7 +438,7 @@ int opt_sum_query(THD *thd,
             The optimization is not applicable in both cases:
             (a) 'expr' is a non-constant expression. Then we can't
             replace 'expr' by a constant.
-            (b) 'expr' is a costant. According to ANSI, MIN/MAX must return
+            (b) 'expr' is a constant. According to ANSI, MIN/MAX must return
             NULL if the query does not return any rows. Thus, if we are not
             able to determine if the query returns any rows, we can't apply
             the optimization and replace MIN/MAX with a constant.

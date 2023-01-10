@@ -4933,7 +4933,7 @@ sub noecho_password {
    };
 
    if ( $EVAL_ERROR ) {
-      die "Cannot read respose; is Term::ReadKey installed? $EVAL_ERROR";
+      die "Cannot read response; is Term::ReadKey installed? $EVAL_ERROR";
    }
    return $response;
 }

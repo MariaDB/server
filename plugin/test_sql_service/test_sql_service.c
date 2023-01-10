@@ -129,6 +129,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
 static int run_test(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
                     struct st_mysql_value *value)
 {
+  *(my_bool*) save= 0;          /* Set value for sql_service_run_test */
   return (test_passed= (do_tests() == 0)) == 0;
 }
 
