@@ -1,0 +1,551 @@
+--disable_warnings
+DROP DATABASE IF EXISTS dbt3_s001;
+--enable_warnings
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+create index i_n_name on nation(n_name);
+analyze table nation;
+
+
+--echo # Pullout
+--echo # =======
+
+let $c1=
+        o_orderDATE between '1992-01-01' and '1992-06-30' and
+        o_custkey in (select c_custkey from customer
+                        where c_nationkey in (select n_nationkey from nation
+                                                where n_name='PERU'));
+
+eval
+explain
+select o_orderkey, o_totalprice from orders where $c1;
+eval
+explain format=json
+select o_orderkey, o_totalprice from orders where $c1;
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+
+eval
+explain
+update orders set o_totalprice = o_totalprice-50 where $c1;
+eval
+explain format=json
+update orders set o_totalprice = o_totalprice-50 where $c1;
+eval
+update orders set o_totalprice = o_totalprice-50 where $c1;
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+
+eval
+update orders set o_totalprice= o_totalprice+50 where $c1;
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+
+
+let $c2=
+       (ps_partkey, ps_suppkey) in
+         (select p_partkey, s_suppkey from part, supplier
+            where p_retailprice between 901 and 910 and
+                  s_nationkey in (select n_nationkey from nation
+                                    where n_name='PERU'));
+
+eval
+explain
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c2;
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c2;
+
+eval
+explain
+update partsupp set ps_supplycost = ps_supplycost+2 where $c2;
+eval
+update partsupp set ps_supplycost = ps_supplycost+2 where $c2;
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c2;
+
+eval
+update partsupp set ps_supplycost = ps_supplycost-2 where $c2;
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c2;
+
+
+let $c3=
+        ps_partkey in (select p_partkey from part
+                         where p_retailprice between 901 and 910) and
+        ps_suppkey in (select s_suppkey from supplier
+                         where s_nationkey in (select n_nationkey from nation
+                                                 where n_name='PERU'));
+eval
+explain
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c3;
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c3;
+
+eval
+explain
+update partsupp set ps_supplycost = ps_supplycost+10 where $c3;
+eval
+update partsupp set ps_supplycost = ps_supplycost+10 where $c3;
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c3;
+
+eval
+update partsupp set ps_supplycost = ps_supplycost-10 where $c3;
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c3;
+
+
+let $c4=
+        l_orderkey in (select o_orderkey from orders
+                         where o_custkey in
+                               (select c_custkey from customer
+                                  where c_nationkey in
+                                        (select n_nationkey from nation
+                                           where n_name='PERU'))
+                               and
+                              o_orderDATE between '1992-06-30' and '1992-12-31')
+        and
+        (l_partkey, l_suppkey) in
+        (select p_partkey, s_suppkey from part, supplier
+           where p_retailprice between 901 and 1000 and
+                 s_nationkey in (select n_nationkey from nation
+                                   where n_name='PERU'));
+
+eval
+explain
+select l_orderkey, l_linenumber, l_tax from lineitem where $c4;
+eval
+select l_orderkey, l_linenumber, l_tax from lineitem where $c4;
+
+eval
+explain
+update lineitem set l_tax = (l_tax*100+1)/100 where $c4;
+eval
+update lineitem set l_tax = (l_tax*100+1)/100 where $c4;
+eval
+select l_orderkey, l_linenumber, l_tax from lineitem where $c4;
+
+eval
+update lineitem set l_tax = (l_tax*100-1)/100 where $c4;
+eval
+select l_orderkey, l_linenumber, l_tax from lineitem where $c4;
+
+
+--echo # FirstMatch
+--echo # ==========
+
+set optimizer_switch='materialization=off';
+
+let $c5=
+        c_nationkey in (select n_nationkey from nation
+                          where n_regionkey in (1,2))
+        and
+        c_custkey in (select o_custkey from orders
+                        where o_orderDATE between '1992-10-09' and '1993-06-08');
+
+eval
+explain
+select c_name, c_acctbal from customer where $c5;
+eval
+explain format=json
+select c_name, c_acctbal from customer where $c5;
+eval
+select c_name, c_acctbal from customer where $c5;
+
+eval
+explain
+update customer set c_acctbal = c_acctbal+10 where $c5;
+eval
+explain format=json
+update customer set c_acctbal = c_acctbal+10 where $c5;
+eval
+update customer set c_acctbal = c_acctbal+10 where $c5;
+eval
+select c_name, c_acctbal from customer where $c5;
+
+eval
+update customer set c_acctbal = c_acctbal-10 where $c5;
+eval
+select c_name, c_acctbal from customer where $c5;
+
+set optimizer_switch='materialization=default';
+
+let $c6=
+        c_nationkey in (select n_nationkey from nation where n_name='PERU')
+        and
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between "1992-01-09" and "1993-01-08");
+
+eval
+explain
+select c_name, c_acctbal from customer where $c6;
+eval
+select c_name, c_acctbal from customer where $c6;
+
+eval
+explain
+update customer set c_acctbal = c_acctbal+20 where $c6;
+eval
+update customer set c_acctbal = c_acctbal+20 where $c6;
+eval
+select c_name, c_acctbal from customer where $c6;
+
+eval
+update customer set c_acctbal = c_acctbal-20 where $c6;
+eval
+select c_name, c_acctbal from customer where $c6;
+
+--echo # Materialization
+--echo # ===============
+
+let $c7=
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between '1992-01-09' and '1992-03-08');
+
+eval
+explain
+select c_name, c_acctbal from customer where $c7;
+eval
+explain format=json
+select c_name, c_acctbal from customer where $c7;
+eval
+select c_name, c_acctbal from customer where $c7;
+
+eval
+explain
+update customer set c_acctbal = c_acctbal+5 where $c7;
+eval
+explain format=json
+update customer set c_acctbal = c_acctbal+5 where $c7;
+eval
+update customer set c_acctbal = c_acctbal+5 where $c7;
+eval
+select c_name, c_acctbal from customer where $c7;
+
+eval
+update customer set c_acctbal = c_acctbal-5 where $c7;
+eval
+select c_name, c_acctbal from customer where $c7;
+
+
+let $c8=
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between '1992-06-09' and '1993-01-08');
+
+eval
+explain
+select c_name, c_acctbal from customer where $c8;
+eval
+select c_name, c_acctbal from customer where $c8;
+
+eval
+explain
+update customer set c_acctbal = c_acctbal+1 where $c8;
+eval
+update customer set c_acctbal = c_acctbal+1 where $c8;
+eval
+select c_name, c_acctbal from customer where $c8;
+
+eval
+update customer set c_acctbal = c_acctbal-1 where $c8;
+eval
+select c_name, c_acctbal from customer where $c8;
+
+
+--echo # Materialization SJM
+--echo # ===================
+
+let $c9=
+        c_custkey in (select o_custkey from orders
+                        where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+
+eval
+explain
+select c_name, c_acctbal from customer where $c9;
+eval
+explain format=json
+select c_name, c_acctbal from customer where $c9;
+eval
+select c_name, c_acctbal from customer where $c9;
+
+eval
+explain
+update customer set c_acctbal = c_acctbal-5 where $c9;
+eval
+explain format=json
+update customer set c_acctbal = c_acctbal-5 where $c9;
+eval
+update customer set c_acctbal = c_acctbal-5 where $c9;
+eval
+select c_name, c_acctbal from customer where $c9;
+
+eval
+update customer set c_acctbal = c_acctbal+5 where $c9;
+eval
+select c_name, c_acctbal from customer where $c9;
+
+
+let $c10=
+        c_custkey in (select o_custkey from orders
+                        where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+
+eval
+explain
+select c_name, c_acctbal from customer where $c10;
+eval
+select c_name, c_acctbal from customer where $c10;
+
+eval
+explain
+update customer set c_acctbal = c_acctbal-1 where $c10;
+eval
+update customer set c_acctbal = c_acctbal-1 where $c10;
+eval
+select c_name, c_acctbal from customer where $c10;
+
+eval
+update customer set c_acctbal = c_acctbal+1 where $c10;
+eval
+select c_name, c_acctbal from customer where $c10;
+
+
+--echo # Pullout PS
+--echo # ==========
+
+eval
+prepare stmt from "
+update orders set o_totalprice = o_totalprice+? where $c1;
+";
+
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+set @a1=-20;
+execute stmt using @a1;
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+set @a2=-10;
+execute stmt using @a2;
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+execute stmt using -(@a1+@a2);
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+
+deallocate prepare stmt;
+
+
+--echo # FirstMatch PS
+--echo # =============
+
+eval
+prepare stmt from "
+update customer set c_acctbal = c_acctbal+? where $c5;
+";
+
+eval
+select c_name, c_acctbal from customer where $c5;
+set @a1=15;
+execute stmt using @a1;
+eval
+select c_name, c_acctbal from customer where $c5;
+set @a2=5;
+execute stmt using @a2;
+eval
+select c_name, c_acctbal from customer where $c5;
+execute stmt using -(@a1+@a2);
+eval
+select c_name, c_acctbal from customer where $c5;
+
+deallocate prepare stmt;
+
+
+--echo # Materialization PS
+--echo # ==================
+
+eval
+prepare stmt from "
+update customer set c_acctbal = c_acctbal+? where $c7;
+";
+
+eval
+select c_name, c_acctbal from customer where $c7;
+set @a1=7;
+execute stmt using @a1;
+eval
+select c_name, c_acctbal from customer where $c7;
+set @a2=3;
+execute stmt using @a2;
+eval
+select c_name, c_acctbal from customer where $c7;
+execute stmt using -(@a1+@a2);
+eval
+select c_name, c_acctbal from customer where $c7;
+
+deallocate prepare stmt;
+
+
+--echo # Materialization SJM PS
+--echo # ======================
+
+eval
+prepare stmt from "
+update customer set c_acctbal = c_acctbal+? where $c9;
+";
+
+eval
+select c_name, c_acctbal from customer where $c9;
+set @a1=-2;
+execute stmt using @a1;
+eval
+select c_name, c_acctbal from customer where $c9;
+set @a2=-1;
+execute stmt using @a2;
+eval
+select c_name, c_acctbal from customer where $c9;
+execute stmt using -(@a1+@a2);
+eval
+select c_name, c_acctbal from customer where $c9;
+
+deallocate prepare stmt;
+
+
+--echo # Pullout SP
+--echo # ==========
+
+eval
+create procedure p(d int)
+update orders set o_totalprice = o_totalprice+d where $c1;
+
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+call p(-10);
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+call p(-20);
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+call p(10+20);
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+
+drop procedure p;
+
+
+--echo # FirstMatch SP
+--echo # =============
+
+eval
+create procedure p(d int)
+update customer set c_acctbal = c_acctbal+d where $c5;
+
+eval
+select c_name, c_acctbal from customer where $c5;
+call p(5);
+eval
+select c_name, c_acctbal from customer where $c5;
+call p(15);
+eval
+select c_name, c_acctbal from customer where $c5;
+call p(-(5+15));
+eval
+select c_name, c_acctbal from customer where $c5;
+
+drop procedure p;
+
+
+--echo # Materialization SP
+--echo # ==================
+
+eval
+create procedure p(d int)
+update customer set c_acctbal = c_acctbal+d where $c7;
+
+eval
+select c_name, c_acctbal from customer where $c7;
+call p(3);
+eval
+select c_name, c_acctbal from customer where $c7;
+call p(7);
+eval
+select c_name, c_acctbal from customer where $c7;
+call p(-(3+7));
+eval
+select c_name, c_acctbal from customer where $c7;
+
+drop procedure p;
+
+
+--echo # Materialization SJM SP
+--echo # ======================
+
+eval
+create procedure p(d int)
+update customer set c_acctbal = c_acctbal+d where $c9;
+
+eval
+select c_name, c_acctbal from customer where $c9;
+call p(-1);
+eval
+select c_name, c_acctbal from customer where $c9;
+call p(-2);
+eval
+select c_name, c_acctbal from customer where $c9;
+call p(1+2);
+eval
+select c_name, c_acctbal from customer where $c9;
+
+drop procedure p;
+
+--echo # Checking limitations
+--echo # ====================
+
+let $c11=
+        o_orderDATE between '1992-01-01' and '1992-06-30' and
+        o_custkey in (select c_custkey from customer
+                        where c_nationkey in (1,2));
+
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+--echo # Should not use semi-join conversion because has ORDER BY ... LIMIT
+eval
+explain
+update orders set o_totalprice = o_totalprice-50 where $c11
+order by o_totalprice limit 500;
+eval
+update orders set o_totalprice = o_totalprice-50 where $c11
+order by o_totalprice limit 500;
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+eval
+update orders set o_totalprice = o_totalprice+50 where $c11
+order by o_totalprice limit 500;
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+
+--echo # Should use semi-join converion
+eval
+explain
+update orders set o_totalprice = o_totalprice-50 where $c11;
+eval
+update orders set o_totalprice = o_totalprice-50 where $c11;
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+eval
+update orders set o_totalprice = o_totalprice+50 where $c11;
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+
+DROP DATABASE dbt3_s001;
