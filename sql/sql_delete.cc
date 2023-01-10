@@ -348,7 +348,6 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
   query_plan.using_filesort= FALSE;
 
   THD_STAGE_INFO(thd, stage_init_update);
-  create_explain_query(thd->lex, thd->mem_root);
 
   const bool delete_history= table_list->vers_conditions.delete_history;
   DBUG_ASSERT(!(delete_history && table_list->period_conditions.is_set()));
@@ -1668,6 +1667,10 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
     {
       goto err;
     }
+
+    if (!multitable &&
+        select_lex->sj_subselects.elements)
+      multitable= true;
   }
 
   if (multitable)

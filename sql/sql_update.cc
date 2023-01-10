@@ -382,7 +382,6 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   DBUG_ENTER("Sql_cmd_update::update_single_table");
 
   THD_STAGE_INFO(thd, stage_init_update);
-  create_explain_query(thd->lex, thd->mem_root);
 
   thd->table_map_for_update= 0;
 
@@ -2479,6 +2478,8 @@ int multi_update::do_updates()
     table = cur_table->table;
     if (table == table_to_update)
       continue;					// Already updated
+    if (table->file->pushed_rowid_filter)
+      table->file->disable_pushed_rowid_filter();
     org_updated= updated;
     tmp_table= tmp_tables[cur_table->shared];
     tmp_table->file->extra(HA_EXTRA_CACHE);	// Change to read cache
@@ -2673,7 +2674,8 @@ int multi_update::do_updates()
     check_opt_it.rewind();
     while (TABLE *tbl= check_opt_it++)
         tbl->file->ha_rnd_end();
-
+    if (table->file->save_pushed_rowid_filter)
+      table->file->enable_pushed_rowid_filter();
   }
   DBUG_RETURN(0);
 
@@ -2684,6 +2686,8 @@ err:
   }
 
 err2:
+  if (table->file->save_pushed_rowid_filter)
+    table->file->enable_pushed_rowid_filter();
   if (table->file->inited)
     (void) table->file->ha_rnd_end();
   if (tmp_table->file->inited)
@@ -2987,7 +2991,9 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
     {
       goto err;
     }
-
+    if (!multitable &&
+        select_lex->sj_subselects.elements)
+      multitable= true;
   }
 
   if (table_list->has_period())
