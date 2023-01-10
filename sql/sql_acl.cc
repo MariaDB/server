@@ -59,11 +59,6 @@
 #include "wsrep_mysqld.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
-extern HASH user_login_failed_hash;
-int clear_user_login_faild_hash(){
-  my_hash_reset(&user_login_failed_hash);
-  return 0;
-}
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
@@ -13149,6 +13144,8 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 #define initialized 0
 #define check_for_max_user_connections(X,Y)   0
 #define get_or_create_user_conn(A,B,C,D) 0
+#define get_or_create_user_login_failed_record(A,B) 0
+#define check_connection_delay_for_user(A,B) 0
 #endif
 #endif
 #ifndef HAVE_OPENSSL
