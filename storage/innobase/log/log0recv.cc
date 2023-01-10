@@ -1037,6 +1037,8 @@ void (*log_file_op)(ulint space_id, int type,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
 
+void (*undo_space_trunc)(uint32_t space_id);
+
 void (*first_page_init)(ulint space_id);
 
 /** Information about initializing page contents during redo log processing.
@@ -2424,6 +2426,8 @@ same_page:
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
           truncated_undo_spaces[space_id - srv_undo_space_id_start]=
             { recovered_lsn, page_no };
+          if (undo_space_trunc)
+            undo_space_trunc(space_id);
 #endif
           last_offset= 1; /* the next record must not be same_page  */
           continue;

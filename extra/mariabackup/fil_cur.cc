@@ -129,6 +129,7 @@ xb_fil_cur_open(
 	in case of error */
 	cursor->buf = NULL;
 	cursor->node = NULL;
+	cursor->n_process_batch = 0;
 
 	cursor->space_id = node->space->id;
 
@@ -374,6 +375,8 @@ xb_fil_cur_result_t xb_fil_cur_read(xb_fil_cur_t*	cursor,
 		return(XB_FIL_CUR_EOF);
 	}
 
+reinit_buf:
+	cursor->n_process_batch++;
 	if (to_read > (ib_int64_t) cursor->buf_size) {
 		to_read = (ib_int64_t) cursor->buf_size;
 	}
@@ -416,8 +419,26 @@ read_retry:
 
 	if (os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
 			 (ulint) to_read, nullptr) != DB_SUCCESS) {
-		ret = XB_FIL_CUR_ERROR;
-		goto func_exit;
+		if (!srv_is_undo_tablespace(cursor->space_id)) {
+			ret = XB_FIL_CUR_ERROR;
+			goto func_exit;
+		}
+
+		if (cursor->buf_page_no
+		    >= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES) {
+			ret = XB_FIL_CUR_SKIP;
+			goto func_exit;
+		}
+
+		to_read = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES * page_size;
+
+		if (cursor->n_process_batch > 1) {
+			ret = XB_FIL_CUR_ERROR;
+			goto func_exit;
+		}
+
+		space->release();
+		goto reinit_buf;
 	}
 
 	defer = UT_LIST_GET_FIRST(space->chain)->deferred;

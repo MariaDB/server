@@ -34,8 +34,8 @@
 
   SYNOPSIS
     init_alloc_root()
+      key            - key to register instrumented memory
       mem_root       - memory root to initialize
-      name           - name of memroot (for debugging)
       block_size     - size of chunks (blocks) used for memory allocation
                        (It is external size of chunk i.e. it should include
                         memory required for internal structures, thus it
