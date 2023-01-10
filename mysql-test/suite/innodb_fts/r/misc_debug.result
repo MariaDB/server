@@ -68,7 +68,7 @@ DROP TABLE t1;
 CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100))ENGINE=InnoDB;
 SET DEBUG_DBUG="+d,stats_lock_fail";
 ALTER TABLE t1 ADD FULLTEXT(f2);
-ERROR HY000: Got error 15 "Block device required" from storage engine InnoDB
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET debug_dbug=@saved_debug_dbug;
 ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t1 ADD FULLTEXT(f2);

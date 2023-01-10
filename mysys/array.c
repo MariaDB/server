@@ -23,6 +23,7 @@
 
   SYNOPSIS
     init_dynamic_array2()
+      ps_key            Key to register instrumented memory
       array		Pointer to an array
       element_size	Size of element
       init_buffer       Initial buffer pointer

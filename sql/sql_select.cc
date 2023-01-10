@@ -26265,7 +26265,6 @@ bool JOIN::alloc_func_list()
   @param field_list        All items
   @param send_result_set_metadata       Items in select list
   @param before_group_by   Set to 1 if this is called before GROUP BY handling
-  @param recompute         Set to TRUE if sum_funcs must be recomputed
 
   @retval
     0  ok
