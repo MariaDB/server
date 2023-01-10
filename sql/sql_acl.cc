@@ -13144,8 +13144,8 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 #define initialized 0
 #define check_for_max_user_connections(X,Y)   0
 #define get_or_create_user_conn(A,B,C,D) 0
-#define get_or_create_user_login_failed_record(A,B) 0
-#define check_connection_delay_for_user(A,B) 0
+#define get_or_create_user_login_failed_record(A,B) {}
+#define check_connection_delay_for_user(A,B) {}
 #endif
 #endif
 #ifndef HAVE_OPENSSL
