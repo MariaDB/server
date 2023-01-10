@@ -2146,12 +2146,12 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
 
   if (!join_tab->first_unmatched)
   {
-    bool pfs_batch_update= join_tab->pfs_batch_update(join);
-    if (pfs_batch_update)
+    DBUG_ASSERT(join_tab->cached_pfs_batch_update == join_tab->pfs_batch_update());
+    if (join_tab->cached_pfs_batch_update)
       join_tab->table->file->start_psi_batch_mode();
     /* Find all records from join_tab that match records from join buffer */
     rc= join_matching_records(skip_last);   
-    if (pfs_batch_update)
+    if (join_tab->cached_pfs_batch_update)
       join_tab->table->file->end_psi_batch_mode();
     if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
       goto finish;
@@ -2325,7 +2325,8 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
   if ((rc= join_tab_execution_startup(join_tab)) < 0)
     goto finish2;
 
-  join_tab->build_range_rowid_filter_if_needed();
+  if (join_tab->need_to_build_rowid_filter)
+    join_tab->build_range_rowid_filter();
 
   /* Prepare to retrieve all records of the joined table */
   if (unlikely((error= join_tab_scan->open())))

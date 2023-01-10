@@ -1995,7 +1995,10 @@ bool JOIN::make_range_rowid_filters()
                                                tab->range_rowid_filter_info,
                                                filter_container, sel);
       if (tab->rowid_filter)
+      {
+        tab->need_to_build_rowid_filter= true;
         continue;
+      }
     }
   no_filter:
     if (sel->quick)
@@ -2030,16 +2033,16 @@ JOIN::init_range_rowid_filters()
        tab;
        tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
   {
+    tab->need_to_build_rowid_filter= false;     // Safety
     if (!tab->rowid_filter)
       continue;
     if (tab->rowid_filter->get_container()->alloc())
     {
-      delete tab->rowid_filter;
-      tab->rowid_filter= 0;
+      tab->clear_range_rowid_filter();
       continue;
     }
     tab->table->file->rowid_filter_push(tab->rowid_filter);
-    tab->is_rowid_filter_built= false;
+    tab->need_to_build_rowid_filter= true;
   }
   DBUG_RETURN(0);
 }
@@ -13288,10 +13291,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	    sel->quick_keys.clear_all();
 	    sel->needed_reg.clear_all();
             if (is_hj && tab->rowid_filter)
-	    {
-              delete tab->rowid_filter;
-              tab->rowid_filter= 0;
-	    }
+              tab->clear_range_rowid_filter();
 	  }
 	  else
 	  {
@@ -13978,6 +13978,7 @@ void set_join_cache_denial(JOIN_TAB *join_tab)
       don't do join buffering for the first table in sjm nest. 
     */
     join_tab[-1].next_select= sub_select;
+    join_tab[-1].cached_pfs_batch_update= join_tab[-1].pfs_batch_update();
     if (join_tab->type == JT_REF && join_tab->is_ref_for_hash_join())
     {
       join_tab->type= JT_ALL;
@@ -14806,9 +14807,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     */
     if (!(tab->bush_root_tab && 
           tab->bush_root_tab->bush_children->end == tab + 1))
-    {
-      tab->next_select=sub_select;		/* normal select */
-    }
+      tab->next_select= sub_select;		/* normal select */
 
     if (tab->loosescan_match_tab)
     {
@@ -14967,6 +14966,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       abort();
       /* purecov: end */
     }
+    tab->cached_pfs_batch_update= tab->pfs_batch_update();
 
     DBUG_EXECUTE("where",
                  char buff[256];
@@ -15069,36 +15069,57 @@ bool error_if_full_join(JOIN *join)
 }
 
 
-void JOIN_TAB::build_range_rowid_filter_if_needed()
-{
-  if (rowid_filter && !is_rowid_filter_built)
-  {
-    /**
-      The same handler object (table->file) is used to build a filter
-      and to perfom a primary table access (by the main query).
+/**
+   build_range_rowid_filter()
 
-      To estimate the time for filter building tracker should be changed
-      and after building of the filter has been finished it should be
-      switched back to the previos tracker.
-    */
-    Exec_time_tracker *table_tracker= table->file->get_time_tracker();
-    Rowid_filter_tracker *rowid_tracker= rowid_filter->get_tracker();
-    table->file->set_time_tracker(rowid_tracker->get_time_tracker());
-    rowid_tracker->start_tracking(join->thd);
-    if (!rowid_filter->build())
-    {
-      is_rowid_filter_built= true;
-    }
-    else
-    {
-      delete rowid_filter;
-      rowid_filter= 0;
-    }
-    rowid_tracker->stop_tracking(join->thd);
-    table->file->set_time_tracker(table_tracker);
+   Build range rowid filter.  This function should only be called if
+   need_to_build_rowid_filter
+   is true
+*/
+
+void JOIN_TAB::build_range_rowid_filter()
+{
+  DBUG_ASSERT(need_to_build_rowid_filter && rowid_filter);
+
+  /**
+     The same handler object (table->file) is used to build a filter
+     and to perfom a primary table access (by the main query).
+
+     To estimate the time for filter building tracker should be changed
+     and after building of the filter has been finished it should be
+     switched back to the previos tracker.
+  */
+
+  Exec_time_tracker *table_tracker= table->file->get_time_tracker();
+  Rowid_filter_tracker *rowid_tracker= rowid_filter->get_tracker();
+  table->file->set_time_tracker(rowid_tracker->get_time_tracker());
+  rowid_tracker->start_tracking(join->thd);
+
+  if (rowid_filter->build())
+  {
+    /* Failed building rowid filter */
+    clear_range_rowid_filter();
   }
+  need_to_build_rowid_filter= false;
+  rowid_tracker->stop_tracking(join->thd);
+  table->file->set_time_tracker(table_tracker);
 }
 
+
+/*
+  Clear used rowid filter
+
+  Note that rowid_filter is allocated on mem_root and not really freed!
+  Only the rowid data is freed.
+*/
+
+void JOIN_TAB::clear_range_rowid_filter()
+{
+  delete rowid_filter;
+  rowid_filter= 0;
+  need_to_build_rowid_filter= false;
+  range_rowid_filter_info= 0;
+}
 
 /**
   cleanup JOIN_TAB.
@@ -15120,10 +15141,7 @@ void JOIN_TAB::cleanup()
   delete quick;
   quick= 0;
   if (rowid_filter)
-  {
-    delete rowid_filter;
-    rowid_filter= 0;
-  }
+    clear_range_rowid_filter();
   if (cache)
   {
     cache->free();
@@ -15321,6 +15339,7 @@ double JOIN_TAB::get_examined_rows()
 
   TODO: consider moving this together with join_tab_execution_startup
 */
+
 bool JOIN_TAB::preread_init()
 {
   TABLE_LIST *derived= table->pos_in_table_list;
@@ -15362,7 +15381,31 @@ bool JOIN_TAB::preread_init()
 }
 
 
-bool JOIN_TAB::pfs_batch_update(JOIN *join)
+/**
+  pfs_batch_update()
+
+  Check if the used table will do a lot of read calls in a row without
+  any intervening read calls to any other tables.
+
+  @return 0  No
+  @return 1  Yes
+
+  If yes, then the handler will be informed about this with the
+  start_psi_batch_mode() / end_psi_batch_mode() calls
+
+  This is currently used only to speed up performance schema code for
+  multiple reads.
+
+  In the future we may also inform the engine about this.  The engine
+  could use this information to cache the used pages, keep blocks
+  locked in the page cache and similar things to speed up repeated
+  reads.
+
+  The return value of this function is cached in
+  JOIN_TAB::cached_pfs_batch_update
+*/
+
+bool JOIN_TAB::pfs_batch_update()
 {
   /*
     Use PFS batch mode if
@@ -19245,7 +19288,7 @@ bool cond_is_datetime_is_null(Item *cond)
   => SELECT * FROM t1 WHERE ((FALSE AND (a = 5)) OR
                              ((b = 5) AND (a = 5))) AND
                              (b = 5) AND (a = 5)
-  After this an additional call of  remove_eq_conds() converts it to
+  After this an additional call of remove_eq_conds() converts it to
  =>  SELECT * FROM t1 WHERE (b = 5) AND (a = 5)                            
 */
 
@@ -19358,7 +19401,7 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
       else
       {
         if (new_item->type() == Item::COND_ITEM &&
-            ((Item_cond*) new_item)->functype() ==  functype())
+            ((Item_cond*) new_item)->functype() == functype())
         {
           List<Item> *new_item_arg_list=
             ((Item_cond *) new_item)->argument_list();
@@ -22071,6 +22114,7 @@ do_select(JOIN *join, Procedure *procedure)
 {
   int rc= 0;
   enum_nested_loop_state error= NESTED_LOOP_OK;
+  uint top_level_tables= join->exec_join_tab_cnt();
   DBUG_ENTER("do_select");
 
   if (join->pushdown_query)
@@ -22087,8 +22131,9 @@ do_select(JOIN *join, Procedure *procedure)
 
     if (join->pushdown_query->store_data_in_temp_table)
     {
-      JOIN_TAB *last_tab= join->join_tab + join->exec_join_tab_cnt();
+      JOIN_TAB *last_tab= join->join_tab + top_level_tables;
       last_tab->next_select= end_send;
+      last_tab->cached_pfs_batch_update= last_tab->pfs_batch_update();
 
       enum_nested_loop_state state= last_tab->aggr->end_send();
       if (state >= NESTED_LOOP_OK)
@@ -22105,6 +22150,7 @@ do_select(JOIN *join, Procedure *procedure)
   
   join->procedure= procedure;
   join->duplicate_rows= join->send_records=0;
+
   if (join->only_const_tables() && !join->need_tmp)
   {
     Next_select_func end_select= setup_end_select_func(join, NULL);
@@ -22176,6 +22222,17 @@ do_select(JOIN *join, Procedure *procedure)
                                                  join->select_lex->select_number))
                           dbug_serve_apcs(join->thd, 1);
                    );
+
+  /*
+    We have to update the cached_pfs_batch_update as
+    join_tab->select_cond may have changed.
+
+    This can happen in case of group by where some sub queries are not
+    needed anymore.  This is checked by main.ps
+  */
+    if (top_level_tables)
+      join->join_tab[top_level_tables-1].cached_pfs_batch_update=
+        join->join_tab[top_level_tables-1].pfs_batch_update();
 
     JOIN_TAB *join_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
@@ -22568,6 +22625,8 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 enum_nested_loop_state
 sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 {
+  int error;
+  enum_nested_loop_state rc;
   DBUG_ENTER("sub_select");
 
   if (join_tab->last_inner)
@@ -22587,10 +22646,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   }
   join_tab->tracker->r_scans++;
 
-  int error;
-  enum_nested_loop_state rc= NESTED_LOOP_OK;
-  READ_RECORD *info= &join_tab->read_record;
-
+  rc= NESTED_LOOP_OK;
 
   for (SJ_TMP_TABLE *flush_dups_table= join_tab->flush_weedout_table;
        flush_dups_table;
@@ -22602,9 +22658,21 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (!join_tab->preread_init_done && join_tab->preread_init())
     DBUG_RETURN(NESTED_LOOP_ERROR);
 
-  join_tab->build_range_rowid_filter_if_needed();
-  if (join_tab->rowid_filter && join_tab->rowid_filter->is_empty())
-    rc= NESTED_LOOP_NO_MORE_ROWS;
+  if (unlikely(join_tab->rowid_filter))
+  {
+    if (unlikely(join_tab->need_to_build_rowid_filter))
+    {
+      join_tab->build_range_rowid_filter();
+      /*
+        We have to check join_tab->rowid_filter again as the above
+        function may have cleared it in case of errors.
+      */
+      if (join_tab->rowid_filter && join_tab->rowid_filter->is_empty())
+        rc= NESTED_LOOP_NO_MORE_ROWS;
+    }
+    else if (join_tab->rowid_filter->is_empty())
+      rc= NESTED_LOOP_NO_MORE_ROWS;
+  }
 
   join->return_tab= join_tab;
 
@@ -22630,8 +22698,8 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
   if (join_tab->loosescan_match_tab)
     join_tab->loosescan_match_tab->found_match= FALSE;
 
-  const bool pfs_batch_update= join_tab->pfs_batch_update(join);
-  if (pfs_batch_update)
+  DBUG_ASSERT(join_tab->cached_pfs_batch_update == join_tab->pfs_batch_update());
+  if (join_tab->cached_pfs_batch_update)
     join_tab->table->file->start_psi_batch_mode();
 
   if (rc != NESTED_LOOP_NO_MORE_ROWS)
@@ -22642,11 +22710,9 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     rc= evaluate_join_record(join, join_tab, error);
   }
 
-  /* 
-    Note: psergey has added the 2nd part of the following condition; the 
-    change should probably be made in 5.1, too.
-  */
   bool skip_over= FALSE;
+  READ_RECORD *info= &join_tab->read_record;
+
   while (rc == NESTED_LOOP_OK && join->return_tab >= join_tab)
   {
     if (join_tab->loosescan_match_tab && 
@@ -22681,15 +22747,21 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     rc= evaluate_join_record(join, join_tab, error);
   }
 
-  if (rc == NESTED_LOOP_NO_MORE_ROWS &&
-      join_tab->last_inner && !join_tab->found)
-    rc= evaluate_null_complemented_join_record(join, join_tab);
+  if (rc == NESTED_LOOP_NO_MORE_ROWS)
+  {
+    if (join_tab->last_inner && !join_tab->found)
+    {
+      rc= evaluate_null_complemented_join_record(join, join_tab);
+      if (rc == NESTED_LOOP_NO_MORE_ROWS)
+        rc= NESTED_LOOP_OK;
+    }
+    else
+      rc= NESTED_LOOP_OK;
+  }
 
-  if (pfs_batch_update)
+  if (join_tab->cached_pfs_batch_update)
     join_tab->table->file->end_psi_batch_mode();
 
-  if (rc == NESTED_LOOP_NO_MORE_ROWS)
-    rc= NESTED_LOOP_OK;
   DBUG_RETURN(rc);
 }
 
@@ -22716,7 +22788,6 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
   ha_rows found_records=join->found_records;
   COND *select_cond= join_tab->select_cond;
   bool select_cond_result= TRUE;
-
   DBUG_ENTER("evaluate_join_record");
   DBUG_PRINT("enter",
              ("evaluate_join_record join: %p  join_tab: %p  "
@@ -22744,7 +22815,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       DBUG_RETURN(NESTED_LOOP_ERROR);
   }
 
-  if (!select_cond || select_cond_result)
+  if (select_cond_result)
   {
     /*
       There is no select condition or the attached pushed down
@@ -23594,7 +23665,8 @@ int join_init_read_record(JOIN_TAB *tab)
     need_unpacking= tbl ? tbl->is_sjm_scan_table() : FALSE;
   }
 
-  tab->build_range_rowid_filter_if_needed();
+  if (tab->need_to_build_rowid_filter)
+    tab->build_range_rowid_filter();
 
   if (tab->filesort && tab->sort_table())     // Sort table.
     return 1;
@@ -25721,8 +25793,9 @@ check_reverse_order:
           select->quick= 0;          // Cleanup either reset to save_quick,
                                      // or 'delete save_quick'
         tab->index= best_key;
-        tab->read_first_record= order_direction > 0 ?
-                                join_read_first:join_read_last;
+        tab->read_first_record= (order_direction > 0 ?
+                                 join_read_first:
+                                 join_read_last);
         tab->type=JT_NEXT;           // Read with index_first(), index_next()
 
         /*
@@ -25731,11 +25804,7 @@ check_reverse_order:
         */
         if (tab->rowid_filter &&
             table->file->is_clustering_key(tab->index))
-	{
-          tab->range_rowid_filter_info= 0;
-          delete tab->rowid_filter;
-          tab->rowid_filter= 0;
-        }
+          tab->clear_range_rowid_filter();
 
         if (tab->pre_idx_push_select_cond)
         {
@@ -25769,12 +25838,8 @@ check_reverse_order:
         tab->use_quick=1;
         tab->ref.key= -1;
         tab->ref.key_parts=0;		// Don't use ref key.
-        tab->range_rowid_filter_info= 0;
         if (tab->rowid_filter)
-	{
-          delete tab->rowid_filter;
-          tab->rowid_filter= 0;
-        }
+          tab->clear_range_rowid_filter();
         tab->read_first_record= join_init_read_record;
         if (tab->is_using_loose_index_scan())
           tab->join->tmp_table_param.precomputed_group_by= TRUE;
