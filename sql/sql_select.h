@@ -423,6 +423,8 @@ typedef struct st_join_table {
   bool          cached_eq_ref_table,eq_ref_table;
   bool          shortcut_for_distinct;
   bool          sorted;
+  bool          cached_pfs_batch_update;
+
   /* 
     If it's not 0 the number stored this field indicates that the index
     scan has been chosen to access the table data and we expect to scan 
@@ -571,10 +573,11 @@ typedef struct st_join_table {
   Range_rowid_filter_cost_info *range_rowid_filter_info;
   /* Rowid filter to be used when joining this join table */
   Rowid_filter *rowid_filter;
-  /* Becomes true just after the used range filter has been built / filled */
-  bool is_rowid_filter_built;
+  /* True if the plan requires a rowid filter and it's not built yet */
+  bool need_to_build_rowid_filter;
 
-  void build_range_rowid_filter_if_needed();
+  void build_range_rowid_filter();
+  void clear_range_rowid_filter();
 
   void cleanup();
   inline bool is_using_loose_index_scan()
@@ -685,7 +688,7 @@ typedef struct st_join_table {
   double get_examined_rows();
   bool preread_init();
 
-  bool pfs_batch_update(JOIN *join);
+  bool pfs_batch_update();
 
   bool is_sjm_nest() { return MY_TEST(bush_children); }
   
