@@ -91,7 +91,9 @@ connection con3;
 --reap;
 
 connection default;
---source include/wait_until_connected_again.inc
+
+--let $wait_condition=select count(*)=3 from information_schema.processlist where command='sleep';
+--source include/wait_condition.inc
 
 SELECT OBJECT_TYPE, OBJECT_SCHEMA, OBJECT_NAME, COUNT_STAR, COUNT_STATEMENTS
        FROM performance_schema.events_statements_summary_by_program

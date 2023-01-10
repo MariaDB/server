@@ -642,7 +642,7 @@ SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 = 'lock_rec_lock_created');
 SELECT @end - @start;
 @end - @start
-0
+1
 # Records must not be S/X-locked if a table is X-locked.
 SET @start = @end;
 SET autocommit = 0;

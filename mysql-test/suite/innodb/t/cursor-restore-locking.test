@@ -27,6 +27,10 @@ SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR fir
 --send INSERT INTO t VALUES(10, 20)
 
 --connect(con_del_2,localhost,root,,)
+# After MDEV-30225 is fixed, the following DELETE creates next-key lock for
+# unqique search for RR, and the above INSERT kills it as deadlock victim.
+# But it still requests not-gap lock for RC.
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET DEBUG_SYNC = 'now WAIT_FOR first_ins_locked';
 SET DEBUG_SYNC = 'lock_wait_start SIGNAL second_del_locked';
 ###############################################################################

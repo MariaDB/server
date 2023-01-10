@@ -101,7 +101,7 @@ extern struct sql_service_st {
 */
 MYSQL *mysql_real_connect_local(MYSQL *mysql);
 
-/* The rest of the function declarations mest be taken from the mysql.h */
+/* The rest of the function declarations must be taken from the mysql.h */
 
 #endif /*MYSQL_DYNAMIC_PLUGIN*/
 

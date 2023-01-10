@@ -19,7 +19,7 @@ show create table tt2;
 Table	Create Table
 tt2	CREATE TEMPORARY TABLE `tt2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 connect con1, localhost, root;
 create table t3 (a int);
 show create table t3;
@@ -32,7 +32,7 @@ show create table tt3;
 Table	Create Table
 tt3	CREATE TEMPORARY TABLE `tt3` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
 disconnect con1;
 connection default;
 set debug_dbug='+d,sysvers_show';

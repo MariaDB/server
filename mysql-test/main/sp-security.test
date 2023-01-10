@@ -911,8 +911,9 @@ DROP USER 'tester';
 DROP USER 'Tester';
 DROP DATABASE B48872;
 
---echo End of 5.0 tests.
-
+--echo #
+--echo # End of 5.0 tests.
+--echo #
 
 --echo #
 --echo # Test for bug#57061 "User without privilege on routine can discover
@@ -1080,9 +1081,8 @@ DROP USER u1@localhost;
 
 set @@global.character_set_server=@save_character_set_server;
 
-
 --echo #
---echo # Start of 10.5 tests
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -1102,7 +1102,20 @@ CALL p1();
 DROP PROCEDURE p1;
 DROP USER foo@localhost;
 
-
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-29852 SIGSEGV in mysql_create_routine or is_acl_user on 2nd execution, ASAN use-after-poison in get_current_user (sql_acl.cc)
+--echo #
+set @cmd:="create definer=u function f(i int) returns char binary reads sql data return concat (1,i)";
+prepare s from @cmd;
+execute s;
+--error ER_SP_ALREADY_EXISTS
+execute s;
+drop function f;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #

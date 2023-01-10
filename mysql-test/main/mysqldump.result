@@ -4590,6 +4590,7 @@ Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	E
 # MDEV-13336: add ignore-database option
 #           with --all-databases
 #
+SET GLOBAL innodb_max_purge_lag_wait=0;
 DROP DATABASE test;
 SHOW DATABASES LIKE 'test';
 Database (test)

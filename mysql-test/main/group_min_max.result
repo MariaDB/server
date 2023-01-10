@@ -4066,6 +4066,26 @@ owner_id
 1
 DROP TABLE t1;
 #
+# MDEV-30240 Wrong result upon aggregate function with SQL_BUFFER_RESULT
+#
+drop table if exists t1,t2;
+Warnings:
+Note	1051	Unknown table 'test.t1,test.t2'
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (1),(2);
+SELECT SQL_BUFFER_RESULT MIN(pk) FROM t1, t2;
+MIN(pk)
+1
+SELECT MIN(pk) FROM t1, t2;
+MIN(pk)
+1
+DROP TABLE t1, t2;
+#
+# End of 10.5 tests
+#
+#
 # MDEV-24353: Adding GROUP BY slows down a query
 #
 CREATE TABLE t1 (p int NOT NULL, a int NOT NULL, PRIMARY KEY (p,a));

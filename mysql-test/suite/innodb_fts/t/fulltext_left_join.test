@@ -2,6 +2,7 @@
 # Test for bug from Jean-Cédric COSTA <jean-cedric.costa@ensmp.fr>
 #
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 --disable_warnings
 drop table if exists t1, t2;
