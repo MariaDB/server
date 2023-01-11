@@ -10909,7 +10909,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             tmp:     [---------]
           */
           key2->copy_max_to_min(tmp);
-          key2= key2_next;
+          key2->next= key2_next;                // In case of key2_shared
         }
         continue;
       }
