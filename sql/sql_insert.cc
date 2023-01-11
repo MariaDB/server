@@ -4396,6 +4396,7 @@ TABLE *select_create::create_table_from_items(THD *thd,
         */
         DBUG_ASSERT(0);
       }
+      create_table->table->pos_in_table_list= create_table;
     }
   }
   else
