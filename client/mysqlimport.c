@@ -342,7 +342,7 @@ static int write_to_table(char *filename, MYSQL *mysql)
   }
   mysql_real_escape_string(mysql, escaped_name, hard_path,
                            (unsigned long) strlen(hard_path));
-  sprintf(sql_statement, "LOAD DATA %s %s INFILE '%s'",
+  snprintf(sql_statement, sizeof(sql_statement), "LOAD DATA %s %s INFILE '%s'",
 	  opt_low_priority ? "LOW_PRIORITY" : "",
 	  opt_local_file ? "LOCAL" : "", escaped_name);
   end= strend(sql_statement);

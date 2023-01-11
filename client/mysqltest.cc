@@ -4699,7 +4699,7 @@ void do_sync_with_master2(struct st_command *command, long offset,
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d, '%s')",
+  snprintf(query_buf, sizeof(query_buf), "select master_pos_wait('%s', %ld, %d, '%s')",
           master_pos.file, master_pos.pos + offset, timeout,
           connection_name);
 
@@ -7712,7 +7712,7 @@ void append_info(DYNAMIC_STRING *ds, ulonglong affected_rows,
                  const char *info)
 {
   char buf[40], buff2[21];
-  sprintf(buf,"affected rows: %s\n", llstr(affected_rows, buff2));
+  snprintf(buf, sizeof(buf), "affected rows: %s\n", llstr(affected_rows, buff2));
   dynstr_append(ds, buf);
   if (info)
   {
