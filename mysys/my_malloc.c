@@ -59,6 +59,7 @@ void set_malloc_size_cb(MALLOC_SIZE_CB func)
 /**
   Allocate a sized block of memory.
 
+  @param key    Key to register instrumented memory
   @param size   The size of the memory block in bytes.
   @param flags  Failure action modifiers (bitmasks).
 
@@ -120,7 +121,8 @@ void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
 /**
    @brief wrapper around realloc()
 
-   @param  old_point        pointer to currently allocated area
+   @param  key             key to register instrumented memory
+   @param  old_point       pointer to currently allocated area
    @param  size            new size requested, must be >0
    @param  my_flags        flags
 

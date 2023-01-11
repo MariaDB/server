@@ -360,7 +360,7 @@ build mariadbclient consumer Python-MySQLdb:
   image: debian:${RELEASE}
   script:
     - *test-prepare-container
-    # Run each step separately to avoitda 800+ lines chunk that lacks the
+    # Run each step separately to avoid an 800+ line chunk that lacks the
     # commands themselves printed and Gitlab-CI cutting off the output
     - apt-get install -y pkg-config ./libmariadb-dev*.deb ./libmariadb3_*.deb ./mariadb-common*.deb
     - pkg-config --cflags --libs mysqlclient # See what MySQLdb builds with
@@ -522,6 +522,70 @@ mysql-8.0 Jammy to mariadb upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
+mariadb.org 10.11 to mariadb upgrade:
+  stage: upgrade extras
+  needs:
+    - job: build
+  image: debian:${RELEASE}
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - *test-prepare-container
+    - apt install -y curl
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://deb.mariadb.org/10.11/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    - apt-get install -y mariadb-server
+    - *test-verify-initial
+    # Install MariaDB built in this commit
+    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.9.1-1 vs 1:10.9.1+mariadb~sid
+    - apt-get install -y --allow-downgrades ./*.deb
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-final
+  variables:
+    GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+
+mariadb.org 10.10 to mariadb upgrade:
+  stage: upgrade extras
+  needs:
+    - job: build
+  image: debian:${RELEASE}
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - *test-prepare-container
+    - apt install -y curl
+    - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
+    - echo "deb https://deb.mariadb.org/10.10/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - apt-get update
+    - apt-get install -y mariadb-server
+    - *test-verify-initial
+    # Install MariaDB built in this commit
+    # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.9.1-1 vs 1:10.9.1+mariadb~sid
+    - apt-get install -y --allow-downgrades ./*.deb
+    # Verify installation of MariaDB built in this commit
+    - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
+    - mariadb --version # Client version
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.5+
+    - *test-verify-final
+  variables:
+    GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+
 mariadb.org 10.9 to mariadb upgrade:
   stage: upgrade extras
   needs:
@@ -538,7 +602,7 @@ mariadb.org 10.9 to mariadb upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo "deb https://deb.mariadb.org/10.9/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    - apt-get install -y mariadb-server-10.9
+    - apt-get install -y mariadb-server
     - *test-verify-initial
     # Install MariaDB built in this commit
     # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.9.1-1 vs 1:10.9.1+mariadb~sid
@@ -553,7 +617,6 @@ mariadb.org 10.9 to mariadb upgrade:
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-  allow_failure: true
 
 mariadb.org-10.8 to mariadb upgrade:
   stage: upgrade extras
@@ -586,7 +649,6 @@ mariadb.org-10.8 to mariadb upgrade:
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-  allow_failure: true
 
 mariadb.org-10.7 to mariadb upgrade:
   stage: upgrade extras
@@ -619,7 +681,6 @@ mariadb.org-10.7 to mariadb upgrade:
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-  allow_failure: true
 
 mariadb.org-10.6 to mariadb upgrade:
   stage: upgrade extras

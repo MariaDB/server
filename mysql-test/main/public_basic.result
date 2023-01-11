@@ -100,6 +100,23 @@ delete from mysql.global_priv where user="PUBLIC";
 flush privileges;
 grant execute on procedure mtr.add_suppression to public;
 revoke execute on procedure mtr.add_suppression from public;
+#
+# MDEV-30154: Assertion `strcasecmp(rolename, public_name.str) ||
+# acl_public == role' failed in acl_update_role on GRANT ... TO PUBLIC
+#
+call mtr.add_suppression("Can't open and lock privilege tables");
+USE test;
+GRANT SELECT ON *.* TO PUBLIC;
+LOCK TABLES mysql.time_zone WRITE,mysql.proc WRITE;
+FLUSH PRIVILEGES;
+ERROR HY000: Table 'db' was not locked with LOCK TABLES
+LOCK TABLE nonexisting WRITE;
+ERROR 42S02: Table 'test.nonexisting' doesn't exist
+GRANT SELECT ON *.* TO PUBLIC;
+REVOKE SELECT ON *.* FROM PUBLIC;
+#
+# End of 10.11 test
+#
 # clean up
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;

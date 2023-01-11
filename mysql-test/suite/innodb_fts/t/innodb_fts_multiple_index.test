@@ -2,6 +2,7 @@
 # Test With two FTS index on same table + alter/create/drop index + tnx
 #------------------------------------------------------------------------------
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 --disable_warnings
 drop table if exists t1;

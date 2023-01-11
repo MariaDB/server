@@ -235,7 +235,7 @@ IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
 ENDIF()
 
-OPTION(WITH_GPROF "Enable profilingg with gprof" OFF)
+OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
 IF (WITH_GPROF)
   MY_CHECK_AND_SET_COMPILER_FLAG("-pg -g -no-pie -fPIC")
 ENDIF()

@@ -1,0 +1,35 @@
+connect  pause_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+CREATE TABLE t (pk int PRIMARY KEY, sk INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t VALUES (10, 100);
+connect  con1,localhost,root;
+BEGIN;
+SELECT * FROM t WHERE sk = 100 FOR UPDATE;
+pk	sk
+10	100
+connect  con2,localhost,root;
+SET DEBUG_SYNC="lock_wait_start SIGNAL insert_wait_started";
+INSERT INTO t VALUES (5, 100) # trx 1;
+connect  con3,localhost,root;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SET DEBUG_SYNC="now WAIT_FOR insert_wait_started";
+SET DEBUG_SYNC="lock_wait_start SIGNAL delete_started_waiting";
+DELETE FROM t WHERE sk = 100 # trx 2;
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR delete_started_waiting";
+DELETE FROM t WHERE sk=100;
+COMMIT;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection con3;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con3;
+connection default;
+SELECT * FROM t;
+pk	sk
+5	100
+disconnect pause_purge;
+SET DEBUG_SYNC="RESET";
+DROP TABLE t;

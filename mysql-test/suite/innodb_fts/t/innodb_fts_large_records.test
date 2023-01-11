@@ -3,6 +3,7 @@
 # b) more words across records
 
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;

@@ -1,0 +1,192 @@
+--- stopword.result
++++ stopword,vers.reject
+@@ -46,7 +46,7 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ INSERT INTO articles (title,body) VALUES
+ ('MySQL Tutorial','DBMS stands for DataBase ...')  ,
+ ('How To Use MySQL Well','After you went through a ...'),
+@@ -60,7 +60,7 @@
+ set global innodb_ft_server_stopword_table = "not_defined";
+ ERROR 42000: Variable 'innodb_ft_server_stopword_table' can't be set to the value of 'not_defined'
+ set global innodb_ft_server_stopword_table = NULL;
+-create table user_stopword(value varchar(30)) engine = innodb;
++create table user_stopword(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ set global innodb_ft_server_stopword_table = "test/user_stopword";
+ drop index title on articles;
+ create fulltext index idx on articles(title, body);
+@@ -73,7 +73,7 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ INSERT INTO articles_2 (title, body)
+ VALUES ('test for stopwords','this is it...');
+ SELECT * FROM articles_2 WHERE MATCH (title,body)
+@@ -88,13 +88,13 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ INSERT INTO articles_3 (title, body)
+ VALUES ('test for stopwords','this is it...');
+ SELECT * FROM articles_3 WHERE MATCH (title,body)
+ AGAINST ('this' IN NATURAL LANGUAGE MODE);
+ id	title	body
+-create table user_stopword_session(value varchar(30)) engine = innodb;
++create table user_stopword_session(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ insert into user_stopword values("this");
+ delete from user_stopword;
+ insert into user_stopword_session values("session");
+@@ -104,7 +104,7 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ INSERT INTO articles_4 (title, body)
+ VALUES ('test for session stopwords','this should also be excluded...');
+ SELECT * FROM articles_4 WHERE MATCH (title,body)
+@@ -120,7 +120,7 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ INSERT INTO articles_5 (title, body)
+ VALUES ('test for session stopwords','this should also be excluded...');
+ SELECT * FROM articles_5 WHERE MATCH (title,body)
+@@ -142,7 +142,7 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT `idx` (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ SHOW CREATE TABLE articles;
+ Table	Create Table
+ articles	CREATE TABLE `articles` (
+@@ -151,7 +151,7 @@
+   `body` text DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   FULLTEXT KEY `idx` (`title`,`body`)
+-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
++) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ INSERT INTO articles (title,body) VALUES
+ ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
+ ('when To Use MySQL Well','After that you went through a ...'),
+@@ -248,7 +248,7 @@
+   `title` varchar(200) DEFAULT NULL,
+   `body` text DEFAULT NULL,
+   PRIMARY KEY (`id`)
+-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
++) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ ALTER TABLE articles ADD FULLTEXT INDEX idx (title,body);
+ ANALYZE TABLE articles;
+ Table	Op	Msg_type	Msg_text
+@@ -320,7 +320,7 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT `idx` (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ INSERT INTO articles (title,body) VALUES
+ ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
+ ('when To Use MySQL Well','After that you went through a ...'),
+@@ -332,9 +332,9 @@
+ id	title	body
+ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
+ id	title	body
+-create table user_stopword(value varchar(30)) engine = innodb;
++create table user_stopword(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ set session innodb_ft_user_stopword_table = "test/user_stopword";
+-create table server_stopword(value varchar(30)) engine = innodb;
++create table server_stopword(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ set global innodb_ft_server_stopword_table = "test/server_stopword";
+ insert into user_stopword values("when"),("where");
+ delete from user_stopword;
+@@ -419,7 +419,7 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT `idx` (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ SHOW CREATE TABLE articles;
+ Table	Create Table
+ articles	CREATE TABLE `articles` (
+@@ -428,7 +428,7 @@
+   `body` text DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   FULLTEXT KEY `idx` (`title`,`body`)
+-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
++) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ INSERT INTO articles (title,body) VALUES
+ ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
+ ('when To Use MySQL Well','After that you went through a ...'),
+@@ -440,7 +440,7 @@
+ id	title	body
+ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
+ id	title	body
+-create table user_stopword(value varchar(30)) engine = innodb;
++create table user_stopword(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ set session innodb_ft_user_stopword_table = "test/user_stopword";
+ insert into user_stopword values("mysqld"),("DBMS");
+ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+wha* +where" IN BOOLEAN MODE);
+@@ -466,7 +466,7 @@
+ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('mysqld');
+ id	title	body
+ set session innodb_ft_user_stopword_table = default;
+-create table server_stopword(value varchar(30)) engine = innodb;
++create table server_stopword(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ set global innodb_ft_server_stopword_table = "test/server_stopword";
+ insert into server_stopword values("root"),("properly");
+ ALTER TABLE articles DROP INDEX idx;
+@@ -530,7 +530,7 @@
+ title VARCHAR(200),
+ body TEXT,
+ FULLTEXT `idx` (title,body)
+-) ENGINE=InnoDB;
++) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+ SHOW CREATE TABLE articles;
+ Table	Create Table
+ articles	CREATE TABLE `articles` (
+@@ -539,7 +539,7 @@
+   `body` text DEFAULT NULL,
+   PRIMARY KEY (`id`),
+   FULLTEXT KEY `idx` (`title`,`body`)
+-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
++) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+ INSERT INTO articles (title,body) VALUES
+ ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
+ ('when To Use MySQL Well','After that you went through a ...'),
+@@ -656,7 +656,7 @@
+ "In connection 1"
+ connection con1;
+ SET SESSION innodb_ft_enable_stopword = 1;
+-create table user_stopword(value varchar(30)) engine = innodb;
++create table user_stopword(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ set session innodb_ft_user_stopword_table = "test/user_stopword";
+ insert into user_stopword values("this"),("will"),("the");
+ ALTER TABLE articles DROP INDEX idx;
+@@ -674,7 +674,7 @@
+ select @@innodb_ft_user_stopword_table;
+ @@innodb_ft_user_stopword_table
+ NULL
+-create table user_stopword_1(value varchar(30)) engine = innodb;
++create table user_stopword_1(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ set session innodb_ft_user_stopword_table = "test/user_stopword_1";
+ insert into user_stopword_1 values("when");
+ SET SESSION innodb_ft_enable_stopword = 1;
+@@ -702,7 +702,7 @@
+ select @@innodb_ft_server_stopword_table;
+ @@innodb_ft_server_stopword_table
+ NULL
+-create table server_stopword(value varchar(30)) engine = innodb;
++create table server_stopword(value varchar(30)) WITH SYSTEM VERSIONING engine = innodb;
+ SET GLOBAL innodb_ft_server_stopword_table = "test/server_stopword";
+ select @@innodb_ft_server_stopword_table;
+ @@innodb_ft_server_stopword_table

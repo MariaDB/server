@@ -15,7 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
-  A better inplementation of the UNIX ctype(3) library.
+  A better implementation of the UNIX ctype(3) library.
 */
 
 #ifndef _m_ctype_h
@@ -200,7 +200,7 @@ typedef struct my_uca_contraction_hash_t
 } MY_UCA_CONTRACTION_HASH;
 
 
-/* Collation weights on a single level (e.g. primary, secondary, tertiarty) */
+/* Collation weights on a single level (e.g. primary, secondary, tertiary) */
 typedef struct my_uca_level_info_st
 {
   my_wc_t maxchar;
@@ -1699,7 +1699,7 @@ uint32 my_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
   An extended version of my_convert(), to pass non-default mb_wc() and wc_mb().
   For example, String::copy_printable() which is used in
   Protocol::store_warning() uses this to escape control
-  and non-convertable characters.
+  and non-convertible characters.
 */
 uint32 my_convert_using_func(char *to, size_t to_length, CHARSET_INFO *to_cs,
                              my_charset_conv_wc_mb mb_wc,
@@ -1780,7 +1780,7 @@ size_t my_convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
   @param str - the beginning of the string
   @param end - the string end (the next byte after the string)
   @return    >0, for a multi-byte character
-  @rerurn    0,  for a single byte character, broken sequence, empty string.
+  @return    0,  for a single byte character, broken sequence, empty string.
 */
 static inline
 uint my_ismbchar(CHARSET_INFO *cs, const char *str, const char *end)
