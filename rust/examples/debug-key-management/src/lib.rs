@@ -8,8 +8,8 @@
 #![allow(unused)]
 
 use mariadb_server::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
-use mariadb_server::plugin::{License, Maturity, SysVarAtomic};
-use mariadb_server::plugin::{PluginType, PluginVarInfo};
+use mariadb_server::plugin::{Init, License, Maturity, SysVarAtomic};
+use mariadb_server::plugin::{InitError, PluginType, PluginVarInfo};
 use mariadb_server::sysvar_atomic;
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
@@ -30,6 +30,18 @@ static KEY_VERSION_SYSVAR: SysVarAtomic<u32> = sysvar_atomic! {
 };
 
 struct DebugKeyMgmt;
+
+impl Init for DebugKeyMgmt {
+    fn init() -> Result<(), InitError> {
+        eprintln!("init for DebugKeyMgmt");
+        Ok(())
+    }
+
+    fn deinit() -> Result<(), InitError> {
+        eprintln!("deinit for DebugKeyMgmt");
+        Ok(())
+    }
+}
 
 impl KeyManager for DebugKeyMgmt {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
@@ -146,8 +158,8 @@ static mut _maria_plugin_declarations_: [mariadb_server::bindings::st_maria_plug
         author: mariadb_server::cstr::cstr!("Trevor Gross").as_ptr(),
         descr: mariadb_server::cstr::cstr!("Debug key management plugin").as_ptr(),
         license: License::Gpl as i32,
-        init: None,
-        deinit: None,
+        init: Some(mariadb_server::plugin::wrapper::wrap_init::<DebugKeyMgmt>),
+        deinit: Some(mariadb_server::plugin::wrapper::wrap_deinit::<DebugKeyMgmt>),
         version: 0x0010,
         status_vars: ::std::ptr::null_mut(),
         system_vars: _INTERNAL_SYSVARS.0.get().cast(),
@@ -155,19 +167,5 @@ static mut _maria_plugin_declarations_: [mariadb_server::bindings::st_maria_plug
         maturity: Maturity::Experimental as u32,
     },
     // End with a null object
-    mariadb_server::bindings::st_maria_plugin {
-        type_: 0,
-        info: ::std::ptr::null_mut(),
-        name: ::std::ptr::null(),
-        author: ::std::ptr::null(),
-        descr: ::std::ptr::null(),
-        license: 0,
-        init: None,
-        deinit: None,
-        version: 0,
-        status_vars: ::std::ptr::null_mut(),
-        system_vars: ::std::ptr::null_mut(),
-        version_info: ::std::ptr::null(),
-        maturity: 0,
-    },
+    ::mariadb_server::plugin::new_null_st_maria_plugin(),
 ];

@@ -9,9 +9,9 @@ use mariadb_server_sys as bindings;
 pub mod encryption;
 #[doc(hidden)]
 pub mod encryption_wrapper;
+mod variables;
 #[doc(hidden)]
 pub mod wrapper;
-mod variables;
 pub use variables::{PluginVarInfo, SysVarAtomic};
 
 /// Defines possible licenses for plugins
@@ -63,19 +63,17 @@ pub enum Maturity {
     Stable = bindings::MariaDB_PLUGIN_MATURITY_STABLE as isize,
 }
 
+pub struct InitError;
+
 /// Initialize state
 pub trait Init {
-    fn init() {}
+    fn init() -> Result<(), InitError> {
+        Ok(())
+    }
 
-    fn deinit() {}
-}
-
-pub unsafe fn wrap_init<T: Init>(ptr: *mut c_void) {
-    T::init()
-}
-
-pub unsafe fn wrap_deinit<T: Init>(ptr: *mut c_void) {
-    //
+    fn deinit() -> Result<(), InitError> {
+        Ok(())
+    }
 }
 
 /// New struct with all null values
@@ -105,6 +103,9 @@ pub const fn new_null_st_maria_plugin() -> bindings::st_maria_plugin {
 pub struct UnsafeSyncCell<T>(UnsafeCell<T>);
 
 impl<T> UnsafeSyncCell<T> {
+    /// # Safety
+    ///
+    /// This inner value be used in a Sync/Send way
     pub const unsafe fn new(value: T) -> Self {
         Self(UnsafeCell::new(value))
     }

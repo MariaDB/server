@@ -21,8 +21,8 @@
 use mariadb_server_sys as bindings;
 
 /// A type of error to be used by key functions
-#[non_exhaustive]
 #[repr(u32)]
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum KeyError {
     // Values must be nonzero
@@ -31,6 +31,15 @@ pub enum KeyError {
     /// A key buffer is too small. Maps to `ENCRYPTION_KEY_BUFFER_TOO_SMALL` in C.
     BufferTooSmall = bindings::ENCRYPTION_KEY_BUFFER_TOO_SMALL,
     Other = 3,
+}
+
+#[repr(i32)]
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum EncryptionError {
+    BadData = bindings::MY_AES_BAD_DATA,
+    BadKeySize = bindings::MY_AES_BAD_KEYSIZE,
+    Other = bindings::MY_AES_OPENSSL_ERROR,
 }
 
 /// Representation of the flags integer
@@ -47,7 +56,8 @@ impl Flags {
     }
 
     pub(crate) fn should_decrypt(&self) -> bool {
-        (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT as i32) != 0
+        // (self.0 & bindings::ENCRYPTION_FLAG_DECRYPT as i32) != 0
+        !self.should_encrypt()
     }
 
     pub fn nopad(&self) -> bool {
@@ -83,15 +93,14 @@ pub trait KeyManager: Send + Sized {
 // TODO: Maybe split into `Encrypt` and `Decrypt` traits
 pub trait Encryption: Sized {
     /// Initialize the encryption context object
-    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: Flags)
-        -> Result<Self, ()>;
+    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: Flags) -> Result<Self, EncryptionError>;
 
     /// Update the encryption context with new data, return the number of bytes
     /// written
-    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<(), ()>;
+    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<(), EncryptionError>;
 
     /// Write the remaining bytes to the buffer
-    fn finish(&mut self, dst: &mut [u8]) -> Result<(), ()>;
+    fn finish(&mut self, dst: &mut [u8]) -> Result<(), EncryptionError>;
 
     /// Return the exact length of the encrypted data based on the source length
     ///

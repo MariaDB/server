@@ -105,9 +105,9 @@ pub unsafe extern "C" fn wrap_crypt_ctx_init<T: Encryption>(
     match T::init(key_id, key_version, keybuf, ivbuf, flags) {
         Ok(newctx) => {
             ctx.cast::<T>().write(newctx);
-            1
+            bindings::MY_AES_OK.try_into().unwrap()
         }
-        Err(_) => -1,
+        Err(e) => e as c_int,
     }
 }
 
@@ -125,14 +125,18 @@ pub unsafe extern "C" fn wrap_crypt_ctx_update<T: Encryption>(
     dst: *mut c_uchar,
     dlen: *mut c_uint,
 ) -> c_int {
+    dbg!(slen, dlen, *dlen);
     let sbuf = slice::from_raw_parts(src, slen as usize);
-    let dbuf = slice::from_raw_parts_mut(dst, dlen as usize);
+    let dbuf = slice::from_raw_parts_mut(dst, *dlen as usize);
 
     let c: &mut T = &mut *ctx.cast();
-    match c.update(sbuf, dbuf) {
-        Ok(_) => 1,
-        Err(_) => -1,
-    }
+    let (ret, written) = match c.update(sbuf, dbuf) {
+        // FIXME dlen
+        Ok(_) => (bindings::MY_AES_OK.try_into().unwrap(), 0),
+        Err(e) => (e as c_int, 0),
+    };
+    *dlen = written;
+    ret
 }
 
 pub unsafe extern "C" fn wrap_crypt_ctx_finish<T: Encryption>(
@@ -140,12 +144,14 @@ pub unsafe extern "C" fn wrap_crypt_ctx_finish<T: Encryption>(
     dst: *mut c_uchar,
     dlen: *mut c_uint,
 ) -> c_int {
+    dbg!(*dlen);
     let dbuf = slice::from_raw_parts_mut(dst, dlen as usize);
 
     let c: &mut T = &mut *ctx.cast();
-    let ret = match c.finish(dbuf) {
-        Ok(_) => 1,
-        Err(_) => -1,
+    let (ret, written) = match c.finish(dbuf) {
+        // FIXME dlen
+        Ok(_) => (bindings::MY_AES_OK.try_into().unwrap(), 0),
+        Err(e) => (e as c_int, 0),
     };
 
     ctx.drop_in_place();

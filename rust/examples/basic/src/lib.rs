@@ -9,7 +9,7 @@
 
 use mariadb_server::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb_server::plugin::{new_null_st_maria_plugin, PluginType, PluginVarInfo, UnsafeSyncCell};
-use mariadb_server::plugin::{License, Maturity, SysVarAtomic};
+use mariadb_server::plugin::{License, Maturity, SysVarAtomic, InitError, Init};
 use mariadb_server::sysvar_atomic;
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
@@ -19,6 +19,18 @@ use std::sync::atomic::{AtomicU32, AtomicUsize};
 struct BasicKeyMgt;
 
 static COUNTER: AtomicUsize = AtomicUsize::new(30);
+
+impl Init for BasicKeyMgt {
+    fn init() -> Result<(), InitError> {
+        eprintln!("init for BasicKeyMgt");
+        Ok(())
+    }
+
+    fn deinit() -> Result<(), InitError> {
+        eprintln!("deinit for BasicKeyMgt");
+        Ok(())
+    }
+}
 
 impl KeyManager for BasicKeyMgt {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
@@ -85,8 +97,8 @@ static mut _maria_plugin_declarations_: [mariadb_server::bindings::st_maria_plug
         author: mariadb_server::cstr::cstr!("Trevor Gross").as_ptr(),
         descr: mariadb_server::cstr::cstr!("Basic key management plugin").as_ptr(),
         license: License::Gpl as i32,
-        init: None,
-        deinit: None,
+        init: Some(mariadb_server::plugin::wrapper::wrap_init::<BasicKeyMgt>),
+        deinit: Some(mariadb_server::plugin::wrapper::wrap_deinit::<BasicKeyMgt>),
         version: 0x0010,
         status_vars: ::std::ptr::null_mut(),
         system_vars: ::std::ptr::null_mut(),

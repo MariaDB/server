@@ -15,8 +15,8 @@ use aes_gcm::{
     Nonce, // Or `Aes128Gcm`
 };
 
-use mariadb_server::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
-use mariadb_server::plugin::{Init, License, Maturity, PluginType};
+use mariadb_server::plugin::encryption::{Encryption, Flags, KeyError, KeyManager, EncryptionError};
+use mariadb_server::plugin::{Init, InitError, License, Maturity, PluginType};
 // use mariadb_server::plugin::Init;
 // use mariadb_server::plugin::prelude::*;
 
@@ -64,21 +64,17 @@ impl KeyVersions {
             next: now,
         };
         ret.update_next();
-        eprintln!("made self");
-        dbg!(&ret);
         ret
     }
 
     fn update_next(&mut self) {
-        dbg!(&self);
         let mult = rand::thread_rng().gen_range(0.0..1.0);
         let add_duration = KEY_ROTATION_MIN + mult * KEY_ROTATION_INTERVAL;
         self.next += Duration::from_secs_f32(add_duration);
     }
-    
+
     /// Update the internal duration if needed, and return the elapsed time
     fn update_returning_version(&mut self) -> u64 {
-        dbg!(&self);
         let now = Instant::now();
         if now > self.next {
             self.current = now;
@@ -92,10 +88,16 @@ struct RustEncryption;
 
 impl Init for RustEncryption {
     /// Initialize function:
-    fn init() {
-        dbg!("init: locking");
+    fn init() -> Result<(), InitError> {
+        eprintln!("init called for RustEncryption");
         let mut guard = KEY_VERSIONS.lock().unwrap();
         *guard = Some(KeyVersions::new_now());
+        Ok(())
+    }
+
+    fn deinit() -> Result<(), InitError> {
+        eprintln!("deinit called for RustEncryption");
+        Ok(())
     }
 }
 
@@ -136,21 +138,23 @@ impl Encryption for RustEncryption {
         key: &[u8],
         iv: &[u8],
         flags: Flags,
-    ) -> Result<Self, ()> {
+    ) -> Result<Self, EncryptionError> {
         eprintln!("encryption init");
-        dbg!(&key_id, &key_version, &key, &iv);
+        dbg!(&key_id, &key_version);
+        eprintln!("key: {:x?}", &key);
+        eprintln!("iv: {:x?}", &iv);
         dbg!(flags);
         Ok(Self)
     }
 
-    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<(), ()> {
+    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<(), EncryptionError> {
         eprintln!("encryption update");
         dbg!(src.len(), dst.len());
         dst[..src.len()].copy_from_slice(src);
         Ok(())
     }
 
-    fn finish(&mut self, dst: &mut [u8]) -> Result<(), ()> {
+    fn finish(&mut self, dst: &mut [u8]) -> Result<(), EncryptionError> {
         eprintln!("encryption finish");
         dbg!(dst.len());
         Ok(())
@@ -210,8 +214,8 @@ static mut _maria_plugin_declarations_: [mariadb_server::bindings::st_maria_plug
         author: mariadb_server::cstr::cstr!("Trevor Gross").as_ptr(),
         descr: mariadb_server::cstr::cstr!("Example key management / encryption plugin").as_ptr(),
         license: License::Gpl as i32,
-        init: None,
-        deinit: None,
+        init: Some(mariadb_server::plugin::wrapper::wrap_init::<RustEncryption>),
+        deinit: Some(mariadb_server::plugin::wrapper::wrap_deinit::<RustEncryption>),
         version: 0x0010,
         status_vars: ::std::ptr::null_mut(),
         system_vars: ::std::ptr::null_mut(),
