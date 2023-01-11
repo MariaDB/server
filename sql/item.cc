@@ -10225,8 +10225,8 @@ bool Item_cache_timestamp::cache_value()
   if (!example)
     return false;
   value_cached= true;
-  null_value= example->val_native_with_conversion_result(current_thd, &m_native,
-                                                         type_handler());
+  null_value_inside= null_value=
+    example->val_native_with_conversion_result(current_thd, &m_native, type_handler());
   return true;
 }
 
