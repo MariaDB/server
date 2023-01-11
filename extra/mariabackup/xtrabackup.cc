@@ -2169,12 +2169,6 @@ static bool innodb_init_param()
 
 	srv_print_verbose_log = verbose ? 2 : 1;
 
-	/* Store the default charset-collation number of this MySQL
-	installation */
-
-	/* We cannot treat characterset here for now!! */
-	data_mysql_default_charset_coll = (ulint)default_charset_info->number;
-
 	ut_ad(DATA_MYSQL_BINARY_CHARSET_COLL == my_charset_bin.number);
 
 #ifdef _WIN32

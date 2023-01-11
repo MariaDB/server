@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,9 +39,7 @@ Created 4/24/1996 Heikki Tuuri
 /** A stack of table names related through foreign key constraints */
 typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
 
-/** Check each tablespace found in the data dictionary.
-Then look at each table defined in SYS_TABLES that has a space_id > 0
-to find all the file-per-table tablespaces.
+/** Open each tablespace found in the data dictionary.
 
 In a crash recovery we already have some tablespace objects created from
 processing the REDO log. We will compare the
@@ -50,7 +48,7 @@ tablespace file. In addition, more validation will be done if recovery
 was needed and force_recovery is not set.
 
 We also scan the biggest space id, and store it to fil_system. */
-void dict_check_tablespaces_and_store_max_id();
+void dict_load_tablespaces();
 
 /** Make sure the data_file_name is saved in dict_table_t if needed.
 @param[in,out]	table		Table object */

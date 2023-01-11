@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -175,7 +175,6 @@ void mtr_t::start()
 
   m_made_dirty= false;
   m_latch_ex= false;
-  m_inside_ibuf= false;
   m_modifications= false;
   m_log_mode= MTR_LOG_ALL;
   ut_d(m_user_space_id= TRX_SYS_SPACE);
@@ -323,7 +322,6 @@ void mtr_t::release()
 void mtr_t::commit()
 {
   ut_ad(is_active());
-  ut_ad(!is_inside_ibuf());
 
   /* This is a dirty read, for debugging. */
   ut_ad(!m_modifications || !recv_no_log_write);
@@ -506,7 +504,6 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
 void mtr_t::commit_shrink(fil_space_t &space)
 {
   ut_ad(is_active());
-  ut_ad(!is_inside_ibuf());
   ut_ad(!high_level_read_only);
   ut_ad(m_modifications);
   ut_ad(m_made_dirty);
@@ -613,7 +610,6 @@ void mtr_t::commit_shrink(fil_space_t &space)
 bool mtr_t::commit_file(fil_space_t &space, const char *name)
 {
   ut_ad(is_active());
-  ut_ad(!is_inside_ibuf());
   ut_ad(!high_level_read_only);
   ut_ad(m_modifications);
   ut_ad(!m_made_dirty);
@@ -724,7 +720,6 @@ lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   ut_ad(log_sys.latch.is_write_locked());
 #endif
   ut_ad(is_active());
-  ut_ad(!is_inside_ibuf());
   ut_ad(m_log_mode == MTR_LOG_ALL);
   ut_ad(!m_made_dirty);
   ut_ad(!m_memo);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, 2022, MariaDB Corporation.
+Copyright (c) 2020, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -401,8 +401,8 @@ int cmp_dtuple_rec_with_match_low(const dtuple_t *dtuple, const rec_t *rec,
 
 		ut_ad(!dfield_is_ext(dtuple_field));
 
-		ret = cmp_data(type->mtype, type->prtype, !index->is_ibuf()
-			       && index->fields[cur_field].descending,
+		ret = cmp_data(type->mtype, type->prtype,
+			       index->fields[cur_field].descending,
 			       dtuple_b_ptr, dtuple_f_len,
 			       rec_b_ptr, rec_f_len);
 		if (ret) {
@@ -480,7 +480,6 @@ cmp_dtuple_rec_with_match_bytes(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG
 		& dtuple_get_info_bits(dtuple)));
-	ut_ad(!index->is_ibuf());
 
 	if (UNIV_UNLIKELY(REC_INFO_MIN_REC_FLAG
 			  & rec_get_info_bits(rec, rec_offs_comp(offsets)))) {
@@ -829,32 +828,21 @@ cmp_rec_rec(
 				   dict_index_get_n_unique_in_tree(index));
 
 	for (; cur_field < n_fields; cur_field++) {
-		ulint	mtype;
-		ulint	prtype;
-		bool	descending;
+		const dict_field_t* field = dict_index_get_nth_field(
+			index, cur_field);
+		bool descending = field->descending;
+		ulint mtype = field->col->mtype;
+		ulint prtype = field->col->prtype;
 
-		if (UNIV_UNLIKELY(dict_index_is_ibuf(index))) {
-			/* This is for the insert buffer B-tree. */
-			mtype = DATA_BINARY;
+		if (UNIV_LIKELY(!index->is_spatial())) {
+		} else if (cur_field == 0) {
+			ut_ad(DATA_GEOMETRY_MTYPE(mtype));
+			prtype |= DATA_GIS_MBR;
+		} else if (!page_rec_is_leaf(rec2)) {
+			/* Compare the child page number. */
+			ut_ad(cur_field == 1);
+			mtype = DATA_SYS_CHILD;
 			prtype = 0;
-			descending = false;
-		} else {
-			const dict_field_t* field = dict_index_get_nth_field(
-				index, cur_field);
-			descending = field->descending;
-			mtype = field->col->mtype;
-			prtype = field->col->prtype;
-
-			if (UNIV_LIKELY(!dict_index_is_spatial(index))) {
-			} else if (cur_field == 0) {
-				ut_ad(DATA_GEOMETRY_MTYPE(mtype));
-				prtype |= DATA_GIS_MBR;
-			} else if (!page_rec_is_leaf(rec2)) {
-				/* Compare the child page number. */
-				ut_ad(cur_field == 1);
-				mtype = DATA_SYS_CHILD;
-				prtype = 0;
-			}
 		}
 
 		/* We should never encounter an externally stored field.

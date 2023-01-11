@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,7 +26,6 @@ Created 2012-02-08 by Sunny Bains.
 
 #include "row0quiesce.h"
 #include "row0mysql.h"
-#include "ibuf0ibuf.h"
 #include "srv0start.h"
 #include "trx0purge.h"
 
@@ -531,18 +530,6 @@ row_quiesce_table_start(
 
 	if (srv_undo_sources) {
 		purge_sys.stop();
-	}
-
-	for (ulint count = 0;
-	     ibuf_merge_space(table->space_id);
-	     ++count) {
-		if (trx_is_interrupted(trx)) {
-			goto aborted;
-		}
-		if (!(count % 20)) {
-			ib::info() << "Merging change buffer entries for "
-				<< table->name;
-		}
 	}
 
 	while (buf_flush_list_space(table->space)) {

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,10 +48,6 @@ Created 11/5/1995 Heikki Tuuri
 #define	BUF_GET_IF_IN_POOL	11	/*!< get if in pool */
 #define BUF_PEEK_IF_IN_POOL	12	/*!< get if in pool, do not make
 					the block young in the LRU list */
-#define BUF_GET_IF_IN_POOL_OR_WATCH	15
-					/*!< Get the page only if it's in the
-					buffer pool, if not then set a watch
-					on the page. */
 #define BUF_GET_POSSIBLY_FREED		16
 					/*!< Like BUF_GET, but do not mind
 					if the file page has been freed. */
@@ -194,11 +190,9 @@ buf_page_t *buf_page_get_zip(const page_id_t page_id, ulint zip_size);
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
 @param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
-BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
+or BUF_PEEK_IF_IN_POOL
 @param[in,out]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
-@param[in]	allow_ibuf_merge	Allow change buffer merge while
-reading the pages from file.
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -208,9 +202,8 @@ buf_page_get_gen(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err = NULL,
-	bool			allow_ibuf_merge = false)
-	MY_ATTRIBUTE((nonnull(6), warn_unused_result));
+	dberr_t*		err = NULL)
+	MY_ATTRIBUTE((nonnull(6)));
 
 /** This is the low level function used to get access to a database page.
 @param[in]	page_id			page id
@@ -218,14 +211,10 @@ buf_page_get_gen(
 @param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
 @param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
-BUF_PEEK_IF_IN_POOL, or BUF_GET_IF_IN_POOL_OR_WATCH
+or BUF_PEEK_IF_IN_POOL
 @param[in,out]	mtr			mini-transaction, or NULL if a
 					block with page_id is to be evicted
 @param[out]	err			DB_SUCCESS or error code
-@param[in]	allow_ibuf_merge	Allow change buffer merge to happen
-while reading the page from file
-then it makes sure that it does merging of change buffer changes while
-reading the page from file.
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_low(
@@ -235,8 +224,7 @@ buf_page_get_low(
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err,
-	bool			allow_ibuf_merge);
+	dberr_t*		err);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
@@ -539,18 +527,16 @@ public:
   static constexpr uint32_t REMOVE_HASH= 2;
   /** smallest state() of a buffer page that is freed in the tablespace */
   static constexpr uint32_t FREED= 3;
+  /* unused state: 1U<<29 */
   /** smallest state() for a block that belongs to buf_pool.LRU */
-  static constexpr uint32_t UNFIXED= 1U << 29;
-  /** smallest state() of a block for which buffered changes may exist */
-  static constexpr uint32_t IBUF_EXIST= 2U << 29;
+  static constexpr uint32_t UNFIXED= 2U << 29;
   /** smallest state() of a (re)initialized page (no doublewrite needed) */
   static constexpr uint32_t REINIT= 3U << 29;
   /** smallest state() for an io-fixed block */
   static constexpr uint32_t READ_FIX= 4U << 29;
+  /* unused state: 5U<<29 */
   /** smallest state() for a write-fixed block */
-  static constexpr uint32_t WRITE_FIX= 5U << 29;
-  /** smallest state() for a write-fixed block with buffered changes */
-  static constexpr uint32_t WRITE_FIX_IBUF= 6U << 29;
+  static constexpr uint32_t WRITE_FIX= 6U << 29;
   /** smallest state() for a write-fixed block (no doublewrite was used) */
   static constexpr uint32_t WRITE_FIX_REINIT= 7U << 29;
   /** buf_pool.LRU status mask in state() */
@@ -562,8 +548,7 @@ public:
   byte *frame;
   /* @} */
   /** ROW_FORMAT=COMPRESSED page; zip.data (but not the data it points to)
-  is also protected by buf_pool.mutex;
-  !frame && !zip.data means an active buf_pool.watch */
+  is also protected by buf_pool.mutex */
   page_zip_des_t zip;
 #ifdef UNIV_DEBUG
   /** whether this->list is in buf_pool.zip_hash; protected by buf_pool.mutex */
@@ -696,13 +681,6 @@ public:
 
   bool is_freed() const
   { const auto s= state(); ut_ad(s >= FREED); return s < UNFIXED; }
-  bool is_ibuf_exist() const
-  {
-    const auto s= state();
-    ut_ad(s >= UNFIXED);
-    ut_ad(s < READ_FIX);
-    return (s & LRU_MASK) == IBUF_EXIST;
-  }
   bool is_reinit() const { return !(~state() & REINIT); }
 
   void set_reinit(uint32_t prev_state)
@@ -713,29 +691,10 @@ public:
     ut_ad(s < prev_state + UNFIXED);
   }
 
-  void set_ibuf_exist()
-  {
-    ut_ad(lock.is_write_locked());
-    ut_ad(id() < page_id_t(SRV_SPACE_ID_UPPER_BOUND, 0));
-    const auto s= state();
-    ut_ad(s >= UNFIXED);
-    ut_ad(s < READ_FIX);
-    ut_ad(s < IBUF_EXIST || s >= REINIT);
-    zip.fix.fetch_add(IBUF_EXIST - (LRU_MASK & s));
-  }
-  void clear_ibuf_exist()
-  {
-    ut_ad(lock.is_write_locked());
-    ut_ad(id() < page_id_t(SRV_SPACE_ID_UPPER_BOUND, 0));
-    ut_d(const auto s=) zip.fix.fetch_sub(IBUF_EXIST - UNFIXED);
-    ut_ad(s >= IBUF_EXIST);
-    ut_ad(s < REINIT);
-  }
-
   void read_unfix(uint32_t s)
   {
     ut_ad(lock.is_write_locked());
-    ut_ad(s == UNFIXED + 1 || s == IBUF_EXIST + 1 || s == REINIT + 1);
+    ut_ad(s == UNFIXED + 1 || s == REINIT + 1);
     ut_d(auto old_state=) zip.fix.fetch_add(s - READ_FIX);
     ut_ad(old_state >= READ_FIX);
     ut_ad(old_state < WRITE_FIX);
@@ -822,7 +781,7 @@ public:
   uint32_t fix(uint32_t count= 1)
   {
     ut_ad(count);
-    ut_ad(count < IBUF_EXIST);
+    ut_ad(count < REINIT);
     uint32_t f= zip.fix.fetch_add(count);
     ut_ad(f >= FREED);
     ut_ad(!((f ^ (f + 1)) & LRU_MASK));
@@ -1426,82 +1385,6 @@ public:
   }
 
 public:
-  /** @return whether the buffer pool contains a page
-  @tparam allow_watch  whether to allow watch_is_sentinel()
-  @param page_id       page identifier
-  @param chain         hash table chain for page_id.fold() */
-  template<bool allow_watch= false>
-  TRANSACTIONAL_INLINE
-  bool page_hash_contains(const page_id_t page_id, hash_chain &chain)
-  {
-    transactional_shared_lock_guard<page_hash_latch> g
-      {page_hash.lock_get(chain)};
-    buf_page_t *bpage= page_hash.get(page_id, chain);
-    if (bpage >= &watch[0] && bpage < &watch[UT_ARR_SIZE(watch)])
-    {
-      ut_ad(!bpage->in_zip_hash);
-      ut_ad(!bpage->zip.data);
-      if (!allow_watch)
-        bpage= nullptr;
-    }
-    return bpage;
-  }
-
-  /** Determine if a block is a sentinel for a buffer pool watch.
-  @param bpage page descriptor
-  @return whether bpage a sentinel for a buffer pool watch */
-  bool watch_is_sentinel(const buf_page_t &bpage)
-  {
-#ifdef SAFE_MUTEX
-    DBUG_ASSERT(mysql_mutex_is_owner(&mutex) ||
-                page_hash.lock_get(page_hash.cell_get(bpage.id().fold())).
-                is_locked());
-#endif /* SAFE_MUTEX */
-    ut_ad(bpage.in_file());
-    if (&bpage < &watch[0] || &bpage >= &watch[array_elements(watch)])
-      return false;
-    ut_ad(!bpage.in_zip_hash);
-    ut_ad(!bpage.zip.data);
-    return true;
-  }
-
-  /** Check if a watched page has been read.
-  This may only be called after !watch_set() and before invoking watch_unset().
-  @param id   page identifier
-  @return whether the page was read to the buffer pool */
-  TRANSACTIONAL_INLINE
-  bool watch_occurred(const page_id_t id)
-  {
-    hash_chain &chain= page_hash.cell_get(id.fold());
-    transactional_shared_lock_guard<page_hash_latch> g
-      {page_hash.lock_get(chain)};
-    /* The page must exist because watch_set() increments buf_fix_count. */
-    return !watch_is_sentinel(*page_hash.get(id, chain));
-  }
-
-  /** Register a watch for a page identifier. The caller must hold an
-  exclusive page hash latch. The *hash_lock may be released,
-  relocated, and reacquired.
-  @param id         page identifier
-  @param chain      hash table chain with exclusively held page_hash
-  @return a buffer pool block corresponding to id
-  @retval nullptr   if the block was not present, and a watch was installed */
-  inline buf_page_t *watch_set(const page_id_t id, hash_chain &chain);
-
-  /** Stop watching whether a page has been read in.
-  watch_set(id) must have returned nullptr before.
-  @param id         page identifier
-  @param chain      unlocked hash table chain */
-  void watch_unset(const page_id_t id, hash_chain &chain);
-
-  /** Remove the sentinel block for the watch before replacing it with a
-  real block. watch_unset() or watch_occurred() will notice
-  that the block has been replaced with the real block.
-  @param w          sentinel
-  @param chain      locked hash table chain
-  @return           w->state() */
-  inline uint32_t watch_remove(buf_page_t *w, hash_chain &chain);
-
   /** @return whether less than 1/4 of the buffer pool is available */
   TPOOL_SUPPRESS_TSAN
   bool running_out() const
@@ -1851,9 +1734,6 @@ public:
 # error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"
 #endif
 
-  /** Sentinels to detect if pages are read into the buffer pool while
-  a delete-buffering operation is pending. Protected by mutex. */
-  buf_page_t watch[innodb_purge_threads_MAX + 1];
   /** Reserve a buffer. */
   buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
 

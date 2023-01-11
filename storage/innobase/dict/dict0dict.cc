@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1999,7 +1999,6 @@ dict_index_add_to_cache(
 	ut_ad(index->n_def == index->n_fields);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 	ut_ad(!dict_index_is_online_ddl(index));
-	ut_ad(!dict_index_is_ibuf(index));
 
 	ut_d(mem_heap_validate(index->heap));
 	ut_a(!dict_index_is_clust(index)
@@ -2381,15 +2380,7 @@ dict_index_copy_types(
 	ulint			n_fields)	/*!< in: number of
 						field types to copy */
 {
-	ulint		i;
-
-	if (dict_index_is_ibuf(index)) {
-		dtuple_set_types_binary(tuple, n_fields);
-
-		return;
-	}
-
-	for (i = 0; i < n_fields; i++) {
+	for (ulint i = 0; i < n_fields; i++) {
 		const dict_field_t*	ifield;
 		dtype_t*		dfield_type;
 
@@ -2628,17 +2619,14 @@ dict_index_build_internal_non_clust(
 	ulint		i;
 	ibool*		indexed;
 
-	ut_ad(table && index);
-	ut_ad(!dict_index_is_clust(index));
-	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(!index->is_primary());
 	ut_ad(dict_sys.locked());
 
 	/* The clustered index should be the first in the list of indexes */
 	clust_index = UT_LIST_GET_FIRST(table->indexes);
 
 	ut_ad(clust_index);
-	ut_ad(dict_index_is_clust(clust_index));
-	ut_ad(!dict_index_is_ibuf(clust_index));
+	ut_ad(clust_index->is_clust());
 
 	/* Create a new index */
 	new_index = dict_mem_index_create(
@@ -3769,24 +3757,7 @@ dict_index_build_node_ptr(
 	dtuple_t*	tuple;
 	dfield_t*	field;
 	byte*		buf;
-	ulint		n_unique;
-
-	if (dict_index_is_ibuf(index)) {
-		/* In a universal index tree, we take the whole record as
-		the node pointer if the record is on the leaf level,
-		on non-leaf levels we remove the last field, which
-		contains the page number of the child page */
-
-		ut_a(!dict_table_is_comp(index->table));
-		n_unique = rec_get_n_fields_old(rec);
-
-		if (level > 0) {
-			ut_a(n_unique > 1);
-			n_unique--;
-		}
-	} else {
-		n_unique = dict_index_get_n_unique_in_tree_nonleaf(index);
-	}
+	ulint n_unique = dict_index_get_n_unique_in_tree_nonleaf(index);
 
 	tuple = dtuple_create(heap, n_unique + 1);
 

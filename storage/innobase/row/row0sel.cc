@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -4768,14 +4768,13 @@ wait_table_again:
 		}
 
 	} else if (dtuple_get_n_fields(search_tuple) > 0) {
-		pcur->btr_cur.thr = thr;
 		pcur->old_rec = nullptr;
 
 		if (dict_index_is_spatial(index)) {
 			if (!prebuilt->rtr_info) {
 				prebuilt->rtr_info = rtr_create_rtr_info(
-					set_also_gap_locks, true,
-					btr_pcur_get_btr_cur(pcur), index);
+					set_also_gap_locks, true, thr,
+					btr_pcur_get_btr_cur(pcur));
 				prebuilt->rtr_info->search_tuple = search_tuple;
 				prebuilt->rtr_info->search_mode = mode;
 				rtr_info_update_btr(btr_pcur_get_btr_cur(pcur),

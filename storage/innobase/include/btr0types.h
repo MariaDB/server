@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2022, MariaDB Corporation.
+Copyright (c) 2018, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -76,24 +76,8 @@ enum btr_latch_mode {
 	/** Continue modifying the entire B-tree. */
 	BTR_CONT_MODIFY_TREE = 4 | BTR_MODIFY_TREE,
 
-	/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually
-	exclusive. */
-	/** The search tuple will be inserted to the secondary index
-	at the searched position.  When the leaf page is not in the
-	buffer pool, try to use the change buffer. */
-	BTR_INSERT = 64,
-
-	/** Try to delete mark a secondary index leaf page record at
-	the searched position using the change buffer when the page is
-	not in the buffer pool. */
-	BTR_DELETE_MARK	= 128,
-
-	/** Try to purge the record using the change buffer when the
-	secondary index leaf page is not in the buffer pool. */
-	BTR_DELETE = BTR_INSERT | BTR_DELETE_MARK,
-
 	/** The caller is already holding dict_index_t::lock S-latch. */
-	BTR_ALREADY_S_LATCHED = 256,
+	BTR_ALREADY_S_LATCHED = 16,
 	/** Search and S-latch a leaf page, assuming that the
 	dict_index_t::lock S-latch is being held. */
 	BTR_SEARCH_LEAF_ALREADY_S_LATCHED = BTR_SEARCH_LEAF
@@ -107,28 +91,15 @@ enum btr_latch_mode {
 	BTR_MODIFY_LEAF_ALREADY_LATCHED = BTR_MODIFY_LEAF
 	| BTR_ALREADY_S_LATCHED,
 
-	/** Attempt to delete-mark a secondary index record. */
-	BTR_DELETE_MARK_LEAF = BTR_MODIFY_LEAF | BTR_DELETE_MARK,
-	/** Attempt to delete-mark a secondary index record
-	while holding the dict_index_t::lock S-latch. */
-	BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED = BTR_DELETE_MARK_LEAF
-	| BTR_ALREADY_S_LATCHED,
-	/** Attempt to purge a secondary index record. */
-	BTR_PURGE_LEAF = BTR_MODIFY_LEAF | BTR_DELETE,
-	/** Attempt to purge a secondary index record
-	while holding the dict_index_t::lock S-latch. */
-	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
-	| BTR_ALREADY_S_LATCHED,
+	/** In the case of BTR_MODIFY_TREE, the caller specifies
+	the intention to delete record only. It is used to optimize
+	block->lock range.*/
+	BTR_LATCH_FOR_DELETE = 32,
 
 	/** In the case of BTR_MODIFY_TREE, the caller specifies
 	the intention to delete record only. It is used to optimize
 	block->lock range.*/
-	BTR_LATCH_FOR_DELETE = 512,
-
-	/** In the case of BTR_MODIFY_TREE, the caller specifies
-	the intention to delete record only. It is used to optimize
-	block->lock range.*/
-	BTR_LATCH_FOR_INSERT = 1024,
+	BTR_LATCH_FOR_INSERT = 64,
 
 	/** Attempt to delete a record in the tree. */
 	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
@@ -136,12 +107,8 @@ enum btr_latch_mode {
 	/** Attempt to insert a record into the tree. */
 	BTR_INSERT_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_INSERT,
 
-	/** This flag ORed to BTR_INSERT says that we can ignore possible
-	UNIQUE definition on secondary indexes when we decide if we can use
-	the insert buffer to speed up inserts */
-	BTR_IGNORE_SEC_UNIQUE = 2048,
 	/** Rollback in spatial index */
-	BTR_RTREE_UNDO_INS = 4096,
+	BTR_RTREE_UNDO_INS = 128,
 	/** Try to delete mark a spatial index record */
-	BTR_RTREE_DELETE_MARK = 8192
+	BTR_RTREE_DELETE_MARK = 256
 };

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -889,7 +889,7 @@ static bool buf_flush_check_neighbor(const page_id_t id, ulint fold, bool lru)
   const buf_page_t *bpage=
     buf_pool.page_hash.get(id, buf_pool.page_hash.cell_get(fold));
 
-  if (!bpage || buf_pool.watch_is_sentinel(*bpage))
+  if (!bpage)
     return false;
 
   /* We avoid flushing 'non-old' blocks in an LRU flush, because the
@@ -1066,8 +1066,7 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
       because the flushed blocks are soon freed */
       if (!lru || id == page_id || bpage->is_old())
       {
-        if (!buf_pool.watch_is_sentinel(*bpage) &&
-            bpage->oldest_modification() > 1 && bpage->ready_for_flush() &&
+        if (bpage->oldest_modification() > 1 && bpage->ready_for_flush() &&
             bpage->flush(lru, space))
         {
           ++count;
@@ -1174,7 +1173,7 @@ static void buf_flush_discard_page(buf_page_t *bpage)
 
   ut_d(const auto state= bpage->state());
   ut_ad(state == buf_page_t::FREED || state == buf_page_t::UNFIXED ||
-        state == buf_page_t::IBUF_EXIST || state == buf_page_t::REINIT);
+        state == buf_page_t::REINIT);
   bpage->lock.u_unlock();
 
   buf_LRU_free_page(bpage, true);

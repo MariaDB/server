@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1095,9 +1095,7 @@ rec_get_converted_size(
 
 	ut_ad(dtuple_check_typed(dtuple));
 #ifdef UNIV_DEBUG
-	if (dict_index_is_ibuf(index)) {
-		ut_ad(dtuple->n_fields > 1);
-	} else if ((dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK)
+	if ((dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK)
 		   == REC_STATUS_NODE_PTR) {
 		ut_ad(dtuple->n_fields - 1
 		      == dict_index_get_n_unique_in_tree_nonleaf(index));

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2021, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2022, MariaDB Corporation.
+Copyright (c) 2014, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,7 +45,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0purge.h"
 #include "buf0lru.h"
-#include "ibuf0ibuf.h"
 #include "buf0flu.h"
 #include "log.h"
 #ifdef __linux__
@@ -1414,7 +1413,7 @@ void fil_system_t::set_write_through(bool write_through)
 {
   mysql_mutex_lock(&mutex);
 
-  if (write_through != this->write_through)
+  if (write_through != is_write_through())
   {
     this->write_through= write_through;
     fil_space_t::reopen_all();
@@ -1427,7 +1426,7 @@ void fil_system_t::set_buffered(bool buffered)
 {
   mysql_mutex_lock(&mutex);
 
-  if (buffered != this->buffered)
+  if (buffered != is_buffered())
   {
     this->buffered= buffered;
     fil_space_t::reopen_all();
@@ -1718,7 +1717,6 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
     fil_space_free_low(space);
   }
 
-  ibuf_delete_for_discarded_space(id);
   return handle;
 }
 
@@ -2859,10 +2857,6 @@ write_completed:
   {
     ut_ad(request.is_read());
 
-    /* IMPORTANT: since i/o handling for reads will read also the insert
-    buffer in fil_system.sys_space, we have to be very careful not to
-    introduce deadlocks. We never close fil_system.sys_space data
-    files and never issue asynchronous reads of change buffer pages. */
     const page_id_t id(request.bpage->id());
 
     if (dberr_t err= request.bpage->read_complete(*request.node))

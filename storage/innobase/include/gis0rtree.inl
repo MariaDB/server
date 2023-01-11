@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -240,6 +240,9 @@ rtr_info_reinit_in_cursor(
 	bool		need_prdt)	/*!< in: Whether predicate lock is
 					needed */
 {
+	que_thr_t* thr = cursor->rtr_info->thr;
+	ut_ad(thr);
 	rtr_clean_rtr_info(cursor->rtr_info, false);
 	rtr_init_rtr_info(cursor->rtr_info, need_prdt, cursor, index, true);
+	cursor->rtr_info->thr = thr;
 }

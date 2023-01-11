@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2023, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5324,6 +5324,10 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-thread-concurrency"),
       MARIADB_REMOVED_OPTION("innodb-thread-sleep-delay"),
       MARIADB_REMOVED_OPTION("innodb-undo-logs"),
+
+      /* The following options were deprecated in 10.9 */
+      MARIADB_REMOVED_OPTION("innodb-change-buffering"),
+
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -410,12 +410,12 @@ void trx_t::free()
 #endif
   read_view.mem_noaccess();
   MEM_NOACCESS(&lock, sizeof lock);
-  MEM_NOACCESS(&op_info, sizeof op_info);
-  MEM_NOACCESS(&isolation_level, sizeof isolation_level);
-  MEM_NOACCESS(&check_foreigns, sizeof check_foreigns);
+  MEM_NOACCESS(&op_info, sizeof op_info +
+               sizeof(unsigned) /* isolation_level,
+                                   check_foreigns, check_unique_secondary,
+                                   bulk_insert */);
   MEM_NOACCESS(&is_registered, sizeof is_registered);
   MEM_NOACCESS(&active_commit_ordered, sizeof active_commit_ordered);
-  MEM_NOACCESS(&check_unique_secondary, sizeof check_unique_secondary);
   MEM_NOACCESS(&flush_log_later, sizeof flush_log_later);
   MEM_NOACCESS(&must_flush_log_later, sizeof must_flush_log_later);
   MEM_NOACCESS(&duplicates, sizeof duplicates);

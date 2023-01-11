@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -417,16 +417,6 @@ public:
 /** The recovery system */
 extern recv_sys_t	recv_sys;
 
-/** If the following is TRUE, the buffer pool file pages must be invalidated
-after recovery and no ibuf operations are allowed; this will be set if
-recv_sys.pages becomes too full, and log records must be merged
-to file pages already before the recovery is finished: in this case no
-ibuf operations are allowed, as they could modify the pages read in the
-buffer pool before the pages have been recovered to the up-to-date state.
-
-TRUE means that recovery is running and no operations on the log files
-are allowed yet: the variable name is misleading. */
-extern bool		recv_no_ibuf_operations;
 /** TRUE when recv_init_crash_recovery() has been called. */
 extern bool		recv_needed_recovery;
 #ifdef UNIV_DEBUG

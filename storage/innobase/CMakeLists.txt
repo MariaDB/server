@@ -1,6 +1,6 @@
 
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2022, MariaDB Corporation.
+# Copyright (c) 2014, 2023, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -270,7 +270,6 @@ SET(INNOBASE_SOURCES
 	include/handler0alter.h
 	include/hash0hash.h
 	include/ibuf0ibuf.h
-	include/ibuf0ibuf.inl
 	include/lock0iter.h
 	include/lock0lock.h
 	include/lock0lock.inl

@@ -2227,7 +2227,7 @@ end_of_index:
 						  next_page_no),
 					old_table->space->zip_size(),
 					RW_S_LATCH, nullptr, BUF_GET, &mtr,
-					&err, false);
+					&err);
 				if (!block) {
 					goto err_exit;
 				}
@@ -3715,8 +3715,6 @@ row_merge_mtuple_to_dtuple(
 	dtuple_t*	dtuple,
 	const mtuple_t* mtuple)
 {
-	ut_ad(!dict_index_is_ibuf(index));
-
 	memcpy(dtuple->fields, mtuple->fields,
 	       dtuple->n_fields * sizeof *mtuple->fields);
 }

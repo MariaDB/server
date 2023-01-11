@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2071,7 +2071,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	we no longer evict the pages on DISCARD TABLESPACE. */
 	buf_page_get_low(block->page.id(), get_zip_size(), RW_NO_LATCH,
 			 nullptr, BUF_PEEK_IF_IN_POOL,
-			 nullptr, nullptr, false);
+			 nullptr, nullptr);
 
 	uint16_t page_type;
 
@@ -4256,8 +4256,6 @@ row_import_for_mysql(
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	ut_ad(!table->is_readable());
 
-	ibuf_delete_for_discarded_space(table->space_id);
-
 	/* Assign an undo segment for the transaction, so that the
 	transaction will be recovered after a crash. */
 
@@ -4455,12 +4453,6 @@ row_import_for_mysql(
 	}
 
 	ut_free(filepath);
-
-	if (err == DB_SUCCESS) {
-		err = ibuf_check_bitmap_on_import(trx, table->space);
-	}
-
-	DBUG_EXECUTE_IF("ib_import_check_bitmap_failure", err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
 		return row_import_cleanup(prebuilt, err);

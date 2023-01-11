@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -105,7 +105,6 @@ trx_sysf_get_n_rseg_slots()
 /** Initialize the transaction system when creating the database. */
 dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
 {
-  mtr->start();
   mtr->x_lock_space(fil_system.sys_space);
   static_assert(TRX_SYS_SPACE == 0, "compatibility");
 
@@ -114,11 +113,7 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
   buf_block_t *block= fseg_create(fil_system.sys_space,
                                   TRX_SYS + TRX_SYS_FSEG_HEADER, mtr, &err);
   if (UNIV_UNLIKELY(!block))
-  {
-  error:
-    mtr->commit();
     return err;
-  }
   ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 
   mtr->write<2>(*block, FIL_PAGE_TYPE + block->page.frame,
@@ -138,9 +133,8 @@ dberr_t trx_sys_create_sys_pages(mtr_t *mtr)
   buf_block_t *r= trx_rseg_header_create(fil_system.sys_space, 0, 0,
                                          mtr, &err);
   if (UNIV_UNLIKELY(!r))
-    goto error;
+    return err;
   ut_a(r->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
-  mtr->commit();
 
   return trx_lists_init_at_db_start();
 }

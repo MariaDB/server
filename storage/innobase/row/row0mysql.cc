@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,7 +43,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "fsp0file.h"
 #include "fts0fts.h"
 #include "fts0types.h"
-#include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "log0log.h"
 #include "pars0pars.h"
@@ -2334,12 +2333,7 @@ row_discard_tablespace(
 	2) Purge and rollback: we assign a new table id for the
 	table. Since purge and rollback look for the table based on
 	the table id, they see the table as 'dropped' and discard
-	their operations.
-
-	3) Insert buffer: we remove all entries for the tablespace in
-	the insert buffer tree. */
-
-	ibuf_delete_for_discarded_space(table->space_id);
+	their operations. */
 
 	table_id_t	new_id;
 
@@ -2442,9 +2436,8 @@ rollback:
   /* Note: The following cannot be rolled back. Rollback would see the
   UPDATE of SYS_INDEXES.TABLE_ID as two operations: DELETE and INSERT.
   It would invoke btr_free_if_exists() when rolling back the INSERT,
-  effectively dropping all indexes of the table. Furthermore, calls like
-  ibuf_delete_for_discarded_space() are already discarding data
-  before the transaction is committed.
+  effectively dropping all indexes of the table. Furthermore, we are
+  already discarding data before the transaction is committed.
 
   It would be better to remove the integrity-breaking
   ALTER TABLE...DISCARD TABLESPACE operation altogether. */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1247,11 +1247,11 @@ constexpr uint16_t FIL_PAGE_RTREE= 17854;
 constexpr uint16_t FIL_PAGE_UNDO_LOG= 2;
 /** Index node (of file-in-file metadata) */
 constexpr uint16_t FIL_PAGE_INODE= 3;
-/** Insert buffer free list */
+/** Former change buffer free list */
 constexpr uint16_t FIL_PAGE_IBUF_FREE_LIST= 4;
 /** Freshly allocated page */
 constexpr uint16_t FIL_PAGE_TYPE_ALLOCATED= 0;
-/** Change buffer bitmap (pages n*innodb_page_size+1) */
+/** Former change buffer bitmap pages (pages n*innodb_page_size+1) */
 constexpr uint16_t FIL_PAGE_IBUF_BITMAP= 5;
 /** System page */
 constexpr uint16_t FIL_PAGE_TYPE_SYS= 6;

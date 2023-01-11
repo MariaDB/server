@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -269,7 +269,7 @@ page_zip_max_ins_size(
 Determine if enough space is available in the modification log.
 @return TRUE if enough space is available */
 UNIV_INLINE
-ibool
+bool
 page_zip_available(
 /*===============*/
 	const page_zip_des_t*	page_zip,/*!< in: compressed page */

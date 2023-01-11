@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,7 +46,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "page0page.h"
 #include "page0cur.h"
 #include "trx0undo.h"
-#include "ibuf0ibuf.h"
 #include "trx0undo.h"
 #include "trx0rec.h"
 #include "fil0fil.h"
@@ -70,17 +69,6 @@ bool	recv_no_log_write = false;
 number (FIL_PAGE_LSN) is in the future.  Initially FALSE, and set by
 recv_recovery_from_checkpoint_start(). */
 bool	recv_lsn_checks_on;
-
-/** If the following is TRUE, the buffer pool file pages must be invalidated
-after recovery and no ibuf operations are allowed; this becomes TRUE if
-the log record hash table becomes too full, and log records must be merged
-to file pages already before the recovery is finished: in this case no
-ibuf operations are allowed, as they could modify the pages read in the
-buffer pool before the pages have been recovered to the up-to-date state.
-
-true means that recovery is running and no operations on the log file
-are allowed yet: the variable name is misleading. */
-bool	recv_no_ibuf_operations;
 
 /** The maximum lsn we see for a page during the recovery process. If this
 is bigger than the lsn we are able to scan up to, that is an indication that
@@ -1089,62 +1077,9 @@ public:
 	void reset()
 	{
 		mysql_mutex_assert_owner(&recv_sys.mutex);
-		ut_ad(recv_no_ibuf_operations);
 		for (map::value_type& i : inits) {
 			i.second.created = false;
 		}
-	}
-
-	/** On the last recovery batch, mark whether there exist
-	buffered changes for the pages that were initialized
-	by buf_page_create() and still reside in the buffer pool.
-	@param[in,out]	mtr	dummy mini-transaction */
-	void mark_ibuf_exist(mtr_t& mtr)
-	{
-		mysql_mutex_assert_owner(&recv_sys.mutex);
-		mtr.start();
-
-		for (const map::value_type& i : inits) {
-			if (!i.second.created) {
-				continue;
-			}
-			if (buf_block_t* block = buf_page_get_low(
-				    i.first, 0, RW_X_LATCH, nullptr,
-				    BUF_GET_IF_IN_POOL,
-				    &mtr, nullptr, false)) {
-				if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-					switch (fil_page_get_type(
-							block->page.zip.data)) {
-					case FIL_PAGE_INDEX:
-					case FIL_PAGE_RTREE:
-						if (page_zip_decompress(
-							    &block->page.zip,
-							    block->page.frame,
-							    true)) {
-							break;
-						}
-						ib::error() << "corrupted "
-							    << block->page.id();
-					}
-				}
-				if (recv_no_ibuf_operations) {
-					mtr.commit();
-					mtr.start();
-					continue;
-				}
-				mysql_mutex_unlock(&recv_sys.mutex);
-				if (ibuf_page_exists(block->page.id(),
-						     block->zip_size())) {
-					block->page.set_ibuf_exist();
-				}
-				mtr.commit();
-				mtr.start();
-				mysql_mutex_lock(&recv_sys.mutex);
-			}
-		}
-
-		mtr.commit();
-		clear();
 	}
 
 	/** Clear the data structure */
@@ -3436,10 +3371,6 @@ void recv_sys_t::apply(bool last_batch)
     }
   }
 
-  recv_no_ibuf_operations = !last_batch ||
-    srv_operation == SRV_OPERATION_RESTORE ||
-    srv_operation == SRV_OPERATION_RESTORE_EXPORT;
-
   mtr_t mtr;
 
   if (!pages.empty())
@@ -3580,10 +3511,7 @@ next_free_block:
     }
   }
 
-  if (last_batch)
-    /* We skipped this in buf_page_create(). */
-    mlog_init.mark_ibuf_exist(mtr);
-  else
+  if (!last_batch)
   {
     mlog_init.reset();
     log_sys.latch.wr_unlock();
@@ -4298,7 +4226,6 @@ err_exit:
 
 	mysql_mutex_lock(&recv_sys.mutex);
 	recv_sys.apply_log_recs = true;
-	recv_no_ibuf_operations = false;
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
 	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 	if (srv_operation == SRV_OPERATION_NORMAL) {

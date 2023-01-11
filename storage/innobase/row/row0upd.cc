@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2022, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1842,7 +1842,6 @@ row_upd_sec_index_entry(
 	trx_t*			trx	= thr_get_trx(thr);
 	btr_latch_mode		mode;
 	ulint			flags;
-	enum row_search_result	search_result;
 
 	ut_ad(trx->id != 0);
 
@@ -1884,41 +1883,29 @@ row_upd_sec_index_entry(
 	default:
 		index->set_modified(mtr);
 		/* fall through */
-	case IBUF_SPACE_ID:
+	case 0:
 		flags = index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
 		/* We can only buffer delete-mark operations if there
 		are no foreign key constraints referring to the index. */
 		mode = index->is_spatial()
 			? btr_latch_mode(BTR_MODIFY_LEAF
 					 | BTR_RTREE_DELETE_MARK)
-			: referenced
-			? BTR_MODIFY_LEAF : BTR_DELETE_MARK_LEAF;
+			: BTR_MODIFY_LEAF;
 		break;
 	}
 
-	/* Set the query thread, so that ibuf_insert_low() will be
-	able to invoke thd_get_trx(). */
-	btr_pcur_get_btr_cur(&pcur)->thr = thr;
 	pcur.btr_cur.page_cur.index = index;
 
-	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
+	bool found = row_search_index_entry(entry, mode, &pcur, thr, &mtr);
 
 	btr_cur = btr_pcur_get_btr_cur(&pcur);
 
 	rec = btr_cur_get_rec(btr_cur);
 
-	switch (search_result) {
-	case ROW_NOT_DELETED_REF:	/* should only occur for BTR_DELETE */
-		ut_error;
-		break;
-	case ROW_BUFFERED:
-		/* Entry was delete marked already. */
-		break;
-
-	case ROW_NOT_FOUND:
+	if (!found) {
 		if (dict_index_is_spatial(index) && btr_cur->rtr_info->fd_del) {
 			/* We found the record, but a delete marked */
-			break;
+			goto done;
 		}
 
 		ib::error()
@@ -1932,8 +1919,7 @@ row_upd_sec_index_entry(
 		ut_ad(btr_validate_index(index, 0) == DB_SUCCESS);
 		ut_ad(0);
 #endif /* UNIV_DEBUG */
-		break;
-	case ROW_FOUND:
+	} else {
 		ut_ad(err == DB_SUCCESS);
 
 		/* Delete mark the old index record; it can already be
@@ -1946,7 +1932,7 @@ row_upd_sec_index_entry(
 				btr_cur_get_block(btr_cur),
 				btr_cur_get_rec(btr_cur), index, thr, &mtr);
 			if (err != DB_SUCCESS) {
-				break;
+				goto done;
 			}
 
 			btr_rec_set_deleted<true>(btr_cur_get_block(btr_cur),
@@ -2009,6 +1995,7 @@ row_upd_sec_index_entry(
 		}
 	}
 
+done:
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 

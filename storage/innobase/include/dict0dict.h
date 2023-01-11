@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -634,8 +634,6 @@ dict_table_get_next_index(
 #define dict_index_is_auto_gen_clust(index) (index)->is_gen_clust()
 #define dict_index_is_unique(index) (index)->is_unique()
 #define dict_index_is_spatial(index) (index)->is_spatial()
-#define dict_index_is_ibuf(index) (index)->is_ibuf()
-#define dict_index_is_sec_or_ibuf(index) !(index)->is_primary()
 #define dict_index_has_virtual(index) (index)->has_virtual()
 
 /** Get all the FTS indexes on a table.

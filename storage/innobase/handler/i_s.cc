@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2022, MariaDB Corporation.
+Copyright (c) 2014, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,7 +39,6 @@ Created July 18, 2007 Vasil Dimov
 #include "dict0load.h"
 #include "buf0buddy.h"
 #include "buf0buf.h"
-#include "ibuf0ibuf.h"
 #include "dict0mem.h"
 #include "dict0types.h"
 #include "srv0start.h"
@@ -80,10 +79,7 @@ in i_s_page_type[] array */
 /** R-tree index page */
 #define	I_S_PAGE_TYPE_RTREE		(FIL_PAGE_TYPE_LAST + 1)
 
-/** Change buffer B-tree page */
-#define	I_S_PAGE_TYPE_IBUF		(FIL_PAGE_TYPE_LAST + 2)
-
-#define I_S_PAGE_TYPE_LAST		I_S_PAGE_TYPE_IBUF
+#define I_S_PAGE_TYPE_LAST		I_S_PAGE_TYPE_RTREE
 
 #define I_S_PAGE_TYPE_BITS		4
 
@@ -104,9 +100,6 @@ static buf_page_desc_t	i_s_page_type[] = {
 	{"COMPRESSED_BLOB2", FIL_PAGE_TYPE_ZBLOB2},
 	{"UNKNOWN", I_S_PAGE_TYPE_UNKNOWN},
 	{"RTREE_INDEX", I_S_PAGE_TYPE_RTREE},
-	{"IBUF_INDEX", I_S_PAGE_TYPE_IBUF},
-	{"PAGE COMPRESSED", FIL_PAGE_PAGE_COMPRESSED},
-	{"PAGE COMPRESSED AND ENCRYPTED", FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED},
 };
 
 /** This structure defines information we will fetch from pages
@@ -3776,17 +3769,17 @@ i_s_innodb_buffer_page_fill(
 		OK(fields[IDX_BUFFER_PAGE_STATE]->store(
 			   std::min<uint32_t>(3, page_info->state) + 1, true));
 
-		static_assert(buf_page_t::UNFIXED == 1U << 29, "comp.");
+		static_assert(buf_page_t::UNFIXED == 2U << 29, "comp.");
 		static_assert(buf_page_t::READ_FIX == 4U << 29, "comp.");
-		static_assert(buf_page_t::WRITE_FIX == 5U << 29, "comp.");
+		static_assert(buf_page_t::WRITE_FIX == 6U << 29, "comp.");
 
 		unsigned io_fix = page_info->state >> 29;
 		if (io_fix < 4) {
 			io_fix = 1;
-		} else if (io_fix > 5) {
-			io_fix = 3;
+		} else if (io_fix == 4) {
+			io_fix = 2;
 		} else {
-			io_fix -= 2;
+			io_fix = 3;
 		}
 
 		OK(fields[IDX_BUFFER_PAGE_IO_FIX]->store(io_fix, true));
@@ -3824,14 +3817,9 @@ i_s_innodb_set_page_type(
 		their values are defined as 17855 and 17854, so we cannot
 		use them to index into i_s_page_type[] array, its array index
 		in the i_s_page_type[] array is I_S_PAGE_TYPE_INDEX
-		(1) for index pages or I_S_PAGE_TYPE_IBUF for
-		change buffer index pages */
+		(1) for index pages */
 		if (page_type == FIL_PAGE_RTREE) {
 			page_info->page_type = I_S_PAGE_TYPE_RTREE;
-		} else if (page_info->index_id
-			   == static_cast<index_id_t>(DICT_IBUF_ID_MIN
-						      + IBUF_SPACE_ID)) {
-			page_info->page_type = I_S_PAGE_TYPE_IBUF;
 		} else {
 			ut_ad(page_type == FIL_PAGE_INDEX
 			      || page_type == FIL_PAGE_TYPE_INSTANT);
@@ -3876,9 +3864,9 @@ i_s_innodb_buffer_page_get_info(
 	static_assert(buf_page_t::NOT_USED == 0, "compatibility");
 	static_assert(buf_page_t::MEMORY == 1, "compatibility");
 	static_assert(buf_page_t::REMOVE_HASH == 2, "compatibility");
-	static_assert(buf_page_t::UNFIXED == 1U << 29, "compatibility");
+	static_assert(buf_page_t::UNFIXED == 2U << 29, "compatibility");
 	static_assert(buf_page_t::READ_FIX == 4U << 29, "compatibility");
-	static_assert(buf_page_t::WRITE_FIX == 5U << 29, "compatibility");
+	static_assert(buf_page_t::WRITE_FIX == 6U << 29, "compatibility");
 
 	page_info->state = bpage->state();
 
@@ -4268,17 +4256,17 @@ i_s_innodb_buf_page_lru_fill(
 		OK(fields[IDX_BUF_LRU_PAGE_STATE]->store(
 			   page_info->compressed_only, true));
 
-		static_assert(buf_page_t::UNFIXED == 1U << 29, "comp.");
+		static_assert(buf_page_t::UNFIXED == 2U << 29, "comp.");
 		static_assert(buf_page_t::READ_FIX == 4U << 29, "comp.");
-		static_assert(buf_page_t::WRITE_FIX == 5U << 29, "comp.");
+		static_assert(buf_page_t::WRITE_FIX == 6U << 29, "comp.");
 
 		unsigned io_fix = page_info->state >> 29;
 		if (io_fix < 4) {
 			io_fix = 1;
-		} else if (io_fix > 5) {
-			io_fix = 3;
+		} else if (io_fix == 4) {
+			io_fix = 2;
 		} else {
-			io_fix -= 2;
+			io_fix = 3;
 		}
 
 		OK(fields[IDX_BUF_LRU_PAGE_IO_FIX]->store(io_fix, true));

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,7 +34,6 @@ Created 2014/01/16 Jimmy Yang
 #include "btr0pcur.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
-#include "ibuf0ibuf.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
 #include "que0que.h"
@@ -511,13 +510,13 @@ static void rtr_compare_cursor_rec(const rec_t *rec, dict_index_t *index,
 
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. It should be
-closed with btr_pcur_close. Mainly called by row_search_index_entry() */
+closed with btr_pcur_close. */
 bool
 rtr_pcur_open(
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
+	que_thr_t*	thr,	/*!< in/out; query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	static_assert(BTR_MODIFY_TREE == (8 | BTR_MODIFY_LEAF), "");
@@ -534,15 +533,16 @@ rtr_pcur_open(
 	/* Search with the tree cursor */
 
 	btr_cur_t* btr_cursor = btr_pcur_get_btr_cur(cursor);
-	btr_cursor->page_cur.index = index;
+	dict_index_t* const index = cursor->index();
 
-	btr_cursor->rtr_info = rtr_create_rtr_info(false, false,
-						   btr_cursor, index);
+	btr_cursor->rtr_info = rtr_create_rtr_info(false, false, thr,
+						   btr_cursor);
 
-	/* Purge will SX lock the tree instead of take Page Locks */
-	if (btr_cursor->thr) {
+	if (!thr) {
+		/*  Purge will U lock the tree instead of take Page Locks */
+	} else {
 		btr_cursor->rtr_info->need_page_lock = true;
-		btr_cursor->rtr_info->thr = btr_cursor->thr;
+		btr_cursor->rtr_info->thr = thr;
 	}
 
 	if ((latch_mode & 8) && index->lock.have_u_not_x()) {
@@ -607,12 +607,14 @@ rtr_pcur_open(
 				about parent nodes in search
 @param[out]	cursor		cursor on node pointer record,
 				its page x-latched
+@param[in,out]	thr		query thread
 @return whether the cursor was successfully positioned */
-bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor)
+bool rtr_page_get_father(mtr_t *mtr, btr_cur_t *sea_cur, btr_cur_t *cursor,
+                         que_thr_t *thr)
 {
   mem_heap_t *heap = mem_heap_create(100);
   rec_offs *offsets= rtr_page_get_father_block(nullptr, heap,
-                                               mtr, sea_cur, cursor);
+                                               sea_cur, cursor, thr, mtr);
   mem_heap_free(heap);
   return offsets != nullptr;
 }
@@ -629,12 +631,13 @@ static const rec_t* rtr_get_father_node(
 	btr_cur_t*	sea_cur,/*!< in: search cursor */
 	btr_cur_t*	btr_cur,/*!< in/out: tree cursor; the cursor page is
 				s- or x-latched, but see also above! */
+	que_thr_t*	thr,	/*!< in/out: query thread */
 	ulint		page_no,/*!< Current page no */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	const rec_t* rec = nullptr;
 	auto had_rtr = btr_cur->rtr_info;
-	dict_index_t* const index = btr_cur->index();
+	ut_d(dict_index_t* const index = btr_cur->index());
 
 	/* Try to optimally locate the parent node. Level should always
 	less than sea_cur->tree_height unless the root is splitting */
@@ -666,7 +669,7 @@ static const rec_t* rtr_get_father_node(
 		rtr_clean_rtr_info(btr_cur->rtr_info, true);
 	}
 
-	btr_cur->rtr_info = rtr_create_rtr_info(false, false, btr_cur, index);
+	btr_cur->rtr_info = rtr_create_rtr_info(false, false, thr, btr_cur);
 
 	if (btr_cur_search_to_nth_level(level, tuple,
 					PAGE_CUR_RTREE_LOCATE,
@@ -718,6 +721,7 @@ rtr_page_get_father_node_ptr(
 	btr_cur_t*	cursor,	/*!< in: cursor pointing to user record,
 				out: cursor on node pointer record,
 				its page x-latched */
+	que_thr_t*	thr,	/*!< in/out: query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	dtuple_t*	tuple;
@@ -754,7 +758,7 @@ rtr_page_get_father_node_ptr(
 
 	const rec_t* node_ptr = rtr_get_father_node(level + 1, tuple,
 						    sea_cur, cursor,
-						    page_no, mtr);
+						    thr, page_no, mtr);
 	if (!node_ptr) {
 		return nullptr;
 	}
@@ -780,18 +784,20 @@ rtr_page_get_father_block(
 /*======================*/
 	rec_offs*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	mtr_t*		mtr,	/*!< in: mtr */
 	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
 				about parent nodes in search */
-	btr_cur_t*	cursor)	/*!< out: cursor on node pointer record,
+	btr_cur_t*	cursor,	/*!< out: cursor on node pointer record,
 				its page x-latched */
+	que_thr_t*	thr,	/*!< in/out: query thread */
+	mtr_t*		mtr)	/*!< in/out: mtr */
 {
   rec_t *rec=
     page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
   if (!rec)
     return nullptr;
   cursor->page_cur.rec= rec;
-  return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor, mtr);
+  return rtr_page_get_father_node_ptr(offsets, heap, sea_cur, cursor,
+                                      thr, mtr);
 }
 
 /*******************************************************************//**
@@ -804,12 +810,12 @@ rtr_create_rtr_info(
 	bool		init_matches,	/*!< in: Whether to initiate the
 					"matches" structure for collecting
 					matched leaf records */
-	btr_cur_t*	cursor,		/*!< in: tree search cursor */
-	dict_index_t*	index)		/*!< in: index struct */
+	que_thr_t*	thr,		/*!< in/out: query thread */
+	btr_cur_t*	cursor)		/*!< in: tree search cursor */
 {
 	rtr_info_t*	rtr_info;
 
-	index = index ? index : cursor->index();
+	dict_index_t* index = cursor->index();
 	ut_ad(index);
 
 	rtr_info = static_cast<rtr_info_t*>(ut_zalloc_nokey(sizeof(*rtr_info)));
@@ -817,6 +823,7 @@ rtr_create_rtr_info(
 	rtr_info->allocated = true;
 	rtr_info->cursor = cursor;
 	rtr_info->index = index;
+	rtr_info->thr = thr;
 
 	if (init_matches) {
 		rtr_info->heap = mem_heap_create(sizeof(*(rtr_info->matches)));

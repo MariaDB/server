@@ -170,9 +170,9 @@ extern char*	srv_data_home;
 recovery and open all tables in RO mode instead of RW mode. We don't
 sync the max trx id to disk either. */
 extern my_bool	srv_read_only_mode;
-/** Set if InnoDB operates in read-only mode or innodb-force-recovery
-is greater than SRV_FORCE_NO_IBUF_MERGE. */
-extern my_bool	high_level_read_only;
+/** Set if innodb_read_only is set or innodb_force_recovery
+is SRV_FORCE_NO_UNDO_LOG_SCAN or greater. */
+extern bool high_level_read_only;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
 extern my_bool	srv_file_per_table;
@@ -584,11 +584,6 @@ void srv_monitor_task(void*);
 /** The periodic master task controlling the server. */
 void srv_master_callback(void*);
 
-
-/**
-Complete the shutdown tasks such as background DROP TABLE,
-and optionally change buffer merge (on innodb_fast_shutdown=0). */
-void srv_shutdown(bool ibuf_merge);
 
 } /* extern "C" */
 
