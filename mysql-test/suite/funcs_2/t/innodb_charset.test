@@ -9,6 +9,10 @@
 --source include/no_valgrind_without_big.inc
 --source include/have_innodb.inc
 
+# Starting with MariaDB 10.6, ensure that DDL recovery will have completed
+# before DROP DATABASE test.
+SET GLOBAL innodb_max_purge_lag_wait=0;
+
 let $engine_type= InnoDB;
 --source suite/funcs_2/charset/charset_master.test
 

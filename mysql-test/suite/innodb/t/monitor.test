@@ -381,6 +381,9 @@ INSERT INTO t1 VALUES(1,1,'a'),(2,9999,'b'),(3,10000,'c'),(4,4,'d');
 DELETE FROM t1 WHERE a = 9999 AND b='b';
 COMMIT;
 
+# After MDEV-30225 is fixed, the above DELETE creates next-key lock during
+# secondary index unique search. That's why the result of the following must
+# be 1.
 SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 = 'lock_rec_lock_created');
 SELECT @end - @start;

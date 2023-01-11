@@ -120,8 +120,8 @@ static void calculate_block_sizes(MEM_ROOT *mem_root, size_t block_size,
 
   SYNOPSIS
     init_alloc_root()
+      key            - key to register instrumented memory
       mem_root       - memory root to initialize
-      name           - name of memroot (for debugging)
       block_size     - size of chunks (blocks) used for memory allocation.
                        Will be updated to next power of 2, minus
                        internal and system memory management size.  This is

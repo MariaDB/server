@@ -4342,7 +4342,9 @@ drop table t1;
 #
 # MDEV-24019: query with recursive CTE when no default database is set
 #
-drop database test;
+create database dummy;
+use dummy;
+drop database dummy;
 with recursive a as
 (select 1 from dual union select * from a as r)
 select * from a;
@@ -4381,7 +4383,6 @@ a
 1
 deallocate prepare stmt;
 drop database db1;
-create database test;
 use test;
 #
 # MDEV-23406: query with mutually recursive CTEs when big_tables=1
