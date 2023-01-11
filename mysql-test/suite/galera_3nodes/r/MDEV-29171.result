@@ -1,0 +1,41 @@
+connection node_2;
+connection node_1;
+connection node_1;
+select @@wsrep_gtid_domain_id,@@wsrep_node_name;
+@@wsrep_gtid_domain_id	@@wsrep_node_name
+100	node1
+connection node_2;
+select @@wsrep_gtid_domain_id,@@wsrep_node_name;
+@@wsrep_gtid_domain_id	@@wsrep_node_name
+100	node2
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_3;
+select @@wsrep_gtid_domain_id,@@wsrep_node_name;
+@@wsrep_gtid_domain_id	@@wsrep_node_name
+100	node3
+connection node_3;
+connection node_2;
+connection node_1;
+connection node_1;
+# restart: --wsrep_new_cluster --wsrep_gtid_domain_id=200
+show variables like 'wsrep_gtid_domain_id';
+Variable_name	Value
+wsrep_gtid_domain_id	200
+connection node_2;
+# restart
+show variables like 'wsrep_gtid_domain_id';
+Variable_name	Value
+wsrep_gtid_domain_id	200
+connection node_3;
+# restart: --wsrep_sst_donor=node2
+show variables like 'wsrep_gtid_domain_id';
+Variable_name	Value
+wsrep_gtid_domain_id	200
+connection node_1;
+set global wsrep_gtid_domain_id=100;
+connection node_2;
+set global wsrep_gtid_domain_id=100;
+CALL mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+connection node_3;
+set global wsrep_gtid_domain_id=100;
+CALL mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
