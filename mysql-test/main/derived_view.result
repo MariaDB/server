@@ -2306,13 +2306,6 @@ GROUP BY TABLE_SCHEMA) AS UNIQUES
 ON ( COLUMNS.TABLE_SCHEMA = UNIQUES.TABLE_SCHEMA);
 COUNT(*) > 0
 1
-Warnings:
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1286	Unknown storage engine 'InnoDB'
 DROP TABLE t1;
 SET SESSION optimizer_switch= @save_optimizer_switch;
 #
@@ -3691,3 +3684,100 @@ drop procedure sp2;
 drop view v, v2;
 drop table t1,t2;
 # End of 10.2 tests
+#
+# MDEV-30081 Select from complex view using where clause gets SIGNAL 11 crash with derived_merge=on
+#   check it doesn't crash the server
+#
+set optimizer_switch='derived_merge=on';
+CREATE TABLE t1 ( id int, id1 int, PRIMARY KEY (id), KEY id1 (id1)) engine=innodb;
+insert into t1 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t2 ( id int PRIMARY KEY) engine=innodb;
+insert into t2 values (3),(4),(7);
+CREATE TABLE t3 ( id int, abc int, PRIMARY KEY (id), KEY (abc)) engine=innodb;
+insert into t3 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t4 ( id int, abc int, PRIMARY KEY (id)) engine=innodb;
+insert into t4 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t5 ( id int, abc int, PRIMARY KEY (id), KEY abc (abc) ) engine=innodb;
+insert into t5 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t6 ( id int, abc int, PRIMARY KEY (id), KEY abc (abc) ) engine=innodb;
+insert into t6 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t7 ( id int, wid int, PRIMARY KEY (id), KEY (wid) ) engine=innodb;
+insert into t7 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t8 ( id int, wid int, PRIMARY KEY (id), KEY wid (wid)) engine=innodb;
+insert into t8 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t9 ( id int, abc int, wid int, PRIMARY KEY (id), KEY (wid), KEY id (id)) engine=innodb;
+insert into t9 values (4,4,6),(7,7,7);
+CREATE TABLE t10 ( id int, abc int, PRIMARY KEY (id), KEY (abc) ) engine=innodb;
+insert into t10 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t11 ( id int, id1 int, PRIMARY KEY (id), KEY id1 (id1) ) engine=innodb;
+insert into t11 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t12 ( id int PRIMARY KEY) engine=innodb;
+insert into t12 values (3),(4),(7);
+CREATE TABLE t13 ( id int,  id1 int, wid int, PRIMARY KEY (id), KEY (id1), KEY (wid)) engine=innodb;
+insert into t13 values (4,4,6),(7,7,7);
+CREATE TABLE t14 ( id int PRIMARY KEY ) engine=innodb;
+insert into t14 values (3),(4),(7);
+CREATE TABLE t15 ( id int, abc int, PRIMARY KEY (id), KEY (abc) ) engine=innodb;
+insert into t15 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t16 ( id int, id1 int, PRIMARY KEY (id), KEY id1 (id1)) engine=innodb;
+insert into t16 values (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+CREATE TABLE t17 ( id int PRIMARY KEY) engine=innodb;
+insert into t17 values (3),(4),(7);
+CREATE TABLE t18 ( wtid int) engine=innodb;
+insert into t18 values (3),(4),(7);
+CREATE TABLE t19 ( wtid int PRIMARY KEY) engine=innodb;
+insert into t19 values (1),(2),(7);
+CREATE TABLE t20 ( wid int, KEY wid (wid)) engine=innodb;
+insert into t20 values (42),(13),(25),(5);
+CREATE TABLE t21 ( wid int, wtid int, otid int, oid int, PRIMARY KEY (wid), KEY (wtid), KEY (otid), KEY (oid) ) engine=innodb;
+insert into t21 values (6,30,6,6),(7,17,7,7);
+create view cte as (SELECT id, id1 FROM t16 GROUP BY id1);
+select * from (
+SELECT t21.*
+FROM (((((((((((((((((((((t21 
+JOIN t14 on(t21.oid = t14.id))
+JOIN t15 on(t21.oid = t15.abc))
+JOIN t17  on(t21.oid = t17.id))
+JOIN t19  on(t21.wtid = t19.wtid))
+JOIN t20 on(t21.wid = t20.wid))
+JOIN t6 on(t21.oid = t6.id))
+JOIN t5  on(t21.oid = t5.id))
+JOIN t10  on(t21.oid = t10.id))
+JOIN t8  on(t21.wid = t8.wid))
+JOIN t11  on(t21.oid = t11.id))
+JOIN t1  on(t21.oid = t1.id ))
+JOIN t13  on(t21.oid = t13.id))
+JOIN t9  on(t21.oid = t9.id))
+JOIN t4  on(t21.oid = t4.id))
+LEFT JOIN (SELECT t3.* FROM ((t3 JOIN t14 on(t3.abc = t14.id)) )) dt on(t21.oid = dt.id AND t21.otid = 14))
+JOIN t2  on(t21.oid = t2.id))
+JOIN t12  on(t21.oid = t12.id))
+JOIN t7  on(t7.wid = t21.wid))
+JOIN cte  on(cte.id1 = t14.id))
+LEFT JOIN cte cte_1 on(cte_1.id1 = dt.abc))
+LEFT JOIN cte cte_2 on(cte_2.id1 = t13.id1)) ) dt1
+WHERE dt1.wid = 7;
+wid	wtid	otid	oid
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+drop table t5;
+drop table t6;
+drop table t7;
+drop table t8;
+drop table t9;
+drop table t10;
+drop table t11;
+drop table t12;
+drop table t13;
+drop table t14;
+drop table t15;
+drop table t16;
+drop table t17;
+drop table t18;
+drop table t19;
+drop table t20;
+drop table t21;
+drop view cte;
+# End of 10.4 tests

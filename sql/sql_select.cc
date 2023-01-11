@@ -7081,11 +7081,19 @@ void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
       {
         DBUG_ASSERT(!(map & PSEUDO_TABLE_BITS)); // Must be a real table
         Table_map_iterator it(map);
-        int tablenr= it.next_bit();
+        uint tablenr= it.next_bit();
         DBUG_ASSERT(tablenr != Table_map_iterator::BITMAP_END);
-	TABLE *tmp_table=join->table[tablenr];
-        if (tmp_table) // already created
-          keyuse->ref_table_rows= MY_MAX(tmp_table->file->stats.records, 100);
+//        DBUG_ASSERT(tablenr < join->table_count );
+        if (tablenr >= join->table_count)
+        {
+          keyuse->ref_table_rows=100;
+        }
+        else
+        {
+          TABLE *tmp_table=join->table[tablenr];
+          if (tmp_table) // already created
+            keyuse->ref_table_rows= MY_MAX(tmp_table->file->stats.records, 100);
+        }
       }
     }
     /*
