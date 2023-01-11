@@ -6435,7 +6435,7 @@ static int do_stop_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
+          snprintf(query, sizeof(query), "STOP SLAVE '%.80s' SQL_THREAD", row[0]);
         else
           strmov(query, "STOP SLAVE SQL_THREAD");
 
@@ -6594,7 +6594,7 @@ static int do_start_slave_sql(MYSQL *mysql_con)
       {
         char query[160];
         if (multi_source)
-          sprintf(query, "START SLAVE '%.80s'", row[0]);
+          snprintf(query, sizeof(query), "START SLAVE '%.80s'", row[0]);
         else
           strmov(query, "START SLAVE");
 
