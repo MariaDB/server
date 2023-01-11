@@ -1,0 +1,83 @@
+#
+# MDEV-29171: changing the value of wsrep_gtid_domain_id
+# with full cluster restart fails on some nodes
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Initially wsrep gtid domain id is 100
+#
+--connection node_1
+select @@wsrep_gtid_domain_id,@@wsrep_node_name;
+
+--connection node_2
+select @@wsrep_gtid_domain_id,@@wsrep_node_name;
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+select @@wsrep_gtid_domain_id,@@wsrep_node_name;
+
+
+#
+# Shutdown all nodes
+#
+--connection node_3
+--source include/shutdown_mysqld.inc
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--source include/shutdown_mysqld.inc
+
+
+#
+# Bootstrap from node_1 and change wsrep_gtid_domain_id to 200
+#
+--connection node_1
+--let $restart_parameters = --wsrep_new_cluster --wsrep_gtid_domain_id=200
+--source include/start_mysqld.inc
+show variables like 'wsrep_gtid_domain_id';
+
+
+#
+# Restart node_2, expect that wsrep_gtid_domain_id has changed to 200
+#
+--connection node_2
+--let $restart_parameters = 
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+show variables like 'wsrep_gtid_domain_id';
+
+
+#
+# Restart node_3, select node_2 as donor
+# If bug is present, node_3 remains on domain id 100
+#
+--connection node_3
+--let $restart_parameters = --wsrep_sst_donor="node2"
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+--source include/start_mysqld.inc
+# Expect domain id 200
+show variables like 'wsrep_gtid_domain_id';
+
+
+#
+# Cleanup
+#
+--connection node_1
+set global wsrep_gtid_domain_id=100;
+
+--connection node_2
+set global wsrep_gtid_domain_id=100;
+CALL mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+
+--connection node_3
+set global wsrep_gtid_domain_id=100;
+CALL mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");

@@ -1,0 +1,14 @@
+!include ../galera_3nodes.cnf
+
+[mysqld.1]
+wsrep-node-name="node1"
+wsrep-gtid-mode=ON
+wsrep-gtid-domain-id=100
+
+[mysqld.2]
+wsrep-node-name="node2"
+wsrep-gtid-mode=ON
+
+[mysqld.3]
+wsrep-node-name="node3"
+wsrep-gtid-mode=ON
