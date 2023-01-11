@@ -1,4 +1,5 @@
-
+//! Representation of the `MYSQL_PLUGIN_VIO` struct, which has methods for
+//! reading and writing packets
 
 #[repr(transparent)]
 pub struct Vio (MYSQL_PLUGIN_VIO);

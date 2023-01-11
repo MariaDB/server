@@ -8,7 +8,7 @@
 #![allow(unused)]
 
 use mariadb_server::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
-use mariadb_server::plugin::{SysVarAtomic, License, Maturity};
+use mariadb_server::plugin::{License, Maturity, SysVarAtomic};
 use mariadb_server::plugin::{PluginType, PluginVarInfo};
 use mariadb_server::sysvar_atomic;
 use std::cell::UnsafeCell;
@@ -108,21 +108,26 @@ unsafe impl<T> Sync for UcWrap<T> {}
 
 // PROC: should mangle names with type name
 
-static _INTERNAL_SYSVARS: UcWrap<[*mut mariadb_server::bindings::st_mysql_sys_var; 2]> = UcWrap(UnsafeCell::new([
-    KEY_VERSION_SYSVAR.as_ptr().cast_mut(),
-    ::std::ptr::null_mut()
-]));
+static _INTERNAL_SYSVARS: UcWrap<[*mut mariadb_server::bindings::st_mysql_sys_var; 2]> =
+    UcWrap(UnsafeCell::new([
+        KEY_VERSION_SYSVAR.as_ptr().cast_mut(),
+        ::std::ptr::null_mut(),
+    ]));
 
-static _ENCRYPTION_ST: UcWrap<mariadb_server::bindings::st_mariadb_encryption> = UcWrap(UnsafeCell::new(mariadb_server::bindings::st_mariadb_encryption {
-    interface_version: mariadb_server::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as i32,
-    get_latest_key_version: Some(mariadb_server::plugin::encryption_wrapper::wrap_get_latest_key_version::<DebugKeyMgmt>),
-    get_key: Some(mariadb_server::plugin::encryption_wrapper::wrap_get_key::<DebugKeyMgmt>),
-    crypt_ctx_size: None,
-    crypt_ctx_init: None,
-    crypt_ctx_update: None,
-    crypt_ctx_finish: None,
-    encrypted_length: None,
-}));
+static _ENCRYPTION_ST: UcWrap<mariadb_server::bindings::st_mariadb_encryption> = UcWrap(
+    UnsafeCell::new(mariadb_server::bindings::st_mariadb_encryption {
+        interface_version: mariadb_server::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as i32,
+        get_latest_key_version: Some(
+            mariadb_server::plugin::encryption_wrapper::wrap_get_latest_key_version::<DebugKeyMgmt>,
+        ),
+        get_key: Some(mariadb_server::plugin::encryption_wrapper::wrap_get_key::<DebugKeyMgmt>),
+        crypt_ctx_size: None,
+        crypt_ctx_init: None,
+        crypt_ctx_update: None,
+        crypt_ctx_finish: None,
+        encrypted_length: None,
+    }),
+);
 
 #[no_mangle]
 static _maria_plugin_interface_version_: ::std::ffi::c_int =

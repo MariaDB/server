@@ -3,10 +3,10 @@
 use mariadb_server_sys as bindings;
 use std::{
     ffi::{c_int, c_uchar, c_uint, c_void},
-    slice,
+    mem, slice,
 };
 
-use super::encryption::{KeyError, KeyManager};
+use super::encryption::{Encryption, Flags, KeyError, KeyManager};
 
 /// Get the key version, simple wrapper
 pub unsafe extern "C" fn wrap_get_latest_key_version<T: KeyManager>(key_id: c_uint) -> c_uint {
@@ -25,8 +25,12 @@ pub unsafe extern "C" fn wrap_get_key<T: KeyManager>(
     dstbuf: *mut c_uchar,
     buflen: *mut c_uint,
 ) -> c_uint {
+    dbg!(key_id);
+    dbg!(version);
+    dbg!(dstbuf);
+    dbg!(*buflen);
     if dstbuf.is_null() {
-        match T::key_length(key_id, version) {
+        match dbg!(T::key_length(key_id, version)) {
             // FIXME: don't unwrap
             Ok(v) => *buflen = v.try_into().unwrap(),
             Err(e) => {
@@ -37,20 +41,54 @@ pub unsafe extern "C" fn wrap_get_key<T: KeyManager>(
     }
 
     // SAFETY: caller guarantees validity
-    let buf = slice::from_raw_parts_mut(dstbuf, buflen as usize);
+    let buf = slice::from_raw_parts_mut(dstbuf, *buflen as usize);
 
     // If successful, return 0. If an error occurs, return it
-    match T::get_key(key_id, version, buf) {
+    match dbg!(T::get_key(key_id, version, buf)) {
         Ok(_) => 0,
-        Err(e) => e as c_uint,
+        Err(e) => {
+            dbg!(e);
+
+            // match e {
+            //     // Set the desired buffer size if available
+            //     KeyError::BufferTooSmall => {
+            //         *buflen = dbg!(T::key_length(key_id, version)
+            //             .unwrap_or(0)
+            //             .try_into()
+            //             .unwrap())
+            //     }
+            //     _ => (),
+            // }
+            dbg!(e as c_uint)
+        }
     }
 }
 
-pub unsafe extern "C" fn wrap_crypt_ctx_size<T>(key_id: c_uint, key_version: c_uint) -> c_uint {
-    todo!()
+unsafe fn set_buflen_with_check(buflen: *mut c_uint, val: u32) {
+    if val > 32 {
+        eprintln!(
+            "The default encryption does not seem to allow keys above 32 bits. If the server \
+            crashes after this message, that is the likely error"
+        );
+    }
+    *buflen = val.try_into().unwrap()
 }
 
-pub unsafe extern "C" fn wrap_crypt_ctx_init<T>(
+pub unsafe extern "C" fn wrap_crypt_ctx_size<T>(_key_id: c_uint, _key_version: c_uint) -> c_uint {
+    // I believe that key_id and key_version are provided in case this plugin
+    // uses different structs for different keys. However, it seems safer & more
+    // user friendly to sidestep that and just make everything the same size
+    mem::size_of::<T>().try_into().unwrap()
+}
+
+/// # Safety
+///
+/// The caller must guarantee that the following is tre
+///
+/// - `ctx` points to memory with the size of T (may be uninitialized)
+/// - `key` exists for `klen`
+/// - `iv` exists for `ivlen`
+pub unsafe extern "C" fn wrap_crypt_ctx_init<T: Encryption>(
     ctx: *mut c_void,
     key: *const c_uchar,
     klen: c_uint,
@@ -60,31 +98,66 @@ pub unsafe extern "C" fn wrap_crypt_ctx_init<T>(
     key_id: c_uint,
     key_version: c_uint,
 ) -> c_int {
-    todo!()
+    /// SAFETY: caller guarantees buffer validity
+    let keybuf = slice::from_raw_parts(key, klen as usize);
+    let ivbuf = slice::from_raw_parts(iv, ivlen as usize);
+    let flags = Flags::new(flags);
+    match T::init(key_id, key_version, keybuf, ivbuf, flags) {
+        Ok(newctx) => {
+            ctx.cast::<T>().write(newctx);
+            1
+        }
+        Err(_) => -1,
+    }
 }
 
-pub unsafe extern "C" fn wrap_crypt_ctx_update<T>(
+/// # Safety
+///
+/// The caller must guarantee that the following is true:
+///
+/// - `ctx` points to a valid, initialized object of type T
+/// - `src` exists for `slen`
+/// - `dst` exists for `dlen`
+pub unsafe extern "C" fn wrap_crypt_ctx_update<T: Encryption>(
     ctx: *mut c_void,
     src: *const c_uchar,
     slen: c_uint,
     dst: *mut c_uchar,
     dlen: *mut c_uint,
 ) -> c_int {
-    todo!()
+    let sbuf = slice::from_raw_parts(src, slen as usize);
+    let dbuf = slice::from_raw_parts_mut(dst, dlen as usize);
+
+    let c: &mut T = &mut *ctx.cast();
+    match c.update(sbuf, dbuf) {
+        Ok(_) => 1,
+        Err(_) => -1,
+    }
 }
 
-pub unsafe extern "C" fn wrap_crypt_ctx_finish<T>(
+pub unsafe extern "C" fn wrap_crypt_ctx_finish<T: Encryption>(
     ctx: *mut c_void,
     dst: *mut c_uchar,
     dlen: *mut c_uint,
 ) -> c_int {
-    todo!()
+    let dbuf = slice::from_raw_parts_mut(dst, dlen as usize);
+
+    let c: &mut T = &mut *ctx.cast();
+    let ret = match c.finish(dbuf) {
+        Ok(_) => 1,
+        Err(_) => -1,
+    };
+
+    ctx.drop_in_place();
+    ret
 }
 
-pub unsafe extern "C" fn wrap_encrypted_length<T>(
+pub unsafe extern "C" fn wrap_encrypted_length<T: Encryption>(
     slen: c_uint,
     key_id: c_uint,
     key_version: c_uint,
 ) -> c_uint {
-    todo!()
+    T::encrypted_length(key_id, key_version, slen.try_into().unwrap())
+        .try_into()
+        .unwrap()
 }

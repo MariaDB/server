@@ -23,6 +23,7 @@ use mariadb_server_sys as bindings;
 /// A type of error to be used by key functions
 #[non_exhaustive]
 #[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum KeyError {
     // Values must be nonzero
     /// A key ID is invalid or not found. Maps to `ENCRYPTION_KEY_VERSION_INVALID` in C.
@@ -33,20 +34,24 @@ pub enum KeyError {
 }
 
 /// Representation of the flags integer
-#[derive(Clone, Copy, PartialEq)]
-pub struct Flags(u32);
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Flags(i32);
 
 impl Flags {
-    fn should_encrypt(&self) -> bool {
-        (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT) != 0
+    pub(crate) fn new(value: i32) -> Self {
+        Self(value)
     }
 
-    fn should_decrypt(&self) -> bool {
-        (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT) != 0
+    pub(crate) fn should_encrypt(&self) -> bool {
+        (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT as i32) != 0
+    }
+
+    pub(crate) fn should_decrypt(&self) -> bool {
+        (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT as i32) != 0
     }
 
     pub fn nopad(&self) -> bool {
-        (self.0 & bindings::ENCRYPTION_FLAG_NOPAD) != 0
+        (self.0 & bindings::ENCRYPTION_FLAG_NOPAD as i32) != 0
     }
 }
 
@@ -75,16 +80,18 @@ pub trait KeyManager: Send + Sized {
     fn key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError>;
 }
 
-pub trait Encryption {
+// TODO: Maybe split into `Encrypt` and `Decrypt` traits
+pub trait Encryption: Sized {
     /// Initialize the encryption context object
-    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: Flags) -> Self;
+    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: Flags)
+        -> Result<Self, ()>;
 
     /// Update the encryption context with new data, return the number of bytes
     /// written
-    fn update(ctx: &mut Self, src: &[u8], dst: &mut [u8]) -> usize;
+    fn update(&mut self, src: &[u8], dst: &mut [u8]) -> Result<(), ()>;
 
     /// Write the remaining bytes to the buffer
-    fn finish(ctx: &mut Self, dst: &mut [u8]) -> usize;
+    fn finish(&mut self, dst: &mut [u8]) -> Result<(), ()>;
 
     /// Return the exact length of the encrypted data based on the source length
     ///

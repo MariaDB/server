@@ -2,12 +2,15 @@
 
 // use std::cell::UnsafeCell;
 
-use std::ffi::c_void;
+use std::ptr;
+use std::{cell::UnsafeCell, ffi::c_void};
 
 use mariadb_server_sys as bindings;
 pub mod encryption;
 #[doc(hidden)]
 pub mod encryption_wrapper;
+#[doc(hidden)]
+pub mod wrapper;
 mod variables;
 pub use variables::{PluginVarInfo, SysVarAtomic};
 
@@ -62,7 +65,9 @@ pub enum Maturity {
 
 /// Initialize state
 pub trait Init {
-    fn init();
+    fn init() {}
+
+    fn deinit() {}
 }
 
 pub unsafe fn wrap_init<T: Init>(ptr: *mut c_void) {
@@ -72,6 +77,45 @@ pub unsafe fn wrap_init<T: Init>(ptr: *mut c_void) {
 pub unsafe fn wrap_deinit<T: Init>(ptr: *mut c_void) {
     //
 }
+
+/// New struct with all null values
+#[doc(hidden)]
+pub const fn new_null_st_maria_plugin() -> bindings::st_maria_plugin {
+    bindings::st_maria_plugin {
+        type_: 0,
+        info: ptr::null_mut(),
+        name: ptr::null(),
+        author: ptr::null(),
+        descr: ptr::null(),
+        license: 0,
+        init: None,
+        deinit: None,
+        version: 0,
+        status_vars: ptr::null_mut(),
+        system_vars: ptr::null_mut(),
+        version_info: ptr::null(),
+        maturity: 0,
+    }
+}
+
+/// Used for plugin registrations, which are in global scope.
+#[doc(hidden)]
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct UnsafeSyncCell<T>(UnsafeCell<T>);
+
+impl<T> UnsafeSyncCell<T> {
+    pub const unsafe fn new(value: T) -> Self {
+        Self(UnsafeCell::new(value))
+    }
+
+    pub const fn as_ptr(&self) -> *const T {
+        self.0.get()
+    }
+}
+
+unsafe impl<T> Send for UnsafeSyncCell<T> {}
+unsafe impl<T> Sync for UnsafeSyncCell<T> {}
 
 // #[macro_export]
 // macro_rules! plugin {
