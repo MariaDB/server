@@ -2309,7 +2309,7 @@ JOIN::optimize_inner()
   /*
     We have to remove constants and duplicates from group_list before
     calling make_join_statistics() as this may call get_best_group_min_max()
-    which needs a simplfied group_list.
+    which needs a simplified group_list.
   */
   if (group_list && table_count == 1)
   {

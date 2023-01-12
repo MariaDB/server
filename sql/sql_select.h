@@ -1238,6 +1238,8 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
+  /* Tables that has HA_NON_COMPARABLE_ROWID (does not support rowid) set */
+  table_map not_usable_rowid_map;
   ha_rows  send_records,found_records,join_examined_rows;
 
   /*
@@ -1550,7 +1552,7 @@ public:
     table_count= 0;
     top_join_tab_count= 0;
     const_tables= 0;
-    const_table_map= found_const_table_map= 0;
+    const_table_map= found_const_table_map= not_usable_rowid_map= 0;
     aggr_tables= 0;
     eliminated_tables= 0;
     join_list= 0;
