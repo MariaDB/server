@@ -3436,7 +3436,7 @@ COUNT(*)
 2
 DROP TABLE t1, t2, t3;
 # End of 10.5 tests
-DROP TABLE t1,t2,t3;
+#
 # MDEV-30256 Wrong result (missing rows) upon join with empty table
 #
 CREATE TABLE t1 (a INT);
