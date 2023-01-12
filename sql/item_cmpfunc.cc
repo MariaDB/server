@@ -4595,38 +4595,18 @@ Item_cond::fix_fields(THD *thd, Item **ref)
 
   if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
     return TRUE;				// Fatal error flag is set!
-  /*
-    The following optimization reduces the depth of an AND-OR tree.
-    E.g. a WHERE clause like
-      F1 AND (F2 AND (F2 AND F4))
-    is parsed into a tree with the same nested structure as defined
-    by braces. This optimization will transform such tree into
-      AND (F1, F2, F3, F4).
-    Trees of OR items are flattened as well:
-      ((F1 OR F2) OR (F3 OR F4))   =>   OR (F1, F2, F3, F4)
-    Items for removed AND/OR levels will dangle until the death of the
-    entire statement.
-    The optimization is currently prepared statements and stored procedures
-    friendly as it doesn't allocate any memory and its effects are durable
-    (i.e. do not depend on PS/SP arguments).
-  */
-  while ((item=li++))
+
+  while (li++)
   {
-    while (item->type() == Item::COND_ITEM &&
-	   ((Item_cond*) item)->functype() == functype() &&
-           !((Item_cond*) item)->list.is_empty())
-    {						// Identical function
-      li.replace(((Item_cond*) item)->list);
-      ((Item_cond*) item)->list.empty();
-      item= *li.ref();				// new current item
-    }
+    merge_sub_condition(li);
+    item= *li.ref();
     if (abort_on_null)
       item->top_level_item();
 
     /*
       replace degraded condition:
         was:    <field>
-        become: <field> = 1
+        become: <field> != 0
     */
     Item::Type type= item->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
@@ -4642,7 +4622,9 @@ Item_cond::fix_fields(THD *thd, Item **ref)
 
     if (item->fix_fields_if_needed_for_bool(thd, li.ref()))
       return TRUE; /* purecov: inspected */
-    item= *li.ref(); // item can be substituted in fix_fields
+    merge_sub_condition(li);
+    item= *li.ref(); // may be substituted in fix_fields/merge_item_if_possible
+
     used_tables_cache|=     item->used_tables();
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
@@ -4692,6 +4674,55 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     return TRUE;
   fixed= 1;
   return FALSE;
+}
+
+/**
+  @brief
+  Merge a lower-level condition pointed by the iterator into this Item_cond
+  if possible
+
+  @param li         list iterator pointing to condition that must be
+                    examined and merged if possible.
+
+  @details
+  If an item pointed by the iterator is an instance of Item_cond with the
+  same functype() as this Item_cond (i.e. both are Item_cond_and or both are
+  Item_cond_or) then the arguments of that lower-level item can be merged
+  into the list of arguments of this upper-level Item_cond.
+
+  This optimization reduces the depth of an AND-OR tree.
+  E.g. a WHERE clause like
+    F1 AND (F2 AND (F2 AND F4))
+  is parsed into a tree with the same nested structure as defined
+  by braces. This optimization will transform such tree into
+    AND (F1, F2, F3, F4).
+  Trees of OR items are flattened as well:
+    ((F1 OR F2) OR (F3 OR F4))   =>   OR (F1, F2, F3, F4)
+  Items for removed AND/OR levels will dangle until the death of the
+  entire statement.
+
+  The optimization is currently prepared statements and stored procedures
+  friendly as it doesn't allocate any memory and its effects are durable
+  (i.e. do not depend on PS/SP arguments).
+*/
+void Item_cond::merge_sub_condition(List_iterator<Item>& li)
+{
+  Item *item= *li.ref();
+
+  /*
+    The check for list.is_empty() is to catch empty Item_cond_and() items.
+    We may encounter Item_cond_and with an empty list, because optimizer code
+    strips multiple equalities, combines items, then adds multiple equalities
+    back
+  */
+  while (item->type() == Item::COND_ITEM &&
+         ((Item_cond*) item)->functype() == functype() &&
+         !((Item_cond*) item)->list.is_empty())
+  {
+    li.replace(((Item_cond*) item)->list);
+    ((Item_cond*) item)->list.empty();
+    item= *li.ref();
+  }
 }
 
 
