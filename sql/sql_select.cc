@@ -5971,7 +5971,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             caller to abort with a zero row result.
           */
           TABLE_LIST *emb= s->table->pos_in_table_list->embedding;
-          if (emb && !emb->sj_on_expr)
+          if (emb && !emb->sj_on_expr && !*s->on_expr_ref)
           {
             /* Mark all tables in a multi-table join nest as const */
             mark_join_nest_as_const(join, emb, &found_const_table_map,
