@@ -13,6 +13,7 @@ CREATE TABLE t1 (
 INSERT INTO t1(id, str) VALUES
     (1, 'abc'),
     (2, 'def'),
-    (3, 'ghi');
+    (3, 'ghi'),
+    (4, 'jkl');
 
 FLUSH TABLES t1 FOR EXPORT;
