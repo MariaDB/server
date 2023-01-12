@@ -3435,6 +3435,7 @@ SELECT COUNT(*) FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.b = t3.c) ON t1.a = t2.
 COUNT(*)
 2
 DROP TABLE t1, t2, t3;
+# End of 10.5 tests
 #
 # MDEV-30256 Wrong result (missing rows) upon join with empty table
 #
