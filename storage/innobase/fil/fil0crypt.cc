@@ -445,11 +445,11 @@ static byte* fil_encrypt_buf_for_non_full_checksum(
 	uint		srclen = size - unencrypted_bytes;
 	const byte*	src = src_frame + header_len;
 	byte*		dst = dst_frame + header_len;
-	uint32		dstlen = 0;
 
 	if (page_compressed) {
 		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
 	}
+	uint dstlen = srclen;
 
 	int rc = encryption_scheme_encrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
@@ -516,7 +516,7 @@ static byte* fil_encrypt_buf_for_full_crc32(
 			      + FIL_PAGE_FCRC32_CHECKSUM);
 	const byte* src = src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
 	byte* dst = dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-	uint dstlen = 0;
+	uint dstlen = srclen;
 
 	ut_a(key_version != ENCRYPTION_KEY_VERSION_INVALID);
 
@@ -647,7 +647,6 @@ static dberr_t fil_space_decrypt_full_crc32(
 	/* Calculate the offset where decryption starts */
 	const byte* src = src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
 	byte* dst = tmp_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-	uint dstlen = 0;
 	bool corrupted = false;
 	uint size = buf_page_full_crc32_size(src_frame, NULL, &corrupted);
 	if (UNIV_UNLIKELY(corrupted)) {
@@ -656,6 +655,7 @@ static dberr_t fil_space_decrypt_full_crc32(
 
 	uint srclen = size - (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 			      + FIL_PAGE_FCRC32_CHECKSUM);
+	uint dstlen = srclen;
 
 	int rc = encryption_scheme_decrypt(src, srclen, dst, &dstlen,
 					   crypt_data, key_version,
@@ -711,8 +711,8 @@ static dberr_t fil_space_decrypt_for_non_full_checksum(
 	/* Calculate the offset where decryption starts */
 	const byte* src = src_frame + header_len;
 	byte* dst = tmp_frame + header_len;
-	uint32 dstlen = 0;
 	uint srclen = uint(physical_size) - header_len - FIL_PAGE_DATA_END;
+	uint dstlen = srclen;
 
 	if (page_compressed) {
 		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
