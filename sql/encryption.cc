@@ -187,6 +187,11 @@ ret:
   return rc;
 }
 
+/** Run encryption or decryption on a block.
+ * `i32_1`, `i32_2`, and `i64` are used to create the initialization vector
+ * @invariant `src` must be valid for `slen`
+ * @invariant `dst` is valid for `*dlen`, `*dlen` is initialized
+ */
 int do_crypt(const unsigned char* src, unsigned int slen,
              unsigned char* dst, unsigned int* dlen,
              struct st_encryption_scheme *scheme,
@@ -224,6 +229,11 @@ int do_crypt(const unsigned char* src, unsigned int slen,
                           iv, sizeof(iv), flag, scheme->key_id, key_version);
 }
 
+/** Encrypt a block.
+ * `i32_1`, `i32_2`, and `i64` are used to create the initialization vector
+ * @invariant `src` is valid for `slen`
+ * @invariant `dst` is valid for `*dlen`, `*dlen` is initialized
+ */
 int encryption_scheme_encrypt(const unsigned char* src, unsigned int slen,
                               unsigned char* dst, unsigned int* dlen,
                               struct st_encryption_scheme *scheme,
@@ -234,7 +244,11 @@ int encryption_scheme_encrypt(const unsigned char* src, unsigned int slen,
                   i32_2, i64, ENCRYPTION_FLAG_NOPAD | ENCRYPTION_FLAG_ENCRYPT);
 }
 
-
+/** Decrypt a block.
+ * `i32_1`, `i32_2`, and `i64` are used to create the initialization vector
+ * @invariant `src` is valid for `slen`
+ * @invariant `dst` is valid for `*dlen`, `*dlen` is initialized
+ */
 int encryption_scheme_decrypt(const unsigned char* src, unsigned int slen,
                               unsigned char* dst, unsigned int* dlen,
                               struct st_encryption_scheme *scheme,
