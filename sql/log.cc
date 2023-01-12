@@ -5662,7 +5662,7 @@ bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
   {
     DBUG_ASSERT(crypto.scheme == 1);
 
-    uint elen;
+    uint elen= len - 4;
     uchar iv[BINLOG_IV_LENGTH];
 
     ebuf= (uchar*)my_safe_alloca(len);
