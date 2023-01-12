@@ -25,10 +25,7 @@ pub unsafe extern "C" fn wrap_get_key<T: KeyManager>(
     dstbuf: *mut c_uchar,
     buflen: *mut c_uint,
 ) -> c_uint {
-    dbg!(key_id);
-    dbg!(version);
-    dbg!(dstbuf);
-    dbg!(*buflen);
+    dbg!(key_id, version, dstbuf, *buflen);
     if dstbuf.is_null() {
         match dbg!(T::key_length(key_id, version)) {
             // FIXME: don't unwrap
