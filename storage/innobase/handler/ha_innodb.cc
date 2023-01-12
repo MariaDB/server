@@ -8936,10 +8936,12 @@ ha_innobase::update_row(
 		const bool vers_ins_row = vers_set_fields
 			&& thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE;
 
+                TABLE_LIST *tl= table->pos_in_table_list;
+                uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
 		/* This is not a delete */
 		m_prebuilt->upd_node->is_delete =
 			(vers_set_fields && !vers_ins_row) ||
-			(thd_sql_command(m_user_thd) == SQLCOM_DELETE &&
+			(op_map & trg2bit(TRG_EVENT_DELETE) &&
 				table->versioned(VERS_TIMESTAMP))
 			? VERSIONED_DELETE
 			: NO_DELETE;

@@ -1,0 +1,70 @@
+#
+# Purpose:
+#   This test validates that mysqlbinlog is able to annotate compressed column
+# types with two levels of verbosity.
+#
+# Methodology:
+#   Validate that the output from mysqlbinlog -vv after creating and inserting
+# into a table with compressed and uncompressed fields correctly annotates
+# which columns are compressed
+#
+# References:
+#   MDEV-25277: mysqlbinlog --verbose cannot read row events with compressed
+#               columns: Don't know how to handle column type: 140
+#
+--source include/have_binlog_format_row.inc
+
+CREATE TABLE t1 (a TEXT, ac TEXT COMPRESSED, b TINYTEXT, bc TINYTEXT COMPRESSED, c MEDIUMTEXT, cc MEDIUMTEXT COMPRESSED, d LONGTEXT, dc LONGTEXT COMPRESSED, e VARCHAR(10), ec VARCHAR(10) COMPRESSED);
+
+--echo # Isolate row event into its own binary log
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES ('mya', 'myac', 'myb', 'mybc', 'myc', 'mycc', 'myd', 'mydc', 'mye', 'myec');
+FLUSH BINARY LOGS;
+
+--let $binlog_file= query_get_value(SHOW BINARY LOGS, Log_name, 2)
+--let $datadir= `SELECT @@datadir`
+--let $result_binlog= $MYSQLTEST_VARDIR/tmp/$binlog_file
+
+--echo # MYSQLBINLOG --base64-output=decode-rows -vv datadir/binlog_file --result-file=result_binlog
+--exec $MYSQL_BINLOG --base64-output=decode-rows -vv $datadir/$binlog_file --result-file=$result_binlog
+
+--let $assert_file= $result_binlog
+--let $assert_count= 1
+
+--let $assert_text= Ensure compressed TEXT fields are annotated correctly
+--let $assert_select=\WTEXT COMPRESSED
+--source include/assert_grep.inc
+
+--let $assert_text= Ensure compressed TINYTEXT fields are annotated correctly
+--let $assert_select=\WTINYTEXT COMPRESSED
+--source include/assert_grep.inc
+
+--let $assert_text= Ensure compressed MEDIUMTEXT fields are annotated correctly
+--let $assert_select=\WMEDIUMTEXT COMPRESSED
+--source include/assert_grep.inc
+
+--let $assert_text= Ensure compressed LONGTEXT fields are annotated correctly
+--let $assert_select=\WLONGTEXT COMPRESSED
+--source include/assert_grep.inc
+
+--let $assert_text= Ensure compressed VARSTRING fields are annotated correctly
+--let $assert_select=\WVARSTRING\(\d+\) COMPRESSED
+--source include/assert_grep.inc
+
+--let $assert_text= Ensure COMPRESSED only shows up for corresponding fields
+--let $assert_count= 5
+--let $assert_select= COMPRESSED
+--source include/assert_grep.inc
+
+--let $assert_text= Ensure non-compressed TEXT fields are annotated correctly
+--let $assert_count= 8
+--let $assert_select=/*.*TEXT
+--source include/assert_grep.inc
+
+--let $assert_text= Ensure non-compressed VARSTRING fields are annotated correctly
+--let $assert_count= 2
+--let $assert_select=/*.*VARSTRING
+--source include/assert_grep.inc
+
+# Cleanup
+DROP TABLE t1;

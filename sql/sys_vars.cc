@@ -5550,7 +5550,7 @@ static bool update_wsrep_auto_increment_control (sys_var *self, THD *thd, enum_v
   {
     /*
       The variables that control auto increment shall be calculated
-      automaticaly based on the size of the cluster. This usually done
+      automatically based on the size of the cluster. This usually done
       within the wsrep_view_handler_cb callback. However, if the user
       manually sets the value of wsrep_auto_increment_control to 'ON',
       then we should to re-calculate these variables again (because
