@@ -1131,9 +1131,6 @@ SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"
 a
 DROP TABLE t1;
 #
-# End of 10.4 tests
-#
-#
 # MDEV-19160 JSON_DETAILED output unnecessarily verbose
 #
 create table t200 (a text);
@@ -1260,3 +1257,6 @@ select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200
 JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives'))
 [{"range_scan_alternatives": [{"index": "a_b", "ranges": ["2 <= a <= 2 AND 4 <= b <= 4", "123"], "rowid_ordered": true, "using_mrr": false, "index_only": true, "rows": 1, "cost": 1.1752, "chosen": true}], "analyzing_roworder_intersect": {"cause": "too few roworder scans"}, "analyzing_index_merge_union": [], "test_one_line_array": ["123"]}]
 drop table t200;
+#
+# End of 10.4 tests
+#

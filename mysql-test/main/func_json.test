@@ -716,11 +716,6 @@ SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"
 DROP TABLE t1;
 
 --echo #
---echo # End of 10.4 tests
---echo #
-
-
---echo #
 --echo # MDEV-19160 JSON_DETAILED output unnecessarily verbose
 --echo #
 
@@ -819,3 +814,7 @@ insert into t200 values
 select JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
 select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
 drop table t200;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
