@@ -6194,6 +6194,13 @@ public:
   Item *field_transformer_for_having_pushdown(THD *, uchar *) override
   { return this; }
   Item *remove_item_direct_ref() override { return this; }
+  bool set_fields_as_dependent_processor(void *arg) override
+  {
+    DBUG_ASSERT(can_be_depended);
+    depended_from= (st_select_lex *) arg;
+    return 0;
+  }
+
 };
 
 
