@@ -20,13 +20,11 @@ select json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 from information_schema.optimizer_trace;
 json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
 [
-    
     [
         "(1) <= (key1) <= (1)",
         "(2) <= (key1) <= (2)",
         "(3) <= (key1) <= (3)"
     ],
-    
     [
         "(1) <= (key1) <= (1)",
         "(2) <= (key1) <= (2)",
@@ -71,9 +69,7 @@ from information_schema.optimizer_trace);
 select left(@json, 500);
 left(@json, 500)
 [
-    
     [
-        
         {
             "index": "key1",
             "ranges": 
@@ -85,7 +81,7 @@ left(@json, 500)
                 "(1,1,5) <= (kp1,kp2,kp3) <= (1,1,5)",
                 "(1,1,6) <= (kp1,kp2,kp3) <= (1,1,6)",
                 "(1,1,7) <= (kp1,kp2,kp3) <= (1,1,7)",
-                "
+                "(1,1,8) <= (kp
 ## Repeat the above with low max_weight:
 set @tmp9750_weight=@@optimizer_max_sel_arg_weight;
 set optimizer_max_sel_arg_weight=20;
@@ -102,9 +98,7 @@ set @json= json_detailed(json_extract(@trace, '$**.range_scan_alternatives'));
 select left(@json, 500);
 left(@json, 500)
 [
-    
     [
-        
         {
             "index": "key1",
             "ranges": 
@@ -119,14 +113,13 @@ left(@json, 500)
                 "(8) <= (kp1) <= (8)",
                 "(9) <= (kp1) <= (9)",
                 "(10) <= (kp1) <= (10)"
-           
+            ],
+          
 set @json= json_detailed(json_extract(@trace, '$**.setup_range_conditions'));
 select left(@json, 2500);
 left(@json, 2500)
 [
-    
     [
-        
         {
             "sel_arg_weight_heuristic": 
             {
@@ -136,7 +129,6 @@ left(@json, 2500)
                 "key2_weight": 10
             }
         },
-        
         {
             "sel_arg_weight_heuristic": 
             {
@@ -146,7 +138,6 @@ left(@json, 2500)
                 "key2_weight": 10
             }
         },
-        
         {
             "sel_arg_weight_heuristic": 
             {
@@ -173,9 +164,7 @@ from information_schema.optimizer_trace);
 select left(@json, 1500);
 left(@json, 1500)
 [
-    
     [
-        
         {
             "index": "key1",
             "ranges": 
@@ -209,7 +198,8 @@ left(@json, 1500)
                 "(3,7) <= (kp1,kp2) <= (3,7)",
                 "(3,8) <= (kp1,kp2) <= (3,8)",
                 "(3,9) <= (kp1,kp2) <= (3,9)",
-                "(3,10) <= (kp1,kp2
+                "(3,10) <= (kp1,kp2) <= (3,10)",
+
 set optimizer_max_sel_arg_weight= @tmp9750_weight;
 set optimizer_trace=@tmp_9750;
 drop table t1;

@@ -2151,6 +2151,11 @@ public:
       return ((this->*transformer) (thd, arg_t));
     return 0;
   }
+  virtual Item* top_level_compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                                  Item_transformer transformer, uchar *arg_t)
+  {
+    return compile(thd, analyzer, arg_p, transformer, arg_t);
+  }
 
    virtual void traverse_cond(Cond_traverser traverser,
                               void *arg, traverse_order order)
@@ -6177,6 +6182,14 @@ public:
       Item_direct_ref::save_in_result_field(no_conversions);
   }
 
+  int save_in_field(Field *field, bool no_conversions) override
+  {
+    if (check_null_ref())
+      return set_field_to_null_with_conversions(field, no_conversions);
+
+    return Item_direct_ref::save_in_field(field, no_conversions);
+  }
+
   void cleanup() override
   {
     null_ref_table= NULL;
@@ -7774,6 +7787,104 @@ inline void Virtual_column_info::print(String* str)
 {
   expr->print_for_table_def(str);
 }
+
+class Item_direct_ref_to_item : public Item_direct_ref
+{
+  Item *m_item;
+public:
+  Item_direct_ref_to_item(THD *thd, Item *item);
+
+  void change_item(THD *thd, Item *);
+
+  bool fix_fields(THD *thd, Item **it);
+
+  void print(String *str, enum_query_type query_type);
+
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
+  Item *get_tmp_table_item(THD *thd)
+  { return m_item->get_tmp_table_item(thd); }
+  Item *get_copy(THD *thd)
+  { return m_item->get_copy(thd); }
+  COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref)
+  {
+    return m_item->build_equal_items(thd, inherited, link_item_fields,
+                                     cond_equal_ref);
+  }
+  const char *full_name() const { return m_item->full_name(); }
+  void make_send_field(THD *thd, Send_field *field)
+  { m_item->make_send_field(thd, field); }
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    Item *it= ((Item *) item)->real_item();
+    return m_item->eq(it, binary_cmp);
+  }
+  void fix_after_pullout(st_select_lex *new_parent, Item **refptr, bool merge)
+  { m_item->fix_after_pullout(new_parent, &m_item, merge); }
+  void save_val(Field *to)
+  { return m_item->save_val(to); }
+  void save_result(Field *to)
+  { return m_item->save_result(to); }
+  int save_in_field(Field *to, bool no_conversions)
+  { return m_item->save_in_field(to, no_conversions); }
+  const Type_handler *type_handler() const { return m_item->type_handler(); }
+  table_map used_tables() const { return m_item->used_tables(); }
+  void update_used_tables()
+  { m_item->update_used_tables(); }
+  bool const_item() const { return m_item->const_item(); }
+  table_map not_null_tables() const { return m_item->not_null_tables(); }
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  {
+    return m_item->walk(processor, walk_subquery, arg) ||
+      (this->*processor)(arg);
+  }
+  bool enumerate_field_refs_processor(void *arg)
+  { return m_item->enumerate_field_refs_processor(arg); }
+  Item_field *field_for_view_update()
+  { return m_item->field_for_view_update(); }
+
+  /* Row emulation: forwarding of ROW-related calls to orig_item */
+  uint cols() const
+  { return m_item->cols(); }
+  Item* element_index(uint i)
+  { return this; }
+  Item** addr(uint i)
+  { return  &m_item; }
+  bool check_cols(uint c)
+  { return Item::check_cols(c); }
+  bool null_inside()
+  { return m_item->null_inside(); }
+  void bring_value()
+  {}
+
+  Item_equal *get_item_equal() { return m_item->get_item_equal(); }
+  void set_item_equal(Item_equal *item_eq) { m_item->set_item_equal(item_eq); }
+  Item_equal *find_item_equal(COND_EQUAL *cond_equal)
+  { return m_item->find_item_equal(cond_equal); }
+  Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
+  { return m_item->propagate_equal_fields(thd, ctx, cond); }
+  Item *replace_equal_field(THD *thd, uchar *arg)
+  { return m_item->replace_equal_field(thd, arg); }
+
+  bool excl_dep_on_table(table_map tab_map)
+  { return m_item->excl_dep_on_table(tab_map); }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  { return m_item->excl_dep_on_grouping_fields(sel); }
+  bool is_expensive() { return m_item->is_expensive(); }
+  Item* build_clone(THD *thd) { return get_copy(thd); }
+
+  void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
+                      List<Item> &fields, uint flags)
+  {
+    m_item->split_sum_func(thd, ref_pointer_array, fields, flags);
+  }
+  /*
+    This processor states that this is safe for virtual columns
+    (because this Item transparency)
+  */
+  bool check_vcol_func_processor(void *arg) { return FALSE;}
+};
 
 inline bool TABLE::mark_column_with_deps(Field *field)
 {

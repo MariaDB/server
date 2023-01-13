@@ -2293,11 +2293,7 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
   int error;
   enum_nested_loop_state rc= NESTED_LOOP_OK;
   join_tab->table->null_row= 0;
-  bool check_only_first_match=
-    join_tab->check_only_first_match() &&
-    (!join_tab->first_inner ||                            // semi-join case
-     join_tab->first_inner == join_tab->first_unmatched); // outer join case
-  bool outer_join_first_inner= join_tab->is_first_inner_for_outer_join();
+  bool check_only_first_match= join_tab->check_only_first_match();
   DBUG_ENTER("JOIN_CACHE::join_matching_records");
 
   /* Return at once if there are no records in the join buffer */
@@ -2363,7 +2359,34 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
         Also those records that must be null complemented are not considered
         as candidates for matches.
       */
-      if ((!check_only_first_match && !outer_join_first_inner) ||
+
+      bool not_exists_opt_is_applicable= true;
+      if (check_only_first_match && join_tab->first_inner)
+      {
+        /*
+          This is the case with not_exists optimization for nested outer join
+          when join_tab is the last inner table for one or more embedding outer
+          joins. To safely use 'not_exists' optimization in this case we have
+          to check that the match flags for all these embedding outer joins are
+          in the 'on' state.
+          (See also a similar check in evaluate_join_record() for the case when
+           join buffer are not used.)
+        */
+	for (JOIN_TAB *tab= join_tab->first_inner;
+             tab && tab->first_inner && tab->last_inner == join_tab;
+             tab= tab->first_inner->first_upper)
+	{
+          if (get_match_flag_by_pos_from_join_buffer(rec_ptr, tab) !=
+              MATCH_FOUND)
+	  {
+            not_exists_opt_is_applicable= false;
+            break;
+          }
+        }
+      }
+
+      if (!check_only_first_match ||
+	  (join_tab->first_inner && !not_exists_opt_is_applicable) ||
           !skip_next_candidate_for_match(rec_ptr))
       {
 	read_next_candidate_for_match(rec_ptr);
