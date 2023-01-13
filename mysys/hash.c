@@ -60,8 +60,9 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
   dynamic array that is part of the hash will allocate memory
   as required during insertion.
 
+  @param[in]     psi_key      The key to register instrumented memory
   @param[in,out] hash         The hash that is initialized
-  @param[in[     growth_size  size incrememnt for the underlying dynarray
+  @param[in]     growth_size  size incrememnt for the underlying dynarray
   @param[in]     charset      The character set information
   @param[in]     size         The hash size
   @param[in]     key_offest   The key offset for the hash

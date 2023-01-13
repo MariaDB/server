@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 # This is the DDL function tests for innodb FTS
 # Functional testing with FTS proximity search using '@'

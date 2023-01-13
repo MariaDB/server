@@ -2350,3 +2350,12 @@ JSON_OVERLAPS(@json1, @json2)
 #
 # End of 10.9 Test
 #
+#
+# MDEV-29381: JSON paths containing dashes are reported as syntax errors in procedures
+#
+SELECT JSON_EXTRACT('{ "my-key": 1 }', '$."my-key"');
+JSON_EXTRACT('{ "my-key": 1 }', '$."my-key"')
+1
+SELECT JSON_EXTRACT('{ "my-key": 1 }', '$.my-key');
+JSON_EXTRACT('{ "my-key": 1 }', '$.my-key')
+1

@@ -68,7 +68,7 @@ rows_affected	int(11)	NO		NULL
 flush slow logs;
 set long_query_time=0.1;
 set log_slow_filter='';
-set global slow_query_log=1;
+set slow_query_log=1;
 set global log_output='TABLE';
 select sleep(0.5);
 sleep(0.5)
@@ -77,7 +77,7 @@ select count(*) FROM mysql.slow_log;
 count(*)
 1
 set @@long_query_time=default;
-set global slow_query_log= @org_slow_query_log;
+set @@slow_query_log=default;
 set @@log_slow_filter=default;
 set @@log_slow_verbosity=default;
 set global log_output= default;
@@ -119,3 +119,21 @@ Slow_queries_increment
 SET log_slow_filter=DEFAULT;
 SET @@long_query_time=default;
 SET GLOBAL slow_query_log= @org_slow_query_log;
+#
+# MDEV-21187: log_slow_filter="" logs queries not using indexes
+#
+flush status;
+create table t (id int);
+insert into t values (1),(4);
+set log_slow_filter='';
+select * from t;
+id
+1
+4
+show session status like 'Slow_queries';
+Variable_name	Value
+Slow_queries	0
+drop table t;
+#
+# End of 10.3 tests
+#

@@ -7502,7 +7502,7 @@ class Item_cache_row: public Item_cache
   bool save_array;
 public:
   Item_cache_row(THD *thd):
-    Item_cache(thd), values(0), item_count(2),
+    Item_cache(thd, &type_handler_row), values(0), item_count(2),
     save_array(0) {}
 
   /*

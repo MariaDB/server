@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/maybe_versioning.inc
 
 CREATE TABLE t1 (v VARCHAR(100), FULLTEXT INDEX (v)) ENGINE=InnoDB;
 

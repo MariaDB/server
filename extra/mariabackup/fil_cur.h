@@ -58,6 +58,7 @@ struct xb_fil_cur_t {
 	uint		thread_n;	/*!< thread number for diagnostics */
 	uint32_t	space_id;	/*!< ID of tablespace */
 	uint32_t	space_size;	/*!< space size in pages */
+	uint32_t	n_process_batch;/*!< Number of batch processed */
 
 	/** @return whether this is not a file-per-table tablespace */
 	bool is_system() const
