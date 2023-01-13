@@ -5437,7 +5437,7 @@ public:
     Record_addr addr(true);
     return make_field(share, mem_root, &addr, field_name_arg);
   }
-  /* Return true if default is an expression that must be saved explicitely */
+  /* Return true if default is an expression that must be saved explicitly */
   bool has_default_expression();
 
   bool has_default_now_unireg_check() const

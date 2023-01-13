@@ -202,7 +202,11 @@ extern "C" UINT __stdcall CheckInstallDirectory(MSIHANDLE hInstall)
     swprintf(msg,countof(msg), L"Installation directory '%s' exists and is not empty. Choose a "
                   "different install directory",path);
     WcaSetProperty(L"INSTALLDIRERROR", msg);
+    goto LExit;
   }
+
+  WcaSetProperty(L"INSTALLDIRERROR", L"");
+
 LExit:
   ReleaseStr(path);
   return WcaFinalize(er);

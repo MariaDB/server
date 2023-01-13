@@ -23,6 +23,7 @@
 #include "mysqld.h"
 #include "sql_class.h"
 #include "my_stacktrace.h"
+#include <source_revision.h>
 
 #ifdef _WIN32
 #include <crtdbg.h>
@@ -181,7 +182,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     "something is definitely wrong and this may fail.\n\n");
 
   set_server_version(server_version, sizeof(server_version));
-  my_safe_printf_stderr("Server version: %s\n", server_version);
+  my_safe_printf_stderr("Server version: %s source revision: %s\n",
+		        server_version, SOURCE_REVISION);
 
   if (dflt_key_cache)
     my_safe_printf_stderr("key_buffer_size=%zu\n",
