@@ -530,11 +530,55 @@ delete from t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-30378 Versioned REPLACE succeeds with ON DELETE RESTRICT
+--echo # constraint
+--echo #
+create table t0 (pk integer primary key) with system versioning engine=innodb;
+create table t1 (pk integer primary key,
+                 foreign key(pk) references t0(pk)
+                            on delete restrict on update cascade) engine=innodb;
+create table t2 (pk integer);
+
+insert into t0 (pk) values (1);
+insert into t1 (pk) values (1);
+insert into t2 (pk) values (1);
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t0;
+
+--error ER_ROW_IS_REFERENCED_2
+replace t0 values (1);
+
+select * into outfile 'load_t0' from t0 ;
+--error ER_ROW_IS_REFERENCED_2
+load data infile 'load_t0' replace into table t0;
+
+--error ER_ROW_IS_REFERENCED_2
+delete t0, t2 from t0 join t2;
+
+select pk from t0;
+
+--echo # Cleanup
+drop table t1, t0, t2;
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/load_t0
+
+
+--echo # create_select for a temporary table didn't set up pos_in_locked_tables.
+create table t (a int unique) engine=innodb
+    replace select 1 as a, 2 as b union select 1 as a, 3 as c;
+select * from t;
+drop table t;
+
+create temporary table t (a int unique) engine=innodb
+    replace select 1 as a, 2 as b union select 1 as a, 3 as c;
+select * from t;
+drop table t;
+
+--echo #
 --echo # MDEV-20729 Fix REFERENCES constraint in column definition
 --echo #
-create or replace table t1(
-  id int
-);
+create table t1(id int);
 --echo # system fields can't be foreign keys:
 --replace_result $sys_datatype_expl SYS_DATATYPE
 --error ER_PARSE_ERROR,ER_PARSE_ERROR
@@ -571,5 +615,7 @@ eval create or replace table t2(
   foreign key (sys_end) references t1(id)
 ) engine innodb with system versioning;
 drop table t1;
+
+--echo # End of 10.5 tests
 
 --source suite/versioning/common_finish.inc

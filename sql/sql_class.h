@@ -6124,7 +6124,7 @@ class select_insert :public select_result_interceptor {
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   virtual int prepare2(JOIN *join);
   virtual int send_data(List<Item> &items);
-  virtual bool store_values(List<Item> &values, bool ignore_errors);
+  virtual bool store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
   bool prepare_eof();
   bool send_ok_packet();
@@ -6171,7 +6171,7 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 
   int binlog_show_create_table(TABLE **tables, uint count);
-  bool store_values(List<Item> &values, bool ignore_errors);
+  bool store_values(List<Item> &values);
   bool send_eof();
   virtual void abort_result_set();
   virtual bool can_rollback_data() { return 1; }
@@ -7602,6 +7602,19 @@ public:
   ~Check_level_instant_set()
   {
     m_thd->count_cuted_fields= m_check_level;
+  }
+};
+
+
+class Use_relaxed_field_copy: public Sql_mode_save,
+                              public Check_level_instant_set
+{
+public:
+  Use_relaxed_field_copy(THD *thd) :
+      Sql_mode_save(thd), Check_level_instant_set(thd, CHECK_FIELD_IGNORE)
+  {
+    thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
+    thd->variables.sql_mode|= MODE_INVALID_DATES;
   }
 };
 

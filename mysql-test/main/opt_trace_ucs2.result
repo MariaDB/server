@@ -27,17 +27,13 @@ EXPLAIN
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "col1",
                 "ranges": 
-                [
-                    "(a) <= (col1)"
-                ],
+                ["(a) <= (col1)"],
                 "rowid_ordered": false,
                 "using_mrr": false,
                 "index_only": false,
@@ -51,8 +47,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 drop table t1;
