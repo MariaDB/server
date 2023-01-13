@@ -18338,7 +18338,8 @@ Field *Item_field::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
   src->set_field(field);
   if (!(result= create_tmp_field_from_item_field(root, table, NULL, param)))
     return NULL;
-  if (field->eq_def(result))
+  if (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+      field->eq_def(result))
     src->set_default_field(field);
   return result;
 }
@@ -19239,8 +19240,10 @@ bool Create_tmp_table::finalize(THD *thd,
       {
         /*
           Copy default value. We have to use field_conv() for copy, instead of
-          memcpy(), because bit_fields may be stored differently
+          memcpy(), because bit_fields may be stored differently.
+          But otherwise we copy as is, in particular, ignore NO_ZERO_DATE, etc
         */
+        Use_relaxed_field_copy urfc(thd);
         my_ptrdiff_t ptr_diff= (orig_field->table->s->default_values -
                                 orig_field->table->record[0]);
         field->set_notnull();
@@ -28545,20 +28548,20 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
 
 void JOIN::cache_const_exprs()
 {
-  bool cache_flag= FALSE;
-  bool *analyzer_arg= &cache_flag;
+  uchar cache_flag= FALSE;
+  uchar *analyzer_arg= &cache_flag;
 
   /* No need in cache if all tables are constant. */
   if (const_tables == table_count)
     return;
 
   if (conds)
-    conds->compile(thd, &Item::cache_const_expr_analyzer, (uchar **)&analyzer_arg,
-                  &Item::cache_const_expr_transformer, (uchar *)&cache_flag);
+    conds->top_level_compile(thd, &Item::cache_const_expr_analyzer, &analyzer_arg,
+                              &Item::cache_const_expr_transformer, &cache_flag);
   cache_flag= FALSE;
   if (having)
-    having->compile(thd, &Item::cache_const_expr_analyzer, (uchar **)&analyzer_arg,
-                    &Item::cache_const_expr_transformer, (uchar *)&cache_flag);
+    having->top_level_compile(thd, &Item::cache_const_expr_analyzer,
+                &analyzer_arg, &Item::cache_const_expr_transformer, &cache_flag);
 
   for (JOIN_TAB *tab= first_depth_first_tab(this); tab;
        tab= next_depth_first_tab(this, tab))
@@ -28566,10 +28569,8 @@ void JOIN::cache_const_exprs()
     if (*tab->on_expr_ref)
     {
       cache_flag= FALSE;
-      (*tab->on_expr_ref)->compile(thd, &Item::cache_const_expr_analyzer,
-                                 (uchar **)&analyzer_arg,
-                                 &Item::cache_const_expr_transformer,
-                                 (uchar *)&cache_flag);
+      (*tab->on_expr_ref)->top_level_compile(thd, &Item::cache_const_expr_analyzer,
+                &analyzer_arg, &Item::cache_const_expr_transformer, &cache_flag);
     }
   }
 }
@@ -29949,7 +29950,6 @@ void JOIN::init_join_cache_and_keyread()
       tab->remove_redundant_bnl_scan_conds();
   }
 }
-
 
 
 /**
