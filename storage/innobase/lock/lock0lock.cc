@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2022, Oracle and/or its affiliates.
-Copyright (c) 2014, 2022, MariaDB Corporation.
+Copyright (c) 2014, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -721,8 +721,6 @@ UNIV_INLINE
 bool
 lock_rec_has_to_wait(
 /*=================*/
-	bool		for_locking,
-				/*!< in is called locking or releasing */
 	const trx_t*	trx,	/*!< in: trx of new lock */
 	ulint		type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
@@ -878,7 +876,7 @@ lock_has_to_wait(
 	}
 
 	return lock_rec_has_to_wait(
-		false, lock1->trx, lock1->type_mode, lock2,
+		lock1->trx, lock1->type_mode, lock2,
 		lock_rec_get_nth_bit(lock1, PAGE_HEAP_NO_SUPREMUM));
 }
 
@@ -1165,7 +1163,7 @@ lock_rec_other_has_conflicting(
 	     lock != NULL;
 	     lock = lock_rec_get_next(heap_no, lock)) {
 
-		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
+		if (lock_rec_has_to_wait(trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
 			if (trx->is_wsrep()) {
 				trx_mutex_enter(lock->trx);

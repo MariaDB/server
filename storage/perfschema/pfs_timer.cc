@@ -166,7 +166,7 @@ void init_timers(void)
 
   /*
     For STAGE and STATEMENT, a timer with a fixed frequency is better.
-    The prefered timer is nanosecond, or lower resolutions.
+    The preferred timer is nanosecond, or lower resolutions.
   */
 
   if (nanosec_to_pico != 0)
@@ -203,7 +203,7 @@ void init_timers(void)
   /*
     For IDLE, a timer with a fixed frequency is critical,
     as the CPU clock may slow down a lot if the server is completely idle.
-    The prefered timer is microsecond, or lower resolutions.
+    The preferred timer is microsecond, or lower resolutions.
   */
 
   if (microsec_to_pico != 0)

@@ -584,7 +584,7 @@ if ($MySQLaccess::CGI) { #CGI-version
 # ----------------------
 # brief and table-format 
 # exclude each-other
-# table-format is prefered
+# table-format is preferred
 if (defined($Param{'table'})) { undef($Param{'brief'}); }
 if (defined($Param{'preview'}) or
     defined($Param{'copy'}) or
