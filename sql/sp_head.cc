@@ -2413,7 +2413,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     Disable slow log if:
     - Slow logging is enabled (no change needed)
     - This is a normal SP (not event log)
-    - If we have not explicitely disabled logging of SP
+    - If we have not explicitly disabled logging of SP
   */
   if (save_enable_slow_log &&
       ((!(m_flags & LOG_SLOW_STATEMENTS) &&
@@ -2427,7 +2427,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
     Disable general log if:
     - If general log is enabled (no change needed)
     - This is a normal SP (not event log)
-    - If we have not explicitely disabled logging of SP
+    - If we have not explicitly disabled logging of SP
   */
   if (!(thd->variables.option_bits & OPTION_LOG_OFF) &&
       (!(m_flags & LOG_GENERAL_LOG) &&

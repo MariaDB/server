@@ -3463,5 +3463,26 @@ SELECT 1 FROM t1 GROUP BY DEFAULT(pk);
 1
 DROP TABLE t1;
 #
+# MDEV-29890 Update with inner join false row count result
+#
+create table t1 (a int not null);
+select column_name, column_default, column_default is not null as 'has_default', is_nullable from information_schema.columns where table_schema='test' and table_name='t1';
+column_name	column_default	has_default	is_nullable
+a	NULL	0	NO
+create or replace view v1 as select * from t1;
+select column_name, column_default, column_default is not null as 'has_default', is_nullable from information_schema.columns where table_schema='test' and table_name='v1';
+column_name	column_default	has_default	is_nullable
+a	NULL	0	NO
+create or replace view v1 as select * from t1 group by a;
+select column_name, column_default, column_default is not null as 'has_default', is_nullable from information_schema.columns where table_schema='test' and table_name='v1';
+column_name	column_default	has_default	is_nullable
+a	NULL	0	NO
+create or replace view v1 as select * from t1 group by a with rollup;
+select column_name, column_default, column_default is not null as 'has_default', is_nullable from information_schema.columns where table_schema='test' and table_name='v1';
+column_name	column_default	has_default	is_nullable
+a	NULL	1	YES
+drop view v1;
+drop table t1;
+#
 # End of 10.4 test
 #

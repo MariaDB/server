@@ -52,3 +52,20 @@ execute p1 using 17864960750176564435;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-17869 AddressSanitizer: use-after-poison in Item_change_list::rollback_item_tree_changes
+--echo #
+create table t1 (pk int, v1 varchar(1));
+insert t1 values (1,'v'),(2,'v'),(3,'c');
+create table t2 (pk int, v1 varchar(1));
+insert t2 values (1,'x');
+create table t3 (pk int, i1 int, v1 varchar(1));
+insert t3 values (10,8,9);
+execute immediate 'select straight_join 1 from (t1 join t2 on (t1.v1 = t2.v1))
+where (3, 6) in (select tc.pk,  t3.i1 from (t3 join t1 as tc on (tc.v1 = t3.v1)) having tc.pk > 1 );';
+drop table t1, t2, t3;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

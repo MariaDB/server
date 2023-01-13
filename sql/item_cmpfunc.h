@@ -3194,13 +3194,32 @@ public:
   bool top_level() { return abort_on_null; }
   void copy_andor_arguments(THD *thd, Item_cond *item);
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
-  Item *top_level_transform(THD *thd, Item_transformer transformer, uchar *arg) override;
+  Item *do_transform(THD *thd, Item_transformer transformer, uchar *arg,
+                     bool toplevel);
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override
+  {
+    return do_transform(thd, transformer, arg, 0);
+  }
+  Item *top_level_transform(THD *thd, Item_transformer transformer, uchar *arg)
+    override
+  {
+    return do_transform(thd, transformer, arg, 1);
+  }
   void traverse_cond(Cond_traverser, void *arg, traverse_order order) override;
   void neg_arguments(THD *thd);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) override;
+  Item *do_compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                   Item_transformer transformer, uchar *arg_t, bool toplevel);
   Item *compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
-                Item_transformer transformer, uchar *arg_t) override;
+                Item_transformer transformer, uchar *arg_t) override
+  {
+    return do_compile(thd, analyzer, arg_p, transformer, arg_t, 0);
+  }
+  Item* top_level_compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                          Item_transformer transformer, uchar *arg_t) override
+  {
+    return do_compile(thd, analyzer, arg_p, transformer, arg_t, 1);
+  }
   bool eval_not_null_tables(void *opt_arg) override;
   bool find_not_null_fields(table_map allowed) override;
   Item *build_clone(THD *thd) override;

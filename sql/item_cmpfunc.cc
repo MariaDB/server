@@ -418,18 +418,9 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   if (args[0]->cmp_type() == STRING_RESULT &&
       args[1]->cmp_type() == STRING_RESULT)
   {
-    Query_arena *arena, backup;
-    arena= thd->activate_stmt_arena_if_needed(&backup);
-
     DTCollation tmp;
-    bool ret= agg_arg_charsets_for_comparison(tmp, args, 2);
-
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
-
-    if (ret)
-      return ret;
-
+    if (agg_arg_charsets_for_comparison(tmp, args, 2))
+      return true;
     cmp->m_compare_collation= tmp.collation;
   }
   //  Convert constants when compared to int/year field
@@ -5201,7 +5192,8 @@ bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
+Item *Item_cond::do_transform(THD *thd, Item_transformer transformer, uchar *arg,
+                              bool toplevel)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
@@ -5209,7 +5201,8 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
   Item *item;
   while ((item= li++))
   {
-    Item *new_item= item->transform(thd, transformer, arg);
+    Item *new_item= toplevel ? item->top_level_transform(thd, transformer, arg)
+                             : item->transform(thd, transformer, arg);
     if (!new_item)
       return 0;
 
@@ -5219,37 +5212,10 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
       Otherwise we'll be allocating a lot of unnecessary memory for
       change records at each execution.
     */
-    if (new_item != item)
+    if (toplevel)
+      *li.ref()= new_item;
+    else if (new_item != item)
       thd->change_item_tree(li.ref(), new_item);
-  }
-  return Item_func::transform(thd, transformer, arg);
-}
-
-
-/**
-  Transform an Item_cond object with a transformer callback function.
-
-  This is like transform() but doesn't use change_item_tree(),
-  because top-level expression is stored in prep_where/prep_on anyway and
-  is restored from there, there is no need to use change_item_tree().
-
-  Furthermore, it can be actually harmful to use it, if build_equal_items()
-  had replaced Item_eq with Item_equal and deleted list_node with a pointer
-  to Item_eq. In this case rollback_item_tree_changes() would modify the
-  deleted list_node.
-*/
-Item *Item_cond::top_level_transform(THD *thd, Item_transformer transformer, uchar *arg)
-{
-  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
-
-  List_iterator<Item> li(list);
-  Item *item;
-  while ((item= li++))
-  {
-    Item *new_item= item->top_level_transform(thd, transformer, arg);
-    if (!new_item)
-      return 0;
-    *li.ref()= new_item;
   }
   return Item_func::transform(thd, transformer, arg);
 }
@@ -5279,8 +5245,8 @@ Item *Item_cond::top_level_transform(THD *thd, Item_transformer transformer, uch
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
-                         Item_transformer transformer, uchar *arg_t)
+Item *Item_cond::do_compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                      Item_transformer transformer, uchar *arg_t, bool toplevel)
 {
   if (!(this->*analyzer)(arg_p))
     return 0;
@@ -5295,7 +5261,11 @@ Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
     */   
     uchar *arg_v= *arg_p;
     Item *new_item= item->compile(thd, analyzer, &arg_v, transformer, arg_t);
-    if (new_item && new_item != item)
+    if (!new_item || new_item == item)
+      continue;
+    if (toplevel)
+      *li.ref()= new_item;
+    else
       thd->change_item_tree(li.ref(), new_item);
   }
   return Item_func::transform(thd, transformer, arg_t);

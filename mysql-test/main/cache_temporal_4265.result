@@ -20,3 +20,21 @@ select (select max(m2.ut) from t1 m2 where m1.id <> 0) from t1 m1;
 2001-01-01 00:00:00.200000
 2001-01-01 00:00:00.200000
 drop table t1;
+#
+# MDEV-30345 DML does not find rows it is supposed to
+#
+CREATE TABLE t1 (f timestamp);
+INSERT INTO t1 VALUES ('2022-01-01 00:00:00'),('2022-12-12 12:12:12');
+CREATE TABLE t2 (f timestamp);
+INSERT INTO t2 VALUES ('2022-01-01 00:00:00'),('2022-12-12 12:12:12');
+SELECT * FROM t2 WHERE f IN ( SELECT f FROM t1 ) ;
+f
+2022-01-01 00:00:00
+2022-12-12 12:12:12
+DELETE FROM t2 WHERE f IN ( SELECT f FROM t1 ) ;
+SELECT * FROM t2 WHERE f IN ( SELECT f FROM t1 ) ;
+f
+DROP TABLE t1,t2;
+#
+# End of 10.4 tests
+#
