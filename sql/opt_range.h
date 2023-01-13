@@ -955,7 +955,7 @@ class QUICK_RANGE :public Sql_alloc {
     }
 
   /**
-     Initalizes a key_range object for communication with storage engine. 
+     Initializes a key_range object for communication with storage engine. 
 
      This function facilitates communication with the Storage Engine API by
      translating the minimum endpoint of the interval represented by this
@@ -976,7 +976,7 @@ class QUICK_RANGE :public Sql_alloc {
   }
   
   /**
-     Initalizes a key_range object for communication with storage engine. 
+     Initializes a key_range object for communication with storage engine. 
 
      This function facilitates communication with the Storage Engine API by
      translating the minimum endpoint of the interval represented by this
@@ -993,7 +993,7 @@ class QUICK_RANGE :public Sql_alloc {
   }
 
   /**
-     Initalizes a key_range object for communication with storage engine. 
+     Initializes a key_range object for communication with storage engine. 
 
      This function facilitates communication with the Storage Engine API by
      translating the maximum endpoint of the interval represented by this
@@ -1014,7 +1014,7 @@ class QUICK_RANGE :public Sql_alloc {
   }
 
   /**
-     Initalizes a key_range object for communication with storage engine. 
+     Initializes a key_range object for communication with storage engine. 
 
      This function facilitates communication with the Storage Engine API by
      translating the maximum endpoint of the interval represented by this

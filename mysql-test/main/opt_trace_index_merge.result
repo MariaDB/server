@@ -319,17 +319,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
         [
-            
             {
                 "index": "key1",
                 "ranges": 
-                [
-                    "(100) <= (key1) <= (100)"
-                ],
+                ["(100) <= (key1) <= (100)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -337,13 +333,10 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "cost": 2700.058937,
                 "chosen": true
             },
-            
             {
                 "index": "key2",
                 "ranges": 
-                [
-                    "(100) <= (key2) <= (100)"
-                ],
+                ["(100) <= (key2) <= (100)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -352,13 +345,10 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "chosen": false,
                 "cause": "cost"
             },
-            
             {
                 "index": "key3",
                 "ranges": 
-                [
-                    "(100) <= (key3) <= (100)"
-                ],
+                ["(100) <= (key3) <= (100)"],
                 "rowid_ordered": true,
                 "using_mrr": false,
                 "index_only": false,
@@ -372,7 +362,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
         {
             "intersecting_indexes": 
             [
-                
                 {
                     "index": "key1",
                     "index_scan_cost": 10.31393703,
@@ -384,7 +373,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                     "intersect_covering_with_this_index": false,
                     "chosen": true
                 },
-                
                 {
                     "index": "key2",
                     "index_scan_cost": 10.31393703,
@@ -396,7 +384,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                     "intersect_covering_with_this_index": false,
                     "chosen": true
                 },
-                
                 {
                     "index": "key3",
                     "index_scan_cost": 10.31393703,
@@ -420,14 +407,12 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             "chosen": true
         },
         "analyzing_index_merge_union": 
-        [
-        ]
+        []
     }
 ]
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
 [
-    
     {
         "range_access_plan": 
         {
@@ -438,35 +423,26 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
             "clustered_pk_scan": false,
             "intersect_of": 
             [
-                
                 {
                     "type": "range_scan",
                     "index": "key1",
                     "rows": 2243,
                     "ranges": 
-                    [
-                        "(100) <= (key1) <= (100)"
-                    ]
+                    ["(100) <= (key1) <= (100)"]
                 },
-                
                 {
                     "type": "range_scan",
                     "index": "key2",
                     "rows": 2243,
                     "ranges": 
-                    [
-                        "(100) <= (key2) <= (100)"
-                    ]
+                    ["(100) <= (key2) <= (100)"]
                 },
-                
                 {
                     "type": "range_scan",
                     "index": "key3",
                     "rows": 2243,
                     "ranges": 
-                    [
-                        "(100) <= (key3) <= (100)"
-                    ]
+                    ["(100) <= (key3) <= (100)"]
                 }
             ]
         },
@@ -482,32 +458,25 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
-    
     {
         "range_scan_alternatives": 
-        [
-        ],
+        [],
         "analyzing_roworder_intersect": 
         {
             "cause": "too few roworder scans"
         },
         "analyzing_index_merge_union": 
         [
-            
             {
                 "indexes_to_merge": 
                 [
-                    
                     {
                         "range_scan_alternatives": 
                         [
-                            
                             {
                                 "index": "key1",
                                 "ranges": 
-                                [
-                                    "(100) <= (key1) <= (100)"
-                                ],
+                                ["(100) <= (key1) <= (100)"],
                                 "rowid_ordered": true,
                                 "using_mrr": false,
                                 "index_only": true,
@@ -515,13 +484,10 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                                 "cost": 457.058937,
                                 "chosen": true
                             },
-                            
                             {
                                 "index": "key2",
                                 "ranges": 
-                                [
-                                    "(100) <= (key2) <= (100)"
-                                ],
+                                ["(100) <= (key2) <= (100)"],
                                 "rowid_ordered": true,
                                 "using_mrr": false,
                                 "index_only": true,
@@ -534,17 +500,13 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                         "index_to_merge": "key1",
                         "cumulated_cost": 457.058937
                     },
-                    
                     {
                         "range_scan_alternatives": 
                         [
-                            
                             {
                                 "index": "key3",
                                 "ranges": 
-                                [
-                                    "(100) <= (key3) <= (100)"
-                                ],
+                                ["(100) <= (key3) <= (100)"],
                                 "rowid_ordered": true,
                                 "using_mrr": false,
                                 "index_only": true,
@@ -552,13 +514,10 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                                 "cost": 457.058937,
                                 "chosen": true
                             },
-                            
                             {
                                 "index": "key4",
                                 "ranges": 
-                                [
-                                    "(100) <= (key4) <= (100)"
-                                ],
+                                ["(100) <= (key4) <= (100)"],
                                 "rowid_ordered": true,
                                 "using_mrr": false,
                                 "index_only": true,
@@ -577,20 +536,16 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "cause": "always cheaper than non roworder retrieval",
                 "analyzing_roworder_scans": 
                 [
-                    
                     {
                         "type": "range_scan",
                         "index": "key1",
                         "rows": 2243,
                         "ranges": 
-                        [
-                            "(100) <= (key1) <= (100)"
-                        ],
+                        ["(100) <= (key1) <= (100)"],
                         "analyzing_roworder_intersect": 
                         {
                             "intersecting_indexes": 
                             [
-                                
                                 {
                                     "index": "key1",
                                     "index_scan_cost": 10.31393703,
@@ -602,7 +557,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                                     "intersect_covering_with_this_index": false,
                                     "chosen": true
                                 },
-                                
                                 {
                                     "index": "key2",
                                     "index_scan_cost": 10.31393703,
@@ -626,20 +580,16 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                             "chosen": true
                         }
                     },
-                    
                     {
                         "type": "range_scan",
                         "index": "key3",
                         "rows": 2243,
                         "ranges": 
-                        [
-                            "(100) <= (key3) <= (100)"
-                        ],
+                        ["(100) <= (key3) <= (100)"],
                         "analyzing_roworder_intersect": 
                         {
                             "intersecting_indexes": 
                             [
-                                
                                 {
                                     "index": "key3",
                                     "index_scan_cost": 10.31393703,
@@ -651,7 +601,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                                     "intersect_covering_with_this_index": false,
                                     "chosen": true
                                 },
-                                
                                 {
                                     "index": "key4",
                                     "index_scan_cost": 10.31393703,
@@ -686,14 +635,12 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
 [
-    
     {
         "range_access_plan": 
         {
             "type": "index_roworder_union",
             "union_of": 
             [
-                
                 {
                     "type": "index_roworder_intersect",
                     "rows": 77,
@@ -702,29 +649,22 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
                     "clustered_pk_scan": false,
                     "intersect_of": 
                     [
-                        
                         {
                             "type": "range_scan",
                             "index": "key1",
                             "rows": 2243,
                             "ranges": 
-                            [
-                                "(100) <= (key1) <= (100)"
-                            ]
+                            ["(100) <= (key1) <= (100)"]
                         },
-                        
                         {
                             "type": "range_scan",
                             "index": "key2",
                             "rows": 2243,
                             "ranges": 
-                            [
-                                "(100) <= (key2) <= (100)"
-                            ]
+                            ["(100) <= (key2) <= (100)"]
                         }
                     ]
                 },
-                
                 {
                     "type": "index_roworder_intersect",
                     "rows": 77,
@@ -733,25 +673,19 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary'))
                     "clustered_pk_scan": false,
                     "intersect_of": 
                     [
-                        
                         {
                             "type": "range_scan",
                             "index": "key3",
                             "rows": 2243,
                             "ranges": 
-                            [
-                                "(100) <= (key3) <= (100)"
-                            ]
+                            ["(100) <= (key3) <= (100)"]
                         },
-                        
                         {
                             "type": "range_scan",
                             "index": "key4",
                             "rows": 2243,
                             "ranges": 
-                            [
-                                "(100) <= (key4) <= (100)"
-                            ]
+                            ["(100) <= (key4) <= (100)"]
                         }
                     ]
                 }

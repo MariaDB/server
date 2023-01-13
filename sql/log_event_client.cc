@@ -840,10 +840,12 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
     my_b_write_bit(file, ptr , (meta & 0xFF) * 8);
     return meta & 0xFF;
   
+  case MYSQL_TYPE_BLOB_COMPRESSED:
   case MYSQL_TYPE_BLOB:
     switch (meta) {
     case 1:
-      strmake(typestr, "TINYBLOB/TINYTEXT", typestr_length);
+      my_snprintf(typestr, typestr_length, "TINYBLOB/TINYTEXT%s",
+          type == MYSQL_TYPE_BLOB_COMPRESSED ? " COMPRESSED" : "");
       if (!ptr)
         goto return_null;
 
@@ -851,7 +853,8 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       my_b_write_quoted(file, ptr + 1, length);
       return length + 1;
     case 2:
-      strmake(typestr, "BLOB/TEXT", typestr_length);
+      my_snprintf(typestr, typestr_length, "BLOB/TEXT%s",
+          type == MYSQL_TYPE_BLOB_COMPRESSED ? " COMPRESSED" : "");
       if (!ptr)
         goto return_null;
 
@@ -859,7 +862,8 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       my_b_write_quoted(file, ptr + 2, length);
       return length + 2;
     case 3:
-      strmake(typestr, "MEDIUMBLOB/MEDIUMTEXT", typestr_length);
+      my_snprintf(typestr, typestr_length, "MEDIUMBLOB/MEDIUMTEXT%s",
+          type == MYSQL_TYPE_BLOB_COMPRESSED ? " COMPRESSED" : "");
       if (!ptr)
         goto return_null;
 
@@ -867,7 +871,8 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       my_b_write_quoted(file, ptr + 3, length);
       return length + 3;
     case 4:
-      strmake(typestr, "LONGBLOB/LONGTEXT", typestr_length);
+      my_snprintf(typestr, typestr_length, "LONGBLOB/LONGTEXT%s",
+          type == MYSQL_TYPE_BLOB_COMPRESSED ? " COMPRESSED" : "");
       if (!ptr)
         goto return_null;
 
@@ -879,10 +884,12 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       return 0;
     }
 
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
   case MYSQL_TYPE_VARCHAR:
   case MYSQL_TYPE_VAR_STRING:
     length= meta;
-    my_snprintf(typestr, typestr_length, "VARSTRING(%d)", length);
+    my_snprintf(typestr, typestr_length, "VARSTRING(%d)%s", length,
+          type == MYSQL_TYPE_VARCHAR_COMPRESSED ? " COMPRESSED" : "");
     if (!ptr)
       goto return_null;
 

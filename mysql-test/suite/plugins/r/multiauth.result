@@ -122,16 +122,13 @@ json_detailed(priv)
     "authentication_string": "*7D8C3DF236D9163B6C274A9D47704BC496988460",
     "auth_or": 
     [
-        
         {
             "plugin": "ed25519",
             "authentication_string": "F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc"
         },
-        
         {
             "plugin": "unix_socket"
         },
-        
         {
         }
     ],
