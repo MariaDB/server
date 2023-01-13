@@ -1667,7 +1667,7 @@ struct my_option xb_server_options[] =
   {"innodb_undo_tablespaces", OPT_INNODB_UNDO_TABLESPACES,
    "Number of undo tablespaces to use.",
    (G_PTR*)&srv_undo_tablespaces, (G_PTR*)&srv_undo_tablespaces,
-   0, GET_UINT, REQUIRED_ARG, 0, 0, 126, 0, 1, 0},
+   0, GET_UINT, REQUIRED_ARG, 3, 0, 126, 0, 1, 0},
 
   {"innodb_compression_level", OPT_INNODB_COMPRESSION_LEVEL,
    "Compression level used for zlib compression.",
