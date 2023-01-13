@@ -8488,8 +8488,7 @@ int ha_rocksdb::index_read_map_impl(uchar *const buf, const uchar *const key,
                                     const key_range *end_key) {
   DBUG_ENTER_FUNC();
 
-  DBUG_EXECUTE_IF("myrocks_busy_loop_on_row_read", int debug_i = 0;
-                  while (1) { debug_i++; });
+  DBUG_EXECUTE_IF("myrocks_busy_loop_on_row_read", my_sleep(50000););
 
   int rc = 0;
 
@@ -12159,7 +12158,6 @@ static int calculate_stats(
     }
   }
 
-  int num_sst = 0;
   for (const auto &it : props) {
     std::vector<Rdb_index_stats> sst_stats;
     Rdb_tbl_prop_coll::read_stats_from_tbl_props(it.second, &sst_stats);
@@ -12188,7 +12186,6 @@ static int calculate_stats(
       stats[it1.m_gl_index_id].merge(
           it1, true, it_index->second->max_storage_fmt_length());
     }
-    num_sst++;
   }
 
   if (include_memtables) {
