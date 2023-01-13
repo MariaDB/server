@@ -386,14 +386,15 @@ we put it to free list to be used.
   * scan whole LRU list
   * scan LRU list even if buf_pool.try_LRU_scan is not set
 
-@param have_mutex  whether buf_pool.mutex is already being held
-@return the free control block, in state BUF_BLOCK_MEMORY */
-buf_block_t *buf_LRU_get_free_block(bool have_mutex)
+@param get  how to allocate the block
+@return the free control block, in state BUF_BLOCK_MEMORY
+@retval nullptr if get==have_no_mutex_soft and memory was not available */
+buf_block_t* buf_LRU_get_free_block(buf_LRU_get get)
 {
 	ulint		n_iterations	= 0;
 	ulint		flush_failures	= 0;
 	MONITOR_INC(MONITOR_LRU_GET_FREE_SEARCH);
-	if (have_mutex) {
+	if (UNIV_UNLIKELY(get == have_mutex)) {
 		mysql_mutex_assert_owner(&buf_pool.mutex);
 		goto got_mutex;
 	}
@@ -405,13 +406,14 @@ got_mutex:
 	DBUG_EXECUTE_IF("ib_lru_force_no_free_page",
 		if (!buf_lru_free_blocks_error_printed) {
 			n_iterations = 21;
+			block = nullptr;
 			goto not_found;});
 
 retry:
 	/* If there is a block in the free list, take it */
 	if ((block = buf_LRU_get_free_only()) != nullptr) {
 got_block:
-		if (!have_mutex) {
+		if (UNIV_LIKELY(get != have_mutex)) {
 			mysql_mutex_unlock(&buf_pool.mutex);
 		}
 		block->page.zip.clear();
@@ -433,6 +435,11 @@ got_block:
 		/* Tell other threads that there is no point
 		in scanning the LRU list. */
 		buf_pool.try_LRU_scan = false;
+	}
+
+	if (get == have_no_mutex_soft) {
+		mysql_mutex_unlock(&buf_pool.mutex);
+		return nullptr;
 	}
 
 	for (;;) {

@@ -90,7 +90,7 @@ inline bool buf_page_peek_if_too_old(const buf_page_t *bpage)
 @return own: the allocated block, in state BUF_BLOCK_MEMORY */
 inline buf_block_t *buf_block_alloc()
 {
-  return buf_LRU_get_free_block(false);
+  return buf_LRU_get_free_block(have_no_mutex);
 }
 
 /********************************************************************//**

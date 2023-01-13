@@ -499,7 +499,7 @@ dberr_t fsp_header_init(fil_space_t *space, uint32_t size, mtr_t *mtr)
 	const page_id_t page_id(space->id, 0);
 	const ulint zip_size = space->zip_size();
 
-	buf_block_t *free_block = buf_LRU_get_free_block(false);
+	buf_block_t *free_block = buf_LRU_get_free_block(have_no_mutex);
 
 	mtr->x_lock_space(space);
 
@@ -833,9 +833,9 @@ fsp_fill_free_list(
 
       if (i)
       {
-        buf_block_t *f= buf_LRU_get_free_block(false);
+        buf_block_t *f= buf_LRU_get_free_block(have_no_mutex);
         buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(i),
-                               zip_size, mtr, f);
+                                            zip_size, mtr, f);
         if (UNIV_UNLIKELY(block != f))
           buf_pool.free_block(f);
         fsp_init_file_page(space, block, mtr);
@@ -845,7 +845,7 @@ fsp_fill_free_list(
 
       if (space->purpose != FIL_TYPE_TEMPORARY)
       {
-        buf_block_t *f= buf_LRU_get_free_block(false);
+        buf_block_t *f= buf_LRU_get_free_block(have_no_mutex);
         buf_block_t *block=
           buf_page_create(space, static_cast<uint32_t>(i + 1),
                           zip_size, mtr, f);
@@ -1053,7 +1053,7 @@ fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
     }
   }
 
-  free_block= buf_LRU_get_free_block(false);
+  free_block= buf_LRU_get_free_block(have_no_mutex);
 got_free_block:
   block= buf_page_create(space, static_cast<uint32_t>(offset),
                          space->zip_size(), mtr, free_block);

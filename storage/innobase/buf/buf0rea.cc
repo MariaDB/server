@@ -272,7 +272,7 @@ buf_read_page_low(
 /** Acquire a buffer block. */
 static buf_block_t *buf_read_acquire()
 {
-  return buf_LRU_get_free_block(false);
+  return buf_LRU_get_free_block(have_no_mutex_soft);
 }
 
 /** Free a buffer block if needed. */
@@ -341,7 +341,9 @@ read_ahead:
     goto no_read_ahead;
 
   /* Read all the suitable blocks within the area */
-  buf_block_t *block= zip_size ? nullptr : buf_read_acquire();
+  buf_block_t *block= nullptr;
+  if (!zip_size && !(block= buf_read_acquire()))
+    goto no_read_ahead;
 
   for (page_id_t i= low; i < high; ++i)
   {
@@ -354,8 +356,8 @@ read_ahead:
     {
       count++;
       ut_ad(!block);
-      if (!zip_size)
-        block= buf_read_acquire();
+      if (!zip_size && !(block= buf_read_acquire()))
+        break;
     }
   }
 
@@ -398,7 +400,9 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size,
     return DB_TABLESPACE_DELETED;
   }
 
-  buf_block_t *block= zip_size ? nullptr : buf_LRU_get_free_block(false);
+  buf_block_t *block= zip_size
+    ? nullptr
+    : buf_LRU_get_free_block(have_no_mutex);
 
   /* Our caller should already have ensured that the page does not
   exist in buf_pool.page_hash. */
@@ -428,11 +432,14 @@ void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   if (buf_pool.page_hash_contains(page_id, chain))
   {
+  skip:
     space->release();
     return;
   }
 
-  buf_block_t *block= zip_size ? nullptr : buf_read_acquire();
+  buf_block_t *block= nullptr;
+  if (!zip_size && !(block= buf_read_acquire()))
+    goto skip;
 
   dberr_t err;
   if (buf_read_page_low(page_id, zip_size, chain, &err, space, block))
@@ -581,7 +588,9 @@ failed:
   }
 
   /* If we got this far, read-ahead can be sensible: do it */
-  buf_block_t *block= zip_size ? nullptr : buf_read_acquire();
+  buf_block_t *block= nullptr;
+  if (!zip_size && !(block= buf_read_acquire()))
+    goto fail;
 
   count= 0;
   for (; new_low != new_high_1; ++new_low)
@@ -595,8 +604,8 @@ failed:
     {
       count++;
       ut_ad(!block);
-      if (!zip_size)
-        block= buf_read_acquire();
+      if (!zip_size && !(block= buf_read_acquire()))
+        break;
     }
   }
 
@@ -635,7 +644,7 @@ void buf_read_recv_pages(uint32_t space_id, st_::span<uint32_t> page_nos)
 	}
 
 	const ulint zip_size = space->zip_size() | 1;
-	buf_block_t* block = buf_LRU_get_free_block(false);
+	buf_block_t* block = buf_LRU_get_free_block(have_no_mutex);
 
 	for (ulint i = 0; i < page_nos.size(); i++) {
 
@@ -672,7 +681,7 @@ void buf_read_recv_pages(uint32_t space_id, st_::span<uint32_t> page_nos)
 		if (buf_read_page_low(cur_page_id, zip_size, chain, &err, space,
 				      block)) {
 			ut_ad(!block);
-			block = buf_LRU_get_free_block(false);
+			block = buf_LRU_get_free_block(have_no_mutex);
 		}
 
 		if (err != DB_SUCCESS) {

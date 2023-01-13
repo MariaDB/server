@@ -726,7 +726,7 @@ static struct
   {
 retry:
     bool fail= false;
-    buf_block_t *free_block= buf_LRU_get_free_block(false);
+    buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
     mysql_mutex_lock(&recv_sys.mutex);
 
     for (auto d= defers.begin(); d != defers.end(); )
@@ -3284,7 +3284,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
 @retval nullptr if the page cannot be initialized based on log records */
 buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
 {
-  buf_block_t *free_block= buf_LRU_get_free_block(false);
+  buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
   buf_block_t *block= nullptr;
 
   mysql_mutex_lock(&mutex);
@@ -3404,7 +3404,7 @@ void recv_sys_t::apply(bool last_batch)
 
     fil_system.extend_to_recv_size();
 
-    buf_block_t *free_block= buf_LRU_get_free_block(false);
+    buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
 
     for (map::iterator p= pages.begin(); p != pages.end(); )
     {
@@ -3451,7 +3451,7 @@ erase_for_space:
         {
 next_free_block:
           mysql_mutex_unlock(&mutex);
-          free_block= buf_LRU_get_free_block(false);
+          free_block= buf_LRU_get_free_block(have_no_mutex);
           mysql_mutex_lock(&mutex);
           break;
         }

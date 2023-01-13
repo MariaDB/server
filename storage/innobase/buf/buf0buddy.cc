@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -454,7 +454,7 @@ byte *buf_buddy_alloc_low(ulint i, bool *lru)
 	}
 
 	/* Try replacing an uncompressed page in the buffer pool. */
-	block = buf_LRU_get_free_block(true);
+	block = buf_LRU_get_free_block(have_mutex);
 	if (lru) {
 		*lru = true;
 	}

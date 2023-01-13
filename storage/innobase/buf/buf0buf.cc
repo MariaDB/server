@@ -2416,7 +2416,7 @@ wait_for_unzip:
 			goto loop;
 		}
 
-		buf_block_t *new_block = buf_LRU_get_free_block(false);
+		buf_block_t *new_block = buf_LRU_get_free_block(have_no_mutex);
 		buf_block_init_low(new_block);
 
 wait_for_unfix:
