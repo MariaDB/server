@@ -2477,9 +2477,6 @@ int spider_db_fetch_table(
 #ifndef DBUG_OFF
         dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
-      } else {
-        DBUG_PRINT("info", ("spider bitmap is not set %s",
-          SPIDER_field_name_str(*field)));
       }
       row->next();
     }

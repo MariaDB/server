@@ -1753,11 +1753,6 @@ group_by_handler *spider_create_group_by_handler(
       while ((item = it++))
       {
         DBUG_PRINT("info",("spider select item=%p", item));
-        if (item->const_item())
-        {
-          DBUG_PRINT("info",("spider const item"));
-          continue;
-        }
         if (spider_db_print_item_type(item, NULL, spider, NULL, NULL, 0,
           roop_count, TRUE, fields_arg))
         {
