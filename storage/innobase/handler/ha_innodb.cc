@@ -18778,6 +18778,16 @@ wsrep_kill_victim(
       lock_cancel_waiting_and_release(wait_lock);
     }
   }
+  else
+  {
+    wsrep_thd_LOCK(thd);
+    victim_trx->lock.was_chosen_as_wsrep_victim= false;
+    wsrep_thd_set_wsrep_aborter(NULL, thd);
+    wsrep_thd_UNLOCK(thd);
+
+    WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
+                thd_get_thread_id(thd));
+  }
 
   DBUG_VOID_RETURN;
 }
