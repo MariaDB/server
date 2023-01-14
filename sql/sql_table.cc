@@ -5742,6 +5742,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     if ((duplicate= unique_table(thd, table, src_table, 0)))
     {
       update_non_unique_table_error(src_table, "CREATE", duplicate);
+      res= 1;
       goto err;
     }
   }
@@ -6073,6 +6074,10 @@ int mysql_discard_or_import_tablespace(THD *thd,
 
   if (unlikely(error))
     goto err;
+
+  if (discard)
+    tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN, table_list->table->s->db.str,
+                     table_list->table->s->table_name.str, true);
 
   /*
     The 0 in the call below means 'not in a transaction', which means
@@ -7975,6 +7980,20 @@ void append_drop_column(THD *thd, String *str, Field *field)
 }
 
 
+static inline
+void rename_field_in_list(Create_field *field, List<const char> *field_list)
+{
+  DBUG_ASSERT(field->change.str);
+  List_iterator<const char> it(*field_list);
+  while (const char *name= it++)
+  {
+    if (my_strcasecmp(system_charset_info, name, field->change.str))
+      continue;
+    it.replace(field->field_name.str);
+  }
+}
+
+
 /**
   Prepare column and key definitions for CREATE TABLE in ALTER TABLE.
 
@@ -8284,6 +8303,41 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       new_create_tail.push_back(def, thd->mem_root);
     }
   }
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (alter_info->flags & ALTER_RENAME_COLUMN)
+  {
+    if (thd->work_part_info)
+    {
+      partition_info *part_info= thd->work_part_info;
+      List_iterator<Create_field> def_it(column_rename_param.fields);
+      const bool part_field_list= !part_info->part_field_list.is_empty();
+      const bool subpart_field_list= !part_info->subpart_field_list.is_empty();
+      if (part_info->part_expr)
+        part_info->part_expr->walk(&Item::rename_fields_processor, 1,
+                                  &column_rename_param);
+      if (part_info->subpart_expr)
+        part_info->subpart_expr->walk(&Item::rename_fields_processor, 1,
+                                      &column_rename_param);
+      if (part_field_list || subpart_field_list)
+      {
+        while (Create_field *def= def_it++)
+        {
+          if (def->change.str)
+          {
+            if (part_field_list)
+              rename_field_in_list(def, &part_info->part_field_list);
+            if (subpart_field_list)
+              rename_field_in_list(def, &part_info->subpart_field_list);
+          } /* if (def->change.str) */
+        } /* while (def) */
+      } /* if (part_field_list || subpart_field_list) */
+      // Force reopen because new column name is on thd->mem_root
+      table->mark_table_for_reopen();
+    } /* if (part_info) */
+  }
+#endif
+
   dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
   if ((dropped_sys_vers_fields ||
        alter_info->flags & ALTER_DROP_PERIOD) &&
@@ -9583,6 +9637,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   if (check_engine(thd, alter_ctx.new_db.str, alter_ctx.new_name.str, create_info))
     DBUG_RETURN(true);
 
+  create_info->vers_check_native();
   if (create_info->vers_info.fix_alter_info(thd, alter_info, create_info, table))
   {
     DBUG_RETURN(true);

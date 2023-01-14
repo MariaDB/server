@@ -1,3 +1,3 @@
 show create database test;
 Database	Create Database
-test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET latin1 */
+test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */

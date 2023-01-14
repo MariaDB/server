@@ -2343,7 +2343,7 @@ show create table t3|
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `bug2773()` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t3|
 drop function bug2773|
 drop procedure if exists bug3788|
@@ -2402,9 +2402,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` char(16) NOT NULL DEFAULT '',
   `data` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Database	Create Database
-test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET latin1 */
+test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 Database (foo)
 Level	Code	Message
 Field	Type	Null	Key	Default	Extra
@@ -2423,9 +2423,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` char(16) NOT NULL DEFAULT '',
   `data` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 Database	Create Database
-test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET latin1 */
+test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 Database (foo)
 Level	Code	Message
 Field	Type	Null	Key	Default	Extra
@@ -3757,17 +3757,17 @@ call bug12589_1()|
 Table	Create Table
 tm1	CREATE TEMPORARY TABLE `tm1` (
   `spv1` decimal(3,3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 call bug12589_2()|
 Table	Create Table
 tm1	CREATE TEMPORARY TABLE `tm1` (
   `spv1` decimal(6,3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 call bug12589_3()|
 Table	Create Table
 tm1	CREATE TEMPORARY TABLE `tm1` (
   `spv1` decimal(6,3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop procedure bug12589_1|
 drop procedure bug12589_2|
 drop procedure bug12589_3|
@@ -4831,7 +4831,7 @@ show create table t3|
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `i` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t3|
 i
 0
@@ -4842,7 +4842,7 @@ show create table t3|
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `j` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from t3|
 j
 0
@@ -4940,19 +4940,19 @@ use mysqltest1|
 call p1()|
 show create database mysqltest1|
 Database	Create Database
-mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET koi8r */
+mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET koi8r COLLATE koi8r_general_ci */
 show create database mysqltest2|
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8 */
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
 alter database mysqltest1 character set utf8|
 use mysqltest2|
 call mysqltest1.p1()|
 show create database mysqltest1|
 Database	Create Database
-mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET koi8r */
+mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET koi8r COLLATE koi8r_general_ci */
 show create database mysqltest2|
 Database	Create Database
-mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8 */
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
 drop database mysqltest1|
 drop database mysqltest2|
 use test|
@@ -5004,19 +5004,19 @@ CREATE FUNCTION mysqltest2.bug16211_f4() RETURNS CHAR(10) CHARSET koi8r
 RETURN ""|
 SHOW CREATE FUNCTION bug16211_f1|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f1		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f1`() RETURNS char(10) CHARSET utf8
+bug16211_f1		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f1`() RETURNS char(10) CHARSET utf8 COLLATE utf8_general_ci
 RETURN ""	latin1	latin1_swedish_ci	utf8_general_ci
 SHOW CREATE FUNCTION bug16211_f2|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f2		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f2`() RETURNS char(10) CHARSET koi8r
+bug16211_f2		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f2`() RETURNS char(10) CHARSET koi8r COLLATE koi8r_general_ci
 RETURN ""	latin1	latin1_swedish_ci	utf8_general_ci
 SHOW CREATE FUNCTION mysqltest2.bug16211_f3|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f3		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f3`() RETURNS char(10) CHARSET utf8
+bug16211_f3		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f3`() RETURNS char(10) CHARSET utf8 COLLATE utf8_general_ci
 RETURN ""	latin1	latin1_swedish_ci	utf8_general_ci
 SHOW CREATE FUNCTION mysqltest2.bug16211_f4|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f4		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f4`() RETURNS char(10) CHARSET koi8r
+bug16211_f4		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f4`() RETURNS char(10) CHARSET koi8r COLLATE koi8r_general_ci
 RETURN ""	latin1	latin1_swedish_ci	utf8_general_ci
 SELECT dtd_identifier
 FROM INFORMATION_SCHEMA.ROUTINES
@@ -5054,19 +5054,19 @@ ALTER DATABASE mysqltest1 CHARACTER SET cp1251|
 ALTER DATABASE mysqltest2 CHARACTER SET cp1251|
 SHOW CREATE FUNCTION bug16211_f1|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f1		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f1`() RETURNS char(10) CHARSET utf8
+bug16211_f1		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f1`() RETURNS char(10) CHARSET utf8 COLLATE utf8_general_ci
 RETURN ""	latin1	latin1_swedish_ci	utf8_general_ci
 SHOW CREATE FUNCTION bug16211_f2|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f2		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f2`() RETURNS char(10) CHARSET koi8r
+bug16211_f2		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f2`() RETURNS char(10) CHARSET koi8r COLLATE koi8r_general_ci
 RETURN ""	latin1	latin1_swedish_ci	utf8_general_ci
 SHOW CREATE FUNCTION mysqltest2.bug16211_f3|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f3		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f3`() RETURNS char(10) CHARSET utf8
+bug16211_f3		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f3`() RETURNS char(10) CHARSET utf8 COLLATE utf8_general_ci
 RETURN ""	latin1	latin1_swedish_ci	utf8_general_ci
 SHOW CREATE FUNCTION mysqltest2.bug16211_f4|
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-bug16211_f4		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f4`() RETURNS char(10) CHARSET koi8r
+bug16211_f4		CREATE DEFINER=`root`@`localhost` FUNCTION `bug16211_f4`() RETURNS char(10) CHARSET koi8r COLLATE koi8r_general_ci
 RETURN ""	latin1	latin1_swedish_ci	utf8_general_ci
 SELECT dtd_identifier
 FROM INFORMATION_SCHEMA.ROUTINES
@@ -6087,7 +6087,7 @@ examplebug20777	CREATE TABLE `examplebug20777` (
   `2**64-2` bigint(20) unsigned DEFAULT NULL,
   `2**64-1` bigint(20) unsigned DEFAULT NULL,
   `2**64` bigint(20) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from examplebug20777 order by i;
 i	2**63-2	2**63-1	2**63	2**63+1	2**64-2	2**64-1	2**64
 0	9223372036854775806	9223372036854775807	9223372036854775808	9223372036854775809	18446744073709551614	18446744073709551615	18446744073709551615
@@ -6454,7 +6454,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `v` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 
 DROP TABLE t1;
 
@@ -6465,7 +6465,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `v` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 
 DROP TABLE t1;
 
@@ -6474,7 +6474,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `v` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 
 DROP TABLE t1;
 
@@ -6485,7 +6485,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `v` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 
 DROP TABLE t1;
 
@@ -6893,7 +6893,7 @@ Another_very_long_enum_element_identifier
 
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f1		CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(p INT) RETURNS enum('Very_long_enum_element_identifier','Another_very_long_enum_element_identifier') CHARSET latin1
+f1		CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(p INT) RETURNS enum('Very_long_enum_element_identifier','Another_very_long_enum_element_identifier') CHARSET latin1 COLLATE latin1_swedish_ci
 BEGIN
 CASE p
 WHEN 1 THEN
@@ -8768,7 +8768,7 @@ t2	CREATE TABLE `t2` (
   `c1` varchar(11) DEFAULT NULL,
   `c2` varchar(11) DEFAULT NULL,
   `c3` varchar(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1,t2;
 DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS TINYTEXT CHARACTER SET latin1 RETURN '';
@@ -8779,7 +8779,7 @@ t1	CREATE TABLE `t1` (
   `c1` tinytext DEFAULT NULL,
   `c2` tinytext DEFAULT NULL,
   `c3` varchar(255) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS TEXT CHARACTER SET latin1 RETURN '';
@@ -8790,7 +8790,7 @@ t1	CREATE TABLE `t1` (
   `c1` text DEFAULT NULL,
   `c2` text DEFAULT NULL,
   `c3` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS MEDIUMTEXT CHARACTER SET latin1 RETURN '';
@@ -8801,7 +8801,7 @@ t1	CREATE TABLE `t1` (
   `c1` mediumtext DEFAULT NULL,
   `c2` mediumtext DEFAULT NULL,
   `c3` mediumtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS LONGTEXT CHARACTER SET latin1 RETURN '';
@@ -8812,7 +8812,7 @@ t1	CREATE TABLE `t1` (
   `c1` longtext DEFAULT NULL,
   `c2` longtext DEFAULT NULL,
   `c3` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS TINYTEXT CHARACTER SET utf8 RETURN '';
@@ -8820,10 +8820,10 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext CHARACTER SET utf8 DEFAULT NULL,
-  `c2` text CHARACTER SET utf8 DEFAULT NULL,
-  `c3` varchar(255) CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` tinytext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c2` text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c3` varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS TEXT CHARACTER SET utf8 RETURN '';
@@ -8831,10 +8831,10 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text CHARACTER SET utf8 DEFAULT NULL,
-  `c2` mediumtext CHARACTER SET utf8 DEFAULT NULL,
-  `c3` mediumtext CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c2` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c3` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS MEDIUMTEXT CHARACTER SET utf8 RETURN '';
@@ -8842,10 +8842,10 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext CHARACTER SET utf8 DEFAULT NULL,
-  `c2` longtext CHARACTER SET utf8 DEFAULT NULL,
-  `c3` longtext CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c3` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
 CREATE FUNCTION f1() RETURNS LONGTEXT CHARACTER SET utf8 RETURN '';
@@ -8853,10 +8853,10 @@ CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET utf8 DEFAULT NULL,
-  `c2` longtext CHARACTER SET utf8 DEFAULT NULL,
-  `c3` longtext CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c3` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP FUNCTION f1;
 #
@@ -8906,7 +8906,7 @@ END;
 $$
 SHOW CREATE FUNCTION f1;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-f1	STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS text  COMPRESSED CHARSET latin1
+f1	STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS text  COMPRESSED CHARSET latin1 COLLATE latin1_swedish_ci
 BEGIN
 RETURN '';
 END	latin1	latin1_swedish_ci	latin1_swedish_ci

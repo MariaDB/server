@@ -297,7 +297,27 @@ bool select_unit::send_eof()
 
 int select_union_recursive::send_data(List<Item> &values)
 {
-  int rc= select_unit::send_data(values);
+
+  int rc;
+  bool save_abort_on_warning= thd->abort_on_warning;
+  enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
+  long save_counter;
+
+  /*
+    For recursive CTE's give warnings for wrong field info
+    However, we don't do that for CREATE TABLE ... SELECT or INSERT ... SELECT
+    as the upper level code for these handles setting of abort_on_warning
+    depending on if 'IGNORE' is used.
+  */
+  if (thd->lex->sql_command != SQLCOM_CREATE_TABLE &&
+      thd->lex->sql_command != SQLCOM_INSERT_SELECT)
+    thd->abort_on_warning= thd->is_strict_mode();
+  thd->count_cuted_fields= CHECK_FIELD_WARN;
+  save_counter= thd->get_stmt_da()->set_current_row_for_warning(++row_counter);
+  rc= select_unit::send_data(values);
+  thd->get_stmt_da()->set_current_row_for_warning(save_counter);
+  thd->count_cuted_fields= save_count_cuted_fields;
+  thd->abort_on_warning= save_abort_on_warning;
 
   if (rc == 0 &&
       write_err != HA_ERR_FOUND_DUPP_KEY &&
@@ -476,6 +496,7 @@ void select_union_recursive::cleanup()
     thd->rec_tables= tab;
     tbl->derived_result= 0;
   }
+  row_counter= 0;
 }
 
 
@@ -530,14 +551,17 @@ int select_union_direct::send_data(List<Item> &items)
 {
   if (!limit)
     return false;
-  limit--;
-  if (offset)
+  if (!unit->offset_limit_cnt)
   {
-    offset--;
-    return false;
+    limit--;
+    if (offset)
+    {
+      offset--;
+      return false;
+    }
+    send_records++;
   }
 
-  send_records++;
   fill_record(thd, table, table->field, items, true, false);
   if (unlikely(thd->is_error()))
     return true; /* purecov: inspected */
@@ -611,15 +635,6 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
          order;
          order= order->next)
       order->item= &order->item_ptr;
-  }
-  for (ORDER *order= global_parameters()->order_list.first;
-       order;
-       order=order->next)
-  {
-    (*order->item)->walk(&Item::change_context_processor, 0,
-                         &fake_select_lex->context);
-    (*order->item)->walk(&Item::set_fake_select_as_master_processor, 0,
-                         fake_select_lex);
   }
 }
 

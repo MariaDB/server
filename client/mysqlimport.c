@@ -524,16 +524,18 @@ static void safe_exit(int error, MYSQL *mysql)
   if (mysql)
     mysql_close(mysql);
 
-  mysql_library_end();
-#ifdef HAVE_SMEM
-  my_free(shared_memory_base_name);
-#endif
-  free_defaults(argv_to_free);
-  my_free(opt_password);
   if (error)
     sf_leaking_memory= 1; /* dirty exit, some threads are still running */
   else
+  {
+    mysql_library_end();
+#ifdef HAVE_SMEM
+    my_free(shared_memory_base_name);
+#endif
+    free_defaults(argv_to_free);
+    my_free(opt_password);
     my_end(my_end_arg); /* clean exit */
+  }
   exit(error);
 }
 
@@ -577,7 +579,7 @@ static char *add_load_option(char *ptr, const char *object,
 /*
 ** Allow the user to specify field terminator strings like:
 ** "'", "\", "\\" (escaped backslash), "\t" (tab), "\n" (newline)
-** This is done by doubleing ' and add a end -\ if needed to avoid
+** This is done by doubling ' and add a end -\ if needed to avoid
 ** syntax errors from the SQL parser.
 */ 
 

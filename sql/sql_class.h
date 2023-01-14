@@ -95,8 +95,8 @@ enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
 
 /*
-  MARK_COLUMNS_READ:  A column is goind to be read.
-  MARK_COLUMNS_WRITE: A column is going to be written to.
+  COLUMNS_READ:       A column is goind to be read.
+  COLUMNS_WRITE:      A column is going to be written to.
   MARK_COLUMNS_READ:  A column is goind to be read.
                       A bit in read set is set to inform handler that the field
                       is to be read. If field list contains duplicates, then
@@ -1122,6 +1122,7 @@ public:
 
   LEX_CSTRING name; /* name for named prepared statements */
   LEX *lex;                                     // parse tree descriptor
+  my_hrtime_t hr_prepare_time; // time of preparation in microseconds
   /*
     Points to the query associated with this statement. It's const, but
     we need to declare it char * because all table handlers are written
@@ -1853,6 +1854,21 @@ public:
 private:
   bool m_need_reopen;
 };
+
+
+struct Suppress_warnings_error_handler : public Internal_error_handler
+{
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char *sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char *msg,
+                        Sql_condition **cond_hdl)
+  {
+    return *level == Sql_condition::WARN_LEVEL_WARN;
+  }
+};
+
 
 
 /**
@@ -3209,6 +3225,8 @@ public:
   /*
     In case of a slave, set to the error code the master got when executing
     the query. 0 if no error on the master.
+    The stored into variable master error code may get reset inside
+    execution stack when the event turns out to be ignored.
   */
   int	     slave_expected_error;
   enum_sql_command last_sql_command;  // Last sql_command exceuted in mysql_execute_command()
@@ -5437,7 +5455,7 @@ class select_insert :public select_result_interceptor {
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   virtual int prepare2(JOIN *join);
   virtual int send_data(List<Item> &items);
-  virtual void store_values(List<Item> &values);
+  virtual bool store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
   bool prepare_eof();
   bool send_ok_packet();
@@ -5479,7 +5497,7 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 
   int binlog_show_create_table(TABLE **tables, uint count);
-  void store_values(List<Item> &values);
+  bool store_values(List<Item> &values);
   bool send_eof();
   virtual void abort_result_set();
   virtual bool can_rollback_data() { return 1; }
@@ -5691,10 +5709,12 @@ class select_union_recursive :public select_unit
     or for the unit specifying a CTE that mutually recursive with this CTE.
   */
   uint cleanup_count;
+  long row_counter;
 
   select_union_recursive(THD *thd_arg):
     select_unit(thd_arg),
-    incr_table(0), first_rec_table_to_update(0), cleanup_count(0)
+      incr_table(0), first_rec_table_to_update(0), cleanup_count(0),
+      row_counter(0)
   { incr_table_param.init(); };
 
   int send_data(List<Item> &items);
@@ -6493,7 +6513,12 @@ inline int handler::ha_ft_read(uchar *buf)
 {
   int error= ft_read(buf);
   if (!error)
+  {
     update_rows_read();
+
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+  }
 
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;

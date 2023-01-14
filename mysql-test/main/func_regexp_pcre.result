@@ -436,8 +436,8 @@ CREATE TABLE t1 AS SELECT REGEXP_REPLACE('abc','b','x');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_REPLACE('abc','b','x');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -452,7 +452,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `REGEXP_REPLACE('abc','b','x')+0` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SELECT REGEXP_REPLACE(NULL,'b','c');
 REGEXP_REPLACE(NULL,'b','c')
@@ -739,8 +739,8 @@ CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 EXPLAIN EXTENDED SELECT REGEXP_SUBSTR('abc','b');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -755,7 +755,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `REGEXP_SUBSTR('abc','b')+0` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*');
 REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*')

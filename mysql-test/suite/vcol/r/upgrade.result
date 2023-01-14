@@ -6,9 +6,9 @@ show create table vcol_autoinc;
 Table	Create Table
 vcol_autoinc	CREATE TABLE `vcol_autoinc` (
   `pk` int(11) NOT NULL AUTO_INCREMENT,
-  `v3` int(11) GENERATED ALWAYS AS (`pk`) VIRTUAL,
+  `v3` int(11) GENERATED ALWAYS AS (`pk`) STORED,
   PRIMARY KEY (`pk`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from vcol_autoinc;
 pk	v3
 insert vcol_autoinc (pk) values (1);
@@ -27,7 +27,7 @@ t1	CREATE TABLE `t1` (
   `Data` varbinary(2000) NOT NULL,
   `a` varchar(100) GENERATED ALWAYS AS (column_get(`Data`,1 as char(100) charset latin1)) VIRTUAL,
   PRIMARY KEY (`Date`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY RANGE (to_days(`Date`))
 (PARTITION `p20181029` VALUES LESS THAN (737361) ENGINE = MyISAM,
  PARTITION `p20181128` VALUES LESS THAN (737391) ENGINE = MyISAM)

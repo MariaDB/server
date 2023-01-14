@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,10 +40,10 @@ Created 2012-03-24 Sunny Bains.
 
 typedef OSMutex EventMutex;
 
-# ifdef HAVE_IB_LINUX_FUTEX
+# ifdef __linux__
 UT_MUTEX_TYPE(TTASFutexMutex, GenericPolicy, FutexMutex);
 UT_MUTEX_TYPE(TTASFutexMutex, BlockMutexPolicy, BlockFutexMutex);
-# endif /* HAVE_IB_LINUX_FUTEX */
+# endif /* __linux__ */
 
 UT_MUTEX_TYPE(TTASMutex, GenericPolicy, SpinMutex);
 UT_MUTEX_TYPE(TTASMutex, BlockMutexPolicy, BlockSpinMutex);

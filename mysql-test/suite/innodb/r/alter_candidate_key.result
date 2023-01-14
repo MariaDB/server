@@ -9,7 +9,7 @@ t1	CREATE TABLE `t1` (
   `f2` int(11) NOT NULL,
   UNIQUE KEY `uidx2` (`f1`,`f2`),
   UNIQUE KEY `uidx1` (`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter
 		  SIGNAL conc_dml WAIT_FOR go_ahead';
 ALTER TABLE t1 CHANGE COLUMN f1 f11 INT, ALGORITHM=INPLACE;
@@ -25,7 +25,7 @@ t1	CREATE TABLE `t1` (
   `f2` int(11) NOT NULL,
   UNIQUE KEY `uidx1` (`f2`),
   UNIQUE KEY `uidx2` (`f11`,`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -42,7 +42,7 @@ t1	CREATE TABLE `t1` (
   `f2` int(11) NOT NULL,
   UNIQUE KEY `uidx2` (`f1`,`f2`),
   UNIQUE KEY `uidx1` (`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter
 		  SIGNAL conc_dml WAIT_FOR go_ahead';
 ALTER TABLE t1 CHANGE COLUMN f1 f11 INT, ALGORITHM=INPLACE;
@@ -59,7 +59,7 @@ t1	CREATE TABLE `t1` (
   `f2` int(11) NOT NULL,
   UNIQUE KEY `uidx1` (`f2`),
   UNIQUE KEY `uidx2` (`f11`,`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -89,7 +89,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` int(11) NOT NULL,
   UNIQUE KEY `f2` (`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
 UNIQUE KEY(f2), UNIQUE KEY(f2))ENGINE=InnoDB;
@@ -102,7 +102,7 @@ t1	CREATE TABLE `t1` (
   `f2` int(11) NOT NULL,
   UNIQUE KEY `f2` (`f2`),
   UNIQUE KEY `f2_2` (`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 DROP INDEX f2, ALGORITHM=INPLACE;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -110,5 +110,5 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` int(11) NOT NULL,
   UNIQUE KEY `f2_2` (`f2`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

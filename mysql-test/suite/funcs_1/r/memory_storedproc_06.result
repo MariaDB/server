@@ -221,31 +221,31 @@ connect  user5_2, localhost, user_2, , db_storedproc_1;
 	
 user_2@localhost	db_storedproc_1
 CALL sp5_s_i();
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_ins();
-ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_sel();
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 connection default;
 	
 root@localhost	db_storedproc_1
 CALL sp5_sel();
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 grant insert on db_storedproc_1.* to 'user_1'@'localhost';
 flush privileges;
 connection user5_2;
 	
 user_2@localhost	db_storedproc_1
 CALL sp5_s_i();
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_ins();
 CALL sp5_sel();
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 connection default;
 	
 root@localhost	db_storedproc_1
 CALL sp5_sel();
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 grant SELECT on db_storedproc_1.* to 'user_1'@'localhost';
 flush privileges;
 connection user5_2;
@@ -276,9 +276,9 @@ inserted	outside of SP	NULL
 inserted	from sp5_ins	2000-10-00
 inserted	from sp5_s_i	2000-10-00
 inserted	from sp5_ins	2000-10-00
-ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_ins();
-ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_sel();
 c1	c2	c3
 inserted	outside of SP	NULL
@@ -294,11 +294,11 @@ connection user5_2;
 	
 user_2@localhost	db_storedproc_1
 CALL sp5_s_i();
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_ins();
-ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: INSERT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 CALL sp5_sel();
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't3165'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db_storedproc_1`.`t3165`
 disconnect user5_2;
 connection default;
 	
@@ -348,9 +348,9 @@ user_2@localhost	db_storedproc_1
 CALL sp3166_s_i();
 c1
 inserted outside SP
-ERROR 42000: INSERT command denied to user 'user_2'@'localhost' for table 't3166'
+ERROR 42000: INSERT command denied to user 'user_2'@'localhost' for table `db_storedproc_1`.`t3166`
 CALL sp3166_ins();
-ERROR 42000: INSERT command denied to user 'user_2'@'localhost' for table 't3166'
+ERROR 42000: INSERT command denied to user 'user_2'@'localhost' for table `db_storedproc_1`.`t3166`
 CALL sp3166_sel();
 c1
 inserted outside SP
@@ -390,10 +390,10 @@ connect  user6_4, localhost, user_2, , db_storedproc_1;
 	
 user_2@localhost	db_storedproc_1
 CALL sp3166_s_i();
-ERROR 42000: SELECT command denied to user 'user_2'@'localhost' for table 't3166'
+ERROR 42000: SELECT command denied to user 'user_2'@'localhost' for table `db_storedproc_1`.`t3166`
 CALL sp3166_ins();
 CALL sp3166_sel();
-ERROR 42000: SELECT command denied to user 'user_2'@'localhost' for table 't3166'
+ERROR 42000: SELECT command denied to user 'user_2'@'localhost' for table `db_storedproc_1`.`t3166`
 disconnect user6_4;
 connection default;
 CALL sp3166_s_i();

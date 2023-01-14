@@ -1471,11 +1471,6 @@ extern int ZEXPORT zipWriteInFileInZip (zipFile file,const void* buf,unsigned in
           {
               uLong uTotalOutBefore = zi->ci.stream.total_out;
               err=deflate(&zi->ci.stream,  Z_NO_FLUSH);
-              if(uTotalOutBefore > zi->ci.stream.total_out)
-              {
-                int bBreak = 0;
-                bBreak++;
-              }
 
               zi->ci.pos_in_buffered_data += (uInt)(zi->ci.stream.total_out - uTotalOutBefore) ;
           }

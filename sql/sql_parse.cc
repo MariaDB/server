@@ -2513,7 +2513,7 @@ void log_slow_statement(THD *thd)
   if ((thd->server_status &
        (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
       !(thd->query_plan_flags & QPLAN_STATUS) &&
-      !slow_filter_masked(thd, QPLAN_NOT_USING_INDEX))
+      (thd->variables.log_slow_filter & QPLAN_NOT_USING_INDEX))
   {
     thd->query_plan_flags|= QPLAN_NOT_USING_INDEX;
     /* We are always logging no index queries if enabled in filter */
@@ -3313,6 +3313,7 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
       {
         switch (v->var->option.var_type & GET_TYPE_MASK)
         {
+          case GET_BIT:
           case GET_BOOL:
           case GET_INT:
           case GET_LONG:
@@ -5247,7 +5248,7 @@ mysql_execute_command(THD *thd)
       List_iterator <LEX_USER> user_list(lex->users_list);
       while ((user= user_list++))
       {
-        if (specialflag & SPECIAL_NO_RESOLVE &&
+        if (opt_skip_name_resolve &&
             hostname_requires_resolving(user->host.str))
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_HOSTNAME_WONT_WORK,
@@ -6891,13 +6892,13 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
   @brief Check if the requested privileges exists in either User-, Host- or
     Db-tables.
   @param thd          Thread context
-  @param want_access  Privileges requested
+  @param requirements Privileges requested
   @param tables       List of tables to be compared against
-  @param no_errors    Don't report error to the client (using my_error() call).
   @param any_combination_of_privileges_will_do TRUE if any privileges on any
     column combination is enough.
   @param number       Only the first 'number' tables in the linked list are
                       relevant.
+  @param no_errors    Don't report error to the client (using my_error() call).
 
   The suppled table list contains cached privileges. This functions calls the
   help functions check_access and check_grant to verify the first three steps
@@ -6924,7 +6925,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
 
 bool
 check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
-		   bool any_combination_of_privileges_will_do,
+                   bool any_combination_of_privileges_will_do,
                    uint number, bool no_errors)
 {
   TABLE_LIST *org_tables= tables;
@@ -7157,7 +7158,6 @@ bool check_fk_parent_table_access(THD *thd,
     if (key->type == Key::FOREIGN_KEY)
     {
       TABLE_LIST parent_table;
-      bool is_qualified_table_name;
       Foreign_key *fk_key= (Foreign_key *)key;
       LEX_CSTRING db_name;
       LEX_CSTRING table_name= { fk_key->ref_table.str,
@@ -7175,7 +7175,6 @@ bool check_fk_parent_table_access(THD *thd,
 
       if (fk_key->ref_db.str)
       {
-        is_qualified_table_name= true;
         if (!(db_name.str= (char *) thd->memdup(fk_key->ref_db.str,
                                                 fk_key->ref_db.length+1)))
           return true;
@@ -7197,7 +7196,6 @@ bool check_fk_parent_table_access(THD *thd,
           if (!(db_name.str= (char *) thd->memdup(create_db,
                                                   db_name.length+1)))
             return true;
-          is_qualified_table_name= true;
 
           if (check_db_name((LEX_STRING*) &db_name))
           {
@@ -7209,8 +7207,6 @@ bool check_fk_parent_table_access(THD *thd,
         {
           if (thd->lex->copy_db_to(&db_name))
             return true;
-          else
-           is_qualified_table_name= false;
         }
       }
 
@@ -7236,22 +7232,11 @@ bool check_fk_parent_table_access(THD *thd,
       if (check_some_access(thd, privileges, &parent_table) ||
           parent_table.grant.want_privilege)
       {
-        if (is_qualified_table_name)
-        {
-          const size_t qualified_table_name_len= NAME_LEN + 1 + NAME_LEN + 1;
-          char *qualified_table_name= (char *) thd->alloc(qualified_table_name_len);
-
-          my_snprintf(qualified_table_name, qualified_table_name_len, "%s.%s",
-                      db_name.str, table_name.str);
-          table_name.str= qualified_table_name;
-        }
-
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
-                 "REFERENCES",
-                 thd->security_ctx->priv_user,
-                 thd->security_ctx->host_or_ip,
-                 table_name.str);
-
+                "REFERENCES",
+                thd->security_ctx->priv_user,
+                thd->security_ctx->host_or_ip,
+                db_name.str, table_name.str);
         return true;
       }
     }

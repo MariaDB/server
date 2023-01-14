@@ -152,6 +152,8 @@ order by masks.p, example;
 
 DROP TABLE t1;
 
+# enable after fix MDEV-29231
+--disable_view_protocol
 SET @@SQL_MODE='NO_BACKSLASH_ESCAPES';
 show local variables like 'SQL_MODE';
 
@@ -193,9 +195,11 @@ from
 order by masks.p, example;
 
 DROP TABLE t1;
+--enable_view_protocol
 
 # Bug #6368: Make sure backslashes mixed with doubled quotes are handled
 # correctly in NO_BACKSLASH_ESCAPES mode
+--disable_service_connection
 SET @@SQL_MODE='NO_BACKSLASH_ESCAPES';
 SELECT 'a\\b', 'a\\\"b', 'a''\\b', 'a''\\\"b';
 SELECT "a\\b", "a\\\'b", "a""\\b", "a""\\\'b";
@@ -203,7 +207,7 @@ SELECT "a\\b", "a\\\'b", "a""\\b", "a""\\\'b";
 SET @@SQL_MODE='';
 SELECT 'a\\b', 'a\\\"b', 'a''\\b', 'a''\\\"b';
 SELECT "a\\b", "a\\\'b", "a""\\b", "a""\\\'b";
-
+--enable_service_connection
 #
 # Bug#6877: MySQL should give an error if the requested table type 
 #           is not available

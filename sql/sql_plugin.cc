@@ -2458,7 +2458,7 @@ static bool plugin_dl_foreach_internal(THD *thd, st_plugin_dl *plugin_dl,
     tmp.plugin_dl= plugin_dl;
 
     mysql_mutex_lock(&LOCK_plugin);
-    if ((plugin= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)) &&
+    if ((plugin= plugin_find_internal(&tmp.name, plug->type)) &&
         plugin->plugin == plug)
 
     {

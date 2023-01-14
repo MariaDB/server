@@ -19,7 +19,7 @@ t1	CREATE TABLE `t1` (
   `p` varchar(20) GENERATED ALWAYS AS (rtrim(`y`)) VIRTUAL,
   `y` char(20) DEFAULT NULL,
   KEY `p` (`p`,`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 (a,y) values(1, "yyy");
 update t1 set a = 100 where a = 1;
 check table t1;
@@ -199,7 +199,7 @@ t1	CREATE TABLE `t1` (
   `p` varchar(20) GENERATED ALWAYS AS (rtrim(`y`)) VIRTUAL,
   `y` char(20) DEFAULT NULL,
   KEY `p` (`p`,`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 (a,y) values(1, "yyy");
 update t1 set a = 100 where a = 1;
 check table t1;

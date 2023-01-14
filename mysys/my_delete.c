@@ -79,7 +79,8 @@ int my_delete(const char *name, myf MyFlags)
   a file to unique name.
 
   Symbolic link are deleted without renaming. Directories are not deleted.
- */
+*/
+
 static int my_win_unlink(const char *name)
 {
   HANDLE handle= INVALID_HANDLE_VALUE;
@@ -87,99 +88,113 @@ static int my_win_unlink(const char *name)
   uint last_error;
   char unique_filename[MAX_PATH + 35];
   unsigned long long tsc; /* time stamp counter, for unique filename*/
-
+  int retries;
   DBUG_ENTER("my_win_unlink");
-  attributes= GetFileAttributes(name);
-  if (attributes == INVALID_FILE_ATTRIBUTES)
-  {
-    last_error= GetLastError();
-    DBUG_PRINT("error",("GetFileAttributes(%s) failed with %u\n", name, last_error));
-    goto error;
-  }
 
-  if (attributes & FILE_ATTRIBUTE_DIRECTORY)
+  DBUG_INJECT_FILE_SHARING_VIOLATION(name);
+
+  for (retries= FILE_SHARING_VIOLATION_RETRIES; ; retries--)
   {
-    DBUG_PRINT("error",("can't remove %s - it is a directory\n", name));
-    errno= EINVAL;
-    DBUG_RETURN(-1);
-  }
- 
-  if (attributes & FILE_ATTRIBUTE_REPARSE_POINT)
-  {
-    /* Symbolic link. Delete link, the not target */
-    if (!DeleteFile(name))
+    attributes= GetFileAttributes(name);
+    if (attributes == INVALID_FILE_ATTRIBUTES)
     {
-       last_error= GetLastError();
-       DBUG_PRINT("error",("DeleteFile(%s) failed with %u\n", name,last_error));
-       goto error;
+      last_error= GetLastError();
+      DBUG_PRINT("error",
+                 ("GetFileAttributes(%s) failed with %u\n", name, last_error));
+      goto error;
     }
-    DBUG_RETURN(0);
-  }
 
-  /*
-    Try Windows 10 method, delete with "posix semantics" (file is not visible, and creating
-    a file with the same name won't fail, even if it the fiile was open)
-  */
-  struct
-  {
-    DWORD _Flags;
-  } disp={0x3};
-  /* 0x3 = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS */
+    if (attributes & FILE_ATTRIBUTE_DIRECTORY)
+    {
+      DBUG_PRINT("error", ("can't remove %s - it is a directory\n", name));
+      errno= EINVAL;
+      DBUG_RETURN(-1);
+    }
 
-  handle= CreateFile(name, DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                     NULL, OPEN_EXISTING, 0, NULL);
-  if (handle != INVALID_HANDLE_VALUE)
-  {
-    BOOL ok= SetFileInformationByHandle(handle,
-      (FILE_INFO_BY_HANDLE_CLASS) 21, &disp, sizeof(disp));
-    CloseHandle(handle);
-    if (ok)
+    if (attributes & FILE_ATTRIBUTE_REPARSE_POINT)
+    {
+      /* Symbolic link. Delete link, the not target */
+      if (!DeleteFile(name))
+      {
+        last_error= GetLastError();
+        DBUG_PRINT("error",
+                   ("DeleteFile(%s) failed with %u\n", name, last_error));
+        goto error;
+      }
       DBUG_RETURN(0);
-  }
+    }
 
-  handle= CreateFile(name, DELETE, 0,  NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL);
-  if (handle != INVALID_HANDLE_VALUE)
-  {
     /*
-      We opened file without sharing flags (exclusive), no one else has this file
-      opened, thus it is save to close handle to remove it. No renaming is 
-      necessary.
+      Try Windows 10 method, delete with "posix semantics" (file is not
+      visible, and creating a file with the same name won't fail, even if it
+      the file was open)
     */
+    handle= CreateFile(name, DELETE,
+                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                       NULL, OPEN_EXISTING, 0, NULL);
+    if (handle != INVALID_HANDLE_VALUE)
+    {
+      /* 0x3 = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS */
+      struct {DWORD _Flags;} disp= {0x3};
+      BOOL ok= SetFileInformationByHandle(
+          handle, (FILE_INFO_BY_HANDLE_CLASS) 21, &disp, sizeof(disp));
+      CloseHandle(handle);
+      if (ok)
+        DBUG_RETURN(0);
+    }
+
+    handle= CreateFile(name, DELETE, 0, NULL, OPEN_EXISTING,
+                       FILE_FLAG_DELETE_ON_CLOSE, NULL);
+    if (handle != INVALID_HANDLE_VALUE)
+    {
+      /*
+        We opened file without sharing flags (exclusive), no one else has this
+        file opened, thus it is safe to close handle to remove it. No renaming
+        is necessary.
+      */
+      CloseHandle(handle);
+      DBUG_RETURN(0);
+    }
+
+    /*
+       Can't open file exclusively, hence the file must be already opened by
+       someone else. Open it for delete (with all FILE_SHARE flags set),
+       rename to unique name, close.
+    */
+    handle= CreateFile(name, DELETE,
+                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                       NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL);
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+      last_error= GetLastError();
+      DBUG_PRINT(
+          "error",
+          ("CreateFile(%s) with FILE_FLAG_DELETE_ON_CLOSE failed with %u\n",
+           name, last_error));
+      goto error;
+    }
+
+    tsc= __rdtsc();
+    my_snprintf(unique_filename, sizeof(unique_filename), "%s.%llx.deleted",
+                name, tsc);
+    if (!MoveFile(name, unique_filename))
+    {
+      DBUG_PRINT("warning",
+                 ("moving %s to unique filename failed, error %lu\n", name,
+                  GetLastError()));
+    }
     CloseHandle(handle);
     DBUG_RETURN(0);
-  }
 
-  /*
-     Can't open file exclusively, hence the file must be already opened by 
-     someone else. Open it for delete (with all FILE_SHARE flags set), 
-     rename to unique name, close.
-  */
-  handle= CreateFile(name, DELETE, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
-    NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL);
-  if (handle == INVALID_HANDLE_VALUE)
-  {
-     last_error= GetLastError();
-     DBUG_PRINT("error",
-       ("CreateFile(%s) with FILE_FLAG_DELETE_ON_CLOSE failed with %u\n",
-        name,last_error));
-     goto error;
-  }
-
-  tsc= __rdtsc();
-  my_snprintf(unique_filename,sizeof(unique_filename),"%s.%llx.deleted", 
-    name, tsc);
-  if (!MoveFile(name, unique_filename)) 
-  {
-    DBUG_PRINT("warning",  ("moving %s to unique filename failed, error %lu\n",
-    name,GetLastError()));
-  }
-
-  CloseHandle(handle);
-  DBUG_RETURN(0);
- 
 error:
-  my_osmaperr(last_error);
-  DBUG_RETURN(-1);
+    if (last_error != ERROR_SHARING_VIOLATION || retries == 0)
+    {
+      my_osmaperr(last_error);
+      DBUG_RETURN(-1);
+    }
+    DBUG_CLEAR_FILE_SHARING_VIOLATION();
+    Sleep(FILE_SHARING_VIOLATION_DELAY_MS);
+  }
 }
 #endif
 

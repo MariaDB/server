@@ -46,6 +46,7 @@ Created 2012-02-08 by Sunny Bains.
 #ifdef HAVE_SNAPPY
 #include "snappy-c.h"
 #endif
+#include "log.h"
 
 #include <vector>
 
@@ -571,9 +572,15 @@ AbstractCallback::init(
 	if (!fsp_flags_is_valid(m_space_flags, true)) {
 		ulint cflags = fsp_flags_convert_from_101(m_space_flags);
 		if (cflags == ULINT_UNDEFINED) {
-			ib::error() << "Invalid FSP_SPACE_FLAGS="
-				<< ib::hex(m_space_flags);
-			return(DB_CORRUPTION);
+			switch (fsp_flags_is_incompatible_mysql(m_space_flags)) {
+			case 0:
+				sql_print_error("InnoDB: Invalid FSP_SPACE_FLAGS=0x%zx",
+						m_space_flags);
+				return(DB_CORRUPTION);
+			default:
+				sql_print_error("InnoDB: unsupported MySQL tablespace");
+				return(DB_UNSUPPORTED);
+			}
 		}
 		m_space_flags = cflags;
 	}
@@ -4171,7 +4178,7 @@ row_import_for_mysql(
 
 			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 				ER_INTERNAL_ERROR,
-			"Cannot reset LSNs in table %s : %s",
+			"Error importing tablespace for table %s : %s",
 				table_name, ut_strerr(err));
 		}
 

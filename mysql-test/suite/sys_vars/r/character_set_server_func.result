@@ -22,7 +22,7 @@ CREATE DATABASE db1;
 USE db1;
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET latin1 */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */
 DROP DATABASE db1;
 select @@character_set_database;
 @@character_set_database
@@ -33,7 +33,7 @@ CREATE DATABASE db1;
 USE db1;
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8 */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
 DROP DATABASE db1;
 select @@character_set_database;
 @@character_set_database
@@ -49,7 +49,7 @@ CREATE DATABASE db1;
 USE db1;
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8 */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
 DROP DATABASE db1;
 SELECT @@character_set_database;
 @@character_set_database
@@ -59,7 +59,7 @@ CREATE DATABASE db1 character set ascii;
 USE db1;
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET ascii */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET ascii COLLATE ascii_general_ci */
 DROP DATABASE db1;
 select @@character_set_database;
 @@character_set_database

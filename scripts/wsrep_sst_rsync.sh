@@ -38,6 +38,9 @@ cleanup_joiner()
     local estatus=$?
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Cleanup after exit with status: $estatus"
+    elif [ -z "${coords:-}" ]; then
+        estatus=32
+        wsrep_log_error "Failed to get current position"
     fi
 
     local failure=0
@@ -171,6 +174,7 @@ cd "$OLD_PWD"
 
 BINLOG_TAR_FILE="$DATA_DIR/wsrep_sst_binlog.tar"
 
+ar_log_dir="$DATA_DIR"
 ib_log_dir="$DATA_DIR"
 ib_home_dir="$DATA_DIR"
 ib_undo_dir="$DATA_DIR"
@@ -182,7 +186,9 @@ if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
     INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
 fi
 
-if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' ]; then
+if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
+     "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
+then
     # handle both relative and absolute paths:
     cd "$DATA"
     [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
@@ -198,7 +204,9 @@ if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
 fi
 
-if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' ]; then
+if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
+     "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
+then
     # handle both relative and absolute paths:
     cd "$DATA"
     [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
@@ -214,12 +222,31 @@ if [ -z "$INNODB_UNDO_DIR" ]; then
     INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
 fi
 
-if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' ]; then
+if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
+     "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
+then
     # handle both relative and absolute paths:
     cd "$DATA"
     [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
     cd "$INNODB_UNDO_DIR"
     ib_undo_dir="$(pwd)"
+    cd "$OLD_PWD"
+fi
+
+# if no command line argument then try to get it from the my.cnf:
+if [ -z "$ARIA_LOG_DIR" ]; then
+    ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
+    ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
+fi
+
+if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
+     "$ARIA_LOG_DIR" != "$DATA_DIR" ]
+then
+    # handle both relative and absolute paths:
+    cd "$DATA"
+    [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
+    cd "$ARIA_LOG_DIR"
+    ar_log_dir="$(pwd)"
     cd "$OLD_PWD"
 fi
 
@@ -408,7 +435,7 @@ EOF
         # (b) Cluster state ID & wsrep_gtid_domain_id to be written to the file, OR
         # (c) ERROR file, in case flush tables operation failed.
 
-        while [ ! -r "$FLUSHED" ] && \
+        while [ ! -r "$FLUSHED" ] || \
                 ! grep -q -F ':' -- "$FLUSHED"
         do
             # Check whether ERROR file exists.
@@ -433,8 +460,8 @@ EOF
             # Let's check the existence of the file with the index:
             if [ -f "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
                 # Let's read the binlog index:
-                max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs')
-                if [ -n "$max_binlogs" ]; then
+                max_binlogs=$(parse_cnf "$encgroups" 'sst-max-binlogs' 1)
+                if [ $max_binlogs -ge 0 ]; then
                     binlog_files=""
                     if [ $max_binlogs -gt 0 ]; then
                         binlog_files=$(tail -n $max_binlogs \
@@ -501,7 +528,9 @@ EOF
                             if [ "$first" = '-' -o "$first" = '@' ]; then
                                 bin_base="./$bin_base"
                             fi
-                            if [ -n "$bin_dir" -a "$bin_dir" != '.' ]; then
+                            if [ -n "$bin_dir" -a "$bin_dir" != '.' -a \
+                                 "$bin_dir" != "$DATA_DIR" ]
+                            then
                                 tar $tar_options "$BINLOG_TAR_FILE" \
                                     -C "$bin_dir" "$bin_base" >&2
                             else
@@ -538,7 +567,10 @@ FILTER="-f '- /lost+found'
         -f '+ /wsrep_sst_binlog.tar'
         -f '- $ib_home_dir/ib_lru_dump'
         -f '- $ib_home_dir/ibdata*'
-        -f '+ $ib_undo_dir/undo*'
+        -f '- $ib_undo_dir/undo*'
+        -f '- $ib_log_dir/ib_logfile[0-9]*'
+        -f '- $ar_log_dir/aria_log_control'
+        -f '- $ar_log_dir/aria_log.*'
         -f '+ /*/'
         -f '- /*'"
 
@@ -584,12 +616,12 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of InnoDB data files done"
 
-        # second, we transfer InnoDB and Aria log files
+        # second, we transfer InnoDB log files
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '+ /aria_log.*' \
-              -f '+ /aria_log_control' -f '- **' "$ib_log_dir/" \
+              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' \
+              -f '- **' "$ib_log_dir/" \
               "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
@@ -597,12 +629,40 @@ FILTER="-f '- /lost+found'
             exit 255 # unknown error
         fi
 
-        wsrep_log_info "Transfer of InnoDB and Aria log files done"
+        wsrep_log_info "Transfer of InnoDB log files done"
+
+        # third, we transfer InnoDB undo logs
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
+              --ignore-times --inplace --dirs --delete --quiet \
+              $WHOLE_FILE_OPT -f '+ /undo*' \
+              -f '- **' "$ib_undo_dir/" \
+              "rsync://$WSREP_SST_OPT_ADDR-undo_dir" >&2 || RC=$?
+
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "rsync innodb_undo_dir returned code $RC:"
+            exit 255 # unknown error
+        fi
+
+        wsrep_log_info "Transfer of InnoDB undo logs done"
+
+        # fourth, we transfer Aria logs
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
+              --ignore-times --inplace --dirs --delete --quiet \
+              $WHOLE_FILE_OPT -f '+ /aria_log_control' -f '+ /aria_log.*' \
+              -f '- **' "$ar_log_dir/" \
+              "rsync://$WSREP_SST_OPT_ADDR-aria_log" >&2 || RC=$?
+
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "rsync aria_log_dir_path returned code $RC:"
+            exit 255 # unknown error
+        fi
+
+        wsrep_log_info "Transfer of Aria logs done"
 
         # then, we parallelize the transfer of database directories,
         # use '.' so that path concatenation works:
-
-        cd "$DATA"
 
         backup_threads=$(parse_cnf '--mysqld|sst' 'backup-threads')
         if [ -z "$backup_threads" ]; then
@@ -610,13 +670,20 @@ FILTER="-f '- /lost+found'
             backup_threads=$nproc
         fi
 
+        cd "$DATA"
+
         find . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
              -not -name '.zfs' -print0 | xargs -I{} -0 -P $backup_threads \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials --ignore-times \
              --inplace --recursive --delete --quiet $WHOLE_FILE_OPT \
-             --exclude '*/ib_logfile*' --exclude '*/aria_log.*' \
-             --exclude '*/aria_log_control' "$WSREP_SST_OPT_DATA/{}/" \
+             -f '- $ib_home_dir/ib_lru_dump' \
+             -f '- $ib_home_dir/ibdata*' \
+             -f '- $ib_undo_dir/undo*' \
+             -f '- $ib_log_dir/ib_logfile[0-9]*' \
+             -f '- $ar_log_dir/aria_log_control' \
+             -f '- $ar_log_dir/aria_log.*' \
+             "$WSREP_SST_OPT_DATA/{}/" \
              "rsync://$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
 
         cd "$OLD_PWD"
@@ -704,6 +771,10 @@ $SILENT
     path = $ib_log_dir
 [$MODULE-data_dir]
     path = $ib_home_dir
+[$MODULE-undo_dir]
+    path = $ib_undo_dir
+[$MODULE-aria_log]
+    path = $ar_log_dir
 EOF
 
     # If the IP is local, listen only on it:
@@ -869,7 +940,7 @@ EOF
         binlog_cd=0
         # Change the directory to binlog base (if possible):
         if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
-             -d "$binlog_dir" ]
+             "$binlog_dir" != "$DATA_DIR" -a -d "$binlog_dir" ]
         then
             binlog_cd=1
             cd "$binlog_dir"
@@ -888,11 +959,15 @@ EOF
                tmpfile=$(TMPDIR="$tmpdir"; mktemp)
             fi
             index_dir=$(dirname "$binlog_index");
-            if [ -n "$index_dir" -a "$index_dir" != '.' ]; then
+            if [ -n "$index_dir" -a "$index_dir" != '.' -a \
+                 "$index_dir" != "$DATA_DIR" ]
+            then
                 [ ! -d "$index_dir" ] && mkdir -p "$index_dir"
             fi
             binlog_cd=0
-            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' ]; then
+            if [ -n "$binlog_dir" -a "$binlog_dir" != '.' -a \
+                 "$binlog_dir" != "$DATA_DIR" ]
+            then
                 [ ! -d "$binlog_dir" ] && mkdir -p "$binlog_dir"
                 binlog_cd=1
                 cd "$binlog_dir"

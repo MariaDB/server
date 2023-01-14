@@ -443,6 +443,43 @@ pk	f1	f2	left(f3, 4)	check_row_ts(row_start, row_end)
 1	8	8	SHOR	HISTORICAL ROW
 2	8	8	LONG	HISTORICAL ROW
 drop table t1;
+# Shorter case for clustered index (MDEV-25004)
+create table t1 (
+y int primary key, r int, f int, key (r),
+foreign key (f) references t1 (r) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, 6, 6), (2, 6, 6);
+delete from t1;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+y	r	f	check_row_ts(row_start, row_end)
+1	6	6	HISTORICAL ROW
+2	6	6	HISTORICAL ROW
+drop tables t1;
+# Secondary unique index
+create table t1 (
+y int unique null, r int, f int, key (r),
+foreign key (f) references t1 (r) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, 6, 6), (2, 6, 6);
+delete from t1;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+y	r	f	check_row_ts(row_start, row_end)
+1	6	6	HISTORICAL ROW
+2	6	6	HISTORICAL ROW
+drop tables t1;
+# Non-unique index cannot be fixed because it does not trigger duplicate error
+create table t1 (
+y int, r int, f int, key (y), key (r),
+foreign key (f) references t1 (r) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, 6, 6), (2, 6, 6);
+delete from t1;
+select *, check_row_ts(row_start, row_end) from t1 for system_time all;
+y	r	f	check_row_ts(row_start, row_end)
+1	6	6	HISTORICAL ROW
+2	6	NULL	ERROR: row_end == row_start
+2	6	6	HISTORICAL ROW
+drop tables t1;
 #
 # MDEV-21555 Assertion secondary index is out of sync on delete from versioned table
 #
@@ -456,3 +493,42 @@ set foreign_key_checks= on;
 delete history from t1;
 delete from t1;
 drop table t1;
+#
+# MDEV-30378 Versioned REPLACE succeeds with ON DELETE RESTRICT
+# constraint
+#
+create table t0 (pk integer primary key) with system versioning engine=innodb;
+create table t1 (pk integer primary key,
+foreign key(pk) references t0(pk)
+on delete restrict on update cascade) engine=innodb;
+create table t2 (pk integer);
+insert into t0 (pk) values (1);
+insert into t1 (pk) values (1);
+insert into t2 (pk) values (1);
+delete from t0;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`pk`) REFERENCES `t0` (`pk`) ON UPDATE CASCADE)
+replace t0 values (1);
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`pk`) REFERENCES `t0` (`pk`) ON UPDATE CASCADE)
+select * into outfile 'load_t0' from t0 ;
+load data infile 'load_t0' replace into table t0;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`pk`) REFERENCES `t0` (`pk`) ON UPDATE CASCADE)
+delete t0, t2 from t0 join t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`pk`) REFERENCES `t0` (`pk`) ON UPDATE CASCADE)
+select pk from t0;
+pk
+1
+# Cleanup
+drop table t1, t0, t2;
+# create_select for a temporary table didn't set up pos_in_locked_tables.
+create table t (a int unique) engine=innodb
+replace select 1 as a, 2 as b union select 1 as a, 3 as c;
+select * from t;
+a	b
+1	3
+drop table t;
+create temporary table t (a int unique) engine=innodb
+replace select 1 as a, 2 as b union select 1 as a, 3 as c;
+select * from t;
+a	b
+1	3
+drop table t;

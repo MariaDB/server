@@ -605,7 +605,22 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
         Here SUBQ cannot be removed.
       */
       if (!ord->in_field_list)
+      {
         (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+        /*
+          Remove from the JOIN::all_fields list any reference to the elements
+          of the eliminated GROUP BY list unless it is 'in_field_list'.
+          This is needed in order not to confuse JOIN::make_aggr_tables_info()
+          when it constructs different structure for execution phase.
+	*/
+        List_iterator<Item> li(subq_select_lex->join->all_fields);
+	Item *item;
+        while ((item= li++))
+	{
+          if (item == *ord->item)
+	    li.remove();
+	}
+      }
     }
     subq_select_lex->join->group_list= NULL;
     subq_select_lex->group_list.empty();
@@ -1063,6 +1078,15 @@ JOIN::prepare(TABLE_LIST *tables_init,
   // simple check that we got usable conds
   dbug_print_item(conds);
 
+  /*
+    It is hack which force creating EXPLAIN object always on runt-time arena
+    (because very top JOIN::prepare executes always with runtime arena, but
+    constant subquery like (SELECT 'x') can be called with statement arena
+    during prepare phase of top SELECT).
+  */
+  if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
+      create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+
   if (select_lex->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(-1);
 
@@ -1506,7 +1530,6 @@ bool JOIN::build_explain()
 int JOIN::optimize()
 {
   int res= 0;
-  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   join_optimization_state init_state= optimization_state;
   if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
     res= optimize_stage2();
@@ -1581,6 +1604,9 @@ JOIN::optimize_inner()
   DEBUG_SYNC(thd, "before_join_optimize");
 
   THD_STAGE_INFO(thd, stage_optimizing);
+#ifndef DBUG_OFF
+  dbug_join_tab_array_size= 0;
+#endif
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
@@ -2725,6 +2751,9 @@ setup_subq_exit:
     {
       if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
         DBUG_RETURN(1);
+#ifndef DBUG_OFF
+      dbug_join_tab_array_size= 1;
+#endif
       need_tmp= 1;
     }
     if (make_aggr_tables_info())
@@ -3029,6 +3058,7 @@ bool JOIN::make_aggr_tables_info()
   {
     aggr_tables++;
     curr_tab= join_tab + exec_join_tab_cnt();
+    DBUG_ASSERT(curr_tab - join_tab < dbug_join_tab_array_size);
     bzero((void*)curr_tab, sizeof(JOIN_TAB));
     curr_tab->ref.key= -1;
     if (only_const_tables())
@@ -3157,6 +3187,7 @@ bool JOIN::make_aggr_tables_info()
 
       curr_tab++;
       aggr_tables++;
+      DBUG_ASSERT(curr_tab - join_tab < dbug_join_tab_array_size);
       bzero((void*)curr_tab, sizeof(JOIN_TAB));
       curr_tab->ref.key= -1;
 
@@ -9757,6 +9788,23 @@ bool JOIN::get_best_combination()
 
   if (aggr_tables > 2)
     aggr_tables= 2;
+
+#ifndef DBUG_OFF
+  dbug_join_tab_array_size= top_join_tab_count + aggr_tables;
+#endif
+  /*
+    NOTE: The above computation of aggr_tables can produce wrong result because some
+    of the variables it uses may change their values after we leave this function.
+    Known examples:
+     - Dangerous: using_outer_summary_function=false at this point. Added
+       DBUG_ASSERT below to demonstrate. Can this cause us to allocate less
+       space than we would need?
+     - Not dangerous: select_distinct can be true here but be assigned false
+       afterwards.
+  */
+  aggr_tables= 2;
+  DBUG_ASSERT(!tmp_table_param.using_outer_summary_function);
+
   if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
                                         (top_join_tab_count + aggr_tables))))
     DBUG_RETURN(TRUE);
@@ -12461,6 +12509,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
     uint jcl= tab->used_join_cache_level;
     tab->read_record.table= table;
     tab->read_record.unlock_row= rr_unlock_row;
+    tab->read_record.print_error= true;
     tab->sorted= sorted;
     sorted= 0;                                  // only first must be sorted
     

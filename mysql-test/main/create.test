@@ -106,6 +106,7 @@ create table t1 (i int, index `` (i));
 # We don't allow creation of non-temporary tables under LOCK TABLES
 # as following meta-data locking protocol in this case can lead to
 # deadlock.
+--disable_service_connection
 create table t1 (i int);
 lock tables t1 read;
 --error ER_TABLE_NOT_LOCKED
@@ -115,6 +116,7 @@ create temporary table t2 (j int);
 drop temporary table t2;
 unlock tables;
 drop table t1;
+--enable_service_connection
 
 #
 # Test of CREATE ... SELECT with indexes
@@ -286,7 +288,7 @@ drop table if exists t2,t1;
 #
 # Test for CREATE TABLE .. LIKE ..
 #
-
+--disable_view_protocol
 create table t1(id int not null, name char(20));
 insert into t1 values(10,'mysql'),(20,'monty- the creator');
 create table t2(id int not null);
@@ -325,13 +327,14 @@ create temporary table t3 like t1;
 drop table t1, t2, t3;
 drop table t3;
 drop database mysqltest;
-
+--enable_view_protocol
 #
 # CREATE TABLE LIKE under LOCK TABLES
 #
 # Similarly to ordinary CREATE TABLE we don't allow creation of
 # non-temporary tables under LOCK TABLES. Also we require source
 # table to be locked.
+--disable_service_connection
 create table t1 (i int);
 create table t2 (j int);
 lock tables t1 read;
@@ -345,6 +348,7 @@ drop temporary table t3;
 create temporary table t3 like t2;
 unlock tables;
 drop tables t1, t2;
+--enable_service_connection
 
 #
 # Test default table type
@@ -453,7 +457,7 @@ drop table t1, t2, t3;
 #
 # Bug #1209
 #
-
+--disable_service_connection
 create database mysqltest;
 use mysqltest;
 select database();
@@ -469,6 +473,7 @@ connection default;
 disconnect user1;
 drop user mysqltest_1;
 use test;
+--enable_service_connection
 
 #
 # Test for Bug 856 'Naming a key "Primary" causes trouble'
@@ -530,6 +535,7 @@ drop table t1,t2;
 # This tests two additional possible errors and a hang if 
 # an improper fix is present.
 #
+--disable_service_connection
 create table t1 (a int);
 --error ER_TABLE_EXISTS_ERROR
 create table t1 select * from t1;
@@ -538,6 +544,7 @@ create table t2 union = (t1) select * from t1;
 flush tables with read lock;
 unlock tables;
 drop table t1;
+--enable_service_connection
 
 #
 # Bug#10413: Invalid column name is not rejected
@@ -772,13 +779,14 @@ create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1
 # permanent table. After patch for Bug#47418, we create the base table and
 # instert data into it, even though a temporary table exists with the same
 # name.
+--disable_view_protocol
 create temporary table t1 (j int);
 create table if not exists t1 select 1;
 select * from t1;
 drop temporary table t1;
 select * from t1;
 drop table t1;
-
+--enable_view_protocol
 
 #
 # CREATE TABLE ... SELECT and LOCK TABLES
@@ -788,6 +796,7 @@ drop table t1;
 # the server doesn't crash, hang and produces sensible errors.
 # Includes test for bug #20662 "Infinite loop in CREATE TABLE
 # IF NOT EXISTS ... SELECT with locked tables".
+--disable_service_connection
 create table t1 (i int);
 insert into t1 values (1), (2);
 lock tables t1 read;
@@ -828,7 +837,7 @@ create temporary table if not exists t2 select * from t1;
 select * from t2;
 unlock tables;
 drop table t1, t2;
-
+--enable_service_connection
 
 #
 # Bug#21772: can not name a column 'upgrade' when create a table
@@ -989,6 +998,7 @@ SHOW CREATE DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 #
 # Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
 #
+--disable_service_connection
 set @save_character_set_client=@@character_set_client;
 set @save_collation_connection=@@collation_connection;
 set names utf8;
@@ -1014,7 +1024,7 @@ from имя_таблицы_в_кодировке_утф8_длиной_больш
 
 # database, table, field, key, view
 select * from имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-
+--disable_view_protocol
 --sorted_result
 select TABLE_NAME from information_schema.tables where
 table_schema='test';
@@ -1027,6 +1037,7 @@ table_schema='test';
 
 select TABLE_NAME from information_schema.views where
 table_schema='test';
+--enable_view_protocol
 
 show create table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
 show create view имя_вью_кодировке_утф8_длиной_больше_чем_42;
@@ -1070,6 +1081,7 @@ drop table имя_таблицы_в_кодировке_утф8_длиной_бо
 set @@character_set_client=@save_character_set_client;
 set @@character_set_results=@save_character_set_client;
 set @@session.collation_connection=@save_collation_connection;
+--enable_service_connection
 
 #
 # Bug#21136 CREATE TABLE SELECT within CREATE TABLE SELECT causes server crash
@@ -1382,7 +1394,7 @@ DROP VIEW t2;
 --echo # Bug #49193 CREATE TABLE reacts differently depending 
 --echo #            on whether data is selected or not
 --echo #
-
+--disable_view_protocol
 CREATE TEMPORARY TABLE t2 (ID INT);
 INSERT INTO t2 VALUES (1),(2),(3);
 
@@ -1418,7 +1430,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
  
 DROP TEMPORARY TABLE t2;
-
+--enable_view_protocol
 
 --echo # 
 --echo # Bug #22909 "Using CREATE ... LIKE is possible to create field
@@ -1499,7 +1511,7 @@ drop table t1;
 --echo # 
 --echo # 2. A temporary table.
 --echo #
-
+--disable_view_protocol
 create temporary table if not exists t1 (a int) select 1 as a;
 select * from t1;
 --error ER_TABLE_EXISTS_ERROR
@@ -1652,6 +1664,7 @@ select * from t1;
 drop table t1;
 --error ER_NO_SUCH_TABLE
 create table if not exists t1 (a int) select * from t1;
+--enable_view_protocol
 
 --echo #
 --echo # 7. Test of non-matching columns, REPLACE and IGNORE.
@@ -1692,7 +1705,7 @@ drop table t1;
 --echo #
 --echo # Checking that CREATE IF NOT EXISTS is not blocked by running SELECT
 --echo #
-
+--disable_service_connection
 create table t1 (a int, b int) engine=myisam;
 create table t2 (a int, b int) engine=myisam;
 insert into t1 values (1,1);
@@ -1715,6 +1728,7 @@ connection default;
 select * from t1;
 unlock tables;
 drop table t1,t2;
+--enable_service_connection
 
 --echo #
 --echo # MDEV-6179: dynamic columns functions/cast()/convert() doesn't
@@ -1963,6 +1977,19 @@ create table t1 (c int(10) unsigned) engine=memory transactional=0;
 --echo #
 CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAINT `bar` UNIQUE KEY(id2));
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-30342 Wrong "Truncated incorrect DECIMAL value" warning/error
+--echo #
+
+create table t1(c1 varchar(1));
+insert into t1(c1) values('#');
+
+select @@sql_mode like '%strict_all_tables%';
+--error ER_TRUNCATED_WRONG_VALUE
+create table t2 as select if(c1 = '#', c1 = 0, c1) as c1 from t1;
+
+drop table t1;
 
 --echo #
 --echo # End of 10.3 tests

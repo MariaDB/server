@@ -1,0 +1,15 @@
+CREATE TABLE t1 (a TEXT, ac TEXT COMPRESSED, b TINYTEXT, bc TINYTEXT COMPRESSED, c MEDIUMTEXT, cc MEDIUMTEXT COMPRESSED, d LONGTEXT, dc LONGTEXT COMPRESSED, e VARCHAR(10), ec VARCHAR(10) COMPRESSED);
+# Isolate row event into its own binary log
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES ('mya', 'myac', 'myb', 'mybc', 'myc', 'mycc', 'myd', 'mydc', 'mye', 'myec');
+FLUSH BINARY LOGS;
+# MYSQLBINLOG --base64-output=decode-rows -vv datadir/binlog_file --result-file=result_binlog
+include/assert_grep.inc [Ensure compressed TEXT fields are annotated correctly]
+include/assert_grep.inc [Ensure compressed TINYTEXT fields are annotated correctly]
+include/assert_grep.inc [Ensure compressed MEDIUMTEXT fields are annotated correctly]
+include/assert_grep.inc [Ensure compressed LONGTEXT fields are annotated correctly]
+include/assert_grep.inc [Ensure compressed VARSTRING fields are annotated correctly]
+include/assert_grep.inc [Ensure COMPRESSED only shows up for corresponding fields]
+include/assert_grep.inc [Ensure non-compressed TEXT fields are annotated correctly]
+include/assert_grep.inc [Ensure non-compressed VARSTRING fields are annotated correctly]
+DROP TABLE t1;

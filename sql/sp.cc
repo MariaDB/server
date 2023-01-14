@@ -1052,7 +1052,7 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   {
     result.append(STRING_WITH_LEN(" CHARSET "));
     result.append(field->charset()->csname);
-    if (!(field->charset()->state & MY_CS_PRIMARY))
+    if (Charset(field->charset()).can_have_collate_clause())
     {
       result.append(STRING_WITH_LEN(" COLLATE "));
       result.append(field->charset()->name);

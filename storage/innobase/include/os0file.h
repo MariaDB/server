@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -638,6 +638,14 @@ os_file_set_nocache(
 	int	fd,		/*!< in: file descriptor to alter */
 	const char*	file_name,
 	const char*	operation_name);
+#endif
+
+#ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
+/** Obtain an exclusive lock on a file.
+@param fd      file descriptor
+@param name    file name
+@return 0 on success */
+int os_file_lock(int fd, const char *name);
 #endif
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly

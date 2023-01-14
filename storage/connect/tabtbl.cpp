@@ -230,7 +230,6 @@ PCOL TDBTBL::InsertSpecialColumn(PCOL scp)
 /***********************************************************************/
 bool TDBTBL::InitTableList(PGLOBAL g)
   {
-  int     n;
   uint    sln;
   const char   *scs;
   PTABLE  tp, tabp;
@@ -243,7 +242,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
   sln = hc->get_table()->s->connect_string.length;
 //  PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
 
-  for (n = 0, tp = tdp->Tablep; tp; tp = tp->GetNext()) {
+  for (tp = tdp->Tablep; tp; tp = tp->GetNext()) {
     if (TestFil(g, To_CondFil, tp)) {
       tabp = new(g) XTAB(tp);
 
@@ -276,7 +275,6 @@ bool TDBTBL::InitTableList(PGLOBAL g)
       else
         Tablist = tabp;
 
-      n++;
       } // endif filp
 
     } // endfor tp
@@ -691,7 +689,7 @@ bool TDBTBM::OpenTables(PGLOBAL g)
 //    pthread_attr_setdetachstate(&tp->attr, PTHREAD_CREATE_JOINABLE);
 
       if ((k = pthread_create(&tp->Tid, &tp->attr, ThreadOpen, tp))) {
-        sprintf(g->Message, "pthread_create error %d", k);
+        snprintf(g->Message, sizeof(g->Message), "pthread_create error %d", k);
         Nbc++;
         continue;
         } // endif k

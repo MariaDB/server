@@ -1312,7 +1312,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `id` (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
@@ -1866,4 +1866,15 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"abc' at line 1
 SET @@sql_mode=@save_sql_mode;
+#
+# MDEV-30151 parse error 1=2 not between/in
+#
+select 1=2 not in (3,4);
+1=2 not in (3,4)
+1
+select 1=2 not between 3 and 4;
+1=2 not between 3 and 4
+1
+#
 # End of 10.3 tests
+#

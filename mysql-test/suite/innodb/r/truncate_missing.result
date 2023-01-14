@@ -9,7 +9,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `a` (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t;
 ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
 TRUNCATE TABLE t;

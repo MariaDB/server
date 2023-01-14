@@ -163,7 +163,7 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
       DWORD rc = GetLastError();
 
       if (!(*g->Message))
-        sprintf(g->Message, MSG(OPEN_MODE_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
 
       if (trace(1))
@@ -192,7 +192,7 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
 
     if (!Memory) {
       CloseFileHandle(hFile);
-      sprintf(g->Message, MSG(MAP_VIEW_ERROR),
+      snprintf(g->Message, sizeof(g->Message), MSG(MAP_VIEW_ERROR),
                           filename, GetLastError());
       return true;
       } // endif Memory
@@ -472,7 +472,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
-        sprintf(g->Message, MSG(FUNCTION_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(FUNCTION_ERROR),
                             "SetFilePointer", GetLastError());
         CloseHandle(fp->Handle);
         return RC_FX;
@@ -482,7 +482,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
        htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
       if (!SetEndOfFile(fp->Handle)) {
-        sprintf(g->Message, MSG(FUNCTION_ERROR),
+        snprintf(g->Message, sizeof(g->Message), MSG(FUNCTION_ERROR),
                             "SetEndOfFile", GetLastError());
         CloseHandle(fp->Handle);
         return RC_FX;
@@ -490,7 +490,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 
 #else    // UNIX
       if (ftruncate(fp->Handle, (off_t)n)) {
-        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+        snprintf(g->Message, sizeof(g->Message), MSG(TRUNCATE_ERROR), strerror(errno));
         close(fp->Handle);
         return RC_FX;
         } // endif

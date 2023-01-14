@@ -263,7 +263,6 @@ int sigwait(sigset_t *setp, int *sigp)
     pthread_attr_init(&thr_attr);
     pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_PROCESS);
     pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
-    pthread_attr_setstacksize(&thr_attr,8196);
     pthread_create(&sigwait_thread_id, &thr_attr, sigwait_thread, setp);
     pthread_attr_destroy(&thr_attr);
   }

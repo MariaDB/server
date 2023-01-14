@@ -2,6 +2,7 @@
 --source include/not_embedded.inc
 --source include/mysql_upgrade_preparation.inc
 --source include/have_innodb.inc
+--source include/no_valgrind_without_big.inc
 
 SET GLOBAL SQL_MODE="";
 SET LOCAL SQL_MODE="";

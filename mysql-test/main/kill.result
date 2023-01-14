@@ -327,6 +327,8 @@ drop table t2;
 #
 # Test kill USER
 #
+set global sql_mode=default;
+set global sql_mode='';
 grant ALL on test.* to test@localhost;
 grant ALL on test.* to test2@localhost;
 connect  con3, localhost, test,,;

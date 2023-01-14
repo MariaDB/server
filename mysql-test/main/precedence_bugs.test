@@ -39,3 +39,19 @@ drop table t1;
 create view v1 as select 1 like (now() between '2000-01-01' and '2012-12-12' );
 query_vertical show create view v1;
 drop view v1;
+
+--echo #
+--echo # MDEV-30082 View definition losing brackets changes semantics of the query and causes wrong result
+--echo #
+create table t1 (a varchar(1), b bool) engine=myisam;
+insert into t1 values ('u',1),('s',1);
+select * from t1 where t1.b in (t1.a <= all (select 'a'));
+create view v as select * from t1 where t1.b in (t1.a <= all (select 'a'));
+select * from v;
+show create view v;
+drop view v;
+drop table t1;
+
+--echo #
+--echo # End of 10.3 results
+--echo #

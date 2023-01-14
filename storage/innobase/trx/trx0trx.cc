@@ -564,8 +564,10 @@ void trx_disconnect_prepared(trx_t *trx)
   ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
   ut_ad(trx->mysql_thd);
   trx->read_view.close();
+  mutex_enter(&trx_sys.mutex);
   trx->is_recovered= true;
   trx->mysql_thd= NULL;
+  mutex_exit(&trx_sys.mutex);
   /* todo/fixme: suggest to do it at innodb prepare */
   trx->will_lock= false;
 }

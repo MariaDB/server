@@ -1,5 +1,8 @@
 # General purpose bug fix tests go here : subselect.test too large
 
+#remove this include after fix MDEV-27871, MDEV-27957
+--source include/no_view_protocol.inc
+
 --source include/default_optimizer_switch.inc
 
 --disable_warnings
@@ -2437,5 +2440,118 @@ FROM t1;
 DROP TABLE t1;
 
 --echo # End of 10.2 tests
+
+
+--echo #
+--echo # MDEV-29139: Redundannt subquery in GROUP BY clause of ANY/ALL subquery
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (1), (2);
+create table t2 (b int not null);
+insert into t2 values (4), (2);
+create table t3 (c int);
+insert into t3 values (7), (1);
+
+let $q1=
+select a from t1
+  where a >= any (select b from t2 group by (select c from t3 where c = 1));
+
+eval explain extended $q1;
+eval $q1;
+
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q2=
+select a from t1
+  where a <= all (select b from t2 group by (select c from t3 where c = 1));
+
+eval explain extended $q2;
+eval $q2;
+
+let $q3=
+select a from t1
+  where a >= any (select b from t2 group by 1 + (select c from t3 where c = 1));
+eval explain extended $q3;
+eval $q3;
+
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-29139: Redundant IN/ALL/ANY predicand in GROUP BY clause of
+--echo #             IN/ALL/ANY/EXISTS subquery
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d int);
+
+insert into t1 values (3), (1);
+insert into t2 values (3), (2);
+insert into t3 values (4), (2);
+insert into t4 values (1), (7);
+
+let $q1=
+select b from t2
+  where exists (select c from t3
+                group by (select a from t1 where a = 1) in (select d from t4));
+
+eval explain extended $q1;
+eval $q1;
+
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q2=
+select b from t2
+  where exists (select c from t3
+                group by (select a from t1 where a = 1) >=
+                          any (select d from t4));
+
+eval explain extended $q2;
+eval $q2;
+
+let $q3=
+select b from t2
+  where exists (select c from t3
+                group by (select a from t1 where a = 1) <
+                          all (select d from t4));
+
+eval explain extended $q3;
+eval $q3;
+
+let $q4=
+select b from t2
+  where b in (select c from t3
+              group by (select a from t1 where a = 1) in (select d from t4));
+
+eval explain extended $q4;
+eval $q4;
+
+let $q5=
+select b from t2
+  where b >= any (select c from t3
+                  group by (select a from t1 where a = 1) in
+                            (select d from t4));
+
+eval explain extended $q5;
+eval $q5;
+
+let $q6=
+select b from t2
+  where b <= all (select c from t3
+                  group by (select a from t1 where a = 1) in
+                            (select d from t4));
+
+eval explain extended $q6;
+eval $q6;
+
+drop table t1,t2,t3,t4;
 
 --echo # End of 10.3 tests

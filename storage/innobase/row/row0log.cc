@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2169,6 +2169,7 @@ func_exit:
 		}
 func_exit_committed:
 		ut_ad(mtr.has_committed());
+		ut_free(pcur.old_rec_buf);
 
 		if (error != DB_SUCCESS) {
 			/* Report the erroneous row using the new
@@ -2247,7 +2248,7 @@ func_exit_committed:
 		row, NULL, index, heap, ROW_BUILD_NORMAL);
 	upd_t*		update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
-		false, NULL, heap, dup->table, &error);
+		false, false, NULL, heap, dup->table, &error);
 	if (error != DB_SUCCESS) {
 		goto func_exit;
 	}
@@ -2356,11 +2357,14 @@ func_exit_committed:
 		entry = row_build_index_entry(old_row, old_ext, index, heap);
 		if (!entry) {
 			ut_ad(0);
-			return(DB_CORRUPTION);
+			error = DB_CORRUPTION;
+			goto func_exit_committed;
 		}
 
 		mtr_start(&mtr);
 		index->set_modified(mtr);
+
+		ut_free(pcur.old_rec_buf);
 
 		if (ROW_FOUND != row_search_index_entry(
 			    index, entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
@@ -3352,7 +3356,7 @@ row_log_apply_op_low(
 				    has_index_lock
 				    ? BTR_MODIFY_TREE
 				    : BTR_MODIFY_LEAF,
-				    &cursor, 0, __FILE__, __LINE__,
+				    &cursor, __FILE__, __LINE__,
 				    &mtr);
 
 	ut_ad(dict_index_get_n_unique(index) > 0);
@@ -3401,7 +3405,7 @@ row_log_apply_op_low(
 				index->set_modified(mtr);
 				btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0,
+					BTR_MODIFY_TREE, &cursor,
 					__FILE__, __LINE__, &mtr);
 
 				/* No other thread than the current one
@@ -3504,7 +3508,7 @@ insert_the_rec:
 				index->set_modified(mtr);
 				btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0,
+					BTR_MODIFY_TREE, &cursor,
 					__FILE__, __LINE__, &mtr);
 			}
 

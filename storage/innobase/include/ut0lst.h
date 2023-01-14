@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,8 +25,7 @@ Created 9/10/1995 Heikki Tuuri
 Rewritten by Sunny Bains Dec 2011.
 ***********************************************************************/
 
-#ifndef ut0lst_h
-#define ut0lst_h
+#pragma once
 
 /* Do not include univ.i because univ.i includes this. */
 
@@ -474,17 +473,17 @@ template <typename List, class Functor>
 void ut_list_validate(const List& list, Functor& functor)
 {
 	ut_list_map(list, functor);
-
+#ifdef UNIV_DEBUG
 	/* Validate the list backwards. */
-	ulint		count = 0;
+	ulint count = list.count;
 
 	for (typename List::elem_type* elem = list.end;
 	     elem != 0;
 	     elem = (elem->*list.node).prev) {
-		++count;
+		--count;
 	}
-
-	ut_a(count == list.count);
+	ut_ad(!count);
+#endif
 }
 
 /** Check the consistency of a doubly linked list.
@@ -494,23 +493,24 @@ template <typename List, class Functor>
 inline void ut_list_validate(const List& list, const Functor& functor)
 {
 	ut_list_map(list, functor);
-
+#ifdef UNIV_DEBUG
 	/* Validate the list backwards. */
-	ulint		count = 0;
+	ulint count = list.count;
 
 	for (typename List::elem_type* elem = list.end;
 	     elem != 0;
 	     elem = (elem->*list.node).prev) {
-		++count;
+		--count;
 	}
 
-	ut_a(count == list.count);
+	ut_ad(!count);
+#endif
 }
 
 template <typename List>
 inline void ut_list_validate(const List& list)
 {
-	ut_list_validate(list, NullValidate());
+  ut_d(ut_list_validate(list, NullValidate()));
 }
 
 #ifdef UNIV_DEBUG
@@ -561,8 +561,3 @@ ut_list_move_to_front(
 		ut_list_prepend(list, elem);
 	}
 }
-
-#ifdef UNIV_DEBUG
-#endif
-
-#endif /* ut0lst.h */

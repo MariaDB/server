@@ -44,7 +44,6 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 DISCARD TABLESPACE;
 Warnings:
-Warning	1814	Tablespace has been discarded for table `t1`
 Warning	1812	Tablespace is missing for table 'test/t1'
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
@@ -54,7 +53,7 @@ t1	CREATE TABLE `t1` (
   `pk` int(11) NOT NULL,
   `f` varchar(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
 RENAME TABLE t1 TO t1new;
 ERROR HY000: Error on rename of './test/t1' to './test/t1new' (errno: 155 "The table does not exist in the storage engine")
 ALTER TABLE t1 RENAME TO t1new;

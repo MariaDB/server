@@ -115,7 +115,7 @@ static bool ZipFile(PGLOBAL g, ZIPUTIL *zutp, PCSZ fn, PCSZ entry, char *buf)
 	if (zutp->addEntry(g, entry))
 		return true;
 	else if (!(fin = fopen(fn, "rb"))) {
-		sprintf(g->Message, "error in opening %s for reading", fn);
+		snprintf(g->Message, sizeof(g->Message), "error in opening %s for reading", fn);
 		return true;
 	} // endif fin
 
@@ -123,7 +123,7 @@ static bool ZipFile(PGLOBAL g, ZIPUTIL *zutp, PCSZ fn, PCSZ entry, char *buf)
 		size_read = (int)fread(buf, 1, size_buf, fin);
 
 		if (size_read < size_buf && feof(fin) == 0) {
-			sprintf(g->Message, "error in reading %s", fn);
+			snprintf(g->Message, sizeof(g->Message), "error in reading %s", fn);
 			rc = RC_FX;
 		}	// endif size_read
 
@@ -131,7 +131,7 @@ static bool ZipFile(PGLOBAL g, ZIPUTIL *zutp, PCSZ fn, PCSZ entry, char *buf)
 			rc = zutp->writeEntry(g, buf, size_read);
 
 			if (rc == RC_FX)
-				sprintf(g->Message, "error in writing %s in the zipfile", fn);
+				snprintf(g->Message, sizeof(g->Message), "error in writing %s in the zipfile", fn);
 
 		}	// endif size_read
 
@@ -171,7 +171,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 		if (rc != ERROR_FILE_NOT_FOUND) {
 			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
 				NULL, GetLastError(), 0, (LPTSTR)&filename, sizeof(filename), NULL);
-			sprintf(g->Message, MSG(BAD_FILE_HANDLE), filename);
+			snprintf(g->Message, sizeof(g->Message), MSG(BAD_FILE_HANDLE), filename);
 			return true;
 		} else {
 			strcpy(g->Message, "Cannot find any file to load");
@@ -199,7 +199,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 			rc = GetLastError();
 
 			if (rc != ERROR_NO_MORE_FILES) {
-				sprintf(g->Message, MSG(NEXT_FILE_ERROR), rc);
+				snprintf(g->Message, sizeof(g->Message), MSG(NEXT_FILE_ERROR), rc);
 				FindClose(hSearch);
 				return true;
 			} // endif rc
@@ -227,7 +227,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 
 	// Start searching files in the target directory.
 	if (!(dir = opendir(direc))) {
-		sprintf(g->Message, MSG(BAD_DIRECTORY), direc, strerror(errno));
+		snprintf(g->Message, sizeof(g->Message), MSG(BAD_DIRECTORY), direc, strerror(errno));
 		return true;
 	} // endif dir
 
@@ -238,7 +238,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 		safe_strcat(fn, entry->d_name, fn_sz, &error_code);
 
 		if (lstat(fn, &fileinfo) < 0) {
-			sprintf(g->Message, "%s: %s", fn, strerror(errno));
+			snprintf(g->Message, sizeof(g->Message), "%s: %s", fn, strerror(errno));
 			return true;
 		} else if (!S_ISREG(fileinfo.st_mode))
 			continue;      // Not a regular file (should test for links)
@@ -355,7 +355,7 @@ bool ZIPUTIL::open(PGLOBAL g, PCSZ filename, bool append)
 	if (!zipfile && !(zipfile = zipOpen64(filename,
 		                               append ? APPEND_STATUS_ADDINZIP
 																	        : APPEND_STATUS_CREATE)))
-		sprintf(g->Message, "Zipfile open error on %s", filename);
+		snprintf(g->Message, sizeof(g->Message), "Zipfile open error on %s", filename);
 
 	return (zipfile == NULL);
 }	// end of open
@@ -442,7 +442,7 @@ bool ZIPUTIL::addEntry(PGLOBAL g, PCSZ entry)
 int ZIPUTIL::writeEntry(PGLOBAL g, char *buf, int len)
 {
 	if (zipWriteInFileInZip(zipfile, buf, len) < 0) {
-		sprintf(g->Message, "Error writing %s in the zipfile", target);
+		snprintf(g->Message, sizeof(g->Message), "Error writing %s in the zipfile", target);
 		return RC_FX;
 	}	// endif zipWriteInFileInZip
 
@@ -561,7 +561,7 @@ starCheck:
 bool UNZIPUTL::open(PGLOBAL g, PCSZ filename)
 {
 	if (!zipfile && !(zipfile = unzOpen64(filename)))
-		sprintf(g->Message, "Zipfile open error on %s", filename);
+		snprintf(g->Message, sizeof(g->Message), "Zipfile open error on %s", filename);
 
 	return (zipfile == NULL);
 }	// end of open
@@ -596,7 +596,7 @@ int UNZIPUTL::findEntry(PGLOBAL g, bool next)
 			if (rc == UNZ_END_OF_LIST_OF_FILE)
 				return RC_EF;
 			else if (rc != UNZ_OK) {
-				sprintf(g->Message, "unzGoToNextFile rc = %d", rc);
+				snprintf(g->Message, sizeof(g->Message), "unzGoToNextFile rc = %d", rc);
 				return RC_FX;
 			} // endif rc
 
@@ -610,7 +610,7 @@ int UNZIPUTL::findEntry(PGLOBAL g, bool next)
 					return RC_OK;
 
 			} else {
-				sprintf(g->Message, "GetCurrentFileInfo rc = %d", rc);
+				snprintf(g->Message, sizeof(g->Message), "GetCurrentFileInfo rc = %d", rc);
 				return RC_FX;
 			} // endif rc
 
@@ -667,10 +667,10 @@ bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, PCSZ fn)
 					rc = unzLocateFile(zipfile, target, 0);
 
 					if (rc == UNZ_END_OF_LIST_OF_FILE) {
-						sprintf(g->Message, "Target file %s not in %s", target, fn);
+						snprintf(g->Message, sizeof(g->Message), "Target file %s not in %s", target, fn);
 						return true;
 					} else if (rc != UNZ_OK) {
-						sprintf(g->Message, "unzLocateFile rc=%d", rc);
+						snprintf(g->Message, sizeof(g->Message), "unzLocateFile rc=%d", rc);
 						return true;
 					}	// endif's rc
 
@@ -678,7 +678,7 @@ bool UNZIPUTL::OpenTable(PGLOBAL g, MODE mode, PCSZ fn)
 					if ((rc = findEntry(g, false)) == RC_FX)
 						return true;
 					else if (rc == RC_EF) {
-						sprintf(g->Message, "No match of %s in %s", target, fn);
+						snprintf(g->Message, sizeof(g->Message), "No match of %s in %s", target, fn);
 						return true;
 					} // endif rc
 
@@ -753,10 +753,10 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 		NULL, 0, NULL, 0);
 
 	if (rc != UNZ_OK) {
-		sprintf(g->Message, "unzGetCurrentFileInfo64 rc=%d", rc);
+		snprintf(g->Message, sizeof(g->Message), "unzGetCurrentFileInfo64 rc=%d", rc);
 		return true;
 	} else if ((rc = unzOpenCurrentFilePassword(zipfile, pwd)) != UNZ_OK) {
-		sprintf(g->Message, "unzOpen fn=%s rc=%d", fn, rc);
+		snprintf(g->Message, sizeof(g->Message), "unzOpen fn=%s rc=%d", fn, rc);
 		return true;
 	}	// endif rc
 
@@ -770,7 +770,7 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 	} // end try/catch
 
 	if ((rc = unzReadCurrentFile(zipfile, memory, size)) < 0) {
-		sprintf(g->Message, "unzReadCurrentFile rc = %d", rc);
+		snprintf(g->Message, sizeof(g->Message), "unzReadCurrentFile rc = %d", rc);
 		unzCloseCurrentFile(zipfile);
 		delete[] memory;
 		memory = NULL;
@@ -1032,7 +1032,7 @@ int UZXFAM::Cardinality(PGLOBAL g)
 	if (!(len % Lrecl))
 		card = len / (int)Lrecl;           // Fixed length file
 	else
-		sprintf(g->Message, MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
+		snprintf(g->Message, sizeof(g->Message), MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
 
 	// Set number of blocks for later use
 	Block = (card > 0) ? (card + Nrec - 1) / Nrec : 0;
@@ -1086,7 +1086,7 @@ int UZXFAM::GetNext(PGLOBAL g)
 	int len = zutp->size;
 
 	if (len % Lrecl) {
-		sprintf(g->Message, MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
+		snprintf(g->Message, sizeof(g->Message), MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
 		return RC_FX;
 	}	// endif size
 
@@ -1156,7 +1156,7 @@ int UZDFAM::dbfhead(PGLOBAL g, void* buf)
 
 	// Some headers just have 1D others have 1D00 following fields
 	if (endmark[0] != EOH && endmark[1] != EOH) {
-		sprintf(g->Message, MSG(NO_0DH_HEAD), dbc);
+		snprintf(g->Message, sizeof(g->Message), MSG(NO_0DH_HEAD), dbc);
 
 		if (rc == RC_OK)
 			return RC_FX;
@@ -1276,7 +1276,7 @@ int UZDFAM::GetNext(PGLOBAL g)
 
 #if 0
 	if (len % Lrecl) {
-		sprintf(g->Message, MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
+		snprintf(g->Message, sizeof(g->Message), MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
 		return RC_FX;
 	}	// endif size
 #endif // 0

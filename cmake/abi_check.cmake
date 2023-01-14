@@ -38,7 +38,6 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND RUN_ABI_CHECK)
   SET(API_PREPROCESSOR_HEADER
     ${CMAKE_SOURCE_DIR}/include/mysql/plugin_audit.h
     ${CMAKE_SOURCE_DIR}/include/mysql/plugin_ftparser.h
-    ${CMAKE_SOURCE_DIR}/include/mysql.h
     ${CMAKE_SOURCE_DIR}/include/mysql/psi/psi_abi_v1.h
     ${CMAKE_SOURCE_DIR}/include/mysql/psi/psi_abi_v2.h
     ${CMAKE_SOURCE_DIR}/include/mysql/client_plugin.h

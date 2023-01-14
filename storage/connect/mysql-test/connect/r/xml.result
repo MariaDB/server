@@ -285,7 +285,7 @@ SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
   `c` char(16) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=XML `FILE_NAME`='latin1.xml' `OPTION_LIST`='xmlsup=domdoc' `DATA_CHARSET`=utf8
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=XML `FILE_NAME`='latin1.xml' `OPTION_LIST`='xmlsup=domdoc' `DATA_CHARSET`=utf8
 SELECT c, HEX(c) FROM t1;
 c	ÁÂÃÄÅÆÇ
 HEX(c)	C1C2C3C4C5C6C7

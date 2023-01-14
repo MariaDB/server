@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -398,8 +398,9 @@ PageBulk::finish()
 void PageBulk::commit(bool success)
 {
   finish();
-  if (success && !dict_index_is_clust(m_index) && page_is_leaf(m_page))
-    ibuf_set_bitmap_for_bulk_load(m_block, innobase_fill_factor == 100);
+  if (success && !m_index->is_clust() && page_is_leaf(m_page))
+    ibuf_set_bitmap_for_bulk_load(m_block, &m_mtr,
+                                  innobase_fill_factor == 100);
   m_mtr.commit();
 }
 
@@ -597,6 +598,11 @@ bool
 PageBulk::isSpaceAvailable(
 	ulint		rec_size)
 {
+	if (m_rec_no >= 8190) {
+		ut_ad(srv_page_size == 65536);
+		return false;
+	}
+
 	ulint	slot_size;
 	ulint	required_space;
 

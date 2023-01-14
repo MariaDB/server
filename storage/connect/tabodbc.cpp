@@ -109,7 +109,7 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Desc = Connect = GetStringCatInfo(g, "Connect", NULL);
 
   if (!Connect && !Catfunc) {
-    sprintf(g->Message, "Missing connection for ODBC table %s", Name);
+    snprintf(g->Message, sizeof(g->Message), "Missing connection for ODBC table %s", Name);
     return true;
   } // endif Connect
 
@@ -557,15 +557,17 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 
     if (Memory < 3) {
       // Method will depend on cursor type
-      if ((Rbuf = Ocp->Rewind(Query->GetStr(), (PODBCCOL)Columns)) < 0)
-				if (Mode != MODE_READX) {
-	        Ocp->Close();
-		      return true;
-				}	else
-					Rbuf = 0;
-
-    } else
+      if (Query && (Rbuf = Ocp->Rewind(Query->GetStr(), (PODBCCOL)Columns)) < 0) {
+        if (Mode != MODE_READX) {
+          Ocp->Close();
+          return true;
+        } else {
+          Rbuf = 0;
+        }
+      }
+    } else {
       Rbuf = Qrp->Nblin;
+    }
 
     CurNum = 0;
     Fpos = 0;
@@ -607,7 +609,7 @@ bool TDBODBC::OpenDB(PGLOBAL g)
         if ((n = Ocp->GetResultSize(Query->GetStr(), Cnp)) < 0) {
 					char* msg = PlugDup(g, g->Message);
 
-					sprintf(g->Message, "Get result size: %s (rc=%d)", msg, n);
+					snprintf(g->Message, sizeof(g->Message), "Get result size: %s (rc=%d)", msg, n);
 					return true;
 				} else if (n) {
 					Ocp->m_Rows = n;
@@ -652,7 +654,7 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   } else if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
     rc = false;  // wait for CheckCond before calling MakeCommand(g);
   } else
-    sprintf(g->Message, "Invalid mode %d", Mode);
+    snprintf(g->Message, sizeof(g->Message), "Invalid mode %d", Mode);
 
   if (rc) {
     Ocp->Close();
@@ -777,7 +779,7 @@ int TDBODBC::ReadDB(PGLOBAL g)
 
     // Send the UPDATE/DELETE command to the remote table
     if (!Ocp->ExecSQLcommand(Query->GetStr())) {
-      sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
+      snprintf(g->Message, sizeof(g->Message), "%s: %d affected rows", TableName, AftRows);
 
       if (trace(1))
         htrc("%s\n", g->Message);
@@ -853,7 +855,7 @@ int TDBODBC::DeleteDB(PGLOBAL g, int irc)
 
     // Send the DELETE (all) command to the remote table
     if (!Ocp->ExecSQLcommand(Query->GetStr())) {
-      sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
+      snprintf(g->Message, sizeof(g->Message), "%s: %d affected rows", TableName, AftRows);
 
       if (trace(1))
         htrc("%s\n", g->Message);

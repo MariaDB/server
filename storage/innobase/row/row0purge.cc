@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1004,6 +1004,134 @@ skip_secondaries:
 	row_purge_upd_exist_or_extern_func(node,undo_rec)
 #endif /* UNIV_DEBUG */
 
+/** Build a partial row from an update undo log record for purge.
+Any columns which occur as ordering in any index of the table are present.
+Any missing columns are indicated by col->mtype == DATA_MISSING.
+
+@param ptr    remaining part of the undo log record
+@param index  clustered index
+@param node   purge node
+@return pointer to remaining part of undo record */
+static byte *row_purge_get_partial(const byte *ptr, const dict_index_t &index,
+                                   purge_node_t *node)
+{
+  bool first_v_col= true;
+  bool is_undo_log= true;
+
+  ut_ad(index.is_primary());
+  ut_ad(index.n_uniq == node->ref->n_fields);
+
+  node->row= dtuple_create_with_vcol(node->heap, index.table->n_cols,
+                                     index.table->n_v_cols);
+
+  /* Mark all columns in the row uninitialized, so that
+  we can distinguish missing fields from fields that are SQL NULL. */
+  for (ulint i= 0; i < index.table->n_cols; i++)
+    node->row->fields[i].type.mtype= DATA_MISSING;
+
+  dtuple_init_v_fld(node->row);
+
+  for (const upd_field_t *uf= node->update->fields, *const ue=
+         node->update->fields + node->update->n_fields; uf != ue; uf++)
+    if (!uf->old_v_val)
+      node->row->fields[dict_index_get_nth_col(&index, uf->field_no)->ind]=
+        uf->new_val;
+
+  const byte *end_ptr= ptr + mach_read_from_2(ptr);
+  ptr+= 2;
+
+  while (ptr != end_ptr)
+  {
+    dfield_t *dfield;
+    const byte *field;
+    const dict_col_t *col;
+    ulint len;
+    ulint orig_len;
+
+    ulint field_no= mach_read_next_compressed(&ptr);
+
+    if (field_no >= REC_MAX_N_FIELDS)
+    {
+      ptr= trx_undo_read_v_idx(index.table, ptr, first_v_col, &is_undo_log,
+                               &field_no);
+      first_v_col= false;
+
+      ptr= trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
+
+      if (field_no == ULINT_UNDEFINED)
+        continue; /* there no longer is an index on the virtual column */
+
+      dict_v_col_t *vcol= dict_table_get_nth_v_col(index.table, field_no);
+      col =&vcol->m_col;
+      dfield= dtuple_get_nth_v_field(node->row, vcol->v_pos);
+      dict_col_copy_type(&vcol->m_col, &dfield->type);
+    }
+    else
+    {
+      ptr= trx_undo_rec_get_col_val(ptr, &field, &len, &orig_len);
+      col= dict_index_get_nth_col(&index, field_no);
+      dfield= dtuple_get_nth_field(node->row, col->ind);
+      ut_ad(dfield->type.mtype == DATA_MISSING ||
+            dict_col_type_assert_equal(col, &dfield->type));
+      ut_ad(dfield->type.mtype == DATA_MISSING ||
+            dfield->len == len ||
+            (len != UNIV_SQL_NULL && len >= UNIV_EXTERN_STORAGE_FIELD));
+      dict_col_copy_type(dict_table_get_nth_col(index.table, col->ind),
+                         &dfield->type);
+    }
+
+    dfield_set_data(dfield, field, len);
+
+    if (len == UNIV_SQL_NULL || len < UNIV_EXTERN_STORAGE_FIELD)
+      continue;
+
+    spatial_status_t spatial_status= static_cast<spatial_status_t>
+      ((len & SPATIAL_STATUS_MASK) >> SPATIAL_STATUS_SHIFT);
+    len&= ~SPATIAL_STATUS_MASK;
+
+    /* Keep compatible with 5.7.9 format. */
+    if (spatial_status == SPATIAL_UNKNOWN)
+      spatial_status= dict_col_get_spatial_status(col);
+
+    switch (UNIV_EXPECT(spatial_status, SPATIAL_NONE)) {
+    case SPATIAL_ONLY:
+      ut_ad(len - UNIV_EXTERN_STORAGE_FIELD == DATA_MBR_LEN);
+      dfield_set_len(dfield, len - UNIV_EXTERN_STORAGE_FIELD);
+      break;
+
+    case SPATIAL_MIXED:
+      dfield_set_len(dfield, len - UNIV_EXTERN_STORAGE_FIELD - DATA_MBR_LEN);
+      break;
+
+    default:
+      dfield_set_len(dfield, len - UNIV_EXTERN_STORAGE_FIELD);
+      break;
+    }
+
+    dfield_set_ext(dfield);
+    dfield_set_spatial_status(dfield, spatial_status);
+
+    if (!col->ord_part || spatial_status == SPATIAL_ONLY ||
+        node->rec_type == TRX_UNDO_UPD_DEL_REC)
+      continue;
+    /* If the prefix of this BLOB column is indexed, ensure that enough
+    prefix is stored in the undo log record. */
+    ut_a(dfield_get_len(dfield) >= BTR_EXTERN_FIELD_REF_SIZE);
+    ut_a(dict_table_has_atomic_blobs(index.table) ||
+         dfield_get_len(dfield) >=
+         REC_ANTELOPE_MAX_INDEX_COL_LEN + BTR_EXTERN_FIELD_REF_SIZE);
+  }
+
+  for (ulint i= 0; i < index.n_uniq; i++)
+  {
+    dfield_t &field= node->row->fields[index.fields[i].col->ind];
+    if (field.type.mtype == DATA_MISSING)
+      field= node->ref->fields[i];
+  }
+
+  return const_cast<byte*>(ptr);
+}
+
 /***********************************************************//**
 Parses the row reference and other info in a modify undo log record.
 @return true if purge operation required */
@@ -1153,10 +1281,7 @@ err_exit:
 
 	if (!(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
 		ut_ad(!(node->update->info_bits & REC_INFO_MIN_REC_FLAG));
-		ptr = trx_undo_rec_get_partial_row(
-			ptr, clust_index, node->update, &node->row,
-			type == TRX_UNDO_UPD_DEL_REC,
-			node->heap);
+		ptr = row_purge_get_partial(ptr, *clust_index, node);
 	} else if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
 		node->ref = &trx_undo_metadata;
 	}

@@ -1,4 +1,7 @@
 
+#remove this include after fix MDEV-27871
+--source include/no_view_protocol.inc
+
 set names binary;
 
 --echo #
@@ -169,12 +172,42 @@ INSERT INTO t1 VALUES (1);
 SELECT HEX(c) FROM t1;
 DROP TABLE t1;
 
-
-
-
-
+--echo #
+--echo # End of 10.2 tests
+--echo #
 
 
 --echo #
---echo # End of 10.2 tests
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-29561 SHOW CREATE TABLE produces syntactically incorrect structure
+--echo #
+
+CREATE TABLE t1 (a ENUM('x') CHARACTER SET BINARY);
+SHOW CREATE TABLE t1;
+let $def= query_get_value(show create table t1,'Create Table',1);
+DROP TABLE t1;
+eval $def;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT ) CHARSET=binary;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE DATABASE db1 CHARACTER SET BINARY;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+CREATE FUNCTION f1() RETURNS ENUM('a') CHARACTER SET binary RETURN NULL;
+SHOW CREATE FUNCTION f1;
+DROP FUNCTION f1;
+
+CREATE FUNCTION f1(a ENUM('a') CHARACTER SET binary) RETURNS INT RETURN NULL;
+SHOW CREATE FUNCTION f1;
+DROP FUNCTION f1;
+
+--echo #
+--echo # End of 10.3 tests
 --echo #

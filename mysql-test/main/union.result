@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3,t4,t5,t6;
 CREATE TABLE t1 (a int not null, b char (10) not null);
 insert into t1 values(1,'a'),(2,'b'),(3,'c'),(3,'c');
 CREATE TABLE t2 (a int not null, b char (10) not null);
@@ -611,7 +610,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT 12 as a UNION select "aa" as a;
 select * from t1;
@@ -622,7 +621,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(2) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT 12 as a UNION select 12.2 as a;
 select * from t1;
@@ -633,7 +632,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(3,1) NOT NULL DEFAULT 0.0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t2 (it1 tinyint, it2 tinyint not null, i int not null, ib bigint, f float, d double, y year, da date, dt datetime, sc char(10), sv varchar(10), b blob, tx text);
 insert into t2 values (NULL, 1, 3, 4, 1.5, 2.5, 1972, '1972-10-22', '1972-10-22 11:50', 'testc', 'testv', 'tetetetetest', 'teeeeeeeeeeeest');
@@ -646,7 +645,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `it2` tinyint(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT it2 from t2 UNION select i from t2;
 select * from t1;
@@ -657,7 +656,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `it2` int(11) NOT NULL DEFAULT 0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT i from t2 UNION select f from t2;
 select * from t1;
@@ -668,7 +667,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT f from t2 UNION select d from t2;
 select * from t1;
@@ -679,7 +678,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT ib from t2 UNION select f from t2;
 select * from t1;
@@ -690,7 +689,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ib` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT ib from t2 UNION select d from t2;
 select * from t1;
@@ -701,7 +700,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ib` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT f from t2 UNION select y from t2;
 select * from t1;
@@ -712,7 +711,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT f from t2 UNION select da from t2;
 select * from t1;
@@ -723,7 +722,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f` varchar(12) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT y from t2 UNION select da from t2;
 select * from t1;
@@ -734,7 +733,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `y` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT y from t2 UNION select dt from t2;
 select * from t1;
@@ -745,7 +744,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `y` varchar(19) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT da from t2 UNION select dt from t2;
 select * from t1;
@@ -756,7 +755,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `da` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT dt from t2 UNION select trim(sc) from t2;
 select trim(dt) from t1;
@@ -767,7 +766,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `dt` varchar(19) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT dt from t2 UNION select sv from t2;
 select * from t1;
@@ -778,7 +777,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `dt` varchar(19) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT sc from t2 UNION select sv from t2;
 select * from t1;
@@ -789,7 +788,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `sc` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT dt from t2 UNION select b from t2;
 select * from t1;
@@ -800,7 +799,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `dt` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT sv from t2 UNION select b from t2;
 select * from t1;
@@ -811,7 +810,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `sv` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT i from t2 UNION select d from t2 UNION select b from t2;
 select * from t1;
@@ -823,7 +822,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT sv from t2 UNION select tx from t2;
 select * from t1;
@@ -834,7 +833,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `sv` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 SELECT b from t2 UNION select tx from t2;
 select * from t1;
@@ -845,7 +844,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1,t2;
 create table t1 select 1 union select -1;
 select * from t1;
@@ -856,7 +855,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1` int(2) NOT NULL DEFAULT 0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 select _latin1"test" union select _latin2"testt" ;
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'UNION'
@@ -864,8 +863,8 @@ create table t1 select _latin2"test" union select _latin2"testt" ;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `test` varchar(5) CHARACTER SET latin2 NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `test` varchar(5) CHARACTER SET latin2 COLLATE latin2_general_ci NOT NULL DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (s char(200));
 insert into t1 values (repeat("1",200));
@@ -1112,7 +1111,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `test` varchar(4) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select count(*) from t1;
 count(*)
 1
@@ -1125,7 +1124,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `_latin1'test' collate latin1_bin` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select count(*) from t1;
 count(*)
 3
@@ -1138,7 +1137,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select count(*) from t1;
 count(*)
 3
@@ -1151,7 +1150,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select count(*) from t1;
 count(*)
 3
@@ -1170,7 +1169,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a collate latin1_german1_ci` varchar(1) CHARACTER SET latin1 COLLATE latin1_german1_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 as
 (select a from t2) union
@@ -1179,7 +1178,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET latin1 COLLATE latin1_german1_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 as
 (select a from t2) union
@@ -1189,7 +1188,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET latin1 COLLATE latin1_german1_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 drop table t2;
 create table t1(a1 int, f1 char(10));
@@ -1273,10 +1272,10 @@ c ENUM("one", "two")
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('ä','ö','ü') CHARACTER SET utf8 NOT NULL DEFAULT 'ü',
-  `b` enum('one','two') CHARACTER SET utf8 DEFAULT NULL,
+  `a` enum('ä','ö','ü') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'ü',
+  `b` enum('one','two') CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   `c` enum('one','two') DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('ä', 'one', 'one'), ('ö', 'two', 'one'), ('ü', NULL, NULL);
 create table t2 select NULL union select a from t1;
 show columns from t2;
@@ -1332,7 +1331,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(12) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select row_format from information_schema.TABLES where table_schema="test" and table_name="t2";
 row_format
 Dynamic
@@ -1341,7 +1340,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(12) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 ROW_FORMAT=FIXED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=FIXED
 drop table t1,t2;
 CREATE TABLE t1 (a mediumtext);
 CREATE TABLE t2 (b varchar(20));
@@ -1355,7 +1354,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `left(a,100000000)` mediumtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop tables t1,t2,t3;
 CREATE TABLE t1 (a longtext);
 CREATE TABLE t2 (b varchar(20));
@@ -1369,7 +1368,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `left(a,100000000)` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop tables t1,t2,t3;
 SET @tmp_max= @@global.max_allowed_packet;
 SET @@global.max_allowed_packet=25000000;
@@ -1384,7 +1383,7 @@ SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLES t1,t3;
 CREATE TABLE t1 (a tinytext);
 INSERT INTO t1 VALUES ('a');
@@ -1393,7 +1392,7 @@ SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` varchar(510) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLES t1,t3;
 CREATE TABLE t1 (a mediumtext);
 INSERT INTO t1 VALUES ('a');
@@ -1402,7 +1401,7 @@ SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` longtext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLES t1,t3;
 CREATE TABLE t1 (a tinyblob);
 INSERT INTO t1 VALUES ('a');
@@ -1411,7 +1410,7 @@ SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` varbinary(510) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLES t1,t2,t3;
 connection default;
 SET @@global.max_allowed_packet:= @tmp_max;
@@ -1445,10 +1444,10 @@ t2	CREATE TABLE `t2` (
   `f3` binary(1) DEFAULT NULL,
   `f4` binary(5) DEFAULT NULL,
   `f5` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `f6` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
+  `f6` varchar(1) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   `f7` text DEFAULT NULL,
-  `f8` mediumtext CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `f8` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1, t2;
 CREATE TABLE t1
 (
@@ -1465,11 +1464,11 @@ SELECT c_varchar, c_varchar, c_varchar, c_varchar FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c_tinytext` text CHARACTER SET utf8 DEFAULT NULL,
-  `c_text` mediumtext CHARACTER SET utf8 DEFAULT NULL,
-  `c_mediumtext` longtext CHARACTER SET utf8 DEFAULT NULL,
-  `c_longtext` longtext CHARACTER SET utf8 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c_tinytext` text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c_text` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c_mediumtext` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c_longtext` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 (select avg(1)) union (select avg(1)) union (select avg(1)) union
@@ -2326,21 +2325,21 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1` int(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 AS SELECT 1 UNION SELECT 1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1` int(1) NOT NULL DEFAULT 0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 AS SELECT * FROM (SELECT 1 UNION SELECT 1) AS t0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1` int(1) NOT NULL DEFAULT 0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # MDEV-9495 Wrong field type for a UNION of a signed and an unsigned INT expression
@@ -2352,7 +2351,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2 ORDER BY a;
 a
 2147483647
@@ -2364,7 +2363,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `COALESCE(a,b)` decimal(10,0) DEFAULT NULL,
   `COALESCE(b,a)` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t2;
 COALESCE(a,b)	COALESCE(b,a)
 2147483647	4294967295
@@ -2378,14 +2377,14 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(3,1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 AS SELECT 10.1 AS a UNION SELECT CAST(10 AS UNSIGNED);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(3,1) NOT NULL DEFAULT 0.0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # MDEV-12594 UNION between fixed length double columns does not always preserve scale
@@ -2397,49 +2396,49 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` float(20,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE OR REPLACE TABLE t2 SELECT a FROM t1 UNION SELECT c FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` float(20,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE OR REPLACE TABLE t2 SELECT b FROM t1 UNION SELECT b FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `b` float(20,3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE OR REPLACE TABLE t2 SELECT c FROM t1 UNION SELECT c FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` float(20,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE OR REPLACE TABLE t2 SELECT c FROM t1 UNION SELECT a FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` float(20,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE OR REPLACE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` float(21,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 CREATE OR REPLACE TABLE t2 AS SELECT b FROM t1 UNION SELECT a FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `b` float(21,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 # Corner case
@@ -2450,7 +2449,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `b` float(255,4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2472,7 +2471,7 @@ t1	CREATE TABLE `t1` (
   `COALESCE(-1,-1)` int(2) NOT NULL,
   `COALESCE(1,-1)` int(2) NOT NULL,
   `COALESCE(-1,1)` int(2) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT 1 AS c1,1 AS c2,-1 AS c3,-1 AS c4 UNION SELECT 1,-1,1,-1;
 SHOW CREATE TABLE t1;
@@ -2482,7 +2481,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(2) NOT NULL DEFAULT 0,
   `c3` int(2) NOT NULL DEFAULT 0,
   `c4` int(2) NOT NULL DEFAULT 0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # MDEV-12599 UNION is not symmetric when mixing INT and CHAR
@@ -2493,7 +2492,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(1) NOT NULL DEFAULT '',
   `c2` varchar(1) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 AS SELECT 11112222 AS c1, 'a' AS c2 UNION SELECT 'a', 11112222;
 SHOW CREATE TABLE t1;
@@ -2501,7 +2500,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(8) NOT NULL DEFAULT '',
   `c2` varchar(8) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 AS SELECT 111122223333 AS c1, 'a' AS c2 UNION SELECT 'a', 111122223333;
 SHOW CREATE TABLE t1;
@@ -2509,7 +2508,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(12) NOT NULL DEFAULT '',
   `c2` varchar(12) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 AS SELECT 1111222233334444 AS c1, 'a' AS c2 UNION SELECT 'a', 1111222233334444;
 SHOW CREATE TABLE t1;
@@ -2517,7 +2516,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(16) NOT NULL DEFAULT '',
   `c2` varchar(16) NOT NULL DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a INT(3), b VARCHAR(1));
 CREATE TABLE t2 AS SELECT a,b FROM t1 UNION SELECT b,a FROM t1;
@@ -2526,7 +2525,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(11) DEFAULT NULL,
   `b` varchar(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a BIGINT(3), b VARCHAR(1));
@@ -2536,7 +2535,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(20) DEFAULT NULL,
   `b` varchar(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a BIGINT(12), b VARCHAR(1));
@@ -2546,7 +2545,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` varchar(20) DEFAULT NULL,
   `b` varchar(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -2647,22 +2646,122 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `NULL` binary(0) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t3 SELECT NULL UNION SELECT NULL;
 SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `NULL` binary(0) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE OR REPLACE TABLE t4 SELECT NULL UNION SELECT NULL;
 SHOW CREATE TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
   `NULL` binary(0) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t4 ADD INDEX (`NULL`);
 DROP TABLE t1, t2, t3, t4;
 set @@default_storage_engine=@save_default_storage_engine;
+#
+# MDEV-29022: add_slave destroy child list and has dead code
+# (test added to be sure that ordering by several subqueries works)
+#
+create table t1 (aa int);
+insert into t1 values (-1),(0),(1),(2),(3),(4),(5),(6),(98),(99),(100),(102);
+create table t2 (a int, b int);
+insert into t2 values (2,2),(2,3),(3,4),(3,5);
+select a as a, b as b,
+(select max(aa) from t1 where aa < t2.a) as c,
+(select max(aa) from t1 where aa < t2.b) as d
+from t2
+union select 0 as a, 100 as b,
+(select max(aa) from t1 where aa < 0) as c,
+(select max(aa) from t1 where aa < 100) as d
+union select 0 as a, 99 as b,
+(select max(aa) from t1 where aa < 0) as c,
+(select max(aa) from t1 where aa < 99) as d
+order by (select max(aa) from t1 where aa < a),
+(select max(aa) from t1 where aa < b);
+a	b	c	d
+0	99	-1	98
+0	100	-1	99
+2	2	1	1
+2	3	1	2
+3	4	2	3
+3	5	2	4
+select a as a, b as b,
+(select max(aa) from t1 where aa < t2.a) as c,
+(select 200 - max(aa) from t1 where aa < t2.b) as d
+from t2
+union select 0 as a, 100 as b,
+(select max(aa) from t1 where aa < 0) as c,
+(select 200 - max(aa) from t1 where aa < 100) as d
+union select 0 as a, 99 as b,
+(select max(aa) from t1 where aa < 0) as c,
+(select 200 - max(aa) from t1 where aa < 99) as d
+order by (select max(aa) from t1 where aa < a),
+(select 200 - max(aa) from t1 where aa < b);
+a	b	c	d
+0	100	-1	101
+0	99	-1	102
+2	3	1	198
+2	2	1	199
+3	5	2	196
+3	4	2	197
+(select a as a, b as b,
+(select max(aa) from t1 where aa < t2.a) as c,
+(select max(aa) from t1 where aa < t2.b) as d
+from t2)
+union (select 0 as a, 100 as b,
+(select max(aa) from t1 where aa < 0) as c,
+(select max(aa) from t1 where aa < 100) as d)
+union (select 0 as a, 99 as b,
+(select max(aa) from t1 where aa < 0) as c,
+(select max(aa) from t1 where aa < 99) as d)
+order by (select max(aa) from t1 where aa < a),
+(select max(aa) from t1 where aa < b);
+a	b	c	d
+0	99	-1	98
+0	100	-1	99
+2	2	1	1
+2	3	1	2
+3	4	2	3
+3	5	2	4
+(select a as a, b as b,
+(select max(aa) from t1 where aa < t2.a) as c,
+(select 200 - max(aa) from t1 where aa < t2.b) as d
+from t2)
+union (select 0 as a, 100 as b,
+(select max(aa) from t1 where aa < 0) as c,
+(select 200 - max(aa) from t1 where aa < 100) as d)
+union (select 0 as a, 99 as b,
+(select max(aa) from t1 where aa < 0) as c,
+(select 200 - max(aa) from t1 where aa < 99) as d)
+order by (select max(aa) from t1 where aa < a),
+(select 200 - max(aa) from t1 where aa < b);
+a	b	c	d
+0	100	-1	101
+0	99	-1	102
+2	3	1	198
+2	2	1	199
+3	5	2	196
+3	4	2	197
+drop table t1,t2;
+#
+# MDEV-30066 (limit + offset) union all (...) limit = incorrect result
+#
+create table t1(id int primary key auto_increment, c1 int);
+insert into t1(c1) values(1),(2),(3);
+(select * from t1 where c1>=1 order by c1 desc limit 2,1) union all (select * from t1 where c1>1 order by c1 desc);
+id	c1
+1	1
+2	2
+3	3
+(select * from t1 where c1>=1 order by c1 desc limit 2,1) union all (select * from t1 where c1>1 order by c1 desc) limit 2;
+id	c1
+1	1
+2	2
+drop table t1;
 #
 # End of 10.3 tests
 #

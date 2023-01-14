@@ -14,7 +14,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SET debug_sync='flush_tables_with_read_lock_after_acquire_locks SIGNAL parked2 WAIT_FOR go2';
 FLUSH TABLES t1 WITH READ LOCK;;
 connection node_2;
@@ -26,7 +26,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection node_2a;
 set debug_sync= 'RESET';
 UNLOCK TABLES;
@@ -37,7 +37,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `f2` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * from t1;
 id	f2
 1	NULL

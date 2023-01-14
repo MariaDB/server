@@ -293,7 +293,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   We should not introduce any further shift/reduce conflicts.
 */
-%expect 87
+%expect 98
 
 /*
    Comments for TOKENS.
@@ -1081,7 +1081,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %left   PREC_BELOW_NOT
 
-%nonassoc NOT_SYM
+%nonassoc LOW_PRIORITY_NOT
 %left   '=' EQUAL_SYM GE '>' LE '<' NE
 %nonassoc IS
 %right BETWEEN_SYM
@@ -1144,7 +1144,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
    TRANSACTION can be a non-empty history unit, or can be an identifier
    in bit_expr.
 
-   In the grammar below we use %prec to explicitely tell Bison to go
+   In the grammar below we use %prec to explicitly tell Bison to go
    through the empty branch in the optional rule only when the lookahead
    token does not belong to a small set of selected tokens.
 
@@ -5954,10 +5954,11 @@ opt_part_option:
 
 opt_versioning_rotation:
          /* empty */ {}
-       | INTERVAL_SYM expr interval opt_versioning_interval_start
+       | { Lex->expr_allows_subselect= false; }
+         INTERVAL_SYM expr interval opt_versioning_interval_start
          {
            partition_info *part_info= Lex->part_info;
-           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4)))
+           if (unlikely(part_info->vers_set_interval(thd, $3, $4, $5)))
              MYSQL_YYABORT;
          }
        | LIMIT ulonglong_num
@@ -9796,7 +9797,7 @@ expr:
                 MYSQL_YYABORT;
             }
           }
-        | NOT_SYM expr %prec NOT_SYM
+        | NOT_SYM expr %prec LOW_PRIORITY_NOT
           {
             $$= negate_expression(thd, $2);
             if (unlikely($$ == NULL))
@@ -12866,11 +12867,16 @@ order_clause:
                */
                DBUG_ASSERT(sel->master_unit()->fake_select_lex);
                lex->current_select= sel->master_unit()->fake_select_lex;
+               lex->push_context(&sel->master_unit()->fake_select_lex->context, thd->mem_root);
              }
           }
           order_list
           {
-
+            if (Lex->current_select ==
+                Lex->current_select->master_unit()->fake_select_lex)
+            {
+              Lex->pop_context();
+            }
           }
          ;
 
@@ -15351,9 +15357,9 @@ with_clause:
                MYSQL_YYABORT;
              Lex->derived_tables|= DERIVED_WITH;
              Lex->with_cte_resolution= true;
-             Lex->with_cte_resolution= true;
              Lex->curr_with_clause= with_clause;
-             with_clause->add_to_list(Lex->with_clauses_list_last_next);
+             with_clause->add_to_list(&Lex->with_clauses_list,
+                                      Lex->with_clauses_list_last_next);
           }
         with_list
           {

@@ -13,6 +13,8 @@ select extract(SECOND_MICROSECOND FROM "1999-01-02 10:11:12.000123");
 select extract(MICROSECOND FROM "1999-01-02 10:11:12.000123");
 select date_format("1997-12-31 23:59:59.000002", "%f");
 
+#enable after fix MDEV-27871
+--disable_view_protocol
 select date_add("1997-12-31 23:59:59.000002",INTERVAL "10000 99:99:99.999999" DAY_MICROSECOND);
 select date_add("1997-12-31 23:59:59.000002",INTERVAL "10000:99:99.999999" HOUR_MICROSECOND);
 select date_add("1997-12-31 23:59:59.000002",INTERVAL "10000:99.999999" MINUTE_MICROSECOND);
@@ -24,6 +26,7 @@ select date_sub("1998-01-01 00:00:00.000001",INTERVAL "1:1:1.000002" HOUR_MICROS
 select date_sub("1998-01-01 00:00:00.000001",INTERVAL "1:1.000002" MINUTE_MICROSECOND);
 select date_sub("1998-01-01 00:00:00.000001",INTERVAL "1.000002" SECOND_MICROSECOND);
 select date_sub("1998-01-01 00:00:00.000001",INTERVAL "000002" MICROSECOND);
+--enable_view_protocol
 
 #Date functions
 select adddate("1997-12-31 23:59:59.000001", 10);
@@ -53,16 +56,22 @@ select makedate(100,1);
 
 select addtime("1997-12-31 23:59:59.999999", "1 1:1:1.000002");
 select subtime("1997-12-31 23:59:59.000001", "1 1:1:1.000002");
+#enable after fix MDEV-27871
+--disable_view_protocol
 select addtime("1997-12-31 23:59:59.999999", "1998-01-01 01:01:01.999999");
 select subtime("1997-12-31 23:59:59.999999", "1998-01-01 01:01:01.999999");
+--enable_view_protocol
 select subtime("01:00:00.999999", "02:00:00.999998");
 select subtime("02:01:01.999999", "01:01:01.999999");
 
 # PS doesn't support fractional seconds
 --disable_ps_protocol
+#enable after fix MDEV-27871
+--disable_view_protocol
 select timediff("1997-01-01 23:59:59.000001","1995-12-31 23:59:59.000002");
 select timediff("1997-12-31 23:59:59.000001","1997-12-30 01:01:01.000002");
 select timediff("1997-12-30 23:59:59.000001","1997-12-31 23:59:59.000002");
+--enable_view_protocol
 select timediff("1997-12-31 23:59:59.000001","23:59:59.000001");
 select timediff("2000:01:01 00:00:00", "2000:01:01 00:00:00.000001");
 select timediff("2005-01-11 15:48:49.999999", "2005-01-11 15:48:50");
@@ -143,9 +152,12 @@ select str_to_date("2003-01-02 10:11:12.0012", "%Y-%m-%d %H:%i:%S.%f");
 #
 
 # calculations involving negative time values ignored sign
+#enable after fix MDEV-27871
+--disable_view_protocol
 select timediff('2008-09-29 20:10:10','2008-09-30 20:10:10'),time('00:00:00');
 select timediff('2008-09-29 20:10:10','2008-09-30 20:10:10')>time('00:00:00');
 select timediff('2008-09-29 20:10:10','2008-09-30 20:10:10')<time('00:00:00');
+--enable_view_protocol
 
 # show that conversion to DECIMAL no longer drops sign
 SELECT CAST(time('-73:42:12') AS DECIMAL);

@@ -290,46 +290,8 @@ if (!rc)
 /******************************************************************/
 /*  XML library cleanup function.                                 */
 /******************************************************************/
-/*
-  This is a copy of xmlCleanupParser() from the libxml2 sources
-  with xmlResetLastError() commented.
-
-  xmlResetLastError() called from the original xmlCleanupParser() causes
-  valgrind to report memory leaks. This happens because
-  ha_initialize_handlerton() is called from the main thread in mysqld.cc,
-  while ha_finalize_handlerton() is called from a non-main thread.
-  libxml2 gets confused because of xmlInitParser() and xmlCleanupParser()
-  being called from the different threads.
-
-  Perhaps the code in mysqld.cc should eventually be modified
-  to shutdown plugins from the main thread.
-*/
-static void
-xmlCleanupParser_replacement(void)
-  {
-  xmlCleanupCharEncodingHandlers();
-#ifdef LIBXML_CATALOG_ENABLED
-  xmlCatalogCleanup();
-#endif
-  xmlDictCleanup();
-  xmlCleanupInputCallbacks();
-#ifdef LIBXML_OUTPUT_ENABLED   
-  xmlCleanupOutputCallbacks();
-#endif
-#ifdef LIBXML_SCHEMAS_ENABLED
-  xmlSchemaCleanupTypes(); 
-  xmlRelaxNGCleanupTypes();
-#endif
-  //xmlResetLastError();
-  xmlCleanupGlobals();
-  xmlCleanupThreads(); /* must be last if called not from the main thread */
-  xmlCleanupMemory();
-  }
-
-
 void XmlCleanupParserLib(void)
   {
-  xmlCleanupParser_replacement();
   } // end of XmlCleanupParserLib
 
 /******************************************************************/
@@ -661,7 +623,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
 
       if (xmlXPathRegisterNs(Ctxp, BAD_CAST nsp->Prefix,
                                    BAD_CAST nsp->Uri)) {
-        sprintf(g->Message, MSG(REGISTER_ERR), nsp->Prefix, nsp->Uri);
+        snprintf(g->Message, sizeof(g->Message), MSG(REGISTER_ERR), nsp->Prefix, nsp->Uri);
 
         if (trace(1))
           htrc("Ns error: %s\n", g->Message);
@@ -703,7 +665,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
 
   // Evaluate table xpath
   if (!(Xop = xmlXPathEval(BAD_CAST xp, Ctxp))) {
-    sprintf(g->Message, MSG(XPATH_EVAL_ERR), xp);
+    snprintf(g->Message, sizeof(g->Message), MSG(XPATH_EVAL_ERR), xp);
 
     if (trace(1))
       htrc("Path error: %s\n", g->Message);
@@ -882,7 +844,7 @@ RCODE XML2NODE::GetContent(PGLOBAL g, char *buf, int len)
         } // endif p1
 
       } else {
-        sprintf(g->Message, "Truncated %s content", Nodep->name);
+        snprintf(g->Message, sizeof(g->Message), "Truncated %s content", Nodep->name);
         rc = RC_INFO;
       } // endif len
 
@@ -1260,7 +1222,7 @@ RCODE XML2ATTR::GetText(PGLOBAL g, char *buf, int len)
     if (strlen((char*)txt) >= (unsigned)len) {
       memcpy(buf, txt, len - 1);
       buf[len - 1] = 0;
-      sprintf(g->Message, "Truncated %s content", Atrp->name);
+      snprintf(g->Message, sizeof(g->Message), "Truncated %s content", Atrp->name);
       rc = RC_INFO;
     } else
       strcpy(buf, (const char*)txt);

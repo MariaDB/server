@@ -238,7 +238,6 @@ public:
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
   bool mark_as_eliminated_processor(void *arg);
   bool eliminate_subselect_processor(void *arg);
-  bool set_fake_select_as_master_processor(void *arg);
   bool enumerate_field_refs_processor(void *arg);
   bool check_vcol_func_processor(void *arg) 
   {
@@ -784,6 +783,7 @@ public:
   bool select_transformer(JOIN *join);
   void create_comp_func(bool invert) { func= func_creator(invert); }
   void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool is_maxmin_applicable(JOIN *join);
   bool transform_into_max_min(JOIN *join);
   void no_rows_in_result();

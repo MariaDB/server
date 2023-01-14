@@ -41,6 +41,7 @@
                                        // find_item_in_list,
                                        // RESOLVED_AGAINST_ALIAS, ...
 #include "sql_expression_cache.h"
+#include "sql_lex.h"                   // empty_clex_str
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -1401,13 +1402,11 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   Item *conv= example->safe_charset_converter(thd, tocs);
   if (conv == example)
     return this;
-  Item_cache *cache;
-  if (!conv || conv->fix_fields(thd, (Item **) NULL) ||
-      unlikely(!(cache= new (thd->mem_root) Item_cache_str(thd, conv))))
+  if (!conv || conv->fix_fields(thd, (Item **) NULL))
     return NULL; // Safe conversion is not possible, or OEM
-  cache->setup(thd, conv);
-  cache->fixed= false; // Make Item::fix_fields() happy
-  return cache;
+  setup(thd, conv);
+  thd->change_item_tree(&example, conv);
+  return this;
 }
 
 
@@ -2469,7 +2468,8 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
 
     if (unlikely((!(used_tables() & ~PARAM_TABLE_BIT) ||
                   (type() == REF_ITEM &&
-                   ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF))))
+                   ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF &&
+                   ((Item_ref*)this)->ref_type() != Item_ref::DIRECT_REF))))
         return;
   }
 
@@ -2782,7 +2782,6 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
     safe_args[1]= args[item_sep];
   }
 
-  bool res= FALSE;
   uint i;
 
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
@@ -2802,19 +2801,31 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
         args[item_sep]= safe_args[1];
       }
       my_coll_agg_error(args, nargs, fname, item_sep);
-      res= TRUE;
-      break; // we cannot return here, we need to restore "arena".
+      return TRUE;
     }
-
-    thd->change_item_tree(arg, conv);
 
     if (conv->fix_fields(thd, arg))
+      return TRUE;
+
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+    if (arena)
     {
-      res= TRUE;
-      break; // we cannot return here, we need to restore "arena".
+      Item_direct_ref_to_item *ref=
+        new (thd->mem_root) Item_direct_ref_to_item(thd, *arg);
+      if ((ref == NULL) || ref->fix_fields(thd, (Item **)&ref))
+      {
+        thd->restore_active_arena(arena, &backup);
+        return TRUE;
+      }
+      *arg= ref;
+      thd->restore_active_arena(arena, &backup);
+      ref->change_item(thd, conv);
     }
+    else
+      thd->change_item_tree(arg, conv);
   }
-  return res;
+  return FALSE;
 }
 
 
@@ -7409,6 +7420,25 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
 }
 
 
+void Item_bin_string::print(String *str, enum_query_type query_type)
+{
+  if (!str_value.length())
+  {
+    /*
+      Historically a bit string such as b'01100001'
+      prints itself in the hex hybrid notation: 0x61
+      In case of an empty bit string b'', the hex hybrid
+      notation would result in a bad syntax: 0x
+      So let's print empty bit strings using bit string notation: b''
+    */
+    static const LEX_CSTRING empty_bit_string= {STRING_WITH_LEN("b''")};
+    str->append(empty_bit_string);
+  }
+  else
+    Item_hex_hybrid::print(str, query_type);
+}
+
+
 bool Item_temporal_literal::eq(const Item *item, bool binary_cmp) const
 {
   return
@@ -9804,6 +9834,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 
   if (!item || fix_fields_if_needed(thd, NULL))
     return true;
+  if (field->vers_sys_field())
+    return false;
 
   // NOTE: field->table->copy_blobs should be false here, but let's
   // remember the value at runtime to avoid subtle bugs.
@@ -10751,6 +10783,20 @@ void view_error_processor(THD *thd, void *data)
   ((TABLE_LIST *)data)->hide_view_error(thd);
 }
 
+/**
+  Name resolution context with resolution in only one table
+*/
+
+Name_resolution_context::Name_resolution_context(TABLE_LIST *table):
+  outer_context(0), table_list(0), select_lex(0),
+  error_processor_data(0),
+  security_ctx(0)
+{
+  resolve_in_select_list= FALSE;
+  error_processor= &dummy_error_processor;
+  // resolve only in this table
+  first_name_resolution_table= last_name_resolution_table= table;
+}
 
 st_select_lex *Item_ident::get_depended_from() const
 {
@@ -10916,4 +10962,46 @@ void Item::register_in(THD *thd)
 {
   next= thd->free_list;
   thd->free_list= this;
+}
+
+
+Item_direct_ref_to_item::Item_direct_ref_to_item(THD *thd, Item *item)
+: Item_direct_ref(thd, NULL, NULL, "", &empty_clex_str, FALSE)
+{
+  m_item= item;
+  ref= (Item**)&m_item;
+}
+
+bool Item_direct_ref_to_item::fix_fields(THD *thd, Item **)
+{
+  DBUG_ASSERT(m_item != NULL);
+  if (m_item->fix_fields_if_needed_for_scalar(thd, ref))
+    return TRUE;
+  set_properties();
+  return FALSE;
+}
+
+void Item_direct_ref_to_item::print(String *str, enum_query_type query_type)
+{
+  m_item->print(str, query_type);
+}
+
+Item *Item_direct_ref_to_item::safe_charset_converter(THD *thd,
+                                                      CHARSET_INFO *tocs)
+{
+  Item *conv= m_item->safe_charset_converter(thd, tocs);
+  if (conv != m_item)
+  {
+    if (conv== NULL || conv->fix_fields(thd, &conv))
+      return NULL;
+    change_item(thd, conv);
+  }
+  return this;
+}
+
+void Item_direct_ref_to_item::change_item(THD *thd, Item *i)
+{
+  DBUG_ASSERT(i->fixed);
+  thd->change_item_tree(ref, i);
+  set_properties();
 }

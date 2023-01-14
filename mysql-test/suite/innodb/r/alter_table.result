@@ -8,7 +8,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text NOT NULL,
   KEY `idx1` (`a`(3072))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 drop table t1;
 set @@sql_mode=default;
 create table t1 (

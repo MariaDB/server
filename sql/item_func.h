@@ -1513,7 +1513,7 @@ public:
   void cleanup() { first_eval= TRUE; Item_real_func::cleanup(); }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_rand>(thd, this); }
@@ -3159,9 +3159,7 @@ public:
   void print(String *str, enum_query_type query_type);
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), "()", arg,
-                                     (VCOL_NON_DETERMINISTIC |
-                                      VCOL_NOT_VIRTUAL));
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_NEXTVAL);
   }
 };
 

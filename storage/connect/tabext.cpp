@@ -159,6 +159,9 @@ bool EXTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	Maxerr = GetIntCatInfo("Maxerr", 0);
 	Maxres = GetIntCatInfo("Maxres", 0);
 	Quoted = GetIntCatInfo("Quoted", 0);
+	Qchar = GetStringCatInfo(g,"Qchar", NULL);
+  if (Qchar && !Quoted)
+    Quoted = 1;
 	Options = 0;
 	Cto = 0;
 	Qto = 0;
@@ -198,6 +201,7 @@ TDBEXT::TDBEXT(EXTDEF *tdp) : TDB(tdp)
 		Cto = tdp->Cto;
 		Qto = tdp->Qto;
 		Quoted = MY_MAX(0, tdp->GetQuoted());
+		Quote = tdp->GetQchar();
 		Rows = tdp->GetElemt();
 		Memory = tdp->Memory;
 		Scrollable = tdp->Scrollable;
@@ -214,12 +218,12 @@ TDBEXT::TDBEXT(EXTDEF *tdp) : TDB(tdp)
 		Cto = 0;
 		Qto = 0;
 		Quoted = 0;
+		Quote = NULL;
 		Rows = 0;
 		Memory = 0;
 		Scrollable = false;
 	} // endif tdp
 
-	Quote = NULL;
 	Query = NULL;
 	Count = NULL;
 	//Where = NULL;
@@ -252,6 +256,7 @@ TDBEXT::TDBEXT(PTDBEXT tdbp) : TDB(tdbp)
 	Cto = tdbp->Cto;
 	Qto = tdbp->Qto;
 	Quoted = tdbp->Quoted;
+	Quote = tdbp->Quote;
 	Rows = tdbp->Rows;
 	Memory = tdbp->Memory;
 	Scrollable = tdbp->Scrollable;
@@ -390,6 +395,8 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	bool   first = true;
 	PTABLE tablep = To_Table;
 	PCOL   colp;
+	char *res= NULL, *my_schema_table= NULL;
+	size_t my_len= 0;
 
 	if (Srcdef)
 		return MakeSrcdef(g);
@@ -459,10 +466,37 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	Decode(TableName, buf, sizeof(buf));
 
 	if (Quote) {
-		// Put table name between identifier quotes in case in contains blanks
-		Query->Append(Quote);
-		Query->Append(buf);
-		Query->Append(Quote);
+		// Tabname can have both database and table identifiers, we need to parse
+		if (res= strstr(buf, "."))
+		{
+			// Parse schema
+			my_len= res - buf + 1;
+			my_schema_table= (char *) malloc(my_len);
+			memcpy(my_schema_table, buf, my_len - 1);
+			my_schema_table[my_len - 1] = 0;
+			Query->Append(Quote);
+			Query->Append(my_schema_table);
+			Query->Append(Quote);
+			free(my_schema_table);
+			Query->Append(".");
+			// Parse table
+			my_len= strlen(buf) - my_len + 1;
+			my_schema_table= (char *) malloc(my_len + 1);
+			memcpy(my_schema_table, ++res, my_len);
+			my_schema_table[my_len] = 0;
+			Query->Append(Quote);
+			Query->Append(my_schema_table);
+			Query->Append(Quote);
+			free(my_schema_table);
+		}
+		else
+		{
+			// Put table name between identifier quotes in case in contains blanks
+			Query->Append(Quote);
+			Query->Append(buf);
+			Query->Append(Quote);
+		}
+
 	} else
 		Query->Append(buf);
 
@@ -613,7 +647,7 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 			strcat(stmt, body);
 
 	} else {
-		sprintf(g->Message, "Cannot use this %s command",
+		snprintf(g->Message, sizeof(g->Message), "Cannot use this %s command",
 			(Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
 		return true;
 	} // endif p
@@ -724,7 +758,7 @@ EXTCOL::EXTCOL(PEXTCOL col1, PTDB tdbp) : COLBLK(col1, tdbp)
 bool EXTCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 {
 	if (!(To_Val = value)) {
-		sprintf(g->Message, MSG(VALUE_ERROR), Name);
+		snprintf(g->Message, sizeof(g->Message), MSG(VALUE_ERROR), Name);
 		return true;
 	} else if (Buf_Type == value->GetType()) {
 		// Values are of the (good) column type
@@ -743,7 +777,7 @@ bool EXTCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 	} else {
 		// Values are not of the (good) column type
 		if (check) {
-			sprintf(g->Message, MSG(TYPE_VALUE_ERR), Name,
+			snprintf(g->Message, sizeof(g->Message), MSG(TYPE_VALUE_ERR), Name,
 				GetTypeName(Buf_Type), GetTypeName(value->GetType()));
 			return true;
 		} // endif check

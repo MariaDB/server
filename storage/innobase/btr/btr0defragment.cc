@@ -486,7 +486,7 @@ btr_defragment_merge_pages(
 		free it. */
 		lock_update_merge_left(to_block, orig_pred,
 				       from_block);
-		btr_search_drop_page_hash_index(from_block);
+		btr_search_drop_page_hash_index(from_block, false);
 
 		ut_a(DB_SUCCESS == btr_level_list_remove(
 			index->table->space_id,

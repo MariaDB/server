@@ -40,7 +40,7 @@
   @post
   The syntax of a format string is generally the same:
   % <flag> <width> <precision> <length modifier> <format>
-  where everithing but the format is optional.
+  where everything but the format is optional.
 
   Three one-character flags are recognized:
     '0' has the standard zero-padding semantics;

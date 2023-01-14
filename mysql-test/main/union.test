@@ -2,10 +2,6 @@
 # Test of unions
 #
 
---disable_warnings
-drop table if exists t1,t2,t3,t4,t5,t6;
---enable_warnings
-
 CREATE TABLE t1 (a int not null, b char (10) not null);
 insert into t1 values(1,'a'),(2,'b'),(3,'c'),(3,'c');
 CREATE TABLE t2 (a int not null, b char (10) not null);
@@ -23,9 +19,10 @@ select 't1',b,count(*) from t1 group by b UNION select 't2',b,count(*) from t2 g
 (select a,b from t1 limit 2)  union all (select a,b from t2 order by a) limit 4;
 (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1);
 (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by b desc;
---error 1250
+--error ER_TABLENAME_NOT_ALLOWED_HERE
 (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by t1.b;
 explain extended (select a,b from t1 limit 2)  union all (select a,b from t2 order by a limit 1) order by b desc;
+--disable_view_protocol
 select count(*) from (
 (select                      a,b from t1 limit 2)  union all (select a,b from t2 order by a)) q;
 (select sql_calc_found_rows  a,b from t1 limit 2)  union all (select a,b from t2 order by a) limit 2;
@@ -34,20 +31,20 @@ select count(*) from (
 select                      a,b from t1  union all select a,b from t2) q;
 select sql_calc_found_rows  a,b from t1  union all select a,b from t2 limit 2;
 select found_rows();
-
+--enable_view_protocol
 #
 # Test some error conditions with UNION
 #
 
 explain select a,b from t1 union all select a,b from t2;
 
---error  1054
+--error ER_BAD_FIELD_ERROR
 explain select xx from t1 union select 1;
---error 1222
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 explain select a,b from t1 union select 1;
---error 1222
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 explain select 1 union select a,b from t1 union select 1;
---error 1222
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 explain select a,b from t1 union select 1 limit 0;
 
 --error ER_PARSE_ERROR
@@ -59,19 +56,19 @@ select a,b from t1 order by a union select a,b from t2;
 --error ER_PARSE_ERROR
 insert into t3 select a from t1 order by a union select a from t2;
 
---error 1222
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 create table t3 select a,b from t1 union select a from t2;
 
---error 1222
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 select a,b from t1 union select a from t2;
 
---error 1222
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 select * from t1 union select a from t2;
 
---error 1222
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 select a from t1 union select * from t2;
 
---error 1234
+--error ER_CANT_USE_OPTION_HERE
 select * from t1 union select SQL_BUFFER_RESULT * from t2;
 
 # Test CREATE, INSERT and REPLACE
@@ -85,13 +82,13 @@ drop table t1,t2,t3;
 #
 # Test some unions without tables
 #
---error 1096
+--error ER_NO_TABLES_USED
 select * union select 1;
 select 1 as a,(select a union select a);
---error 1054
+--error ER_BAD_FIELD_ERROR
 (select 1) union (select 2) order by 0;
 SELECT @a:=1 UNION SELECT @a:=@a+1;
---error 1054
+--error ER_BAD_FIELD_ERROR
 (SELECT 1) UNION (SELECT 2) ORDER BY (SELECT a);
 (SELECT 1,3) UNION (SELECT 2,1) ORDER BY (SELECT 2);
 
@@ -209,6 +206,7 @@ insert into t1 values (1),(2),(3);
 create table t2 (a int);
 insert into t2 values (3),(4),(5);
 
+--disable_view_protocol
 # Test global limits
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1) UNION all (SELECT * FROM t2)) q;
@@ -234,12 +232,15 @@ SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 LIMIT 1) UNION SELECT * FROM t2) q;
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2 LIMIT 1;
 select found_rows();
+--enable_view_protocol
 
 # In these case found_rows() should work
 --error ER_PARSE_ERROR
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION all SELECT * FROM t2 LIMIT 2;
+--disable_view_protocol
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION all SELECT * FROM t2 LIMIT 2;
 select found_rows();
+--enable_view_protocol
 
 # The following examples will not be exact
 SELECT COUNT(*) FROM (
@@ -247,12 +248,16 @@ SELECT                     * FROM t1 UNION SELECT * FROM t2) q;
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 2;
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 LIMIT 1) UNION all SELECT * FROM t2) q;
+--disable_view_protocol
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION all SELECT * FROM t2 LIMIT 2;
 select found_rows();
+--enable_view_protocol
 SELECT COUNT(*) FROM (
 SELECT                     * FROM t1 UNION all SELECT * FROM t2) q;
+--disable_view_protocol
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 100;
 select found_rows();
+--enable_view_protocol
 --error ER_PARSE_ERROR
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 100 UNION SELECT * FROM t2;
 SELECT COUNT(*) FROM (
@@ -268,8 +273,10 @@ SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION SELECT * FROM t2 LIMIT 2;
 SELECT COUNT(*) FROM (
 (SELECT                     * FROM t1 LIMIT 1) UNION SELECT * FROM t2) q;
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2 LIMIT 2;
+--disable_view_protocol
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 2,2;
 select found_rows();
+--enable_view_protocol
 SELECT COUNT(*) FROM (
 SELECT                     * FROM t1 UNION SELECT * FROM t2) q;
 --error ER_PARSE_ERROR
@@ -283,7 +290,7 @@ SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a desc LIMIT 1;
 (SELECT * FROM t1 ORDER by a) UNION ALL (SELECT * FROM t2 ORDER BY a) ORDER BY A desc LIMIT 4;
 
 # Wrong usage
---error 1234
+--error ER_CANT_USE_OPTION_HERE
 (SELECT * FROM t1) UNION all (SELECT SQL_CALC_FOUND_ROWS * FROM t2) LIMIT 1;
 
 create temporary table t1 select a from t1 union select a from t2;
@@ -466,7 +473,7 @@ create table t1 select 1 union select -1;
 select * from t1;
 show create table t1;
 drop table t1;
--- error 1267
+-- error ER_CANT_AGGREGATE_2COLLATIONS
 create table t1 select _latin1"test" union select _latin2"testt" ;
 create table t1 select _latin2"test" union select _latin2"testt" ;
 show create table t1;
@@ -501,6 +508,7 @@ insert t1 select a+1, a+b from t1;
 insert t1 select a+1, a+b from t1;
 insert t1 select a+1, a+b from t1;
 FLUSH STATUS;
+--disable_view_protocol
 show status like 'Slow_queries';
 select count(*) from t1 where a=7;
 show status like 'Slow_queries';
@@ -514,6 +522,7 @@ show status like 'Slow_queries';
 flush status;
 select a from t1 where b not in (1,2,3) union select a from t1 where b not in (4,5,6); 
 show status like 'Slow_queries';
+--enable_view_protocol
 drop table t1;
 
 #
@@ -572,7 +581,7 @@ set sql_select_limit=default;
 #
 CREATE TABLE t1 (i int(11) default NULL,c char(1) default NULL,KEY i (i));
 CREATE TABLE t2 (i int(11) default NULL,c char(1) default NULL,KEY i (i));
---error 1054
+--error ER_BAD_FIELD_ERROR
 explain (select * from t1) union (select * from t2) order by not_existing_column;
 drop table t1, t2;
 
@@ -674,7 +683,7 @@ drop table t1;
 create table t2 (
 a char character set latin1 collate latin1_swedish_ci,
 b char character set latin1 collate latin1_german1_ci);
---error 1271
+--error ER_CANT_AGGREGATE_NCOLLATIONS
 create table t1 as
 (select a from t2) union
 (select b from t2);
@@ -971,7 +980,7 @@ CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (3),(1),(2),(4),(1);
 
 SELECT a FROM (SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY a) AS test;
---error 1054 
+--error ER_BAD_FIELD_ERROR
 SELECT a FROM (SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY c) AS test;
 
 DROP TABLE t1;
@@ -979,11 +988,11 @@ DROP TABLE t1;
 #
 # Bug#23345: Wrongly allowed INTO in a non-last select of a UNION.
 #
---error 1221
+--error ER_WRONG_USAGE
 (select 1 into @var) union (select 1);
 (select 1) union (select 1 into @var);
 select @var;
---error 1172
+--error ER_TOO_MANY_ROWS
 (select 2) union (select 1 into @var);
 
 #
@@ -1348,8 +1357,10 @@ INSERT INTO t2 VALUES (4), (5), (6);
 INSERT INTO t3 VALUES (7), (8), (9);
 TRUNCATE table mysql.slow_log;
 --sorted_result
+--disable_view_protocol
 SELECT * FROM t17059925 UNION SELECT * FROM t2 UNION SELECT * FROM t3;
 SELECT sql_text, rows_examined FROM mysql.slow_log WHERE sql_text LIKE '%SELECT%t17059925%';
+--enable_view_protocol
 DROP TABLE t17059925, t2, t3;
 
 ## Reset to initial values
@@ -1862,6 +1873,7 @@ drop table t1,t2,t3;
 
 --disable_ps_protocol
 --enable_metadata
+--disable_view_protocol
 
 SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT * from (SELECT NULL) t;
 SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT NULL) t;
@@ -1870,6 +1882,7 @@ SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT CAST(1 AS UNSIGNED)) t;
 SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT NULL;
 SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT CAST(1 AS SIGNED);
 
+--enable_view_protocol
 --disable_metadata
 --enable_ps_protocol
 
@@ -1897,6 +1910,86 @@ ALTER TABLE t4 ADD INDEX (`NULL`);
 DROP TABLE t1, t2, t3, t4;
 
 set @@default_storage_engine=@save_default_storage_engine;
+
+
+--echo #
+--echo # MDEV-29022: add_slave destroy child list and has dead code
+--echo # (test added to be sure that ordering by several subqueries works)
+--echo #
+
+create table t1 (aa int);
+
+insert into t1 values (-1),(0),(1),(2),(3),(4),(5),(6),(98),(99),(100),(102);
+
+
+create table t2 (a int, b int);
+
+insert into t2 values (2,2),(2,3),(3,4),(3,5);
+
+
+select a as a, b as b,
+       (select max(aa) from t1 where aa < t2.a) as c,
+       (select max(aa) from t1 where aa < t2.b) as d
+  from t2
+union select 0 as a, 100 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select max(aa) from t1 where aa < 100) as d
+union select 0 as a, 99 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select max(aa) from t1 where aa < 99) as d
+  order by (select max(aa) from t1 where aa < a),
+           (select max(aa) from t1 where aa < b);
+
+select a as a, b as b,
+       (select max(aa) from t1 where aa < t2.a) as c,
+       (select 200 - max(aa) from t1 where aa < t2.b) as d
+  from t2
+union select 0 as a, 100 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select 200 - max(aa) from t1 where aa < 100) as d
+union select 0 as a, 99 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select 200 - max(aa) from t1 where aa < 99) as d
+  order by (select max(aa) from t1 where aa < a),
+           (select 200 - max(aa) from t1 where aa < b);
+
+
+(select a as a, b as b,
+       (select max(aa) from t1 where aa < t2.a) as c,
+       (select max(aa) from t1 where aa < t2.b) as d
+  from t2)
+union (select 0 as a, 100 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select max(aa) from t1 where aa < 100) as d)
+union (select 0 as a, 99 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select max(aa) from t1 where aa < 99) as d)
+  order by (select max(aa) from t1 where aa < a),
+           (select max(aa) from t1 where aa < b);
+
+(select a as a, b as b,
+       (select max(aa) from t1 where aa < t2.a) as c,
+       (select 200 - max(aa) from t1 where aa < t2.b) as d
+  from t2)
+union (select 0 as a, 100 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select 200 - max(aa) from t1 where aa < 100) as d)
+union (select 0 as a, 99 as b,
+       (select max(aa) from t1 where aa < 0) as c,
+       (select 200 - max(aa) from t1 where aa < 99) as d)
+  order by (select max(aa) from t1 where aa < a),
+           (select 200 - max(aa) from t1 where aa < b);
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-30066 (limit + offset) union all (...) limit = incorrect result
+--echo #
+create table t1(id int primary key auto_increment, c1 int);
+insert into t1(c1) values(1),(2),(3);
+(select * from t1 where c1>=1 order by c1 desc limit 2,1) union all (select * from t1 where c1>1 order by c1 desc);
+(select * from t1 where c1>=1 order by c1 desc limit 2,1) union all (select * from t1 where c1>1 order by c1 desc) limit 2;
+drop table t1;
 
 --echo #
 --echo # End of 10.3 tests

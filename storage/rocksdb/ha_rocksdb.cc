@@ -260,7 +260,7 @@ Rdb_cf_manager cf_manager;
 Rdb_ddl_manager ddl_manager;
 Rdb_binlog_manager binlog_manager;
 
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__OpenBSD__)
 Rdb_io_watchdog *io_watchdog = nullptr;
 #endif
 /**
@@ -844,7 +844,7 @@ static void rocksdb_set_io_write_timeout(
     void *const var_ptr MY_ATTRIBUTE((__unused__)), const void *const save) {
   DBUG_ASSERT(save != nullptr);
   DBUG_ASSERT(rdb != nullptr);
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__OpenBSD__)
   DBUG_ASSERT(io_watchdog != nullptr);
 #endif
 
@@ -853,7 +853,7 @@ static void rocksdb_set_io_write_timeout(
   const uint32_t new_val = *static_cast<const uint32_t *>(save);
 
   rocksdb_io_write_timeout_secs = new_val;
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__OpenBSD__)
   io_watchdog->reset_timeout(rocksdb_io_write_timeout_secs);
 #endif
   RDB_MUTEX_UNLOCK_CHECK(rdb_sysvars_mutex);
@@ -5768,7 +5768,7 @@ static int rocksdb_init_func(void *const p) {
     directories.push_back(myrocks::rocksdb_wal_dir);
   }
 
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__OpenBSD__)
   io_watchdog = new Rdb_io_watchdog(std::move(directories));
   io_watchdog->reset_timeout(rocksdb_io_write_timeout_secs);
 #endif
@@ -5875,7 +5875,7 @@ static int rocksdb_done_func(void *const p) {
   delete commit_latency_stats;
   commit_latency_stats = nullptr;
 
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__OpenBSD__)
   delete io_watchdog;
   io_watchdog = nullptr;
 #endif
@@ -7696,7 +7696,7 @@ int rdb_split_normalized_tablename(const std::string &fullname,
  into MyRocks Data Dictionary
  The method is called during create table/partition, truncate table/partition
 
- @param table_name            IN      table's name formated as
+ @param table_name            IN      table's name formatted as
  'dbname.tablename'
  @param table_arg             IN      sql table
  @param auto_increment_value  IN      specified table's auto increment value
@@ -8468,8 +8468,7 @@ int ha_rocksdb::index_read_map_impl(uchar *const buf, const uchar *const key,
                                     const key_range *end_key) {
   DBUG_ENTER_FUNC();
 
-  DBUG_EXECUTE_IF("myrocks_busy_loop_on_row_read", int debug_i = 0;
-                  while (1) { debug_i++; });
+  DBUG_EXECUTE_IF("myrocks_busy_loop_on_row_read", my_sleep(50000););
 
   int rc = 0;
 
@@ -12124,7 +12123,6 @@ static int calculate_stats(
     }
   }
 
-  int num_sst = 0;
   for (const auto &it : props) {
     std::vector<Rdb_index_stats> sst_stats;
     Rdb_tbl_prop_coll::read_stats_from_tbl_props(it.second, &sst_stats);
@@ -12153,7 +12151,6 @@ static int calculate_stats(
       stats[it1.m_gl_index_id].merge(
           it1, true, it_index->second->max_storage_fmt_length());
     }
-    num_sst++;
   }
 
   if (include_memtables) {
@@ -13102,7 +13099,9 @@ bool ha_rocksdb::commit_inplace_alter_table(
 #define SHOW_FNAME(name) rocksdb_show_##name
 
 #define DEF_SHOW_FUNC(name, key)                                           \
-  static int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR * var, char *buff) { \
+  static int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR * var, void *buff,   \
+                              struct system_status_var *status_var,        \
+                              enum enum_var_type var_type) {               \
     rocksdb_status_counters.name =                                         \
         rocksdb_stats->getTickerCount(rocksdb::key);                       \
     var->type = SHOW_LONGLONG;                                             \
@@ -13111,7 +13110,7 @@ bool ha_rocksdb::commit_inplace_alter_table(
   }
 
 #define DEF_STATUS_VAR(name) \
-  { "rocksdb_" #name, (char *)&SHOW_FNAME(name), SHOW_FUNC }
+  SHOW_FUNC_ENTRY( "rocksdb_" #name, &SHOW_FNAME(name))
 
 #define DEF_STATUS_VAR_PTR(name, ptr, option) \
   { "rocksdb_" name, (char *)ptr, option }
@@ -13339,11 +13338,14 @@ static SHOW_VAR myrocks_status_variables[] = {
 
     {NullS, NullS, SHOW_LONG}};
 
-static void show_myrocks_vars(THD *thd, SHOW_VAR *var, char *buff) {
+static int show_myrocks_vars(THD *thd, SHOW_VAR *var, void *buff,
+                             struct system_status_var *,
+                             enum enum_var_type) {
   myrocks_update_status();
   myrocks_update_memory_status();
   var->type = SHOW_ARRAY;
   var->value = reinterpret_cast<char *>(&myrocks_status_variables);
+  return 0;
 }
 
 static ulonglong io_stall_prop_value(
@@ -13424,10 +13426,13 @@ static SHOW_VAR rocksdb_stall_status_variables[] = {
     // end of the array marker
     {NullS, NullS, SHOW_LONG}};
 
-static void show_rocksdb_stall_vars(THD *thd, SHOW_VAR *var, char *buff) {
+static int show_rocksdb_stall_vars(THD *thd, SHOW_VAR *var, void *buff,
+                                   struct system_status_var *,
+                                   enum enum_var_type) {
   update_rocksdb_stall_status();
   var->type = SHOW_ARRAY;
   var->value = reinterpret_cast<char *>(&rocksdb_stall_status_variables);
+  return 0;
 }
 
 static SHOW_VAR rocksdb_status_vars[] = {
@@ -13532,9 +13537,8 @@ static SHOW_VAR rocksdb_status_vars[] = {
     // the variables generated by SHOW_FUNC are sorted only by prefix (first
     // arg in the tuple below), so make sure it is unique to make sorting
     // deterministic as quick sort is not stable
-    {"rocksdb", reinterpret_cast<char *>(&show_myrocks_vars), SHOW_FUNC},
-    {"rocksdb_stall", reinterpret_cast<char *>(&show_rocksdb_stall_vars),
-     SHOW_FUNC},
+    SHOW_FUNC_ENTRY("rocksdb", &show_myrocks_vars),
+    SHOW_FUNC_ENTRY("rocksdb_stall", &show_rocksdb_stall_vars),
     {NullS, NullS, SHOW_LONG}};
 
 /*

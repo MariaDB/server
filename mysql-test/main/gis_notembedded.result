@@ -20,26 +20,26 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 call mysql.DropGeometryColumn('', 'test', 't1', 'c');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 call mysql.DropGeometryColumn('', 'test', 't1', 'b');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create user foo@localhost;
 grant execute on mysql.* to foo@localhost;
 connect  foo, localhost, foo;
 call mysql.AddGeometryColumn('', 'mysql', 'proc', 'c', 10);
-ERROR 42000: ALTER command denied to user 'foo'@'localhost' for table 'proc'
+ERROR 42000: ALTER command denied to user 'foo'@'localhost' for table `mysql`.`proc`
 disconnect foo;
 connection default;
 drop user foo@localhost;

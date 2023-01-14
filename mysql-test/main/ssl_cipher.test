@@ -54,7 +54,7 @@ EOF
 # Test to connect using a specifi cipher
 --exec $MYSQL_TEST --ssl-cipher=AES128-SHA < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 # Test to connect using an unknown cipher
---replace_regex /2026 SSL connection error.*/2026 SSL connection error: xxxx/
+--replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
 --exec $MYSQL_TEST --ssl-cipher=UNKNOWN-CIPHER < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/test.sql

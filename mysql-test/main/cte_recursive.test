@@ -2729,7 +2729,9 @@ drop table t1;
 --echo # MDEV-24019: query with recursive CTE when no default database is set
 --echo #
 
-drop database test;
+create database dummy;
+use dummy;
+drop database dummy;
 
 let $q=
 with recursive a as
@@ -2757,7 +2759,6 @@ deallocate prepare stmt;
 
 drop database db1;
 
-create database test;
 use test;
 
 --echo #
@@ -3165,4 +3166,711 @@ SELECT * FROM cte;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-12325 Unexpected data type and truncation when using CTE
+--echo #
+
+CREATE TABLE t1
+(
+  id INT, mid INT, name TEXT
+);
+INSERT INTO t1 VALUES (0,NULL,'Name'),(1,0,'Name1'),(2,0,'Name2'),(11,1,'Name11'),(12,1,'Name12');
+
+let $query=
+WITH RECURSIVE
+cteReports (level, id, mid, name) AS
+(
+  SELECT 1, id, mid, name FROM t1 WHERE mid IS NULL
+  UNION ALL
+  SELECT r.level + 1, e.id, e.mid + 1000000000000, e.name FROM t1 e
+  INNER JOIN cteReports r ON e.mid = r.id
+)
+SELECT
+  level, id, mid, name,
+  (SELECT name FROM t1 WHERE id= cteReports.mid) AS mname
+FROM cteReports ORDER BY level, mid;
+
+--error ER_WARN_DATA_OUT_OF_RANGE
+--eval $query
+--error ER_WARN_DATA_OUT_OF_RANGE
+--eval create table t2 as $query;
+--eval create table t2 ignore as $query;
+show create table t2;
+--error ER_WARN_DATA_OUT_OF_RANGE
+--eval insert into t2 $query;
+--eval insert ignore into t2 $query;
+drop table t2;
+set @@sql_mode="";
+--eval $query
+--eval create table t2 as $query;
+show create table t2;
+set @@sql_mode=default;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-29361: Embedded recursive / non-recursive CTE within
+--echo #             the scope of another embedded CTE with the same name
+--echo #
+
+create table t1 (a int);
+insert into t1 values (4), (5);
+create table t2 (a int);
+insert into t2 values (6), (8);
+create table t3 (a int);
+insert into t3 values (1), (9);
+
+
+with recursive
+x as
+(
+  select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1;
+
+with recursive
+x as
+(
+  select a from t2
+  union
+  select a+2 from x as r2 where a < 10
+)
+select a from x as s2;
+
+# All recursive CTEs with name x are embedded in in the definition of 'cte',
+# without this embedding CTE the bug could not be reproduced
+
+# two recursive CTEs with name x, the second CTE is in the scope
+# of the first one, but does not use it
+# before fix of this bug: wrong result set
+
+with
+cte as
+(
+  with recursive
+  x as
+  (
+    select a from t1 union select a+1 from x as r1 where a < 7
+  )
+  select * from x as s1
+  where s1.a in (
+                 with recursive
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# two recursive CTEs with name x, the second CTE is in the scope of the first
+# one, but does not use it; there are two non-recursive references to the latter
+# before fix of this bug: wrong result set
+
+with
+cte as
+(
+  with recursive
+  x(a) as
+  (
+    select a from t1 union select a+1 from x as r1 where a < 7
+  )
+  select s1.a from x as s1, x
+  where s1.a = x.a and
+        x.a in (
+                 with recursive
+                 x(a) as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r1 belongs to the definition of CTE x from non-RECURSIVE with clause
+# before fix of this bug: infinite sequence of recursive calls
+
+--error ER_NO_SUCH_TABLE
+with
+cte as
+(
+  with
+  x as
+  (
+    select a from t1 union select a+1 from x as r1 where a < 7
+  )
+  select * from x as s1
+  where s1.a in (
+                 with recursive
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r2 belongs to the definition of CTE x from non-RECURSIVE with clause
+# yet it is in the scope of another CTE with the same name
+# before fix of this bug: crash in With_element::get_name()
+
+with
+cte as
+(
+  with recursive
+  x as
+  (
+    select a from t1 union select a+1 from x as r1 where a < 7
+  )
+  select * from x as s1
+  where s1.a in (
+                 with
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r1 is in the definition of CTE x from non-RECURSIVE with clause, thus
+# although x as r2 is in the scope of the first CTE x an error is expected
+# before fix of this bug: crash in With_element::get_name()
+
+--error ER_NO_SUCH_TABLE
+with
+cte as
+(
+  with
+  x as
+  (
+    select a from t1 union select a+1 from x as r1 where a < 7
+  )
+  select * from x as s1
+  where s1.a in (
+                 with
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r2 belongs to the definition of CTE x from non-RECURSIVE with clause
+# and in the scope of recursive CTE y, but does not use the latter
+# before fix of this bug: crash in With_element::get_name()
+
+--error ER_NO_SUCH_TABLE
+with
+cte as
+(
+  with recursive
+  y as
+  (
+    select a from t1 union select a+1 from y as r1 where a < 7
+  )
+  select * from y as s1
+  where s1.a in (
+                 with
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r2 belongs to the definition of CTE x from non-RECURSIVE with clause
+# and in the scope of non-recursive CTE y, but does not use the latter
+# before fix of this bug: crash in With_element::get_name()
+
+--error ER_NO_SUCH_TABLE
+with
+cte as
+(
+  with
+  y(a) as
+  (
+    select a+5 from t1
+  )
+  select * from y as s1
+  where s1.a in (
+                 with
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# in the subquery of the embedding CTE cte:
+# x as r1 is in the definition of CTE x from non-RECURSIVE with clause;
+# x as t2 is in the definition of CTE x from RECURSIVE with clause;
+# an error is expected to be reported for x as r1
+# before fix of this bug: infinite sequence of recursive calls
+
+--error ER_NO_SUCH_TABLE
+with
+cte as
+(
+  select (
+           with
+           x as
+           (
+             select a from x as r1
+           )
+           select * from x as s1
+           where s1.a in (
+                          with recursive
+                          x as
+                          (
+                            select a from t2
+                            union
+                            select a+2 from x as r2 where a < 10
+                          )
+                          select a from x as s2
+                        )
+         ) as r
+  from t3
+)
+select * from cte;
+
+
+# in the subquery of the embedding CTE cte:
+# x as r1 is in the definition of CTE x from non-RECURSIVE with clause, thus
+# although x as r2 is in the scope of the first CTE x an error is expected
+# before fix of this bug: crash in With_element::get_name()
+
+--error ER_NO_SUCH_TABLE
+with
+cte as
+(
+  select (
+           with
+           x as
+           (
+             select a from x as r1
+           )
+           select * from x as s1
+           where s1.a < 5 and
+                 s1.a in (
+                          with
+                          x as
+                          (
+                            select a from t2
+                            union
+                            select a+2 from x as r2 where a < 10
+                          )
+                          select a from x as s2
+                        )
+         ) as r
+  from t3
+)
+select * from cte;
+
+
+# in the subquery of the embedding CTE cte:
+# two recursive CTEs with name x, the second CTE is in the scope
+# of the first one, but does not use it
+# before fix of this bug: wrong result set
+
+with
+cte as
+(
+  select (
+           with recursive
+           x(a) as
+           (
+             select a+3 from t1 union select a+1 from x as r1 where a < 7
+           )
+           select * from x as s1
+           where s1.a < 8 and
+                 s1.a in (
+                           with recursive
+                           x(a) as
+                           (
+                             select a-2 from t2
+                             union
+                             select a+1 from x as r2 where a < 10
+                           )
+                           select a from x as s2
+                         )
+         ) as r
+  from t3
+)
+select * from cte;
+
+
+# in the subquery of the embedding CTE cte:
+# two recursive CTEs with name x, the second CTE is in the scope
+# of the first one, but does not use it
+# before fix of this bug: Subquery returns more than 1 row
+
+with
+cte as
+(
+  select (
+           with recursive
+           x as
+           (
+             select a from t1 union select a+1 from x as r1 where a < 7
+           )
+           select * from x as s1
+           where s1.a in (
+                           with recursive
+                           x as
+                           (
+                             select a from t2
+                             union
+                             select a+2 from x as r2 where a < 10
+                           )
+                           select a from x as s2
+                         )
+         ) as r
+  from t3
+)
+select * from cte;
+
+
+create table x (a int);
+insert into x values (3), (7), (1), (5), (6);
+
+
+# in the subquery of the embedding CTE cte:
+# one non-recursive CTEs with name x using table t in a subquery, the second
+# CTE x is recursive and is in the scope of the first one, but does not use it;
+# the query uses both CTE with name x.
+# before fix of this bug: infinite sequence of recursive calls
+
+--error ER_SUBQUERY_NO_1_ROW
+with
+cte as
+(
+  select (
+           with
+           x as
+           (
+             select ( select a from x as r1 ) as a from t1
+           )
+           select * from x as s1
+           where s1.a in (
+                           with recursive
+                           x as
+                           (
+                             select a from t2
+                             union
+                             select a+2 from x as r2 where a < 10
+                           )
+                           select a from x s2
+                         )
+         ) as r
+  from t3
+)
+select * from cte;
+
+
+# in the subquery of the embedding CTE cte:
+# one non-recursive CTEs with name x using table t, the second CTE x is
+# recursive and is in the scope of the first one, but does not use it;
+# the query uses only the second CTE with name x.
+# before fix of this bug: Subquery returns more than 1 row
+
+with
+cte as
+(
+  select (
+           with
+           x as
+           (
+             select ( select a from x ) as a from t1
+           )
+           select exists (
+                           with recursive
+                           x as
+                           (
+                             select a from t2
+                             union
+                             select a+2 from x as r2 where a < 10
+                           )
+                           select a from x
+                         )
+         ) as r
+  from t3
+)
+select * from cte;
+
+
+# in the subquery of the embedding CTE cte embedded in the CTE cte_e
+# one non-recursive CTEs with name x uses table t1, the second CTE x is
+# recursive and is in the scope of the first one, but does not use it;
+# CTE cte uses only the second CTE with name x;
+# the query has two refeences to cte_e
+# before fix of this bug: infinite sequence of recursive calls
+
+with
+cte_e as
+(
+  with
+  cte as
+  (
+    select (
+             with
+             x as
+             (
+               select ( select a from x ) from t1
+             )
+             select exists (
+                             with recursive
+                             x as
+                             (
+                               select a from t2
+                               union
+                               select a+2 from x as r2 where a < 10
+                             )
+                             select a from x
+                           )
+           ) as r
+    from t3
+  )
+  select * from cte
+)
+select s1.*, s2.*  from cte_e as s1, cte_e as s2;
+
+
+# check : with base table x all queries abobe that returned error
+# message ER_NO_SUCH_TABLE now return proper result sets
+
+with
+x as
+(
+  select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1;
+
+with
+x as
+(
+  select a from t2
+  union
+  select a+2 from x as r2 where a < 10
+)
+select a from x as s2;
+
+with recursive
+x as
+(
+  select a from t1 union select a+1 from x as r1 where a < 7
+)
+select * from x as s1;
+
+with recursive
+x as
+(
+  select a from t2
+  union
+  select a+2 from x as r2 where a < 10
+)
+select a from x as s2;
+
+
+# x as r1 is bound to table x, x as s1 is bound to the first CTE x
+# x as r2 and x as s2 are bound to the second CTE x
+# before fix of this bug: infinite sequence of recursive calls
+
+with
+cte as
+(
+  with
+  x as
+  (
+    select a from t1 union select a+1 from x as r1 where a < 7
+  )
+  select * from x as s1
+  where s1.a in (
+                 with recursive
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r1 is bound to table x, x as s1 is bound to the first CTE x
+# x as r1 is bound to the first CTE x, x as s2 is bound to the second CTE x
+# before fix of this bug: crash in With_element::get_name()
+
+with
+cte as
+(
+  with
+  x as
+  (
+    select a from t1 union select a+1 from x as r1 where a < 7
+  )
+  select * from x as s1
+  where s1.a in (
+                 with
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r2 is bound to table x, x as s2 is bound to CTE x
+# before fix of this bug: crash in With_element::get_name()
+
+with
+cte as
+(
+  with recursive
+  y as
+  (
+    select a from t1 union select a+1 from y as r1 where a < 7
+  )
+  select * from y as s1
+  where s1.a in (
+                 with
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r2 is bound to table x, x as s2 is bound to CTE x
+# before fix of this bug: crash in With_element::get_name()
+
+with
+cte as
+(
+  with
+  y(a) as
+  (
+    select a+5 from t1
+  )
+  select * from y as s1
+  where s1.a in (
+                 with
+                 x as
+                 (
+                   select a from t2
+                   union
+                   select a+2 from x as r2 where a < 10
+                 )
+                 select a from x as s2
+               )
+)
+select * from cte;
+
+
+# x as r1 is bound to table x, x as s1 is bound to the first CTE x
+# x as r2 and x as s2 are bound to the second CTE x
+# before fix of this bug: infinite sequence of recursive calls
+
+with
+cte as
+(
+  select (
+           with
+           x as
+           (
+             select a from x as r1
+           )
+           select * from x as s1
+           where s1.a in (
+                          with
+                          recursive x as
+                          (
+                            select a from t2
+                            union
+                            select a+2 from x as r2 where a < 10
+                          )
+                          select a from x as s2
+                        )
+         ) as r
+  from t3
+)
+select * from cte;
+
+
+# x as r1 is bound to table x, x as s1 is bound to the first CTE x
+# x as r2 is bound to the first CTE x, x as s2 is bound to the second CTE x
+# before fix of this bug: crash in With_element::get_name()
+
+with
+cte as
+(
+  select (
+           with
+           x as
+           (
+             select a from x as r1
+           )
+           select * from x as s1
+           where s1.a < 5 and
+                 s1.a in (
+                          with
+                          x as
+                          (
+                            select a from t2
+                            union
+                            select a+2 from x as r2 where a < 10
+                          )
+                          select a from x as s2
+                        )
+         ) as r
+  from t3
+)
+select * from cte;
+
+
+drop table t1,t2,t3,x;
+
+--echo #
 --echo # End of 10.3 tests
+--echo #

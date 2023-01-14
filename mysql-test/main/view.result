@@ -6316,7 +6316,7 @@ t2	CREATE TABLE `t2` (
   `code` int(11) DEFAULT NULL,
   `COUNT(DISTINCT country)` bigint(21) NOT NULL,
   `MAX(id)` int(11)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t3 AS
 SELECT code, COUNT(DISTINCT country), MAX(id) FROM v1 GROUP BY code ORDER BY MAX(id);
 SHOW CREATE TABLE t3;
@@ -6325,7 +6325,7 @@ t3	CREATE TABLE `t3` (
   `code` int(11) DEFAULT NULL,
   `COUNT(DISTINCT country)` bigint(21) NOT NULL,
   `MAX(id)` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 #
@@ -6723,7 +6723,9 @@ DROP TABLE t1;
 #
 # MDEV-24314: create view with derived table without default database
 #
-drop database test;
+create database dummy;
+use dummy;
+drop database dummy;
 create database db1;
 create table db1.t1 (a int);
 insert into db1.t1 values (3),(7),(1);
@@ -6753,7 +6755,6 @@ a
 drop view db1.v1;
 drop table db1.t1;
 drop database db1;
-create database test;
 use test;
 #
 # MDEV-16940: update of multi-table view returning error used in SP
@@ -6816,6 +6817,34 @@ r
 drop view v1;
 drop table t1;
 #
+# MDEV-17124: mariadb 10.1.34, views and prepared statements:
+# ERROR 1615 (HY000): Prepared statement needs to be re-prepared
+#
+set @tdc= @@table_definition_cache, @tc= @@table_open_cache;
+set global table_definition_cache= 400, table_open_cache= 400;
+create table tt (a int, primary key(a)) engine=MyISAM;
+create view v as select * from tt;
+insert into tt values(1),(2),(3),(4);
+prepare stmt from 'select * from tt';
+#fill table definition cache
+execute stmt;
+a
+1
+2
+3
+4
+prepare stmt from 'select * from v';
+execute stmt;
+a
+1
+2
+3
+4
+drop database db;
+drop view v;
+drop table tt;
+set global table_definition_cache= @tdc, table_open_cache= @tc;
+#
 # End of 10.2 tests
 #
 #
@@ -6876,6 +6905,14 @@ ERROR 42S01: Table 'v1' already exists
 deallocate prepare stmt;
 drop view v1;
 drop table t1;
+#
+# MDEV-28696 View created as "select b''; " references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+#
+CREATE VIEW v1 as select b'';
+SELECT * FROM v1;
+b''
+
+DROP VIEW v1;
 #
 # End of 10.3 tests
 #

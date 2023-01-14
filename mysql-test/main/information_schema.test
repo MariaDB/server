@@ -1940,8 +1940,9 @@ SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
 
 call mtr.add_suppression("Sort aborted.*");
 
-DROP DATABASE test;
-CREATE DATABASE test;
+create database dummy;
+use dummy;
+drop database dummy;
 USE test;
 CREATE VIEW v AS SELECT table_schema  AS object_schema, table_name  AS object_name, table_type AS object_type FROM information_schema.tables ORDER BY object_schema;
 

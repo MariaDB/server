@@ -208,12 +208,10 @@ verify_snapshot_system(TXN_MANAGER txn_manager UU()) {
             {
                 //verify neither pair->begin_id nor end_id is in snapshot_xids                
                 TOKUTXN curr_txn = txn_manager->snapshot_head;
-                uint32_t curr_index = 0;
                 while (curr_txn != NULL) {
                     invariant(tuple->begin_id != curr_txn->txnid.parent_id64);
                     invariant(tuple->end_id != curr_txn->txnid.parent_id64);
                     curr_txn = curr_txn->snapshot_next;
-                    curr_index++;
                 }
             }
             {

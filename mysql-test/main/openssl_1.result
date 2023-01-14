@@ -22,7 +22,7 @@ select * from t1;
 f1
 5
 delete from t1;
-ERROR 42000: DELETE command denied to user 'ssl_user1'@'localhost' for table 't1'
+ERROR 42000: DELETE command denied to user 'ssl_user1'@'localhost' for table `test`.`t1`
 connection con3;
 SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 have_ssl
@@ -31,7 +31,7 @@ select * from t1;
 f1
 5
 delete from t1;
-ERROR 42000: DELETE command denied to user 'ssl_user3'@'localhost' for table 't1'
+ERROR 42000: DELETE command denied to user 'ssl_user3'@'localhost' for table `test`.`t1`
 connection con4;
 SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 have_ssl
@@ -40,18 +40,18 @@ select * from t1;
 f1
 5
 delete from t1;
-ERROR 42000: DELETE command denied to user 'ssl_user4'@'localhost' for table 't1'
+ERROR 42000: DELETE command denied to user 'ssl_user4'@'localhost' for table `test`.`t1`
 connection default;
 disconnect con1;
 disconnect con3;
 disconnect con4;
 drop user ssl_user1@localhost, ssl_user3@localhost, ssl_user4@localhost, ssl_user5@localhost;
 drop table t1;
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: xxxx
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: xxxx
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: xxxx
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: xxxx
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: xxxx
 have_ssl
 1
 End of 5.0 tests
@@ -179,7 +179,7 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
-mysqldump: Got error: 2026: "SSL connection error: xxxx
+mysqldump: Got error: 2026: "TLS/SSL error: xxxx
 DROP TABLE t1;
 GRANT SELECT ON test.* TO bug42158@localhost REQUIRE X509;
 FLUSH PRIVILEGES;
@@ -196,4 +196,4 @@ End of 5.1 tests
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
-ERROR: Failed on connect: SSL connection error
+ERROR: Failed on connect: TLS/SSL error

@@ -307,7 +307,7 @@ row_ins_clust_index_entry_by_modify(
 	}
 
 	update = row_upd_build_difference_binary(
-		cursor->index, entry, rec, NULL, true,
+		cursor->index, entry, rec, NULL, true, true,
 		thr_get_trx(thr), heap, mysql_table, &err);
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -899,11 +899,7 @@ row_ins_foreign_fill_virtual(
 		&ext, update->heap);
 	n_diff = update->n_fields;
 
-	if (index->table->vc_templ == NULL) {
-		/** This can occur when there is a cascading
-		delete or update after restart. */
-		innobase_init_vc_templ(index->table);
-	}
+	ut_ad(index->table->vc_templ != NULL);
 
 	ib_vcol_row vc(NULL);
 	uchar *record = vc.record(thd, index, &mysql_table);
@@ -1137,7 +1133,7 @@ row_ins_foreign_check_on_constraint(
 					tmp_heap);
 		btr_pcur_open_with_no_init(clust_index, ref,
 					   PAGE_CUR_LE, BTR_SEARCH_LEAF,
-					   cascade->pcur, 0, mtr);
+					   cascade->pcur, mtr);
 
 		clust_rec = btr_pcur_get_rec(cascade->pcur);
 		clust_block = btr_pcur_get_block(cascade->pcur);
@@ -2063,6 +2059,61 @@ row_ins_dupl_error_with_rec(
 	return(!rec_get_deleted_flag(rec, rec_offs_comp(offsets)));
 }
 
+/** Determine whether a history row was inserted by this transaction
+(row TRX_ID is the same as current TRX_ID).
+@param index  secondary index
+@param rec    secondary index record
+@param trx    transaction
+@return error code
+@retval DB_SUCCESS                on success
+@retval DB_FOREIGN_DUPLICATE_KEY  if a history row was inserted by trx */
+static dberr_t vers_row_same_trx(dict_index_t* index, const rec_t* rec,
+                                 const trx_t& trx)
+{
+  mtr_t mtr;
+  dberr_t ret= DB_SUCCESS;
+  dict_index_t *clust_index= dict_table_get_first_index(index->table);
+  ut_ad(index != clust_index);
+
+  mtr.start();
+
+  if (const rec_t *clust_rec=
+      row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr))
+  {
+    rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+    rec_offs *clust_offs= offsets_;
+    rec_offs_init(offsets_);
+    mem_heap_t *heap= NULL;
+
+    clust_offs=
+      rec_get_offsets(clust_rec, clust_index, clust_offs,
+                      clust_index->n_core_fields, ULINT_UNDEFINED, &heap);
+    if (clust_index->vers_history_row(clust_rec, clust_offs))
+    {
+      ulint trx_id_len;
+      const byte *trx_id= rec_get_nth_field(clust_rec, clust_offs,
+                                            clust_index->n_uniq, &trx_id_len);
+      ut_ad(trx_id_len == DATA_TRX_ID_LEN);
+
+      if (trx.id == trx_read_trx_id(trx_id))
+        ret= DB_FOREIGN_DUPLICATE_KEY;
+    }
+
+    if (UNIV_LIKELY_NULL(heap))
+      mem_heap_free(heap);
+  }
+  else
+  {
+    ib::error() << "foreign constraints: secondary index " << index->name <<
+                   " of table " << index->table->name << " is out of sync";
+    ut_ad("secondary index is out of sync" == 0);
+    ret= DB_TABLE_CORRUPT;
+  }
+
+  mtr.commit();
+  return ret;
+}
+
 /***************************************************************//**
 Scans a unique non-clustered index at a given index entry to determine
 whether a uniqueness violation has occurred for the key value of the entry.
@@ -2086,7 +2137,6 @@ row_ins_scan_sec_index_for_duplicate(
 	ulint		n_fields_cmp;
 	btr_pcur_t	pcur;
 	dberr_t		err		= DB_SUCCESS;
-	ulint		allow_duplicates;
 	rec_offs	offsets_[REC_OFFS_SEC_INDEX_SIZE];
 	rec_offs*	offsets		= offsets_;
 	DBUG_ENTER("row_ins_scan_sec_index_for_duplicate");
@@ -2124,7 +2174,7 @@ row_ins_scan_sec_index_for_duplicate(
 		      : BTR_SEARCH_LEAF,
 		      &pcur, mtr);
 
-	allow_duplicates = thr_get_trx(thr)->duplicates;
+	trx_t* const trx = thr_get_trx(thr);
 
 	/* Scan index records and check if there is a duplicate */
 
@@ -2145,7 +2195,7 @@ row_ins_scan_sec_index_for_duplicate(
 		if (flags & BTR_NO_LOCKING_FLAG) {
 			/* Set no locks when applying log
 			in online table rebuild. */
-		} else if (allow_duplicates) {
+		} else if (trx->duplicates) {
 
 			/* If the SQL-query will update or replace
 			duplicate key we will take X-lock for
@@ -2179,9 +2229,18 @@ row_ins_scan_sec_index_for_duplicate(
 		if (cmp == 0) {
 			if (row_ins_dupl_error_with_rec(rec, entry,
 							index, offsets)) {
+
 				err = DB_DUPLICATE_KEY;
 
-				thr_get_trx(thr)->error_info = index;
+				trx->error_info = index;
+
+				if (!index->table->versioned()) {
+				} else if (dberr_t e =
+					   vers_row_same_trx(index, rec,
+							     *trx)) {
+					err = e;
+					goto end_scan;
+				}
 
 				/* If the duplicate is on hidden FTS_DOC_ID,
 				state so in the error log */
@@ -2958,7 +3017,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_RTREE_INSERT,
 			search_mode,
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, __FILE__, __LINE__, &mtr);
 
 		if (mode == BTR_MODIFY_LEAF && rtr_info.mbr_adj) {
 			mtr_commit(&mtr);
@@ -2977,7 +3036,7 @@ row_ins_sec_index_entry_low(
 			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
 				search_mode,
-				&cursor, 0, __FILE__, __LINE__, &mtr);
+				&cursor, __FILE__, __LINE__, &mtr);
 			mode = BTR_MODIFY_TREE;
 		}
 
@@ -2989,7 +3048,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
 			search_mode,
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, __FILE__, __LINE__, &mtr);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -3083,7 +3142,7 @@ row_ins_sec_index_entry_low(
 			index, 0, entry, PAGE_CUR_LE,
 			(search_mode
 			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, __FILE__, __LINE__, &mtr);
 	}
 
 	if (row_ins_must_modify_rec(&cursor)) {
@@ -3584,16 +3643,6 @@ row_ins_get_row_from_select(
 	}
 }
 
-inline
-bool ins_node_t::vers_history_row() const
-{
-	if (!table->versioned())
-		return false;
-	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
-	return row_end->vers_history_row();
-}
-
-
 /***********************************************************//**
 Inserts a row to a table.
 @return DB_SUCCESS if operation successfully completed, else error
@@ -3632,31 +3681,12 @@ row_ins(
 	ut_ad(node->state == INS_NODE_INSERT_ENTRIES);
 
 	while (node->index != NULL) {
-		dict_index_t *index = node->index;
-		/*
-		   We do not insert history rows into FTS_DOC_ID_INDEX because
-		   it is unique by FTS_DOC_ID only and we do not want to add
-		   row_end to unique key. Fulltext field works the way new
-		   FTS_DOC_ID is created on every fulltext UPDATE, so holding only
-		   FTS_DOC_ID for history is enough.
-		*/
-		const unsigned type = index->type;
-		if (index->type & DICT_FTS) {
-		} else if (!(type & DICT_UNIQUE) || index->n_uniq > 1
-			   || !node->vers_history_row()) {
-
+		if (!(node->index->type & DICT_FTS)) {
 			dberr_t err = row_ins_index_entry_step(node, thr);
 
 			if (err != DB_SUCCESS) {
 				DBUG_RETURN(err);
 			}
-		} else {
-			/* Unique indexes with system versioning must contain
-			the version end column. The only exception is a hidden
-			FTS_DOC_ID_INDEX that InnoDB may create on a hidden or
-			user-created FTS_DOC_ID column. */
-			ut_ad(!strcmp(index->name, FTS_DOC_ID_INDEX_NAME));
-			ut_ad(!strcmp(index->fields[0].name, FTS_DOC_ID_COL_NAME));
 		}
 
 		node->index = dict_table_get_next_index(node->index);

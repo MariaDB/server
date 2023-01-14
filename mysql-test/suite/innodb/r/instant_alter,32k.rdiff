@@ -11,8 +11,8 @@
    `c` int(11) NOT NULL,
    `d` int(11) NOT NULL,
    UNIQUE KEY `a` (`a`)
--) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
-+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED
++) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
  SELECT variable_value-@old_instant instants
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';

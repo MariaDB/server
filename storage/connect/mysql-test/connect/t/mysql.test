@@ -484,5 +484,55 @@ DROP TABLE t2;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-28533 CONNECT engine does not quote columns involved in WHERE clause
+--echo #
+
+CREATE TABLE t1 (id int, `spaced col` varchar(10),`nospace` varchar(10));
+insert into t1 values (1,1,'x1'),(2,'C-003','x2');
+
+SELECT * from t1;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 (id int, `spaced col` varchar(10), `nospace` varchar(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+
+SELECT * from t2;
+SELECT `id` FROM t2 WHERE t2.`nospace` = 'x1';
+SELECT `id` FROM t2 WHERE t2.`spaced col` = 'C-003';
+
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # MDEV-28489 / MDEV-26722 UTF8 bytes calculated incorrectly
+--echo #
+
+CREATE TABLE t1 (name varchar(20)) CHARSET=utf8;
+INSERT INTO t1 (name) VALUES ('Иванова'), ('Ivanova');
+
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 (name varchar(1)) ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT' CHARSET=utf8
+
+SELECT hex(name) from t1;
+# This will warn as we are truncating data
+SELECT hex(name) from t2;
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (col char(5)) CHARSET=utf8;
+INSERT INTO t1 (col) VALUES ('glace'), ('glacé');
+
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='test' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT' CHARSET=utf8
+
+SELECT hex(col) from t1;
+SELECT hex(col) from t2;
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

@@ -348,7 +348,7 @@ int ha_spider::open(
     may_be_clone = FALSE;
   ha_spider **pt_handler_share_handlers;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
-  my_hash_value_type hash_value;
+  my_hash_value_type hash_value = 0;
 #endif
 #endif
   DBUG_ENTER("ha_spider::open");
@@ -425,7 +425,9 @@ int ha_spider::open(
     partition_handler_share->between_flg = FALSE;
     partition_handler_share->idx_bitmap_is_set = FALSE;
     partition_handler_share->rnd_bitmap_is_set = FALSE;
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     partition_handler_share->table_hash_value = hash_value;
+#endif
     partition_handler_share->creator = this;
     partition_handler_share->parallel_search_query_id = 0;
     pt_handler_share_creator = this;
@@ -11448,6 +11450,15 @@ int ha_spider::create(
     sql_command == SQLCOM_DROP_INDEX
   )
     DBUG_RETURN(0);
+  if (!is_supported_parser_charset(info->default_table_charset))
+  {
+    String charset_option;
+    charset_option.append("CHARSET ");
+    charset_option.append(info->default_table_charset->csname);
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "SPIDER", charset_option.c_ptr());
+    error_num = ER_ILLEGAL_HA_CREATE_OPTION;
+    goto error_charset;
+  }
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
     goto error_get_trx;
   if (
@@ -11622,6 +11633,7 @@ error:
   spider_free_share_alloc(&tmp_share);
 error_alter_before_unlock:
 error_get_trx:
+error_charset:
   DBUG_RETURN(error_num);
 }
 

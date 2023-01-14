@@ -234,7 +234,9 @@ drop table t1, t2;
 create table t1 (a bit(7));
 insert into t1 values (0x60);
 --enable_metadata
+--disable_view_protocol
 select * from t1;
+--enable_view_protocol
 --disable_metadata
 drop table t1;
 
@@ -297,10 +299,12 @@ DROP TABLE t1;
 CREATE TABLE t1 (b BIT);
 INSERT INTO t1 (b) VALUES (1), (0);
 --enable_metadata
+--disable_view_protocol
 --replace_column 1 #
 SELECT DISTINCT b FROM t1;
 --replace_column 1 #
 SELECT b FROM t1 GROUP BY b;
+--enable_view_protocol
 --disable_metadata
 DROP TABLE t1;
 
@@ -455,7 +459,9 @@ SELECT  * FROM t2;
 SHOW CREATE TABLE t2;
 DROP TABLE t2;
 --enable_metadata
+--disable_view_protocol
 SELECT COALESCE(val, 1) FROM t1;
+--enable_view_protocol
 --disable_metadata
 DROP TABLE t1;
 

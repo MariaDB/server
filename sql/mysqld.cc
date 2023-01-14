@@ -119,6 +119,8 @@
 
 #include <my_service_manager.h>
 
+#include <source_revision.h>
+
 #define mysqld_charset &my_charset_latin1
 
 /* We have HAVE_valgrind below as this speeds up the shutdown of MySQL */
@@ -4303,14 +4305,24 @@ static int init_common_variables()
   if (ignore_db_dirs_init())
     exit(1);
 
-#ifdef _WIN32
-  get_win_tzname(system_time_zone, sizeof(system_time_zone));
-#elif defined(HAVE_TZNAME)
   struct tm tm_tmp;
-  localtime_r(&server_start_time,&tm_tmp);
-  const char *tz_name=  tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
-  strmake_buf(system_time_zone, tz_name);
-#endif /* HAVE_TZNAME */
+  localtime_r(&server_start_time, &tm_tmp);
+
+#ifdef HAVE_TZNAME
+#ifdef _WIN32
+  /*
+   If env.variable TZ is set, derive timezone name from it.
+   Otherwise, use IANA tz name from get_win_tzname.
+  */
+  if (!getenv("TZ"))
+    get_win_tzname(system_time_zone, sizeof(system_time_zone));
+  else
+#endif
+  {
+    const char *tz_name= tzname[tm_tmp.tm_isdst != 0 ? 1 : 0];
+    strmake_buf(system_time_zone, tz_name);
+  }
+#endif
 
   /*
     We set SYSTEM time zone as reasonable default and
@@ -4435,21 +4447,6 @@ static int init_common_variables()
 
   mysql_real_data_home_len= uint(strlen(mysql_real_data_home));
 
-  if (!opt_abort)
-  {
-    if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
-      sql_print_information("%s (mysqld %s) starting as process %lu ...",
-                            my_progname, server_version, (ulong) getpid());
-    else
-    {
-      char real_server_version[SERVER_VERSION_LENGTH];
-      set_server_version(real_server_version, sizeof(real_server_version));
-      sql_print_information("%s (mysqld %s as %s) starting as process %lu ...",
-                            my_progname, real_server_version, server_version,
-                            (ulong) getpid());
-    }
-  }
-
   sf_leaking_memory= 0; // no memory leaks from now on
 
 #ifndef EMBEDDED_LIBRARY
@@ -4570,8 +4567,8 @@ static int init_common_variables()
     files= my_set_max_open_files(max_open_files);
     SYSVAR_AUTOSIZE_IF_CHANGED(open_files_limit, files, ulong);
 
-    if (files < wanted_files && global_system_variables.log_warnings)
-      sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
+    if (files < max_open_files && global_system_variables.log_warnings)
+      sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, max_open_files);
 
     /* If we required too much tc_instances than we reduce */
     SYSVAR_AUTOSIZE_IF_CHANGED(tc_instances,
@@ -4748,15 +4745,15 @@ static int init_common_variables()
   /* check log options and issue warnings if needed */
   if (opt_log && opt_logname && *opt_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
-    sql_print_warning("Although a path was specified for the "
-                      "--log option, log tables are used. "
+    sql_print_warning("Although a general log file was specified, "
+                      "log tables are used. "
                       "To enable logging to files use the --log-output option.");
 
   if (global_system_variables.sql_log_slow && opt_slow_logname &&
       *opt_slow_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
-    sql_print_warning("Although a path was specified for the "
-                      "--log-slow-queries option, log tables are used. "
+    sql_print_warning("Although a slow query log file was specified, "
+                      "log tables are used. "
                       "To enable logging to files use the --log-output=file option.");
 
   if (!opt_logname || !*opt_logname)
@@ -5027,10 +5024,9 @@ static void init_ssl()
     DBUG_PRINT("info",("ssl_acceptor_fd: %p", ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
-      sql_print_warning("Failed to setup SSL");
-      sql_print_warning("SSL error: %s", sslGetErrString(error));
-      opt_use_ssl = 0;
-      have_ssl= SHOW_OPTION_DISABLED;
+      sql_print_error("Failed to setup SSL");
+      sql_print_error("SSL error: %s", sslGetErrString(error));
+      unireg_abort(1);
     }
     if (global_system_variables.log_warnings > 0)
     {
@@ -5248,6 +5244,14 @@ static int init_server_components()
   /* set up the hook before initializing plugins which may use it */
   error_handler_hook= my_message_sql;
   proc_info_hook= set_thd_stage_info;
+
+  /*
+￼    Print source revision hash, as one of the first lines, if not the
+￼    first in error log, for troubleshooting and debugging purposes
+￼  */
+  if (!opt_help)
+    sql_print_information("Starting MariaDB %s source revision %s as process %lu",
+                          server_version, SOURCE_REVISION, (ulong) getpid());
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
@@ -8389,7 +8393,9 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
     rpl_semi_sync_master_show_##name
 
 #define DEF_SHOW_FUNC(name, show_type)                                       \
-    static  int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR *var, char *buff)   \
+    static  int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR *var, void *buff,   \
+                                 system_status_var *status_var,              \
+                                 enum_var_type var_type)                     \
     {                                                                        \
       repl_semisync_master.set_export_stats();                                 \
       var->type= show_type;                                                  \
@@ -8655,7 +8661,7 @@ SHOW_VAR status_vars[]= {
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
   {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables_), SHOW_LONG_STATUS},
 #ifndef DBUG_OFF
-  {"Debug",                    (char*) &debug_status_func,  SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Debug",     &debug_status_func),
 #endif
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
@@ -8707,7 +8713,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_tmp_write",        (char*) offsetof(STATUS_VAR, ha_tmp_write_count), SHOW_LONG_STATUS},
   {"Handler_update",           (char*) offsetof(STATUS_VAR, ha_update_count), SHOW_LONG_STATUS},
   {"Handler_write",            (char*) offsetof(STATUS_VAR, ha_write_count), SHOW_LONG_STATUS},
-  {"Key",                      (char*) &show_default_keycache, SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Key",       &show_default_keycache),
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
   {"Max_statement_time_exceeded", (char*) offsetof(STATUS_VAR, max_statement_time_exceeded), SHOW_LONG_STATUS},
   {"Master_gtid_wait_count",   (char*) offsetof(STATUS_VAR, master_gtid_wait_count), SHOW_LONG_STATUS},
@@ -8731,20 +8737,20 @@ SHOW_VAR status_vars[]= {
   {"Rows_read",                (char*) offsetof(STATUS_VAR, rows_read), SHOW_LONGLONG_STATUS},
   {"Rows_tmp_read",            (char*) offsetof(STATUS_VAR, rows_tmp_read), SHOW_LONGLONG_STATUS},
 #ifdef HAVE_REPLICATION
-  {"Rpl_semi_sync_master_status", (char*) &SHOW_FNAME(status), SHOW_FUNC},
-  {"Rpl_semi_sync_master_clients", (char*) &SHOW_FNAME(clients), SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_status", &SHOW_FNAME(status)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_clients", &SHOW_FNAME(clients)),
   {"Rpl_semi_sync_master_yes_tx", (char*) &rpl_semi_sync_master_yes_transactions, SHOW_LONG},
   {"Rpl_semi_sync_master_no_tx", (char*) &rpl_semi_sync_master_no_transactions, SHOW_LONG},
-  {"Rpl_semi_sync_master_wait_sessions", (char*) &SHOW_FNAME(wait_sessions), SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_wait_sessions", &SHOW_FNAME(wait_sessions)),
   {"Rpl_semi_sync_master_no_times", (char*) &rpl_semi_sync_master_off_times, SHOW_LONG},
   {"Rpl_semi_sync_master_timefunc_failures", (char*) &rpl_semi_sync_master_timefunc_fails, SHOW_LONG},
   {"Rpl_semi_sync_master_wait_pos_backtraverse", (char*) &rpl_semi_sync_master_wait_pos_backtraverse, SHOW_LONG},
-  {"Rpl_semi_sync_master_tx_wait_time", (char*) &SHOW_FNAME(trx_wait_time), SHOW_FUNC},
-  {"Rpl_semi_sync_master_tx_waits", (char*) &SHOW_FNAME(trx_wait_num), SHOW_FUNC},
-  {"Rpl_semi_sync_master_tx_avg_wait_time", (char*) &SHOW_FNAME(avg_trx_wait_time), SHOW_FUNC},
-  {"Rpl_semi_sync_master_net_wait_time", (char*) &SHOW_FNAME(net_wait_time), SHOW_FUNC},
-  {"Rpl_semi_sync_master_net_waits", (char*) &SHOW_FNAME(net_wait_num), SHOW_FUNC},
-  {"Rpl_semi_sync_master_net_avg_wait_time", (char*) &SHOW_FNAME(avg_net_wait_time), SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_tx_wait_time", &SHOW_FNAME(trx_wait_time)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_tx_waits", &SHOW_FNAME(trx_wait_num)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_tx_avg_wait_time", &SHOW_FNAME(avg_trx_wait_time)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_wait_time", &SHOW_FNAME(net_wait_time)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_waits", &SHOW_FNAME(net_wait_num)),
+  SHOW_FUNC_ENTRY("Rpl_semi_sync_master_net_avg_wait_time", &SHOW_FNAME(avg_net_wait_time)),
   {"Rpl_semi_sync_master_request_ack", (char*) &rpl_semi_sync_master_request_ack, SHOW_LONGLONG},
   {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
   {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
@@ -8852,7 +8858,7 @@ SHOW_VAR status_vars[]= {
   {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_SIMPLE_FUNC},
 #endif
 #ifdef WITH_WSREP
-  {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
+  SHOW_FUNC_ENTRY("wsrep",     &wsrep_show_status),
 #endif
   {NullS, NullS, SHOW_LONG}
 };
@@ -9476,12 +9482,6 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     break;
   case (int) OPT_SKIP_HOST_CACHE:
     opt_specialflag|= SPECIAL_NO_HOST_CACHE;
-    break;
-  case (int) OPT_SKIP_RESOLVE:
-    if ((opt_skip_name_resolve= (argument != disabled_my_option)))
-      opt_specialflag|= SPECIAL_NO_RESOLVE;
-    else
-      opt_specialflag&= ~SPECIAL_NO_RESOLVE;
     break;
   case (int) OPT_WANT_CORE:
     test_flags |= TEST_CORE_ON_SIGNAL;

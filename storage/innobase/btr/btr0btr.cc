@@ -603,7 +603,7 @@ btr_get_size(
 
 	ut_ad(srv_read_only_mode
 	      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-				   MTR_MEMO_S_LOCK));
+				   MTR_MEMO_SX_LOCK));
 
 	if (index->page == FIL_NULL
 	    || dict_index_is_online_ddl(index)
@@ -657,7 +657,7 @@ btr_get_size_and_reserved(
 	ulint		dummy;
 
 	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-				MTR_MEMO_S_LOCK));
+				MTR_MEMO_SX_LOCK));
 
 	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
 
@@ -721,8 +721,9 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 		   bool blob)
 {
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-#ifdef BTR_CUR_HASH_ADAPT
-	if (block->index && !block->index->freed()) {
+#if defined BTR_CUR_HASH_ADAPT && defined UNIV_DEBUG
+	if (block->index
+	    && !btr_search_check_marked_free_index(block)) {
 		ut_ad(!blob);
 		ut_ad(page_is_leaf(block->frame));
 	}
@@ -875,7 +876,7 @@ btr_page_get_father_node_ptr_func(
 
 	err = btr_cur_search_to_nth_level(
 		index, level + 1, tuple,
-		PAGE_CUR_LE, latch_mode, cursor, 0,
+		PAGE_CUR_LE, latch_mode, cursor,
 		file, line, mtr);
 
 	if (err != DB_SUCCESS) {
@@ -993,7 +994,7 @@ static void btr_free_root(buf_block_t* block, mtr_t* mtr, bool invalidate)
 					| MTR_MEMO_PAGE_SX_FIX));
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	header = buf_block_get_frame(block) + PAGE_HEADER + PAGE_BTR_SEG_TOP;
 #ifdef UNIV_BTR_DEBUG
@@ -1495,7 +1496,7 @@ btr_page_reorganize_low(
 	buf_frame_copy(temp_page, page);
 
 	if (!recovery) {
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 	}
 
 	/* Save the cursor position. */
@@ -1784,7 +1785,7 @@ btr_page_empty(
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
@@ -2379,7 +2380,7 @@ btr_insert_on_non_leaf_level_func(
 		dberr_t err = btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_LE,
 			BTR_CONT_MODIFY_TREE,
-			&cursor, 0, file, line, mtr);
+			&cursor, file, line, mtr);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << " Error code: " << err
@@ -2400,7 +2401,7 @@ btr_insert_on_non_leaf_level_func(
 		btr_cur_search_to_nth_level(index, level, tuple,
 					    PAGE_CUR_RTREE_INSERT,
 					    BTR_CONT_MODIFY_TREE,
-					    &cursor, 0, file, line, mtr);
+					    &cursor, file, line, mtr);
 	}
 
 	ut_ad(cursor.flag == BTR_CUR_BINARY);
@@ -3330,6 +3331,7 @@ btr_lift_page_up(
 
 	ut_ad(!page_has_siblings(page));
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(!page_is_empty(page));
 
 	page_level = btr_page_get_level(page);
 	root_page_no = dict_index_get_page(index);
@@ -3408,7 +3410,7 @@ btr_lift_page_up(
 		mem_heap_free(heap);
 	}
 
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	/* Make the father empty */
 	btr_page_empty(father_block, father_page_zip, index, page_level, mtr);
@@ -3418,6 +3420,16 @@ btr_lift_page_up(
 	if (index->is_instant()
 	    && father_block->page.id.page_no() == root_page_no) {
 		ut_ad(!father_page_zip);
+		if (page_is_leaf(page)) {
+			ut_d(const rec_t* rec
+			     = page_rec_get_next(page_get_infimum_rec(page)));
+			ut_ad(rec_is_metadata(rec, index));
+			if (page_get_n_recs(page) == 1) {
+				index->remove_instant();
+				goto copied;
+			}
+		}
+
 		byte* page_type = father_block->frame + FIL_PAGE_TYPE;
 		ut_ad(mach_read_from_2(page_type) == FIL_PAGE_INDEX);
 		mlog_write_ulint(page_type, FIL_PAGE_TYPE_INSTANT,
@@ -3425,8 +3437,6 @@ btr_lift_page_up(
 		page_set_instant(father_block->frame,
 				 index->n_core_fields, mtr);
 	}
-
-	page_level++;
 
 	/* Copy the records to the father page one by one. */
 	if (0
@@ -3459,6 +3469,7 @@ btr_lift_page_up(
 		}
 	}
 
+copied:
 	if (!dict_table_is_locking_disabled(index->table)) {
 		/* Free predicate page locks on the block */
 		if (dict_index_is_spatial(index)) {
@@ -3469,6 +3480,8 @@ btr_lift_page_up(
 		}
 		lock_update_copy_and_discard(father_block, block);
 	}
+
+	page_level++;
 
 	/* Go upward to root page, decrementing levels by one. */
 	for (i = lift_father_up ? 1 : 0; i < n_blocks; i++, page_level++) {
@@ -3715,7 +3728,7 @@ retry:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 		/* Remove the page from the level list */
 		if (DB_SUCCESS != btr_level_list_remove(index->table->space_id,
@@ -3835,7 +3848,7 @@ retry:
 			goto err_exit;
 		}
 
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 #ifdef UNIV_BTR_DEBUG
 		if (merge_page_zip && left_page_no == FIL_NULL) {
@@ -4068,7 +4081,7 @@ btr_discard_only_page_on_level(
 		ut_ad(fil_page_index_page_check(page));
 		ut_ad(block->page.id.space() == index->table->space->id);
 		ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-		btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block, false);
 
 		if (dict_index_is_spatial(index)) {
 			/* Check any concurrent search having this page */
@@ -4208,7 +4221,7 @@ btr_discard_page(
 
 	page = buf_block_get_frame(block);
 	ut_a(page_is_comp(merge_page) == page_is_comp(page));
-	btr_search_drop_page_hash_index(block);
+	btr_search_drop_page_hash_index(block, false);
 
 	if (left_page_no == FIL_NULL && !page_is_leaf(page)) {
 

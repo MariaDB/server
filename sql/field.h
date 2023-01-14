@@ -498,6 +498,8 @@ enum enum_vcol_info_type
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
   VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE,
   /* Additional types should be added here */
+
+  VCOL_GENERATED_VIRTUAL_INDEXED, // this is never written in .frm
   /* Following is the highest value last   */
   VCOL_TYPE_NONE = 127 // Since the 0 value is already in use
 };
@@ -507,6 +509,7 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   switch (type)
   {
   case VCOL_GENERATED_VIRTUAL:
+  case VCOL_GENERATED_VIRTUAL_INDEXED:
   case VCOL_GENERATED_STORED:
     return "GENERATED ALWAYS AS";
   case VCOL_DEFAULT:
@@ -528,10 +531,10 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
 #define VCOL_FIELD_REF         1
 #define VCOL_NON_DETERMINISTIC 2
 #define VCOL_SESSION_FUNC      4  /* uses session data, e.g. USER or DAYNAME */
-#define VCOL_TIME_FUNC         8
+#define VCOL_TIME_FUNC         8  /* safe for SBR */
 #define VCOL_AUTO_INC         16
 #define VCOL_IMPOSSIBLE       32
-#define VCOL_NOT_VIRTUAL      64  /* Function can't be virtual */
+#define VCOL_NEXTVAL          64  /* NEXVAL is not implemented for vcols */
 
 #define VCOL_NOT_STRICTLY_DETERMINISTIC                       \
   (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC | VCOL_SESSION_FUNC)
@@ -4597,7 +4600,7 @@ public:
     return make_field(share, mem_root, (uchar *) 0, (uchar *) "", 0,
                       field_name_arg);
   }
-  /* Return true if default is an expression that must be saved explicitely */
+  /* Return true if default is an expression that must be saved explicitly */
   bool has_default_expression();
 
   bool has_default_now_unireg_check() const
@@ -4964,6 +4967,5 @@ ulonglong TABLE::vers_start_id() const
   DBUG_ASSERT(versioned(VERS_TRX_ID));
   return static_cast<ulonglong>(vers_start_field()->val_int());
 }
-
 
 #endif /* FIELD_INCLUDED */

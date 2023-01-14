@@ -6,12 +6,12 @@ GRANT SELECT ON db1.* to USER_1@localhost;
 connect  con1,localhost,user_1,,db1;
 CREATE TABLE t1(f1 int);
 SELECT * FROM t1;
-ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table `db1`.`t1`
 connect  con2,localhost,USER_1,,db1;
 SELECT * FROM t1;
 f1
 CREATE TABLE t2(f1 int);
-ERROR 42000: CREATE command denied to user 'USER_1'@'localhost' for table 't2'
+ERROR 42000: CREATE command denied to user 'USER_1'@'localhost' for table `db1`.`t2`
 connection default;
 disconnect con1;
 disconnect con2;

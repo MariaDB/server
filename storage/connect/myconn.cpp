@@ -272,7 +272,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
         nf = sscanf(fld, "%s %s %s", buf, uns, zero) + 2;
         break;
       default:
-        sprintf(g->Message, MSG(BAD_FIELD_TYPE), fld);
+        snprintf(g->Message, sizeof(g->Message), MSG(BAD_FIELD_TYPE), fld);
         myc.Close();
         return NULL;
       } // endswitch nf
@@ -280,19 +280,19 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     if ((type = MYSQLtoPLG(buf, &v)) == TYPE_ERROR) {
       if (v == 'K') {
         // Skip this column
-        sprintf(g->Message, "Column %s skipped (unsupported type %s)",
+        snprintf(g->Message, sizeof(g->Message), "Column %s skipped (unsupported type %s)",
                 colname, buf);
         PushWarning(g, thd);
         continue;
         } // endif v
 
-      sprintf(g->Message, "Column %s unsupported type %s", colname, buf);
+      snprintf(g->Message, sizeof(g->Message), "Column %s unsupported type %s", colname, buf);
       myc.Close();
       return NULL;
     } else if (type == TYPE_STRING) {
       if (v == 'X') {
         len = GetConvSize();
-        sprintf(g->Message, "Column %s converted to varchar(%d)",
+        snprintf(g->Message, sizeof(g->Message), "Column %s converted to varchar(%d)",
                 colname, len);
         PushWarning(g, thd);
         v = 'V';
@@ -537,10 +537,10 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe,
 		CLIENT_MULTI_RESULTS | CLIENT_REMEMBER_OPTIONS)) {
 #if defined(_DEBUG)
-    sprintf(g->Message, "mysql_real_connect failed: (%d) %s",
+    snprintf(g->Message, sizeof(g->Message), "mysql_real_connect failed: (%d) %s",
                         mysql_errno(m_DB), mysql_error(m_DB));
 #else   // !_DEBUG
-    sprintf(g->Message, "(%d) %s", mysql_errno(m_DB), mysql_error(m_DB));
+    snprintf(g->Message, sizeof(g->Message), "(%d) %s", mysql_errno(m_DB), mysql_error(m_DB));
 #endif  // !_DEBUG
     mysql_close(m_DB);
     m_DB = NULL;
@@ -621,7 +621,7 @@ int MYSQLC::PrepareSQL(PGLOBAL g, const char *stmt)
 #if defined(ALPHA)
   if (!(m_Stmt = mysql_prepare(m_DB, stmt, strlen(stmt)))) {
 
-    sprintf(g->Message, "mysql_prepare failed: %s [%s]",
+    snprintf(g->Message, sizeof(g->Message), "mysql_prepare failed: %s [%s]",
                          mysql_error(m_DB), stmt);
     return -1;
     } // endif m_Stmt
@@ -635,7 +635,7 @@ int MYSQLC::PrepareSQL(PGLOBAL g, const char *stmt)
     } // endif m_Stmt
 
   if (mysql_stmt_prepare(m_Stmt, stmt, strlen(stmt))) {
-    sprintf(g->Message, "mysql_stmt_prepare() failed: (%d) %s",
+    snprintf(g->Message, sizeof(g->Message), "mysql_stmt_prepare() failed: (%d) %s",
             mysql_stmt_errno(m_Stmt), mysql_stmt_error(m_Stmt));
     return -3;
     } // endif prepare
@@ -658,11 +658,11 @@ int MYSQLC::BindParams(PGLOBAL g, MYSQL_BIND *bind)
 
 #if defined(ALPHA)
   if (mysql_bind_param(m_Stmt, bind)) {
-    sprintf(g->Message, "mysql_bind_param() failed: %s",
+    snprintf(g->Message, sizeof(g->Message), "mysql_bind_param() failed: %s",
                         mysql_stmt_error(m_Stmt));
 #else   // !ALPHA
   if (mysql_stmt_bind_param(m_Stmt, bind)) {
-    sprintf(g->Message, "mysql_stmt_bind_param() failed: %s",
+    snprintf(g->Message, sizeof(g->Message), "mysql_stmt_bind_param() failed: %s",
                         mysql_stmt_error(m_Stmt));
 #endif  // !ALPHA
     return RC_FX;
@@ -682,13 +682,13 @@ int MYSQLC::ExecStmt(PGLOBAL g)
 
 #if defined(ALPHA)
   if (mysql_execute(m_Stmt)) {
-    sprintf(g->Message, "mysql_execute() failed: %s",
+    snprintf(g->Message, sizeof(g->Message), "mysql_execute() failed: %s",
                         mysql_stmt_error(m_Stmt));
     return RC_FX;
     } // endif execute
 #else   // !ALPHA
   if (mysql_stmt_execute(m_Stmt)) {
-    sprintf(g->Message, "mysql_stmt_execute() failed: %s",
+    snprintf(g->Message, sizeof(g->Message), "mysql_stmt_execute() failed: %s",
                         mysql_stmt_error(m_Stmt));
     return RC_FX;
     } // endif execute
@@ -696,7 +696,7 @@ int MYSQLC::ExecStmt(PGLOBAL g)
 
   // Check the total number of affected rows
   if (mysql_stmt_affected_rows(m_Stmt) != 1) {
-    sprintf(g->Message, "Invalid affected rows by MySQL");
+    snprintf(g->Message, sizeof(g->Message), "Invalid affected rows by MySQL");
     return RC_FX;
     } // endif affected_rows
 
@@ -762,7 +762,7 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
   } else {
 //  m_Rows = (int)mysql_affected_rows(m_DB);
     m_Rows = (int)m_DB->affected_rows;
-    sprintf(g->Message, "Affected rows: %d\n", m_Rows);
+    snprintf(g->Message, sizeof(g->Message), "Affected rows: %d\n", m_Rows);
     rc = RC_NF;
   } // endif field count
 
@@ -897,7 +897,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   MYSQL_ROW    row;
 
   if (!m_Res || !m_Fields) {
-    sprintf(g->Message, "%s result", (m_Res) ? "Void" : "No");
+    snprintf(g->Message, sizeof(g->Message), "%s result", (m_Res) ? "Void" : "No");
     return NULL;
     } // endif m_Res
 
@@ -931,7 +931,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
 		crp->Name = name;
 
     if ((crp->Type = MYSQLtoPLG(fld->type, &v)) == TYPE_ERROR) {
-      sprintf(g->Message, "Type %d not supported for column %s",
+      snprintf(g->Message, sizeof(g->Message), "Type %d not supported for column %s",
                           fld->type, crp->Name);
       return NULL;
     } else if (crp->Type == TYPE_DATE && !pdb)
@@ -949,7 +949,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
 
     if (!(crp->Kdata = AllocValBlock(g, NULL, crp->Type, m_Rows,
                                      crp->Clen, 0, FALSE, TRUE, uns))) {
-      sprintf(g->Message, MSG(INV_RESULT_TYPE),
+      snprintf(g->Message, sizeof(g->Message), MSG(INV_RESULT_TYPE),
                           GetFormatType(crp->Type));
       return NULL;
     } else if (crp->Type == TYPE_DATE) {
@@ -978,7 +978,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   /*********************************************************************/
   for (n = 0; n < m_Rows; n++) {
     if (!(m_Row = mysql_fetch_row(m_Res))) {
-      sprintf(g->Message, "Missing row %d from result", n + 1);
+      snprintf(g->Message, sizeof(g->Message), "Missing row %d from result", n + 1);
       return NULL;
       } // endif m_Row
 
@@ -1056,7 +1056,7 @@ int MYSQLC::ExecSQLcmd(PGLOBAL g, const char *query, int *w)
 //if (mysql_query(m_DB, query) != 0) {
   if (mysql_real_query(m_DB, query, strlen(query))) {
     m_Afrw = (int)mysql_errno(m_DB);
-    sprintf(g->Message, "Remote: %s", mysql_error(m_DB));
+    snprintf(g->Message, sizeof(g->Message), "Remote: %s", mysql_error(m_DB));
     rc = RC_FX;
 //} else if (!(m_Fields = mysql_field_count(m_DB))) {
   } else if (!(m_Fields = (int)m_DB->field_count)) {

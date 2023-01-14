@@ -2321,6 +2321,7 @@ void st_select_lex::init_query()
   item_list.empty();
   min_max_opt_list.empty();
   join= 0;
+  cur_pos_in_select_list= UNDEF_POS;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
@@ -2434,23 +2435,9 @@ void st_select_lex_node::include_down(st_select_lex_node *upper)
 }
 
 
-void st_select_lex_node::add_slave(st_select_lex_node *slave_arg)
+void st_select_lex_node::attach_single(st_select_lex_node *slave_arg)
 {
-  for (; slave; slave= slave->next)
-    if (slave == slave_arg)
-      return;
-
-  if (slave)
-  {
-    st_select_lex_node *slave_arg_slave= slave_arg->slave;
-    /* Insert in the front of list of slaves if any. */
-    slave_arg->include_neighbour(slave);
-    /* include_neighbour() sets slave_arg->slave=0, restore it. */
-    slave_arg->slave= slave_arg_slave;
-    /* Count on include_neighbour() setting the master. */
-    DBUG_ASSERT(slave_arg->master == this);
-  }
-  else
+  DBUG_ASSERT(slave == 0);
   {
     slave= slave_arg;
     slave_arg->master= this;
@@ -2530,6 +2517,7 @@ void st_select_lex_node::fast_exclude()
   for (; slave; slave= slave->next)
     slave->fast_exclude();
   
+  prev= NULL; // to ensure correct behavior of st_select_lex_unit::is_excluded()
 }
 
 
@@ -2604,9 +2592,7 @@ void st_select_lex_node::exclude_from_tree()
 */
 void st_select_lex_node::exclude()
 {
-  /* exclude from global list */
-  fast_exclude();
-  /* exclude from other structures */
+  /* exclude the node from the tree  */
   exclude_from_tree();
   /* 
      We do not need following statements, because prev pointer of first 
@@ -2614,6 +2600,8 @@ void st_select_lex_node::exclude()
      if (master->slave == this)
        master->slave= next;
   */
+  /* exclude all nodes under this excluded node */
+  fast_exclude();
 }
 
 

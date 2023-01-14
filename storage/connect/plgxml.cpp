@@ -52,7 +52,7 @@ bool XMLDOCUMENT::InitZip(PGLOBAL g, PCSZ entry)
 	zip = new(g) UNZIPUTL(entry, NULL, mul);
 	return zip == NULL;
 #else   // !ZIP_SUPPORT
-	sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+	snprintf(g->Message, sizeof(g->Message), MSG(NO_FEAT_SUPPORT), "ZIP");
 	return true;
 #endif  // !ZIP_SUPPORT
 } // end of InitZip

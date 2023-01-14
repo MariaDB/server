@@ -100,9 +100,9 @@ RPAD(_utf32 X'0420',10,_utf32 X'0421') r;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `l` varchar(10) CHARACTER SET utf32 DEFAULT NULL,
-  `r` varchar(10) CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `l` varchar(10) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL,
+  `r` varchar(10) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select hex(l), hex(r) from t1;
 hex(l)	hex(r)
 00000421000004210000042100000421000004210000042100000421000004210000042100000420	00000420000004210000042100000421000004210000042100000421000004210000042100000421
@@ -126,9 +126,9 @@ alter table t1 add key(a);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET utf32 DEFAULT NULL,
+  `a` varchar(10) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain select * from t1 where a like 'abc%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -509,8 +509,8 @@ create table t1 (a enum('x','y','z') character set utf32);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('x','y','z') CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` enum('x','y','z') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('x');
 insert into t1 values ('y');
 insert into t1 values ('z');
@@ -523,8 +523,8 @@ alter table t1 change a a enum('x','y','z','d','e','ä','ö','ü') character set
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('D');
 insert into t1 values ('E ');
 insert into t1 values ('ä');
@@ -545,8 +545,8 @@ create table t1 (a set ('x','y','z','ä','ö','ü') character set utf32);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` set('x','y','z','ä','ö','ü') CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` set('x','y','z','ä','ö','ü') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 insert into t1 values ('x');
 insert into t1 values ('y');
 insert into t1 values ('z');
@@ -761,7 +761,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES (_utf8mb4 0xEFBE9D),(_utf8mb4 0xF0908E84);
 INSERT INTO t1 VALUES (_utf8mb4 0xCE85),(_utf8mb4 0xF4808080);
 SELECT HEX(a), HEX(CONVERT(a USING utf8mb4)) FROM t1 ORDER BY a;
@@ -894,15 +894,15 @@ NOT NULL default 'passive'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `status` enum('active','passive') CHARACTER SET utf32 NOT NULL DEFAULT 'passive'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `status` enum('active','passive') CHARACTER SET utf32 COLLATE utf32_general_ci NOT NULL DEFAULT 'passive'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 ADD a int NOT NULL AFTER status;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `status` enum('active','passive') CHARACTER SET utf32 NOT NULL DEFAULT 'passive',
+  `status` enum('active','passive') CHARACTER SET utf32 COLLATE utf32_general_ci NOT NULL DEFAULT 'passive',
   `a` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 End of 4.1 tests
 CREATE TABLE t1 (a varchar(64) character set utf32, b decimal(10,3));
@@ -1291,16 +1291,16 @@ Note	1246	Converting column 'a' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` mediumtext CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` mediumtext CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a varchar(250) character set utf32 primary key);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(250) CHARACTER SET utf32 NOT NULL,
+  `a` varchar(250) CHARACTER SET utf32 COLLATE utf32_general_ci NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a varchar(334) character set utf32 primary key);
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
@@ -1380,8 +1380,8 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 64) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(64) CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` varchar(64) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ('');
 SELECT CHARSET(CONCAT(a,'2001-01-08 00:00:00' - INTERVAL 7 DAY)) FROM t1;
 CHARSET(CONCAT(a,'2001-01-08 00:00:00' - INTERVAL 7 DAY))
@@ -1433,9 +1433,9 @@ select null, null;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `s1` varchar(64) CHARACTER SET utf32 DEFAULT NULL,
-  `s2` varchar(64) CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `s1` varchar(64) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL,
+  `s2` varchar(64) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 delete from t1;
 insert into t1 values('aaa','aaa');
 insert into t1 values('aaa|qqq','qqq');
@@ -1495,8 +1495,8 @@ CREATE TABLE t1 AS SELECT repeat('a',2) as s1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `s1` varchar(2) CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `s1` varchar(2) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ('ab'),('AE'),('ab'),('AE');
 SELECT * FROM t1 ORDER BY s1;
 s1
@@ -1556,8 +1556,8 @@ CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `CONCAT(s1)` varchar(255) CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `CONCAT(s1)` varchar(255) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;
 #
 # Bug#45263 utf32_general_ci, bad effects around CREATE TABLE AS SELECT
@@ -1590,8 +1590,8 @@ CREATE TABLE t1 AS SELECT format(123,2,'no_NO');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `format(123,2,'no_NO')` varchar(45) CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `format(123,2,'no_NO')` varchar(45) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT * FROM t1;
 format(123,2,'no_NO')
 123,00
@@ -1727,14 +1727,14 @@ CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf32 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 0041
@@ -1747,14 +1747,14 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` varchar(5) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 00410041004100410041
@@ -1767,7 +1767,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 004100410041
@@ -1780,7 +1780,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 0041004100410041004100200020002000200020
@@ -1978,13 +1978,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf32 COLLATE utf32_bin NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 000061
@@ -1998,13 +1998,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET utf32 COLLATE utf32_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(15) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 000061000061000061000061000061
@@ -2017,7 +2017,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 000061000061000061
@@ -2030,7 +2030,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(30) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 000061000061000061000061000061000020000020000020000020000020
@@ -2265,8 +2265,8 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS t LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t` varchar(10) CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `t` varchar(10) CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
 SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
 c2
@@ -2326,7 +2326,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf32_general_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf32_general_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_general_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -2464,7 +2464,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf32_general_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf32_general_nopad_ci NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=utf32 COLLATE=utf32_general_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -2603,7 +2603,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf32_nopad_bin';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf32_nopad_bin NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf32 COLLATE=utf32_nopad_bin
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -2741,7 +2741,7 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf32_nopad_bin';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf32_nopad_bin NOT NULL,
+  `a` varchar(10) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MEMORY DEFAULT CHARSET=utf32 COLLATE=utf32_nopad_bin
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
@@ -2881,7 +2881,7 @@ t1	CREATE TABLE `t1` (
   `c1` enum('\0\0\0a','\0\0\0b','\0\0\0a\0\0\0c') CHARACTER SET binary DEFAULT NULL,
   `c2` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `c3` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (c1) VALUES (1),(2),(3);
 SELECT HEX(c1) FROM t1 ORDER BY c1;
 HEX(c1)
@@ -2902,14 +2902,14 @@ ALTER TABLE t1 CHANGE a a ENUM('aa') CHARACTER SET utf32;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('慡') CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` enum('慡') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 CHANGE a a ENUM('a','b') CHARACTER SET utf32;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` enum('a','b') CHARACTER SET utf32 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `a` enum('a','b') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SET NAMES utf8;
 #
@@ -2922,9 +2922,9 @@ c2 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a'
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` enum('a','b') CHARACTER SET utf32 DEFAULT 'a',
-  `c2` enum('a','b') CHARACTER SET utf32 DEFAULT 'a'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c1` enum('a','b') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT 'a',
+  `c2` enum('a','b') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT 'a'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 (
 c1 ENUM ('00000061','00000062') DEFAULT '00000061' COLLATE latin1_bin,
@@ -2934,8 +2934,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` enum('00000061','00000062') CHARACTER SET latin1 COLLATE latin1_bin DEFAULT '00000061',
-  `c2` enum('a','b') CHARACTER SET utf32 DEFAULT 'a'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `c2` enum('a','b') CHARACTER SET utf32 COLLATE utf32_general_ci DEFAULT 'a'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 #
 # End of 10.2 tests

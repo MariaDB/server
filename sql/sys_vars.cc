@@ -2811,7 +2811,7 @@ static Sys_var_mybool Sys_skip_name_resolve(
        "skip_name_resolve",
        "Don't resolve hostnames. All hostnames are IP's or 'localhost'.",
        READ_ONLY GLOBAL_VAR(opt_skip_name_resolve),
-       CMD_LINE(OPT_ARG, OPT_SKIP_RESOLVE),
+       CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_skip_show_database(
@@ -4985,7 +4985,6 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   }
 
   rpl_filter= mi->rpl_filter;
-  tmp.length(0);
 
   mysql_mutex_lock(&LOCK_active_mi);
   switch (opt_id) {
@@ -5431,7 +5430,7 @@ static bool update_wsrep_auto_increment_control (sys_var *self, THD *thd, enum_v
   {
     /*
       The variables that control auto increment shall be calculated
-      automaticaly based on the size of the cluster. This usually done
+      automatically based on the size of the cluster. This usually done
       within the wsrep_view_handler_cb callback. However, if the user
       manually sets the value of wsrep_auto_increment_control to 'ON',
       then we should to re-calculate these variables again (because

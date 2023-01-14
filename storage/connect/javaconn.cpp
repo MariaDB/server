@@ -283,7 +283,7 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 			DWORD rc = GetLastError();
       int error_code = 0;
 
-			sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, soname);
+			snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR), rc, soname);
 			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
 										FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
 				            (LPTSTR)buf, sizeof(buf), NULL);
@@ -292,18 +292,18 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 			safe_strcat(g->Message, buf, msg_sz, &error_code);
 		} else if (!(CreateJavaVM = (CRTJVM)GetProcAddress((HINSTANCE)LibJvm,
 			                                       "JNI_CreateJavaVM"))) {
-			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), "JNI_CreateJavaVM");
+			snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), GetLastError(), "JNI_CreateJavaVM");
 			FreeLibrary((HMODULE)LibJvm);
 			LibJvm = NULL;
 		} else if (!(GetCreatedJavaVMs = (GETJVM)GetProcAddress((HINSTANCE)LibJvm,
 			                                       "JNI_GetCreatedJavaVMs"))) {
-			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), "JNI_GetCreatedJavaVMs");
+			snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), GetLastError(), "JNI_GetCreatedJavaVMs");
 			FreeLibrary((HMODULE)LibJvm);
 			LibJvm = NULL;
 #if defined(_DEBUG)
 		} else if (!(GetDefaultJavaVMInitArgs = (GETDEF)GetProcAddress((HINSTANCE)LibJvm,
 			                                       "JNI_GetDefaultJavaVMInitArgs"))) {
-			sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(),
+			snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), GetLastError(),
 				"JNI_GetDefaultJavaVMInitArgs");
 			FreeLibrary((HMODULE)LibJvm);
 			LibJvm = NULL;
@@ -334,22 +334,22 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 			// Load the desired shared library
 		if (!LibJvm) {
 			error = dlerror();
-			sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
+			snprintf(g->Message, sizeof(g->Message), MSG(SHARED_LIB_ERR), soname, SVP(error));
 		} else if (!(CreateJavaVM = (CRTJVM)dlsym(LibJvm, "JNI_CreateJavaVM"))) {
 			error = dlerror();
-			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_CreateJavaVM", SVP(error));
+			snprintf(g->Message, sizeof(g->Message), MSG(GET_FUNC_ERR), "JNI_CreateJavaVM", SVP(error));
 			dlclose(LibJvm);
 			LibJvm = NULL;
 		} else if (!(GetCreatedJavaVMs = (GETJVM)dlsym(LibJvm, "JNI_GetCreatedJavaVMs"))) {
 			error = dlerror();
-			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_GetCreatedJavaVMs", SVP(error));
+			snprintf(g->Message, sizeof(g->Message), MSG(GET_FUNC_ERR), "JNI_GetCreatedJavaVMs", SVP(error));
 			dlclose(LibJvm);
 			LibJvm = NULL;
 #if defined(_DEBUG)
 		} else if (!(GetDefaultJavaVMInitArgs = (GETDEF)dlsym(LibJvm,
 			"JNI_GetDefaultJavaVMInitArgs"))) {
 			error = dlerror();
-			sprintf(g->Message, MSG(GET_FUNC_ERR), "JNI_GetDefaultJavaVMInitArgs", SVP(error));
+			snprintf(g->Message, sizeof(g->Message), MSG(GET_FUNC_ERR), "JNI_GetDefaultJavaVMInitArgs", SVP(error));
 			dlclose(LibJvm);
 			LibJvm = NULL;
 #endif   // _DEBUG
@@ -490,7 +490,7 @@ bool JAVAConn::Open(PGLOBAL g)
 				strcpy(g->Message, "Invalid arguments");
 				break;
 			default:
-				sprintf(g->Message, "Unknown return code %d", (int)rc);
+				snprintf(g->Message, sizeof(g->Message), "Unknown return code %d", (int)rc);
 				break;
 		} // endswitch rc
 
@@ -509,7 +509,7 @@ bool JAVAConn::Open(PGLOBAL g)
 	jdi = env->FindClass(m_Wrap);
 
 	if (jdi == nullptr) {
-		sprintf(g->Message, "ERROR: class %s not found!", m_Wrap);
+		snprintf(g->Message, sizeof(g->Message), "ERROR: class %s not found!", m_Wrap);
 		return true;
 	} // endif jdi
 
@@ -555,13 +555,13 @@ bool JAVAConn::Open(PGLOBAL g)
 	jmethodID ctor = env->GetMethodID(jdi, "<init>", "(Z)V");
 
 	if (ctor == nullptr) {
-		sprintf(g->Message, "ERROR: %s constructor not found!", m_Wrap);
+		snprintf(g->Message, sizeof(g->Message), "ERROR: %s constructor not found!", m_Wrap);
 		return true;
 	} else
 		job = env->NewObject(jdi, ctor, jt);
 
 	if (job == nullptr) {
-		sprintf(g->Message, "%s class object not constructed!", m_Wrap);
+		snprintf(g->Message, sizeof(g->Message), "%s class object not constructed!", m_Wrap);
 		return true;
 	} // endif job
 

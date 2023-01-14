@@ -34,10 +34,11 @@ extern "C" {
 #ifndef __cplusplus
 #define inline __inline
 #endif
-#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
-#include <stdlib.h>
 #else
+#include <stdlib.h>
+#ifdef HAVE_ALLOCA_H
 #include <alloca.h>
+#endif
 #endif
 #endif
 

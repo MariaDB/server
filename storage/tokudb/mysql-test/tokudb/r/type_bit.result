@@ -43,7 +43,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bit(1) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (a bit(64));
 insert into t1 values 
@@ -498,7 +498,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` bit(7) DEFAULT NULL
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1, t2;
 create table t1 (id1 int(11), b1 bit(1));
 create table t2 (id2 int(11), b2 bit(1));
@@ -785,7 +785,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bit(8) DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=ENGINE DEFAULT CHARSET=latin1
+) ENGINE=ENGINE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # Bug#50591 bit(31) causes Duplicate entry '1-NULL' for key 'group_key'

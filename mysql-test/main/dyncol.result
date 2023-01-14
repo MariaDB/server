@@ -1938,7 +1938,7 @@ t1	CREATE TABLE `t1` (
   `dyncol2_check` int(11) DEFAULT column_check(`dyncol2`),
   `dyncol1_list` text DEFAULT column_list(`dyncol1`),
   `dyncol1_json` text DEFAULT column_json(`dyncol1`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (name,value) VALUES ('name0', 'value0');
 SELECT value_dyncol0_name0, value_dyncol1_name1 FROM t1;
 value_dyncol0_name0	value_dyncol1_name1

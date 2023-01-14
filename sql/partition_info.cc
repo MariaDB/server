@@ -324,27 +324,6 @@ bool partition_info::set_partition_bitmaps(List<String> *partition_names)
 }
 
 
-/**
-  Set read/lock_partitions bitmap over non pruned partitions
-
-  @param table_list   Possible TABLE_LIST which can contain
-                      list of partition names to query
-
-  @return Operation status
-    @retval FALSE  OK
-    @retval TRUE   Failed to allocate memory for bitmap or list of partitions
-                   did not match
-
-  @note OK to call multiple times without the need for free_bitmaps.
-*/
-bool partition_info::set_partition_bitmaps_from_table(TABLE_LIST *table_list)
-{
-  List<String> *partition_names= table_list ?
-                                   NULL : table_list->partition_names;
-  return set_partition_bitmaps(partition_names);
-}
-
-
 /*
   Create a memory area where default partition names are stored and fill it
   up with the names.

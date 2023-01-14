@@ -106,11 +106,17 @@ row_quiesce_write_indexes(
 	FILE*			file,	/*!< in: file to write to */
 	THD*			thd)	/*!< in/out: session */
 {
+	ulint n_indexes = 0;
+	for (const dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
+	     index; index = UT_LIST_GET_NEXT(indexes, index)) {
+		n_indexes += index->is_committed();
+	}
+
 	{
 		byte		row[sizeof(ib_uint32_t)];
 
 		/* Write the number of indexes in the table. */
-		mach_write_to_4(row, UT_LIST_GET_LEN(table->indexes));
+		mach_write_to_4(row, n_indexes);
 
 		DBUG_EXECUTE_IF("ib_export_io_write_failure_11",
 				close(fileno(file)););
@@ -131,6 +137,12 @@ row_quiesce_write_indexes(
 	for (const dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 	     index != 0 && err == DB_SUCCESS;
 	     index = UT_LIST_GET_NEXT(indexes, index)) {
+
+		if (!index->is_committed()) {
+			continue;
+		}
+
+		ut_ad(n_indexes); ut_d(n_indexes--);
 
 		byte*		ptr;
 		byte		row[sizeof(index_id_t)
@@ -202,6 +214,7 @@ row_quiesce_write_indexes(
 		err = row_quiesce_write_index_fields(index, file, thd);
 	}
 
+	ut_ad(!n_indexes);
 	return(err);
 }
 

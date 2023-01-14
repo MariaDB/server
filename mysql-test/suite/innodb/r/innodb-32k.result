@@ -269,7 +269,7 @@ tlong2	CREATE TABLE `tlong2` (
   KEY `ndx_n` (`n`(500)),
   KEY `ndx_o` (`o`(500)),
   KEY `ndx_p` (`p`(500))
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 SET SESSION innodb_strict_mode = ON;
 CREATE TABLE t3(
 a int NOT NULL, b blob NOT NULL, c text,
@@ -735,7 +735,7 @@ t2	CREATE TABLE `t2` (
   `COL195` text DEFAULT NULL,
   `COL196` text DEFAULT NULL,
   `COL197` text DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
 update t2 set col150=@a;
 update t2 set col145=@b;
 drop table t2;

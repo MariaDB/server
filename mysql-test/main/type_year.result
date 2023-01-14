@@ -514,7 +514,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a YEAR(1));
 Warnings:
 Note	1287	'YEAR(1)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -522,7 +522,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a YEAR(2));
 Warnings:
 Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -530,7 +530,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a YEAR(3));
 Warnings:
 Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -538,13 +538,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a YEAR(4));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a YEAR(5));
 Warnings:
 Note	1287	'YEAR(5)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -552,7 +552,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t1 (a YEAR(100));
 Warnings:
 Note	1287	'YEAR(100)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
@@ -560,7 +560,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 #
 # End of 10.2 tests

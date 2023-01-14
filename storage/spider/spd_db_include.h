@@ -94,6 +94,8 @@ typedef st_spider_result SPIDER_RESULT;
 
 #define SPIDER_SQL_DOT_STR "."
 #define SPIDER_SQL_DOT_LEN (sizeof(SPIDER_SQL_DOT_STR) - 1)
+#define SPIDER_SQL_PERCENT_STR "%"
+#define SPIDER_SQL_PERCENT_LEN (sizeof(SPIDER_SQL_PERCENT_STR) - 1)
 
 #define SPIDER_SQL_EQUAL_STR " = "
 #define SPIDER_SQL_EQUAL_LEN (sizeof(SPIDER_SQL_EQUAL_STR) - 1)
@@ -161,6 +163,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_IN_LEN (sizeof(SPIDER_SQL_IN_STR) - 1)
 #define SPIDER_SQL_NOT_IN_STR "not in("
 #define SPIDER_SQL_NOT_IN_LEN (sizeof(SPIDER_SQL_NOT_IN_STR) - 1)
+#define SPIDER_SQL_LIKE_STR " like "
+#define SPIDER_SQL_LIKE_LEN (sizeof(SPIDER_SQL_LIKE_STR) - 1)
 #define SPIDER_SQL_NOT_LIKE_STR "not like"
 #define SPIDER_SQL_NOT_LIKE_LEN (sizeof(SPIDER_SQL_NOT_LIKE_STR) - 1)
 #define SPIDER_SQL_AS_CHAR_STR " as char"
@@ -818,13 +822,10 @@ public:
   virtual int append_escaped_name_quote(
     spider_string *str
   ) = 0;
-  virtual int append_column_value(
-    ha_spider *spider,
-    spider_string *str,
-    Field *field,
-    const uchar *new_ptr,
-    CHARSET_INFO *access_charset
-  ) = 0;
+  virtual int append_column_value(ha_spider *spider, spider_string *str,
+                                  Field *field, const uchar *new_ptr,
+                                  bool is_like,
+                                  CHARSET_INFO *access_charset)= 0;
   virtual int append_trx_isolation(
     spider_string *str,
     int trx_isolation

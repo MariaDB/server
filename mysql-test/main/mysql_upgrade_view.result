@@ -1,3 +1,4 @@
+reset master;
 set sql_log_bin=0;
 drop table if exists t1,v1,v2,v3,v4,v1badcheck;
 drop view if exists t1,v1,v2,v3,v4,v1badcheck;

@@ -158,6 +158,14 @@ static inline bool btr_search_own_any()
 }
 #endif /* UNIV_DEBUG */
 
+static inline rw_lock_t* btr_get_search_latch(
+  index_id_t index_id, ulint space_id)
+{
+  ulint	ifold = ut_fold_ulint_pair(ulint(index_id), space_id);
+
+  return(btr_search_latches[ifold % btr_ahi_parts]);
+}
+
 /** Get the adaptive hash search index latch for a b-tree.
 @param[in]	index	b-tree index
 @return latch */
@@ -167,10 +175,7 @@ static inline rw_lock_t* btr_get_search_latch(const dict_index_t* index)
 	ut_ad(!index->table->space
 	      || index->table->space->id == index->table->space_id);
 
-	ulint	ifold = ut_fold_ulint_pair(ulint(index->id),
-					   index->table->space_id);
-
-	return(btr_search_latches[ifold % btr_ahi_parts]);
+	return btr_get_search_latch(index->id, index->table->space_id);
 }
 
 /** Get the hash-table based on index attributes.

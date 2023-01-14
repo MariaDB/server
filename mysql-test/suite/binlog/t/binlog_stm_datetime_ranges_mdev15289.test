@@ -1,6 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_binlog_format_statement.inc
-
+reset master; # clear up binlogs
 --exec $MYSQL_CLIENT_TEST test_datetime_ranges_mdev15289 > $MYSQLTEST_VARDIR/log/binlog_stm_datetime_ranges_mysql_client_test.out.log 2>&1
 
 --let $binlog_file = LAST

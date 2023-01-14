@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -633,7 +633,11 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
       if (!share->view_def)
         share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
       else
+      {
         share->error= OPEN_FRM_OK;
+        if (mariadb_view_version_get(share))
+          share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
+      }
     }
     else
       share->error= OPEN_FRM_NOT_A_TABLE;
@@ -2625,6 +2629,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         share->stored_fields--;
         if (reg_field->flags & BLOB_FLAG)
           share->virtual_not_stored_blob_fields++;
+        if (reg_field->flags & PART_KEY_FLAG)
+          vcol_info->set_vcol_type(VCOL_GENERATED_VIRTUAL_INDEXED);
         /* Correct stored_rec_length as non stored fields are last */
         recpos= (uint) (reg_field->ptr - record);
         if (share->stored_rec_length >= recpos)
@@ -3004,7 +3010,7 @@ class Vcol_expr_context
   bool inited;
   THD *thd;
   TABLE *table;
-  Query_arena backup_arena;
+  Query_arena backup_arena, *stmt_arena;
   table_map old_map;
   Security_context *save_security_ctx;
   sql_mode_t save_sql_mode;
@@ -3014,6 +3020,7 @@ public:
     inited(false),
     thd(_thd),
     table(_table),
+    stmt_arena(thd->stmt_arena),
     old_map(table->map),
     save_security_ctx(thd->security_ctx),
     save_sql_mode(thd->variables.sql_mode) {}
@@ -3034,6 +3041,7 @@ bool Vcol_expr_context::init()
     thd->security_ctx= tl->security_ctx;
 
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
+  thd->stmt_arena= thd;
 
   inited= true;
   return false;
@@ -3047,6 +3055,7 @@ Vcol_expr_context::~Vcol_expr_context()
   thd->security_ctx= save_security_ctx;
   thd->restore_active_arena(table->expr_arena, &backup_arena);
   thd->variables.sql_mode= save_sql_mode;
+  thd->stmt_arena= stmt_arena;
 }
 
 
@@ -3155,7 +3164,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
              get_vcol_type_name(), name.str);
     DBUG_RETURN(1);
   }
-  else if (unlikely(res.errors & VCOL_AUTO_INC))
+  else if (res.errors & VCOL_AUTO_INC && vcol_type != VCOL_GENERATED_VIRTUAL)
   {
     /*
       An auto_increment field may not be used in an expression for
@@ -3166,10 +3175,17 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
       pointer at that time
     */
     myf warn= table->s->frm_version < FRM_VER_EXPRESSSIONS ? ME_JUST_WARNING : 0;
-    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
              "AUTO_INCREMENT", get_vcol_type_name(), res.name);
     if (!warn)
       DBUG_RETURN(1);
+  }
+  else if (vcol_type != VCOL_GENERATED_VIRTUAL && vcol_type != VCOL_DEFAULT &&
+           res.errors & VCOL_NOT_STRICTLY_DETERMINISTIC)
+  {
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0),
+             res.name, get_vcol_type_name(), name.str);
+    DBUG_RETURN(1);
   }
   flags= res.errors;
 
@@ -4197,7 +4213,8 @@ void update_create_info_from_table(HA_CREATE_INFO *create_info, TABLE *table)
 int
 rename_file_ext(const char * from,const char * to,const char * ext)
 {
-  char from_b[FN_REFLEN],to_b[FN_REFLEN];
+  /* Reserve space for ./databasename/tablename.frm + NUL byte */
+  char from_b[2 + FN_REFLEN + 4 + 1], to_b[2 + FN_REFLEN + 4 + 1];
   (void) strxmov(from_b,from,ext,NullS);
   (void) strxmov(to_b,to,ext,NullS);
   return mysql_file_rename(key_file_frm, from_b, to_b, MYF(0));
@@ -8154,12 +8171,28 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   DBUG_RETURN(in_use->is_error());
 }
 
-int TABLE::update_virtual_field(Field *vf)
+/*
+  Calculate the virtual field value for a specified field.
+  @param vf                     A field to calculate
+  @param ignore_warnings        Ignore the warnings and also make the
+                                calculations permissive. This usually means
+                                that a calculation is internal and is not
+                                expected to fail.
+*/
+int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
 {
   DBUG_ENTER("TABLE::update_virtual_field");
   Query_arena backup_arena;
   Counting_error_handler count_errors;
+  Suppress_warnings_error_handler warning_handler;
   in_use->push_internal_handler(&count_errors);
+  bool abort_on_warning= ignore_warnings;
+  if (ignore_warnings)
+  {
+    abort_on_warning= in_use->abort_on_warning;
+    in_use->abort_on_warning= false;
+    in_use->push_internal_handler(&warning_handler);
+  }
   /*
     TODO: this may impose memory leak until table flush.
           See comment in
@@ -8171,6 +8204,13 @@ int TABLE::update_virtual_field(Field *vf)
   vf->vcol_info->expr->save_in_field(vf, 0);
   in_use->restore_active_arena(expr_arena, &backup_arena);
   in_use->pop_internal_handler();
+  if (ignore_warnings)
+  {
+    in_use->abort_on_warning= abort_on_warning;
+    in_use->pop_internal_handler();
+    // This is an internal calculation, we expect it to always succeed
+    DBUG_ASSERT(count_errors.errors == 0);
+  }
   DBUG_RETURN(count_errors.errors);
 }
 
@@ -8794,15 +8834,17 @@ bool TABLE_LIST::change_refs_to_fields()
   List_iterator<Item> li(used_items);
   Item_direct_ref *ref;
   Field_iterator_view field_it;
+  Name_resolution_context *ctx;
   THD *thd= table->in_use;
+  Item **materialized_items;
   DBUG_ASSERT(is_merged_derived());
 
   if (!used_items.elements)
     return FALSE;
 
-  Item **materialized_items=
-      (Item **)thd->calloc(sizeof(void *) * table->s->fields);
-  if (!materialized_items)
+  materialized_items= (Item **)thd->calloc(sizeof(void *) * table->s->fields);
+  ctx= new (thd->mem_root) Name_resolution_context(this);
+  if (!materialized_items || !ctx)
     return TRUE;
 
   while ((ref= (Item_direct_ref*)li++))
@@ -8818,7 +8860,8 @@ bool TABLE_LIST::change_refs_to_fields()
     DBUG_ASSERT(!field_it.end_of_fields());
     if (!materialized_items[idx])
     {
-      materialized_items[idx]= new (thd->mem_root) Item_field(thd, table->field[idx]);
+      materialized_items[idx]=
+        new (thd->mem_root) Item_field(thd, ctx, table->field[idx]);
       if (!materialized_items[idx])
         return TRUE;
     }
@@ -8859,6 +8902,73 @@ bool TABLE_LIST::is_with_table()
 {
   return derived && derived->with_element;
 }
+
+
+/**
+  Check if the definition are the same.
+
+  If versions do not match it check definitions (with checking and setting
+  trigger definition versions (times)
+
+  @param[in]  view                TABLE_LIST of the view
+  @param[in]  share               Share object of view
+
+  @return false on error or different definitions.
+
+  @sa check_and_update_table_version()
+*/
+
+bool TABLE_LIST::is_the_same_definition(THD* thd, TABLE_SHARE *s)
+{
+  enum enum_table_ref_type tp= s->get_table_ref_type();
+  if (m_table_ref_type == tp)
+  {
+    /*
+      Cache have not changed which means that definition was not changed
+      including triggers
+    */
+    if (m_table_ref_version == s->get_table_ref_version())
+      return TRUE;
+
+    /*
+      If cache changed then check content version
+    */
+    if ((tabledef_version.length &&
+         tabledef_version.length == s->tabledef_version.length &&
+         memcmp(tabledef_version.str, s->tabledef_version.str,
+                tabledef_version.length) == 0))
+    {
+      // Definition have not changed, let's check if triggers changed.
+      if (table && table->triggers)
+      {
+
+        my_hrtime_t hr_stmt_prepare= thd->hr_prepare_time;
+        if (hr_stmt_prepare.val)
+          for(uint i= 0; i < TRG_EVENT_MAX; i++)
+            for (uint j= 0; j < TRG_ACTION_MAX; j++)
+            {
+              Trigger *tr=
+                table->triggers->get_trigger((trg_event_type)i,
+                                             (trg_action_time_type)j);
+              if (tr)
+                if (hr_stmt_prepare.val <= tr->hr_create_time.val)
+                {
+                  set_tabledef_version(s);
+                  return FALSE;
+                }
+            }
+      }
+      set_table_id(s);
+      return TRUE;
+    }
+    else
+      tabledef_version.length= 0;
+  }
+  else
+    set_tabledef_version(s);
+  return FALSE;
+}
+
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {

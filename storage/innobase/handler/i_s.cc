@@ -6824,6 +6824,11 @@ i_s_sys_tablespaces_fill_table(
 	mutex_exit(&dict_sys->mutex);
 	mem_heap_free(heap);
 
+	i_s_dict_fill_sys_tablespaces(
+		thd, fil_system.temp_space->id,
+		fil_system.temp_space->name,
+		fil_system.temp_space->flags, tables->table);
+
 	DBUG_RETURN(0);
 }
 /*******************************************************************//**

@@ -166,4 +166,19 @@ buffer_LRU_batch_evict_total_pages	buffer
 # FLUSH TABLES t1 FOR EXPORT;
 # UNLOCK TABLES;
 DROP TABLE t1;
+#
+# MDEV-29666 InnoDB fails to purge secondary index records
+#            when indexed virtual columns exist
+#
+CREATE TABLE t1 (a INT, b INT, a1 INT AS(a) VIRTUAL,
+INDEX(a1),INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1, b=1;
+UPDATE t1 SET a=2, b=3;
+InnoDB		0 transactions not purged
+FLUSH TABLE t1 FOR EXPORT;
+page 4: N_RECS=0x0001
+page 5: N_RECS=0x0001
+UNLOCK TABLES;
+DROP TABLE t1;
+# End of 10.3 tests
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

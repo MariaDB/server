@@ -528,7 +528,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `constraint_1` (`a`),
   UNIQUE KEY `key_1` (`a`),
   UNIQUE KEY `key_2` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 select * from information_schema.TABLE_CONSTRAINTS where
 TABLE_SCHEMA= "test";
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_TYPE
@@ -604,7 +604,7 @@ CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL,
   `DESCRIPTION` varchar(60) NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 set names latin2;
 SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
 Table	Create Table
@@ -613,7 +613,7 @@ CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL,
   `DESCRIPTION` varchar(60) NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 set names latin1;
 create table t1 select * from information_schema.CHARACTER_SETS
 where CHARACTER_SET_NAME like "latin1";
@@ -628,7 +628,7 @@ t1	CREATE TABLE `t1` (
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL,
   `DESCRIPTION` varchar(60) NOT NULL,
   `MAXLEN` bigint(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 drop table t1;
 create view v1 as select * from information_schema.TABLES;
 drop view v1;
@@ -1043,7 +1043,7 @@ GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 show grants;
 Grants for user1@localhost
 GRANT USAGE ON *.* TO `user1`@`localhost`
-GRANT SELECT (f1) ON `mysqltest`.`t1` TO `user1`@`localhost`
+GRANT SELECT (`f1`) ON `mysqltest`.`t1` TO `user1`@`localhost`
 connection con2;
 select * from information_schema.column_privileges order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
@@ -1118,7 +1118,7 @@ drop procedure p1;
 drop procedure p2;
 show create database information_schema;
 Database	Create Database
-information_schema	CREATE DATABASE `information_schema` /*!40100 DEFAULT CHARACTER SET utf8 */
+information_schema	CREATE DATABASE `information_schema` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
 create table t1(f1 LONGBLOB, f2 LONGTEXT);
 select column_name,data_type,CHARACTER_OCTET_LENGTH,
 CHARACTER_MAXIMUM_LENGTH
@@ -2217,8 +2217,9 @@ Warning	1931	Query execution was interrupted. The query examined at least ### ro
 # m_status == DA_OK_BULK' failed in Diagnostics_area::message()
 #
 call mtr.add_suppression("Sort aborted.*");
-DROP DATABASE test;
-CREATE DATABASE test;
+create database dummy;
+use dummy;
+drop database dummy;
 USE test;
 CREATE VIEW v AS SELECT table_schema  AS object_schema, table_name  AS object_name, table_type AS object_type FROM information_schema.tables ORDER BY object_schema;
 SELECT * FROM v LIMIT ROWS EXAMINED 9;
@@ -2350,17 +2351,17 @@ drop table t1;
 SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
 CREATE OR REPLACE TABLE t1 AS SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
 SHOW returned: CREATE TABLE `t1` (
-  `TABLE_NAME` varchar(64) CHARACTER SET utf8 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `TABLE_NAME` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE `t1` (
-  `TABLE_NAME` varchar(64) CHARACTER SET utf8 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+  `TABLE_NAME` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `TABLE_NAME` varchar(64) CHARACTER SET utf8 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+  `TABLE_NAME` varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SET SQL_MODE=DEFAULT;
 SET SQL_MODE= 'EMPTY_STRING_IS_NULL';

@@ -185,7 +185,9 @@ static SHOW_VAR hs_status_variables[] = {
   {NullS, NullS, SHOW_LONG}
 };
 
-static int show_hs_vars(THD *thd, SHOW_VAR *var, char *buff)
+static int show_hs_vars(THD *thd, SHOW_VAR *var, void *buff,
+                        struct system_status_var *status_var,
+                        enum enum_var_type var_type)
 {
   var->type= SHOW_ARRAY;
   var->value= (char *) &hs_status_variables;
@@ -193,7 +195,7 @@ static int show_hs_vars(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 static SHOW_VAR daemon_handlersocket_status_variables[] = {
-  {"Hs", (char*) show_hs_vars, SHOW_FUNC},
+  SHOW_FUNC_ENTRY("Hs", &show_hs_vars),
   {NullS, NullS, SHOW_LONG}
 };
 

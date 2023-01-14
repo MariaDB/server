@@ -22,7 +22,7 @@ use test;
 1tsetlqsym`*/;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1
-1tsetlqsym` /*!40100 DEFAULT CHARACTER SET latin1 */;
+1tsetlqsym` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `mysqltest1
 1tsetlqsym`;
@@ -38,7 +38,7 @@ CREATE TABLE `t1
 1t` (
   `foobar
 raboof` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -53,11 +53,10 @@ raboof` int(11) DEFAULT NULL
 
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v1
-1v` (
-  `foobar
-raboof` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v1
+1v` AS SELECT
+ 1 AS `foobar
+raboof` */;
 SET character_set_client = @saved_cs_client;
 
 --
@@ -95,7 +94,7 @@ USE `mysqltest1
 -- 1v`
 --
 
-/*!50001 DROP TABLE IF EXISTS `v1
+/*!50001 DROP VIEW IF EXISTS `v1
 1v`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
@@ -142,7 +141,7 @@ test`
 
 /*!40000 DROP DATABASE IF EXISTS `test```*/;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test``` /*!40100 DEFAULT CHARACTER SET latin1 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test``` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `test```;
 
@@ -158,7 +157,7 @@ USE `test```;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test\``
 \! ls
-#` /*!40100 DEFAULT CHARACTER SET latin1 */;
+#` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `test\``
 \! ls

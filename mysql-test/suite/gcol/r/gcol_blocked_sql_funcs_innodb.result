@@ -129,7 +129,7 @@ create table t1 (a int, b int generated always as (stddev_pop(a)) virtual);
 ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # STDDEV_SAMP()
 create table t1 (a int, b int generated always as (stddev_samp(a)) virtual);
-ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'stddev_samp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # STDDEV()
 create table t1 (a int, b int generated always as (stddev(a)) virtual);
 ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
@@ -170,6 +170,9 @@ alter table t1 add column r blob generated always
 as (match(a) against ('' in boolean mode)) virtual;
 ERROR HY000: Function or expression 'match ... against()' cannot be used in the GENERATED ALWAYS AS clause of `r`
 drop table t1;
+#
+# End of 10.3 tests
+#
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;

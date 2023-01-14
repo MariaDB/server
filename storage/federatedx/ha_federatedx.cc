@@ -314,6 +314,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include <mysql/plugin.h>
+#include <mysql.h>
 #include "ha_federatedx.h"
 #include "sql_servers.h"
 #include "sql_analyse.h"                        // append_escaped()
@@ -2626,7 +2627,7 @@ int ha_federatedx::index_read_idx_with_result_set(uchar *buf, uint index,
 
   if (io->query(sql_query.ptr(), sql_query.length()))
   {
-    sprintf(error_buffer, "error: %d '%s'",
+    snprintf(error_buffer, sizeof(error_buffer), "error: %d '%s'",
             io->error_code(), io->error_str());
     retval= ER_QUERY_ON_FOREIGN_DATA_SOURCE;
     goto error;
@@ -3352,7 +3353,7 @@ static int test_connection(MYSQL_THD thd, federatedx_io *io,
 
   if ((retval= io->query(str.ptr(), str.length())))
   {
-    sprintf(buffer, "database: '%s'  username: '%s'  hostname: '%s'",
+    snprintf(buffer, sizeof(buffer), "database: '%s'  username: '%s'  hostname: '%s'",
             share->database, share->username, share->hostname);
     DBUG_PRINT("info", ("error-code: %d", io->error_code()));
     my_error(ER_CANT_CREATE_FEDERATED_TABLE, MYF(0), buffer);

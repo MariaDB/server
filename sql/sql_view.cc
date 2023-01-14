@@ -302,7 +302,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
       {
         my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
                  "ANY", thd->security_ctx->priv_user,
-                 thd->security_ctx->priv_host, tbl->table_name.str);
+                 thd->security_ctx->priv_host,
+                 tbl->db.str, tbl->table_name.str);
         goto err;
       }
       /*
@@ -785,7 +786,7 @@ static File_option view_parameters[]=
   my_offsetof(TABLE_LIST, with_check),
   FILE_OPTIONS_ULONGLONG},
  {{ STRING_WITH_LEN("timestamp")},
-  my_offsetof(TABLE_LIST, timestamp),
+  my_offsetof(TABLE_LIST, hr_timestamp),
   FILE_OPTIONS_TIMESTAMP},
  {{ STRING_WITH_LEN("create-version")},
   my_offsetof(TABLE_LIST, file_version),
@@ -809,6 +810,15 @@ static File_option view_parameters[]=
   FILE_OPTIONS_STRING}
 };
 
+
+static File_option view_timestamp_parameters[]=
+{
+
+ {{ C_STRING_WITH_LEN("timestamp")}, 0, FILE_OPTIONS_TIMESTAMP},
+ {{NullS, 0}, 0, FILE_OPTIONS_STRING}
+};
+
+
 static LEX_CSTRING view_file_type[]= {{STRING_WITH_LEN("VIEW") }};
 
 
@@ -826,8 +836,8 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
                      &path, path_buff, sizeof(path_buff),
                      &file, view);
   /* init timestamp */
-  if (!view->timestamp.str)
-    view->timestamp.str= view->timestamp_buffer;
+  if (!view->hr_timestamp.str)
+    view->hr_timestamp.str= view->timestamp_buffer;
 
   if (swap_alg && view->algorithm != VIEW_ALGORITHM_UNDEFINED)
   {
@@ -842,13 +852,13 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
     swap_alg= 0;
   if (wrong_checksum)
   {
-    if (view->md5.length != 32)
+    if (view->md5.length != VIEW_MD5_LEN)
     {
-       if ((view->md5.str= (char *)thd->alloc(32 + 1)) == NULL)
+       if ((view->md5.str= (char *)thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
     view->calc_md5(const_cast<char*>(view->md5.str));
-    view->md5.length= 32;
+    view->md5.length= VIEW_MD5_LEN;
   }
   view->mariadb_version= MYSQL_VERSION_ID;
 
@@ -971,13 +981,13 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view->file_version= 2;
   view->mariadb_version= MYSQL_VERSION_ID;
   view->calc_md5(md5);
-  if (!(view->md5.str= (char*) thd->memdup(md5, 32)))
+  if (!(view->md5.str= (char*) thd->memdup(md5, VIEW_MD5_LEN)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     error= -1;
     goto err;   
   }
-  view->md5.length= 32;
+  view->md5.length= VIEW_MD5_LEN;
   can_be_merged= lex->can_be_merged();
   if (lex->create_view->algorithm == VIEW_ALGORITHM_MERGE &&
       !lex->can_be_merged())
@@ -1028,8 +1038,8 @@ loop_out:
                      &path, path_buff, sizeof(path_buff),
                      &file, view);
   /* init timestamp */
-  if (!view->timestamp.str)
-    view->timestamp.str= view->timestamp_buffer;
+  if (!view->hr_timestamp.str)
+    view->hr_timestamp.str= view->timestamp_buffer;
 
   /* check old .frm */
   {
@@ -1154,7 +1164,39 @@ err:
   DBUG_RETURN(error);
 }
 
+/**
+  Reads view definition "version"
 
+  @param[in]  share               Share object of view
+
+  @return true on error, otherwise false
+*/
+
+bool mariadb_view_version_get(TABLE_SHARE *share)
+{
+  DBUG_ASSERT(share->is_view);
+  DBUG_ASSERT(share->tabledef_version.length == 0);
+
+  if (!(share->tabledef_version.str=
+        (uchar*) alloc_root(&share->mem_root,
+                            MICROSECOND_TIMESTAMP_BUFFER_SIZE)))
+    return TRUE;
+
+  DBUG_ASSERT(share->view_def != NULL);
+  if (share->view_def->parse((uchar *) &share->tabledef_version, NULL,
+                             view_timestamp_parameters, 1,
+                             &file_parser_dummy_hook))
+  {
+    // safety if the definition file is brocken
+    share->tabledef_version.length= 0;
+    my_error(ER_TABLE_CORRUPT, MYF(0),
+             share->db.str, share->table_name.str);
+    return TRUE;
+  }
+  DBUG_ASSERT(share->tabledef_version.length == MICROSECOND_TIMESTAMP_BUFFER_SIZE-1);
+
+  return FALSE;
+}
 
 /**
   read VIEW .frm and create structures
@@ -1216,6 +1258,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     mysql_derived_reinit(thd, NULL, table);
 
     DEBUG_SYNC(thd, "after_cached_view_opened");
+    DBUG_ASSERT(share->tabledef_version.length);
     DBUG_RETURN(0);
   }
 
@@ -1252,8 +1295,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   /* init timestamp */
-  if (!table->timestamp.str)
-    table->timestamp.str= table->timestamp_buffer;
+  if (!table->hr_timestamp.str)
+    table->hr_timestamp.str= table->timestamp_buffer;
   /* prepare default values for old format */
   table->view_suid= TRUE;
   table->definer.user.str= table->definer.host.str= 0;
@@ -1269,6 +1312,11 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                                       required_view_parameters,
                                       &file_parser_dummy_hook)))
     goto end;
+  DBUG_ASSERT(share->tabledef_version.length);
+  if (!table->tabledef_version.length)
+  {
+    table->set_view_def_version(&table->hr_timestamp);
+  }
 
   /*
     check old format view .frm
@@ -2092,10 +2140,10 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
 int view_checksum(THD *thd, TABLE_LIST *view)
 {
   char md5[MD5_BUFF_LENGTH];
-  if (!view->view || view->md5.length != 32)
+  if (!view->view || view->md5.length != VIEW_MD5_LEN)
     return HA_ADMIN_NOT_IMPLEMENTED;
   view->calc_md5(md5);
-  return (strncmp(md5, view->md5.str, 32) ?
+  return (strncmp(md5, view->md5.str, VIEW_MD5_LEN) ?
           HA_ADMIN_WRONG_CHECKSUM :
           HA_ADMIN_OK);
 }
@@ -2199,7 +2247,7 @@ mysql_rename_view(THD *thd,
       object for it.
     */
     view_def.reset();
-    view_def.timestamp.str= view_def.timestamp_buffer;
+    view_def.hr_timestamp.str= view_def.timestamp_buffer;
     view_def.view_suid= TRUE;
 
     /* get view definition and source */

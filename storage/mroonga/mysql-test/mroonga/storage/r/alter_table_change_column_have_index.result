@@ -12,5 +12,5 @@ bugs	CREATE TABLE `bugs` (
   `title` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `title` (`title`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
+) ENGINE=Mroonga DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 DROP TABLE bugs;

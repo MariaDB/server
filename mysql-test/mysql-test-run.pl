@@ -1963,7 +1963,7 @@ sub collect_mysqld_features_from_running_server ()
 
 sub find_mysqld {
 
-  my ($mysqld_basedir)= $ENV{MTR_BINDIR}|| @_;
+  my ($mysqld_basedir)= $ENV{MTR_BINDIR_FORCED} || $ENV{MTR_BINDIR} || @_;
 
   my @mysqld_names= ("mysqld", "mysqld-max-nt", "mysqld-max",
 		     "mysqld-nt");
@@ -1974,7 +1974,7 @@ sub find_mysqld {
     unshift(@mysqld_names, "mysqld-debug");
   }
 
-  return my_find_bin($bindir,
+  return my_find_bin($mysqld_basedir,
 		     ["sql", "libexec", "sbin", "bin"],
 		     [@mysqld_names]);
 }
@@ -4521,6 +4521,7 @@ sub extract_warning_lines ($$) {
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
      qr|InnoDB: io_setup\(\) attempt|,
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
+     qr/InnoDB: Failed to set (O_DIRECT|DIRECTIO_ON) on file/,
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
@@ -4709,7 +4710,7 @@ sub check_warnings ($) {
 	$tinfo->{comment}.=
 	  "Could not execute 'check-warnings' for ".
 	    "testcase '$tname' (res: $res) server: '".
-              $mysqld->name() .":\n";
+              $mysqld->name() ."':\n";
 	$tinfo->{comment}.= $report;
 
 	$result= 2;
@@ -4788,6 +4789,7 @@ sub check_expected_crash_and_restart {
         mtr_verbose("Test says wait before restart") if $waits == 0;
         next;
       }
+      delete $ENV{MTR_BINDIR_FORCED};
 
       # Ignore any partial or unknown command
       next unless $last_line =~ /^restart/;
@@ -4795,7 +4797,13 @@ sub check_expected_crash_and_restart {
       # extra command line options to add to the restarted mysqld.
       # Anything other than 'wait' or 'restart:' (with a colon) will
       # result in a restart with original mysqld options.
-      if ($last_line =~ /restart:(.+)/) {
+      if ($last_line =~ /restart_bindir\s+(\S+)(:.+)?/) {
+        $ENV{MTR_BINDIR_FORCED}= $1;
+        if ($2) {
+          my @rest_opt= split(' ', $2);
+          $mysqld->{'restart_opts'}= \@rest_opt;
+        }
+      } elsif ($last_line =~ /restart:(.+)/) {
         my @rest_opt= split(' ', $1);
         $mysqld->{'restart_opts'}= \@rest_opt;
       } else {

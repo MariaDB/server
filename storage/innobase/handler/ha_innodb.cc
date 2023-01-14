@@ -6268,11 +6268,6 @@ no_such_table:
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
 	if ((ib_table->flags2 & DICT_TF2_DISCARDED)) {
-
-		ib_senderrf(thd,
-			IB_LOG_LEVEL_WARN, ER_TABLESPACE_DISCARDED,
-			table->s->table_name.str);
-
 		/* Allow an open because a proper DISCARD should have set
 		all the flags and index root page numbers to FIL_NULL that
 		should prevent any DML from running but it should allow DDL
@@ -6912,7 +6907,8 @@ innobase_mysql_fts_get_token(
 
 	ulint	mwc = 0;
 	ulint	length = 0;
-
+	bool	reset_token_str = false;
+reset:
 	token->f_str = const_cast<byte*>(doc);
 
 	while (doc < end) {
@@ -6923,6 +6919,9 @@ innobase_mysql_fts_get_token(
 			cs, &ctype, (uchar*) doc, (uchar*) end);
 		if (true_word_char(ctype, *doc)) {
 			mwc = 0;
+		} else if (*doc == '\'' && length == 1) {
+			/* Could be apostrophe */
+			reset_token_str = true;
 		} else if (!misc_word_char(*doc) || mwc) {
 			break;
 		} else {
@@ -6932,6 +6931,14 @@ innobase_mysql_fts_get_token(
 		++length;
 
 		doc += mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1);
+		if (reset_token_str) {
+			/* Reset the token if the single character
+			followed by apostrophe */
+			mwc = 0;
+			length = 0;
+			reset_token_str = false;
+			goto reset;
+		}
 	}
 
 	token->f_len = (uint) (doc - token->f_str) - mwc;
@@ -7690,6 +7697,11 @@ ha_innobase::build_template(
 
 	m_prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
+
+	if (m_prebuilt->in_fts_query) {
+		/* Do clustered index lookup to fetch the FTS_DOC_ID */
+		m_prebuilt->need_to_access_clustered = true;
+	}
 
 	/* Either m_prebuilt->index should be a secondary index, or it
 	should be the clustered index. */
@@ -8945,16 +8957,21 @@ ha_innobase::update_row(
 		const bool vers_ins_row = vers_set_fields
 			&& thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE;
 
+                TABLE_LIST *tl= table->pos_in_table_list;
+                uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
 		/* This is not a delete */
 		m_prebuilt->upd_node->is_delete =
 			(vers_set_fields && !vers_ins_row) ||
-			(thd_sql_command(m_user_thd) == SQLCOM_DELETE &&
+			(op_map & trg2bit(TRG_EVENT_DELETE) &&
 				table->versioned(VERS_TIMESTAMP))
 			? VERSIONED_DELETE
 			: NO_DELETE;
 
 		innobase_srv_conc_enter_innodb(m_prebuilt);
 
+		if (m_prebuilt->upd_node->is_delete) {
+			trx->fts_next_doc_id = 0;
+		}
 		error = row_update_for_mysql(m_prebuilt);
 
 		if (error == DB_SUCCESS && vers_ins_row
@@ -9072,6 +9089,7 @@ ha_innobase::delete_row(
 		&& trx->id != table->vers_start_id()
 		? VERSIONED_DELETE
 		: PLAIN_DELETE;
+	trx->fts_next_doc_id = 0;
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
@@ -10067,9 +10085,12 @@ ha_innobase::ft_init_ext(
 /*****************************************************************//**
 Set up search tuple for a query through FTS_DOC_ID_INDEX on
 supplied Doc ID. This is used by MySQL to retrieve the documents
-once the search result (Doc IDs) is available */
+once the search result (Doc IDs) is available
+
+@return DB_SUCCESS or DB_INDEX_CORRUPT
+*/
 static
-void
+dberr_t
 innobase_fts_create_doc_id_key(
 /*===========================*/
 	dtuple_t*	tuple,		/* in/out: m_prebuilt->search_tuple */
@@ -10081,8 +10102,10 @@ innobase_fts_create_doc_id_key(
 {
 	doc_id_t	temp_doc_id;
 	dfield_t*	dfield = dtuple_get_nth_field(tuple, 0);
+	const ulint	n_uniq = index->table->fts_n_uniq();
 
-	ut_a(dict_index_get_n_unique(index) == 1);
+	if (dict_index_get_n_unique(index) != n_uniq)
+		return DB_INDEX_CORRUPT;
 
 	dtuple_set_n_fields(tuple, index->n_fields);
 	dict_index_copy_types(tuple, index, index->n_fields);
@@ -10100,12 +10123,25 @@ innobase_fts_create_doc_id_key(
 	*doc_id = temp_doc_id;
 	dfield_set_data(dfield, doc_id, sizeof(*doc_id));
 
-        dtuple_set_n_fields_cmp(tuple, 1);
+	if (n_uniq == 2) {
+		ut_ad(index->table->versioned());
+		dfield = dtuple_get_nth_field(tuple, 1);
+		if (index->table->versioned_by_id()) {
+			dfield_set_data(dfield, trx_id_max_bytes,
+					sizeof(trx_id_max_bytes));
+		} else {
+			dfield_set_data(dfield, timestamp_max_bytes,
+					sizeof(timestamp_max_bytes));
+		}
+	}
 
-	for (ulint i = 1; i < index->n_fields; i++) {
+	dtuple_set_n_fields_cmp(tuple, n_uniq);
+
+	for (ulint i = n_uniq; i < index->n_fields; i++) {
 		dfield = dtuple_get_nth_field(tuple, i);
 		dfield_set_null(dfield);
 	}
+	return DB_SUCCESS;
 }
 
 /**********************************************************************//**
@@ -10187,14 +10223,18 @@ next_record:
 		/* We pass a pointer of search_doc_id because it will be
 		converted to storage byte order used in the search
 		tuple. */
-		innobase_fts_create_doc_id_key(tuple, index, &search_doc_id);
+		dberr_t ret = innobase_fts_create_doc_id_key(
+			tuple, index, &search_doc_id);
 
-		innobase_srv_conc_enter_innodb(m_prebuilt);
+		if (ret == DB_SUCCESS) {
+			innobase_srv_conc_enter_innodb(m_prebuilt);
 
-		dberr_t ret = row_search_for_mysql(
-			(byte*) buf, PAGE_CUR_GE, m_prebuilt, ROW_SEL_EXACT, 0);
+			ret = row_search_for_mysql(
+				(byte*) buf, PAGE_CUR_GE, m_prebuilt,
+				ROW_SEL_EXACT, 0);
 
-		innobase_srv_conc_exit_innodb(m_prebuilt);
+			innobase_srv_conc_exit_innodb(m_prebuilt);
+		}
 
 		int	error;
 
@@ -13614,6 +13654,12 @@ int ha_innobase::truncate()
 	if (ib_table->is_temporary()) {
 		info.options|= HA_LEX_CREATE_TMP_TABLE;
 	} else {
+		if (!ib_table->space) {
+			ib_senderrf(m_user_thd,
+				    IB_LOG_LEVEL_WARN, ER_TABLESPACE_DISCARDED,
+				    table->s->table_name.str);
+		}
+
 		dict_get_and_save_data_dir_path(ib_table, false);
 	}
 
@@ -14382,9 +14428,11 @@ ha_innobase::info_low(
 			stats.index_file_length
 				= ulonglong(stat_sum_of_other_index_sizes)
 				* size;
+			rw_lock_s_lock(&space->latch);
 			stats.delete_length = 1024
 				* fsp_get_available_space_in_free_extents(
 					*space);
+			rw_lock_s_unlock(&space->latch);
 		}
 		stats.check_time = 0;
 		stats.mrr_length_per_rec= (uint)ref_length +  8; // 8 = max(sizeof(void *));
@@ -17517,7 +17565,7 @@ innodb_stopword_table_validate(
 	/* Validate the stopword table's (if supplied) existence and
 	of the right format */
 	int ret = stopword_table_name && !fts_valid_stopword_table(
-		stopword_table_name);
+		stopword_table_name, NULL);
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -18396,7 +18444,9 @@ innodb_enable_monitor_at_startup(
 /****************************************************************//**
 Callback function for accessing the InnoDB variables from MySQL:
 SHOW VARIABLES. */
-static int show_innodb_vars(THD*, SHOW_VAR* var, char*)
+static int show_innodb_vars(THD*, SHOW_VAR* var, void *,
+                            struct system_status_var *status_var,
+                            enum enum_var_type var_type)
 {
 	innodb_export_status();
 	var->type = SHOW_ARRAY;
@@ -18842,7 +18892,7 @@ innobase_debug_sync_set(THD *thd, st_mysql_sys_var*, void *, const void *value)
 #endif
 
 static SHOW_VAR innodb_status_variables_export[]= {
-	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
+	SHOW_FUNC_ENTRY("Innodb", &show_innodb_vars),
 	{NullS, NullS, SHOW_LONG}
 };
 
@@ -20960,17 +21010,13 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	return mysql_table;
 }
 
-/** Get the computed value by supplying the base column values.
-@param[in,out]	table		table whose virtual column
-				template to be built */
+/** Only used by the purge thread
+@param[in,out]	table       table whose virtual column template to be built */
 TABLE* innobase_init_vc_templ(dict_table_t* table)
 {
-	if (table->vc_templ != NULL) {
-		return NULL;
-	}
 	DBUG_ENTER("innobase_init_vc_templ");
 
-	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
+	ut_ad(table->vc_templ == NULL);
 
 	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
 
@@ -20980,6 +21026,7 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 	}
 
 	mutex_enter(&dict_sys->mutex);
+	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
 	mutex_exit(&dict_sys->mutex);
 	DBUG_RETURN(mysql_table);
@@ -21124,7 +21171,8 @@ innobase_get_computed_value(
 	TABLE*			mysql_table,
 	byte*			mysql_rec,
 	const dict_table_t*	old_table,
-	const upd_t*		update)
+	const upd_t*		update,
+	bool			ignore_warnings)
 {
 	byte		rec_buf2[REC_VERSION_56_MAX_INDEX_COL_LEN];
 	byte*		buf;
@@ -21222,7 +21270,9 @@ innobase_get_computed_value(
 
 	MY_BITMAP *old_write_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->write_set);
 	MY_BITMAP *old_read_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->read_set);
-	ret = mysql_table->update_virtual_field(mysql_table->field[col->m_col.ind]);
+	ret = mysql_table->update_virtual_field(
+		mysql_table->field[col->m_col.ind],
+		ignore_warnings);
 	dbug_tmp_restore_column_map(&mysql_table->read_set, old_read_set);
 	dbug_tmp_restore_column_map(&mysql_table->write_set, old_write_set);
 

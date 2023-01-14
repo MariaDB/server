@@ -215,6 +215,8 @@ the equal ordering fields. NOTE: we compare the fields as binary strings!
 @param[in]	offsets		rec_get_offsets(rec,index), or NULL
 @param[in]	no_sys		skip the system columns
 				DB_TRX_ID and DB_ROLL_PTR
+@param[in]	ignore_warnings ignore warnings during vcol calculation, which
+				means that this calculation is internal only
 @param[in]	trx		transaction (for diagnostics),
 				or NULL
 @param[in]	heap		memory heap from which allocated
@@ -230,11 +232,12 @@ row_upd_build_difference_binary(
 	const rec_t*	rec,
 	const rec_offs*	offsets,
 	bool		no_sys,
+	bool		ignore_warnings,
 	trx_t*		trx,
 	mem_heap_t*	heap,
 	TABLE*		mysql_table,
 	dberr_t*	error)
-	MY_ATTRIBUTE((nonnull(1,2,3,7,9), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1,2,3,8,10), warn_unused_result));
 /** Apply an update vector to an index entry.
 @param[in,out]	entry	index entry to be updated; the clustered index record
 			must be covered by a lock or a page latch to prevent
@@ -614,17 +617,13 @@ public:
   void vers_make_update(const trx_t *trx)
   {
     vers_update_fields(trx, table->vers_start);
-        }
+  }
 
-	/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
-	Do not touch other fields at all.
-	@param[in]	trx	transaction */
-        void vers_make_delete(const trx_t *trx)
-        {
-		update->n_fields = 0;
-		is_delete = VERSIONED_DELETE;
-                vers_update_fields(trx, table->vers_end);
-        }
+  /** Prepare update vector for versioned delete.
+  Set row_end to CURRENT_TIMESTAMP or trx->id.
+  Initialize fts_next_doc_id for versioned delete.
+  @param[in] trx transaction */
+  void vers_make_delete(trx_t *trx);
 };
 
 #define	UPD_NODE_MAGIC_N	1579975

@@ -10525,8 +10525,8 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
   uint filter= VCOL_IMPOSSIBLE;
   if (type != VCOL_GENERATED_VIRTUAL && type != VCOL_DEFAULT)
     filter|= VCOL_NOT_STRICTLY_DETERMINISTIC;
-  if (type == VCOL_GENERATED_VIRTUAL)
-    filter|= VCOL_NOT_VIRTUAL;
+  if (type != VCOL_DEFAULT)
+    filter|= VCOL_NEXTVAL;
 
   if (unlikely(ret || (res.errors & filter)))
   {
@@ -11073,6 +11073,8 @@ bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item)
 Column_definition::Column_definition(THD *thd, Field *old_field,
                                                Field *orig_field)
 {
+  geom_type= Field::GEOM_GEOMETRY;
+  srid= 0;
   on_update=  NULL;
   field_name= old_field->field_name;
   length=     old_field->field_length;
@@ -11285,7 +11287,7 @@ Create_field *Create_field::clone(MEM_ROOT *mem_root) const
 }
 
 /**
-   Return true if default is an expression that must be saved explicitely
+   Return true if default is an expression that must be saved explicitly
 
    This is:
      - Not basic constants

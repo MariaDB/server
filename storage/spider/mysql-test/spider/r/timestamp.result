@@ -67,13 +67,13 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_ts` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`col_a`),
   UNIQUE KEY `i_ts` (`col_ts`)
-) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
+) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
 SHOW CREATE TABLE tbl_f;
 Table	Create Table
 tbl_f	CREATE TABLE `tbl_f` (
   `col_d` date DEFAULT NULL,
   `col_t` time DEFAULT NULL
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COMMENT='database "ts_test_remote", table "tbl_f", srv "s_2_1"'
+) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='database "ts_test_remote", table "tbl_f", srv "s_2_1"'
 
 Set a different time zone that has DST
 SET time_zone='+01:00';
@@ -279,7 +279,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_dt` datetime DEFAULT NULL,
   `col_ts` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`col_a`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 TRUNCATE TABLE mysql.general_log;
 connection master_1;
 DROP INDEX i_ts ON tbl_a;
@@ -290,7 +290,7 @@ tbl_a	CREATE TABLE `tbl_a` (
   `col_dt` datetime DEFAULT NULL,
   `col_ts` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`col_a`)
-) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
+) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
 
 Retry lookups on unindexed timestamp column
 connection child2_1;

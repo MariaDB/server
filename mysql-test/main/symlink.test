@@ -144,6 +144,9 @@ DROP TABLE t2;
 #
 # Bug#8706 - temporary table with data directory option fails
 #
+#view cannot has temporary table in definition
+--disable_view_protocol
+
 connect (session1,localhost,root,,);
 connect (session2,localhost,root,,);
 
@@ -175,6 +178,8 @@ disconnect session2;
 connection default;
 select * from t1;
 drop table t1;
+
+--enable_view_protocol
 
 --echo End of 4.1 tests
 

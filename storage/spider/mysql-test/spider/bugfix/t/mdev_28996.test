@@ -1,0 +1,40 @@
+--echo #
+--echo # MDEV-28996 ASAN errors in String::q_append / spider_string::q_append / spider_db_mbase_util::open_item_func
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_init.inc
+--enable_query_log
+--enable_result_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE tbl_a (
+  a CHAR(8)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+INSERT INTO tbl_a VALUES ('foo'),('bar');
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+eval CREATE TABLE tbl_a (
+  a CHAR(8)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
+
+SELECT MAX(BINARY a) FROM tbl_a;
+
+DROP DATABASE auto_test_local;
+
+--connection child2_1
+DROP DATABASE auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_query_log
+--enable_result_log

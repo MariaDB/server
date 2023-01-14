@@ -55,7 +55,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 t1.frm
 t1.ibd
 EXPLAIN PARTITIONS SELECT COUNT(*) FROM t1 WHERE f_date = '1000-02-10';
@@ -77,7 +77,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 t1#P#p0.ibd
 t1.frm
@@ -96,7 +96,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (dayofyear(`f_date`))
 t1#P#p0.ibd
 t1.frm
@@ -113,7 +113,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 t1#P#p0.ibd
 t1.frm
@@ -136,7 +136,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -162,7 +162,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -187,7 +187,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -232,7 +232,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -262,7 +262,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -290,7 +290,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -316,7 +316,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -340,7 +340,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -362,7 +362,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB)
@@ -382,7 +382,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY HASH (year(`f_date`))
 (PARTITION `p0` ENGINE = InnoDB)
 t1#P#p0.ibd
@@ -404,7 +404,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f_date` date DEFAULT NULL,
   `f_varchar` varchar(30) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 t1.frm
 t1.ibd
 EXPLAIN PARTITIONS SELECT COUNT(*) FROM t1 WHERE f_date = '1000-02-10';
@@ -445,7 +445,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 t1.frm
 t1.ibd
 EXPLAIN PARTITIONS SELECT COUNT(*) <> 1 FROM t1 WHERE f_int1 = 3;
@@ -468,7 +468,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 t1#P#p0.ibd
 t1.frm
@@ -494,7 +494,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -520,7 +520,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -548,7 +548,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -591,7 +591,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -624,7 +624,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -655,7 +655,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -684,7 +684,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -711,7 +711,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB,
@@ -736,7 +736,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB,
  PARTITION `part1` ENGINE = InnoDB)
@@ -759,7 +759,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `p0` ENGINE = InnoDB)
 t1#P#p0.ibd
@@ -784,7 +784,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 t1.frm
 t1.ibd
 EXPLAIN PARTITIONS SELECT COUNT(*) <> 1 FROM t1 WHERE f_int1 = 3;

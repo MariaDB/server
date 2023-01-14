@@ -42,6 +42,7 @@ let collation=utf8_unicode_ci;
 --source include/have_collation.inc
 
 ###########################################################################
+--disable_service_connection
 
 set names koi8r;
 delimiter |;
@@ -1119,3 +1120,4 @@ delimiter ;|
 USE test;
 DROP DATABASE mysqltest1;
 DROP DATABASE mysqltest2;
+--enable_service_connection

@@ -1,3 +1,5 @@
+--source include/no_valgrind_without_big.inc
+
 #
 # Testing of slow log query options
 #
@@ -48,14 +50,14 @@ flush slow logs;
 # MDEV-4206 (empty filter should be no filter)
 set long_query_time=0.1;
 set log_slow_filter='';
-set global slow_query_log=1;
+set slow_query_log=1;
 set global log_output='TABLE';
 select sleep(0.5);
 select count(*) FROM mysql.slow_log;
 
 # Reset used variables
 set @@long_query_time=default;
-set global slow_query_log= @org_slow_query_log;
+set @@slow_query_log=default;
 set @@log_slow_filter=default;
 set @@log_slow_verbosity=default;
 set global log_output= default;
@@ -100,3 +102,20 @@ SET log_slow_filter=DEFAULT;
 
 SET @@long_query_time=default;
 SET GLOBAL slow_query_log= @org_slow_query_log;
+
+--echo #
+--echo # MDEV-21187: log_slow_filter="" logs queries not using indexes
+--echo #
+
+flush status;
+create table t (id int);
+insert into t values (1),(4);
+set log_slow_filter='';
+select * from t;
+show session status like 'Slow_queries';
+
+drop table t;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

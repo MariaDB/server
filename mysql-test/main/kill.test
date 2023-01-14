@@ -10,6 +10,9 @@
 -- source include/not_embedded.inc
 -- source include/have_debug_sync.inc
 -- source include/not_threadpool.inc
+
+--disable_service_connection
+
 set local sql_mode="";
 set global sql_mode="";
 
@@ -58,7 +61,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 SET DEBUG_SYNC = 'RESET';
 
 connection con1;
---error 1053,2006,2013
+--error 1053,2006,2013,5014
 SELECT 1;
 
 --enable_reconnect
@@ -97,7 +100,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 SET DEBUG_SYNC = 'RESET';
 
 connection con1;
---error 1053,2006,2013
+--error 1053,2006,2013,5014
 SELECT 1;
 enable_reconnect;
 SELECT 1;
@@ -144,7 +147,7 @@ KILL @id;
 SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 
 connection con1;
---error 1317,1053,2006,2013
+--error 1317,1053,2006,2013,5014
 reap;
 SELECT 1;
 
@@ -289,7 +292,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR con1_end';
 connection con1;
 --echo # ER_SERVER_SHUTDOWN, CR_SERVER_GONE_ERROR, CR_SERVER_LOST,
 --echo # depending on the timing of close of the connection socket
---error 1053,2006,2013
+--error 1053,2006,2013,5014
 SELECT 1;
 --enable_reconnect
 SELECT 1;
@@ -504,6 +507,9 @@ drop table t2;
 --echo #
 --echo # Test kill USER
 --echo #
+set global sql_mode=default;
+--source include/count_sessions.inc
+set global sql_mode='';
 grant ALL on test.* to test@localhost;
 grant ALL on test.* to test2@localhost;
 connect (con3, localhost, test,,);
@@ -522,12 +528,13 @@ drop user test@localhost;
 drop user test2@localhost;
 
 connection con3;
---error 2013,2006
+--error 2013,2006,5014
 select 1;
 connection con4;
---error 2013,2006
+--error 2013,2006,5014
 select 1;
 connection default;
+--source include/wait_until_count_sessions.inc
 
 --echo #
 --echo # MDEV-4911 - add KILL query id, and add query id information to
@@ -535,7 +542,7 @@ connection default;
 --echo #
 send SELECT SLEEP(1000);
 connection con1;
-let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)';
+let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)' AND STATE='User sleep';
 source include/wait_condition.inc;
 KILL QUERY ID @id;
 connection default;
@@ -553,7 +560,7 @@ CREATE USER u1@localhost;
 send SELECT SLEEP(1000);
 
 connection con1;
-let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)';
+let $wait_condition= SELECT @id:=QUERY_ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO='SELECT SLEEP(1000)' AND STATE='User sleep';
 source include/wait_condition.inc;
 let $id= `SELECT @id`;
 
@@ -602,3 +609,4 @@ DROP TABLE t1, t2;
 --echo #
 --error ER_PARSE_ERROR
 kill query id user 'foo';
+--enable_service_connection

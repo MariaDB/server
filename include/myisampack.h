@@ -30,7 +30,7 @@
 #define mi_uint1korr(A) ((uint8)(*A))
 
 #define mi_sint2korr(A) ((int16) (((int16) (((const uchar*) (A))[1])) |\
-                                  ((int16) ((int16) ((const char*) (A))[0]) << 8)))
+                                  ((int16) ((uint16) ((const uchar*) (A))[0]) << 8)))
 #define mi_sint3korr(A) ((int32) (((((const uchar*) (A))[0]) & 128) ? \
                                   (((uint32) 255L << 24) | \
                                    (((uint32) ((const uchar*) (A))[0]) << 16) |\

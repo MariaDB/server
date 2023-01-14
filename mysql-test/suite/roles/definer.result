@@ -50,9 +50,9 @@ a+b	c	current_role()
 select * from test.v3;
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: NO)
 create definer=role4 view test.v4 as select a+b,c from t1;
-ERROR 42000: ANY command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: ANY command denied to user 'foo'@'localhost' for table `mysqltest1`.`t1`
 select * from t1;
-ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `mysqltest1`.`t1`
 set role role4;
 select * from t1;
 a	b	c
@@ -113,7 +113,7 @@ tr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 set role none;
 insert t2 values (11,22,33);
-ERROR 42000: INSERT command denied to user ''@'' for table 't1'
+ERROR 42000: INSERT command denied to user ''@'' for table `mysqltest1`.`t1`
 select * from t1;
 a	b	c
 1	10	100
@@ -179,7 +179,7 @@ pr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 call pr1();
-ERROR 42000: INSERT command denied to user ''@'' for table 't1'
+ERROR 42000: INSERT command denied to user ''@'' for table `mysqltest1`.`t1`
 select * from t1;
 a	b	c
 1	10	100
@@ -275,47 +275,42 @@ a	b	c
 2	20	200
 delete from t1 where a=111;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `test`;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v1` (
-  `a+b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v1` AS SELECT
+ 1 AS `a+b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v2` (
-  `a+b` tinyint NOT NULL,
-  `c` tinyint NOT NULL,
-  `current_role()` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v2` AS SELECT
+ 1 AS `a+b`,
+  1 AS `c`,
+  1 AS `current_role()` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v3` (
-  `a+b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v3` AS SELECT
+ 1 AS `a+b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v4` (
-  `a+b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v4` AS SELECT
+ 1 AS `a+b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
-/*!50001 CREATE TABLE `v5` (
-  `a+b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
-) ENGINE=MyISAM */;
+/*!50001 CREATE VIEW `v5` AS SELECT
+ 1 AS `a+b`,
+  1 AS `c` */;
 SET character_set_client = @saved_cs_client;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci */;
 
 USE `mysqltest1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -324,7 +319,7 @@ CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` VALUES (1,10,100),(2,20,200);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -333,7 +328,7 @@ CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t2` VALUES (2,20,200);
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
@@ -536,7 +531,7 @@ DELIMITER ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 
 USE `test`;
-/*!50001 DROP TABLE IF EXISTS `v1`*/;
+/*!50001 DROP VIEW IF EXISTS `v1`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
@@ -547,7 +542,7 @@ USE `test`;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP TABLE IF EXISTS `v2`*/;
+/*!50001 DROP VIEW IF EXISTS `v2`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
@@ -558,7 +553,7 @@ USE `test`;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP TABLE IF EXISTS `v3`*/;
+/*!50001 DROP VIEW IF EXISTS `v3`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
@@ -571,7 +566,7 @@ USE `test`;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP TABLE IF EXISTS `v4`*/;
+/*!50001 DROP VIEW IF EXISTS `v4`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
@@ -584,7 +579,7 @@ USE `test`;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP TABLE IF EXISTS `v5`*/;
+/*!50001 DROP VIEW IF EXISTS `v5`*/;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;

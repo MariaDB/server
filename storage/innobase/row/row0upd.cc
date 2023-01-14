@@ -1044,6 +1044,7 @@ row_upd_build_difference_binary(
 	const rec_t*	rec,
 	const rec_offs*	offsets,
 	bool		no_sys,
+	bool		ignore_warnings,
 	trx_t*		trx,
 	mem_heap_t*	heap,
 	TABLE*		mysql_table,
@@ -1153,7 +1154,7 @@ row_upd_build_difference_binary(
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, heap, NULL, thd, mysql_table, record,
-				NULL, NULL);
+				NULL, NULL, ignore_warnings);
 			if (vfield == NULL) {
 				*error = DB_COMPUTE_VALUE_FAILED;
 				return(NULL);
@@ -3543,4 +3544,17 @@ skip_append:
       }
     }
   }
+}
+
+
+/** Prepare update vector for versioned delete.
+Set row_end to CURRENT_TIMESTAMP or trx->id.
+Initialize fts_next_doc_id for versioned delete.
+@param[in] trx transaction */
+void upd_node_t::vers_make_delete(trx_t* trx)
+{
+  update->n_fields= 0;
+  is_delete= VERSIONED_DELETE;
+  vers_update_fields(trx, table->vers_end);
+  trx->fts_next_doc_id= table->fts ? UINT64_UNDEFINED : 0;
 }

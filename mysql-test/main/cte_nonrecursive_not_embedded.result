@@ -39,7 +39,7 @@ cte3 AS
 cte4 AS
 (SELECT cte2.a FROM t2,cte2 WHERE cte2.a = t2.a)
 SELECT * FROM cte4 as r;
-ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table 't2'
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db`.`t2`
 disconnect u1;
 connection default;
 DROP USER 'u1'@'localhost';

@@ -1,0 +1,5 @@
+SET GLOBAL wsrep_on=ON;
+ERROR HY000: WSREP (galera) can't be enabled if the wsrep_provider is unset or set to 'none'
+SELECT @@global.wsrep_on;
+@@global.wsrep_on
+0

@@ -481,7 +481,9 @@ create_log_files(
 
 	log_sys.log.create(srv_n_log_files);
 
-	fil_open_log_and_system_tablespace_files();
+	if (dberr_t err = fil_open_log_and_system_tablespace_files()) {
+		return err;
+	}
 
 	/* Create a log checkpoint. */
 	log_mutex_enter();
@@ -568,8 +570,9 @@ create_log_files_rename(
 	DBUG_EXECUTE_IF("innodb_log_abort_10", err = DB_ERROR;);
 
 	if (err == DB_SUCCESS) {
-		fil_open_log_and_system_tablespace_files();
+		err = fil_open_log_and_system_tablespace_files();
 		ib::info() << "New log files created, LSN=" << lsn;
+		ut_a(err == DB_SUCCESS);
 	}
 
 	return(err);
@@ -603,12 +606,12 @@ srv_undo_tablespace_create(
 
 	} else if (ret == FALSE) {
 		if (os_file_get_last_error(false) != OS_FILE_ALREADY_EXISTS
-#ifdef UNIV_AIX
+#ifdef _AIX
 			/* AIX 5.1 after security patch ML7 may have
 			errno set to 0 here, which causes our function
 			to return 100; work around that AIX problem */
 		    && os_file_get_last_error(false) != 100
-#endif /* UNIV_AIX */
+#endif
 		) {
 			ib::error() << "Can't create UNDO tablespace "
 				<< name;
@@ -1663,10 +1666,10 @@ dberr_t srv_start(bool create_new_db)
 			buf_flush_set_page_cleaner_thread_cnt(srv_n_page_cleaners);
 		}
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
 		/* Wait for the setpriority() call to finish. */
 		os_event_wait(recv_sys->flush_end);
-#endif /* UNIV_LINUX */
+#endif /* __linux__ */
 		srv_start_state_set(SRV_START_STATE_IO);
 	}
 
@@ -1889,10 +1892,12 @@ files_checked:
 	tablespace: we keep them open until database
 	shutdown */
 
-	fil_open_log_and_system_tablespace_files();
+	err = fil_open_log_and_system_tablespace_files();
 	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
 
-	err = srv_undo_tablespaces_init(create_new_db);
+	if (err == DB_SUCCESS) {
+		err = srv_undo_tablespaces_init(create_new_db);
+	}
 
 	/* If the force recovery is set very high then we carry on regardless
 	of all errors. Basically this is fingers crossed mode. */

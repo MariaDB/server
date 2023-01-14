@@ -1,0 +1,54 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-29144 ER_TABLE_SCHEMA_MISMATCH or crash on DISCARD/IMPORT
+--echo #
+
+CREATE TABLE t (pk int PRIMARY KEY, c varchar(1024))
+ENGINE=InnoDB CHARSET latin1;
+INSERT INTO t SELECT seq, 'x' FROM seq_1_to_100;
+
+--connect (con1,localhost,root,,test)
+--delimiter $
+--send
+  BEGIN NOT ATOMIC
+    DECLARE a INT DEFAULT 0;
+    REPEAT
+      SET a= a+1;
+      UPDATE t SET c = 'xx' WHERE pk = a;
+    UNTIL a = 100
+    END REPEAT;
+  END
+$
+--delimiter ;
+
+--connection default
+--error 0,ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t NOWAIT ADD INDEX (c);
+
+--connection con1
+--reap
+
+--connection default
+
+--let $datadir= `select @@datadir`
+
+FLUSH TABLE t FOR EXPORT;
+--let $create= query_get_value(SHOW CREATE TABLE t, Create Table, 1)
+--copy_file $datadir/test/t.cfg $MYSQL_TMP_DIR/t.cfg
+--copy_file $datadir/test/t.ibd $MYSQL_TMP_DIR/t.ibd
+UNLOCK TABLES;
+
+DROP TABLE t;
+--disable_query_log
+eval $create;
+--enable_query_log
+
+ALTER TABLE t DISCARD TABLESPACE;
+--move_file $MYSQL_TMP_DIR/t.cfg $datadir/test/t.cfg
+--move_file $MYSQL_TMP_DIR/t.ibd $datadir/test/t.ibd
+ALTER TABLE t IMPORT TABLESPACE;
+
+# Cleanup
+DROP TABLE t;

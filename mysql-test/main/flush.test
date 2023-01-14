@@ -1,3 +1,5 @@
+--disable_service_connection
+
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connection con1;
@@ -703,4 +705,4 @@ UNLOCK TABLES;
 
 DROP VIEW v1;
 DROP TABLE t1;
-
+--enable_service_connection

@@ -400,6 +400,16 @@ struct st_mysql_show_var {
 };
 struct system_status_var;
 typedef int (*mysql_show_var_func)(void*, struct st_mysql_show_var*, void *, struct system_status_var *status_var, enum enum_var_type);
+static inline
+struct st_mysql_show_var SHOW_FUNC_ENTRY(const char *name,
+                                         mysql_show_var_func func_arg)
+{
+  struct st_mysql_show_var tmp;
+  tmp.name= name;
+  tmp.value= (void*) func_arg;
+  tmp.type= SHOW_FUNC;
+  return tmp;
+};
 struct st_mysql_sys_var;
 struct st_mysql_value;
 typedef int (*mysql_var_check_func)(void* thd,
