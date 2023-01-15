@@ -177,29 +177,14 @@ enum extra2_frm_value_type {
 #define EXTRA2_ENGINE_IMPORTANT 128
 
   EXTRA2_ENGINE_TABLEOPTS=128,
-  EXTRA2_FIELD_FLAGS=129,
-  EXTRA2_FIELD_DATA_TYPE_INFO=130,
-  EXTRA2_PERIOD_WITHOUT_OVERLAPS=131,
+  EXTRA2_FIELD_FLAGS=129
 };
 
 enum extra2_field_flags {
   VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
 };
 
-static inline size_t extra2_read_len(const uchar **extra2, const uchar *end)
-{
-  size_t length= *(*extra2)++;
-  if (length)
-    return length;
-
-  if ((*extra2) + 2 >= end)
-    return 0;
-  length= uint2korr(*extra2);
-  (*extra2)+= 2;
-  if (length < 256 || *extra2 + length > end)
-    return 0;
-  return length;
-}
+size_t extra2_read_len(const uchar **extra2, const uchar *end);
 
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,

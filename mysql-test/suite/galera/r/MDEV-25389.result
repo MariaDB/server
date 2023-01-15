@@ -4,7 +4,7 @@ connection node_1;
 connection node_2;
 connection node_2;
 call mtr.add_suppression("WSREP: Failed to create/initialize system thread");
-SET GLOBAL debug_dbug='+d,wsrep_simulate_failed_connection_1';
+SET GLOBAL debug_dbug='+d,simulate_failed_connection_1';
 SET GLOBAL wsrep_slave_threads=2;
 ERROR HY000: Incorrect arguments to SET
 SELECT @@wsrep_slave_threads;

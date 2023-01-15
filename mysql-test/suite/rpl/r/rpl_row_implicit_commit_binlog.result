@@ -1,6 +1,6 @@
 include/master-slave.inc
 [connection master]
-set session default_storage_engine=innodb;
+set session storage_engine=innodb;
 #########################################################################
 #                            CONFIGURATION
 #########################################################################

@@ -1370,8 +1370,8 @@ GROUP BY SQ1_t1.f4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	SUBQUERY	SQ1_t3	range	f4	f4	5	NULL	2	Using where; Using index; Using temporary
-3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using join buffer (flat, BNL join)
+3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using temporary
+3	SUBQUERY	SQ1_t3	index	f4	f4	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
 WHERE f4 <= ALL
@@ -2786,13 +2786,12 @@ set names 'utf8';
 # IN predicate to IN subquery is performed as materialization is llowed
 # The character set on the inner side is a proper subset of the outer side
 #
-# this test in 10.5 has only 2 rows in the IN predicate
 EXPLAIN
-SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abc',1), ('def', 2));
+SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abx',1),('def',2), ('abc', 3));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func,func	1	Using where
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	3	
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
@@ -2929,8 +2928,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 2,
           "r_rows": 2,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
+          "r_total_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         },
@@ -2949,8 +2947,7 @@ ANALYZE
                   "r_loops": 1,
                   "rows": 2,
                   "r_rows": 2,
-                  "r_table_time_ms": "REPLACED",
-                  "r_other_time_ms": "REPLACED",
+                  "r_total_time_ms": "REPLACED",
                   "filtered": 100,
                   "r_filtered": 50,
                   "attached_condition": "<nop>(<in_optimizer>(t1.b,(subquery#3) >= 4))"
@@ -2967,8 +2964,7 @@ ANALYZE
                         "r_loops": 1,
                         "rows": 2,
                         "r_rows": 2,
-                        "r_table_time_ms": "REPLACED",
-                        "r_other_time_ms": "REPLACED",
+                        "r_total_time_ms": "REPLACED",
                         "filtered": 100,
                         "r_filtered": 100
                       }

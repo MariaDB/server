@@ -1,2 +1,2 @@
-etc/mysql/mariadb.conf.d/oqgraph.cnf
+etc/mysql/conf.d/oqgraph.cnf
 usr/lib/mysql/plugin/ha_oqgraph.so

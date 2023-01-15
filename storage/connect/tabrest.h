@@ -6,7 +6,9 @@
 #pragma once
 
 #if defined(_WIN32)
+static PCSZ slash = "\\";
 #else // !_WIN32
+static PCSZ slash = "/";
 #define stricmp strcasecmp
 #endif // !_WIN32
 

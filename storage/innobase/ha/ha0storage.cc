@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -54,7 +53,7 @@ ha_storage_get(
 
 	HASH_SEARCH(
 		next,			/* node->"next" */
-		&storage->hash,		/* the hash table */
+		storage->hash,		/* the hash table */
 		fold,			/* key */
 		ha_storage_node_t*,	/* type of node->next */
 		node,			/* auxiliary variable */
@@ -128,7 +127,7 @@ ha_storage_put_memlim(
 	HASH_INSERT(
 		ha_storage_node_t,	/* type used in the hash chain */
 		next,			/* node->"next" */
-		&storage->hash,		/* the hash table */
+		storage->hash,		/* the hash table */
 		fold,			/* key */
 		node);			/* add this data to the hash */
 

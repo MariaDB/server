@@ -1,9 +1,0 @@
-!include ../galera_2nodes.cnf
-
-[mysqld.1]
-wsrep_gtid_mode=1
-wsrep_gtid_domain_id=100
-
-[mysqld.2]
-wsrep_gtid_mode=1
-wsrep_gtid_domain_id=100

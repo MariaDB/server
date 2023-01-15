@@ -75,8 +75,7 @@ int init_queue(QUEUE *queue, uint max_elements, uint offset_to_key,
                uint auto_extent)
 {
   DBUG_ENTER("init_queue");
-  if ((queue->root= (uchar **) my_malloc(key_memory_QUEUE,
-                                         (max_elements + 1) * sizeof(void*),
+  if ((queue->root= (uchar **) my_malloc((max_elements + 1) * sizeof(void*),
 					 MYF(MY_WME))) == 0)
     DBUG_RETURN(1);
   queue->elements=      	0;
@@ -148,7 +147,7 @@ int resize_queue(QUEUE *queue, uint max_elements)
   DBUG_ENTER("resize_queue");
   if (queue->max_elements == max_elements)
     DBUG_RETURN(0);
-  if ((new_root= (uchar **) my_realloc(key_memory_QUEUE, (void *)queue->root,
+  if ((new_root= (uchar **) my_realloc((void *)queue->root,
                                        (max_elements + 1)* sizeof(void*),
                                        MYF(MY_WME))) == 0)
     DBUG_RETURN(1);

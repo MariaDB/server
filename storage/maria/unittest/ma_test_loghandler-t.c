@@ -197,7 +197,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   }
 #endif
 
-  if (ma_control_file_open(TRUE, TRUE, TRUE))
+  if (ma_control_file_open(TRUE, TRUE))
   {
     fprintf(stderr, "Can't init control file (%d)\n", errno);
     exit(1);

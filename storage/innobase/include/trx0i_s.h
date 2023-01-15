@@ -31,7 +31,6 @@ Created July 17, 2007 Vasil Dimov
 
 #include "trx0types.h"
 #include "dict0types.h"
-#include "buf0types.h"
 
 /** The maximum amount of memory that can be consumed by innodb_trx,
 innodb_locks and innodb_lock_waits information schema tables. */
@@ -46,8 +45,16 @@ i_s_trx_row_t::trx_query */
 #define TRX_I_S_TRX_QUERY_MAX_LEN	1024
 
 /** The maximum length of a string that can be stored in
+i_s_trx_row_t::trx_operation_state */
+#define TRX_I_S_TRX_OP_STATE_MAX_LEN	64
+
+/** The maximum length of a string that can be stored in
 i_s_trx_row_t::trx_foreign_key_error */
 #define TRX_I_S_TRX_FK_ERROR_MAX_LEN	256
+
+/** The maximum length of a string that can be stored in
+i_s_trx_row_t::trx_isolation_level */
+#define TRX_I_S_TRX_ISOLATION_LEVEL_MAX_LEN	16
 
 /** Safely copy strings in to the INNODB_TRX table's
 string based columns */
@@ -87,19 +94,23 @@ struct i_s_hash_chain_t {
 /** This structure represents INFORMATION_SCHEMA.innodb_locks row */
 struct i_s_locks_row_t {
 	trx_id_t	lock_trx_id;	/*!< transaction identifier */
+	const char*	lock_mode;	/*!< lock mode from
+					lock_get_mode_str() */
+	const char*	lock_type;	/*!< lock type from
+					lock_get_type_str() */
 	const char*	lock_table;	/*!< table name from
 					lock_get_table_name() */
-	/** index name of a record lock; NULL for table locks */
-	const char*	lock_index;
-	/** page identifier of the record; (0,0) if !lock_index */
-	page_id_t	lock_page;
-	/** heap number of the record; 0 if !lock_index */
-	uint16_t	lock_rec;
-	/** lock mode corresponding to lock_mode_values_typelib */
-	uint8_t		lock_mode;
-	/** (some) content of the record, if available in the buffer pool;
-	NULL if !lock_index */
-	const char*	lock_data;
+	const char*	lock_index;	/*!< index name from
+					lock_rec_get_index_name() */
+	/** Information for record locks.  All these are
+	ULINT_UNDEFINED for table locks. */
+	/* @{ */
+	ulint		lock_space;	/*!< tablespace identifier */
+	ulint		lock_page;	/*!< page number within the_space */
+	ulint		lock_rec;	/*!< heap number of the record
+					on the page */
+	const char*	lock_data;	/*!< (some) content of the record */
+	/* @} */
 
 	/** The following are auxiliary and not included in the table */
 	/* @{ */
@@ -140,15 +151,18 @@ struct i_s_trx_row_t {
 					trx->lock_heap) */
 	ulint		trx_rows_locked;/*!< lock_number_of_rows_locked() */
 	uintmax_t	trx_rows_modified;/*!< trx_t::undo_no */
-	uint		trx_isolation_level;
-					/*!< trx_t::isolation_level */
-	bool		trx_unique_checks;
+	ulint		trx_concurrency_tickets;
+					/*!< n_tickets_to_enter_innodb in
+					trx_t */
+	const char*	trx_isolation_level;
+					/*!< isolation_level in trx_t */
+	ibool		trx_unique_checks;
 					/*!< check_unique_secondary in trx_t*/
-	bool		trx_foreign_key_checks;
+	ibool		trx_foreign_key_checks;
 					/*!< check_foreigns in trx_t */
 	const char*	trx_foreign_key_error;
 					/*!< detailed_error in trx_t */
-	bool		trx_is_read_only;
+	ulint		trx_is_read_only;
 					/*!< trx_t::read_only */
 	bool		trx_is_autocommit_non_locking;
 					/*!< trx:t::is_autocommit_non_locking()

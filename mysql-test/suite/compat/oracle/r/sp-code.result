@@ -1487,30 +1487,3 @@ CALL p1();
 x0	x1.a	x1.b
 100	101	102
 DROP PROCEDURE p1;
-#
-# MDEV-19640 Wrong SHOW PROCEDURE output for SET GLOBAL sysvar1=expr, sysvar2=expr
-#
-CREATE OR REPLACE PROCEDURE p1() AS
-BEGIN
-SET GLOBAL max_allowed_packet=16000000, max_error_count=60;
-SELECT @@GLOBAL.max_allowed_packet, @@GLOBAL.max_error_count;
-END;
-$$
-SHOW PROCEDURE CODE p1;
-Pos	Instruction
-0	stmt 31 "SET GLOBAL max_allowed_packet=16000000"
-1	stmt 31 "SET GLOBAL max_error_count=60"
-2	stmt 0 "SELECT @@GLOBAL.max_allowed_packet, @..."
-DROP PROCEDURE p1;
-#
-# MDEV-19639 sql_mode=ORACLE: Wrong SHOW PROCEDURE output for sysvar:=expr
-#
-CREATE OR REPLACE PROCEDURE p1() AS
-BEGIN
-max_error_count:=10;
-END;
-$$
-SHOW PROCEDURE CODE p1;
-Pos	Instruction
-0	stmt 31 "max_error_count:=10"
-DROP PROCEDURE p1;

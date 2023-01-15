@@ -194,12 +194,12 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
     }
 
     if ((sort_keys= ((uchar**)
-                     my_malloc(PSI_INSTRUMENT_ME, (size_t) (keys*(sort_length+sizeof(char*))+
+                     my_malloc((size_t) (keys*(sort_length+sizeof(char*))+
                                          HA_FT_MAXBYTELEN),
                                MYF(0)))))
     {
-      if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &buffpek, sizeof(BUFFPEK),
-                                maxbuffer, MY_MIN(maxbuffer/2, 1000), MYF(0)))
+      if (my_init_dynamic_array(&buffpek, sizeof(BUFFPEK), maxbuffer,
+                                MY_MIN(maxbuffer/2, 1000), MYF(0)))
       {
 	my_free(sort_keys);
         sort_keys= 0;
@@ -428,11 +428,11 @@ static my_bool _ma_thr_find_all_keys_exec(MARIA_SORT_PARAM* sort_param)
       while ((maxbuffer= (uint) (idx/(keys-1)+1)) != maxbuffer_org);
     }
     if ((sort_keys= (uchar **)
-         my_malloc(PSI_INSTRUMENT_ME, (size_t)(keys*(sort_length+sizeof(char*))+
+         my_malloc((size_t)(keys*(sort_length+sizeof(char*))+
                    ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
                     HA_FT_MAXBYTELEN : 0)), MYF(0))))
     {
-      if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &sort_param->buffpek, sizeof(BUFFPEK),
+      if (my_init_dynamic_array(&sort_param->buffpek, sizeof(BUFFPEK),
                              maxbuffer, MY_MIN(maxbuffer / 2, 1000), MYF(0)))
       {
         my_free(sort_keys);
@@ -628,7 +628,7 @@ int _ma_thr_write_keys(MARIA_SORT_PARAM *sort_param)
         length=(size_t)param->sort_buffer_length;
         while (length >= MIN_SORT_MEMORY)
         {
-          if ((mergebuf= my_malloc(PSI_INSTRUMENT_ME, (size_t) length, MYF(0))))
+          if ((mergebuf= my_malloc((size_t) length, MYF(0))))
               break;
           length=length*3/4;
         }

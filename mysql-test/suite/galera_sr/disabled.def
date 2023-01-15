@@ -10,6 +10,5 @@
 #
 ##############################################################################
 
-GCF-1060 : MDEV-26528 wrong usage of mutex LOCK_thd_kill and LOCK_thd_kill
 galera_sr_cc_master : MDEV-29882 Galera test failure on galera_sr_cc_master
-mysql-wsrep-features#138 : At line 25: query 'DROP TABLE t1' failed: 2013: Lost connection to MySQL server during query
+

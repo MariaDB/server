@@ -78,7 +78,6 @@ support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
 #include "my_counter.h"
-#include <m_string.h>
 
 /* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_MY_THREAD_H
@@ -86,6 +85,7 @@ support cross-platform development and expose comonly used SQL names. */
 #endif
 
 #ifndef UNIV_INNOCHECKSUM
+# include <m_string.h>
 # include <mysqld_error.h>
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -114,7 +114,8 @@ HAVE_PSI_INTERFACE is defined. */
 # define UNIV_PFS_IO
 # define UNIV_PFS_THREAD
 
-# include "mysql/psi/psi.h" /* HAVE_PSI_MEMORY_INTERFACE */
+// JAN: TODO: MySQL 5.7 PSI
+// # include "mysql/psi/psi.h" /* HAVE_PSI_MEMORY_INTERFACE */
 # ifdef HAVE_PSI_MEMORY_INTERFACE
 #  define UNIV_PFS_MEMORY
 # endif /* HAVE_PSI_MEMORY_INTERFACE */
@@ -128,6 +129,7 @@ be excluded from instrumentation. */
 
 # define PFS_IS_INSTRUMENTED(key)	((key) != PFS_NOT_INSTRUMENTED)
 
+/* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_PFS_THREAD_PROVIDER_H
 /* For PSI_MUTEX_CALL() and similar. */
 #include "pfs_thread_provider.h"
@@ -135,6 +137,7 @@ be excluded from instrumentation. */
 
 #include "mysql/psi/mysql_thread.h"
 /* For PSI_FILE_CALL(). */
+/* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_PFS_FILE_PROVIDER_H
 #include "pfs_file_provider.h"
 #endif
@@ -181,6 +184,8 @@ using the call command. */
 						some debug print functions */
 #define UNIV_AHI_DEBUG				/* Enable adaptive hash index
 						debugging without UNIV_DEBUG */
+#define UNIV_BUF_DEBUG				/* Enable buffer pool
+						debugging without UNIV_DEBUG */
 #define UNIV_BLOB_LIGHT_DEBUG			/* Enable off-page column
 						debugging without UNIV_DEBUG */
 #define UNIV_DEBUG_LOCK_VALIDATE		/* Enable
@@ -188,6 +193,9 @@ using the call command. */
 						assertions. */
 #define UNIV_LRU_DEBUG				/* debug the buffer pool LRU */
 #define UNIV_HASH_DEBUG				/* debug HASH_ macros */
+#define UNIV_LOG_LSN_DEBUG			/* write LSN to the redo log;
+this will break redo log file compatibility, but it may be useful when
+debugging redo log application problems. */
 #define UNIV_IBUF_DEBUG				/* debug the insert buffer */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance
@@ -400,19 +408,16 @@ typedef ssize_t lint;
 #ifdef _WIN32
 /* Use the integer types and formatting strings defined in Visual Studio. */
 # define UINT32PF	"%u"
+# define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
 #elif defined __APPLE__
 /* Apple prefers to call the 64-bit types 'long long'
 in both 32-bit and 64-bit environments. */
 # define UINT32PF	"%" PRIu32
+# define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
-#elif defined _AIX
-/* Workaround for macros expension trouble */
-# define UINT32PF      "%u"
-# define UINT64scan    "lu"
-# define UINT64PFx     "%016lx"
 #else
 /* Use the integer types and formatting strings defined in the C99 standard. */
 # define UINT32PF	"%" PRIu32
@@ -439,6 +444,8 @@ typedef	ib_uint64_t		lsn_t;
 
 /** The 'undefined' value for a ulint */
 #define ULINT_UNDEFINED		((ulint)(-1))
+
+#define ULONG_UNDEFINED		((ulong)(-1))
 
 /** The 'undefined' value for a ib_uint64_t */
 #define UINT64_UNDEFINED	((ib_uint64_t)(-1))
@@ -571,6 +578,8 @@ typedef void* os_thread_ret_t;
 
 extern ulong	srv_page_size_shift;
 extern ulong	srv_page_size;
+
+static const size_t UNIV_SECTOR_SIZE = 512;
 
 /* Dimension of spatial object we support so far. It has its root in
 myisam/sp_defs.h. We only support 2 dimension data */

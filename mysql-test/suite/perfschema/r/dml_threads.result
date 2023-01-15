@@ -53,6 +53,3 @@ PROCESSLIST_INFO	Statement being executed by the thread, or NULL if a statement 
 PARENT_THREAD_ID	THREAD_ID of the parent thread, if any. Subthreads can for example be spawned as a result of INSERT DELAYED statements.
 ROLE	Unused.
 INSTRUMENTED	YES or NO for Whether the thread is instrumented or not. For foreground threads, the initial value is determined by whether there's a user/host match in the setup_actors table. Subthreads are again matched, while for background threads, this will be set to YES by default. To monitor events that the thread executes, INSTRUMENTED must be YES and the thread_instrumentation consumer in the setup_consumers table must also be YES.
-HISTORY	Whether to log historical events for the thread.
-CONNECTION_TYPE	The protocol used to establish the connection, or NULL for background threads.
-THREAD_OS_ID	The thread or task identifier as defined by the underlying operating system, if there is one.

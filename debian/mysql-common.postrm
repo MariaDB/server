@@ -1,5 +1,4 @@
-#!/bin/bash
-set -e
+#!/bin/bash -e
 
 if [ "$1" = "purge" ]; then
   rmdir /etc/mysql 2>/dev/null || true

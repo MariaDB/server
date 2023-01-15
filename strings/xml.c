@@ -232,12 +232,12 @@ static int my_xml_attr_ensure_space(MY_XML_PARSER *st, size_t len)
 
     if (!st->attr.buffer)
     {
-      st->attr.buffer= (char *) my_malloc(PSI_INSTRUMENT_ME, st->attr.buffer_size, MYF(0));
+      st->attr.buffer= (char *) my_malloc(st->attr.buffer_size, MYF(0));
       if (st->attr.buffer)
         memcpy(st->attr.buffer, st->attr.static_buffer, ofs + 1 /*term. zero */);
     }
     else
-      st->attr.buffer= (char *) my_realloc(PSI_INSTRUMENT_ME, st->attr.buffer,
+      st->attr.buffer= (char *) my_realloc(st->attr.buffer,
                                            st->attr.buffer_size, MYF(0));
     st->attr.start= st->attr.buffer;
     st->attr.end= st->attr.start + ofs;

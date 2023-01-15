@@ -3,9 +3,9 @@
 
 select * from INFORMATION_SCHEMA.ENGINES where ENGINE="ARIA";
 
-let $default_engine=`select @@global.default_storage_engine`;
-set global default_storage_engine=aria;
-set session default_storage_engine=aria;
+let $default_engine=`select @@global.storage_engine`;
+set global storage_engine=aria;
+set session storage_engine=aria;
 
 # Initialise
 --disable_warnings
@@ -37,7 +37,7 @@ DROP TABLE t1;
 # Issue was too long key
 #
 
-CREATE TABLE t1 (a VARCHAR(1200),KEY(a)) ENGINE=Aria CHARACTER SET ucs2;
+CREATE TABLE t1 (a VARCHAR(800),KEY(a)) ENGINE=Aria CHARACTER SET ucs2;
 INSERT INTO t1 VALUES (REPEAT('abc ',200));
 CHECK TABLE t1;
 DROP TABLE t1;
@@ -47,6 +47,6 @@ DROP TABLE t1;
 
 --disable_result_log
 --disable_query_log
-eval set global default_storage_engine=$default_engine;
+eval set global storage_engine=$default_engine;
 --enable_result_log
 --enable_query_log

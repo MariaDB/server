@@ -277,7 +277,7 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
   TABLE_SHARE *share= table_arg->s;
   uint options= share->db_options_in_use;
   DBUG_ENTER("table2myisam");
-  if (!(my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
+  if (!(my_multi_malloc(MYF(MY_WME),
           recinfo_out, (share->fields * 2 + 2) * sizeof(MI_COLUMNDEF),
           keydef_out, share->keys * sizeof(MI_KEYDEF),
           &keyseg,
@@ -1765,7 +1765,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
                      (ulong) rows, size));
 
   /* don't enable row cache if too few rows */
-  if ((!rows || rows > MI_MIN_ROWS_TO_USE_WRITE_CACHE) && !has_long_unique())
+  if (! rows || (rows > MI_MIN_ROWS_TO_USE_WRITE_CACHE))
     mi_extra(file, HA_EXTRA_WRITE_CACHE, (void*) &size);
 
   can_enable_indexes= mi_is_all_keys_active(file->s->state.key_map,
@@ -2133,8 +2133,7 @@ int ha_myisam::info(uint flag)
 
     ref_length= misam_info.reflength;
     share->db_options_in_use= misam_info.options;
-    /* record block size. We adjust with IO_SIZE to not make it too small */
-    stats.block_size= MY_MAX(myisam_block_size, IO_SIZE);
+    stats.block_size= myisam_block_size;        /* record block size */
 
     if (table_share->tmp_table == NO_TMP_TABLE)
       mysql_mutex_lock(&table_share->LOCK_share);
@@ -2165,8 +2164,7 @@ int ha_myisam::info(uint flag)
 
 int ha_myisam::extra(enum ha_extra_function operation)
 {
-  if ((operation == HA_EXTRA_MMAP && !opt_myisam_use_mmap) ||
-      (operation == HA_EXTRA_WRITE_CACHE && has_long_unique()))
+  if (operation == HA_EXTRA_MMAP && !opt_myisam_use_mmap)
     return 0;
   return mi_extra(file, operation, 0);
 }
@@ -2391,8 +2389,6 @@ void ha_myisam::get_auto_increment(ulonglong offset, ulonglong increment,
     inx			Index to use
     min_key		Start of range.  Null pointer if from first key
     max_key		End of range. Null pointer if to last key
-    pages               Store first and last page for the range in case of
-                        b-trees. In other cases it's not touched.
 
   NOTES
     min_key.flag can have one of the following values:
@@ -2410,12 +2406,10 @@ void ha_myisam::get_auto_increment(ulonglong offset, ulonglong increment,
 			the range.
 */
 
-ha_rows ha_myisam::records_in_range(uint inx, const key_range *min_key,
-                                    const key_range *max_key,
-                                    page_range *pages)
+ha_rows ha_myisam::records_in_range(uint inx, key_range *min_key,
+                                    key_range *max_key)
 {
-  return (ha_rows) mi_records_in_range(file, (int) inx, min_key, max_key,
-                                       pages);
+  return (ha_rows) mi_records_in_range(file, (int) inx, min_key, max_key);
 }
 
 
@@ -2565,16 +2559,13 @@ int myisam_panic(handlerton *hton, ha_panic_function flag)
   return mi_panic(flag);
 }
 
-static int myisam_drop_table(handlerton *hton, const char *path)
-{
-  return mi_delete_table(path);
-}
-
 static int myisam_init(void *p)
 {
   handlerton *hton;
 
+#ifdef HAVE_PSI_INTERFACE
   init_myisam_psi_keys();
+#endif
 
   /* Set global variables based on startup options */
   if (myisam_recover_options && myisam_recover_options != HA_RECOVER_OFF)
@@ -2582,12 +2573,12 @@ static int myisam_init(void *p)
   else
     myisam_recover_options= HA_RECOVER_OFF;
 
-  myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);
+  myisam_block_size=(uint) 1 << my_bit_log2(opt_myisam_block_size);
 
   hton= (handlerton *)p;
+  hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_MYISAM;
   hton->create= myisam_create_handler;
-  hton->drop_table= myisam_drop_table;
   hton->panic= myisam_panic;
   hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   hton->tablefile_extensions= ha_myisam_exts;
@@ -2701,6 +2692,23 @@ bool ha_myisam::rowid_filter_push(Rowid_filter* rowid_filter)
 struct st_mysql_storage_engine myisam_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+mysql_declare_plugin(myisam)
+{
+  MYSQL_STORAGE_ENGINE_PLUGIN,
+  &myisam_storage_engine,
+  "MyISAM",
+  "MySQL AB",
+  "MyISAM storage engine",
+  PLUGIN_LICENSE_GPL,
+  myisam_init, /* Plugin Init */
+  NULL, /* Plugin Deinit */
+  0x0100, /* 1.0 */
+  NULL,                       /* status variables                */
+  myisam_sysvars,             /* system variables                */
+  NULL,
+  0,
+}
+mysql_declare_plugin_end;
 maria_declare_plugin(myisam)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

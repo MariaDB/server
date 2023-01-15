@@ -1,14 +1,15 @@
 connection node_2;
 connection node_1;
-connection node_1;
 connection node_2;
-connection node_2;
-SET GLOBAL wsrep_ignore_apply_errors=0;
 SET SESSION wsrep_on=OFF;
 CREATE TABLE t1 (f1 INTEGER);
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER);
 connection node_2;
+SET SESSION wsrep_on=ON;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
@@ -18,7 +19,7 @@ ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=<TIMESTAMP>/*!*/;
 SET @@session.pseudo_thread_id=<PSEUDO_THREAD_ID>/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -32,7 +33,5 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
-Killing server ...
-SET GLOBAL wsrep_ignore_apply_errors = 7;
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query");
 DROP TABLE t1;
-CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");

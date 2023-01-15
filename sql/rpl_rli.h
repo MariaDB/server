@@ -274,7 +274,7 @@ public:
     Needed for problems when slave stops and we want to restart it
     skipping one or more events in the master log that have caused
     errors, and have been manually applied by DBA already.
-    Must be ulong as it's referred to from set_var.cc
+    Must be ulong as it's refered to from set_var.cc
   */
   volatile ulonglong slave_skip_counter;
   ulonglong max_relay_log_size;
@@ -388,11 +388,11 @@ public:
   */
   slave_connection_state restart_gtid_pos;
 
-  Relay_log_info(bool is_slave_recovery, const char* thread_name= "SQL");
+  Relay_log_info(bool is_slave_recovery);
   ~Relay_log_info();
 
   /*
-    Invalidate cached until_log_name and group_relay_log_name comparison
+    Invalidate cached until_log_name and group_relay_log_name comparison 
     result. Should be called after any update of group_realy_log_name if
     there chances that sql_thread is running.
   */

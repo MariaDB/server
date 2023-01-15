@@ -83,7 +83,7 @@ BDOC::BDOC(PGLOBAL G) : BJSON(G, NULL)
 PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
 {
   size_t i;
-  bool  b = false;
+  bool  b = false, ptyp = (bool *)pty;
   PBVAL bvp = NULL;
 
   s = js;
@@ -145,7 +145,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
           b = false;
           break;
         } // endif b
-        /* fall through */
+
       default:
         if (bvp->Type != TYPE_UNKNOWN) {
           bvp->To_Val = ParseAsArray(i);
@@ -683,7 +683,7 @@ bool BDOC::SerializeArray(OFFSET arp, bool b)
   } else if (jp->WriteChr('['))
     return true;
 
-  for (; vp; vp = MVP(vp->Next)) {
+  for (vp; vp; vp = MVP(vp->Next)) {
     if (first)
       first = false;
     else if ((!b || jp->Prty()) && jp->WriteChr(','))
@@ -718,7 +718,7 @@ bool BDOC::SerializeObject(OFFSET obp)
   if (jp->WriteChr('{'))
     return true;
 
-  for (; prp; prp = GetNext(prp)) {
+  for (prp; prp; prp = GetNext(prp)) {
     if (first)
       first = false;
     else if (jp->WriteChr(','))

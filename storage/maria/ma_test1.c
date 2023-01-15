@@ -1,5 +1,4 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +24,7 @@
 #include "trnman.h"
 
 extern PAGECACHE *maria_log_pagecache;
-extern const char *maria_data_root;
+extern char *maria_data_root;
 
 #define MAX_REC_LENGTH 1024
 
@@ -75,13 +74,13 @@ int main(int argc,char *argv[])
   safe_mutex_deadlock_detector= 1;
 #endif
   MY_INIT(argv[0]);
-  maria_data_root= ".";
+  maria_data_root= (char *)".";
   get_options(argc,argv);
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
       (init_pagecache(maria_pagecache, maria_block_size * 16, 0, 0,
                       maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE, TRUE) ||
+      ma_control_file_open(TRUE, TRUE) ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
                       TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
@@ -210,7 +209,7 @@ static int run_test(const char *filename)
 		uniques, &uniquedef, &create_info,
 		create_flag))
     goto err;
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
     goto err;
   if (!silent)
     printf("- Writing key:s\n");
@@ -349,7 +348,7 @@ static int run_test(const char *filename)
     goto err;
   if (maria_close(file))
     goto err;
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
     goto err;
   if (maria_begin(file))
     goto err;
@@ -676,7 +675,8 @@ static void update_record(uchar *record)
     ptr=blob_key;
     memcpy(pos+4,&ptr,sizeof(char*));	/* Store pointer to new key */
     if (keyinfo[0].seg[0].type != HA_KEYTYPE_NUM)
-      my_ci_casedn(default_charset_info, (char*) blob_key, length,
+      default_charset_info->cset->casedn(default_charset_info,
+                                         (char*) blob_key, length,
                                          (char*) blob_key, length);
     pos+=recinfo[0].length;
   }
@@ -684,14 +684,16 @@ static void update_record(uchar *record)
   {
     uint pack_length= HA_VARCHAR_PACKLENGTH(recinfo[0].length-1);
     uint length= pack_length == 1 ? (uint) *(uchar*) pos : uint2korr(pos);
-    my_ci_casedn(default_charset_info, (char*) pos + pack_length, length,
+    default_charset_info->cset->casedn(default_charset_info,
+                                       (char*) pos + pack_length, length,
                                        (char*) pos + pack_length, length);
     pos+=recinfo[0].length;
   }
   else
   {
     if (keyinfo[0].seg[0].type != HA_KEYTYPE_NUM)
-      my_ci_casedn(default_charset_info, (char*) pos, keyinfo[0].seg[0].length,
+      default_charset_info->cset->casedn(default_charset_info,
+                                         (char*) pos, keyinfo[0].seg[0].length,
                                          (char*) pos, keyinfo[0].seg[0].length);
     pos+=recinfo[0].length;
   }
@@ -739,8 +741,8 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Undocumented",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"datadir", 'h', "Path to the database root.", (char**) &maria_data_root,
-   (char**) &maria_data_root, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"datadir", 'h', "Path to the database root.", &maria_data_root,
+   &maria_data_root, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"delete-rows", 'd', "Abort after this many rows has been deleted",
    (uchar**) &remove_count, (uchar**) &remove_count, 0, GET_UINT, REQUIRED_ARG,
    1000, 0, 0, 0, 0, 0},
@@ -812,11 +814,10 @@ static struct my_option my_long_options[] =
 
 
 static my_bool
-get_one_option(const struct my_option *opt,
-	       const char *argument __attribute__((unused)),
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument __attribute__((unused)))
 {
-  switch(opt->id) {
+  switch(optid) {
   case 'a':
     key_type= HA_KEYTYPE_TEXT;
     break;
@@ -869,7 +870,7 @@ get_one_option(const struct my_option *opt,
       record_type= DYNAMIC_RECORD;
     break;
   case 'k':
-    if (key_length < 4 || key_length > MARIA_MAX_KEY_LENGTH)
+    if (key_length < 4 || key_length > HA_MAX_KEY_LENGTH)
     {
       fprintf(stderr,"Wrong key length\n");
       exit(1);

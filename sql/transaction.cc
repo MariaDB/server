@@ -25,8 +25,6 @@
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_acl.h"
 #include "semisync_master.h"
-#include <pfs_transaction_provider.h>
-#include <mysql/psi/mysql_transaction.h>
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
@@ -60,14 +58,7 @@ void trans_reset_one_shot_chistics(THD *thd)
   thd->tx_read_only= thd->variables.tx_read_only;
 }
 
-
-/*
-  Conditions under which the transaction state must not change
-
-  @result TRUE  Transaction can not commit
-  @result FALSE Transaction can commit
-*/
-
+/* Conditions under which the transaction state must not change. */
 static bool trans_check(THD *thd)
 {
   DBUG_ENTER("trans_check");
@@ -76,17 +67,15 @@ static bool trans_check(THD *thd)
     Always commit statement transaction before manipulating with
     the normal one.
   */
-  DBUG_ASSERT(thd->transaction->stmt.is_empty());
+  DBUG_ASSERT(thd->transaction.stmt.is_empty());
 
   if (unlikely(thd->in_sub_stmt))
-  {
     my_error(ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0));
-    DBUG_RETURN(TRUE);
-  }
-  if (likely(!thd->transaction->xid_state.is_explicit_XA()))
+  if (thd->transaction.xid_state.is_explicit_XA())
+    thd->transaction.xid_state.er_xaer_rmfail();
+  else
     DBUG_RETURN(FALSE);
 
-  thd->transaction->xid_state.er_xaer_rmfail();
   DBUG_RETURN(TRUE);
 }
 
@@ -112,8 +101,7 @@ bool trans_begin(THD *thd, uint flags)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
-  if (thd->locked_tables_list.unlock_locked_tables(thd))
-    DBUG_RETURN(true);
+  thd->locked_tables_list.unlock_locked_tables(thd);
 
   DBUG_ASSERT(!thd->locked_tables_mode);
 
@@ -139,10 +127,10 @@ bool trans_begin(THD *thd, uint flags)
     The following set should not be needed as transaction state should
     already be reset. We should at some point change this to an assert.
   */
-  thd->transaction->all.reset();
+  thd->transaction.all.reset();
   thd->has_waiter= false;
   thd->waiting_on_group_commit= false;
-  thd->transaction->start_time.reset(thd);
+  thd->transaction.start_time.reset(thd);
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -173,7 +161,7 @@ bool trans_begin(THD *thd, uint flags)
       compatibility.
     */
     const bool user_is_super=
-      MY_TEST(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY);
+      MY_TEST(thd->security_ctx->master_access & SUPER_ACL);
     if (opt_readonly && !user_is_super)
     {
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
@@ -221,23 +209,6 @@ bool trans_begin(THD *thd, uint flags)
 #endif //EMBEDDED_LIBRARY
     res= ha_start_consistent_snapshot(thd);
   }
-  /*
-    Register transaction start in performance schema if not done already.
-    We handle explicitly started transactions here, implicitly started
-    transactions (and single-statement transactions in autocommit=1 mode)
-    are handled in trans_register_ha().
-    We can't handle explicit transactions in the same way as implicit
-    because we want to correctly attribute statements which follow
-    BEGIN but do not touch any transactional tables.
-  */
-  if (thd->m_transaction_psi == NULL)
-  {
-    thd->m_transaction_psi= MYSQL_START_TRANSACTION(&thd->m_transaction_state,
-                                                 NULL, 0, thd->tx_isolation,
-                                                 thd->tx_read_only, false);
-    DEBUG_SYNC(thd, "after_set_transaction_psi_before_set_transaction_gtid");
-    //gtid_set_performance_schema_values(thd);
-  }
 
   DBUG_RETURN(MY_TEST(res));
 }
@@ -270,22 +241,26 @@ bool trans_commit(THD *thd)
   mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
   mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
-  /*
-    if res is non-zero, then ha_commit_trans has rolled back the
-    transaction, so the hooks for rollback will be called.
-  */
-#ifdef HAVE_REPLICATION
+    /*
+      if res is non-zero, then ha_commit_trans has rolled back the
+      transaction, so the hooks for rollback will be called.
+    */
   if (res)
+  {
+#ifdef HAVE_REPLICATION
     repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
+  }
   else
+  {
+#ifdef HAVE_REPLICATION
     repl_semisync_master.wait_after_commit(thd, FALSE);
 #endif
+  }
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
-  thd->transaction->all.reset();
+  thd->transaction.all.reset();
   thd->lex->start_transaction_opt= 0;
 
-  /* The transaction should be marked as complete in P_S. */
-  DBUG_ASSERT(thd->m_transaction_psi == NULL);
   trans_track_end_trx(thd);
 
   DBUG_RETURN(MY_TEST(res));
@@ -312,10 +287,8 @@ bool trans_commit_implicit(THD *thd)
     DBUG_RETURN(TRUE);
 
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
-  {
     DBUG_PRINT("error", ("OPTION_GTID_BEGIN is set. "
                          "Master and slave will have different GTID values"));
-  }
 
   if (thd->in_multi_stmt_transaction_mode() ||
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
@@ -330,10 +303,7 @@ bool trans_commit_implicit(THD *thd)
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
-  thd->transaction->all.reset();
-
-  /* The transaction should be marked as complete in P_S. */
-  DBUG_ASSERT(thd->m_transaction_psi == NULL);
+  thd->transaction.all.reset();
 
   /*
     Upon implicit commit, reset the current transaction
@@ -373,14 +343,11 @@ bool trans_rollback(THD *thd)
 #ifdef HAVE_REPLICATION
   repl_semisync_master.wait_after_rollback(thd, FALSE);
 #endif
+  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   /* Reset the binlog transaction marker */
-  thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG |
-                                 OPTION_GTID_BEGIN);
-  thd->transaction->all.reset();
+  thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
+  thd->transaction.all.reset();
   thd->lex->start_transaction_opt= 0;
-
-  /* The transaction should be marked as complete in P_S. */
-  DBUG_ASSERT(thd->m_transaction_psi == NULL);
 
   trans_track_end_trx(thd);
 
@@ -414,7 +381,7 @@ bool trans_rollback_implicit(THD *thd)
     Don't perform rollback in the middle of sub-statement, wait till
     its end.
   */
-  DBUG_ASSERT(thd->transaction->stmt.is_empty() && !thd->in_sub_stmt);
+  DBUG_ASSERT(thd->transaction.stmt.is_empty() && !thd->in_sub_stmt);
 
   thd->server_status&= ~SERVER_STATUS_IN_TRANS;
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
@@ -425,12 +392,10 @@ bool trans_rollback_implicit(THD *thd)
     preserve backward compatibility.
   */
   thd->variables.option_bits&= ~(OPTION_KEEP_LOG);
-  thd->transaction->all.reset();
+  thd->transaction.all.reset();
 
   /* Rollback should clear transaction_rollback_request flag. */
-  DBUG_ASSERT(!thd->transaction_rollback_request);
-  /* The transaction should be marked as complete in P_S. */
-  DBUG_ASSERT(thd->m_transaction_psi == NULL);
+  DBUG_ASSERT(! thd->transaction_rollback_request);
 
   trans_track_end_trx(thd);
 
@@ -467,7 +432,7 @@ bool trans_commit_stmt(THD *thd)
 
   thd->merge_unsafe_rollback_flags();
 
-  if (thd->transaction->stmt.ha_list)
+  if (thd->transaction.stmt.ha_list)
   {
     res= ha_commit_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
@@ -498,11 +463,7 @@ bool trans_commit_stmt(THD *thd)
 #endif
   }
 
-  /* In autocommit=1 mode the transaction should be marked as complete in P_S */
-  DBUG_ASSERT(thd->in_active_multi_stmt_transaction() ||
-              thd->m_transaction_psi == NULL);
-
-  thd->transaction->stmt.reset();
+  thd->transaction.stmt.reset();
 
   DBUG_RETURN(MY_TEST(res));
 }
@@ -530,7 +491,7 @@ bool trans_rollback_stmt(THD *thd)
 
   thd->merge_unsafe_rollback_flags();
 
-  if (thd->transaction->stmt.ha_list)
+  if (thd->transaction.stmt.ha_list)
   {
     ha_rollback_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
@@ -541,11 +502,7 @@ bool trans_rollback_stmt(THD *thd)
   repl_semisync_master.wait_after_rollback(thd, FALSE);
 #endif
 
-  /* In autocommit=1 mode the transaction should be marked as complete in P_S */
-  DBUG_ASSERT(thd->in_active_multi_stmt_transaction() ||
-              thd->m_transaction_psi == NULL);
-
-  thd->transaction->stmt.reset();
+  thd->transaction.stmt.reset();
 
   DBUG_RETURN(FALSE);
 }
@@ -554,12 +511,11 @@ bool trans_rollback_stmt(THD *thd)
 static SAVEPOINT **
 find_savepoint(THD *thd, LEX_CSTRING name)
 {
-  SAVEPOINT **sv= &thd->transaction->savepoints;
+  SAVEPOINT **sv= &thd->transaction.savepoints;
 
   while (*sv)
   {
-    if (system_charset_info->strnncoll(
-                     (uchar *) name.str, name.length,
+    if (my_strnncoll(system_charset_info, (uchar *) name.str, name.length,
                      (uchar *) (*sv)->name, (*sv)->length) == 0)
       break;
     sv= &(*sv)->prev;
@@ -588,7 +544,7 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
       !opt_using_transactions)
     DBUG_RETURN(FALSE);
 
-  if (thd->transaction->xid_state.check_has_uncommitted_xa())
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
   sv= find_savepoint(thd, name);
@@ -599,14 +555,14 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
     ha_release_savepoint(thd, *sv);
     *sv= (*sv)->prev;
   }
-  else if ((newsv= (SAVEPOINT *) alloc_root(&thd->transaction->mem_root,
+  else if ((newsv= (SAVEPOINT *) alloc_root(&thd->transaction.mem_root,
                                             savepoint_alloc_size)) == NULL)
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     DBUG_RETURN(TRUE);
   }
 
-  newsv->name= strmake_root(&thd->transaction->mem_root, name.str, name.length);
+  newsv->name= strmake_root(&thd->transaction.mem_root, name.str, name.length);
   newsv->length= (uint)name.length;
 
   /*
@@ -617,8 +573,8 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   if (unlikely(ha_savepoint(thd, newsv)))
     DBUG_RETURN(TRUE);
 
-  newsv->prev= thd->transaction->savepoints;
-  thd->transaction->savepoints= newsv;
+  newsv->prev= thd->transaction.savepoints;
+  thd->transaction.savepoints= newsv;
 
   /*
     Remember locks acquired before the savepoint was set.
@@ -664,19 +620,19 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     DBUG_RETURN(TRUE);
   }
 
-  if (thd->transaction->xid_state.check_has_uncommitted_xa())
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
   if (ha_rollback_to_savepoint(thd, sv))
     res= TRUE;
   else if (((thd->variables.option_bits & OPTION_KEEP_LOG) ||
-            thd->transaction->all.modified_non_trans_table) &&
+            thd->transaction.all.modified_non_trans_table) &&
            !thd->slave_thread)
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
 
-  thd->transaction->savepoints= sv;
+  thd->transaction.savepoints= sv;
 
   if (res)
     /* An error occurred during rollback; we cannot release any MDL */;
@@ -722,7 +678,7 @@ bool trans_release_savepoint(THD *thd, LEX_CSTRING name)
   if (ha_release_savepoint(thd, sv))
     res= TRUE;
 
-  thd->transaction->savepoints= sv->prev;
+  thd->transaction.savepoints= sv->prev;
 
   DBUG_RETURN(MY_TEST(res));
 }

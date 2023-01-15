@@ -47,4 +47,4 @@ SELECT @@GLOBAL.innodb_scrub_log;
 
 --Error ER_BAD_FIELD_ERROR
 SELECT innodb_scrub_log;
---echo Expected error 'Unknown column in field list'
+--echo Expected error 'Unknow column in field list'

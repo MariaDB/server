@@ -129,7 +129,7 @@ In all Asian charsets these arrays are set up as follows:
 
 In Unicode character sets we have full support of UPPER/LOWER mapping,
 for sorting order, and for character type detection.
-"utf8mb3_general_ci" still has the "old-fashioned" arrays
+"utf8_general_ci" still has the "old-fashioned" arrays
 like to_upper, to_lower, sort_order and ctype, but they are
 not really used (maybe only in some rare legacy functions).
 

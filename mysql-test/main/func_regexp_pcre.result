@@ -793,7 +793,7 @@ SELECT 'a\nb' RLIKE '(?-s)a.b';
 0
 SET default_regex_flags=DEFAULT;
 SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
-ERROR 42000: Regex error 'two named subpatterns have the same name (PCRE2_DUPNAMES not set) at offset 30'
+ERROR 42000: Got error 'two named subpatterns have the same name at offset 29' from regexp
 SET default_regex_flags='DUPNAMES';
 SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
 REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$')
@@ -817,13 +817,11 @@ SELECT 'AB' RLIKE 'A# this is a comment\nB';
 1
 SET default_regex_flags=DEFAULT;
 SELECT 'Aq' RLIKE 'A\\q';
-ERROR 42000: Regex error 'unrecognized character follows \ at offset 2'
+'Aq' RLIKE 'A\\q'
+1
 SET default_regex_flags='EXTRA';
-SELECT 'A' RLIKE 'B';
-'A' RLIKE 'B'
-0
-Warnings:
-Warning	1105	PCRE2 doesn't support the EXTRA flag. Ignored.
+SELECT 'Aq' RLIKE 'A\\q';
+ERROR 42000: Got error 'unrecognized character follows \ at offset 2' from regexp
 SET default_regex_flags=DEFAULT;
 SELECT 'a\nb\nc' RLIKE '^b$';
 'a\nb\nc' RLIKE '^b$'
@@ -863,7 +861,7 @@ SELECT 0xE001 REGEXP @regCheck;
 0xE001 REGEXP @regCheck
 0
 Warnings:
-Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
+Warning	1139	Got error 'pcre_exec: Invalid utf8 byte sequence in the subject string' from regexp
 # Testing workaround N1: This makes the pattern to be a binary string:
 SET NAMES latin1;
 SET @regCheck= X'E001';
@@ -884,6 +882,41 @@ CAST(0xE001 AS BINARY) REGEXP @regCheck
 1
 # MDEV-12420: Testing recursion overflow
 SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,Golf,Hotel,India,Juliet,Kilo,Lima,Mike,StrataL3,November,Oscar,StrataL2,Sand,P3,P4SwitchTest,Arsys,Poppa,ExtensionMgr,Arp,Quebec,Romeo,StrataApiV2,PtReyes,Sierra,SandAcl,Arrow,Artools,BridgeTest,Tango,SandT,PAlaska,Namespace,Agent,Qos,PatchPanel,ProjectReport,Ark,Gimp,Agent,SliceAgent,Arnet,Bgp,Ale,Tommy,Central,AsicPktTestLib,Hsc,SandL3,Abuild,Pca9555,Standby,ControllerDut,CalSys,SandLib,Sb820,PointV2,BfnLib,Evpn,BfnSdk,Sflow,ManagementActive,AutoTest,GatedTest,Bgp,Sand,xinetd,BfnAgentLib,bf-utils,Hello,BfnState,Eos,Artest,Qos,Scd,ThermoMgr,Uniform,EosUtils,Eb,FanController,Central,BfnL3,BfnL2,tcp_wrappers,Victor,Environment,Route,Failover,Whiskey,Xray,Gimp,BfnFixed,Strata,SoCal,XApi,Msrp,XpProfile,tcpdump,PatchPanel,ArosTest,FhTest,Arbus,XpAcl,MacConc,XpApi,telnet,QosTest,Alpha2,BfnVlan,Stp,VxlanControllerTest,MplsAgent,Bravo2,Lanz,BfnMbb,Intf,XCtrl,Unicast,SandTunnel,L3Unicast,Ipsec,MplsTest,Rsvp,EthIntf,StageMgr,Sol,MplsUtils,Nat,Ira,P4NamespaceDut,Counters,Charlie2,Aqlc,Mlag,Power,OpenFlow,Lag,RestApi,BfdTest,strongs,Sfa,CEosUtils,Adt746,MaintenanceMode,MlagDut,EosImage,IpEth,MultiProtocol,Launcher,Max3179,Snmp,Acl,IpEthTest,PhyEee,bf-syslibs,tacc,XpL2,p4-ar-switch,p4-bf-switch,LdpTest,BfnPhy,Mirroring,Phy6,Ptp'  REGEXP '^((?!\b(Strata|StrataApi|StrataApiV2)\b).)*$');
+1
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT CONCAT(REPEAT('100,',60),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
+CONCAT(REPEAT('100,',60),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$'
+1
+SELECT CONCAT(REPEAT('100,',400),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
+CONCAT(REPEAT('100,',400),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$'
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
+REGEXP_INSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$')
+1
+SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
+REGEXP_INSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$')
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
+LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'))
+243
+SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
+LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'))
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
+LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''))
+0
+SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
+LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''))
+1603
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
 SELECT REGEXP_INSTR('a_kollision', 'oll');
 REGEXP_INSTR('a_kollision', 'oll')
 4

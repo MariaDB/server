@@ -47,15 +47,6 @@
 #define uid cr_uid
 #define ucred xucred
 
-#elif defined HAVE_GETPEERUCRED
-#include <ucred.h>
-
-#elif defined HAVE_PEERCRED_STRUCT
-#define level SOL_SOCKET
-#define SO_PEERCRED SO_PEERID
-#define uid euid
-#define ucred peercred_struct
- 
 #else
 #error impossible
 #endif
@@ -73,15 +64,10 @@ static int socket_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   unsigned char *pkt;
   MYSQL_PLUGIN_VIO_INFO vio_info;
-#ifdef HAVE_GETPEERUCRED
-  ucred_t *cred = NULL;
-#else
   struct ucred cred;
   socklen_t cred_len= sizeof(cred);
-#endif
   struct passwd pwd_buf, *pwd;
   char buf[1024];
-  uid_t u;
 
   /* no user name yet ? read the client handshake packet with the user name */
   if (info->user_name == 0)
@@ -97,23 +83,14 @@ static int socket_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
     return CR_ERROR;
 
   /* get the UID of the client process */
-#ifdef HAVE_GETPEERUCRED
-  if (getpeerucred(vio_info.socket, &cred) != 0)
-    return CR_ERROR;
-  u = ucred_geteuid(cred);
-  ucred_free(cred);
-#else
   if (getsockopt(vio_info.socket, level, SO_PEERCRED, &cred, &cred_len))
     return CR_ERROR;
 
   if (cred_len != sizeof(cred))
     return CR_ERROR;
 
-  u = cred.uid;
-#endif
-
   /* and find the username for this uid */
-  getpwuid_r(u, &pwd_buf, buf, sizeof(buf), &pwd);
+  getpwuid_r(cred.uid, &pwd_buf, buf, sizeof(buf), &pwd);
   if (pwd == NULL)
     return CR_ERROR;
 

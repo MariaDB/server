@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2017, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -21,14 +21,12 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
-#include <my_thread.h>
+#include <my_pthread.h>
 #include <string.h>                             // strncpy
 #include <pfs_instr_class.h>
 #include <pfs_instr.h>
 #include <pfs_global.h>
 #include <tap.h>
-
-#include "stub_global_status_var.h"
 
 void test_no_registration()
 {
@@ -37,14 +35,12 @@ void test_no_registration()
   PFS_thread_key thread_key;
   PFS_file_key file_key;
   PFS_socket_key socket_key;
-  PFS_memory_key memory_key;
   PFS_mutex_class *mutex;
   PFS_rwlock_class *rwlock;
   PFS_cond_class *cond;
   PFS_thread_class *thread;
   PFS_file_class *file;
   PFS_socket_class *socket;
-  PFS_memory_class *memory;
   /* PFS_table_share *table; */
 
   rc= init_sync_class(0, 0, 0);
@@ -57,8 +53,6 @@ void test_no_registration()
   ok(rc == 0, "zero init (socket)");
   rc= init_table_share(0);
   ok(rc == 0, "zero init (table)");
-  rc= init_memory_class(0);
-  ok(rc == 0, "zero init (memory)");
 
   key= register_mutex_class("FOO", 3, 0);
   ok(key == 0, "no mutex registered");
@@ -101,13 +95,6 @@ void test_no_registration()
   ok(socket_key == 0, "no socket registered");
   socket_key= register_socket_class("FOO", 3, 0);
   ok(socket_key == 0, "no socket registered");
-
-  memory_key= register_memory_class("FOO", 3, 0);
-  ok(memory_key == 0, "no memory registered");
-  memory_key= register_memory_class("BAR", 3, 0);
-  ok(memory_key == 0, "no memory registered");
-  memory_key= register_memory_class("FOO", 3, 0);
-  ok(memory_key == 0, "no memory registered");
 
 #ifdef LATER
   PFS_thread fake_thread;
@@ -163,19 +150,11 @@ void test_no_registration()
   socket= find_socket_class(9999);
   ok(socket == NULL, "no socket key 9999");
 
-  memory= find_memory_class(0);
-  ok(memory == NULL, "no memory key 0");
-  memory= find_memory_class(1);
-  ok(memory == NULL, "no memory key 1");
-  memory= find_memory_class(9999);
-  ok(memory == NULL, "no memory key 9999");
-
   cleanup_sync_class();
   cleanup_thread_class();
   cleanup_file_class();
   cleanup_socket_class();
   cleanup_table_share();
-  cleanup_memory_class();
 }
 
 void test_mutex_registration()
@@ -501,53 +480,6 @@ void test_table_registration()
 #endif
 }
 
-void test_memory_registration()
-{
-  int rc;
-  PFS_memory_key key;
-  PFS_memory_class *memory;
-
-  rc= init_memory_class(5);
-  ok(rc == 0, "room for 5 memory");
-
-  key= register_memory_class("FOO", 3, 0);
-  ok(key == 1, "foo registered");
-  key= register_memory_class("BAR", 3, 0);
-  ok(key == 2, "bar registered");
-  key= register_memory_class("FOO", 3, 0);
-  ok(key == 1, "foo re registered");
-  key= register_memory_class("Memory-3", 8, 0);
-  ok(key == 3, "Memory-3 registered");
-  key= register_memory_class("Memory-4", 8, 0);
-  ok(key == 4, "Memory-4 registered");
-  key= register_memory_class("Memory-5", 8, 0);
-  ok(key == 5, "Memory-5 registered");
-  ok(memory_class_lost == 0, "lost nothing");
-  key= register_memory_class("Memory-6", 8, 0);
-  ok(key == 0, "Memory-6 not registered");
-  ok(memory_class_lost == 1, "lost 1 memory");
-  key= register_memory_class("Memory-7", 8, 0);
-  ok(key == 0, "Memory-7 not registered");
-  ok(memory_class_lost == 2, "lost 2 memory");
-  key= register_memory_class("Memory-3", 8, 0);
-  ok(key == 3, "Memory-3 re registered");
-  ok(memory_class_lost == 2, "lost 2 memory");
-  key= register_memory_class("Memory-5", 8, 0);
-  ok(key == 5, "Memory-5 re registered");
-  ok(memory_class_lost == 2, "lost 2 memory");
-
-  memory= find_memory_class(0);
-  ok(memory == NULL, "no key 0");
-  memory= find_memory_class(3);
-  ok(memory != NULL, "found key 3");
-  ok(strncmp(memory->m_name, "Memory-3", 8) == 0, "key 3 is Memory-3");
-  ok(memory->m_name_length == 8, "name length 3");
-  memory= find_memory_class(9999);
-  ok(memory == NULL, "no key 9999");
-
-  cleanup_memory_class();
-}
-
 #ifdef LATER
 void set_wait_stat(PFS_instr_class *klass)
 {
@@ -736,13 +668,12 @@ void do_all_tests()
   test_file_registration();
   test_socket_registration();
   test_table_registration();
-  test_memory_registration();
   test_instruments_reset();
 }
 
 int main(int argc, char **argv)
 {
-  plan(209);
+  plan(181);
   MY_INIT(argv[0]);
   do_all_tests();
   my_end(0);

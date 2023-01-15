@@ -57,7 +57,7 @@ public:
         expand_varchar_update_needed(false),
         expand_fixed_update_needed(false),
         expand_blob_update_needed(false),
-        optimize_needed(false), changed_fields(PSI_INSTRUMENT_MEM),
+        optimize_needed(false),
         table_kc_info(NULL),
         altered_table_kc_info(NULL) {
     }

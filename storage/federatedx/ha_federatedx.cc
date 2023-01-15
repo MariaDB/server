@@ -1,6 +1,5 @@
 /*
 Copyright (c) 2008-2009, Patrick Galbraith & Antony Curtis
-Copyright (c) 2020, 2022, MariaDB Corporation.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -428,6 +427,7 @@ int federatedx_db_init(void *p)
   DBUG_ENTER("federatedx_db_init");
   init_federated_psi_keys();
   federatedx_hton= (handlerton *)p;
+  federatedx_hton->state= SHOW_OPTION_YES;
   /* Needed to work with old .frm files */
   federatedx_hton->db_type= DB_TYPE_FEDERATED_DB;
   federatedx_hton->savepoint_offset= sizeof(ulong);
@@ -439,7 +439,6 @@ int federatedx_db_init(void *p)
   federatedx_hton->rollback= ha_federatedx::rollback;
   federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
-  federatedx_hton->drop_table= [](handlerton *, const char*) { return -1; };
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
   federatedx_hton->create_derived= create_federatedx_derived_handler;
   federatedx_hton->create_select= create_federatedx_select_handler;
@@ -447,9 +446,9 @@ int federatedx_db_init(void *p)
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
     goto error;
-  if (!my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_tables, &my_charset_bin, 32, 0, 0,
+  if (!my_hash_init(&federatedx_open_tables, &my_charset_bin, 32, 0, 0,
                  (my_hash_get_key) federatedx_share_get_key, 0, 0) &&
-      !my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_servers, &my_charset_bin, 32, 0, 0,
+      !my_hash_init(&federatedx_open_servers, &my_charset_bin, 32, 0, 0,
                  (my_hash_get_key) federatedx_server_get_key, 0, 0))
   {
     DBUG_RETURN(FALSE);
@@ -513,7 +512,7 @@ bool append_ident(String *string, const char *name, size_t length,
     for (name_end= name+length; name < name_end; name+= clen)
     {
       uchar c= *(uchar *) name;
-      clen= system_charset_info->charlen_fix(name, name_end);
+      clen= my_charlen_fix(system_charset_info, name, name_end);
       if (clen == 1 && c == (uchar) quote_char &&
           (result= string->append(&quote_char, 1, system_charset_info)))
         goto err;
@@ -896,8 +895,7 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
       if (bitmap_is_set(table->read_set, (*field)->field_index))
       {
         (*field)->set_notnull();
-        (*field)->store_text(io->get_column_data(row, column), lengths[column],
-                             &my_charset_bin);
+        (*field)->store(io->get_column_data(row, column), lengths[column], &my_charset_bin);
       }
     }
     (*field)->move_field_offset(-old_ptr);
@@ -1541,7 +1539,7 @@ static FEDERATEDX_SERVER *get_server(FEDERATEDX_SHARE *share, TABLE *table)
 
   mysql_mutex_assert_owner(&federatedx_mutex);
 
-  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 4096, 4096, MYF(0));
+  init_alloc_root(&mem_root, "federated", 4096, 4096, MYF(0));
 
   fill_server(&mem_root, &tmp_server, share, table ? table->s->table_charset : 0);
 
@@ -1599,7 +1597,7 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
   query.length(0);
 
   bzero(&tmp_share, sizeof(tmp_share));
-  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 256, 0, MYF(0));
+  init_alloc_root(&mem_root, "federated", 256, 0, MYF(0));
 
   mysql_mutex_lock(&federatedx_mutex);
 
@@ -1732,10 +1730,8 @@ static void free_share(federatedx_txn *txn, FEDERATEDX_SHARE *share)
 }
 
 
-ha_rows ha_federatedx::records_in_range(uint inx,
-                                        const key_range *start_key,
-                                        const key_range *end_key,
-                                        page_range *pages)
+ha_rows ha_federatedx::records_in_range(uint inx, key_range *start_key,
+                                       key_range *end_key)
 {
   /*
 
@@ -1750,13 +1746,10 @@ ha_rows ha_federatedx::records_in_range(uint inx,
 
 federatedx_txn *ha_federatedx::get_txn(THD *thd, bool no_create)
 {
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
-  if (!txn && !no_create)
-  {
-    txn= new federatedx_txn();
-    thd_set_ha_data(thd, federatedx_hton, txn);
-  }
-  return txn;
+  federatedx_txn **txnp= (federatedx_txn **) thd_ha_data(thd, ht);
+  if (!*txnp && !no_create)
+    *txnp= new federatedx_txn();
+  return *txnp;
 }
 
 
@@ -1764,6 +1757,7 @@ int ha_federatedx::disconnect(handlerton *hton, MYSQL_THD thd)
 {
   federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
   delete txn;
+  *((federatedx_txn **) thd_ha_data(thd, hton))= 0;
   return 0;
 }
 
@@ -1805,7 +1799,7 @@ int ha_federatedx::open(const char *name, int mode, uint test_if_locked)
 
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(PSI_INSTRUMENT_ME, &results, sizeof(FEDERATEDX_IO_RESULT*), 4, 4, MYF(0));
+  my_init_dynamic_array(&results, sizeof(FEDERATEDX_IO_RESULT*), 4, 4, MYF(0));
 
   reset();
 
@@ -3497,7 +3491,7 @@ int ha_federatedx::start_stmt(MYSQL_THD thd, thr_lock_type lock_type)
   if (!txn->in_transaction())
   {
     txn->stmt_begin();
-    trans_register_ha(thd, FALSE, ht, 0);
+    trans_register_ha(thd, FALSE, ht);
   }
   DBUG_RETURN(0);
 }
@@ -3520,12 +3514,12 @@ int ha_federatedx::external_lock(MYSQL_THD thd, int lock_type)
       if (!thd_test_options(thd, (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
       {
         txn->stmt_begin();
-        trans_register_ha(thd, FALSE, ht, 0);
+        trans_register_ha(thd, FALSE, ht);
       }
       else
       {
         txn->txn_begin();
-        trans_register_ha(thd, TRUE, ht, 0);
+        trans_register_ha(thd, TRUE, ht);
       }
     }
   }
@@ -3543,7 +3537,7 @@ int ha_federatedx::savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv)
   if (txn && txn->has_connections())
   {
     if (txn->txn_begin())
-      trans_register_ha(thd, TRUE, hton, 0);
+      trans_register_ha(thd, TRUE, hton);
     
     txn->sp_acquire((ulong *) sv);
 
@@ -3718,7 +3712,7 @@ maria_declare_plugin(federatedx)
   &federatedx_storage_engine,
   "FEDERATED",
   "Patrick Galbraith",
-  "Allows one to access tables on other MariaDB servers, supports transactions and more",
+  "Allows to access tables on other MariaDB servers, supports transactions and more",
   PLUGIN_LICENSE_GPL,
   federatedx_db_init, /* Plugin Init */
   federatedx_done, /* Plugin Deinit */
@@ -3729,3 +3723,4 @@ maria_declare_plugin(federatedx)
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
+

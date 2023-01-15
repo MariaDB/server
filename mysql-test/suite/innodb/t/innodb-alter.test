@@ -583,14 +583,10 @@ DROP TABLE t1, parent;
 --echo #BUG#21514135 SCHEMA MISMATCH ERROR WHEN IMPORTING TABLESPACE AFTER
 --echo #DROPPING AN INDEX
 --echo #
-
---disable_query_log
-call mtr.add_suppression("\\[Warning\\] InnoDB: Unknown index id .* on page");
---enable_query_log
-
 let $source_db = source_db;
 let $dest_db = dest_db;
 
+--source include/default_charset.inc
 SET NAMES utf8mb4;
 
 eval CREATE DATABASE $source_db;

@@ -171,8 +171,8 @@ void start_test(int id)
   MARIA_INFO isam_info;
   MARIA_HA *file,*file1,*file2=0,*lock;
 
-  if (!(file1=maria_open(filename,O_RDWR,HA_OPEN_WAIT_IF_LOCKED,0)) ||
-      !(file2=maria_open(filename,O_RDWR,HA_OPEN_WAIT_IF_LOCKED,0)))
+  if (!(file1=maria_open(filename,O_RDWR,HA_OPEN_WAIT_IF_LOCKED)) ||
+      !(file2=maria_open(filename,O_RDWR,HA_OPEN_WAIT_IF_LOCKED)))
   {
     fprintf(stderr,"Can't open isam-file: %s\n",filename);
     exit(1);

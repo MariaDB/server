@@ -2672,19 +2672,3 @@ SET column_compression_threshold=0;
 INSERT INTO t1 VALUES('aa');
 SET column_compression_threshold=DEFAULT;
 DROP TABLE t1;
-#
-# End of 10.3 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-19727 Add Type_handler::Key_part_spec_init_ft
-#
-CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED, FULLTEXT INDEX(a));
-ERROR HY000: Compressed column 'a' can't be used in key specification
-CREATE TABLE t1 (a TEXT COMPRESSED, FULLTEXT INDEX(a));
-ERROR HY000: Compressed column 'a' can't be used in key specification
-#
-# End of 10.5 tests
-#

@@ -1,5 +1,4 @@
 /* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -105,7 +104,7 @@ static bool assign_fixed_string(MEM_ROOT *mem_root,
   src_cs= src->charset();
   src_len= src->length();
   src_end= src_str + src_len;
-  numchars= src_cs->numchars(src_str, src_end);
+  numchars= src_cs->cset->numchars(src_cs, src_str, src_end);
 
   if (numchars <= max_char)
   {
@@ -115,7 +114,7 @@ static bool assign_fixed_string(MEM_ROOT *mem_root,
   else
   {
     numchars= max_char;
-    to_copy= dst_cs->charpos(src_str, src_end, numchars);
+    to_copy= dst_cs->cset->charpos(dst_cs, src_str, src_end, numchars);
     truncated= true;
   }
 
@@ -152,7 +151,7 @@ static int assign_condition_item(MEM_ROOT *mem_root, const char* name, THD *thd,
                                  Item *set, String *ci)
 {
   char str_buff[(64+1)*4]; /* Room for a null terminated UTF8 String 64 */
-  String str_value(str_buff, sizeof(str_buff), & my_charset_utf8mb3_bin);
+  String str_value(str_buff, sizeof(str_buff), & my_charset_utf8_bin);
   String *str;
   bool truncated;
 
@@ -165,7 +164,7 @@ static int assign_condition_item(MEM_ROOT *mem_root, const char* name, THD *thd,
   }
 
   str= set->val_str(& str_value);
-  truncated= assign_fixed_string(mem_root, & my_charset_utf8mb3_bin, 64, ci, str);
+  truncated= assign_fixed_string(mem_root, & my_charset_utf8_bin, 64, ci, str);
   if (truncated)
   {
     if (thd->is_strict_mode())
@@ -261,7 +260,7 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
     bool truncated;
     String utf8_text;
     str= set->val_str(& str_value);
-    truncated= assign_fixed_string(thd->mem_root, & my_charset_utf8mb3_bin,
+    truncated= assign_fixed_string(thd->mem_root, & my_charset_utf8_bin,
                                    MYSQL_ERRMSG_SIZE,
                                    & utf8_text, str);
     if (truncated)

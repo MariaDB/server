@@ -50,7 +50,6 @@ SELECT * FROM t2 WHERE id = 3;
 SELECT * FROM t2 WHERE id IN (2,4);
 SELECT * FROM t2 WHERE id IN (2,4) AND msg = 'Two';
 SELECT * FROM t2 WHERE id > 4;
---sorted_result
 SELECT * FROM t2 WHERE id >= 3;
 SELECT * FROM t2 WHERE id < 3;
 SELECT * FROM t2 WHERE id < 2 OR id > 4;
@@ -131,7 +130,8 @@ SELECT matricule, nom, prenom FROM t2 WHERE nom > 'HELEN' AND nom < 'HEROS';
 SELECT matricule, nom, prenom FROM t2 WHERE nom BETWEEN 'HELEN' AND 'HEROS';
 --sorted_result
 SELECT matricule, nom, prenom FROM t2 WHERE nom BETWEEN 'HELEN' AND 'HEROS' AND prenom = 'PHILIPPE';
-SELECT matricule, nom, prenom FROM t2 ORDER BY nom,prenom LIMIT 10;
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 ORDER BY nom LIMIT 10;
 --sorted_result
 SELECT a.nom, a.prenom, b.nom FROM t1 a STRAIGHT_JOIN t2 b ON a.prenom = b.prenom WHERE a.nom = 'FOCH' AND a.nom != b.nom;
 

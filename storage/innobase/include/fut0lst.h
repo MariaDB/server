@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -68,95 +68,134 @@ typedef	byte	flst_node_t;
 @param[in,out]	block	file page
 @param[in]	ofs	byte offset of the list base node
 @param[in,out]	mtr	mini-transaction */
-inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
+inline void flst_init(buf_block_t* block, uint16_t ofs, mtr_t* mtr)
 {
-  ut_ad(!mach_read_from_2(FLST_LEN + ofs + block->frame));
-  ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs + block->frame));
-  ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs + block->frame));
-  compile_time_assert(FIL_NULL == 0xffU * 0x1010101U);
-  mtr->memset(block, FLST_FIRST + FIL_ADDR_PAGE + ofs, 4, 0xff);
-  mtr->memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff);
+	ut_ad(0 == mach_read_from_2(FLST_LEN + ofs + block->frame));
+	ut_ad(0 == mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs
+				    + block->frame));
+	ut_ad(0 == mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs
+				    + block->frame));
+	compile_time_assert(FIL_NULL == 0xffU * 0x1010101U);
+	mlog_memset(block, FLST_FIRST + FIL_ADDR_PAGE + ofs, 4, 0xff, mtr);
+	mlog_memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff, mtr);
 }
 
-/** Initialize a list base node.
-@param[in]      block   file page
-@param[in,out]  base    base node
-@param[in,out]  mtr     mini-transaction */
-void flst_init(const buf_block_t& block, byte *base, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
-
-/** Append a file list node to a list.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  add     block to be added
-@param[in]      aoffset byte offset of the node to be added
-@param[in,outr] mtr     mini-transaction */
-void flst_add_last(buf_block_t *base, uint16_t boffset,
-                   buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
-/** Prepend a file list node to a list.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  add     block to be added
-@param[in]      aoffset byte offset of the node to be added
-@param[in,outr] mtr     mini-transaction */
-void flst_add_first(buf_block_t *base, uint16_t boffset,
-                    buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
-/** Remove a file list node.
-@param[in,out]  base    base node block
-@param[in]      boffset byte offset of the base node
-@param[in,out]  cur     block to be removed
-@param[in]      coffset byte offset of the current record to be removed
-@param[in,outr] mtr     mini-transaction */
-void flst_remove(buf_block_t *base, uint16_t boffset,
-                 buf_block_t *cur, uint16_t coffset, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
-
-/** @return the length of a list */
-inline uint32_t flst_get_len(const flst_base_node_t *base)
+/** Write a null file address.
+@param[in,out]	faddr	file address to be zeroed otu
+@param[in,out]	mtr	mini-transaction */
+inline void flst_zero_addr(fil_faddr_t* faddr, mtr_t* mtr)
 {
-  return mach_read_from_4(base + FLST_LEN);
+	if (mach_read_from_4(faddr + FIL_ADDR_PAGE) != FIL_NULL) {
+		mlog_memset(faddr + FIL_ADDR_PAGE, 4, 0xff, mtr);
+	}
+	if (mach_read_from_2(faddr + FIL_ADDR_BYTE)) {
+		mlog_write_ulint(faddr + FIL_ADDR_BYTE, 0, MLOG_2BYTES, mtr);
+	}
 }
 
-/** @return a file address */
-inline fil_addr_t flst_read_addr(const byte *faddr)
-{
-  fil_addr_t addr= { mach_read_from_4(faddr + FIL_ADDR_PAGE),
-		     mach_read_from_2(faddr + FIL_ADDR_BYTE) };
-  ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
-  ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
-  return addr;
-}
+/********************************************************************//**
+Initializes a list base node. */
+UNIV_INLINE
+void
+flst_init(
+/*======*/
+	flst_base_node_t*	base,	/*!< in: pointer to base node */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Adds a node as the last node in a list. */
+void
+flst_add_last(
+/*==========*/
+	flst_base_node_t*	base,	/*!< in: pointer to base node of list */
+	flst_node_t*		node,	/*!< in: node to add */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Adds a node as the first node in a list. */
+void
+flst_add_first(
+/*===========*/
+	flst_base_node_t*	base,	/*!< in: pointer to base node of list */
+	flst_node_t*		node,	/*!< in: node to add */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Removes a node. */
+void
+flst_remove(
+/*========*/
+	flst_base_node_t*	base,	/*!< in: pointer to base node of list */
+	flst_node_t*		node2,	/*!< in: node to remove */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/** Get the length of a list.
+@param[in]	base	base node
+@return length */
+UNIV_INLINE
+uint32_t
+flst_get_len(
+	const flst_base_node_t*	base);
+/********************************************************************//**
+Gets list first node address.
+@return file address */
+UNIV_INLINE
+fil_addr_t
+flst_get_first(
+/*===========*/
+	const flst_base_node_t*	base,	/*!< in: pointer to base node */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Gets list last node address.
+@return file address */
+UNIV_INLINE
+fil_addr_t
+flst_get_last(
+/*==========*/
+	const flst_base_node_t*	base,	/*!< in: pointer to base node */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Gets list next node address.
+@return file address */
+UNIV_INLINE
+fil_addr_t
+flst_get_next_addr(
+/*===============*/
+	const flst_node_t*	node,	/*!< in: pointer to node */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Gets list prev node address.
+@return file address */
+UNIV_INLINE
+fil_addr_t
+flst_get_prev_addr(
+/*===============*/
+	const flst_node_t*	node,	/*!< in: pointer to node */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Writes a file address. */
+UNIV_INLINE
+void
+flst_write_addr(
+/*============*/
+	fil_faddr_t*	faddr,	/*!< in: pointer to file faddress */
+	fil_addr_t	addr,	/*!< in: file address */
+	mtr_t*		mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Reads a file address.
+@return file address */
+UNIV_INLINE
+fil_addr_t
+flst_read_addr(
+/*===========*/
+	const fil_faddr_t*	faddr,	/*!< in: pointer to file faddress */
+	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+/********************************************************************//**
+Validates a file-based list.
+@return TRUE if ok */
+ibool
+flst_validate(
+/*==========*/
+	const flst_base_node_t*	base,	/*!< in: pointer to base node of list */
+	mtr_t*			mtr1);	/*!< in: mtr */
 
-/** @return list first node address */
-inline fil_addr_t flst_get_first(const flst_base_node_t *base)
-{
-  return flst_read_addr(base + FLST_FIRST);
-}
-
-/** @return list last node address */
-inline fil_addr_t flst_get_last(const flst_base_node_t *base)
-{
-  return flst_read_addr(base + FLST_LAST);
-}
-
-/** @return list next node address */
-inline fil_addr_t flst_get_next_addr(const flst_node_t* node)
-{
-  return flst_read_addr(node + FLST_NEXT);
-}
-
-/** @return list prev node address */
-inline fil_addr_t flst_get_prev_addr(const flst_node_t *node)
-{
-  return flst_read_addr(node + FLST_PREV);
-}
-
-#ifdef UNIV_DEBUG
-/** Validate a file-based list. */
-void flst_validate(const buf_block_t *base, uint16_t boffset, mtr_t *mtr);
-#endif
+#include "fut0lst.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
 

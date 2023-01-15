@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,10 +26,9 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "hostname.h" /* For Host_entry */
 #include "pfs_engine_table.h"
-#include "pfs_buffer_container.h"
 
 #include "table_events_waits.h"
 #include "table_setup_actors.h"
@@ -48,7 +47,6 @@
 #include "table_file_summary_by_instance.h"
 #include "table_file_summary_by_event_name.h"
 #include "table_threads.h"
-//#include "table_processlist.h"
 
 #include "table_ews_by_host_by_event_name.h"
 #include "table_ews_by_user_by_event_name.h"
@@ -71,14 +69,6 @@
 #include "table_esms_by_account_by_event_name.h"
 #include "table_esms_global_by_event_name.h"
 #include "table_esms_by_digest.h"
-#include "table_esms_by_program.h"
-
-#include "table_events_transactions.h"
-#include "table_ets_by_thread_by_event_name.h"
-#include "table_ets_by_host_by_event_name.h"
-#include "table_ets_by_user_by_event_name.h"
-#include "table_ets_by_account_by_event_name.h"
-#include "table_ets_global_by_event_name.h"
 
 #include "table_users.h"
 #include "table_accounts.h"
@@ -89,39 +79,6 @@
 #include "table_socket_summary_by_event_name.h"
 #include "table_session_connect_attrs.h"
 #include "table_session_account_connect_attrs.h"
-#include "table_mems_global_by_event_name.h"
-#include "table_mems_by_account_by_event_name.h"
-#include "table_mems_by_host_by_event_name.h"
-#include "table_mems_by_thread_by_event_name.h"
-#include "table_mems_by_user_by_event_name.h"
-
-/* For replication related perfschema tables. */
-#include "table_replication_connection_configuration.h"
-#include "table_replication_group_members.h"
-#include "table_replication_connection_status.h"
-#include "table_replication_applier_configuration.h"
-#include "table_replication_applier_status.h"
-#include "table_replication_applier_status_by_coordinator.h"
-#include "table_replication_applier_status_by_worker.h"
-#include "table_replication_group_member_stats.h"
-
-#include "table_prepared_stmt_instances.h"
-
-#include "table_md_locks.h"
-#include "table_table_handles.h"
-
-#include "table_uvar_by_thread.h"
-
-#include "table_status_by_account.h"
-#include "table_status_by_host.h"
-#include "table_status_by_thread.h"
-#include "table_status_by_user.h"
-#include "table_global_status.h"
-#include "table_session_status.h"
-
-#include "table_variables_by_thread.h"
-#include "table_global_variables.h"
-#include "table_session_variables.h"
 
 /* For show status */
 #include "pfs_column_values.h"
@@ -134,102 +91,11 @@
 
 #include "sql_base.h"                           // close_thread_tables
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
-#include "log.h"
 
 /**
   @addtogroup Performance_schema_engine
   @{
 */
-
-bool PFS_table_context::initialize(void)
-{
-  if (m_restore)
-  {
-    /* Restore context from TLS. */
-    PFS_table_context *context= static_cast<PFS_table_context *>(my_get_thread_local(m_thr_key));
-    assert(context != NULL);
-
-    if(context)
-    {
-      m_last_version= context->m_current_version;
-      m_map= context->m_map;
-      assert(m_map_size == context->m_map_size);
-      m_map_size= context->m_map_size;
-    }
-  }
-  else
-  {
-    /* Check that TLS is not in use. */
-    PFS_table_context *context= static_cast<PFS_table_context *>(my_get_thread_local(m_thr_key));
-    //assert(context == NULL);
-
-    context= this;
-
-    /* Initialize a new context, store in TLS. */
-    m_last_version= m_current_version;
-    m_map= NULL;
-
-    /* Allocate a bitmap to record which threads are materialized. */
-    if (m_map_size > 0)
-    {
-      THD *thd= current_thd;
-      ulong words= m_map_size / m_word_size + (m_map_size % m_word_size > 0);
-      m_map= (ulong *)thd->calloc(words * m_word_size);
-    }
-
-    /* Write to TLS. */
-    my_set_thread_local(m_thr_key, static_cast<void *>(context));
-  }
-
-  m_initialized= (m_map_size > 0) ? (m_map != NULL) : true;
-
-  return m_initialized;
-}
-
-/* Constructor for global or single thread tables, map size = 0.  */
-PFS_table_context::PFS_table_context(ulonglong current_version, bool restore, thread_local_key_t key) :
-                   m_thr_key(key), m_current_version(current_version), m_last_version(0),
-                   m_map(NULL), m_map_size(0),
-                   m_restore(restore), m_initialized(false), m_last_item(0)
-{
-  initialize();
-}
-
-/* Constructor for by-thread or aggregate tables, map size = max thread/user/host/account. */
-PFS_table_context::PFS_table_context(ulonglong current_version, ulong map_size, bool restore, thread_local_key_t key) :
-                   m_thr_key(key), m_current_version(current_version), m_last_version(0),
-                   m_map(NULL), m_map_size(map_size),
-                   m_restore(restore), m_initialized(false), m_last_item(0)
-{
-  initialize();
-}
-
-PFS_table_context::~PFS_table_context(void)
-{
-  /* Clear TLS after final use. */ // TODO: How is that determined?
-//  if (m_restore)
-//  {
-//    my_set_thread_local(m_thr_key, NULL);
-//  }
-}
-
-void PFS_table_context::set_item(ulong n)
-{
-  if (n == m_last_item)
-    return;
-  ulong word= n / m_word_size;
-  ulong bit= n % m_word_size;
-  m_map[word] |= (1UL << bit);
-  m_last_item= n;
-}
-
-bool PFS_table_context::is_item_set(ulong n)
-{
-  ulong word= n / m_word_size;
-  ulong bit= n % m_word_size;
-  return (m_map[word] & (1UL << bit));
-}
-
 
 static PFS_engine_table_share *all_shares[]=
 {
@@ -279,16 +145,6 @@ static PFS_engine_table_share *all_shares[]=
   &table_esms_by_host_by_event_name::m_share,
   &table_esms_global_by_event_name::m_share,
   &table_esms_by_digest::m_share,
-  &table_esms_by_program::m_share,
-
-  &table_events_transactions_current::m_share,
-  &table_events_transactions_history::m_share,
-  &table_events_transactions_history_long::m_share,
-  &table_ets_by_thread_by_event_name::m_share,
-  &table_ets_by_account_by_event_name::m_share,
-  &table_ets_by_user_by_event_name::m_share,
-  &table_ets_by_host_by_event_name::m_share,
-  &table_ets_global_by_event_name::m_share,
 
   &table_users::m_share,
   &table_accounts::m_share,
@@ -297,63 +153,10 @@ static PFS_engine_table_share *all_shares[]=
   &table_socket_instances::m_share,
   &table_socket_summary_by_instance::m_share,
   &table_socket_summary_by_event_name::m_share,
-
   &table_session_connect_attrs::m_share,
   &table_session_account_connect_attrs::m_share,
-
-  &table_mems_global_by_event_name::m_share,
-  &table_mems_by_account_by_event_name::m_share,
-  &table_mems_by_host_by_event_name::m_share,
-  &table_mems_by_thread_by_event_name::m_share,
-  &table_mems_by_user_by_event_name::m_share,
-  &table_table_handles::m_share,
-  &table_metadata_locks::m_share,
-
-#ifdef HAVE_REPLICATION
-  &table_replication_connection_configuration::m_share,
-  //&table_replication_group_members::m_share,
-  //&table_replication_connection_status::m_share,
-  &table_replication_applier_configuration::m_share,
-  &table_replication_applier_status::m_share,
-  &table_replication_applier_status_by_coordinator::m_share,
-  //&table_replication_applier_status_by_worker::m_share,
-  //&table_replication_group_member_stats::m_share,
-#endif
-
-  &table_prepared_stmt_instances::m_share,
-
-  &table_uvar_by_thread::m_share,
-  &table_status_by_account::m_share,
-  &table_status_by_host::m_share,
-  &table_status_by_thread::m_share,
-  &table_status_by_user::m_share,
-  &table_global_status::m_share,
-  &table_session_status::m_share,
-
-  //&table_variables_by_thread::m_share,
-  //&table_global_variables::m_share,
-  //&table_session_variables::m_share,
-
-  //&table_processlist::m_share,
-
   NULL
 };
-
-/** Error reporting for schema integrity checks. */
-class PFS_silent_check_intact : public Table_check_intact
-{
-protected:
-  virtual void report_error(uint code, const char *fmt, ...) {}
-
-public:
-  PFS_silent_check_intact()
-  {}
-
-  ~PFS_silent_check_intact()
-  {}
-};
-
-
 
 /** Initialize all the table share locks. */
 void PFS_engine_table_share::init_all_locks(void)
@@ -375,7 +178,11 @@ void PFS_engine_table_share::delete_all_locks(void)
 
 ha_rows PFS_engine_table_share::get_row_count(void) const
 {
-  return m_get_row_count();
+  /* If available, count the exact number or records */
+  if (m_get_row_count)
+    return m_get_row_count();
+  /* Otherwise, return an estimate */
+  return m_records;
 }
 
 int PFS_engine_table_share::write_row(TABLE *table, const unsigned char *buf,
@@ -542,30 +349,16 @@ void PFS_engine_table::get_normalizer(PFS_instr_class *instr_class)
   }
 }
 
-void PFS_engine_table::set_field_long(Field *f, long value)
-{
-  assert(f->real_type() == MYSQL_TYPE_LONG);
-  Field_long *f2= (Field_long*) f;
-  f2->store(value, false);
-}
-
 void PFS_engine_table::set_field_ulong(Field *f, ulong value)
 {
-  assert(f->real_type() == MYSQL_TYPE_LONG);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_LONG);
   Field_long *f2= (Field_long*) f;
   f2->store(value, true);
 }
 
-void PFS_engine_table::set_field_longlong(Field *f, longlong value)
-{
-  assert(f->real_type() == MYSQL_TYPE_LONGLONG);
-  Field_longlong *f2= (Field_longlong*) f;
-  f2->store(value, false);
-}
-
 void PFS_engine_table::set_field_ulonglong(Field *f, ulonglong value)
 {
-  assert(f->real_type() == MYSQL_TYPE_LONGLONG);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_LONGLONG);
   Field_longlong *f2= (Field_longlong*) f;
   f2->store(value, true);
 }
@@ -573,48 +366,30 @@ void PFS_engine_table::set_field_ulonglong(Field *f, ulonglong value)
 void PFS_engine_table::set_field_char_utf8(Field *f, const char* str,
                                            uint len)
 {
-  assert(f->real_type() == MYSQL_TYPE_STRING);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_STRING);
   Field_string *f2= (Field_string*) f;
-  f2->store(str, len, &my_charset_utf8mb3_bin);
-}
-
-void PFS_engine_table::set_field_varchar(Field *f,
-                                         const CHARSET_INFO *cs,
-                                         const char* str,
-                                         uint len)
-{
-  assert(f->real_type() == MYSQL_TYPE_VARCHAR);
-  Field_varstring *f2= (Field_varstring*) f;
-  f2->store(str, len, cs);
+  f2->store(str, len, &my_charset_utf8_bin);
 }
 
 void PFS_engine_table::set_field_varchar_utf8(Field *f, const char* str,
                                               uint len)
 {
-  assert(f->real_type() == MYSQL_TYPE_VARCHAR);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_VARCHAR);
   Field_varstring *f2= (Field_varstring*) f;
-  f2->store(str, len, &my_charset_utf8mb3_bin);
+  f2->store(str, len, &my_charset_utf8_bin);
 }
 
 void PFS_engine_table::set_field_longtext_utf8(Field *f, const char* str,
                                                uint len)
 {
-  assert(f->real_type() == MYSQL_TYPE_BLOB);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_BLOB);
   Field_blob *f2= (Field_blob*) f;
-  f2->store(str, len, &my_charset_utf8mb3_bin);
-}
-
-void PFS_engine_table::set_field_blob(Field *f, const char* val,
-                                      uint len)
-{
-  assert(f->real_type() == MYSQL_TYPE_BLOB);
-  Field_blob *f2= (Field_blob*) f;
-  f2->store(val, len, &my_charset_utf8mb3_bin);
+  f2->store(str, len, &my_charset_utf8_bin);
 }
 
 void PFS_engine_table::set_field_enum(Field *f, ulonglong value)
 {
-  assert(f->real_type() == MYSQL_TYPE_ENUM);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_ENUM);
   Field_enum *f2= (Field_enum*) f;
   f2->store_type(value);
 }
@@ -626,16 +401,9 @@ void PFS_engine_table::set_field_timestamp(Field *f, ulonglong value)
   f2->store_TIME((long)(value / 1000000), (value % 1000000));
 }
 
-void PFS_engine_table::set_field_double(Field *f, double value)
-{
-  assert(f->real_type() == MYSQL_TYPE_DOUBLE);
-  Field_double *f2= (Field_double*) f;
-  f2->store(value);
-}
-
 ulonglong PFS_engine_table::get_field_enum(Field *f)
 {
-  assert(f->real_type() == MYSQL_TYPE_ENUM);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_ENUM);
   Field_enum *f2= (Field_enum*) f;
   return f2->val_int();
 }
@@ -643,7 +411,7 @@ ulonglong PFS_engine_table::get_field_enum(Field *f)
 String*
 PFS_engine_table::get_field_char_utf8(Field *f, String *val)
 {
-  assert(f->real_type() == MYSQL_TYPE_STRING);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_STRING);
   Field_string *f2= (Field_string*) f;
   val= f2->val_str(NULL, val);
   return val;
@@ -652,7 +420,7 @@ PFS_engine_table::get_field_char_utf8(Field *f, String *val)
 String*
 PFS_engine_table::get_field_varchar_utf8(Field *f, String *val)
 {
-  assert(f->real_type() == MYSQL_TYPE_VARCHAR);
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_VARCHAR);
   Field_varstring *f2= (Field_varstring*) f;
   val= f2->val_str(NULL, val);
   return val;
@@ -676,22 +444,22 @@ public:
   ~PFS_internal_schema_access()
   {}
 
-  ACL_internal_access_result check(privilege_t want_access,
-                                   privilege_t *save_priv) const;
+  ACL_internal_access_result check(ulong want_access,
+                                   ulong *save_priv) const;
 
   const ACL_internal_table_access *lookup(const char *name) const;
 };
 
 ACL_internal_access_result
-PFS_internal_schema_access::check(privilege_t want_access,
-                                  privilege_t *save_priv)  const
+PFS_internal_schema_access::check(ulong want_access,
+                                  ulong *save_priv)  const
 {
-  const privilege_t always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
+  const ulong always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
     | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL | EXECUTE_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | CREATE_PROC_ACL | ALTER_PROC_ACL
     | EVENT_ACL | TRIGGER_ACL ;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
+  if (unlikely(want_access & always_forbidden))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   /*
@@ -733,136 +501,46 @@ void initialize_performance_schema_acl(bool bootstrap)
   }
 }
 
-static bool allow_drop_table_privilege() {
-  /*
-    The same DROP_ACL privilege is used for different statements,
-    in particular:
-    - TRUNCATE TABLE
-    - DROP TABLE
-    - ALTER TABLE
-    Here, we want to prevent DROP / ALTER  while allowing TRUNCATE.
-    Note that we must also allow GRANT to transfer the truncate privilege.
-  */
-  THD *thd= current_thd;
-  if (thd == NULL) {
-    return false;
-  }
-
-  assert(thd->lex != NULL);
-  if ((thd->lex->sql_command != SQLCOM_TRUNCATE) &&
-      (thd->lex->sql_command != SQLCOM_GRANT) &&
-      (thd->lex->sql_command != SQLCOM_REVOKE)) {
-    return false;
-  }
-
-  return true;
-}
-
-
 PFS_readonly_acl pfs_readonly_acl;
 
 ACL_internal_access_result
-PFS_readonly_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_readonly_acl::check(ulong want_access, ulong *save_priv) const
 {
-  const privilege_t always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
+  const ulong always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL | LOCK_TABLES_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
+  if (unlikely(want_access & always_forbidden))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   return ACL_INTERNAL_ACCESS_CHECK_GRANT;
 }
-
-
-PFS_readonly_world_acl pfs_readonly_world_acl;
-
-ACL_internal_access_result
-PFS_readonly_world_acl::check(privilege_t want_access, privilege_t *save_priv) const
-{
-  ACL_internal_access_result res= PFS_readonly_acl::check(want_access, save_priv);
-  if (res == ACL_INTERNAL_ACCESS_CHECK_GRANT)
-  {
-    if (want_access == SELECT_ACL)
-      res= ACL_INTERNAL_ACCESS_GRANTED;
-  }
-  return res;
-}
-
-PFS_readonly_processlist_acl pfs_readonly_processlist_acl;
-
-ACL_internal_access_result PFS_readonly_processlist_acl::check(
-    privilege_t want_access, privilege_t *save_priv) const {
-  ACL_internal_access_result res =
-      PFS_readonly_acl::check(want_access, save_priv);
-
-  if ((res == ACL_INTERNAL_ACCESS_CHECK_GRANT) && (want_access == SELECT_ACL)) {
-    THD *thd = current_thd;
-    if (thd != NULL) {
-      if (thd->lex->sql_command == SQLCOM_SHOW_PROCESSLIST ||
-          thd->lex->sql_command == SQLCOM_SELECT) {
-        /*
-          For compatibility with the historical
-          SHOW PROCESSLIST command,
-          SHOW PROCESSLIST does not require a
-          SELECT privilege on table performance_schema.processlist,
-          when rewriting the query using table processlist.
-        */
-        return ACL_INTERNAL_ACCESS_GRANTED;
-      }
-    }
-  }
-
-  return res;
-}
-
 
 PFS_truncatable_acl pfs_truncatable_acl;
 
 ACL_internal_access_result
-PFS_truncatable_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_truncatable_acl::check(ulong want_access, ulong *save_priv) const
 {
-  const privilege_t always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
+  const ulong always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL | LOCK_TABLES_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
+  if (unlikely(want_access & always_forbidden))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   return ACL_INTERNAL_ACCESS_CHECK_GRANT;
 }
 
-
-PFS_truncatable_world_acl pfs_truncatable_world_acl;
-
-ACL_internal_access_result
-PFS_truncatable_world_acl::check(privilege_t want_access, privilege_t *save_priv) const
-{
-  ACL_internal_access_result res= PFS_truncatable_acl::check(want_access, save_priv);
-  if (res == ACL_INTERNAL_ACCESS_CHECK_GRANT)
-  {
-    if (want_access == DROP_ACL)
-    {
-      if (allow_drop_table_privilege())
-        res= ACL_INTERNAL_ACCESS_GRANTED;
-    }
-    else if (want_access == SELECT_ACL)
-      res= ACL_INTERNAL_ACCESS_GRANTED;
-  }
-  return res;
-}
-
-
 PFS_updatable_acl pfs_updatable_acl;
 
 ACL_internal_access_result
-PFS_updatable_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_updatable_acl::check(ulong want_access, ulong *save_priv) const
 {
-  const privilege_t always_forbidden= INSERT_ACL | DELETE_ACL
+  const ulong always_forbidden= INSERT_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
+  if (unlikely(want_access & always_forbidden))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   return ACL_INTERNAL_ACCESS_CHECK_GRANT;
@@ -871,12 +549,12 @@ PFS_updatable_acl::check(privilege_t want_access, privilege_t *save_priv) const
 PFS_editable_acl pfs_editable_acl;
 
 ACL_internal_access_result
-PFS_editable_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_editable_acl::check(ulong want_access, ulong *save_priv) const
 {
-  const privilege_t always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
+  const ulong always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
     | INDEX_ACL | ALTER_ACL | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
+  if (unlikely(want_access & always_forbidden))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   return ACL_INTERNAL_ACCESS_CHECK_GRANT;
@@ -885,13 +563,13 @@ PFS_editable_acl::check(privilege_t want_access, privilege_t *save_priv) const
 PFS_unknown_acl pfs_unknown_acl;
 
 ACL_internal_access_result
-PFS_unknown_acl::check(privilege_t want_access, privilege_t *save_priv) const
+PFS_unknown_acl::check(ulong want_access, ulong *save_priv) const
 {
-  const privilege_t always_forbidden= CREATE_ACL
+  const ulong always_forbidden= CREATE_ACL
     | REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | TRIGGER_ACL;
 
-  if (unlikely((want_access & always_forbidden) != NO_ACL))
+  if (unlikely(want_access & always_forbidden))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   /*
@@ -941,33 +619,33 @@ bool pfs_show_status(handlerton *hton, THD *thd,
   {
     switch (i){
     case 0:
-      name= "events_waits_current.size";
+      name= "events_waits_current.row_size";
       size= sizeof(PFS_events_waits);
       break;
     case 1:
-      name= "events_waits_current.count";
-      size= WAIT_STACK_SIZE * global_thread_container.get_row_count();
+      name= "events_waits_current.row_count";
+      size= WAIT_STACK_SIZE * thread_max;
       break;
     case 2:
-      name= "events_waits_history.size";
+      name= "events_waits_history.row_size";
       size= sizeof(PFS_events_waits);
       break;
     case 3:
-      name= "events_waits_history.count";
-      size= events_waits_history_per_thread * global_thread_container.get_row_count();
+      name= "events_waits_history.row_count";
+      size= events_waits_history_per_thread * thread_max;
       break;
     case 4:
       name= "events_waits_history.memory";
-      size= events_waits_history_per_thread * global_thread_container.get_row_count()
+      size= events_waits_history_per_thread * thread_max
         * sizeof(PFS_events_waits);
       total_memory+= size;
       break;
     case 5:
-      name= "events_waits_history_long.size";
+      name= "events_waits_history_long.row_size";
       size= sizeof(PFS_events_waits);
       break;
     case 6:
-      name= "events_waits_history_long.count";
+      name= "events_waits_history_long.row_count";
       size= events_waits_history_long_size;
       break;
     case 7:
@@ -976,11 +654,11 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 8:
-      name= "(pfs_mutex_class).size";
+      name= "(pfs_mutex_class).row_size";
       size= sizeof(PFS_mutex_class);
       break;
     case 9:
-      name= "(pfs_mutex_class).count";
+      name= "(pfs_mutex_class).row_count";
       size= mutex_class_max;
       break;
     case 10:
@@ -989,11 +667,11 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 11:
-      name= "(pfs_rwlock_class).size";
+      name= "(pfs_rwlock_class).row_size";
       size= sizeof(PFS_rwlock_class);
       break;
     case 12:
-      name= "(pfs_rwlock_class).count";
+      name= "(pfs_rwlock_class).row_count";
       size= rwlock_class_max;
       break;
     case 13:
@@ -1002,11 +680,11 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 14:
-      name= "(pfs_cond_class).size";
+      name= "(pfs_cond_class).row_size";
       size= sizeof(PFS_cond_class);
       break;
     case 15:
-      name= "(pfs_cond_class).count";
+      name= "(pfs_cond_class).row_count";
       size= cond_class_max;
       break;
     case 16:
@@ -1015,11 +693,11 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 17:
-      name= "(pfs_thread_class).size";
+      name= "(pfs_thread_class).row_size";
       size= sizeof(PFS_thread_class);
       break;
     case 18:
-      name= "(pfs_thread_class).count";
+      name= "(pfs_thread_class).row_count";
       size= thread_class_max;
       break;
     case 19:
@@ -1028,11 +706,11 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 20:
-      name= "(pfs_file_class).size";
+      name= "(pfs_file_class).row_size";
       size= sizeof(PFS_file_class);
       break;
     case 21:
-      name= "(pfs_file_class).count";
+      name= "(pfs_file_class).row_count";
       size= file_class_max;
       break;
     case 22:
@@ -1041,76 +719,76 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 23:
-      name= "mutex_instances.size";
-      size= global_mutex_container.get_row_size();
+      name= "mutex_instances.row_size";
+      size= sizeof(PFS_mutex);
       break;
     case 24:
-      name= "mutex_instances.count";
-      size= global_mutex_container.get_row_count();
+      name= "mutex_instances.row_count";
+      size= mutex_max;
       break;
     case 25:
       name= "mutex_instances.memory";
-      size= global_mutex_container.get_memory();
+      size= mutex_max * sizeof(PFS_mutex);
       total_memory+= size;
       break;
     case 26:
-      name= "rwlock_instances.size";
-      size= global_rwlock_container.get_row_size();
+      name= "rwlock_instances.row_size";
+      size= sizeof(PFS_rwlock);
       break;
     case 27:
-      name= "rwlock_instances.count";
-      size= global_rwlock_container.get_row_count();
+      name= "rwlock_instances.row_count";
+      size= rwlock_max;
       break;
     case 28:
       name= "rwlock_instances.memory";
-      size= global_rwlock_container.get_memory();
+      size= rwlock_max * sizeof(PFS_rwlock);
       total_memory+= size;
       break;
     case 29:
-      name= "cond_instances.size";
-      size= global_cond_container.get_row_size();
+      name= "cond_instances.row_size";
+      size= sizeof(PFS_cond);
       break;
     case 30:
-      name= "cond_instances.count";
-      size= global_cond_container.get_row_count();
+      name= "cond_instances.row_count";
+      size= cond_max;
       break;
     case 31:
       name= "cond_instances.memory";
-      size= global_cond_container.get_memory();
+      size= cond_max * sizeof(PFS_cond);
       total_memory+= size;
       break;
     case 32:
-      name= "threads.size";
-      size= global_thread_container.get_row_size();
+      name= "threads.row_size";
+      size= sizeof(PFS_thread);
       break;
     case 33:
-      name= "threads.count";
-      size= global_thread_container.get_row_count();
+      name= "threads.row_count";
+      size= thread_max;
       break;
     case 34:
       name= "threads.memory";
-      size= global_thread_container.get_memory();
+      size= thread_max * sizeof(PFS_thread);
       total_memory+= size;
       break;
     case 35:
-      name= "file_instances.size";
-      size= global_file_container.get_row_size();
+      name= "file_instances.row_size";
+      size= sizeof(PFS_file);
       break;
     case 36:
-      name= "file_instances.count";
-      size= global_file_container.get_row_count();
+      name= "file_instances.row_count";
+      size= file_max;
       break;
     case 37:
       name= "file_instances.memory";
-      size= global_file_container.get_memory();
+      size= file_max * sizeof(PFS_file);
       total_memory+= size;
       break;
     case 38:
-      name= "(pfs_file_handle).size";
+      name= "(pfs_file_handle).row_size";
       size= sizeof(PFS_file*);
       break;
     case 39:
-      name= "(pfs_file_handle).count";
+      name= "(pfs_file_handle).row_count";
       size= file_handle_max;
       break;
     case 40:
@@ -1119,154 +797,154 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 41:
-      name= "events_waits_summary_by_thread_by_event_name.size";
+      name= "events_waits_summary_by_thread_by_event_name.row_size";
       size= sizeof(PFS_single_stat);
       break;
     case 42:
-      name= "events_waits_summary_by_thread_by_event_name.count";
-      size= global_thread_container.get_row_count() * wait_class_max;
+      name= "events_waits_summary_by_thread_by_event_name.row_count";
+      size= thread_max * wait_class_max;
       break;
     case 43:
       name= "events_waits_summary_by_thread_by_event_name.memory";
-      size= global_thread_container.get_row_count() * wait_class_max * sizeof(PFS_single_stat);
+      size= thread_max * wait_class_max * sizeof(PFS_single_stat);
       total_memory+= size;
       break;
     case 44:
-      name= "(pfs_table_share).size";
-      size= global_table_share_container.get_row_size();
+      name= "(pfs_table_share).row_size";
+      size= sizeof(PFS_table_share);
       break;
     case 45:
-      name= "(pfs_table_share).count";
-      size= global_table_share_container.get_row_count();
+      name= "(pfs_table_share).row_count";
+      size= table_share_max;
       break;
     case 46:
       name= "(pfs_table_share).memory";
-      size= global_table_share_container.get_memory();
+      size= table_share_max * sizeof(PFS_table_share);
       total_memory+= size;
       break;
     case 47:
-      name= "(pfs_table).size";
-      size= global_table_container.get_row_size();
+      name= "(pfs_table).row_size";
+      size= sizeof(PFS_table);
       break;
     case 48:
-      name= "(pfs_table).count";
-      size= global_table_container.get_row_count();
+      name= "(pfs_table).row_count";
+      size= table_max;
       break;
     case 49:
       name= "(pfs_table).memory";
-      size= global_table_container.get_memory();
+      size= table_max * sizeof(PFS_table);
       total_memory+= size;
       break;
     case 50:
-      name= "setup_actors.size";
-      size= global_setup_actor_container.get_row_size();
+      name= "setup_actors.row_size";
+      size= sizeof(PFS_setup_actor);
       break;
     case 51:
-      name= "setup_actors.count";
-      size= global_setup_actor_container.get_row_count();
+      name= "setup_actors.row_count";
+      size= setup_actor_max;
       break;
     case 52:
       name= "setup_actors.memory";
-      size= global_setup_actor_container.get_memory();
+      size= setup_actor_max * sizeof(PFS_setup_actor);
       total_memory+= size;
       break;
     case 53:
-      name= "setup_objects.size";
-      size= global_setup_object_container.get_row_size();
+      name= "setup_objects.row_size";
+      size= sizeof(PFS_setup_object);
       break;
     case 54:
-      name= "setup_objects.count";
-      size= global_setup_object_container.get_row_count();
+      name= "setup_objects.row_count";
+      size= setup_object_max;
       break;
     case 55:
       name= "setup_objects.memory";
-      size= global_setup_object_container.get_memory();
+      size= setup_object_max * sizeof(PFS_setup_object);
       total_memory+= size;
       break;
     case 56:
-      name= "(pfs_account).size";
-      size= global_account_container.get_row_size();
+      name= "(pfs_account).row_size";
+      size= sizeof(PFS_account);
       break;
     case 57:
-      name= "(pfs_account).count";
-      size= global_account_container.get_row_count();
+      name= "(pfs_account).row_count";
+      size= account_max;
       break;
     case 58:
       name= "(pfs_account).memory";
-      size= global_account_container.get_memory();
+      size= account_max * sizeof(PFS_account);
       total_memory+= size;
       break;
     case 59:
-      name= "events_waits_summary_by_account_by_event_name.size";
+      name= "events_waits_summary_by_account_by_event_name.row_size";
       size= sizeof(PFS_single_stat);
       break;
     case 60:
-      name= "events_waits_summary_by_account_by_event_name.count";
-      size= global_account_container.get_row_count() * wait_class_max;
+      name= "events_waits_summary_by_account_by_event_name.row_count";
+      size= account_max * wait_class_max;
       break;
     case 61:
       name= "events_waits_summary_by_account_by_event_name.memory";
-      size= global_account_container.get_row_count() * wait_class_max * sizeof(PFS_single_stat);
+      size= account_max * wait_class_max * sizeof(PFS_single_stat);
       total_memory+= size;
       break;
     case 62:
-      name= "events_waits_summary_by_user_by_event_name.size";
+      name= "events_waits_summary_by_user_by_event_name.row_size";
       size= sizeof(PFS_single_stat);
       break;
     case 63:
-      name= "events_waits_summary_by_user_by_event_name.count";
-      size= global_user_container.get_row_count() * wait_class_max;
+      name= "events_waits_summary_by_user_by_event_name.row_count";
+      size= user_max * wait_class_max;
       break;
     case 64:
       name= "events_waits_summary_by_user_by_event_name.memory";
-      size= global_user_container.get_row_count() * wait_class_max * sizeof(PFS_single_stat);
+      size= user_max * wait_class_max * sizeof(PFS_single_stat);
       total_memory+= size;
       break;
     case 65:
-      name= "events_waits_summary_by_host_by_event_name.size";
+      name= "events_waits_summary_by_host_by_event_name.row_size";
       size= sizeof(PFS_single_stat);
       break;
     case 66:
-      name= "events_waits_summary_by_host_by_event_name.count";
-      size= global_host_container.get_row_count() * wait_class_max;
+      name= "events_waits_summary_by_host_by_event_name.row_count";
+      size= host_max * wait_class_max;
       break;
     case 67:
       name= "events_waits_summary_by_host_by_event_name.memory";
-      size= global_host_container.get_row_count() * wait_class_max * sizeof(PFS_single_stat);
+      size= host_max * wait_class_max * sizeof(PFS_single_stat);
       total_memory+= size;
       break;
     case 68:
-      name= "(pfs_user).size";
-      size= global_user_container.get_row_size();
+      name= "(pfs_user).row_size";
+      size= sizeof(PFS_user);
       break;
     case 69:
-      name= "(pfs_user).count";
-      size= global_user_container.get_row_count();
+      name= "(pfs_user).row_count";
+      size= user_max;
       break;
     case 70:
       name= "(pfs_user).memory";
-      size= global_user_container.get_memory();
+      size= user_max * sizeof(PFS_user);
       total_memory+= size;
       break;
     case 71:
-      name= "(pfs_host).size";
-      size= global_host_container.get_row_size();
+      name= "(pfs_host).row_size";
+      size= sizeof(PFS_host);
       break;
     case 72:
-      name= "(pfs_host).count";
-      size= global_host_container.get_row_count();
+      name= "(pfs_host).row_count";
+      size= host_max;
       break;
     case 73:
       name= "(pfs_host).memory";
-      size= global_host_container.get_memory();
+      size= host_max * sizeof(PFS_host);
       total_memory+= size;
       break;
     case 74:
-      name= "(pfs_stage_class).size";
+      name= "(pfs_stage_class).row_size";
       size= sizeof(PFS_stage_class);
       break;
     case 75:
-      name= "(pfs_stage_class).count";
+      name= "(pfs_stage_class).row_count";
       size= stage_class_max;
       break;
     case 76:
@@ -1275,25 +953,25 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 77:
-      name= "events_stages_history.size";
+      name= "events_stages_history.row_size";
       size= sizeof(PFS_events_stages);
       break;
     case 78:
-      name= "events_stages_history.count";
-      size= events_stages_history_per_thread * global_thread_container.get_row_count();
+      name= "events_stages_history.row_count";
+      size= events_stages_history_per_thread * thread_max;
       break;
     case 79:
       name= "events_stages_history.memory";
-      size= events_stages_history_per_thread * global_thread_container.get_row_count()
+      size= events_stages_history_per_thread * thread_max
         * sizeof(PFS_events_stages);
       total_memory+= size;
       break;
     case 80:
-      name= "events_stages_history_long.size";
+      name= "events_stages_history_long.row_size";
       size= sizeof(PFS_events_stages);
       break;
     case 81:
-      name= "events_stages_history_long.count";
+      name= "events_stages_history_long.row_count";
       size= events_stages_history_long_size;
       break;
     case 82:
@@ -1302,24 +980,24 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 83:
-      name= "events_stages_summary_by_thread_by_event_name.size";
+      name= "events_stages_summary_by_thread_by_event_name.row_size";
       size= sizeof(PFS_stage_stat);
       break;
     case 84:
-      name= "events_stages_summary_by_thread_by_event_name.count";
-      size= global_thread_container.get_row_count() * stage_class_max;
+      name= "events_stages_summary_by_thread_by_event_name.row_count";
+      size= thread_max * stage_class_max;
       break;
     case 85:
       name= "events_stages_summary_by_thread_by_event_name.memory";
-      size= global_thread_container.get_row_count() * stage_class_max * sizeof(PFS_stage_stat);
+      size= thread_max * stage_class_max * sizeof(PFS_stage_stat);
       total_memory+= size;
       break;
     case 86:
-      name= "events_stages_summary_global_by_event_name.size";
+      name= "events_stages_summary_global_by_event_name.row_size";
       size= sizeof(PFS_stage_stat);
       break;
     case 87:
-      name= "events_stages_summary_global_by_event_name.count";
+      name= "events_stages_summary_global_by_event_name.row_count";
       size= stage_class_max;
       break;
     case 88:
@@ -1328,50 +1006,50 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 89:
-      name= "events_stages_summary_by_account_by_event_name.size";
+      name= "events_stages_summary_by_account_by_event_name.row_size";
       size= sizeof(PFS_stage_stat);
       break;
     case 90:
-      name= "events_stages_summary_by_account_by_event_name.count";
-      size= global_account_container.get_row_count() * stage_class_max;
+      name= "events_stages_summary_by_account_by_event_name.row_count";
+      size= account_max * stage_class_max;
       break;
     case 91:
       name= "events_stages_summary_by_account_by_event_name.memory";
-      size= global_account_container.get_row_count() * stage_class_max * sizeof(PFS_stage_stat);
+      size= account_max * stage_class_max * sizeof(PFS_stage_stat);
       total_memory+= size;
       break;
     case 92:
-      name= "events_stages_summary_by_user_by_event_name.size";
+      name= "events_stages_summary_by_user_by_event_name.row_size";
       size= sizeof(PFS_stage_stat);
       break;
     case 93:
-      name= "events_stages_summary_by_user_by_event_name.count";
-      size= global_user_container.get_row_count() * stage_class_max;
+      name= "events_stages_summary_by_user_by_event_name.row_count";
+      size= user_max * stage_class_max;
       break;
     case 94:
       name= "events_stages_summary_by_user_by_event_name.memory";
-      size= global_user_container.get_row_count() * stage_class_max * sizeof(PFS_stage_stat);
+      size= user_max * stage_class_max * sizeof(PFS_stage_stat);
       total_memory+= size;
       break;
     case 95:
-      name= "events_stages_summary_by_host_by_event_name.size";
+      name= "events_stages_summary_by_host_by_event_name.row_size";
       size= sizeof(PFS_stage_stat);
       break;
     case 96:
-      name= "events_stages_summary_by_host_by_event_name.count";
-      size= global_host_container.get_row_count() * stage_class_max;
+      name= "events_stages_summary_by_host_by_event_name.row_count";
+      size= host_max * stage_class_max;
       break;
     case 97:
       name= "events_stages_summary_by_host_by_event_name.memory";
-      size= global_host_container.get_row_count() * stage_class_max * sizeof(PFS_stage_stat);
+      size= host_max * stage_class_max * sizeof(PFS_stage_stat);
       total_memory+= size;
       break;
     case 98:
-      name= "(pfs_statement_class).size";
+      name= "(pfs_statement_class).row_size";
       size= sizeof(PFS_statement_class);
       break;
     case 99:
-      name= "(pfs_statement_class).count";
+      name= "(pfs_statement_class).row_count";
       size= statement_class_max;
       break;
     case 100:
@@ -1380,51 +1058,51 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 101:
-      name= "events_statements_history.size";
+      name= "events_statements_history.row_size";
       size= sizeof(PFS_events_statements);
       break;
     case 102:
-      name= "events_statements_history.count";
-      size= events_statements_history_per_thread * global_thread_container.get_row_count();
+      name= "events_statements_history.row_count";
+      size= events_statements_history_per_thread * thread_max;
       break;
     case 103:
       name= "events_statements_history.memory";
-      size= events_statements_history_per_thread * global_thread_container.get_row_count()
+      size= events_statements_history_per_thread * thread_max
         * sizeof(PFS_events_statements);
       total_memory+= size;
       break;
     case 104:
-      name= "events_statements_history_long.size";
+      name= "events_statements_history_long.row_size";
       size= sizeof(PFS_events_statements);
       break;
     case 105:
-      name= "events_statements_history_long.count";
+      name= "events_statements_history_long.row_count";
       size= events_statements_history_long_size;
       break;
     case 106:
       name= "events_statements_history_long.memory";
-      size= events_statements_history_long_size * (sizeof(PFS_events_statements));
+      size= events_statements_history_long_size * sizeof(PFS_events_statements);
       total_memory+= size;
       break;
     case 107:
-      name= "events_statements_summary_by_thread_by_event_name.size";
+      name= "events_statements_summary_by_thread_by_event_name.row_size";
       size= sizeof(PFS_statement_stat);
       break;
     case 108:
-      name= "events_statements_summary_by_thread_by_event_name.count";
-      size= global_thread_container.get_row_count() * statement_class_max;
+      name= "events_statements_summary_by_thread_by_event_name.row_count";
+      size= thread_max * statement_class_max;
       break;
     case 109:
       name= "events_statements_summary_by_thread_by_event_name.memory";
-      size= global_thread_container.get_row_count() * statement_class_max * sizeof(PFS_statement_stat);
+      size= thread_max * statement_class_max * sizeof(PFS_statement_stat);
       total_memory+= size;
       break;
     case 110:
-      name= "events_statements_summary_global_by_event_name.size";
+      name= "events_statements_summary_global_by_event_name.row_size";
       size= sizeof(PFS_statement_stat);
       break;
     case 111:
-      name= "events_statements_summary_global_by_event_name.count";
+      name= "events_statements_summary_global_by_event_name.row_count";
       size= statement_class_max;
       break;
     case 112:
@@ -1433,63 +1111,63 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 113:
-      name= "events_statements_summary_by_account_by_event_name.size";
+      name= "events_statements_summary_by_account_by_event_name.row_size";
       size= sizeof(PFS_statement_stat);
       break;
     case 114:
-      name= "events_statements_summary_by_account_by_event_name.count";
-      size= global_account_container.get_row_count() * statement_class_max;
+      name= "events_statements_summary_by_account_by_event_name.row_count";
+      size= account_max * statement_class_max;
       break;
     case 115:
       name= "events_statements_summary_by_account_by_event_name.memory";
-      size= global_account_container.get_row_count() * statement_class_max * sizeof(PFS_statement_stat);
+      size= account_max * statement_class_max * sizeof(PFS_statement_stat);
       total_memory+= size;
       break;
     case 116:
-      name= "events_statements_summary_by_user_by_event_name.size";
+      name= "events_statements_summary_by_user_by_event_name.row_size";
       size= sizeof(PFS_statement_stat);
       break;
     case 117:
-      name= "events_statements_summary_by_user_by_event_name.count";
-      size= global_user_container.get_row_count() * statement_class_max;
+      name= "events_statements_summary_by_user_by_event_name.row_count";
+      size= user_max * statement_class_max;
       break;
     case 118:
       name= "events_statements_summary_by_user_by_event_name.memory";
-      size= global_user_container.get_row_count() * statement_class_max * sizeof(PFS_statement_stat);
+      size= user_max * statement_class_max * sizeof(PFS_statement_stat);
       total_memory+= size;
       break;
     case 119:
-      name= "events_statements_summary_by_host_by_event_name.size";
+      name= "events_statements_summary_by_host_by_event_name.row_size";
       size= sizeof(PFS_statement_stat);
       break;
     case 120:
-      name= "events_statements_summary_by_host_by_event_name.count";
-      size= global_host_container.get_row_count() * statement_class_max;
+      name= "events_statements_summary_by_host_by_event_name.row_count";
+      size= host_max * statement_class_max;
       break;
     case 121:
       name= "events_statements_summary_by_host_by_event_name.memory";
-      size= global_host_container.get_row_count() * statement_class_max * sizeof(PFS_statement_stat);
+      size= host_max * statement_class_max * sizeof(PFS_statement_stat);
       total_memory+= size;
       break;
     case 122:
-      name= "events_statements_current.size";
+      name= "events_statements_current.row_size";
       size= sizeof(PFS_events_statements);
       break;
     case 123:
-      name= "events_statements_current.count";
-      size= global_thread_container.get_row_count() * statement_stack_max;
+      name= "events_statements_current.row_count";
+      size= thread_max * statement_stack_max;
       break;
     case 124:
       name= "events_statements_current.memory";
-      size= global_thread_container.get_row_count() * statement_stack_max * sizeof(PFS_events_statements);
+      size= thread_max * statement_stack_max * sizeof(PFS_events_statements);
       total_memory+= size;
       break;
     case 125:
-      name= "(pfs_socket_class).size";
+      name= "(pfs_socket_class).row_size";
       size= sizeof(PFS_socket_class);
       break;
     case 126:
-      name= "(pfs_socket_class).count";
+      name= "(pfs_socket_class).row_count";
       size= socket_class_max;
       break;
     case 127:
@@ -1498,144 +1176,110 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       total_memory+= size;
       break;
     case 128:
-      name= "socket_instances.size";
-      size= global_socket_container.get_row_size();
+      name= "socket_instances.row_size";
+      size= sizeof(PFS_socket);
       break;
     case 129:
-      name= "socket_instances.count";
-      size= global_socket_container.get_row_count();
+      name= "socket_instances.row_count";
+      size= socket_max;
       break;
     case 130:
       name= "socket_instances.memory";
-      size= global_socket_container.get_memory();
+      size= socket_max * sizeof(PFS_socket);
       total_memory+= size;
       break;
     case 131:
-      name= "events_statements_summary_by_digest.size";
+      name= "events_statements_summary_by_digest.row_size";
       size= sizeof(PFS_statements_digest_stat);
       break;
     case 132:
-      name= "events_statements_summary_by_digest.count";
+      name= "events_statements_summary_by_digest.row_count";
       size= digest_max;
       break;
     case 133:
       name= "events_statements_summary_by_digest.memory";
-      size= digest_max * (sizeof(PFS_statements_digest_stat));
+      size= digest_max * sizeof(PFS_statements_digest_stat);
       total_memory+= size;
       break;
     case 134:
-      name= "events_statements_summary_by_program.size";
-      size= global_program_container.get_row_size();
+      name= "session_connect_attrs.row_size";
+      size= thread_max;
       break;
     case 135:
-      name= "events_statements_summary_by_program.count";
-      size= global_program_container.get_row_count();
-      break;
-    case 136:
-      name= "events_statements_summary_by_program.memory";
-      size= global_program_container.get_memory();
-      total_memory+= size;
-      break;
-    case 137:
-      name= "session_connect_attrs.size";
-      size= global_thread_container.get_row_count();
-      break;
-    case 138:
-      name= "session_connect_attrs.count";
+      name= "session_connect_attrs.row_count";
       size= session_connect_attrs_size_per_thread;
       break;
-    case 139:
+    case 136:
       name= "session_connect_attrs.memory";
-      size= global_thread_container.get_row_count() * session_connect_attrs_size_per_thread;
-      total_memory+= size;
-      break;
-    case 140:
-      name= "prepared_statements_instances.size";
-      size= global_prepared_stmt_container.get_row_size();
-      break;
-    case 141:
-      name= "prepared_statements_instances.count";
-      size= global_prepared_stmt_container.get_row_count();
-      break;
-    case 142:
-      name= "prepared_statements_instances.memory";
-      size= global_prepared_stmt_container.get_memory();
+      size= thread_max * session_connect_attrs_size_per_thread;
       total_memory+= size;
       break;
 
-    case 143:
+    case 137:
       name= "(account_hash).count";
       size= account_hash.count;
       break;
-    case 144:
+    case 138:
       name= "(account_hash).size";
       size= account_hash.size;
       break;
-    case 145:
+    case 139:
       name= "(digest_hash).count";
       size= digest_hash.count;
       break;
-    case 146:
+    case 140:
       name= "(digest_hash).size";
       size= digest_hash.size;
       break;
-    case 147:
+    case 141:
       name= "(filename_hash).count";
       size= pfs_filename_hash.count;
       break;
-    case 148:
+    case 142:
       name= "(filename_hash).size";
       size= pfs_filename_hash.size;
       break;
-    case 149:
+    case 143:
       name= "(host_hash).count";
       size= host_hash.count;
       break;
-    case 150:
+    case 144:
       name= "(host_hash).size";
       size= host_hash.size;
       break;
-    case 151:
+    case 145:
       name= "(setup_actor_hash).count";
       size= setup_actor_hash.count;
       break;
-    case 152:
+    case 146:
       name= "(setup_actor_hash).size";
       size= setup_actor_hash.size;
       break;
-    case 153:
+    case 147:
       name= "(setup_object_hash).count";
       size= setup_object_hash.count;
       break;
-    case 154:
+    case 148:
       name= "(setup_object_hash).size";
       size= setup_object_hash.size;
       break;
-    case 155:
+    case 149:
       name= "(table_share_hash).count";
       size= table_share_hash.count;
       break;
-    case 156:
+    case 150:
       name= "(table_share_hash).size";
       size= table_share_hash.size;
       break;
-    case 157:
+    case 151:
       name= "(user_hash).count";
       size= user_hash.count;
       break;
-    case 158:
+    case 152:
       name= "(user_hash).size";
       size= user_hash.size;
       break;
-    case 159:
-      name= "(program_hash).count";
-      size= program_hash.count;
-      break;
-    case 160:
-      name= "(program_hash).size";
-      size= program_hash.size;
-      break;
-    case 161:
+    case 153:
       /*
         This is not a performance_schema buffer,
         the data is maintained in the server,
@@ -1647,302 +1291,68 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       name= "host_cache.size";
       size= sizeof(Host_entry);
       break;
-
-    case 162:
-      name= "(pfs_memory_class).row_size";
-      size= sizeof(PFS_memory_class);
-      break;
-    case 163:
-      name= "(pfs_memory_class).row_count";
-      size= memory_class_max;
-      break;
-    case 164:
-      name= "(pfs_memory_class).memory";
-      size= memory_class_max * sizeof(PFS_memory_class);
-      total_memory+= size;
-      break;
-
-    case 165:
-      name= "memory_summary_by_thread_by_event_name.row_size";
-      size= sizeof(PFS_memory_stat);
-      break;
-    case 166:
-      name= "memory_summary_by_thread_by_event_name.row_count";
-      size= global_thread_container.get_row_count() * memory_class_max;
-      break;
-    case 167:
-      name= "memory_summary_by_thread_by_event_name.memory";
-      size= global_thread_container.get_row_count() * memory_class_max * sizeof(PFS_memory_stat);
-      total_memory+= size;
-      break;
-    case 168:
-      name= "memory_summary_global_by_event_name.row_size";
-      size= sizeof(PFS_memory_stat);
-      break;
-    case 169:
-      name= "memory_summary_global_by_event_name.row_count";
-      size= memory_class_max;
-      break;
-    case 170:
-      name= "memory_summary_global_by_event_name.memory";
-      size= memory_class_max * sizeof(PFS_memory_stat);
-      total_memory+= size;
-      break;
-    case 171:
-      name= "memory_summary_by_account_by_event_name.row_size";
-      size= sizeof(PFS_memory_stat);
-      break;
-    case 172:
-      name= "memory_summary_by_account_by_event_name.row_count";
-      size= global_account_container.get_row_count() * memory_class_max;
-      break;
-    case 173:
-      name= "memory_summary_by_account_by_event_name.memory";
-      size= global_account_container.get_row_count() * memory_class_max * sizeof(PFS_memory_stat);
-      total_memory+= size;
-      break;
-    case 174:
-      name= "memory_summary_by_user_by_event_name.row_size";
-      size= sizeof(PFS_memory_stat);
-      break;
-    case 175:
-      name= "memory_summary_by_user_by_event_name.row_count";
-      size= global_user_container.get_row_count() * memory_class_max;
-      break;
-    case 176:
-      name= "memory_summary_by_user_by_event_name.memory";
-      size= global_user_container.get_row_count() * memory_class_max * sizeof(PFS_memory_stat);
-      total_memory+= size;
-      break;
-    case 177:
-      name= "memory_summary_by_host_by_event_name.row_size";
-      size= sizeof(PFS_memory_stat);
-      break;
-    case 178:
-      name= "memory_summary_by_host_by_event_name.row_count";
-      size= global_host_container.get_row_count() * memory_class_max;
-      break;
-    case 179:
-      name= "memory_summary_by_host_by_event_name.memory";
-      size= global_host_container.get_row_count() * memory_class_max * sizeof(PFS_memory_stat);
-      total_memory+= size;
-      break;
-    case 180:
-      name= "metadata_locks.row_size";
-      size= global_mdl_container.get_row_size();
-      break;
-    case 181:
-      name= "metadata_locks.row_count";
-      size= global_mdl_container.get_row_count();
-      break;
-    case 182:
-      name= "metadata_locks.memory";
-      size= global_mdl_container.get_memory();
-      total_memory+= size;
-      break;
-    case 183:
-      name= "events_transactions_history.size";
-      size= sizeof(PFS_events_transactions);
-      break;
-    case 184:
-      name= "events_transactions_history.count";
-      size= events_transactions_history_per_thread * global_thread_container.get_row_count();
-      break;
-    case 185:
-      name= "events_transactions_history.memory";
-      size= events_transactions_history_per_thread * global_thread_container.get_row_count()
-        * sizeof(PFS_events_transactions);
-      total_memory+= size;
-      break;
-    case 186:
-      name= "events_transactions_history_long.size";
-      size= sizeof(PFS_events_transactions);
-      break;
-    case 187:
-      name= "events_transactions_history_long.count";
-      size= events_transactions_history_long_size;
-      break;
-    case 188:
-      name= "events_transactions_history_long.memory";
-      size= events_transactions_history_long_size * sizeof(PFS_events_transactions);
-      total_memory+= size;
-      break;
-    case 189:
-      name= "events_transactions_summary_by_thread_by_event_name.size";
-      size= sizeof(PFS_transaction_stat);
-      break;
-    case 190:
-      name= "events_transactions_summary_by_thread_by_event_name.count";
-      size= global_thread_container.get_row_count() * transaction_class_max;
-      break;
-    case 191:
-      name= "events_transactions_summary_by_thread_by_event_name.memory";
-      size= global_thread_container.get_row_count() * transaction_class_max * sizeof(PFS_transaction_stat);
-      total_memory+= size;
-      break;
-    case 192:
-      name= "events_transactions_summary_by_account_by_event_name.size";
-      size= sizeof(PFS_transaction_stat);
-      break;
-    case 193:
-      name= "events_transactions_summary_by_account_by_event_name.count";
-      size= global_account_container.get_row_count() * transaction_class_max;
-      break;
-    case 194:
-      name= "events_transactions_summary_by_account_by_event_name.memory";
-      size= global_account_container.get_row_count() * transaction_class_max * sizeof(PFS_transaction_stat);
-      total_memory+= size;
-      break;
-    case 195:
-      name= "events_transactions_summary_by_user_by_event_name.size";
-      size= sizeof(PFS_transaction_stat);
-      break;
-    case 196:
-      name= "events_transactions_summary_by_user_by_event_name.count";
-      size= global_user_container.get_row_count() * transaction_class_max;
-      break;
-    case 197:
-      name= "events_transactions_summary_by_user_by_event_name.memory";
-      size= global_user_container.get_row_count() * transaction_class_max * sizeof(PFS_transaction_stat);
-      total_memory+= size;
-      break;
-    case 198:
-      name= "events_transactions_summary_by_host_by_event_name.size";
-      size= sizeof(PFS_transaction_stat);
-      break;
-    case 199:
-      name= "events_transactions_summary_by_host_by_event_name.count";
-      size= global_host_container.get_row_count() * transaction_class_max;
-      break;
-    case 200:
-      name= "events_transactions_summary_by_host_by_event_name.memory";
-      size= global_host_container.get_row_count() * transaction_class_max * sizeof(PFS_transaction_stat);
-      total_memory+= size;
-      break;
-    case 201:
-      name= "table_lock_waits_summary_by_table.size";
-      size= global_table_share_lock_container.get_row_size();
-      break;
-    case 202:
-      name= "table_lock_waits_summary_by_table.count";
-      size= global_table_share_lock_container.get_row_count();
-      break;
-    case 203:
-      name= "table_lock_waits_summary_by_table.memory";
-      size= global_table_share_lock_container.get_memory();
-      total_memory+= size;
-      break;
-    case 204:
-      name= "table_io_waits_summary_by_index_usage.size";
-      size= global_table_share_index_container.get_row_size();
-      break;
-    case 205:
-      name= "table_io_waits_summary_by_index_usage.count";
-      size= global_table_share_index_container.get_row_count();
-      break;
-    case 206:
-      name= "table_io_waits_summary_by_index_usage.memory";
-      size= global_table_share_index_container.get_memory();
-      total_memory+= size;
-      break;
-    case 207:
-      name= "(history_long_statements_digest_token_array).count";
+    case 154:
+      name= "(history_long_statements_digest_token_array).row_count";
       size= events_statements_history_long_size;
       break;
-    case 208:
-      name= "(history_long_statements_digest_token_array).size";
+    case 155:
+      name= "(history_long_statements_digest_token_array).row_size";
       size= pfs_max_digest_length;
       break;
-    case 209:
+    case 156:
       name= "(history_long_statements_digest_token_array).memory";
       size= events_statements_history_long_size * pfs_max_digest_length;
       total_memory+= size;
       break;
-    case 210:
-      name= "(history_statements_digest_token_array).count";
-      size= global_thread_container.get_row_count() * events_statements_history_per_thread;
+    case 157:
+      name= "(history_statements_digest_token_array).row_count";
+      size= thread_max * events_statements_history_per_thread;
       break;
-    case 211:
-      name= "(history_statements_digest_token_array).size";
+    case 158:
+      name= "(history_statements_digest_token_array).row_size";
       size= pfs_max_digest_length;
       break;
-    case 212:
+    case 159:
       name= "(history_statements_digest_token_array).memory";
-      size= global_thread_container.get_row_count() * events_statements_history_per_thread * pfs_max_digest_length;
+      size= thread_max * events_statements_history_per_thread * pfs_max_digest_length;
       total_memory+= size;
       break;
-    case 213:
-      name= "(current_statements_digest_token_array).count";
-      size= global_thread_container.get_row_count() * statement_stack_max;
+    case 160:
+      name= "(current_statements_digest_token_array).row_count";
+      size= thread_max * statement_stack_max;
       break;
-    case 214:
-      name= "(current_statements_digest_token_array).size";
+    case 161:
+      name= "(current_statements_digest_token_array).row_size";
       size= pfs_max_digest_length;
       break;
-    case 215:
+    case 162:
       name= "(current_statements_digest_token_array).memory";
-      size= global_thread_container.get_row_count() * statement_stack_max * pfs_max_digest_length;
+      size= thread_max * statement_stack_max * pfs_max_digest_length;
       total_memory+= size;
       break;
-    case 216:
-      name= "(history_long_statements_text_array).count";
-      size= events_statements_history_long_size;
-      break;
-    case 217:
-      name= "(history_long_statements_text_array).size";
-      size= pfs_max_sqltext;
-      break;
-    case 218:
-      name= "(history_long_statements_text_array).memory";
-      size= events_statements_history_long_size * pfs_max_sqltext;
-      total_memory+= size;
-      break;
-    case 219:
-      name= "(history_statements_text_array).count";
-      size= global_thread_container.get_row_count() * events_statements_history_per_thread;
-      break;
-    case 220:
-      name= "(history_statements_text_array).size";
-      size= pfs_max_sqltext;
-      break;
-    case 221:
-      name= "(history_statements_text_array).memory";
-      size= global_thread_container.get_row_count() * events_statements_history_per_thread * pfs_max_sqltext;
-      total_memory+= size;
-      break;
-    case 222:
-      name= "(current_statements_text_array).count";
-      size= global_thread_container.get_row_count() * statement_stack_max;
-      break;
-    case 223:
-      name= "(current_statements_text_array).size";
-      size= pfs_max_sqltext;
-      break;
-    case 224:
-      name= "(current_statements_text_array).memory";
-      size= global_thread_container.get_row_count() * statement_stack_max * pfs_max_sqltext;
-      total_memory+= size;
-      break;
-    case 225:
-      name= "(statements_digest_token_array).count";
+    case 163:
+      name= "(statements_digest_token_array).row_count";
       size= digest_max;
       break;
-    case 226:
-      name= "(statements_digest_token_array).size";
+    case 164:
+      name= "(statements_digest_token_array).row_size";
       size= pfs_max_digest_length;
       break;
-    case 227:
+    case 165:
       name= "(statements_digest_token_array).memory";
       size= digest_max * pfs_max_digest_length;
       total_memory+= size;
       break;
+
     /*
       This case must be last,
       for aggregation in total_memory.
     */
-    case 228:
+    case 166:
       name= "performance_schema.memory";
       size= total_memory;
+      /* This will fail if something is not advertised here */
+      DBUG_ASSERT(size == pfs_allocated_memory);
       break;
     default:
       goto end;

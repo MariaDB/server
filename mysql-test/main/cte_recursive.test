@@ -1,7 +1,4 @@
 --source include/default_optimizer_switch.inc
-# This is too slow on MSAN
---source include/not_msan.inc
---source include/not_valgrind.inc
 
 create table t1 (a int, b varchar(32));
 insert into t1 values
@@ -2141,13 +2138,13 @@ SELECT * FROM cte;
 --echo # MDEV-15575: using recursive cte with big_tables enabled
 --echo #
 
-set tmp_memory_table_size=0; # force on-disk tmp table
+set big_tables=1;
 
 with recursive qn as
 (select 123 as a union all select 1+a from qn where a<130)
 select * from qn;
 
-set tmp_memory_table_size=default;
+set big_tables=default;
 
 --echo #
 --echo # MDEV-15571: using recursive cte with big_tables enabled
@@ -2156,7 +2153,7 @@ set tmp_memory_table_size=default;
 create table t1 (a bigint);
 insert into t1 values(1);
 
-set tmp_memory_table_size=0; # force on-disk tmp table
+set big_tables=1;
 
 --error ER_DATA_OUT_OF_RANGE
 with recursive qn as
@@ -2167,7 +2164,7 @@ with recursive qn as
 )
 select * from qn;
 
-set tmp_memory_table_size=default;
+set big_tables=default;
 
 drop table t1;
 
@@ -2176,7 +2173,7 @@ drop table t1;
 --echo #             when recursive tables are accessed by key
 --echo #
 
-set tmp_memory_table_size=0; # force on-disk tmp table
+SET big_tables=1;
 
 CREATE TABLE t1 (id int, name char(10), leftpar int, rightpar int);
 INSERT INTO t1 VALUES
@@ -2205,7 +2202,7 @@ eval EXPLAIN $q;
 
 DROP TABLE t1,t2;
 
-set tmp_memory_table_size=default;
+SET big_tables=0;
 
 --echo #
 --echo # MDEV-15840: recursive tables are accessed by key

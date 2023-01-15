@@ -229,7 +229,7 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
     - Distinct column values
   */
   if (!(share->decode_trees=(MARIA_DECODE_TREE*)
-	my_malloc(PSI_INSTRUMENT_ME, (uint) (trees*sizeof(MARIA_DECODE_TREE)+
+	my_malloc((uint) (trees*sizeof(MARIA_DECODE_TREE)+
 			  intervall_length*sizeof(uchar)),
 		  MYF(MY_WME))))
     goto err0;
@@ -245,7 +245,7 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
   */
   length=(uint) (elements*2+trees*(1 << maria_quick_table_bits));
   if (!(share->decode_tables=(uint16*)
-	my_malloc(PSI_INSTRUMENT_ME, (length+OFFSET_TABLE_SIZE)*sizeof(uint16)+
+	my_malloc((length+OFFSET_TABLE_SIZE)*sizeof(uint16)+
 		  (uint) (share->pack.header_length - sizeof(header)) +
                   share->base.extra_rec_buff_size,
 		  MYF(MY_WME | MY_ZEROFILL))))
@@ -292,9 +292,9 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
       goto err3;
   /* Reallocate the decoding tables to the used size. */
   decode_table=(uint16*)
-    my_realloc(PSI_INSTRUMENT_ME, (uchar*) share->decode_tables,
+    my_realloc((uchar*) share->decode_tables,
 	       (uint) ((uchar*) decode_table - (uchar*) share->decode_tables),
-	       MYF(0));
+	       MYF(MY_HOLD_ON_ERROR));
   /* Fix the table addresses in the tree heads. */
   {
     my_ptrdiff_t diff= PTR_BYTE_DIFF(decode_table,share->decode_tables);
@@ -757,8 +757,6 @@ int _ma_read_pack_record(MARIA_HA *info, uchar *buf, MARIA_RECORD_POS filepos)
 	      block_info.rec_len - block_info.offset, MYF(MY_NABP)))
     goto panic;
   info->update|= HA_STATE_AKTIV;
-
-  info->rec_buff[block_info.rec_len]= 0; /* Keep valgrind happy */
   DBUG_RETURN(_ma_pack_rec_unpack(info,&info->bit_buff, buf,
                                   info->rec_buff, block_info.rec_len));
 panic:
@@ -1399,9 +1397,8 @@ int _ma_read_rnd_pack_record(MARIA_HA *info,
   info->cur_row.nextpos= block_info.filepos+block_info.rec_len;
   info->update|= HA_STATE_AKTIV | HA_STATE_KEY_CHANGED;
 
-  info->rec_buff[block_info.rec_len]= 0; /* Keep valgrind happy */
-  DBUG_RETURN(_ma_pack_rec_unpack(info, &info->bit_buff, buf,
-                                  info->rec_buff, block_info.rec_len));
+  DBUG_RETURN (_ma_pack_rec_unpack(info, &info->bit_buff, buf,
+                                   info->rec_buff, block_info.rec_len));
  err:
   DBUG_RETURN(my_errno);
 }

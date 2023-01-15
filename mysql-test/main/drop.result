@@ -131,19 +131,6 @@ create table mysql_test.`#sql-347f_7` (f1 int);
 create table mysql_test.`#sql-347f_8` (f1 int);
 drop table mysql_test.`#sql-347f_8`;
 drop database mysql_test;
-create database mysql_test;
-use mysql_test;
-create table t1(c int);
-drop database mysql_test;
-ERROR HY000: Error dropping database (can't rmdir './mysql_test', errno: 39 "Directory not empty")
-select database();
-database()
-mysql_test
-drop database mysql_test;
-select database();
-database()
-NULL
-use test;
 
 # --
 # -- Bug#29958: Weird message on DROP DATABASE if mysql.proc does not
@@ -218,10 +205,14 @@ Warnings:
 Note	1051	Unknown table 'test.table1'
 DROP TABLE IF EXISTS table1,table2;
 Warnings:
-Note	1051	Unknown table 'test.table1,test.table2'
+Note	1051	Unknown table 'test.table1'
+Note	1051	Unknown table 'test.table2'
 DROP VIEW IF EXISTS view1,view2,view3,view4;
 Warnings:
-Note	4092	Unknown VIEW: 'test.view1,test.view2,test.view3,test.view4'
+Note	4092	Unknown VIEW: 'test.view1'
+Note	4092	Unknown VIEW: 'test.view2'
+Note	4092	Unknown VIEW: 'test.view3'
+Note	4092	Unknown VIEW: 'test.view4'
 
 # Test error message when trigger does not find table
 CREATE TABLE table1(a int);
@@ -239,20 +230,3 @@ DROP TABLE table1,table2;
 CREATE DATABASE mysqltest;
 CREATE TABLE mysqltest.db(id INT);
 DROP DATABASE mysqltest;
-#
-# Verify sql_if_exists
-#
-DROP DATABASE mysqltest;
-ERROR HY000: Can't drop database 'mysqltest'; database doesn't exist
-CREATE DATABASE mysqltest;
-drop table mysqltest.does_not_exists;
-ERROR 42S02: Unknown table 'mysqltest.does_not_exists'
-set @@session.sql_if_exists=1;
-drop table mysqltest.does_not_exists;
-Warnings:
-Note	1051	Unknown table 'mysqltest.does_not_exists'
-drop database mysqltest;
-drop database mysqltest;
-Warnings:
-Note	1008	Can't drop database 'mysqltest'; database doesn't exist
-set @@session.sql_if_exists=0;

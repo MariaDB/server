@@ -153,6 +153,10 @@ ADD_FEATURE_INFO(CONNECT_LIBXML2 CONNECT_WITH_LIBXML2
 
 
 IF(WIN32)
+  # /MP option of the Microsoft compiler does not work well with COM #import
+  string(REPLACE "/MP" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+  string(REPLACE "/MP" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
     add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
@@ -409,19 +413,6 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
 
 IF(NOT TARGET connect)
   RETURN()
-ENDIF()
-
-IF(MSVC AND (CMAKE_CXX_FLAGS MATCHES "/MP"))
-  # domdoc.cpp uses compiler directive #import which is not compatible
-  # with the /MP option, resulting in  compiler error C2813.
-  # Remove /MP for this file.
-  SET(src_list ${CONNECT_SOURCES})
-  LIST(FIND src_list  domdoc.cpp idx)
-  IF(idx GREATER -1)
-    STRING(REPLACE "/MP" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    LIST(REMOVE_AT src_list ${idx})
-    SET_SOURCE_FILES_PROPERTIES(${src_list} PROPERTIES COMPILE_FLAGS "/MP")
-  ENDIF()
 ENDIF()
 
 IF(MSVC)

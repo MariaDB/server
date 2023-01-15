@@ -130,7 +130,7 @@ Tablespace::open_or_create(bool is_temp)
 				fsp_flags = FSP_FLAGS_PAGE_SSIZE();
 			}
 
-			space = fil_space_t::create(
+			space = fil_space_create(
 				m_name, m_space_id, fsp_flags,
 				is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,

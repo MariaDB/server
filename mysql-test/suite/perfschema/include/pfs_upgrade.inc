@@ -20,7 +20,7 @@ drop event if exists test.user_event;
 --enable_warnings
 
 
---echo # Testing mysql_upgrade with TABLE performance_schema.user_table
+--echo "Testing mysql_upgrade with TABLE performance_schema.user_table"
 
 create table test.user_table(a int);
 
@@ -43,7 +43,7 @@ use test;
 drop table test.user_table;
 
 
---echo # Testing mysql_upgrade with VIEW performance_schema.user_view
+--echo "Testing mysql_upgrade with VIEW performance_schema.user_view"
 
 create view test.user_view as select "Not supposed to be here";
 
@@ -66,7 +66,7 @@ use test;
 drop view test.user_view;
 
 
---echo # Testing mysql_upgrade with PROCEDURE performance_schema.user_proc
+--echo "Testing mysql_upgrade with PROCEDURE performance_schema.user_proc"
 
 create procedure test.user_proc()
   select "Not supposed to be here";
@@ -81,7 +81,7 @@ update mysql.proc set db='test' where name='user_proc';
 drop procedure test.user_proc;
 
 
---echo # Testing mysql_upgrade with FUNCTION performance_schema.user_func
+--echo "Testing mysql_upgrade with FUNCTION performance_schema.user_func"
 
 create function test.user_func() returns integer
   return 0;
@@ -96,7 +96,7 @@ update mysql.proc set db='test' where name='user_func';
 drop function test.user_func;
 
 
---echo # Testing mysql_upgrade with EVENT performance_schema.user_event
+--echo "Testing mysql_upgrade with EVENT performance_schema.user_event"
 
 create event test.user_event on schedule every 1 day do
   select "not supposed to be here";

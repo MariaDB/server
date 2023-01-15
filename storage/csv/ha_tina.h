@@ -57,7 +57,7 @@ struct tina_set {
   my_off_t end;
 };
 
-class ha_tina final : public handler
+class ha_tina: public handler
 {
   THR_LOCK_DATA lock;      /* MySQL lock */
   TINA_SHARE *share;       /* Shared lock info */

@@ -1,5 +1,5 @@
 SET @max_row = 20;
-SET @@session.default_storage_engine = 'MyISAM';
+SET @@session.storage_engine = 'MyISAM';
 
 #------------------------------------------------------------------------
 # There are several testcases disabled because of the open bugs

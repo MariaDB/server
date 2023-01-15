@@ -131,7 +131,11 @@ TODO: Remove this function. Everything should use MYSQL_TYPE_NEWDECIMAL.
 respectively */
 static ATTRIBUTE_COLD
 int
-cmp_decimal(const byte*	a, ulint a_length, const byte* b, ulint b_length)
+cmp_decimal(
+	const byte*	a,
+	unsigned int	a_length,
+	const byte*	b,
+	unsigned int	b_length)
 {
 	int	swap_flag;
 
@@ -189,124 +193,378 @@ cmp_decimal(const byte*	a, ulint a_length, const byte* b, ulint b_length)
 	return(swap_flag);
 }
 
-/** Compare two data fields.
-@param mtype  main type
-@param prtype precise type
-@param data1  data field
-@param len1   length of data1 in bytes, or UNIV_SQL_NULL
-@param data2  data field
-@param len2   length of data2 in bytes, or UNIV_SQL_NULL
-@return the comparison result of data1 and data2
-@retval 0 if data1 is equal to data2
-@retval negative if data1 is less than data2
-@retval positive if data1 is greater than data2 */
-static int cmp_data(ulint mtype, ulint prtype, const byte *data1, ulint len1,
-                    const byte *data2, ulint len2)
+/*************************************************************//**
+Innobase uses this function to compare two geometry data fields
+@return	1, 0, -1, if a is greater, equal, less than b, respectively */
+static
+int
+cmp_geometry_field(
+/*===============*/
+	const byte*	a,		/*!< in: data field */
+	unsigned int	a_length,	/*!< in: data field length,
+					not UNIV_SQL_NULL */
+	const byte*	b,		/*!< in: data field */
+	unsigned int	b_length)	/*!< in: data field length,
+					not UNIV_SQL_NULL */
 {
-  ut_ad(len1 != UNIV_SQL_DEFAULT);
-  ut_ad(len2 != UNIV_SQL_DEFAULT);
+	double		x1, x2;
+	double		y1, y2;
 
-  if (len1 == UNIV_SQL_NULL || len2 == UNIV_SQL_NULL)
-  {
-    if (len1 == len2)
-      return 0;
+	if (a_length < sizeof(double) || b_length < sizeof(double)) {
+		return(0);
+	}
 
-    /* We define the SQL null to be the smallest possible value of a field. */
-    return len1 == UNIV_SQL_NULL ? -1 : 1;
-  }
+	/* Try to compare mbr left lower corner (xmin, ymin) */
+	x1 = mach_double_read(a);
+	x2 = mach_double_read(b);
+	y1 = mach_double_read(a + sizeof(double) * SPDIMS);
+	y2 = mach_double_read(b + sizeof(double) * SPDIMS);
 
+	if (x1 > x2) {
+		return(1);
+	} else if (x2 > x1) {
+		return(-1);
+	}
+
+	if (y1 > y2) {
+		return(1);
+	} else if (y2 > y1) {
+		return(-1);
+	}
+
+	/* left lower corner (xmin, ymin) overlaps, now right upper corner */
+	x1 = mach_double_read(a + sizeof(double));
+	x2 = mach_double_read(b + sizeof(double));
+	y1 = mach_double_read(a + sizeof(double) * SPDIMS + sizeof(double));
+	y2 = mach_double_read(b + sizeof(double) * SPDIMS + sizeof(double));
+
+	if (x1 > x2) {
+		return(1);
+	} else if (x2 > x1) {
+		return(-1);
+	}
+
+	if (y1 > y2) {
+		return(1);
+	} else if (y2 > y1) {
+		return(-1);
+	}
+
+	return(0);
+}
+/*************************************************************//**
+Innobase uses this function to compare two gis data fields
+@return	1, 0, -1, if mode == PAGE_CUR_MBR_EQUAL. And return
+1, 0 for rest compare modes, depends on a and b qualifies the
+relationship (CONTAINT, WITHIN etc.) */
+static
+int
+cmp_gis_field(
+/*============*/
+	page_cur_mode_t	mode,		/*!< in: compare mode */
+	const byte*	a,		/*!< in: data field */
+	unsigned int	a_length,	/*!< in: data field length,
+					not UNIV_SQL_NULL */
+	const byte*	b,		/*!< in: data field */
+	unsigned int	b_length)	/*!< in: data field length,
+					not UNIV_SQL_NULL */
+{
+	if (mode == PAGE_CUR_MBR_EQUAL) {
+		return cmp_geometry_field(a, a_length, b, b_length);
+	} else {
+		return rtree_key_cmp(mode, a, int(a_length), b, int(b_length));
+	}
+}
+
+/** Compare two data fields.
+@param[in] mtype main type
+@param[in] prtype precise type
+@param[in] a data field
+@param[in] a_length length of a, in bytes (not UNIV_SQL_NULL)
+@param[in] b data field
+@param[in] b_length length of b, in bytes (not UNIV_SQL_NULL)
+@return positive, 0, negative, if a is greater, equal, less than b,
+respectively */
+static int cmp_whole_field(ulint mtype, ulint prtype,
+                           const byte *a, unsigned a_length,
+                           const byte *b, unsigned b_length)
+{
   switch (mtype) {
   default:
     ib::fatal() << "Unknown data type number " << mtype;
+    return 0;
   case DATA_DECIMAL:
-    return cmp_decimal(data1, len1, data2, len2);
+    return cmp_decimal(a, a_length, b, b_length);
   case DATA_DOUBLE:
     {
-      const double af= mach_double_read(data1), bf= mach_double_read(data2);
+      const double af= mach_double_read(a), bf= mach_double_read(b);
       return af > bf ? 1 : bf > af ? -1 : 0;
     }
   case DATA_FLOAT:
     {
-      const float af= mach_float_read(data1), bf= mach_float_read(data2);
+      const float af= mach_float_read(a), bf= mach_float_read(b);
       return af > bf ? 1 : bf > af ? -1 : 0;
     }
-  case DATA_FIXBINARY:
-  case DATA_BINARY:
-    if (dtype_get_charset_coll(prtype) != DATA_MYSQL_BINARY_CHARSET_COLL)
-    {
-      if (ulint len= std::min(len1, len2))
-      {
-        if (int cmp= memcmp(data1, data2, len))
-          return cmp;
-        data1+= len;
-        data2+= len;
-        len1-= len;
-        len2-= len;
-      }
-
-      int cmp= 0;
-      if (len1)
-      {
-        const byte *end= &data1[len1];
-        do
-          cmp= static_cast<int>(*data1++ - byte{0x20});
-        while (cmp == 0 && data1 < end);
-      }
-      else if (len2)
-      {
-        const byte *end= &data2[len2];
-        do
-          cmp= static_cast<int>(byte{0x20} - *data2++);
-        while (cmp == 0 && data2 < end);
-      }
-      return cmp;
-    }
-    /* fall through */
-  case DATA_INT:
-  case DATA_SYS_CHILD:
-  case DATA_SYS:
-    break;
-  case DATA_GEOMETRY:
-    ut_ad(prtype & DATA_BINARY_TYPE);
-    if (prtype & DATA_GIS_MBR)
-    {
-      ut_ad(len1 == DATA_MBR_LEN);
-      ut_ad(len2 == DATA_MBR_LEN);
-      return cmp_geometry_field(data1, data2);
-    }
-    break;
-  case DATA_BLOB:
-    if (prtype & DATA_BINARY_TYPE)
-      break;
-    /* fall through */
-  case DATA_VARMYSQL:
-    DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
-    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
-                                      MYF(MY_WME)))
-      return cs->coll->strnncollsp(cs, data1, len1, data2, len2);
-  no_collation:
-    ib::fatal() << "Unable to find charset-collation for " << prtype;
-  case DATA_MYSQL:
-    DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
-    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
-                                      MYF(MY_WME)))
-      return cs->coll->strnncollsp_nchars(cs, data1, len1, data2, len2,
-                                          std::max(len1, len2));
-    goto no_collation;
   case DATA_VARCHAR:
   case DATA_CHAR:
     /* latin1_swedish_ci is treated as a special case in InnoDB.
     Because it is a fixed-length encoding (mbminlen=mbmaxlen=1),
     non-NULL CHAR(n) values will always occupy n bytes and we
     can invoke strnncollsp() instead of strnncollsp_nchars(). */
-    return my_charset_latin1.strnncollsp(data1, len1, data2, len2);
+    return my_charset_latin1.coll->strnncollsp(&my_charset_latin1,
+                                               a, a_length, b, b_length);
+  case DATA_BLOB:
+    ut_ad(!(prtype & DATA_BINARY_TYPE)); /* our only caller tested this */
+    /* fall through */
+  case DATA_VARMYSQL:
+    DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
+    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
+                                      MYF(MY_WME)))
+      return cs->coll->strnncollsp(cs, a, a_length, b, b_length);
+    break;
+  case DATA_MYSQL:
+    DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
+    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
+                                      MYF(MY_WME)))
+      return cs->coll->strnncollsp_nchars(cs, a, a_length, b, b_length,
+                                          std::max(a_length, b_length));
   }
 
-  if (ulint len= std::min(len1, len2))
-    if (int cmp= memcmp(data1, data2, len))
-      return cmp;
+  ib::fatal() << "Unable to find charset-collation for " << prtype;
+}
 
-  return len1 > len2 ? 1 : len2 > len1 ? -1 : 0;
+/** Compare two data fields.
+@param[in] mtype main type
+@param[in] prtype precise type
+@param[in] data1 data field
+@param[in] len1 length of data1 in bytes, or UNIV_SQL_NULL
+@param[in] data2 data field
+@param[in] len2 length of data2 in bytes, or UNIV_SQL_NULL
+@return the comparison result of data1 and data2
+@retval 0 if data1 is equal to data2
+@retval negative if data1 is less than data2
+@retval positive if data1 is greater than data2 */
+inline
+int
+cmp_data(
+	ulint		mtype,
+	ulint		prtype,
+	const byte*	data1,
+	ulint		len1,
+	const byte*	data2,
+	ulint		len2)
+{
+	ut_ad(len1 != UNIV_SQL_DEFAULT);
+	ut_ad(len2 != UNIV_SQL_DEFAULT);
+
+	if (len1 == UNIV_SQL_NULL || len2 == UNIV_SQL_NULL) {
+		if (len1 == len2) {
+			return(0);
+		}
+
+		/* We define the SQL null to be the smallest possible
+		value of a field. */
+		return(len1 == UNIV_SQL_NULL ? -1 : 1);
+	}
+
+	ulint	pad;
+
+	switch (mtype) {
+	case DATA_FIXBINARY:
+	case DATA_BINARY:
+		if (dtype_get_charset_coll(prtype)
+		    != DATA_MYSQL_BINARY_CHARSET_COLL) {
+			pad = 0x20;
+			break;
+		}
+		/* fall through */
+	case DATA_INT:
+	case DATA_SYS_CHILD:
+	case DATA_SYS:
+		pad = ULINT_UNDEFINED;
+		break;
+	case DATA_GEOMETRY:
+		ut_ad(prtype & DATA_BINARY_TYPE);
+		pad = ULINT_UNDEFINED;
+		if (prtype & DATA_GIS_MBR) {
+			return(cmp_geometry_field(data1, (unsigned) len1,
+						  data2, (unsigned) len2));
+		}
+		break;
+	case DATA_BLOB:
+		if (prtype & DATA_BINARY_TYPE) {
+			pad = ULINT_UNDEFINED;
+			break;
+		}
+		/* fall through */
+	default:
+		return(cmp_whole_field(mtype, prtype,
+				       data1, (unsigned) len1,
+				       data2, (unsigned) len2));
+	}
+
+	ulint	len;
+	int	cmp;
+
+	if (len1 < len2) {
+		len = len1;
+		len2 -= len;
+		len1 = 0;
+	} else {
+		len = len2;
+		len1 -= len;
+		len2 = 0;
+	}
+
+	if (len) {
+#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
+		/* Compare the first bytes with a loop to avoid the call
+		overhead of memcmp(). On x86 and x86-64, the GCC built-in
+		(repz cmpsb) seems to be very slow, so we will be calling the
+		libc version. http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43052
+		tracks the slowness of the GCC built-in memcmp().
+
+		We compare up to the first 4..7 bytes with the loop.
+		The (len & 3) is used for "normalizing" or
+		"quantizing" the len parameter for the memcmp() call,
+		in case the whole prefix is equal. On x86 and x86-64,
+		the GNU libc memcmp() of equal strings is faster with
+		len=4 than with len=3.
+
+		On other architectures than the IA32 or AMD64, there could
+		be a built-in memcmp() that is faster than the loop.
+		We only use the loop where we know that it can improve
+		the performance. */
+		for (ulint i = 4 + (len & 3); i > 0; i--) {
+			cmp = int(*data1++) - int(*data2++);
+			if (cmp) {
+				return(cmp);
+			}
+
+			if (!--len) {
+				break;
+			}
+		}
+
+		if (len) {
+#endif /* IA32 or AMD64 */
+			cmp = memcmp(data1, data2, len);
+
+			if (cmp) {
+				return(cmp);
+			}
+
+			data1 += len;
+			data2 += len;
+#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
+		}
+#endif /* IA32 or AMD64 */
+	}
+
+	cmp = (int) (len1 - len2);
+
+	if (!cmp || pad == ULINT_UNDEFINED) {
+		return(cmp);
+	}
+
+	len = 0;
+
+	if (len1) {
+		do {
+			cmp = static_cast<int>(
+				mach_read_from_1(&data1[len++]) - pad);
+		} while (cmp == 0 && len < len1);
+	} else {
+		ut_ad(len2 > 0);
+
+		do {
+			cmp = static_cast<int>(
+				pad - mach_read_from_1(&data2[len++]));
+		} while (cmp == 0 && len < len2);
+	}
+
+	return(cmp);
+}
+
+/** Compare a GIS data tuple to a physical record.
+@param[in] dtuple data tuple
+@param[in] rec R-tree record
+@param[in] offsets rec_get_offsets(rec)
+@param[in] mode compare mode
+@retval negative if dtuple is less than rec */
+int
+cmp_dtuple_rec_with_gis(
+/*====================*/
+	const dtuple_t*	dtuple,	/*!< in: data tuple */
+	const rec_t*	rec,	/*!< in: physical record which differs from
+				dtuple in some of the common fields, or which
+				has an equal number or more fields than
+				dtuple */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
+	page_cur_mode_t	mode)	/*!< in: compare mode */
+{
+	const dfield_t*	dtuple_field;	/* current field in logical record */
+	ulint		dtuple_f_len;	/* the length of the current field
+					in the logical record */
+	ulint		rec_f_len;	/* length of current field in rec */
+	const byte*	rec_b_ptr;	/* pointer to the current byte in
+					rec field */
+	int		ret = 0;	/* return value */
+
+	dtuple_field = dtuple_get_nth_field(dtuple, 0);
+	dtuple_f_len = dfield_get_len(dtuple_field);
+
+	rec_b_ptr = rec_get_nth_field(rec, offsets, 0, &rec_f_len);
+	ret = cmp_gis_field(
+		mode, static_cast<const byte*>(dfield_get_data(dtuple_field)),
+		(unsigned) dtuple_f_len, rec_b_ptr, (unsigned) rec_f_len);
+
+	return(ret);
+}
+
+/** Compare a GIS data tuple to a physical record in rtree non-leaf node.
+We need to check the page number field, since we don't store pk field in
+rtree non-leaf node.
+@param[in]	dtuple		data tuple
+@param[in]	rec		R-tree record
+@param[in]	offsets		rec_get_offsets(rec)
+@retval negative if dtuple is less than rec */
+int
+cmp_dtuple_rec_with_gis_internal(
+	const dtuple_t*	dtuple,
+	const rec_t*	rec,
+	const rec_offs*	offsets)
+{
+	const dfield_t*	dtuple_field;	/* current field in logical record */
+	ulint		dtuple_f_len;	/* the length of the current field
+					in the logical record */
+	ulint		rec_f_len;	/* length of current field in rec */
+	const byte*	rec_b_ptr;	/* pointer to the current byte in
+					rec field */
+	int		ret = 0;	/* return value */
+
+	dtuple_field = dtuple_get_nth_field(dtuple, 0);
+	dtuple_f_len = dfield_get_len(dtuple_field);
+
+	rec_b_ptr = rec_get_nth_field(rec, offsets, 0, &rec_f_len);
+	ret = cmp_gis_field(
+		PAGE_CUR_WITHIN,
+		static_cast<const byte*>(dfield_get_data(dtuple_field)),
+		(unsigned) dtuple_f_len, rec_b_ptr, (unsigned) rec_f_len);
+	if (ret != 0) {
+		return(ret);
+	}
+
+	dtuple_field = dtuple_get_nth_field(dtuple, 1);
+	dtuple_f_len = dfield_get_len(dtuple_field);
+	rec_b_ptr = rec_get_nth_field(rec, offsets, 1, &rec_f_len);
+
+	return(cmp_data(dtuple_field->type.mtype,
+			dtuple_field->type.prtype,
+			static_cast<const byte*>(dtuple_field->data),
+			dtuple_f_len,
+			rec_b_ptr,
+			rec_f_len));
 }
 
 /** Compare two data fields.
@@ -864,8 +1122,7 @@ cmp_rec_rec(
 	no need to compare the child page number. */
 	n_fields = std::min(rec_offs_n_fields(offsets1),
 			    rec_offs_n_fields(offsets2));
-	n_fields = std::min<ulint>(n_fields,
-				   dict_index_get_n_unique_in_tree(index));
+	n_fields = std::min(n_fields, dict_index_get_n_unique_in_tree(index));
 
 	for (; cur_field < n_fields; cur_field++) {
 		ulint	mtype;

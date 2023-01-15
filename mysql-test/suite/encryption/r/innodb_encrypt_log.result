@@ -7,7 +7,7 @@
 #
 SET GLOBAL innodb_log_checksums=0;
 Warnings:
-Warning	138	The parameter innodb_log_checksums is deprecated and has no effect.
+Warning	138	innodb_log_checksums is deprecated and has no effect outside recovery
 SELECT @@global.innodb_log_checksums;
 @@global.innodb_log_checksums
 1
@@ -40,7 +40,7 @@ NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in t0.ibd
 # ib_logfile0 expecting NOT FOUND
 NOT FOUND /private|secret|sacr(ed|ament)|success|story|secur(e|ity)/ in ib_logfile0
 # Restart without redo log encryption
-# restart: --skip-innodb-encrypt-log
+# restart: --skip-innodb-encrypt-log --innodb-log-files-in-group=1
 SELECT COUNT(*) FROM t0;
 COUNT(*)
 1024

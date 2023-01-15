@@ -67,9 +67,9 @@ ST_SCHEMA_TABLE *i_s_feedback; ///< table descriptor for our I_S table
 */
 static ST_FIELD_INFO feedback_fields[] =
 {
-  Show::Column("VARIABLE_NAME",  Show::Varchar(255),  NOT_NULL),
-  Show::Column("VARIABLE_VALUE", Show::Varchar(1024), NOT_NULL),
-  Show::CEnd()
+  {"VARIABLE_NAME",   255, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"VARIABLE_VALUE", 1024, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0}
 };
 
 static COND * const OOM= (COND*)1;
@@ -94,9 +94,8 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
   Item_cond_or *res= NULL;
   /* A reference to this context will be stored in Item_field */
   Name_resolution_context *nrc= new (thd->mem_root) Name_resolution_context;
-  LEX_CSTRING &db= tables->db;
-  LEX_CSTRING &table= tables->alias;
-  LEX_CSTRING &field= tables->table->field[0]->field_name;
+  const char *db= tables->db.str, *table= tables->alias.str;
+  LEX_CSTRING *field= &tables->table->field[0]->field_name;
   CHARSET_INFO *cs= &my_charset_latin1;
 
   if (!filter->str || !nrc)
@@ -180,12 +179,13 @@ static LEX_STRING vars_filter[]= {
   {C_STRING_WITH_LEN("secure_auth")},
   {C_STRING_WITH_LEN("slow_launch_time")},
   {C_STRING_WITH_LEN("sql%")},
-  {C_STRING_WITH_LEN("default_storage_engine")},
+  {C_STRING_WITH_LEN("storage_engine")},
   {C_STRING_WITH_LEN("sync_binlog")},
   {C_STRING_WITH_LEN("table_definition_cache")},
   {C_STRING_WITH_LEN("table_open_cache")},
   {C_STRING_WITH_LEN("thread_handling")},
   {C_STRING_WITH_LEN("time_zone")},
+  {C_STRING_WITH_LEN("timed_mutexes")},
   {C_STRING_WITH_LEN("version%")},
   {0, 0}
 };
@@ -282,7 +282,7 @@ static int init(void *p)
       if (*s == ' ')
         url_count++;
 
-    urls= (Url **)my_malloc(PSI_INSTRUMENT_ME, url_count*sizeof(Url*), MYF(MY_WME));
+    urls= (Url **)my_malloc(url_count*sizeof(Url*), MYF(MY_WME));
     if (!urls)
       return 1;
 
@@ -411,6 +411,24 @@ static struct st_mysql_information_schema feedback =
 
 } // namespace feedback
 
+mysql_declare_plugin(feedback)
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &feedback::feedback,
+  "FEEDBACK",
+  "Sergei Golubchik",
+  "MariaDB User Feedback Plugin",
+  PLUGIN_LICENSE_GPL,
+  feedback::init,
+  feedback::free,
+  0x0101,
+  NULL,
+  feedback::settings,
+  NULL,
+  0
+}
+mysql_declare_plugin_end;
+#ifdef MARIA_PLUGIN_INTERFACE_VERSION
 maria_declare_plugin(feedback)
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
@@ -428,3 +446,4 @@ maria_declare_plugin(feedback)
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
+#endif

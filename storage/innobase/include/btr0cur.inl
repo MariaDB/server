@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -129,25 +129,25 @@ btr_cur_compress_recommendation(
 {
 	const page_t*	page;
 
-	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
-					 MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
+			       MTR_MEMO_PAGE_X_FIX));
 
 	page = btr_cur_get_page(cursor);
 
 	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page) * 2U,
 				      return(FALSE));
 
-	if (!page_has_siblings(page)
-	    || page_get_data_size(page)
-	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index)) {
+	if (page_get_data_size(page)
+	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index)
+	    || !page_has_siblings(page)) {
 
 		/* The page fillfactor has dropped below a predefined
 		minimum value OR the level in the B-tree contains just
 		one page: we recommend compression if this is not the
 		root page. */
 
-		return cursor->index->page
-			!= btr_cur_get_block(cursor)->page.id().page_no();
+		return(dict_index_get_page(cursor->index)
+		       != page_get_page_no(page));
 	}
 
 	return(FALSE);
@@ -167,22 +167,22 @@ btr_cur_can_delete_without_compress(
 {
 	page_t*		page;
 
-	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
-					 MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
+				MTR_MEMO_PAGE_X_FIX));
 
 	page = btr_cur_get_page(cursor);
 
-	if (!page_has_siblings(page) || page_get_n_recs(page) < 2
-	    || page_get_data_size(page) - rec_size
-	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index)) {
+	if (page_get_data_size(page) - rec_size
+	    < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index)
+	    || !page_has_siblings(page) || page_get_n_recs(page) < 2) {
 
 		/* The page fillfactor will drop below a predefined
 		minimum value, OR the level in the B-tree contains just
 		one page, OR the page will become empty: we recommend
 		compression if this is not the root page. */
 
-		return cursor->index->page
-			== btr_cur_get_block(cursor)->page.id().page_no();
+		return(dict_index_get_page(cursor->index)
+		       == page_get_page_no(page));
 	}
 
 	return(TRUE);
@@ -208,4 +208,22 @@ btr_blob_op_is_update(
 
 	ut_ad(0);
 	return(FALSE);
+}
+
+/******************************************************//**
+The following function is used to set the deleted bit of a record. */
+UNIV_INLINE
+void
+btr_rec_set_deleted_flag(
+/*=====================*/
+	rec_t*		rec,	/*!< in/out: physical record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page (or NULL) */
+	ulint		flag)	/*!< in: nonzero if delete marked */
+{
+	if (page_rec_is_comp(rec)) {
+		rec_set_deleted_flag_new(rec, page_zip, flag);
+	} else {
+		ut_ad(!page_zip);
+		rec_set_deleted_flag_old(rec, flag);
+	}
 }

@@ -38,6 +38,12 @@
 #include <table.h>
 #include <sql_list.h>
 
+/* Needed to get access to scheduler variables */
+void* thd_get_scheduler_data(THD *thd);
+void thd_set_scheduler_data(THD *thd, void *data);
+PSI_thread* thd_get_psi(THD *thd);
+void thd_set_psi(THD *thd, PSI_thread *psi);
+
 /* Interface to THD variables and functions */
 void thd_set_killed(THD *thd);
 void thd_clear_errors(THD *thd);
@@ -76,6 +82,8 @@ bool do_command(THD *thd);
   ensure that the proper MySQL Server logic attached to these events is
   executed.
 */
+/* Initialise a new connection handler thread */
+bool init_new_connection_handler_thread();
 /* Set up connection thread before use as execution thread */
 bool setup_connection_thread_globals(THD *thd);
 /* Prepare connection as part of connection set-up */
@@ -86,6 +94,8 @@ void mysql_audit_release(THD *thd);
 bool thd_is_connection_alive(THD *thd);
 /* Close connection with possible error code */
 void close_connection(THD *thd, uint errcode);
+/* Decrement connection counter */
+void dec_connection_count();
 /* Destroy THD object */
 void delete_thd(THD *thd);
 

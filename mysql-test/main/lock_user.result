@@ -164,7 +164,7 @@ CREATE USER `user1`@`localhost` ACCOUNT LOCK PASSWORD EXPIRE
 alter user user1@localhost  PASSWORD EXPIRE INTERVAL 60 DAY ACCOUNT UNLOCK;
 select * from mysql.global_priv where user='user1';
 Host	User	Priv
-localhost	user1	{"access":0,"version_id":XXX,"plugin":"mysql_native_password","authentication_string":"","account_locked":false,"password_last_changed":0,"password_lifetime":60}
+localhost	user1	{"access":0,"plugin":"mysql_native_password","authentication_string":"","account_locked":false,"password_last_changed":0,"password_lifetime":60}
 show create user user1@localhost;
 CREATE USER for user1@localhost
 CREATE USER `user1`@`localhost` PASSWORD EXPIRE

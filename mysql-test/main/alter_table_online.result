@@ -253,19 +253,19 @@ Feature_delay_key_write	0
 alter online table t1 delay_key_write=1;
 show status like 'Feature_delay_key_write';
 Variable_name	Value
-Feature_delay_key_write	0
+Feature_delay_key_write	1
 flush tables;
 insert t1 values (1,2),(2,3),(3,4);
 show status like 'Feature_delay_key_write';
 Variable_name	Value
-Feature_delay_key_write	1
+Feature_delay_key_write	2
 alter online table t1 delay_key_write=0;
 show status like 'Feature_delay_key_write';
 Variable_name	Value
-Feature_delay_key_write	1
+Feature_delay_key_write	2
 flush tables;
 insert t1 values (1,2),(2,3),(3,4);
 show status like 'Feature_delay_key_write';
 Variable_name	Value
-Feature_delay_key_write	1
+Feature_delay_key_write	2
 drop table t1;

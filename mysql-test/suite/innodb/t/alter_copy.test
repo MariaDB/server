@@ -62,7 +62,7 @@ let $shutdown_timeout=0;
 disconnect hang;
 let $shutdown_timeout=;
 let $datadir=`select @@datadir`;
---replace_regex /#sql-alter-[0-9a-f_\-]*/#sql-alter/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
 --list_files $datadir/test
 SHOW CREATE TABLE t;
 SELECT COUNT(*) FROM t;
@@ -75,7 +75,7 @@ CHECK TABLE t1;
 
 --let $restart_parameters= --innodb-read-only
 --source include/restart_mysqld.inc
---replace_regex /#sql-alter-[0-9a-f_\-]*/#sql-alter/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
 
 --list_files $datadir/test
 SHOW CREATE TABLE t;
@@ -89,7 +89,7 @@ CHECK TABLE t1;
 
 --let $restart_parameters=
 --source include/restart_mysqld.inc
---replace_regex /#sql-alter-[0-9a-f_\-]*/#sql-alter/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
 --list_files $datadir/test
 DROP TABLE t1,t;
 

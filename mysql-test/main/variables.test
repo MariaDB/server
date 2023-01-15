@@ -113,6 +113,8 @@ explain extended select last_insert_id(345);
 select @@IDENTITY,last_insert_id(), @@identity;
 explain extended select @@IDENTITY,last_insert_id(), @@identity;
 
+set big_tables=OFF, big_tables=ON, big_tables=0, big_tables=1, big_tables="OFF", big_tables="ON";
+
 set global concurrent_insert=2;
 show variables like 'concurrent_insert';
 select * from information_schema.session_variables where variable_name like 'concurrent_insert';
@@ -124,6 +126,13 @@ show variables like 'concurrent_insert';
 select * from information_schema.session_variables where variable_name like 'concurrent_insert';
 set global concurrent_insert=DEFAULT;
 select @@concurrent_insert;
+
+set global timed_mutexes=ON;
+show variables like 'timed_mutexes';
+select * from information_schema.session_variables where variable_name like 'timed_mutexes';
+set global timed_mutexes=0;
+show variables like 'timed_mutexes';
+select * from information_schema.session_variables where variable_name like 'timed_mutexes';
 
 set default_storage_engine=MYISAM, default_storage_engine="HEAP", global default_storage_engine="MERGE";
 show local variables like 'default_storage_engine';
@@ -232,6 +241,10 @@ SELECT @@version_compile_os LIKE 'non-existent';
 
 # The following should give errors
 
+--error ER_WRONG_VALUE_FOR_VAR
+set big_tables=OFFF;
+--error ER_WRONG_VALUE_FOR_VAR
+set big_tables="OFFF";
 --error ER_UNKNOWN_SYSTEM_VARIABLE
 set unknown_variable=1;
 --error ER_WRONG_TYPE_FOR_VAR
@@ -239,7 +252,7 @@ set max_join_size="hello";
 --error ER_UNKNOWN_STORAGE_ENGINE
 set default_storage_engine=UNKNOWN_TABLE_TYPE;
 --error ER_WRONG_VALUE_FOR_VAR
-set default_storage_engine=MERGE, sql_warnings=NULL;
+set default_storage_engine=MERGE, big_tables=2;
 show local variables like 'default_storage_engine';
 --error ER_UNKNOWN_CHARACTER_SET
 set character_set_client=UNKNOWN_CHARACTER_SET;
@@ -263,7 +276,8 @@ set @@SQL_WARNINGS=NULL;
 # Test setting all variables
 
 set autocommit=1;
-select @@autocommit;
+set big_tables=1;
+select @@autocommit, @@big_tables;
 set global binlog_cache_size=100;
 set bulk_insert_buffer_size=100;
 set character set cp1251_koi8;
@@ -1249,6 +1263,11 @@ SET @@global.max_binlog_cache_size=DEFAULT;
 SET @@global.max_join_size=DEFAULT;
 SET @@global.key_buffer_size=@kbs;
 SET @@global.key_cache_block_size=@kcbs;
+
+#
+# Bug#56976: added new start-up parameter
+#
+select @@max_long_data_size > 0;
 
 --echo #
 --echo # Bug#11766424  59527:

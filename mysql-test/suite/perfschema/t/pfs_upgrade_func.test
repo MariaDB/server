@@ -9,7 +9,7 @@
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
---echo # Testing mysql_upgrade with FUNCTION performance_schema.user_func
+--echo "Testing mysql_upgrade with FUNCTION performance_schema.user_func"
 
 create function test.user_func() returns integer
   return 0;

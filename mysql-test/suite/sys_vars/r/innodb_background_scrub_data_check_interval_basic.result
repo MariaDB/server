@@ -4,74 +4,60 @@ SET @start_global_value = @@global.innodb_background_scrub_data_check_interval;
 #
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+3600
 set global innodb_background_scrub_data_check_interval=10;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+10
 set global innodb_background_scrub_data_check_interval=DEFAULT;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+3600
 set global innodb_background_scrub_data_check_interval=20;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+20
 set global innodb_background_scrub_data_check_interval=DEFAULT;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+3600
 #
 # exists as global only
 #
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+3600
 select @@session.innodb_background_scrub_data_check_interval;
 ERROR HY000: Variable 'innodb_background_scrub_data_check_interval' is a GLOBAL variable
 show global variables like 'innodb_background_scrub_data_check_interval';
 Variable_name	Value
-innodb_background_scrub_data_check_interval	0
+innodb_background_scrub_data_check_interval	3600
 show session variables like 'innodb_background_scrub_data_check_interval';
 Variable_name	Value
-innodb_background_scrub_data_check_interval	0
+innodb_background_scrub_data_check_interval	3600
 select * from information_schema.global_variables
 where variable_name='innodb_background_scrub_data_check_interval';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_BACKGROUND_SCRUB_DATA_CHECK_INTERVAL	0
+INNODB_BACKGROUND_SCRUB_DATA_CHECK_INTERVAL	3600
 select * from information_schema.session_variables
 where variable_name='innodb_background_scrub_data_check_interval';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_BACKGROUND_SCRUB_DATA_CHECK_INTERVAL	0
+INNODB_BACKGROUND_SCRUB_DATA_CHECK_INTERVAL	3600
 #
 # show that it's writable
 #
 set global innodb_background_scrub_data_check_interval=10;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+10
 set global innodb_background_scrub_data_check_interval=20;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+20
 set global innodb_background_scrub_data_check_interval=1;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_check_interval;
 @@global.innodb_background_scrub_data_check_interval
-0
+1
 set session innodb_background_scrub_data_check_interval=1;
 ERROR HY000: Variable 'innodb_background_scrub_data_check_interval' is a GLOBAL variable and should be set with SET GLOBAL
 #
@@ -84,5 +70,3 @@ ERROR 42000: Incorrect argument type to variable 'innodb_background_scrub_data_c
 set global innodb_background_scrub_data_check_interval="foo";
 ERROR 42000: Incorrect argument type to variable 'innodb_background_scrub_data_check_interval'
 SET @@global.innodb_background_scrub_data_check_interval = @start_global_value;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_check_interval is deprecated and has no effect.

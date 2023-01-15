@@ -271,8 +271,8 @@ row_update_for_mysql(
 	row_prebuilt_t*		prebuilt)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** This can only be used when the current transaction is at
-READ COMMITTED or READ UNCOMMITTED isolation level.
+/** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
+session is using a READ COMMITTED or READ UNCOMMITTED isolation level.
 Before calling this function row_search_for_mysql() must have
 initialized prebuilt->new_rec_locks to store the information which new
 record locks really were set. This function removes a newly set
@@ -685,8 +685,8 @@ struct row_prebuilt_t {
 					updated */
 	dtuple_t*	clust_ref;	/*!< prebuilt dtuple used in
 					sel/upd/del */
-	lock_mode	select_lock_type;/*!< LOCK_NONE, LOCK_S, or LOCK_X */
-	lock_mode	stored_select_lock_type;/*!< this field is used to
+	ulint		select_lock_type;/*!< LOCK_NONE, LOCK_S, or LOCK_X */
+	ulint		stored_select_lock_type;/*!< this field is used to
 					remember the original select_lock_type
 					that was decided in ha_innodb.cc,
 					::store_lock(), ::external_lock(),
@@ -694,9 +694,8 @@ struct row_prebuilt_t {
 	ulint		row_read_type;	/*!< ROW_READ_WITH_LOCKS if row locks
 					should be the obtained for records
 					under an UPDATE or DELETE cursor.
-					At READ UNCOMMITTED or
-					READ COMMITTED isolation level,
-					this can be set to
+					If innodb_locks_unsafe_for_binlog
+					is TRUE, this can be set to
 					ROW_READ_TRY_SEMI_CONSISTENT, so that
 					if the row under an UPDATE or DELETE
 					cursor was locked by another
@@ -718,7 +717,8 @@ struct row_prebuilt_t {
 					cases; note that this breaks
 					serializability. */
 	ulint		new_rec_locks;	/*!< normally 0; if
-					the session is using READ
+					srv_locks_unsafe_for_binlog is
+					TRUE or session is using READ
 					COMMITTED or READ UNCOMMITTED
 					isolation level, set in
 					row_search_for_mysql() if we set a new

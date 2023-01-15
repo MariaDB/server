@@ -6,7 +6,7 @@ call mtr.add_suppression("Deadlock found");
 call mtr.add_suppression("Can't find record in 't.'");
 
 connection master;
-CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=innodb;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
 sync_slave_with_master;
 SHOW STATUS LIKE 'Slave_retried_transactions';
@@ -14,94 +14,20 @@ SHOW STATUS LIKE 'Slave_retried_transactions';
 # the following UPDATE t1 to pass the mode is switched temprorarily
 set @@global.slave_exec_mode= 'IDEMPOTENT';
 UPDATE t1 SET a = 5, b = 47 WHERE a = 1;
-SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t1;
 connection master;
 UPDATE t1 SET a = 5, b = 5 WHERE a = 1;
-SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t1;
 #SHOW BINLOG EVENTS;
 sync_slave_with_master;
 set @@global.slave_exec_mode= default;
 SHOW STATUS LIKE 'Slave_retried_transactions';
-SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t1;
 source include/check_slave_is_running.inc;
 
 connection slave;
 call mtr.add_suppression("Slave SQL.*Could not execute Update_rows event on table test.t1");
-call mtr.add_suppression("Slave SQL for channel '': worker thread retried transaction");
-call mtr.add_suppression("The slave coordinator and worker threads are stopped");
-#
-# Bug#24764800 REPLICATION FAILING ON SLAVE WITH XAER_RMFAIL ERROR
-#
-# Verify that a temporary failing replicated xa transaction completes
-# upon slave applier restart after previous
-# @@global.slave_transaction_retries number of retries in vain.
-#
-connection slave;
 
-set @save_innodb_lock_wait_timeout=@@global.innodb_lock_wait_timeout;
-set @save_slave_transaction_retries=@@global.slave_transaction_retries;
-
-# Slave applier parameters for the failed retry
-set @@global.innodb_lock_wait_timeout=1;
-set @@global.slave_transaction_retries=2;
---source include/restart_slave_sql.inc
-
-# Temporary error implement: a record is blocked by slave local trx
-connection slave1;
-BEGIN;
-INSERT INTO t1 SET a = 6, b = 7;
-
-connection master;
-INSERT INTO t1 SET a = 99, b = 99; # slave applier warm up trx
-XA START 'xa1';
-INSERT INTO t1 SET a = 6, b = 6; # this record eventually must be found on slave
-XA END 'xa1';
-XA PREPARE 'xa1';
-
-connection slave;
-# convert_error(ER_LOCK_WAIT_TIMEOUT)
---let $err_timeout= 1205
-# convert_error(ER_LOCK_DEADLOCK)
---let $err_deadlock= 1213
---let $slave_sql_errno=$err_deadlock,$err_timeout
---let $show_slave_sql_error=
---source include/wait_for_slave_sql_error.inc
-
-# b. Slave applier parameters for successful retry after restart
-set @@global.innodb_lock_wait_timeout=1;
-set @@global.slave_transaction_retries=100;
-
---source include/restart_slave_sql.inc
-
---let $last_retries= query_get_value(SHOW GLOBAL STATUS LIKE 'Slave_retried_transactions', Value, 1)
---let $status_type=GLOBAL
---let $status_var=Slave_retried_transactions
---let $status_var_value=`SELECT 1 + $last_retries`
---let $$status_var_comparsion= >
---source include/wait_for_status_var.inc
-
-# Release the record after just one retry
-connection slave1;
-ROLLBACK;
-
-connection master;
-XA COMMIT 'xa1';
-
---source include/sync_slave_sql_with_master.inc
-
-# Proof of correctness: the committed XA is on the slave
-connection slave;
---let $assert_text=XA transaction record must be in the table
---let $assert_cond=count(*)=1 FROM t1 WHERE a=6 AND b=6
---source include/assert.inc
-
-# Bug#24764800 cleanup:
-set @@global.innodb_lock_wait_timeout=@save_innodb_lock_wait_timeout;
-set @@global.slave_transaction_retries= @save_slave_transaction_retries;
-
-#
-# Total cleanup:
-#
 connection master;
 DROP TABLE t1;
 --sync_slave_with_master

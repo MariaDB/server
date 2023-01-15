@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2014, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -35,13 +35,9 @@
 #include "pfs_account.h"
 #include "pfs_host.h"
 #include "pfs_user.h"
-#include "pfs_program.h"
-#include "pfs_prepared_stmt.h"
-#include "pfs_buffer_container.h"
+#include "pfs_account.h"
 
 handlerton *pfs_hton= NULL;
-
-#define PFS_ENABLED() (pfs_initialized && (pfs_enabled || m_table_share->m_perpetual))
 
 static handler* pfs_create_handler(handlerton *hton,
                                    TABLE_SHARE *table,
@@ -93,11 +89,13 @@ static int pfs_init_func(void *p)
 
   pfs_hton= reinterpret_cast<handlerton *> (p);
 
+  pfs_hton->state= SHOW_OPTION_YES;
   pfs_hton->create= pfs_create_handler;
-  pfs_hton->drop_table= [](handlerton *, const char*) { return -1; };
   pfs_hton->show_status= pfs_show_status;
-  pfs_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_TEMPORARY_NOT_SUPPORTED |
-                   HTON_NO_PARTITION | HTON_NO_BINLOG_ROW_OPT;
+  pfs_hton->flags= HTON_ALTER_NOT_SUPPORTED |
+    HTON_TEMPORARY_NOT_SUPPORTED |
+    HTON_NO_PARTITION |
+    HTON_NO_BINLOG_ROW_OPT;
 
   /*
     As long as the server implementation keeps using legacy_db_type,
@@ -133,15 +131,6 @@ static int pfs_done_func(void *p)
   DBUG_RETURN(0);
 }
 
-static int show_func_mutex_instances_lost(THD *thd, SHOW_VAR *var, char *buff)
-{
-  var->type= SHOW_LONG;
-  var->value= buff;
-  long *value= reinterpret_cast<long*>(buff);
-  *value= global_mutex_container.get_lost_counter();
-  return 0;
-}
-
 static struct st_mysql_show_var pfs_status_vars[]=
 {
   {"Performance_schema_mutex_classes_lost",
@@ -156,42 +145,34 @@ static struct st_mysql_show_var pfs_status_vars[]=
     (char*) &file_class_lost, SHOW_LONG_NOFLUSH},
   {"Performance_schema_socket_classes_lost",
     (char*) &socket_class_lost, SHOW_LONG_NOFLUSH},
-  {"Performance_schema_memory_classes_lost",
-    (char*) &memory_class_lost, SHOW_LONG_NOFLUSH},
   {"Performance_schema_mutex_instances_lost",
-    (char*) &show_func_mutex_instances_lost, SHOW_FUNC},
+    (char*) &mutex_lost, SHOW_LONG},
   {"Performance_schema_rwlock_instances_lost",
-    (char*) &global_rwlock_container.m_lost, SHOW_LONG},
+    (char*) &rwlock_lost, SHOW_LONG},
   {"Performance_schema_cond_instances_lost",
-    (char*) &global_cond_container.m_lost, SHOW_LONG},
+    (char*) &cond_lost, SHOW_LONG},
   {"Performance_schema_thread_instances_lost",
-    (char*) &global_thread_container.m_lost, SHOW_LONG},
+    (char*) &thread_lost, SHOW_LONG},
   {"Performance_schema_file_instances_lost",
-    (char*) &global_file_container.m_lost, SHOW_LONG},
+    (char*) &file_lost, SHOW_LONG},
   {"Performance_schema_file_handles_lost",
     (char*) &file_handle_lost, SHOW_LONG},
   {"Performance_schema_socket_instances_lost",
-    (char*) &global_socket_container.m_lost, SHOW_LONG},
+    (char*) &socket_lost, SHOW_LONG},
   {"Performance_schema_locker_lost",
     (char*) &locker_lost, SHOW_LONG},
   /* table shares, can be flushed */
   {"Performance_schema_table_instances_lost",
-    (char*) &global_table_share_container.m_lost, SHOW_LONG},
+    (char*) &table_share_lost, SHOW_LONG},
   /* table handles, can be flushed */
   {"Performance_schema_table_handles_lost",
-    (char*) &global_table_container.m_lost, SHOW_LONG},
-  /* table lock stats, can be flushed */
-  {"Performance_schema_table_lock_stat_lost",
-    (char*) &global_table_share_lock_container.m_lost, SHOW_LONG},
-  /* table index stats, can be flushed */
-  {"Performance_schema_index_stat_lost",
-    (char*) &global_table_share_index_container.m_lost, SHOW_LONG},
+    (char*) &table_lost, SHOW_LONG},
   {"Performance_schema_hosts_lost",
-    (char*) &global_host_container.m_lost, SHOW_LONG},
+    (char*) &host_lost, SHOW_LONG},
   {"Performance_schema_users_lost",
-    (char*) &global_user_container.m_lost, SHOW_LONG},
+    (char*) &user_lost, SHOW_LONG},
   {"Performance_schema_accounts_lost",
-    (char*) &global_account_container.m_lost, SHOW_LONG},
+    (char*) &account_lost, SHOW_LONG},
   {"Performance_schema_stage_classes_lost",
     (char*) &stage_class_lost, SHOW_LONG},
   {"Performance_schema_statement_classes_lost",
@@ -200,14 +181,6 @@ static struct st_mysql_show_var pfs_status_vars[]=
     (char*) &digest_lost, SHOW_LONG},
   {"Performance_schema_session_connect_attrs_lost",
     (char*) &session_connect_attrs_lost, SHOW_LONG},
-  {"Performance_schema_program_lost",
-    (char*) &global_program_container.m_lost, SHOW_LONG},
-  {"Performance_schema_nested_statement_lost",
-    (char*) &nested_statement_lost, SHOW_LONG},
-  {"Performance_schema_prepared_statements_lost",
-    (char*) &global_prepared_stmt_container.m_lost, SHOW_LONG},
-  {"Performance_schema_metadata_lock_lost",
-    (char*) &global_mdl_container.m_lost, SHOW_LONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -215,6 +188,24 @@ struct st_mysql_storage_engine pfs_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 const char* pfs_engine_name= "PERFORMANCE_SCHEMA";
+
+mysql_declare_plugin(perfschema)
+{
+  MYSQL_STORAGE_ENGINE_PLUGIN,
+  &pfs_storage_engine,
+  pfs_engine_name,
+  "Marc Alff, Oracle", /* Formerly Sun Microsystems, formerly MySQL */
+  "Performance Schema",
+  PLUGIN_LICENSE_GPL,
+  pfs_init_func,                                /* Plugin Init */
+  pfs_done_func,                                /* Plugin Deinit */
+  0x0001 /* 0.1 */,
+  pfs_status_vars,                              /* status variables */
+  NULL,                                         /* system variables */
+  NULL,                                         /* config options */
+  0,                                            /* flags */
+}
+mysql_declare_plugin_end;
 
 maria_declare_plugin(perfschema)
 {
@@ -229,7 +220,7 @@ maria_declare_plugin(perfschema)
   0x0001,
   pfs_status_vars,
   NULL,
-  "5.7.31",
+  "5.6.40",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
@@ -271,7 +262,7 @@ int ha_perfschema::write_row(const uchar *buf)
   int result;
 
   DBUG_ENTER("ha_perfschema::write_row");
-  if (!PFS_ENABLED())
+  if (!pfs_initialized)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
   DBUG_ASSERT(m_table_share);
@@ -293,7 +284,7 @@ void ha_perfschema::use_hidden_primary_key(void)
 int ha_perfschema::update_row(const uchar *old_data, const uchar *new_data)
 {
   DBUG_ENTER("ha_perfschema::update_row");
-  if (!PFS_ENABLED())
+  if (!pfs_initialized)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
   if (is_executed_by_slave())
@@ -307,7 +298,7 @@ int ha_perfschema::update_row(const uchar *old_data, const uchar *new_data)
 int ha_perfschema::delete_row(const uchar *buf)
 {
   DBUG_ENTER("ha_perfschema::delete_row");
-  if (!PFS_ENABLED())
+  if (!pfs_initialized)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
   DBUG_ASSERT(m_table);
@@ -320,8 +311,8 @@ int ha_perfschema::rnd_init(bool scan)
   int result;
   DBUG_ENTER("ha_perfschema::rnd_init");
 
-  assert(m_table_share);
-  assert(m_table_share->m_open_table != NULL);
+  DBUG_ASSERT(m_table_share);
+  DBUG_ASSERT(m_table_share->m_open_table != NULL);
 
   stats.records= 0;
   if (m_table == NULL)
@@ -339,7 +330,7 @@ int ha_perfschema::rnd_init(bool scan)
 int ha_perfschema::rnd_end(void)
 {
   DBUG_ENTER("ha_perfschema::rnd_end");
-  assert(m_table);
+  DBUG_ASSERT(m_table);
   delete m_table;
   m_table= NULL;
   DBUG_RETURN(0);
@@ -348,7 +339,7 @@ int ha_perfschema::rnd_end(void)
 int ha_perfschema::rnd_next(uchar *buf)
 {
   DBUG_ENTER("ha_perfschema::rnd_next");
-  if (!PFS_ENABLED())
+  if (!pfs_initialized)
   {
     table->status= STATUS_NOT_FOUND;
     DBUG_RETURN(HA_ERR_END_OF_FILE);
@@ -371,7 +362,7 @@ void ha_perfschema::position(const uchar *record)
 {
   DBUG_ENTER("ha_perfschema::position");
 
-  assert(m_table);
+  DBUG_ASSERT(m_table);
   m_table->get_position(ref);
   DBUG_VOID_RETURN;
 }
@@ -379,7 +370,7 @@ void ha_perfschema::position(const uchar *record)
 int ha_perfschema::rnd_pos(uchar *buf, uchar *pos)
 {
   DBUG_ENTER("ha_perfschema::rnd_pos");
-  if (!PFS_ENABLED())
+  if (!pfs_initialized)
   {
     table->status= STATUS_NOT_FOUND;
     DBUG_RETURN(HA_ERR_END_OF_FILE);
@@ -396,7 +387,7 @@ int ha_perfschema::rnd_pos(uchar *buf, uchar *pos)
 int ha_perfschema::info(uint flag)
 {
   DBUG_ENTER("ha_perfschema::info");
-  assert(m_table_share);
+  DBUG_ASSERT(m_table_share);
   if (flag & HA_STATUS_VARIABLE)
     stats.records= m_table_share->get_row_count();
   if (flag & HA_STATUS_CONST)
@@ -409,13 +400,13 @@ int ha_perfschema::delete_all_rows(void)
   int result;
 
   DBUG_ENTER("ha_perfschema::delete_all_rows");
-  if (!PFS_ENABLED())
+  if (!pfs_initialized)
     DBUG_RETURN(0);
 
   if (is_executed_by_slave())
     DBUG_RETURN(0);
 
-  assert(m_table_share);
+  DBUG_ASSERT(m_table_share);
   if (m_table_share->m_delete_all_rows)
     result= m_table_share->m_delete_all_rows();
   else
@@ -444,53 +435,6 @@ THR_LOCK_DATA **ha_perfschema::store_lock(THD *thd,
 int ha_perfschema::delete_table(const char *name)
 {
   DBUG_ENTER("ha_perfschema::delete_table");
-
-  /*
-    The name string looks like:
-    "./performance_schema/processlist"
-
-    Make a copy of it, parse the '/' to
-    isolate the schema and table name.
-  */
-
-  char table_path[FN_REFLEN+1];
-  strncpy(table_path, name, sizeof(table_path));
-  table_path[FN_REFLEN]='\0';
-
-  char *ptr;
-  char *table_name;
-  char *db_name;
-  const PFS_engine_table_share *share;
-
-  /* Start scan from the end. */
-  ptr = strend(table_path) - 1;
-
-  /* Find path separator */
-  while ((ptr >= table_path) && (*ptr != '\\') && (*ptr != '/')) {
-    ptr--;
-  }
-
-  table_name = ptr + 1;
-  *ptr = '\0';
-
-  /* Find path separator */
-  while ((ptr >= table_path) && (*ptr != '\\') && (*ptr != '/')) {
-    ptr--;
-  }
-
-  db_name = ptr + 1;
-
-  share = find_table_share(db_name, table_name);
-  if (share != NULL) {
-    if (share->m_optional) {
-      /*
-        An optional table is deleted,
-        disarm the checked flag so we don't trust it any more.
-      */
-      share->m_state->m_checked = false;
-    }
-  }
-
   DBUG_RETURN(0);
 }
 

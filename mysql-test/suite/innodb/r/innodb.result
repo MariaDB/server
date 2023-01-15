@@ -1718,7 +1718,7 @@ variable_value - @innodb_row_lock_time_max_orig
 SELECT variable_value - @innodb_row_lock_time_avg_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg';
 variable_value - @innodb_row_lock_time_avg_orig
 0
-set default_storage_engine=INNODB;
+set storage_engine=INNODB;
 drop table if exists t1,t2,t3;
 --- Testing varchar ---
 --- Testing varchar ---
@@ -3130,7 +3130,8 @@ SET TX_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 DROP TABLE IF EXISTS t1, t2;
 Warnings:
-Note	1051	Unknown table 'test.t1,test.t2'
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
 CREATE TABLE t1 ( a int ) ENGINE=InnoDB;
 CREATE TABLE t2 LIKE t1;
 SELECT * FROM t2;

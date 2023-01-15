@@ -51,11 +51,7 @@ ENDIF()
 
 IF(UNIX)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
-  SET(SCRIPTS mysqld_multi.server mysql-log-rotate binary-configure)
-  IF(WITH_WSREP)
-    SET(SCRIPTS ${SCRIPTS} wsrep_notify)
-  ENDIF()
-  FOREACH(script ${SCRIPTS})
+  FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh 
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
@@ -125,19 +121,8 @@ IF(UNIX)
   IF(HAVE_SYSTEMD)
     CONFIGURE_FILE(mariadb.service.in
                    ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service @ONLY)
-    EXECUTE_PROCESS(
-    COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysql.service
-    COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysqld.service
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
-    IF(WITH_WSREP)
-      INSTALL(FILES use_galera_new_cluster.conf
-              DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
-    ENDIF()
-    INSTALL(FILES
+    INSTALL(FILES use_galera_new_cluster.conf
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
-            ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
-            ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
             DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
 
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
@@ -150,10 +135,7 @@ IF(UNIX)
     ENDIF()
 
     IF(INSTALL_SYSTEMD_UNITDIR)
-      INSTALL(FILES
-              ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
-              ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
-              ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
+      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
               DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
 
       # http://public.kitware.com/Bug/view.php?id=14782

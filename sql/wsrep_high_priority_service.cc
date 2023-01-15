@@ -120,23 +120,6 @@ static void wsrep_setup_uk_and_fk_checks(THD* thd)
     thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
 }
 
-static int apply_events(THD*                       thd,
-                        Relay_log_info*            rli,
-                        const wsrep::const_buffer& data,
-                        wsrep::mutable_buffer&     err)
-{
-  int const ret= wsrep_apply_events(thd, rli, data.data(), data.size());
-  if (ret || wsrep_thd_has_ignored_error(thd))
-  {
-    if (ret)
-    {
-      wsrep_store_error(thd, err);
-    }
-    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
-  }
-  return ret;
-}
-
 /****************************************************************************
                          High priority service
 *****************************************************************************/
@@ -273,8 +256,8 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
     common utility function to deal with commit.
    */
   const bool do_binlog_commit= (opt_log_slave_updates &&
-                                wsrep_gtid_mode       &&
-                                m_thd->variables.gtid_seq_no);
+				wsrep_gtid_mode       &&
+				m_thd->variables.gtid_seq_no);
    /*
     Write skip event into binlog if gtid_mode is on. This is to
     maintain gtid continuity.
@@ -291,7 +274,8 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
   }
 
   ret= ret || trans_commit(m_thd);
-  ret= ret || (m_thd->wsrep_cs().after_applying(), 0);
+
+  m_thd->wsrep_cs().after_applying();
   m_thd->release_transactional_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
@@ -323,7 +307,7 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
 
   const bool is_ordered= !ws_meta.seqno().is_undefined();
 
-  if (!thd->transaction->stmt.is_empty())
+  if (!thd->transaction.stmt.is_empty())
     ret= trans_commit_stmt(thd);
 
   if (ret == 0)
@@ -370,15 +354,7 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
                                           const wsrep::ws_meta& ws_meta)
 {
   DBUG_ENTER("Wsrep_high_priority_service::rollback");
-  if (ws_meta.ordered())
-  {
-    m_thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, false);
-  }
-  else
-  {
-     assert(ws_meta == wsrep::ws_meta());
-     assert(ws_handle == wsrep::ws_handle());
-  }
+  m_thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, false);
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
   m_thd->release_transactional_locks();
   mysql_ull_cleanup(m_thd);
@@ -391,7 +367,7 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
 
 int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
                                            const wsrep::const_buffer& data,
-                                           wsrep::mutable_buffer& err)
+                                           wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_high_priority_service::apply_toi");
   THD* thd= m_thd;
@@ -417,15 +393,19 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
                   };);
 #endif
 
-  int ret= apply_events(thd, m_rli, data, err);
-  wsrep_thd_set_ignored_error(thd, false);
+  int ret= wsrep_apply_events(thd, m_rli, data.data(), data.size());
+  if (ret != 0 || thd->wsrep_has_ignored_error)
+  {
+    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
+    thd->wsrep_has_ignored_error= false;
+    /* todo: error voting */
+  }
   trans_commit(thd);
 
   thd->close_temporary_tables();
   thd->lex->sql_command= SQLCOM_END;
 
-  wsrep_gtid_server.signal_waiters(thd->wsrep_current_gtid_seqno, false);
-  wsrep_set_SE_checkpoint(client_state.toi_meta().gtid(), wsrep_gtid_server.gtid());
+  wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
 
   must_exit_= check_exit_status();
 
@@ -496,7 +476,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
       m_thd->wait_for_prior_commit();
     }
 
-    wsrep_set_SE_checkpoint(ws_meta.gtid(), wsrep_gtid_server.gtid());
+    wsrep_set_SE_checkpoint(ws_meta.gtid());
 
     if (!WSREP_EMULATE_BINLOG(m_thd))
     {
@@ -509,11 +489,6 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
     cs.after_applying();
   }
   DBUG_RETURN(ret);
-}
-
-void Wsrep_high_priority_service::adopt_apply_error(wsrep::mutable_buffer& err)
-{
-  m_thd->wsrep_cs().adopt_apply_error(err);
 }
 
 void Wsrep_high_priority_service::debug_crash(const char* crash_point)
@@ -551,7 +526,7 @@ Wsrep_applier_service::~Wsrep_applier_service()
 
 int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                                            const wsrep::const_buffer& data,
-                                           wsrep::mutable_buffer& err)
+                                           wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_applier_service::apply_write_set");
   THD* thd= m_thd;
@@ -562,7 +537,6 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_executing);
 
   thd_proc_info(thd, "applying write set");
-
   /* moved dbug sync point here, after possible THD switch for SR transactions
      has ben done
   */
@@ -577,10 +551,16 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
-#endif /* ENABLED_DEBUG_SYNC */
+#endif
 
   wsrep_setup_uk_and_fk_checks(thd);
-  int ret= apply_events(thd, m_rli, data, err);
+
+  int ret= wsrep_apply_events(thd, m_rli, data.data(), data.size());
+
+  if (ret || thd->wsrep_has_ignored_error)
+  {
+    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
+  }
 
   thd->close_temporary_tables();
   if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
@@ -715,7 +695,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
 
 int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                                             const wsrep::const_buffer& data,
-                                            wsrep::mutable_buffer& err)
+                                            wsrep::mutable_buffer&)
 {
   DBUG_ENTER("Wsrep_replayer_service::apply_write_set");
   THD* thd= m_thd;
@@ -747,7 +727,14 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                                           ws_meta,
                                           thd->wsrep_sr().fragments());
   }
-  ret= ret || apply_events(thd, m_rli, data, err);
+
+  ret= ret || wsrep_apply_events(thd, m_rli, data.data(), data.size());
+
+  if (ret || thd->wsrep_has_ignored_error)
+  {
+    wsrep_dump_rbr_buf_with_header(thd, data.data(), data.size());
+  }
+
   thd->close_temporary_tables();
   if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
   {

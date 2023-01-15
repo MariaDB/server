@@ -1,5 +1,4 @@
 /* Copyright (c) 2004, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -72,13 +71,11 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
   error= 2;
   if (mysql_file_fstat(file, &state, MYF(0)))
     goto err;
-  MSAN_STAT_WORKAROUND(&state);
   read_len= (size_t)MY_MIN(FRM_MAX_SIZE, state.st_size); // safety
 
   // Read whole frm file
   error= 3;
-  if (!(read_data= (uchar*)my_malloc(key_memory_frm_string, read_len,
-                                     MYF(MY_WME))))
+  if (!(read_data= (uchar*)my_malloc(read_len, MYF(MY_WME))))
     goto err;
   if (mysql_file_read(file, read_data, read_len, MYF(MY_NABP)))
   {
@@ -100,32 +97,34 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
 
 
 /*
-  Write the content of a frm data pointer to a frm or par file.
+  Write the content of a frm data pointer 
+  to a frm file.
 
-  @param path           full path to table-file "db/name.frm" or .par
-  @param db             Database name. Only used for my_error()
-  @param table          Table name. Only used for my_error()
-  @param data           data to write to file
-  @param len            length of the data
+  @param path           path to table-file "db/name"
+  @param frmdata        frm data
+  @param len            length of the frmdata
 
   @retval
     0	ok
   @retval
-    <> 0    Could not write file. In this case the file is not created
+    2    Could not write file
 */
 
-int writefile(const char *path, const char *db, const char *table,
-              bool tmp_table, const uchar *data, size_t len)
+int writefrm(const char *path, const char *db, const char *table,
+             bool tmp_table, const uchar *frmdata, size_t len)
 {
+  char	 file_name[FN_REFLEN+1];
   int error;
   int create_flags= O_RDWR | O_TRUNC;
-  DBUG_ENTER("writefile");
+  DBUG_ENTER("writefrm");
   DBUG_PRINT("enter",("name: '%s' len: %lu ",path, (ulong) len));
 
   if (tmp_table)
     create_flags|= O_EXCL | O_NOFOLLOW;
 
-  File file= mysql_file_create(key_file_frm, path,
+  strxnmov(file_name, sizeof(file_name)-1, path, reg_ext, NullS);
+
+  File file= mysql_file_create(key_file_frm, file_name,
                                CREATE_MODE, create_flags, MYF(0));
 
   if (unlikely((error= file < 0)))
@@ -137,19 +136,16 @@ int writefile(const char *path, const char *db, const char *table,
   }
   else
   {
-    error= (int)mysql_file_write(file, data, len, MYF(MY_WME | MY_NABP));
+    error= (int)mysql_file_write(file, frmdata, len, MYF(MY_WME | MY_NABP));
 
     if (!error && !tmp_table && opt_sync_frm)
         error= mysql_file_sync(file, MYF(MY_WME)) ||
-             my_sync_dir_by_file(path, MYF(MY_WME));
+             my_sync_dir_by_file(file_name, MYF(MY_WME));
 
     error|= mysql_file_close(file, MYF(MY_WME));
-    if (error)
-      my_delete(path, MYF(0));
   }
   DBUG_RETURN(error);
-} /* writefile */
-
+} /* writefrm */
 
 static inline void advance(FILEINFO* &from, FILEINFO* &to,
                            FILEINFO* cur, bool &skip)
@@ -157,7 +153,7 @@ static inline void advance(FILEINFO* &from, FILEINFO* &to,
   if (skip)                   // if not copying
     from= cur;                //   just advance the start pointer
   else                        // if copying
-    if (to == from)           //   but to the same place, not shifting the data
+    if (to == from)           //   but to the same place (not shifting the data)
       from= to= cur;          //     advance both pointers
     else                      //   otherwise
       while (from < cur)      //     have to copy [from...cur) to [to...)
@@ -210,12 +206,12 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext_meta,
       size_t len= (octothorp ? octothorp : ext) - cur->name;
       if (from != cur &&
           (strlen(from->name) <= len ||
-           cs->strnncoll(from->name, len, cur->name, len) ||
+           my_strnncoll(cs, (uchar*)from->name, len, (uchar*)cur->name, len) ||
            (from->name[len] != FN_EXTCHAR && from->name[len] != '#')))
         advance(from, to, cur, skip);
 
-      if (cs->strnncoll(ext, strlen(ext),
-                        ext_meta, ext_meta_len) == 0)
+      if (my_strnncoll(cs, (uchar*)ext, strlen(ext),
+                           (uchar*)ext_meta, ext_meta_len) == 0)
       {
         *ext = 0;
         if (result->add_file(cur->name))
@@ -259,8 +255,8 @@ int ext_table_discovery_simple(MY_DIR *dirp,
 
     if (ext)
     {
-      if (cs->strnncoll(ext, strlen(ext),
-                        reg_ext, reg_ext_length) == 0)
+      if (my_strnncoll(cs, (uchar*)ext, strlen(ext),
+                           (uchar*)reg_ext, reg_ext_length) == 0)
       {
         *ext = 0;
         if (result->add_file(cur->name))

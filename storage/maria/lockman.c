@@ -555,7 +555,7 @@ static void initialize_bucket(LOCKMAN *lm, LOCK * volatile *node,
 {
   int res;
   uint parent= my_clear_highest_bit(bucket);
-  LOCK *dummy= (LOCK *)my_malloc(PSI_INSTRUMENT_ME, sizeof(LOCK), MYF(MY_WME));
+  LOCK *dummy= (LOCK *)my_malloc(sizeof(LOCK), MYF(MY_WME));
   LOCK **tmp= 0, *cur;
   LOCK * volatile *el= lf_dynarray_lvalue(&lm->array, parent);
 

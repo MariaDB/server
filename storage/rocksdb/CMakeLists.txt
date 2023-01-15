@@ -253,8 +253,8 @@ ADD_LIBRARY(rocksdb_tools STATIC
 MYSQL_ADD_EXECUTABLE(sst_dump rocksdb/tools/sst_dump.cc COMPONENT rocksdb-engine)
 TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 
-MYSQL_ADD_EXECUTABLE(mariadb-ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
-TARGET_LINK_LIBRARIES(mariadb-ldb rocksdb_tools rocksdb_aux_lib dbug)
+MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
+TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib dbug)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/myrocks_hotbackup.py
   ${CMAKE_CURRENT_BINARY_DIR}/myrocks_hotbackup @ONLY)
@@ -273,7 +273,7 @@ IF(MSVC)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
   ENDIF()
 ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mariadb-ldb PROPERTIES COMPILE_FLAGS "-Wno-error")
+  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS "-Wno-error")
 ENDIF()
 
 IF(GIT_EXECUTABLE AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/.git)

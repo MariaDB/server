@@ -1538,7 +1538,6 @@ BEGIN
   CALL p1(name, 'SELECT name VALUE FROM t1');
   CALL p1(name, 'SELECT name VERSIONING FROM t1');
   CALL p1(name, 'SELECT name WITHOUT FROM t1');
-  CALL p1(name, 'SELECT name OVERLAPS FROM t1');
   DROP TABLE t1;
 END;
 $$
@@ -1558,7 +1557,6 @@ CALL p2('transaction');
 CALL p2('value');
 CALL p2('versioning');
 CALL p2('without');
-CALL p2('overlaps');
 --enable_column_names
 
 DROP PROCEDURE p2;
@@ -1935,61 +1933,3 @@ drop procedure p1;
 drop table t1,t2;
 
 --echo # End of 10.4 tests
-
-
---echo #
---echo # Start of 10.5 tests
---echo #
-
---echo #
---echo # MDEV-20734 Allow reserved keywords as user defined type names
---echo #
-
---error ER_UNKNOWN_DATA_TYPE
-CREATE TABLE t1 (a DUAL);
---error ER_UNKNOWN_DATA_TYPE
-SELECT CAST(1 AS DUAL);
-
---echo #
---echo # MDEV-20735 Allow non-reserved keywords as user defined type names
---echo #
-
---error ER_UNKNOWN_DATA_TYPE
-CREATE TABLE t1 (a ASCII);
---error ER_UNKNOWN_DATA_TYPE
-SELECT CAST(1 AS ASCII);
-
---error ER_UNKNOWN_DATA_TYPE
-CREATE TABLE t1 (a LANGUAGE);
---error ER_UNKNOWN_DATA_TYPE
-SELECT CAST(1 AS LANGUAGE);
-
---error ER_UNKNOWN_DATA_TYPE
-CREATE TABLE t1 (a CLOSE);
---error ER_UNKNOWN_DATA_TYPE
-SELECT CAST(1 AS CLOSE);
-
---error ER_UNKNOWN_DATA_TYPE
-CREATE TABLE t1 (a NAMES);
---error ER_UNKNOWN_DATA_TYPE
-SELECT CAST(1 AS NAMES);
-
---error ER_UNKNOWN_DATA_TYPE
-CREATE TABLE t1 (a END);
---error ER_UNKNOWN_DATA_TYPE
-SELECT CAST(1 AS END);
-
---error ER_UNKNOWN_DATA_TYPE
-CREATE TABLE t1 (a GLOBAL);
---error ER_UNKNOWN_DATA_TYPE
-SELECT CAST(1 AS GLOBAL);
-
---error ER_UNKNOWN_DATA_TYPE
-CREATE TABLE t1 (a ACTION);
---error ER_UNKNOWN_DATA_TYPE
-SELECT CAST(1 AS ACTION);
-
-
---echo #
---echo # End of 10.5 tests
---echo #

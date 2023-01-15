@@ -84,7 +84,7 @@ dict_table_check_if_in_cache_low(
 	/* Look for the table name in the hash table */
 	table_fold = ut_fold_string(table_name);
 
-	HASH_SEARCH(name_hash, &dict_sys.table_hash, table_fold,
+	HASH_SEARCH(name_hash, dict_sys.table_hash, table_fold,
 		    dict_table_t*, table, ut_ad(table->cached),
 		    !strcmp(table->name.m_name, table_name));
 	DBUG_RETURN(table);

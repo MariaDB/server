@@ -5,7 +5,7 @@
 # MDEV-10877 xxx_unicode_nopad_ci collations
 #
 SET NAMES utf8;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -143,7 +143,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -281,8 +281,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -420,7 +420,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -558,7 +558,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=Default;
 SET NAMES utf8 COLLATE utf8_unicode_nopad_ci;
 #
 # MDEV-14350 Index use with collation utf8mb4_unicode_nopad_ci on LIKE pattern with wrong results

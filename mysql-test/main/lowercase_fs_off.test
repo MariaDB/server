@@ -138,9 +138,9 @@ set GLOBAL sql_mode=default;
 
 --echo # Compatibility schema names respect the filesystem case sensitivity
 
---error ER_UNKNOWN_DATA_TYPE
+--error ER_UNKNOWN_ERROR
 CREATE TABLE t1 (a MARIADB_SCHEMA.date);
---error ER_UNKNOWN_DATA_TYPE
+--error ER_UNKNOWN_ERROR
 CREATE TABLE t1 (a Mariadb_schema.date);
 
 CREATE TABLE t1 (a mariadb_schema.date);

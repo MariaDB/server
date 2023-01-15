@@ -418,7 +418,7 @@ int emb_load_querycache_result(THD *thd, Querycache_stream *src)
 
   if (!data)
     goto err;
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &data->alloc, 8192, 0, MYF(0));
+  init_alloc_root(&data->alloc, "embedded_query_cache", 8192,0,MYF(0));
   f_alloc= &data->alloc;
 
   data->fields= src->load_int();
@@ -445,7 +445,6 @@ int emb_load_querycache_result(THD *thd, Querycache_stream *src)
         !(field->catalog= src->load_str(f_alloc, &field->catalog_length))    ||
         src->load_safe_str(f_alloc, &field->def, &field->def_length))
       goto err;
-    field->extension= NULL;
   }
   
   data->rows= rows;
@@ -491,8 +490,8 @@ int emb_load_querycache_result(THD *thd, Querycache_stream *src)
   *prev_row= NULL;
   data->embedded_info->prev_ptr= prev_row;
 return_ok:
-  thd->protocol->net_send_eof(thd, thd->server_status,
-    thd->get_stmt_da()->current_statement_warn_count());
+  net_send_eof(thd, thd->server_status,
+               thd->get_stmt_da()->current_statement_warn_count());
   DBUG_RETURN(0);
 err:
   DBUG_RETURN(1);

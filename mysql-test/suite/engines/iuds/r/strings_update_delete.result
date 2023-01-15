@@ -70472,4 +70472,17 @@ SIZE
 DROP TABLE t17,t18;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,t16,t17,t18;
 Warnings:
-Note	1051	Unknown table 'test.t3,test.t4,test.t5,test.t6,test.t7,test.t8,test.t9,test.t10,test.t11,test.t13,test.t14,test....'
+Note	1051	Unknown table 'test.t3'
+Note	1051	Unknown table 'test.t4'
+Note	1051	Unknown table 'test.t5'
+Note	1051	Unknown table 'test.t6'
+Note	1051	Unknown table 'test.t7'
+Note	1051	Unknown table 'test.t8'
+Note	1051	Unknown table 'test.t9'
+Note	1051	Unknown table 'test.t10'
+Note	1051	Unknown table 'test.t11'
+Note	1051	Unknown table 'test.t13'
+Note	1051	Unknown table 'test.t14'
+Note	1051	Unknown table 'test.t15'
+Note	1051	Unknown table 'test.t17'
+Note	1051	Unknown table 'test.t18'

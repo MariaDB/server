@@ -350,6 +350,7 @@ static int tokudb_init_func(void *p) {
     TOKUDB_SHARE::static_init();
     tokudb::background::initialize();
 
+    tokudb_hton->state = SHOW_OPTION_YES;
     // tokudb_hton->flags= HTON_CAN_RECREATE;  // QQQ this came from skeleton
     tokudb_hton->flags = HTON_CLOSE_CURSORS_AT_COMMIT | HTON_SUPPORTS_EXTENDED_KEYS;
 

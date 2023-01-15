@@ -1,5 +1,5 @@
 #
-set @@default_storage_engine= Aria;
+set @@storage_engine= Aria;
 #
 # mdev-539: fast build of unique/primary indexes for MyISAM/Aria
 #
@@ -250,4 +250,4 @@ select * from customer where c_custkey=3;
 c_custkey	c_name	c_address	c_nationkey	c_phone	c_acctbal	c_mktsegment	c_comment
 3	Customer#000000003	MG9kdTD2WBHm	1	11-719-748-3364	7498.12	AUTOMOBILE	special packages wake. slyly reg
 DROP DATABASE dbt3_s001;
-set @@default_storage_engine= default;
+set @@storage_engine= default;

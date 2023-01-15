@@ -1086,7 +1086,7 @@ select left('aaa','1');
 left('aaa','1')
 a
 #
-# Testing strtoll10()
+# Testing cs->cset->strtoll10()
 #
 SELECT @@character_set_connection;
 @@character_set_connection
@@ -2259,7 +2259,7 @@ Warning	1292	Truncated incorrect INTEGER value: '1Ĳ3'
 # MDEV-9711 NO PAD Collatons
 #
 SET character_set_connection=utf16;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2397,7 +2397,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2535,8 +2535,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2674,7 +2674,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2812,7 +2812,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
 #
@@ -2840,19 +2840,4 @@ VALUES ('') UNION VALUES ( _utf16 0x0020 COLLATE utf16_bin);
 
 #
 # End of 10.3 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-8844 Unreadable control characters printed as is in warnings
-#
-SET NAMES utf8;
-SELECT CAST(_utf16 0x0061D83DDE0E0062 AS INT);
-CAST(_utf16 0x0061D83DDE0E0062 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a?b'
-#
-# End of 10.5 tests
 #

@@ -3,16 +3,12 @@ SELECT @@GLOBAL.innodb_scrub_log_speed;
 256
 200 Expected
 SET @@GLOBAL.innodb_scrub_log_speed=100;
-Warnings:
-Warning	138	The parameter innodb_scrub_log_speed is deprecated and has no effect.
 1 Expected
 SELECT @@GLOBAL.innodb_scrub_log_speed;
 @@GLOBAL.innodb_scrub_log_speed
-256
+100
 100 Expected
 SET @@GLOBAL.innodb_scrub_log_speed=DEFAULT;
-Warnings:
-Warning	138	The parameter innodb_scrub_log_speed is deprecated and has no effect.
 1 Expected
 SELECT @@GLOBAL.innodb_scrub_log_speed;
 @@GLOBAL.innodb_scrub_log_speed
@@ -54,4 +50,4 @@ SELECT @@GLOBAL.innodb_scrub_log_speed;
 200 Expected
 SELECT innodb_scrub_log_speed;
 ERROR 42S22: Unknown column 'innodb_scrub_log_speed' in 'field list'
-Expected error 'Unknown column in field list'
+Expected error 'Unknow column in field list'

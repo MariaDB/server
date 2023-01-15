@@ -4,12 +4,20 @@
 
 set names binary;
 
+--echo #
+--echo # Start of 5.5 tests
+--echo #
+
 --source include/ctype_numconv.inc
 
 --echo #
 --echo # End of 5.5 tests
 --echo #
 
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
 
 SET NAMES binary;
 --source include/ctype_like_cond_propagation.inc
@@ -24,6 +32,10 @@ SET NAMES utf8, character_set_connection=binary;
 
 --echo #
 --echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # Start of 10.1 tests
 --echo #
 
 --echo #
@@ -130,6 +142,10 @@ CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b'));
 --echo #
 
 --echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
 --echo # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
 --echo # 10.2 tests
 --echo #
@@ -194,31 +210,4 @@ DROP FUNCTION f1;
 
 --echo #
 --echo # End of 10.3 tests
---echo #
-
---echo #
---echo # Start of 10.5 tests
---echo #
-
---echo #
---echo # MDEV-8844 Unreadable control characters printed as is in warnings
---echo #
-
-SET NAMES binary;
-CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET latin1, UNIQUE(a));
-INSERT INTO t1 VALUES (0x61000162FF);
---error ER_DUP_ENTRY
-INSERT INTO t1 VALUES (0x61000162FF);
-INSERT IGNORE INTO t1 VALUES (0x61000162FF);
-DROP TABLE t1;
-
-CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET utf8, UNIQUE(a));
-INSERT INTO t1 VALUES (_latin1 0x61000162FF);
---error ER_DUP_ENTRY
-INSERT INTO t1 VALUES (_latin1 0x61000162FF);
-INSERT IGNORE INTO t1 VALUES (_latin1 0x61000162FF);
-DROP TABLE t1;
-
---echo #
---echo # End of 10.5 tests
 --echo #

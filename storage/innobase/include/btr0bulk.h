@@ -35,6 +35,8 @@ Created 03/11/2014 Shaohua Wang
 
 /** Innodb B-tree index fill factor for bulk load. */
 extern	uint	innobase_fill_factor;
+/** whether to reduce redo logging during ALTER TABLE */
+extern	my_bool	innodb_log_optimize_ddl;
 
 /*
 The proper function call sequence of PageBulk is as below:
@@ -53,12 +55,14 @@ public:
 	@param[in]	index		B-tree index
 	@param[in]	page_no		page number
 	@param[in]	level		page level
-	@param[in]	trx_id		transaction id */
+	@param[in]	trx_id		transaction id
+	@param[in]	observer	flush observer */
 	PageBulk(
 		dict_index_t*	index,
 		trx_id_t	trx_id,
-		uint32_t	page_no,
-		ulint		level)
+		ulint		page_no,
+		ulint		level,
+		FlushObserver*	observer)
 		:
 		m_heap(NULL),
 		m_index(index),
@@ -79,6 +83,7 @@ public:
 		m_total_data(0),
 #endif /* UNIV_DEBUG */
 		m_modify_clock(0),
+		m_flush_observer(observer),
 		m_err(DB_SUCCESS)
 	{
 		ut_ad(!dict_index_is_spatial(m_index));
@@ -99,24 +104,11 @@ public:
 	/** Insert a record in the page.
 	@param[in]	rec		record
 	@param[in]	offsets		record offsets */
-	inline void insert(const rec_t* rec, rec_offs* offsets);
-private:
-	/** Page format */
-	enum format { REDUNDANT, DYNAMIC, COMPRESSED };
-	/** Mark end of insertion to the page. Scan all records to set page
-	dirs, and set page header members.
-	@tparam format  the page format */
-	template<format> inline void finishPage();
-	/** Insert a record in the page.
-	@tparam format  the page format
-	@param[in,out]	rec		record
-	@param[in]	offsets		record offsets */
-	template<format> inline void insertPage(rec_t* rec, rec_offs* offsets);
+	void insert(const rec_t* rec, rec_offs* offsets);
 
-public:
 	/** Mark end of insertion to the page. Scan all records to set page
 	dirs, and set page header members. */
-	inline void finish();
+	void finish();
 
   /** @return whether finish() actually needs to do something */
   inline bool needs_finish() const;
@@ -179,7 +171,10 @@ public:
 	inline bool isSpaceAvailable(ulint	rec_size);
 
 	/** Get page no */
-	uint32_t getPageNo() const { return m_page_no; }
+	ulint	getPageNo()
+	{
+		return(m_page_no);
+	}
 
 	/** Get page level */
 	ulint	getLevel()
@@ -210,8 +205,6 @@ public:
 		return(m_err);
 	}
 
-	void set_modified() { m_mtr.set_modified(*m_block); }
-
 	/* Memory heap for internal allocation */
 	mem_heap_t*	m_heap;
 
@@ -238,7 +231,7 @@ private:
 	rec_t*		m_cur_rec;
 
 	/** The page no */
-	uint32_t	m_page_no;
+	ulint		m_page_no;
 
 	/** The page level in B-tree */
 	ulint		m_level;
@@ -270,6 +263,9 @@ private:
 	when the block is re-pinned */
 	ib_uint64_t     m_modify_clock;
 
+	/** Flush observer, or NULL if redo logging is enabled */
+	FlushObserver*	m_flush_observer;
+
 	/** Operation result DB_SUCCESS or error code */
 	dberr_t		m_err;
 };
@@ -282,15 +278,31 @@ class BtrBulk
 public:
 	/** Constructor
 	@param[in]	index		B-tree index
-	@param[in]	trx		transaction */
+	@param[in]	trx		transaction
+	@param[in]	observer	flush observer */
 	BtrBulk(
 		dict_index_t*	index,
-		const trx_t*	trx)
+		const trx_t*	trx,
+		FlushObserver*	observer)
 		:
 		m_index(index),
-		m_trx(trx)
+		m_trx(trx),
+		m_flush_observer(observer)
 	{
 		ut_ad(!dict_index_is_spatial(index));
+#ifdef UNIV_DEBUG
+		if (m_flush_observer)
+			m_index->table->space->redo_skipped_count++;
+#endif /* UNIV_DEBUG */
+	}
+
+	/** Destructor */
+	~BtrBulk()
+	{
+#ifdef UNIV_DEBUG
+		if (m_flush_observer)
+			m_index->table->space->redo_skipped_count--;
+#endif /* UNIV_DEBUG */
 	}
 
 	/** Insert a tuple
@@ -363,6 +375,9 @@ private:
 
 	/** Root page level */
 	ulint			m_root_level;
+
+	/** Flush observer, or NULL if redo logging is enabled */
+	FlushObserver*const	m_flush_observer;
 
 	/** Page cursor vector for all level */
 	page_bulk_vector	m_page_bulks;

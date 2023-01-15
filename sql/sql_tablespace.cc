@@ -32,7 +32,7 @@ int mysql_alter_tablespace(THD *thd, st_alter_tablespace *ts_info)
     If the user haven't defined an engine, this will fallback to using the
     default storage engine.
   */
-  if (hton == NULL)
+  if (hton == NULL || hton->state != SHOW_OPTION_YES)
   {
     hton= ha_default_handlerton(thd);
     if (ts_info->storage_engine != 0)

@@ -22,8 +22,7 @@
 
 static void usage();
 static void complain(int val);
-static my_bool get_one_option(const struct my_option *, const char *,
-                              const char *);
+static my_bool get_one_option(int, const struct my_option *, char *);
 
 static int count=0, stats=0, dump=0, lstats=0;
 static my_bool verbose;
@@ -225,11 +224,10 @@ err:
 
 
 static my_bool
-get_one_option(const struct my_option *opt,
-	       const char *argument __attribute__((unused)),
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument __attribute__((unused)))
 {
-  switch(opt->id) {
+  switch(optid) {
   case 'd':
     dump=1;
     complain(count || query);

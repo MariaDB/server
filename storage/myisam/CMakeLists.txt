@@ -27,11 +27,6 @@ SET(MYISAM_SOURCES  ft_boolean_search.c ft_nlq_search.c ft_parser.c ft_static.c
 				rt_split.c sort.c sp_key.c mi_extrafunc.h myisamdef.h
 				rt_index.h mi_rkey.c)
 
-IF(CMAKE_SYSTEM_NAME MATCHES AIX)
-  # Workaround linker bug on AIX
-  SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-berok")
-ENDIF()
-
 MYSQL_ADD_PLUGIN(myisam ${MYISAM_SOURCES} 
   STORAGE_ENGINE 
   MANDATORY 

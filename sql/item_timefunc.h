@@ -963,8 +963,8 @@ class Item_extract :public Item_int_func,
                                                    uint32 threashold)
   {
     if (length >= threashold)
-      return &type_handler_slonglong;
-    return &type_handler_slong;
+      return &type_handler_longlong;
+    return &type_handler_long;
   }
   void set_date_length(uint32 length)
   {
@@ -995,7 +995,7 @@ class Item_extract :public Item_int_func,
   const interval_type int_type; // keep it public
   Item_extract(THD *thd, interval_type type_arg, Item *a):
     Item_int_func(thd, a),
-    Type_handler_hybrid_field_type(&type_handler_slonglong),
+    Type_handler_hybrid_field_type(&type_handler_longlong),
     m_date_mode(date_mode_t(0)),
     int_type(type_arg)
   { }
@@ -1006,7 +1006,6 @@ class Item_extract :public Item_int_func,
   longlong val_int();
   enum Functype functype() const { return EXTRACT_FUNC; }
   const char *func_name() const { return "extract"; }
-  bool check_arguments() const;
   bool fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
@@ -1058,16 +1057,14 @@ class Item_extract :public Item_int_func,
 };
 
 
-class Item_char_typecast :public Item_handled_func
+class Item_char_typecast :public Item_str_func
 {
   uint cast_length;
   CHARSET_INFO *cast_cs, *from_cs;
   bool charset_conversion;
   String tmp_value;
   bool m_suppress_warning_to_error_escalation;
-public:
   bool has_explicit_length() const { return cast_length != ~0U; }
-private:
   String *reuse(String *src, size_t length);
   String *copy(String *src, CHARSET_INFO *cs);
   uint adjusted_length_with_warn(uint length);
@@ -1078,18 +1075,20 @@ public:
   uint get_cast_length() const { return cast_length; }
 public:
   Item_char_typecast(THD *thd, Item *a, uint length_arg, CHARSET_INFO *cs_arg):
-    Item_handled_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
+    Item_str_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
     m_suppress_warning_to_error_escalation(false) {}
   enum Functype functype() const { return CHAR_TYPECAST_FUNC; }
   bool eq(const Item *item, bool binary_cmp) const;
   const char *func_name() const { return "cast_as_char"; }
   CHARSET_INFO *cast_charset() const { return cast_cs; }
-  String *val_str_generic(String *a);
-  String *val_str_binary_from_native(String *a);
+  String *val_str(String *a);
   void fix_length_and_dec_generic();
   void fix_length_and_dec_numeric();
-  void fix_length_and_dec_str();
-  void fix_length_and_dec_native_to_binary(uint32 octet_length);
+  void fix_length_and_dec_str()
+  {
+    fix_length_and_dec_generic();
+    m_suppress_warning_to_error_escalation= true;
+  }
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->Item_char_typecast_fix_length_and_dec(this);
@@ -1542,11 +1541,9 @@ public:
   {
     uint dec= MY_MAX(item->arguments()[0]->datetime_precision(current_thd),
                      interval_dec(item->arguments()[1], int_type(item)));
-    item->Type_std_attributes::set(
-      Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH, dec, false),
-      DTCollation(item->default_charset(),
-                  DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII));
-    item->fix_char_length(item->max_length);
+    item->collation.set(item->default_charset(),
+                        DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
+    item->fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,
@@ -1651,11 +1648,9 @@ public:
     uint dec0= item->arguments()[0]->decimals;
     uint dec1= Interval_DDhhmmssff::fsp(current_thd, item->arguments()[1]);
     uint dec= MY_MAX(dec0, dec1);
-    item->Type_std_attributes::set(
-      Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH, dec, false),
-      DTCollation(item->default_charset(),
-                  DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII));
-    item->fix_char_length(item->max_length);
+    item->collation.set(item->default_charset(),
+                        DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
+    item->fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
     return false;
   }
   bool get_date(THD *thd, Item_handled_func *item,

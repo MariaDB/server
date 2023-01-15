@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,12 +28,16 @@ Created 11/26/1995 Heikki Tuuri
 
 /** Check if a mini-transaction is dirtying a clean page.
 @return true if the mtr is dirtying a clean page. */
-inline bool mtr_t::is_block_dirtied(const buf_block_t *block)
+bool
+mtr_t::is_block_dirtied(const buf_block_t* block)
 {
-  ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
-  ut_ad(block->page.buf_fix_count());
-  return block->page.oldest_modification() <= 1 &&
-    block->page.id().space() < SRV_TMP_SPACE_ID;
+	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+	ut_ad(block->page.buf_fix_count > 0);
+
+	/* It is OK to read oldest_modification because no
+	other thread can be performing a write of it and it
+	is only during write that the value is reset to 0. */
+	return(block->page.oldest_modification == 0);
 }
 
 /**
@@ -52,8 +56,8 @@ mtr_t::memo_push(void* object, mtr_memo_type_t type)
 	grab log_sys.flush_order_mutex at mtr_t::commit() so that we
 	can insert the dirtied page into the flush list. */
 
-	if (!m_made_dirty
-            && (type == MTR_MEMO_PAGE_X_FIX || type == MTR_MEMO_PAGE_SX_FIX)) {
+	if ((type == MTR_MEMO_PAGE_X_FIX || type == MTR_MEMO_PAGE_SX_FIX)
+	    && !m_made_dirty) {
 
 		m_made_dirty = is_block_dirtied(
 			reinterpret_cast<const buf_block_t*>(object));
@@ -171,4 +175,55 @@ mtr_t::release_block_at_savepoint(
 	reinterpret_cast<buf_block_t*>(block)->unfix();
 
 	slot->object = NULL;
+}
+
+/**
+Gets the logging mode of a mini-transaction.
+@return	logging mode: MTR_LOG_NONE, ... */
+
+mtr_log_t
+mtr_t::get_log_mode() const
+{
+	ut_ad(m_log_mode >= MTR_LOG_ALL);
+	ut_ad(m_log_mode <= MTR_LOG_SHORT_INSERTS);
+
+	return m_log_mode;
+}
+
+/**
+Changes the logging mode of a mini-transaction.
+@return	old mode */
+
+mtr_log_t
+mtr_t::set_log_mode(mtr_log_t mode)
+{
+	ut_ad(mode >= MTR_LOG_ALL);
+	ut_ad(mode <= MTR_LOG_SHORT_INSERTS);
+
+	const mtr_log_t	old_mode = m_log_mode;
+
+	switch (old_mode) {
+	case MTR_LOG_NO_REDO:
+		/* Once this mode is set, it must not be changed. */
+		ut_ad(mode == MTR_LOG_NO_REDO || mode == MTR_LOG_NONE);
+		return(old_mode);
+	case MTR_LOG_NONE:
+		if (mode == old_mode || mode == MTR_LOG_SHORT_INSERTS) {
+			/* Keep MTR_LOG_NONE. */
+			return(old_mode);
+		}
+		/* fall through */
+	case MTR_LOG_SHORT_INSERTS:
+		ut_ad(mode == MTR_LOG_ALL);
+		/* fall through */
+	case MTR_LOG_ALL:
+		/* MTR_LOG_NO_REDO can only be set before generating
+		any redo log records. */
+		ut_ad(mode != MTR_LOG_NO_REDO || m_n_log_recs == 0);
+		m_log_mode = mode;
+		return(old_mode);
+	}
+
+	ut_ad(0);
+	return(old_mode);
 }

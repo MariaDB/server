@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2019, 2020, MariaDB
+   Copyright (c) 2019 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -371,3 +371,5 @@ void ha_federatedx_select_handler::print_error(int error, myf error_flag)
 {
   select_handler::print_error(error, error_flag);
 }
+
+

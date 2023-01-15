@@ -52,3 +52,97 @@ struct row_log_t;
 
 /* MySQL data types */
 struct TABLE;
+
+/** Purge virtual column node information. */
+struct purge_vcol_info_t
+{
+private:
+	/** Is there a possible need to evaluate virtual columns? */
+	bool	requested;
+	/** Do we have to evaluate virtual columns (using mariadb_table)? */
+	bool	used;
+
+	/** True if it is used for the first time. */
+	bool	first_use;
+
+	/** MariaDB table opened for virtual column computation. */
+	TABLE*	mariadb_table;
+
+public:
+	/** Default constructor */
+	purge_vcol_info_t() :
+		requested(false), used(false), first_use(false),
+		mariadb_table(NULL)
+	{}
+	/** Reset the state. */
+	void reset()
+	{
+		requested = false;
+		used = false;
+		first_use = false;
+		mariadb_table = NULL;
+	}
+
+	/** Validate the virtual column information.
+	@return true if the mariadb table opened successfully
+	or doesn't try to calculate virtual column. */
+	bool validate() const { return !used || mariadb_table; }
+
+	/** @return the table handle for evaluating virtual columns */
+	TABLE* table() const { return mariadb_table; }
+
+	/** Set the table handle for evaluating virtual columns.
+	@param[in]	table	table handle */
+	void set_table(TABLE* table)
+	{
+		ut_ad(!table || is_first_fetch());
+		mariadb_table = table;
+	}
+
+	/** Note that virtual column information may be needed. */
+	void set_requested()
+	{
+		ut_ad(!used);
+		ut_ad(!first_use);
+		ut_ad(!mariadb_table);
+		requested = true;
+	}
+
+	/** @return whether the virtual column information may be needed */
+	bool is_requested() const { return requested; }
+
+	/** Note that the virtual column information is needed. */
+	void set_used()
+	{
+		ut_ad(requested);
+
+		if (first_use) {
+			first_use = false;
+			ut_ad(used);
+			return;
+		}
+
+		if (!used) {
+			first_use = used = true;
+		}
+	}
+
+	/** @return whether the virtual column information is needed */
+	bool is_used() const
+	{
+		ut_ad(!first_use || used);
+		ut_ad(!used || requested);
+		ut_ad(used || !mariadb_table);
+		return used;
+	}
+
+	/** Check whether it fetches mariadb table for the first time.
+	@return true if first time tries to open mariadb table. */
+	bool is_first_fetch() const
+	{
+		ut_ad(!first_use || used);
+		ut_ad(!used || requested);
+		ut_ad(used || !mariadb_table);
+		return first_use;
+	}
+};

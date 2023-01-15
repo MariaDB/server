@@ -57,9 +57,6 @@
 #include "wsrep_trans_observer.h"
 #endif
 
-class Master_info_index;
-Master_info_index *master_info_index;
-
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
@@ -85,6 +82,7 @@ char slave_transaction_retry_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
 
 char* slave_load_tmpdir = 0;
 Master_info *active_mi= 0;
+Master_info_index *master_info_index;
 my_bool replicate_same_server_id;
 ulonglong relay_log_space_limit = 0;
 ulonglong opt_read_binlog_speed_limit = 0;
@@ -485,7 +483,6 @@ static bool slave_background_thread_gtid_loaded;
 static void bg_rpl_load_gtid_slave_state(void *)
 {
   THD *thd= new_bg_THD();
-  thd->set_psi(PSI_CALL_get_thread());
   thd_proc_info(thd, "Loading slave GTID position from table");
   if (rpl_load_gtid_slave_state(thd))
     sql_print_warning("Failed to load slave replication state from table "
@@ -793,7 +790,7 @@ bool init_slave_skip_errors(const char* arg)
   use_slave_mask= 1;
   for (;my_isspace(system_charset_info,*arg);++arg)
     /* empty */;
-  if (!system_charset_info->strnncoll((uchar*)arg,4,(const uchar*)"all",4))
+  if (!my_strnncoll(system_charset_info,(uchar*)arg,4,(const uchar*)"all",4))
   {
     bitmap_set_all(&slave_error_mask);
     goto end;
@@ -1382,7 +1379,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
       rli->is_in_group().
     */
 
-    if ((thd->transaction->all.modified_non_trans_table ||
+    if ((thd->transaction.all.modified_non_trans_table ||
          (thd->variables.option_bits & OPTION_KEEP_LOG)) &&
         rli->is_in_group())
     {
@@ -1396,7 +1393,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
 
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
                           "OPTION_KEEP_LOG: %d  is_in_group: %d",
-                          thd->transaction->all.modified_non_trans_table,
+                          thd->transaction.all.modified_non_trans_table,
                           MY_TEST(thd->variables.option_bits & OPTION_BEGIN),
                           MY_TEST(thd->variables.option_bits & OPTION_KEEP_LOG),
                           rli->is_in_group()));
@@ -1501,40 +1498,6 @@ const char *print_slave_db_safe(const char* db)
 }
 
 #endif /* HAVE_REPLICATION */
-
-bool Sql_cmd_show_slave_status::execute(THD *thd)
-{
-#ifndef HAVE_REPLICATION
-  my_ok(thd);
-  return false;
-#else
-  DBUG_ENTER("Sql_cmd_show_slave_status::execute");
-  bool res= true;
-
-  /* Accept one of two privileges */
-  if (check_global_access(thd, PRIV_STMT_SHOW_SLAVE_STATUS))
-    goto error;
-  if (is_show_all_slaves_stat())
-  {
-    mysql_mutex_lock(&LOCK_active_mi);
-    res= show_all_master_info(thd);
-    mysql_mutex_unlock(&LOCK_active_mi);
-  }
-  else
-  {
-    LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
-    Master_info *mi;
-    if ((mi= get_master_info(&lex_mi->connection_name,
-                             Sql_condition::WARN_LEVEL_ERROR)))
-    {
-      res= show_master_info(thd, mi, 0);
-      mi->release();
-    }
-  }
-error:
-  DBUG_RETURN(res);
-#endif
-}
 
 int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
                                  const char *default_val)
@@ -1659,8 +1622,7 @@ int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f)
           (decimal size + space) - 1 + `\n' + '\0'
     */
     size_t max_size= (1 + num_items) * (sizeof(long)*3 + 1) + 1;
-    buf_act= (char*) my_malloc(key_memory_Rpl_info_file_buffer, max_size,
-                               MYF(MY_WME));
+    buf_act= (char*) my_malloc(max_size, MYF(MY_WME));
     memcpy(buf_act, buf, read_size);
     snd_size= my_b_gets(f, buf_act + read_size, max_size - read_size);
     if (snd_size == 0 ||
@@ -3325,7 +3287,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       protocol->store((ulonglong) mi->rli.max_relay_log_size);
       protocol->store(mi->rli.executed_entries);
       protocol->store((uint32)    mi->received_heartbeats);
-      protocol->store_double(mi->heartbeat_period, 3);
+      protocol->store((double)    mi->heartbeat_period, 3, &tmp);
       protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
     }
 
@@ -3429,19 +3391,20 @@ void set_slave_thread_options(THD* thd)
      when max_join_size is 4G, OPTION_BIG_SELECTS is automatically set, but
      only for client threads.
   */
-  ulonglong options= (thd->variables.option_bits |
-                      OPTION_BIG_SELECTS | OPTION_BIN_LOG);
-  if (!opt_log_slave_updates)
+  ulonglong options= thd->variables.option_bits | OPTION_BIG_SELECTS;
+  if (opt_log_slave_updates)
+    options|= OPTION_BIN_LOG;
+  else
     options&= ~OPTION_BIN_LOG;
+  thd->variables.option_bits= options;
+  thd->variables.completion_type= 0;
+
   /* For easier test in LOGGER::log_command */
   if (thd->variables.log_disabled_statements & LOG_DISABLE_SLAVE)
-    options|= OPTION_LOG_OFF;
-  thd->variables.option_bits= options;
+    thd->variables.option_bits|= OPTION_LOG_OFF;
 
-  thd->variables.completion_type= 0;
-  thd->variables.sql_log_slow=
-    !MY_TEST(thd->variables.log_slow_disabled_statements &
-             LOG_SLOW_DISABLE_SLAVE);
+  thd->variables.sql_log_slow= !MY_TEST(thd->variables.log_slow_disabled_statements &
+                                        LOG_SLOW_DISABLE_SLAVE);
   DBUG_VOID_RETURN;
 }
 
@@ -3475,16 +3438,9 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   thd->system_thread = (thd_type == SLAVE_THD_SQL) ?
     SYSTEM_THREAD_SLAVE_SQL : SYSTEM_THREAD_SLAVE_IO;
 
-  if (init_thr_lock())
-  {
-    thd->cleanup();
-    DBUG_RETURN(-1);
-  }
-
   /* We must call store_globals() before doing my_net_init() */
-  thd->store_globals();
-
-  if (my_net_init(&thd->net, 0, thd, MYF(MY_THREAD_SPECIFIC)) ||
+  if (init_thr_lock() || thd->store_globals() ||
+      my_net_init(&thd->net, 0, thd, MYF(MY_THREAD_SPECIFIC)) ||
       IF_DBUG(simulate_error & (1<< thd_type), 0))
   {
     thd->cleanup();
@@ -4098,7 +4054,7 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
         rli->clear_flag(Relay_log_info::IN_TRANSACTION);
     }
   }
-  if (typ == XID_EVENT || typ == XA_PREPARE_LOG_EVENT)
+  if (typ == XID_EVENT)
     rli->clear_flag(Relay_log_info::IN_TRANSACTION);
   if (typ == GTID_EVENT &&
       !(((Gtid_log_event*) ev)->flags2 & Gtid_log_event::FL_STANDALONE))
@@ -4234,7 +4190,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                           (LOG_EVENT_IS_QUERY(typ) &&
                            strcmp("COMMIT", ((Query_log_event *) ev)->query) == 0))
                       {
-                        DBUG_ASSERT(thd->transaction->all.modified_non_trans_table);
+                        DBUG_ASSERT(thd->transaction.all.modified_non_trans_table);
                         rli->abort_slave= 1;
                         mysql_mutex_unlock(&rli->data_lock);
                         delete ev;
@@ -4603,8 +4559,6 @@ pthread_handler_t handle_slave_io(void *arg)
 
   THD_CHECK_SENTRY(thd);
   mi->io_thd = thd;
-
-  thd->set_psi(PSI_CALL_get_thread());
 
   pthread_detach_this_thread();
   thd->thread_stack= (char*) &thd; // remember where our stack is
@@ -5247,8 +5201,6 @@ pthread_handler_t handle_slave_sql(void *arg)
     executing SQL queries too.
   */
   serial_rgi->thd= rli->sql_driver_thd= thd;
-
-  thd->set_psi(PSI_CALL_get_thread());
   
   /* Inform waiting threads that slave has started */
   rli->slave_run_id++;
@@ -5943,8 +5895,7 @@ static int queue_binlog_ver_1_event(Master_info *mi, const char *buf,
   */
   if ((uchar)buf[EVENT_TYPE_OFFSET] == LOAD_EVENT)
   {
-    if (unlikely(!(tmp_buf=(char*)my_malloc(key_memory_binlog_ver_1_event,
-                                            event_len+1,MYF(MY_WME)))))
+    if (unlikely(!(tmp_buf=(char*)my_malloc(event_len+1,MYF(MY_WME)))))
     {
       mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                  ER(ER_SLAVE_FATAL_ERROR), "Memory allocation failed");
@@ -7103,7 +7054,6 @@ dbug_gtid_accept:
           (uchar)buf[EVENT_TYPE_OFFSET] == INCIDENT_EVENT)) ||
         (!mi->last_queued_gtid_standalone &&
          ((uchar)buf[EVENT_TYPE_OFFSET] == XID_EVENT ||
-          (uchar)buf[EVENT_TYPE_OFFSET] == XA_PREPARE_LOG_EVENT ||
           ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
            Query_log_event::peek_is_commit_rollback(buf, event_len,
                                                     checksum_alg))))))
@@ -7134,8 +7084,33 @@ dbug_gtid_accept:
       mi->gtid_current_pos.update(&mi->last_queued_gtid);
       mi->events_queued_since_last_gtid= 0;
 
-      /* Reset the domain_id_filter flag. */
-      mi->domain_id_filter.reset_filter();
+      if (unlikely(gtid_skip_enqueue))
+      {
+        error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+        sql_print_error("Recieved a group closing %s event "
+                        "at %llu position in the group while there are "
+                        "still %llu events to skip upon reconnecting; "
+                        "the last seen GTID is %u-%u-%llu",
+                        Log_event::get_type_str((Log_event_type) (uchar)
+                                                buf[EVENT_TYPE_OFFSET]),
+                        (mi->events_queued_since_last_gtid -
+                         mi->gtid_reconnect_event_skip_count),
+                        mi->events_queued_since_last_gtid,
+                        mi->last_queued_gtid);
+        goto err;
+      }
+      else
+      {
+        /*
+          The whole of the current event group is queued. So in case of
+          reconnect we can start from after the current GTID.
+        */
+        mi->gtid_current_pos.update(&mi->last_queued_gtid);
+        mi->events_queued_since_last_gtid= 0;
+
+        /* Reset the domain_id_filter flag. */
+        mi->domain_id_filter.reset_filter();
+      }
     }
 
 skip_relay_logging:
@@ -8192,7 +8167,7 @@ void Rows_event_tracker::reset()
 
 
 /*
-  Update log event tracking data.
+  Update  log event tracking data.
 
   The first- and last- seen event binlog position get memorized, as
   well as the end-of-statement status of the last one.
@@ -8202,7 +8177,6 @@ void Rows_event_tracker::update(const char* file_name, my_off_t pos,
                                 const char* buf,
                                 const Format_description_log_event *fdle)
 {
-  DBUG_ENTER("Rows_event_tracker::update");
   if (!first_seen)
   {
     first_seen= pos;
@@ -8211,7 +8185,6 @@ void Rows_event_tracker::update(const char* file_name, my_off_t pos,
   last_seen= pos;
   DBUG_ASSERT(stmt_end_seen == 0);              // We can only have one
   stmt_end_seen= get_row_event_stmt_end(buf, fdle);
-  DBUG_VOID_RETURN;
 };
 
 

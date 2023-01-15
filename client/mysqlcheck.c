@@ -284,14 +284,13 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(const struct my_option *opt,
-	       const char *argument,
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument)
 {
   int orig_what_to_do= what_to_do;
   DBUG_ENTER("get_one_option");
 
-  switch(opt->id) {
+  switch(optid) {
   case 'a':
     what_to_do = DO_ANALYZE;
     break;
@@ -325,15 +324,10 @@ get_one_option(const struct my_option *opt,
       argument= (char*) "";			/* Don't require password */
     if (argument)
     {
-      /*
-        One should not really change the argument, but we make an
-        exception for passwords
-      */
-      char *start= (char*) argument;
+      char *start = argument;
       my_free(opt_password);
-      opt_password = my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
-      while (*argument)
-        *(char*) argument++= 'x';		/* Destroy argument */
+      opt_password = my_strdup(argument, MYF(MY_FAE));
+      while (*argument) *argument++= 'x';		/* Destroy argument */
       if (*start)
 	start[1] = 0;                             /* Cut length of argument */
       tty_password= 0;
@@ -573,7 +567,7 @@ static int process_selected_tables(char *db, char **table_names, int tables)
       tot_length+= fixed_name_length(*(table_names + i)) + 2;
 
     if (!(table_names_comma_sep = (char *)
-	  my_malloc(PSI_NOT_INSTRUMENTED, tot_length + 4, MYF(MY_WME))))
+	  my_malloc((sizeof(char) * tot_length) + 4, MYF(MY_WME))))
       DBUG_RETURN(1);
 
     for (end = table_names_comma_sep + 1; tables > 0;
@@ -684,12 +678,12 @@ static int process_all_tables_in_db(char *database)
     }
     mysql_data_seek(res, 0);
 
-    if (!(tables=(char *) my_malloc(PSI_NOT_INSTRUMENTED, tot_length+4, MYF(MY_WME))))
+    if (!(tables=(char *) my_malloc(sizeof(char)*tot_length+4, MYF(MY_WME))))
     {
       mysql_free_result(res);
       DBUG_RETURN(1);
     }
-    if (!(views=(char *) my_malloc(PSI_NOT_INSTRUMENTED, tot_views_length+4, MYF(MY_WME))))
+    if (!(views=(char *) my_malloc(sizeof(char)*tot_views_length+4, MYF(MY_WME))))
     {
       my_free(tables);
       mysql_free_result(res);
@@ -805,7 +799,8 @@ static int rebuild_table(char *name)
   int rc= 0;
   DBUG_ENTER("rebuild_table");
 
-  query= (char*)my_malloc(PSI_NOT_INSTRUMENTED, 12+strlen(name)+6+1, MYF(MY_WME));
+  query= (char*)my_malloc(sizeof(char) * (12 + strlen(name) + 6 + 1),
+                          MYF(MY_WME));
   if (!query)
     DBUG_RETURN(1);
   ptr= strxmov(query, "ALTER TABLE ", name, " FORCE", NullS);
@@ -943,7 +938,7 @@ static int handle_request_for_tables(char *tables, size_t length,
     DBUG_RETURN(fix_table_storage_name(tables));
   }
 
-  if (!(query =(char *) my_malloc(PSI_NOT_INSTRUMENTED, query_size, MYF(MY_WME))))
+  if (!(query =(char *) my_malloc(query_size, MYF(MY_WME))))
     DBUG_RETURN(1);
   if (dont_quote)
   {
@@ -1202,14 +1197,14 @@ int main(int argc, char **argv)
   }
 
   if (opt_auto_repair &&
-      (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &tables4repair,
-                             NAME_LEN*2+2, 16, 64, MYF(0)) ||
-       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &views4repair,
-                             NAME_LEN*2+2, 16, 64, MYF(0)) ||
-       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &tables4rebuild,
-                             NAME_LEN*2+2, 16, 64, MYF(0)) ||
-       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &alter_table_cmds,
-                             MAX_ALTER_STR_SIZE, 0, 1, MYF(0))))
+      (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,
+                             64, MYF(0)) ||
+       my_init_dynamic_array(&views4repair, sizeof(char)*(NAME_LEN*2+2),16,
+                             64, MYF(0)) ||
+       my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,
+                             64, MYF(0)) ||
+       my_init_dynamic_array(&alter_table_cmds, MAX_ALTER_STR_SIZE, 0, 1,
+                             MYF(0))))
     goto end;
 
   if (opt_alldbs)

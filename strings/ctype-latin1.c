@@ -18,8 +18,6 @@
 #include "strings_def.h"
 #include <m_ctype.h>
 
-const char charset_name_latin1[]= "latin1";
-
 static const uchar ctype_latin1[] = {
     0,
    32, 32, 32, 32, 32, 32, 32, 32, 32, 40, 40, 40, 40, 40, 32, 32,
@@ -425,7 +423,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
-    my_wc_to_printable_generic
 };
 
 
@@ -433,7 +430,7 @@ struct charset_info_st my_charset_latin1=
 {
     8,0,0,				/* number    */
     MY_CS_COMPILED | MY_CS_PRIMARY,	/* state     */
-    charset_name_latin1,				/* cs name    */
+    "latin1",				/* cs name    */
     "latin1_swedish_ci",		/* name      */
     "",					/* comment   */
     NULL,				/* tailoring */
@@ -466,7 +463,7 @@ struct charset_info_st my_charset_latin1_nopad=
 {
     MY_NOPAD_ID(8),0,0,           /* number           */
     MY_CS_COMPILED | MY_CS_NOPAD, /* state            */
-    charset_name_latin1,                     /* cs name          */
+    "latin1",                     /* cs name          */
     "latin1_swedish_nopad_ci",    /* name             */
     "",                           /* comment          */
     NULL,                         /* tailoring        */
@@ -745,7 +742,7 @@ struct charset_info_st my_charset_latin1_german2_ci=
 {
   31,0,0,				/* number    */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NON1TO1, /* state     */
-  charset_name_latin1,				/* cs name    */
+  "latin1",				/* cs name    */
   "latin1_german2_ci",			/* name      */
   "",					/* comment   */
   NULL,					/* tailoring */
@@ -778,7 +775,7 @@ struct charset_info_st my_charset_latin1_bin=
 {
   47,0,0,				/* number    */
   MY_CS_COMPILED|MY_CS_BINSORT,		/* state     */
-  charset_name_latin1,				/* cs name    */
+  "latin1",				/* cs name    */
   "latin1_bin",				/* name      */
   "",					/* comment   */
   NULL,					/* tailoring */
@@ -811,7 +808,7 @@ struct charset_info_st my_charset_latin1_nopad_bin=
 {
   MY_NOPAD_ID(47),0,0,                 /* number           */
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,/* state        */
-  charset_name_latin1,                            /* cs name          */
+  "latin1",                            /* cs name          */
   "latin1_nopad_bin",                  /* name             */
   "",                                  /* comment          */
   NULL,                                /* tailoring        */

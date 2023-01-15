@@ -423,7 +423,16 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sql-exchange.frm
+#sqlx-nnnn_nnnn.MYD
+#sqlx-nnnn_nnnn.MYI
+db.opt
+t1#P#p0.MYD
+t1#P#p0.MYI
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1.frm
+t1.par
+t2.frm
 # State after crash recovery
 db.opt
 t1#P#p0.MYD
@@ -529,7 +538,16 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sql-exchange.frm
+#sqlx-nnnn_nnnn.MYD
+#sqlx-nnnn_nnnn.MYI
+db.opt
+t1#P#p0.MYD
+t1#P#p0.MYI
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1.frm
+t1.par
+t2.frm
 # State after crash recovery
 db.opt
 t1#P#p0.MYD
@@ -635,7 +653,16 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sql-exchange.frm
+#sqlx-nnnn_nnnn.MYD
+#sqlx-nnnn_nnnn.MYI
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
 # State after crash recovery
 db.opt
 t1#P#p0.MYD
@@ -741,7 +768,16 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sql-exchange.frm
+#sqlx-nnnn_nnnn.MYD
+#sqlx-nnnn_nnnn.MYI
+db.opt
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1.frm
+t1.par
+t2.MYD
+t2.MYI
+t2.frm
 # State after crash recovery
 db.opt
 t1#P#p0.MYD
@@ -1284,7 +1320,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Error on rename of './test/t2' to './test/#sql-exchange' (errno: 0 "Internal error/check (Not system error)")
+ERROR HY000: Error on rename of './test/t2' to './test/#sqlx-nnnn_nnnn' (errno: 0 "Internal error/check (Not system error)")
 # State after failure
 db.opt
 t1#P#p0.MYD
@@ -1700,7 +1736,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Error on rename of './test/#sql-exchange' to './test/t1#P#p0' (errno: 0 "Internal error/check (Not system error)")
+ERROR HY000: Error on rename of './test/#sqlx-nnnn_nnnn' to './test/t1#P#p0' (errno: 0 "Internal error/check (Not system error)")
 # State after failure
 db.opt
 t1#P#p0.MYD

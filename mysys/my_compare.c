@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (C) 2009-2011 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,9 +24,9 @@ int ha_compare_text(CHARSET_INFO *charset_info, const uchar *a, size_t a_length,
 		    const uchar *b, size_t b_length, my_bool part_key)
 {
   if (!part_key)
-    return my_ci_strnncollsp(charset_info, a, a_length,
-                                           b, b_length);
-  return my_ci_strnncoll(charset_info, a, a_length,
+    return charset_info->coll->strnncollsp(charset_info, a, a_length,
+                                                         b, b_length);
+  return charset_info->coll->strnncoll(charset_info, a, a_length,
                                        b, b_length, part_key);
 }
 

@@ -6,6 +6,11 @@ select user,state from information_schema.processlist order by 2;
 user	state
 root	
 root	Filling schema table
+system user	InnoDB purge coordinator
+system user	InnoDB purge worker
+system user	InnoDB purge worker
+system user	InnoDB purge worker
+system user	InnoDB shutdown handler
 set global debug_dbug='+d,only_kill_system_threads';
 set global innodb_fast_shutdown=0;
 shutdown;
@@ -14,6 +19,11 @@ disconnect con1;
 select user,state from information_schema.processlist order by 2;
 user	state
 root	Filling schema table
+system user	InnoDB purge coordinator
+system user	InnoDB purge worker
+system user	InnoDB purge worker
+system user	InnoDB purge worker
+system user	InnoDB slow shutdown wait
 set global innodb_fast_shutdown=1;
 select user,state from information_schema.processlist order by 2;
 user	state

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,20 +26,9 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "table_all_instr.h"
 #include "pfs_global.h"
-#include "pfs_buffer_container.h"
-
-ha_rows
-table_all_instr::get_row_count(void)
-{
-  return global_mutex_container.get_row_count()
-    + global_rwlock_container.get_row_count()
-    + global_cond_container.get_row_count()
-    + global_file_container.get_row_count()
-    + global_socket_container.get_row_count() ;
-}
 
 table_all_instr::table_all_instr(const PFS_engine_table_share *share)
   : PFS_engine_table(share, &m_pos),
@@ -66,10 +55,10 @@ int table_all_instr::rnd_next(void)
   {
     switch (m_pos.m_index_1) {
     case pos_all_instr::VIEW_MUTEX:
+      for ( ; m_pos.m_index_2 < mutex_max; m_pos.m_index_2++)
       {
-        PFS_mutex_iterator it= global_mutex_container.iterate(m_pos.m_index_2);
-        mutex= it.scan_next(& m_pos.m_index_2);
-        if (mutex != NULL)
+        mutex= &mutex_array[m_pos.m_index_2];
+        if (mutex->m_lock.is_populated())
         {
           make_mutex_row(mutex);
           m_next_pos.set_after(&m_pos);
@@ -78,10 +67,10 @@ int table_all_instr::rnd_next(void)
       }
       break;
     case pos_all_instr::VIEW_RWLOCK:
+      for ( ; m_pos.m_index_2 < rwlock_max; m_pos.m_index_2++)
       {
-        PFS_rwlock_iterator it= global_rwlock_container.iterate(m_pos.m_index_2);
-        rwlock= it.scan_next(& m_pos.m_index_2);
-        if (rwlock != NULL)
+        rwlock= &rwlock_array[m_pos.m_index_2];
+        if (rwlock->m_lock.is_populated())
         {
           make_rwlock_row(rwlock);
           m_next_pos.set_after(&m_pos);
@@ -90,10 +79,10 @@ int table_all_instr::rnd_next(void)
       }
       break;
     case pos_all_instr::VIEW_COND:
+      for ( ; m_pos.m_index_2 < cond_max; m_pos.m_index_2++)
       {
-        PFS_cond_iterator it= global_cond_container.iterate(m_pos.m_index_2);
-        cond= it.scan_next(& m_pos.m_index_2);
-        if (cond != NULL)
+        cond= &cond_array[m_pos.m_index_2];
+        if (cond->m_lock.is_populated())
         {
           make_cond_row(cond);
           m_next_pos.set_after(&m_pos);
@@ -102,10 +91,10 @@ int table_all_instr::rnd_next(void)
       }
       break;
     case pos_all_instr::VIEW_FILE:
+      for ( ; m_pos.m_index_2 < file_max; m_pos.m_index_2++)
       {
-        PFS_file_iterator it= global_file_container.iterate(m_pos.m_index_2);
-        file= it.scan_next(& m_pos.m_index_2);
-        if (file != NULL)
+        file= &file_array[m_pos.m_index_2];
+        if (file->m_lock.is_populated())
         {
           make_file_row(file);
           m_next_pos.set_after(&m_pos);
@@ -114,10 +103,10 @@ int table_all_instr::rnd_next(void)
       }
       break;
     case pos_all_instr::VIEW_SOCKET:
+      for ( ; m_pos.m_index_2 < socket_max; m_pos.m_index_2++)
       {
-        PFS_socket_iterator it= global_socket_container.iterate(m_pos.m_index_2);
-        socket= it.scan_next(& m_pos.m_index_2);
-        if (socket != NULL)
+        socket= &socket_array[m_pos.m_index_2];
+        if (socket->m_lock.is_populated())
         {
           make_socket_row(socket);
           m_next_pos.set_after(&m_pos);
@@ -143,40 +132,45 @@ int table_all_instr::rnd_pos(const void *pos)
 
   switch (m_pos.m_index_1) {
   case pos_all_instr::VIEW_MUTEX:
-    mutex= global_mutex_container.get(m_pos.m_index_2);
-    if (mutex != NULL)
+    DBUG_ASSERT(m_pos.m_index_2 < mutex_max);
+    mutex= &mutex_array[m_pos.m_index_2];
+    if (mutex->m_lock.is_populated())
     {
       make_mutex_row(mutex);
       return 0;
     }
     break;
   case pos_all_instr::VIEW_RWLOCK:
-    rwlock= global_rwlock_container.get(m_pos.m_index_2);
-    if (rwlock != NULL)
+    DBUG_ASSERT(m_pos.m_index_2 < rwlock_max);
+    rwlock= &rwlock_array[m_pos.m_index_2];
+    if (rwlock->m_lock.is_populated())
     {
       make_rwlock_row(rwlock);
       return 0;
     }
     break;
   case pos_all_instr::VIEW_COND:
-    cond= global_cond_container.get(m_pos.m_index_2);
-    if (cond != NULL)
+    DBUG_ASSERT(m_pos.m_index_2 < cond_max);
+    cond= &cond_array[m_pos.m_index_2];
+    if (cond->m_lock.is_populated())
     {
       make_cond_row(cond);
       return 0;
     }
     break;
   case pos_all_instr::VIEW_FILE:
-    file= global_file_container.get(m_pos.m_index_2);
-    if (file != NULL)
+    DBUG_ASSERT(m_pos.m_index_2 < file_max);
+    file= &file_array[m_pos.m_index_2];
+    if (file->m_lock.is_populated())
     {
       make_file_row(file);
       return 0;
     }
     break;
   case pos_all_instr::VIEW_SOCKET:
-    socket= global_socket_container.get(m_pos.m_index_2);
-    if (socket != NULL)
+    DBUG_ASSERT(m_pos.m_index_2 < socket_max);
+    socket= &socket_array[m_pos.m_index_2];
+    if (socket->m_lock.is_populated())
     {
       make_socket_row(socket);
       return 0;

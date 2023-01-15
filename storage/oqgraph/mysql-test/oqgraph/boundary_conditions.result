@@ -142,7 +142,7 @@ SELECT * FROM graph WHERE latch='-1' and origid is NULL;
 latch	origid	destid	weight	seq	linkid
 Warnings:
 Warning	1210	Incorrect arguments to OQGRAPH latch
-# Make sure we don't crash if someone passed in a UTF string
+# Make sure we dont crash if someone passed in a UTF string
 SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄';
 latch	origid	destid	weight	seq	linkid
 SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and destid=2 and origid=1;

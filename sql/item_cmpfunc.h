@@ -24,6 +24,8 @@
 #endif
 
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
+#define PCRE_STATIC 1             /* Important on Windows */
+#include "pcre.h"                 /* pcre header file */
 #include "item.h"
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
@@ -290,7 +292,6 @@ public:
     Item_func_truth(thd, a, true, false) {}
   ~Item_func_isnottrue() {}
   virtual const char* func_name() const { return "isnottrue"; }
-  bool find_not_null_fields(table_map allowed) { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnottrue>(thd, this); }
   bool eval_not_null_tables(void *) { not_null_tables_cache= 0; return false; }
@@ -323,7 +324,6 @@ public:
     Item_func_truth(thd, a, false, false) {}
   ~Item_func_isnotfalse() {}
   virtual const char* func_name() const { return "isnotfalse"; }
-  bool find_not_null_fields(table_map allowed) { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnotfalse>(thd, this); }
   bool eval_not_null_tables(void *) { not_null_tables_cache= 0; return false; }
@@ -367,37 +367,34 @@ public:
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
     save_cache(0), result_for_null_param(UNKNOWN)
   { m_with_subquery= true; }
-  bool fix_fields(THD *, Item **) override;
+  bool fix_fields(THD *, Item **);
   bool fix_left(THD *thd);
-  table_map not_null_tables() const override { return 0; }
-  bool is_null() override;
-  longlong val_int() override;
-  void cleanup() override;
-  enum Functype functype() const override { return IN_OPTIMIZER_FUNC; }
-  const char *func_name() const override { return "<in_optimizer>"; }
+  table_map not_null_tables() const { return 0; }
+  bool is_null();
+  longlong val_int();
+  void cleanup();
+  enum Functype functype() const   { return IN_OPTIMIZER_FUNC; }
+  const char *func_name() const { return "<in_optimizer>"; }
   Item_cache **get_cache() { return &cache; }
   void keep_top_level_cache();
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
-  Item *expr_cache_insert_transformer(THD *thd, uchar *unused) override;
-  bool is_expensive_processor(void *arg) override;
-  bool is_expensive() override;
-  void set_join_tab_idx(uint join_tab_idx_arg) override
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
+  virtual Item *expr_cache_insert_transformer(THD *thd, uchar *unused);
+  bool is_expensive_processor(void *arg);
+  bool is_expensive();
+  void set_join_tab_idx(uint join_tab_idx_arg)
   { args[1]->set_join_tab_idx(join_tab_idx_arg); }
-  void get_cache_parameters(List<Item> &parameters) override;
-  bool is_top_level_item() const override;
-  bool eval_not_null_tables(void *opt_arg) override;
-  bool find_not_null_fields(table_map allowed) override;
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref,
-                         bool merge) override;
+  virtual void get_cache_parameters(List<Item> &parameters);
+  bool is_top_level_item();
+  bool eval_not_null_tables(void *opt_arg);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool invisible_mode();
   void reset_cache() { cache= NULL; }
-  void print(String *str, enum_query_type query_type) override;
+  virtual void print(String *str, enum_query_type query_type);
   void restore_first_argument();
   Item* get_wrapped_in_subselect_item()
   { return args[1]; }
-  Item *get_copy(THD *thd) override
+  Item *get_copy(THD *thd)
   { return get_item_copy<Item_in_optimizer>(thd, this); }
-  enum precedence precedence() const override { return args[1]->precedence(); }
 };
 
 
@@ -585,7 +582,6 @@ public:
   void print(String *str, enum_query_type query_type)
   { Item_func::print_op(str, query_type); }
   longlong val_int();
-  bool find_not_null_fields(table_map allowed) { return false; }
   Item *neg_transformer(THD *thd);
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   {
@@ -602,17 +598,16 @@ class Item_func_not :public Item_bool_func
 public:
   Item_func_not(THD *thd, Item *a):
     Item_bool_func(thd, a), abort_on_null(FALSE) {}
-  void top_level_item() override { abort_on_null= 1; }
-  bool is_top_level_item() const override { return abort_on_null; }
-  longlong val_int() override;
-  enum Functype functype() const override { return NOT_FUNC; }
-  const char *func_name() const override { return "not"; }
-  bool find_not_null_fields(table_map allowed) override { return false; }
-  enum precedence precedence() const override { return NEG_PRECEDENCE; }
-  Item *neg_transformer(THD *thd) override;
-  bool fix_fields(THD *, Item **) override;
-  void print(String *str, enum_query_type query_type) override;
-  Item *get_copy(THD *thd) override
+  virtual void top_level_item() { abort_on_null= 1; }
+  bool is_top_level_item() { return abort_on_null; }
+  longlong val_int();
+  enum Functype functype() const { return NOT_FUNC; }
+  const char *func_name() const { return "not"; }
+  enum precedence precedence() const { return NEG_PRECEDENCE; }
+  Item *neg_transformer(THD *thd);
+  bool fix_fields(THD *, Item **);
+  virtual void print(String *str, enum_query_type query_type);
+  Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_not>(thd, this); }
 };
 
@@ -746,7 +741,7 @@ public:
   { return get_item_copy<Item_func_eq>(thd, this); }
 };
 
-class Item_func_equal final :public Item_bool_rowready_func2
+class Item_func_equal :public Item_bool_rowready_func2
 {
 public:
   Item_func_equal(THD *thd, Item *a, Item *b):
@@ -754,7 +749,6 @@ public:
   longlong val_int();
   bool fix_length_and_dec();
   table_map not_null_tables() const { return 0; }
-  bool find_not_null_fields(table_map allowed) { return false; }
   enum Functype functype() const { return EQUAL_FUNC; }
   enum Functype rev_functype() const { return EQUAL_FUNC; }
   cond_result eq_cmp_result() const { return COND_TRUE; }
@@ -888,21 +882,18 @@ public:
   Item_func_opt_neg(THD *thd, List<Item> &list):
     Item_bool_func(thd, list), negated(0), pred_level(0) {}
 public:
-  void top_level_item() override { pred_level= 1; }
-  bool is_top_level_item() const override { return pred_level; }
-  Item *neg_transformer(THD *thd) override
+  inline void top_level_item() { pred_level= 1; }
+  bool is_top_level_item() const { return pred_level; }
+  Item *neg_transformer(THD *thd)
   {
     negated= !negated;
     return this;
   }
-  bool eq(const Item *item, bool binary_cmp) const override;
-  CHARSET_INFO *compare_collation() const override
-  {
-    return cmp_collation.collation;
-  }
-  Item *propagate_equal_fields(THD *, const Context &,
-                               COND_EQUAL *) override= 0;
+  bool eq(const Item *item, bool binary_cmp) const;
+  CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) = 0;
 };
+
 
 class Item_func_between :public Item_func_opt_neg
 {
@@ -931,7 +922,6 @@ public:
   bool fix_length_and_dec_numeric(THD *);
   virtual void print(String *str, enum_query_type query_type);
   bool eval_not_null_tables(void *opt_arg);
-  bool find_not_null_fields(table_map allowed);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(void *arg);
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
@@ -1115,19 +1105,9 @@ public:
   bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec()
   {
-    /*
-      Set nullability from args[1] by default.
-      Note, some type handlers may reset maybe_null
-      in Item_hybrid_func_fix_attributes() if args[1]
-      is NOT NULL but cannot always be converted to
-      the data type of "this" safely.
-      E.g. Type_handler_inet6 does:
-        IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
-        IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
-    */
-    maybe_null= args[1]->maybe_null;
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
+    maybe_null= args[1]->maybe_null;
     return FALSE;
   }
   const char *func_name() const { return "ifnull"; }
@@ -1443,7 +1423,7 @@ public:
     ((Item_int*) item)->unsigned_flag= (bool)
       ((packed_longlong*) base)[pos].unsigned_flag;
   }
-  const Type_handler *type_handler() const { return &type_handler_slonglong; }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
 
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
 };
@@ -2470,7 +2450,6 @@ public:
   const char *func_name() const { return "in"; }
   enum precedence precedence() const { return IN_PRECEDENCE; }
   bool eval_not_null_tables(void *opt_arg);
-  bool find_not_null_fields(table_map allowed);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(void *arg);
   Item *get_copy(THD *thd)
@@ -2615,7 +2594,6 @@ public:
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
   table_map not_null_tables() const { return 0; }
-  bool find_not_null_fields(table_map allowed);
   Item *neg_transformer(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnull>(thd, this); }
@@ -2823,38 +2801,53 @@ public:
 };
 
 
-typedef struct pcre2_real_code_8 pcre2_code;
-typedef struct pcre2_real_match_data_8 pcre2_match_data;
-#define PCRE2_SIZE size_t
 class Regexp_processor_pcre
 {
-  pcre2_code *m_pcre;
-  pcre2_match_data *m_pcre_match_data;
+  pcre *m_pcre;
+  pcre_extra m_pcre_extra;
   bool m_conversion_is_needed;
   bool m_is_const;
   int m_library_flags;
+  CHARSET_INFO *m_data_charset;
   CHARSET_INFO *m_library_charset;
   String m_prev_pattern;
   int m_pcre_exec_rc;
-  PCRE2_SIZE *m_SubStrVec;
+  int m_SubStrVec[30];
   void pcre_exec_warn(int rc) const;
-  int pcre_exec_with_warn(const pcre2_code *code,
-                          pcre2_match_data *data,
+  int pcre_exec_with_warn(const pcre *code, const pcre_extra *extra,
                           const char *subject, int length, int startoffset,
-                          int options);
+                          int options, int *ovector, int ovecsize);
 public:
   String *convert_if_needed(String *src, String *converter);
   String subject_converter;
   String pattern_converter;
   String replace_converter;
   Regexp_processor_pcre() :
-    m_pcre(NULL), m_pcre_match_data(NULL),
-    m_conversion_is_needed(true), m_is_const(0),
+    m_pcre(NULL), m_conversion_is_needed(true), m_is_const(0),
     m_library_flags(0),
-    m_library_charset(&my_charset_utf8mb3_general_ci)
-  {}
+    m_data_charset(&my_charset_utf8_general_ci),
+    m_library_charset(&my_charset_utf8_general_ci)
+  {
+    m_pcre_extra.flags= PCRE_EXTRA_MATCH_LIMIT_RECURSION;
+    m_pcre_extra.match_limit_recursion= 100L;
+  }
   int default_regex_flags();
-  void init(CHARSET_INFO *data_charset, int extra_flags);
+  void set_recursion_limit(THD *);
+  void init(CHARSET_INFO *data_charset, int extra_flags)
+  {
+    m_library_flags= default_regex_flags() | extra_flags |
+                    (data_charset != &my_charset_bin ?
+                     (PCRE_UTF8 | PCRE_UCP) : 0) |
+                    ((data_charset->state &
+                     (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE_CASELESS);
+
+    // Convert text data to utf-8.
+    m_library_charset= data_charset == &my_charset_bin ?
+                       &my_charset_bin : &my_charset_utf8_general_ci;
+
+    m_conversion_is_needed= (data_charset != &my_charset_bin) &&
+                            !my_charset_same(data_charset, m_library_charset);
+  }
   void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
   bool compile(String *pattern, bool send_error);
   bool compile(Item *item, bool send_error);
@@ -2867,25 +2860,28 @@ public:
   bool exec(Item *item, int offset, uint n_result_offsets_to_convert);
   bool match() const { return m_pcre_exec_rc < 0 ? 0 : 1; }
   int nsubpatterns() const { return m_pcre_exec_rc <= 0 ? 0 : m_pcre_exec_rc; }
-  size_t subpattern_start(int n) const
+  int subpattern_start(int n) const
   {
     return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2];
   }
-  size_t subpattern_end(int n) const
+  int subpattern_end(int n) const
   {
     return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2 + 1];
   }
-  size_t subpattern_length(int n) const
+  int subpattern_length(int n) const
   {
     return subpattern_end(n) - subpattern_start(n);
   }
   void reset()
   {
     m_pcre= NULL;
-    m_pcre_match_data= NULL;
     m_prev_pattern.length(0);
   }
-  void cleanup();
+  void cleanup()
+  {
+    pcre_free(m_pcre);
+    reset();
+  }
   bool is_compiled() const { return m_pcre != NULL; }
   bool is_const() const { return m_is_const; }
   void set_const(bool arg) { m_is_const= arg; }
@@ -2908,6 +2904,7 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int();
+  bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return IN_PRECEDENCE; }
@@ -2948,6 +2945,7 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int();
+  bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
   Item *get_copy(THD *thd) { return 0; }
@@ -3045,7 +3043,6 @@ public:
     return do_compile(thd, analyzer, arg_p, transformer, arg_t, 1);
   }
   bool eval_not_null_tables(void *opt_arg);
-  bool find_not_null_fields(table_map allowed);
   Item *build_clone(THD *thd);
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
@@ -3211,7 +3208,6 @@ public:
     eval_item= NULL;
   }
   void update_used_tables();
-  bool find_not_null_fields(table_map allowed);
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);
@@ -3367,7 +3363,7 @@ public:
 };
 
 
-class Item_cond_and final :public Item_cond
+class Item_cond_and :public Item_cond
 {
 public:
   COND_EQUAL m_cond_equal;  /* contains list of Item_equal objects for 
@@ -3390,7 +3386,6 @@ public:
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref);
-  bool set_format_by_check_constraint(Send_field_extended_metadata *to) const;
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
@@ -3404,7 +3399,7 @@ inline bool is_cond_and(Item *item)
   return func_item && func_item->functype() == Item_func::COND_AND_FUNC;
 }
 
-class Item_cond_or final :public Item_cond
+class Item_cond_or :public Item_cond
 {
 public:
   Item_cond_or(THD *thd): Item_cond(thd) {}

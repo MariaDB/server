@@ -31,6 +31,31 @@
 #include <threadpool.h>
 #include <windows.h>
 
+
+
+/*
+ WEAK_SYMBOL(return_type, function_name, argument_type1,..,argument_typeN)
+
+ Declare and load function pointer from kernel32. The name of the static 
+ variable that holds the function pointer is my_<original function name>
+ This should be combined with 
+ #define <original function name> my_<original function name>
+ so that one could use Widows APIs transparently, without worrying whether
+ they are present in a particular version or not.
+
+ Of course, prior to use of any function there should be a check for correct
+ Windows version, or check whether function pointer is not NULL.
+*/
+#define WEAK_SYMBOL(return_type, function, ...) \
+  typedef return_type (WINAPI *pFN_##function)(__VA_ARGS__); \
+  static pFN_##function my_##function = (pFN_##function) \
+    (GetProcAddress(GetModuleHandle("kernel32"),#function))
+
+
+WEAK_SYMBOL(BOOL, SetThreadpoolStackInformation, PTP_POOL, 
+  PTP_POOL_STACK_INFORMATION);
+#define SetThreadpoolStackInformation my_SetThreadpoolStackInformation
+
 /* Log a warning */
 static void tp_log_warning(const char *msg, const char *fct)
 {
@@ -59,10 +84,10 @@ PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ()
 
 */
 
-static void CALLBACK timer_callback(PTP_CALLBACK_INSTANCE instance,
+static void CALLBACK timer_callback(PTP_CALLBACK_INSTANCE instance, 
   PVOID context, PTP_TIMER timer);
 
-static void CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance,
+static void CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance, 
   PVOID context,  PVOID overlapped,  ULONG io_result, ULONG_PTR nbytes, PTP_IO io);
 
 
@@ -128,7 +153,7 @@ void TP_pool_win::add(TP_connection *c)
 
 TP_connection_win::TP_connection_win(CONNECT *c) :
   TP_connection(c),
-  timeout(ULONGLONG_MAX),
+  timeout(ULONGLONG_MAX), 
   callback_instance(0),
   io(0),
   timer(0),
@@ -142,14 +167,15 @@ int TP_connection_win::init()
 {
 
   memset(&overlapped, 0, sizeof(OVERLAPPED));
-  switch ((vio_type =  connect->vio_type))
+  Vio *vio = connect->vio;
+  switch ((vio_type =  vio->type))
   {
   case VIO_TYPE_SSL:
   case VIO_TYPE_TCPIP:
-    handle= (HANDLE) mysql_socket_getfd(connect->sock);
+    handle= (HANDLE)mysql_socket_getfd(vio->mysql_socket);
     break;
   case VIO_TYPE_NAMEDPIPE:
-    handle= connect->pipe;
+    handle= (HANDLE)vio->hPipe;
     break;
   default:
     abort();
@@ -218,14 +244,14 @@ int TP_connection_win::start_io()
   if (retval == 0 || last_error == ERROR_MORE_DATA)
   {
     /*
-      IO successfully finished (synchronously).
-      If skip_completion_port_on_success is set, we need to handle it right
+      IO successfully finished (synchronously). 
+      If skip_completion_port_on_success is set, we need to handle it right 
       here, because completion callback would not be executed by the pool.
     */
     if (skip_completion_port_on_success)
     {
       CancelThreadpoolIo(io);
-      io_completion_callback(callback_instance, this, &overlapped, last_error,
+      io_completion_callback(callback_instance, this, &overlapped, last_error, 
         num_bytes, io);
     }
     return 0;
@@ -322,7 +348,7 @@ static void pre_callback(PVOID context, PTP_CALLBACK_INSTANCE instance)
 
 
 /*
-  Decrement number of threads when a thread exits.
+  Decrement number of threads when a thread exits . 
   On Windows, FlsAlloc() provides the thread destruction callbacks.
 */
 static VOID WINAPI thread_destructor(void *data)
@@ -346,7 +372,7 @@ static inline void tp_callback(PTP_CALLBACK_INSTANCE instance, PVOID context)
 /*
   Handle read completion/notification.
 */
-static VOID CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance,
+static VOID CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance, 
   PVOID context,  PVOID overlapped,  ULONG io_result, ULONG_PTR nbytes, PTP_IO io)
 {
   TP_connection_win *c= (TP_connection_win *)context;
@@ -426,13 +452,19 @@ int TP_pool_win::init()
     }
   }
 
-  TP_POOL_STACK_INFORMATION stackinfo;
-  stackinfo.StackCommit = 0;
-  stackinfo.StackReserve = (SIZE_T)my_thread_stack_size;
-  if (!SetThreadpoolStackInformation(pool, &stackinfo))
+  /*
+    Control stack size (OS must be Win7 or later)
+  */
+  if (SetThreadpoolStackInformation)
   {
-    tp_log_warning("Can't set threadpool stack size",
-      "SetThreadpoolStackInformation");
+    TP_POOL_STACK_INFORMATION stackinfo;
+    stackinfo.StackCommit = 0;
+    stackinfo.StackReserve = (SIZE_T)my_thread_stack_size;
+    if (!SetThreadpoolStackInformation(pool, &stackinfo))
+    {
+      tp_log_warning("Can't set threadpool stack size",
+        "SetThreadpoolStackInformation");
+    }
   }
   return 0;
 }

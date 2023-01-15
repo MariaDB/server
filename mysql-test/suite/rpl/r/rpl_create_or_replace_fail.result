@@ -4,7 +4,7 @@ CREATE TEMPORARY TABLE t1 (a INT NOT NULL);
 LOAD DATA INFILE 'x' INTO TABLE x;
 ERROR 42S02: Table 'test.x' doesn't exist
 CREATE OR REPLACE TEMPORARY TABLE t1 (x INT) PARTITION BY HASH(x);
-ERROR HY000: Partitioned tables do not support CREATE TEMPORARY TABLE
+ERROR HY000: Cannot create temporary table with partitions
 "************** DROP TEMPORARY TABLE Should be present in Binary log **************"
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

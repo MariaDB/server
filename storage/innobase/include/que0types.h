@@ -35,7 +35,6 @@ typedef void	que_node_t;
 /* Query graph root is a fork node */
 typedef	struct que_fork_t	que_t;
 
-struct row_prebuilt_t;
 struct que_thr_t;
 
 /* Query graph node types */

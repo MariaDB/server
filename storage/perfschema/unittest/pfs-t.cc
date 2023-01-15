@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2018, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -21,12 +21,11 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
-#include <my_thread.h>
+#include <my_pthread.h>
 #include <pfs_server.h>
 #include <pfs_instr_class.h>
 #include <pfs_instr.h>
 #include <pfs_global.h>
-#include <pfs_buffer_container.h>
 #include <tap.h>
 
 #include <string.h>
@@ -34,7 +33,6 @@
 
 #include "stub_print_error.h"
 #include "stub_pfs_defaults.h"
-#include "stub_global_status_var.h"
 
 void unload_performance_schema();
 
@@ -50,30 +48,30 @@ void setup_thread(PSI_thread *t, bool enabled)
 
 PFS_file* lookup_file_by_name(const char* name)
 {
+  uint i;
   PFS_file *pfs;
   size_t len= strlen(name);
   size_t dirlen;
   const char *filename;
-  size_t filename_length;
+  size_t filename_length;;
 
-  PFS_file_iterator it= global_file_container.iterate();
-  pfs= it.scan_next();
-
-  while (pfs != NULL)
+  for (i= 0; i < file_max; i++)
   {
-    /*
-      When a file "foo" is instrumented, the name is normalized
-      to "/path/to/current/directory/foo", so we remove the
-      directory name here to find it back.
-    */
-    dirlen= dirname_length(pfs->m_filename);
-    filename= pfs->m_filename + dirlen;
-    filename_length= pfs->m_filename_length - dirlen;
-    if ((len == filename_length) &&
-        (strncmp(name, filename, filename_length) == 0))
-      return pfs;
-
-    pfs= it.scan_next();
+    pfs= & file_array[i];
+    if (pfs->m_lock.is_populated())
+    {
+      /*
+        When a file "foo" is instrumented, the name is normalized
+        to "/path/to/current/directory/foo", so we remove the
+        directory name here to find it back.
+      */
+      dirlen= dirname_length(pfs->m_filename);
+      filename= pfs->m_filename + dirlen;
+      filename_length= pfs->m_filename_length - dirlen;
+      if ((len == filename_length) &&
+          (strncmp(name, filename, filename_length) == 0))
+        return pfs;
+    }
   }
 
   return NULL;
@@ -120,24 +118,10 @@ void test_bootstrap()
   param.m_statement_class_sizing= 0;
   param.m_events_statements_history_sizing= 0;
   param.m_events_statements_history_long_sizing= 0;
-  param.m_events_transactions_history_sizing= 0;
-  param.m_events_transactions_history_long_sizing= 0;
   param.m_digest_sizing= 0;
   param.m_session_connect_attrs_sizing= 0;
-  param.m_program_sizing= 0;
-  param.m_statement_stack_sizing= 0;
-  param.m_memory_class_sizing= 0;
-  param.m_metadata_lock_sizing= 0;
   param.m_max_digest_length= 0;
-  param.m_max_sql_text_length= 0;
 
-  param.m_hints.m_table_definition_cache = 100;
-  param.m_hints.m_table_open_cache       = 100;
-  param.m_hints.m_max_connections        = 100;
-  param.m_hints.m_open_files_limit       = 100;
-  param.m_hints.m_max_prepared_stmt_count= 100;
-
-  pre_initialize_performance_schema();
   boot= initialize_performance_schema(& param);
   ok(boot != NULL, "boot");
   ok(boot->get_interface != NULL, "boot->get_interface");
@@ -159,7 +143,7 @@ void test_bootstrap()
 */
 PSI * load_perfschema()
 {
-  PSI *psi;
+  void *psi;
   PSI_bootstrap *boot;
   PFS_global_param param;
 
@@ -193,27 +177,13 @@ PSI * load_perfschema()
   param.m_statement_class_sizing= 0;
   param.m_events_statements_history_sizing= 0;
   param.m_events_statements_history_long_sizing= 0;
-  param.m_events_transactions_history_sizing= 0;
-  param.m_events_transactions_history_long_sizing= 0;
   param.m_digest_sizing= 0;
   param.m_session_connect_attrs_sizing= 0;
-  param.m_program_sizing= 0;
-  param.m_statement_stack_sizing= 10;
-  param.m_memory_class_sizing= 10;
-  param.m_metadata_lock_sizing= 10;
   param.m_max_digest_length= 0;
-  param.m_max_sql_text_length= 1000;
 
-  param.m_hints.m_table_definition_cache = 100;
-  param.m_hints.m_table_open_cache       = 100;
-  param.m_hints.m_max_connections        = 100;
-  param.m_hints.m_open_files_limit       = 100;
-  param.m_hints.m_max_prepared_stmt_count= 100;
-
-  pre_initialize_performance_schema();
   /* test_bootstrap() covered this, assuming it just works */
   boot= initialize_performance_schema(& param);
-  psi= (PSI *)boot->get_interface(PSI_VERSION_1);
+  psi= boot->get_interface(PSI_VERSION_1);
 
   /* Reset every consumer to a known state */
   flag_global_instrumentation= true;
@@ -365,20 +335,6 @@ void test_bad_registration()
   ok(dummy_rwlock_key == 0, "zero key");
 
   dummy_rwlock_key= 9999;
-  PSI_rwlock_info bad_rwlock_2_sx[]=
-  {
-    { & dummy_rwlock_key,
-      /* 109 chars name */
-      "12345678901234567890123456789012345678901234567890"
-      "12345678901234567890123456789012345678901234567890"
-      "123456789",
-      PSI_RWLOCK_FLAG_SX}
-  };
-
-  psi->register_rwlock("Y", bad_rwlock_2_sx, 1);
-  ok(dummy_rwlock_key == 0, "zero key SX");
-
-  dummy_rwlock_key= 9999;
   PSI_rwlock_info bad_rwlock_3[]=
   {
     { & dummy_rwlock_key,
@@ -394,23 +350,6 @@ void test_bad_registration()
 
   psi->register_rwlock("X", bad_rwlock_3, 1);
   ok(dummy_rwlock_key == 2, "assigned key");
-
-  dummy_rwlock_key= 9999;
-  PSI_rwlock_info bad_rwlock_3_sx[]=
-  {
-    { & dummy_rwlock_key,
-      /* 108 chars name */
-      "12345678901234567890123456789012345678901234567890"
-      "12345678901234567890123456789012345678901234567890"
-      "12345678",
-      PSI_RWLOCK_FLAG_SX}
-  };
-
-  psi->register_rwlock("YY", bad_rwlock_3_sx, 1);
-  ok(dummy_rwlock_key == 0, "zero key SX");
-
-  psi->register_rwlock("Y", bad_rwlock_3_sx, 1);
-  ok(dummy_rwlock_key == 3, "assigned key SX");
 
   /*
     Test that length('wait/synch/cond/' (16) + category + '/' (1)) < 32
@@ -759,27 +698,23 @@ void test_init_disabled()
   socket_class_A= find_socket_class(socket_key_A);
   ok(socket_class_A != NULL, "socket class A");
 
-  /*
-    Pretend thread T-1 is running, and disabled, with thread_instrumentation.
-    Disabled instruments are still created so they can be enabled later.
-  */
-
+  /* Pretend thread T-1 is running, and disabled, with thread_instrumentation */
   /* ------------------------------------------------------------------------ */
 
   psi->set_thread(thread_1);
   setup_thread(thread_1, false);
 
-  /* disabled M-A + disabled T-1: instrumentation */
+  /* disabled M-A + disabled T-1: no instrumentation */
 
   mutex_class_A->m_enabled= false;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 != NULL, "mutex_A1 disabled, instrumented");
+  ok(mutex_A1 == NULL, "mutex_A1 not instrumented");
 
   /* enabled M-A + disabled T-1: instrumentation (for later) */
 
   mutex_class_A->m_enabled= true;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 != NULL, "mutex_A1 enabled, instrumented");
+  ok(mutex_A1 != NULL, "mutex_A1 instrumented");
 
   /* broken key + disabled T-1: no instrumentation */
 
@@ -793,13 +728,13 @@ void test_init_disabled()
 
   rwlock_class_A->m_enabled= false;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 != NULL, "rwlock_A1 disabled, instrumented");
+  ok(rwlock_A1 == NULL, "rwlock_A1 not instrumented");
 
   /* enabled RW-A + disabled T-1: instrumentation (for later) */
 
   rwlock_class_A->m_enabled= true;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 != NULL, "rwlock_A1 enabled, instrumented");
+  ok(rwlock_A1 != NULL, "rwlock_A1 instrumented");
 
   /* broken key + disabled T-1: no instrumentation */
 
@@ -813,13 +748,13 @@ void test_init_disabled()
 
   cond_class_A->m_enabled= false;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 != NULL, "cond_A1 disabled, instrumented");
+  ok(cond_A1 == NULL, "cond_A1 not instrumented");
 
   /* enabled C-A + disabled T-1: instrumentation (for later) */
 
   cond_class_A->m_enabled= true;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 != NULL, "cond_A1 enabled, instrumented");
+  ok(cond_A1 != NULL, "cond_A1 instrumented");
 
   /* broken key + disabled T-1: no instrumentation */
 
@@ -848,22 +783,22 @@ void test_init_disabled()
   file_class_A->m_enabled= true;
   psi->create_file(0, "foo", (File) 12);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "file_A1 not instrumented");
+  ok(file_A1 == NULL, "not instrumented");
   psi->create_file(99, "foo", (File) 12);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "file_A1 not instrumented");
+  ok(file_A1 == NULL, "not instrumented");
 
   /* disabled S-A + disabled T-1: no instrumentation */
 
   socket_class_A->m_enabled= false;
   socket_A1= psi->init_socket(socket_key_A, NULL, NULL, 0);
-  ok(socket_A1 != NULL, "socket_A1 disabled, instrumented");
+  ok(socket_A1 == NULL, "socket_A1 not instrumented");
 
   /* enabled S-A + disabled T-1: instrumentation (for later) */
 
   socket_class_A->m_enabled= true;
   socket_A1= psi->init_socket(socket_key_A, NULL, NULL, 0);
-  ok(socket_A1 != NULL, "socket_A1 enabled, instrumented");
+  ok(socket_A1 != NULL, "socket_A1 instrumented");
 
   /* broken key + disabled T-1: no instrumentation */
 
@@ -872,7 +807,7 @@ void test_init_disabled()
   ok(socket_A1 == NULL, "socket key 0 not instrumented");
   socket_A1= psi->init_socket(99, NULL, NULL, 0);
   ok(socket_A1 == NULL, "broken socket key not instrumented");
-
+  
   /* Pretend thread T-1 is enabled */
   /* ----------------------------- */
 
@@ -882,85 +817,85 @@ void test_init_disabled()
 
   mutex_class_A->m_enabled= false;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 != NULL, "mutex_A1 disabled, instrumented");
+  ok(mutex_A1 == NULL, "not instrumented");
 
   /* enabled M-A + enabled T-1: instrumentation */
 
   mutex_class_A->m_enabled= true;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 != NULL, "mutex_A1 enabled, instrumented");
+  ok(mutex_A1 != NULL, "instrumented");
   psi->destroy_mutex(mutex_A1);
 
   /* broken key + enabled T-1: no instrumentation */
 
   mutex_class_A->m_enabled= true;
   mutex_A1= psi->init_mutex(0, NULL);
-  ok(mutex_A1 == NULL, "mutex_A1 not instrumented");
+  ok(mutex_A1 == NULL, "not instrumented");
   mutex_A1= psi->init_mutex(99, NULL);
-  ok(mutex_A1 == NULL, "mutex_A1 not instrumented");
+  ok(mutex_A1 == NULL, "not instrumented");
 
   /* disabled RW-A + enabled T-1: no instrumentation */
 
   rwlock_class_A->m_enabled= false;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 != NULL, "rwlock_A1 disabled, instrumented");
+  ok(rwlock_A1 == NULL, "not instrumented");
 
   /* enabled RW-A + enabled T-1: instrumentation */
 
   rwlock_class_A->m_enabled= true;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 != NULL, "rwlock_A1 enabled, instrumented");
+  ok(rwlock_A1 != NULL, "instrumented");
   psi->destroy_rwlock(rwlock_A1);
 
   /* broken key + enabled T-1: no instrumentation */
 
   rwlock_class_A->m_enabled= true;
   rwlock_A1= psi->init_rwlock(0, NULL);
-  ok(rwlock_A1 == NULL, "rwlock_A1 not instrumented");
+  ok(rwlock_A1 == NULL, "not instrumented");
   rwlock_A1= psi->init_rwlock(99, NULL);
-  ok(rwlock_A1 == NULL, "rwlock_A1 not instrumented");
+  ok(rwlock_A1 == NULL, "not instrumented");
 
   /* disabled C-A + enabled T-1: no instrumentation */
 
   cond_class_A->m_enabled= false;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 != NULL, "cond_A1 disabled, instrumented");
+  ok(cond_A1 == NULL, "not instrumented");
 
   /* enabled C-A + enabled T-1: instrumentation */
 
   cond_class_A->m_enabled= true;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 != NULL, "cond_A1 enabled, instrumented");
+  ok(cond_A1 != NULL, "instrumented");
   psi->destroy_cond(cond_A1);
 
   /* broken key + enabled T-1: no instrumentation */
 
   cond_class_A->m_enabled= true;
   cond_A1= psi->init_cond(0, NULL);
-  ok(cond_A1 == NULL, "cond_A1 not instrumented");
+  ok(cond_A1 == NULL, "not instrumented");
   cond_A1= psi->init_cond(99, NULL);
-  ok(cond_A1 == NULL, "cond_A1 not instrumented");
+  ok(cond_A1 == NULL, "not instrumented");
 
   /* disabled F-A + enabled T-1: no instrumentation */
 
   file_class_A->m_enabled= false;
   psi->create_file(file_key_A, "foo", (File) 12);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "file_A1 not instrumented");
+  ok(file_A1 == NULL, "not instrumented");
 
   /* enabled F-A + open failed + enabled T-1: no instrumentation */
 
   file_class_A->m_enabled= true;
   psi->create_file(file_key_A, "foo", (File) -1);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "file_A1 not instrumented");
+  ok(file_A1 == NULL, "not instrumented");
 
   /* enabled F-A + out-of-descriptors + enabled T-1: no instrumentation */
 
   file_class_A->m_enabled= true;
   psi->create_file(file_key_A, "foo", (File) 65000);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "file_A1 not instrumented");
+  ok(file_A1 == NULL, "not instrumented");
   ok(file_handle_lost == 1, "lost a file handle");
   file_handle_lost= 0;
 
@@ -985,22 +920,22 @@ void test_init_disabled()
   /* disabled S-A + enabled T-1: no instrumentation */
 
   socket_class_A->m_enabled= false;
-  ok(socket_A1 == NULL, "socket_A1 not instrumented");
+  ok(socket_A1 == NULL, "not instrumented");
 
   /* enabled S-A + enabled T-1: instrumentation */
 
   socket_class_A->m_enabled= true;
   socket_A1= psi->init_socket(socket_key_A, NULL, NULL, 0);
-  ok(socket_A1 != NULL, "socket_A1 instrumented");
+  ok(socket_A1 != NULL, "instrumented");
   psi->destroy_socket(socket_A1);
 
   /* broken key + enabled T-1: no instrumentation */
 
   socket_class_A->m_enabled= true;
   socket_A1= psi->init_socket(0, NULL, NULL, 0);
-  ok(socket_A1 == NULL, "socket_A1 not instrumented");
+  ok(socket_A1 == NULL, "not instrumented");
   socket_A1= psi->init_socket(99, NULL, NULL, 0);
-  ok(socket_A1 == NULL, "socket_A1 not instrumented");
+  ok(socket_A1 == NULL, "not instrumented");
 
   /* Pretend the running thread is not instrumented */
   /* ---------------------------------------------- */
@@ -1011,13 +946,13 @@ void test_init_disabled()
 
   mutex_class_A->m_enabled= false;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 != NULL, "mutex_A1 disabled, instrumented");
+  ok(mutex_A1 == NULL, "mutex_A1 not instrumented");
 
   /* enabled M-A + unknown thread: instrumentation (for later) */
 
   mutex_class_A->m_enabled= true;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 != NULL, "mutex_A1 enabled, instrumented");
+  ok(mutex_A1 != NULL, "mutex_A1 instrumented");
 
   /* broken key + unknown thread: no instrumentation */
 
@@ -1031,13 +966,13 @@ void test_init_disabled()
 
   rwlock_class_A->m_enabled= false;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 != NULL, "rwlock_A1 disabled, instrumented");
+  ok(rwlock_A1 == NULL, "rwlock_A1 not instrumented");
 
   /* enabled RW-A + unknown thread: instrumentation (for later) */
 
   rwlock_class_A->m_enabled= true;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 != NULL, "rwlock_A1 enabled, instrumented");
+  ok(rwlock_A1 != NULL, "rwlock_A1 instrumented");
 
   /* broken key + unknown thread: no instrumentation */
 
@@ -1051,13 +986,13 @@ void test_init_disabled()
 
   cond_class_A->m_enabled= false;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 != NULL, "cond_A1 disabled, instrumented");
+  ok(cond_A1 == NULL, "cond_A1 not instrumented");
 
   /* enabled C-A + unknown thread: instrumentation (for later) */
 
   cond_class_A->m_enabled= true;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 != NULL, "cond_A1 enabled, instrumented");
+  ok(cond_A1 != NULL, "cond_A1 instrumented");
 
   /* broken key + unknown thread: no instrumentation */
 
@@ -1072,14 +1007,14 @@ void test_init_disabled()
   file_class_A->m_enabled= false;
   psi->create_file(file_key_A, "foo", (File) 12);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "file_A1 not instrumented");
+  ok(file_A1 == NULL, "not instrumented");
 
   /* enabled F-A + unknown thread: no instrumentation */
 
   file_class_A->m_enabled= true;
   psi->create_file(file_key_A, "foo", (File) 12);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "file_A1 not instrumented");
+  ok(file_A1 == NULL, "not instrumented");
 
   /* broken key + unknown thread: no instrumentation */
 
@@ -1095,13 +1030,13 @@ void test_init_disabled()
 
   socket_class_A->m_enabled= false;
   socket_A1= psi->init_socket(socket_key_A, NULL, NULL, 0);
-  ok(socket_A1 != NULL, "socket_A1 disabled, instrumented");
+  ok(socket_A1 == NULL, "socket_A1 not instrumented");
 
   /* enabled S-A + unknown thread: instrumentation (for later) */
 
   socket_class_A->m_enabled= true;
   socket_A1= psi->init_socket(socket_key_A, NULL, NULL, 0);
-  ok(socket_A1 != NULL, "socket_A1 enabled, instrumented");
+  ok(socket_A1 != NULL, "socket_A1 instrumented");
 
   /* broken key + unknown thread: no instrumentation */
 
@@ -1586,7 +1521,7 @@ void test_event_name_index()
   memset(& param, 0xFF, sizeof(param));
   param.m_enabled= true;
 
-  /* NOTE: Need to add 4 to each index: table io, table lock, idle, metadata lock */
+  /* NOTE: Need to add 3 to each index: table io, table lock, idle */
 
   /* Per mutex info waits should be at [0..9] */
   param.m_mutex_class_sizing= 10;
@@ -1611,16 +1546,9 @@ void test_event_name_index()
   param.m_statement_class_sizing= 0;
   param.m_events_statements_history_sizing= 0;
   param.m_events_statements_history_long_sizing= 0;
-  param.m_events_transactions_history_sizing= 0;
-  param.m_events_transactions_history_long_sizing= 0;
   param.m_digest_sizing= 0;
   param.m_session_connect_attrs_sizing= 0;
-  param.m_program_sizing= 0;
-  param.m_statement_stack_sizing= 10;
-  param.m_memory_class_sizing= 12;
-  param.m_metadata_lock_sizing= 10;
   param.m_max_digest_length= 0;
-  param.m_max_sql_text_length= 1000;
 
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 0;
@@ -1635,13 +1563,6 @@ void test_event_name_index()
   param.m_setup_actor_sizing= 0;
   param.m_setup_object_sizing= 0;
 
-  param.m_hints.m_table_definition_cache = 100;
-  param.m_hints.m_table_open_cache       = 100;
-  param.m_hints.m_max_connections        = 100;
-  param.m_hints.m_open_files_limit       = 100;
-  param.m_hints.m_max_prepared_stmt_count= 100;
-
-  pre_initialize_performance_schema();
   boot= initialize_performance_schema(& param);
   ok(boot != NULL, "bootstrap");
   psi= (PSI*) boot->get_interface(PSI_VERSION_1);
@@ -1659,10 +1580,10 @@ void test_event_name_index()
   psi->register_mutex("X", dummy_mutexes, 2);
   mutex_class= find_mutex_class(dummy_mutex_key_1);
   ok(mutex_class != NULL, "mutex class 1");
-  ok(mutex_class->m_event_name_index == 4, "index 4");
+  ok(mutex_class->m_event_name_index == 3, "index 3");
   mutex_class= find_mutex_class(dummy_mutex_key_2);
   ok(mutex_class != NULL, "mutex class 2");
-  ok(mutex_class->m_event_name_index == 5, "index 5");
+  ok(mutex_class->m_event_name_index == 4, "index 4");
 
   PFS_rwlock_class *rwlock_class;
   PSI_rwlock_key dummy_rwlock_key_1;
@@ -1676,10 +1597,10 @@ void test_event_name_index()
   psi->register_rwlock("X", dummy_rwlocks, 2);
   rwlock_class= find_rwlock_class(dummy_rwlock_key_1);
   ok(rwlock_class != NULL, "rwlock class 1");
-  ok(rwlock_class->m_event_name_index == 14, "index 14");
+  ok(rwlock_class->m_event_name_index == 13, "index 13");
   rwlock_class= find_rwlock_class(dummy_rwlock_key_2);
   ok(rwlock_class != NULL, "rwlock class 2");
-  ok(rwlock_class->m_event_name_index == 15, "index 15");
+  ok(rwlock_class->m_event_name_index == 14, "index 14");
 
   PFS_cond_class *cond_class;
   PSI_cond_key dummy_cond_key_1;
@@ -1693,10 +1614,10 @@ void test_event_name_index()
   psi->register_cond("X", dummy_conds, 2);
   cond_class= find_cond_class(dummy_cond_key_1);
   ok(cond_class != NULL, "cond class 1");
-  ok(cond_class->m_event_name_index == 34, "index 34");
+  ok(cond_class->m_event_name_index == 33, "index 33");
   cond_class= find_cond_class(dummy_cond_key_2);
   ok(cond_class != NULL, "cond class 2");
-  ok(cond_class->m_event_name_index == 35, "index 35");
+  ok(cond_class->m_event_name_index == 34, "index 34");
 
   PFS_file_class *file_class;
   PSI_file_key dummy_file_key_1;
@@ -1710,10 +1631,10 @@ void test_event_name_index()
   psi->register_file("X", dummy_files, 2);
   file_class= find_file_class(dummy_file_key_1);
   ok(file_class != NULL, "file class 1");
-  ok(file_class->m_event_name_index == 74, "index 74");
+  ok(file_class->m_event_name_index == 73, "index 73");
   file_class= find_file_class(dummy_file_key_2);
   ok(file_class != NULL, "file class 2");
-  ok(file_class->m_event_name_index == 75, "index 75");
+  ok(file_class->m_event_name_index == 74, "index 74");
 
   PFS_socket_class *socket_class;
   PSI_socket_key dummy_socket_key_1;
@@ -1727,162 +1648,14 @@ void test_event_name_index()
   psi->register_socket("X", dummy_sockets, 2);
   socket_class= find_socket_class(dummy_socket_key_1);
   ok(socket_class != NULL, "socket class 1");
-  ok(socket_class->m_event_name_index == 154, "index 154");
+  ok(socket_class->m_event_name_index == 153, "index 153");
   socket_class= find_socket_class(dummy_socket_key_2);
   ok(socket_class != NULL, "socket class 2");
-  ok(socket_class->m_event_name_index == 155, "index 155");
+  ok(socket_class->m_event_name_index == 154, "index 154");
 
   ok(global_table_io_class.m_event_name_index == 0, "index 0");
   ok(global_table_lock_class.m_event_name_index == 1, "index 1");
-  ok(wait_class_max= 314, "314 event names"); // 4 global classes
-
-  shutdown_performance_schema();
-}
-
-void test_memory_instruments()
-{
-  PSI *psi;
-  PSI_thread *owner;
-
-  diag("test_memory_instruments");
-
-  psi= load_perfschema();
-
-  PSI_memory_key memory_key_A;
-  PSI_memory_info all_memory[]=
-  {
-    { & memory_key_A, "M-A", 0}
-  };
-
-  PSI_thread_key thread_key_1;
-  PSI_thread_info all_thread[]=
-  {
-    { & thread_key_1, "T-1", 0}
-  };
-
-  psi->register_memory("test", all_memory, 1);
-  psi->register_thread("test", all_thread, 1);
-
-  PFS_memory_class *memory_class_A;
-  PSI_thread *thread_1;
-  PSI_memory_key key;
-
-  /* Preparation */
-
-  thread_1= psi->new_thread(thread_key_1, NULL, 0);
-  ok(thread_1 != NULL, "T-1");
-  psi->set_thread_id(thread_1, 1);
-
-  memory_class_A= find_memory_class(memory_key_A);
-  ok(memory_class_A != NULL, "memory info A");
-
-  /* Pretend thread T-1 is running, and enabled */
-  /* ------------------------------------------ */
-
-  psi->set_thread(thread_1);
-  setup_thread(thread_1, true);
-
-  /* Enable all instruments */
-
-  memory_class_A->m_enabled= true;
-
-  /* for coverage, need to print stats collected. */
-
-  key= psi->memory_alloc(memory_key_A, 100, & owner);
-  ok(key == memory_key_A, "alloc memory info A");
-  key= psi->memory_realloc(memory_key_A, 100, 200, & owner);
-  ok(key == memory_key_A, "realloc memory info A");
-  key= psi->memory_realloc(memory_key_A, 200, 300, & owner);
-  ok(key == memory_key_A, "realloc up memory info A");
-  key= psi->memory_realloc(memory_key_A, 300, 50, & owner);
-  ok(key == memory_key_A, "realloc down memory info A");
-  psi->memory_free(memory_key_A, 50, owner);
-
-  /* Use global instrumentation only */
-  /* ------------------------------- */
-
-  flag_thread_instrumentation= false;
-
-  key= psi->memory_alloc(memory_key_A, 100, & owner);
-  ok(key == memory_key_A, "alloc memory info A");
-  key= psi->memory_realloc(memory_key_A, 100, 200, & owner);
-  ok(key == memory_key_A, "realloc memory info A");
-  key= psi->memory_realloc(memory_key_A, 200, 300, & owner);
-  ok(key == memory_key_A, "realloc up memory info A");
-  key= psi->memory_realloc(memory_key_A, 300, 50, & owner);
-  ok(key == memory_key_A, "realloc down memory info A");
-  psi->memory_free(memory_key_A, 50, owner);
-
-  /* Garbage, for robustness */
-  /* ----------------------- */
-
-  key= psi->memory_alloc(9999, 100, & owner);
-  ok(key == PSI_NOT_INSTRUMENTED, "alloc with unknown key");
-  key= psi->memory_realloc(PSI_NOT_INSTRUMENTED, 100, 200, & owner);
-  ok(key == PSI_NOT_INSTRUMENTED, "realloc with unknown key");
-  psi->memory_free(PSI_NOT_INSTRUMENTED, 200, owner);
-
-  shutdown_performance_schema();
-}
-
-void test_leaks()
-{
-  PSI_bootstrap *boot;
-  PFS_global_param param;
-
-  /* Allocate everything, to make sure cleanup does not forget anything. */
-
-  memset(& param, 0xFF, sizeof(param));
-  param.m_enabled= true;
-  param.m_mutex_class_sizing= 10;
-  param.m_rwlock_class_sizing= 10;
-  param.m_cond_class_sizing= 10;
-  param.m_thread_class_sizing= 10;
-  param.m_table_share_sizing= 10;
-  param.m_file_class_sizing= 10;
-  param.m_socket_class_sizing= 10;
-  param.m_mutex_sizing= 1000;
-  param.m_rwlock_sizing= 1000;
-  param.m_cond_sizing= 1000;
-  param.m_thread_sizing= 1000;
-  param.m_table_sizing= 1000;
-  param.m_file_sizing= 1000;
-  param.m_file_handle_sizing= 1000;
-  param.m_socket_sizing= 1000;
-  param.m_events_waits_history_sizing= 10;
-  param.m_events_waits_history_long_sizing= 1000;
-  param.m_setup_actor_sizing= 1000;
-  param.m_setup_object_sizing= 1000;
-  param.m_host_sizing= 1000;
-  param.m_user_sizing= 1000;
-  param.m_account_sizing= 1000;
-  param.m_stage_class_sizing= 10;
-  param.m_events_stages_history_sizing= 10;
-  param.m_events_stages_history_long_sizing= 1000;
-  param.m_statement_class_sizing= 10;
-  param.m_events_statements_history_sizing= 10;
-  param.m_events_statements_history_long_sizing= 1000;
-  param.m_session_connect_attrs_sizing= 1000;
-  param.m_memory_class_sizing= 10;
-  param.m_metadata_lock_sizing= 1000;
-  param.m_digest_sizing= 1000;
-  param.m_program_sizing= 1000;
-  param.m_statement_stack_sizing= 10;
-  param.m_max_digest_length= 1000;
-  param.m_max_sql_text_length= 1000;
-
-  param.m_hints.m_table_definition_cache = 100;
-  param.m_hints.m_table_open_cache       = 100;
-  param.m_hints.m_max_connections        = 100;
-  param.m_hints.m_open_files_limit       = 100;
-  param.m_hints.m_max_prepared_stmt_count= 100;
-
-  pre_initialize_performance_schema();
-  boot= initialize_performance_schema(& param);
-  ok(boot != NULL, "bootstrap");
-  shutdown_performance_schema();
-
-  /* Leaks will be reported with valgrind */
+  ok(wait_class_max= 313, "313 event names"); // 3 global classes
 }
 
 void do_all_tests()
@@ -1895,13 +1668,11 @@ void do_all_tests()
   test_locker_disabled();
   test_file_instrumentation_leak();
   test_event_name_index();
-  test_memory_instruments();
-  test_leaks();
 }
 
 int main(int argc, char **argv)
 {
-  plan(232);
+  plan(216);
   MY_INIT(argv[0]);
   do_all_tests();
   my_end(0);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -33,7 +33,6 @@
 
 class String;
 struct PFS_global_param;
-class PFS_opaque_container_page;
 
 /**
   @addtogroup Performance_schema_buffers
@@ -76,13 +75,11 @@ struct PFS_ALIGNED PFS_setup_object
   bool m_enabled;
   /** TIMED flag. */
   bool m_timed;
-  /** Container page. */
-  PFS_opaque_container_page *m_page;
 };
 
 int init_setup_object(const PFS_global_param *param);
 void cleanup_setup_object(void);
-int init_setup_object_hash(const PFS_global_param *param);
+int init_setup_object_hash(void);
 void cleanup_setup_object_hash(void);
 
 int insert_setup_object(enum_object_type object_type, const String *schema,
@@ -98,7 +95,13 @@ void lookup_setup_object(PFS_thread *thread,
                          const char *object_name, int object_name_length,
                          bool *enabled, bool *timed);
 
-/* For show status. */
+/* For iterators and show status. */
+
+extern ulong setup_object_max;
+
+/* Exposing the data directly, for iterators. */
+
+extern PFS_setup_object *setup_object_array;
 
 extern LF_HASH setup_object_hash;
 

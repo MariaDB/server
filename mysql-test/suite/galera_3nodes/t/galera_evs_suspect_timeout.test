@@ -26,11 +26,8 @@ SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_ti
 --let $wsrep_provider_options_node2 = `SELECT @@wsrep_provider_options`
 SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_timeout=PT1S';
 
---connection node_3
---source include/wait_until_connected_again.inc
---let $wsrep_cluster_address_node3 = `SELECT @@wsrep_cluster_address`
-
 # Suspend node #3
+
 --connection node_3
 --source include/galera_suspend.inc
 --sleep 5

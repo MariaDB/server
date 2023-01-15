@@ -12,7 +12,7 @@
 --source include/master-slave.inc
 #
 # The test runs long and does not have any specifics to 
-# binlog_format. It is chosen therefore to run with MIXED mode
+# binlog_format. It is choosen therefore to run with MIXED mode
 # in order to not slow down much `make test'.
 #
 --source include/have_binlog_format_mixed.inc

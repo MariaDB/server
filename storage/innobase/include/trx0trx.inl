@@ -26,7 +26,7 @@ Created 3/26/1996 Heikki Tuuri
 
 /**********************************************************************//**
 Determines if a transaction is in the given state.
-The caller must hold trx->mutex, or it must be the thread
+The caller must hold trx_sys.mutex, or it must be the thread
 that is serving a running transaction.
 A running RW transaction must be in trx_sys.rw_trx_hash.
 @return TRUE if trx->state == state */

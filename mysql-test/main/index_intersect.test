@@ -139,7 +139,7 @@ SELECT * FROM City
 --replace_column 9 #
 EXPLAIN
 SELECT * FROM City 
-  WHERE Name BETWEEN 'G' AND 'K' AND Population > 1000000 AND Country LIKE 'J%';
+  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 
 --replace_column 7 # 9 #
 --replace_result Population,Country,Name Population,Name,Country
@@ -161,11 +161,11 @@ SELECT * FROM City
 
 
 SELECT * FROM City USE INDEX ()
-  WHERE Name BETWEEN 'G' AND 'K' AND Population > 1000000 AND Country LIKE 'J%';
+  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 
 --sorted_result
 SELECT * FROM City 
-  WHERE Name BETWEEN 'G' AND 'K' AND Population > 1000000 AND Country LIKE 'J%';
+  WHERE Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 
 
 SELECT * FROM City USE INDEX ()
@@ -275,22 +275,10 @@ SELECT * FROM City USE INDEX ()
 SELECT * FROM City 
   WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
         AND Country BETWEEN 'S' AND 'Z' ;
-        
-# Originally this was just sort_buffer_size=2048. Then, it started
-# failing on 32bit due to different cost number in
-# Unique::get_use_cost() because of sizeof(sizeof(TREE_ELEMENT)+key_size)
 
-# On 64 bit:  Unique object element_size=32, which gives 2048/32= 64 elements
-# in the tree.
-# On 32 bit:  Unique object element_size=24. 
-# If we want 64 elements in the tree, we need 64*24=1536 as sort_buffer_size.
 
-# The purpose of setting sort_buffer_size is to show that some of the following
-# explains should use 'index_merge' while others should use range
-# If the following code causes future problems, the other option would be
-# to create a separate result-.diff file for 32 bit.
+SET SESSION sort_buffer_size = 2048;
 
-SET SESSION sort_buffer_size = IF(@@version_compile_machine like '%64%', 2048, 1536);
 
 # The following EXPLAIN command demonstrate that the execution plans
 # may be different if sort_buffer_size is set to a small value
@@ -310,7 +298,7 @@ SELECT * FROM City WHERE
 --replace_column 9 #
 EXPLAIN
 SELECT * FROM City 
-  WHERE  Name BETWEEN 'G' AND 'K' AND Population > 1000000 AND Country LIKE 'J%';
+  WHERE  Name BETWEEN 'G' AND 'J' AND Population > 1000000 AND Country LIKE 'J%';
 
 --replace_column 9 #
 EXPLAIN

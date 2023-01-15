@@ -109,7 +109,4 @@ typedef LSN LSN_WITH_FLAGS;
 */
 #define LSN_MAX (LSN)0x00FFFFFFFFFFFFFFULL
 
-/* Max LSN error to print on check or recovery */
-#define MAX_LSN_ERRORS 10
-
 #endif

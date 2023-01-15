@@ -202,7 +202,7 @@ public:
     @retval TRUE   error, use get_last_error()
                    to see the error number.
   */
-  bool execute_direct(Protocol *p, LEX_STRING sql_text);
+  bool execute_direct(LEX_STRING sql_text);
 
   /**
     Same as the previous, but takes an instance of Server_runnable
@@ -215,7 +215,7 @@ public:
                     return a result set
     @retval  TRUE   failure
   */
-  bool execute_direct(Protocol *p, Server_runnable *server_runnable);
+  bool execute_direct(Server_runnable *server_runnable);
 
   /**
     Get the number of affected (deleted, updated)
@@ -311,6 +311,7 @@ private:
   THD *m_thd;
   Ed_result_set *m_rsets;
   Ed_result_set *m_current_rset;
+  friend class Protocol_local;
 private:
   void free_old_result();
   void add_result_set(Ed_result_set *ed_result_set);

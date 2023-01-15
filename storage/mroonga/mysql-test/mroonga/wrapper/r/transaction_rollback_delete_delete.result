@@ -28,7 +28,7 @@ MATCH(body) AGAINST("groonga");
 id	title	body
 DELETE FROM diaries WHERE id = 1;
 Warnings:
-Warning	1026	failed to get record ID for deleting from groonga: key=<\0001>
+Warning	1026	failed to get record ID for deleting from groonga: key=<>
 SELECT * FROM diaries;
 id	title	body
 2	groonga (1)	starting groonga...

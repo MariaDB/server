@@ -597,8 +597,9 @@ pars_resolve_exp_variables_and_types(
 			|| (node->token_type == SYM_CURSOR)
 			|| (node->token_type == SYM_FUNCTION))
 		    && node->name
-		    && sym_node->name_len == node->name_len
-		    && !memcmp(sym_node->name, node->name, node->name_len)) {
+		    && (sym_node->name_len == node->name_len)
+		    && (ut_memcmp(sym_node->name, node->name,
+				  node->name_len) == 0)) {
 
 			/* Found a variable or a cursor declared with
 			the same name */
@@ -706,9 +707,9 @@ pars_resolve_exp_columns(
 			const char*		col_name
 				= dict_table_get_col_name(table, i);
 
-			if (sym_node->name_len == strlen(col_name)
-			    && !memcmp(sym_node->name, col_name,
-				       sym_node->name_len)) {
+			if ((sym_node->name_len == ut_strlen(col_name))
+			    && (0 == ut_memcmp(sym_node->name, col_name,
+					       sym_node->name_len))) {
 				/* Found */
 				sym_node->resolved = TRUE;
 				sym_node->token_type = SYM_COLUMN;
@@ -827,7 +828,7 @@ pars_select_all_columns(
 
 			col_node = sym_tab_add_id(pars_sym_tab_global,
 						  (byte*) col_name,
-						  strlen(col_name));
+						  ut_strlen(col_name));
 
 			select_node->select_list = que_node_list_add_last(
 				select_node->select_list, col_node);
@@ -1131,11 +1132,9 @@ pars_process_assign_list(
 
 		col_sym = assign_node->col;
 
-		ulint field_no = dict_index_get_nth_col_pos(
-			clust_index, col_sym->col_no, NULL);
-		ut_ad(field_no < clust_index->n_fields);
-		upd_field_set_field_no(upd_field,
-				       static_cast<uint16_t>(field_no),
+		upd_field_set_field_no(upd_field, dict_index_get_nth_col_pos(
+						clust_index, col_sym->col_no,
+						NULL),
 				       clust_index);
 		upd_field->exp = assign_node->val;
 
@@ -1932,7 +1931,7 @@ pars_stored_procedure_call(
 
 /*************************************************************//**
 Retrieves characters to the lexical analyzer. */
-int
+size_t
 pars_get_lex_chars(
 /*===============*/
 	char*	buf,		/*!< in/out: buffer where to copy */
@@ -1954,7 +1953,7 @@ pars_get_lex_chars(
 
 	pars_sym_tab_global->next_char_pos += len;
 
-	return static_cast<int>(len);
+	return(len);
 }
 
 /*************************************************************//**

@@ -29,11 +29,6 @@ ENDIF()
 
 PROJECT(MySQL)
 
-# Remove the following comment if you don't want to have striped binaries
-# in RPM's:
-
-#set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-
 IF(POLICY CMP0022)
   CMAKE_POLICY(SET CMP0022 NEW)
 ENDIF()
@@ -45,9 +40,6 @@ IF(POLICY CMP0054)
 ENDIF()
 IF(POLICY CMP0075)
   CMAKE_POLICY(SET CMP0075 NEW)
-ENDIF()
-IF(POLICY CMP0069)
- CMAKE_POLICY(SET CMP0069 NEW)
 ENDIF()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
@@ -178,7 +170,7 @@ INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(symlinks)
 INCLUDE(compile_flags)
-INCLUDE(pmem)
+INCLUDE(crc32)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -187,10 +179,6 @@ IF(DISABLE_SHARED)
   SET(WITHOUT_DYNAMIC_PLUGINS 1)
 ENDIF()
 OPTION(ENABLED_PROFILING "Enable profiling" ON)
-OPTION(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS "Enable Json_writer_object / Json_writer_array checking to produce consistent JSON output" OFF)
-IF(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
-  ADD_DEFINITIONS(-DENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
-ENDIF()
 OPTION(WITHOUT_SERVER "Build only the client library and clients" OFF)
 IF(UNIX)
   OPTION(WITH_VALGRIND "Valgrind instrumentation" OFF)
@@ -247,18 +235,10 @@ IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
 ENDIF()
 
-OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
-IF (WITH_GPROF)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-pg -g -no-pie -fPIC")
-ENDIF()
-
-# Be nice to profilers etc
-MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
-
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
-IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
   MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
@@ -282,11 +262,6 @@ SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 IF (ENABLE_GCOV)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fprofile-arcs -ftest-coverage -lgcov" DEBUG)
-ENDIF()
-
-OPTION(WITHOUT_PACKED_SORT_KEYS "disable packed sort keys"  OFF)
-IF(WITHOUT_PACKED_SORT_KEYS)
-  ADD_DEFINITIONS(-DWITHOUT_PACKED_SORT_KEYS)
 ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
@@ -380,7 +355,7 @@ IF(NOT HAVE_CXX_NEW)
 ENDIF()
 
 # Find header files from the bundled libraries
-# (wolfssl, readline, pcre2, etc)
+# (wolfssl, readline, pcre, etc)
 # before the ones installed in the system
 SET(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
@@ -404,7 +379,7 @@ CHECK_PCRE()
 
 CHECK_SYSTEMD()
 
-IF(CMAKE_CROSSCOMPILING AND NOT DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
+IF(CMAKE_CROSSCOMPILING)
   SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
   INCLUDE(${IMPORT_EXECUTABLES})
 ENDIF()
@@ -440,7 +415,7 @@ INCLUDE(cpack_tgz)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 
-SET(PYTHON_SHEBANG "/usr/bin/env python3" CACHE STRING "python shebang")
+SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
 MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 # Add storage engines and plugins.
@@ -456,7 +431,6 @@ ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(extra)
 ADD_SUBDIRECTORY(libservices)
 ADD_SUBDIRECTORY(sql/share)
-ADD_SUBDIRECTORY(tpool)
 
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
@@ -491,7 +465,7 @@ ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(support-files)
 ADD_SUBDIRECTORY(extra/aws_sdk)
 
-IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
+IF(NOT CMAKE_CROSSCOMPILING)
   SET(EXPORTED comp_err comp_sql factorial)
   IF(NOT WITHOUT_SERVER)
     SET(EXPORTED ${EXPORTED} gen_lex_hash gen_lex_token)
@@ -550,10 +524,7 @@ INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY COMPONENT Readme)
 #                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)
 
 IF(UNIX)
-  INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
-  IF(WITH_WSREP)
-    INSTALL_DOCUMENTATION(Docs/README-wsrep COMPONENT Readme)
-  ENDIF()
+  INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY Docs/README-wsrep COMPONENT Readme)
 ENDIF()
 
 INCLUDE(build_depends)
@@ -585,21 +556,20 @@ IF(NOT WITHOUT_SERVER)
   ADD_DEPENDENCIES(minbuild
    aria_chk
    aria_pack
-   mariadb
-   mariadb-admin
-   mariadb-binlog
-   mariadb-check
-   mariadb-client-test
-   mariadb-conv
-   mariadb-dump
-   mariadb-import
-   mariadb-plugin
-   mariadb-show
-   mariadb-slap
-   mariadb-test
-   mariadb-tzinfo-to-sql
-   mariadb-upgrade
-   mariadbd
+   mysql
+   mysqladmin
+   mysqlbinlog
+   mysqlcheck
+   mysql_client_test
+   mysqldump
+   mysqlimport
+   mysql_plugin
+   mysqlshow
+   mysqlslap
+   mysqltest
+   mysql_tzinfo_to_sql
+   mysql_upgrade
+   mysqld
    my_print_defaults
    my_safe_process
    myisam_ftdump
@@ -609,7 +579,7 @@ IF(NOT WITHOUT_SERVER)
    perror
    replace)
   IF(WIN32)
-    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
+    ADD_DEPENDENCIES(minbuild echo mysql_install_db my_safe_kill)
   ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st

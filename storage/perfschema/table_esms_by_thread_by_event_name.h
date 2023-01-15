@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -72,6 +72,9 @@ struct pos_esms_by_thread_by_event_name
     m_index_2= 1;
   }
 
+  inline bool has_more_thread(void)
+  { return (m_index_1 < thread_max); }
+
   inline void next_thread(void)
   {
     m_index_1++;
@@ -88,12 +91,10 @@ struct pos_esms_by_thread_by_event_name
 class table_esms_by_thread_by_event_name : public PFS_engine_table
 {
 public:
-  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
-  static ha_rows get_row_count();
 
   virtual int rnd_init(bool scan);
   virtual int rnd_next();

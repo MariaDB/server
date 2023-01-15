@@ -1,7 +1,7 @@
 #ifndef ITEM_SUM_INCLUDED
 #define ITEM_SUM_INCLUDED
 /* Copyright (c) 2000, 2013 Oracle and/or its affiliates.
-   Copyright (c) 2008, 2023, MariaDB Corporation.
+   Copyright (c) 2008, 2013 Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -355,8 +355,7 @@ public:
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
-    PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC, JSON_ARRAYAGG_FUNC,
-    JSON_OBJECTAGG_FUNC
+    PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -429,7 +428,6 @@ public:
     case SUM_BIT_FUNC:
     case UDF_SUM_FUNC:
     case GROUP_CONCAT_FUNC:
-    case JSON_ARRAYAGG_FUNC:
       return true;
     default:
       return false;
@@ -515,11 +513,11 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  virtual Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
-  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
+  virtual Field *create_tmp_field(bool group, TABLE *table);
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
-    return create_tmp_field(root, param->group(), table);
+    return create_tmp_field(param->group(), table);
   }
   virtual bool collect_outer_ref_processor(void *param);
   bool init_sum_func_check(THD *thd);
@@ -780,6 +778,7 @@ public:
   {
     return get_date_from_int(thd, ltime, fuzzydate);
   }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   bool fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; return FALSE; }
 };
@@ -899,7 +898,6 @@ public:
     count=count_arg;
     Item_sum::make_const();
   }
-  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   longlong val_int();
   void reset_field();
   void update_field();
@@ -959,7 +957,7 @@ public:
     return has_with_distinct() ? "avg(distinct " : "avg("; 
   }
   Item *copy_or_same(THD* thd);
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
+  Field *create_tmp_field(bool group, TABLE *table);
   void cleanup()
   {
     count= 0;
@@ -1016,10 +1014,10 @@ public:
 
 
 
-class Item_sum_variance :public Item_sum_double
+class Item_sum_variance : public Item_sum_double
 {
   Stddev m_stddev;
-  bool fix_length_and_dec() override;
+  bool fix_length_and_dec();
 
 public:
   uint sample;
@@ -1030,27 +1028,26 @@ public:
     sample(sample_arg)
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
-  Sumfunctype sum_func () const override { return VARIANCE_FUNC; }
+  enum Sumfunctype sum_func () const { return VARIANCE_FUNC; }
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
-  void clear() override final;
-  bool add() override final;
-  double val_real() override;
-  void reset_field() override final;
-  void update_field() override final;
-  Item *result_item(THD *thd, Field *field) override;
-  void no_rows_in_result() override final {}
-  const char *func_name() const override
+  void clear();
+  bool add();
+  double val_real();
+  void reset_field();
+  void update_field();
+  Item *result_item(THD *thd, Field *field);
+  void no_rows_in_result() {}
+  const char *func_name() const
     { return sample ? "var_samp(" : "variance("; }
-  Item *copy_or_same(THD* thd) override;
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table) override
-    final;
-  void cleanup() override final
+  Item *copy_or_same(THD* thd);
+  Field *create_tmp_field(bool group, TABLE *table);
+  void cleanup()
   {
     m_stddev= Stddev();
     Item_sum_double::cleanup();
   }
-  Item *get_copy(THD *thd) override
+  Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_variance>(thd, this); }
 };
 
@@ -1058,7 +1055,7 @@ public:
    standard_deviation(a) = sqrt(variance(a))
 */
 
-class Item_sum_std final :public Item_sum_variance
+class Item_sum_std :public Item_sum_variance
 {
   public:
   Item_sum_std(THD *thd, Item *item_par, uint sample_arg):
@@ -1066,28 +1063,27 @@ class Item_sum_std final :public Item_sum_variance
   Item_sum_std(THD *thd, Item_sum_std *item)
     :Item_sum_variance(thd, item)
     {}
-  enum Sumfunctype sum_func () const override final { return STD_FUNC; }
-  double val_real() override final;
-  Item *result_item(THD *thd, Field *field) override final;
-  const char *func_name() const override final
-  { return sample ? "stddev_samp(" : "std("; }
-  Item *copy_or_same(THD* thd) override final;
-  Item *get_copy(THD *thd) override final
+  enum Sumfunctype sum_func () const { return STD_FUNC; }
+  double val_real();
+  Item *result_item(THD *thd, Field *field);
+  const char *func_name() const { return sample ? "stddev_samp(" : "std("; }
+  Item *copy_or_same(THD* thd);
+  Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_std>(thd, this); }
 };
 
 
-class Item_sum_hybrid : public Item_sum,
+class Item_sum_hybrid: public Item_sum,
                        public Type_handler_hybrid_field_type
 {
 public:
   Item_sum_hybrid(THD *thd, Item *item_par):
     Item_sum(thd, item_par),
-    Type_handler_hybrid_field_type(&type_handler_slonglong)
+    Type_handler_hybrid_field_type(&type_handler_longlong)
   { collation.set(&my_charset_bin); }
   Item_sum_hybrid(THD *thd, Item *a, Item *b):
     Item_sum(thd, a, b),
-    Type_handler_hybrid_field_type(&type_handler_slonglong)
+    Type_handler_hybrid_field_type(&type_handler_longlong)
   { collation.set(&my_charset_bin); }
   Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
     :Item_sum(thd, item),
@@ -1142,7 +1138,7 @@ public:
   {
     return get_arg(0)->real_type_handler();
   }
-  const TYPELIB *get_typelib() const { return args[0]->get_typelib(); }
+  TYPELIB *get_typelib() const { return args[0]->get_typelib(); }
   void update_field();
   void min_max_update_str_field();
   void min_max_update_real_field();
@@ -1153,12 +1149,12 @@ public:
   bool any_value() { return was_values; }
   void no_rows_in_result();
   void restore_to_before_no_rows_in_result();
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table);
+  Field *create_tmp_field(bool group, TABLE *table);
   void setup_caches(THD *thd) { setup_hybrid(thd, arguments()[0], NULL); }
 };
 
 
-class Item_sum_min final :public Item_sum_min_max
+class Item_sum_min :public Item_sum_min_max
 {
 public:
   Item_sum_min(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, 1) {}
@@ -1173,7 +1169,7 @@ public:
 };
 
 
-class Item_sum_max final :public Item_sum_min_max
+class Item_sum_max :public Item_sum_min_max
 {
 public:
   Item_sum_max(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, -1) {}
@@ -1207,11 +1203,8 @@ public:
   longlong val_int();
   void reset_field();
   void update_field();
-  const Type_handler *type_handler() const { return &type_handler_ulonglong; }
   bool fix_length_and_dec()
   {
-    if (args[0]->check_type_can_return_int(func_name()))
-      return true;
     decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0;
     return FALSE;
   }
@@ -1262,7 +1255,7 @@ protected:
 };
 
 
-class Item_sum_or final :public Item_sum_bit
+class Item_sum_or :public Item_sum_bit
 {
 public:
   Item_sum_or(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
@@ -1278,7 +1271,7 @@ private:
 };
 
 
-class Item_sum_and final :public Item_sum_bit
+class Item_sum_and :public Item_sum_bit
 {
 public:
   Item_sum_and(THD *thd, Item *item_par):
@@ -1294,7 +1287,7 @@ private:
   void set_bits_from_counters();
 };
 
-class Item_sum_xor final :public Item_sum_bit
+class Item_sum_xor :public Item_sum_bit
 {
 public:
   Item_sum_xor(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
@@ -1318,7 +1311,7 @@ struct st_sp_security_context;
   Item_sum_sp handles STORED AGGREGATE FUNCTIONS
 
   Each Item_sum_sp represents a custom aggregate function. Inside the
-  function's body, we require at least one occurrence of FETCH GROUP NEXT ROW
+  function's body, we require at least one occurence of FETCH GROUP NEXT ROW
   instruction. This cursor is what makes custom stored aggregates possible.
 
   During computation the function's add method is called. This in turn performs
@@ -1346,7 +1339,7 @@ struct st_sp_security_context;
   group is already set in the argument x. This behaviour is done so when
   a user writes a function, he should "logically" include FETCH GROUP NEXT ROW
   before any "add" instructions in the stored function. This means however that
-  internally, the first occurrence doesn't stop the function. See the
+  internally, the first occurence doesn't stop the function. See the
   implementation of FETCH GROUP NEXT ROW for details as to how it happens.
 
   Either way, one should assume that after calling "Item_sum_sp::add()" that
@@ -1361,7 +1354,7 @@ struct st_sp_security_context;
   Example:
   DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN ret_val;
 */
-class Item_sum_sp final :public Item_sum,
+class Item_sum_sp :public Item_sum,
                    public Item_sp
 {
  private:
@@ -1379,9 +1372,9 @@ public:
   {
     return SP_AGGREGATE_FUNC;
   }
-  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  Field *create_field_for_create_select(TABLE *table)
   {
-    return create_table_field_from_handler(root, table);
+    return create_table_field_from_handler(table);
   }
   bool fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
@@ -1409,11 +1402,6 @@ public:
     if(execute())
       return NULL;
     return sp_result_field->val_decimal(dec_buf);
-  }
-
-  bool val_native(THD *thd, Native *to)
-  {
-    return null_value= execute() || sp_result_field->val_native(to);
   }
 
   String *val_str(String *str)
@@ -1468,10 +1456,10 @@ public:
     unsigned_flag= item->unsigned_flag;
   }
   table_map used_tables() const { return (table_map) 1L; }
-  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
-    return create_tmp_field_ex_simple(root, table, src, param);
+    return create_tmp_field_ex_simple(table, src, param);
   }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
   bool check_vcol_func_processor(void *arg)
@@ -1684,12 +1672,7 @@ public:
     { DBUG_ASSERT(fixed == 1); return (double) Item_sum_udf_int::val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  const Type_handler *type_handler() const
-  {
-    if (unsigned_flag)
-      return &type_handler_ulonglong;
-    return &type_handler_slonglong;
-  }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   bool fix_length_and_dec() { decimals=0; max_length=21; return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
@@ -1713,8 +1696,8 @@ public:
     char *end_not_used;
     String *res;
     res=val_str(&str_value);
-    return res ? res->charset()->strntod((char*) res->ptr(),res->length(),
-			                 &end_not_used, &err_not_used) : 0.0;
+    return res ? my_strntod(res->charset(),(char*) res->ptr(),res->length(),
+			    &end_not_used, &err_not_used) : 0.0;
   }
   longlong val_int()
   {
@@ -1727,7 +1710,7 @@ public:
       return 0;                                 /* Null value */
     cs= res->charset();
     end= (char*) res->ptr()+res->length();
-    return cs->strtoll10(res->ptr(), &end, &err_not_used);
+    return cs->cset->strtoll10(cs, res->ptr(), &end, &err_not_used);
   }
   my_decimal *val_decimal(my_decimal *dec);
   const Type_handler *type_handler() const { return string_type_handler(); }
@@ -1767,7 +1750,7 @@ public:
   { return get_item_copy<Item_sum_udf_decimal>(thd, this); }
 };
 
-#else /* Dummy functions to get yy_*.cc files compiled */
+#else /* Dummy functions to get sql_yacc.cc compiled */
 
 class Item_sum_udf_float :public Item_sum_double
 {
@@ -1851,12 +1834,8 @@ public:
 C_MODE_START
 int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                        const void* key2);
-int group_concat_key_cmp_with_distinct_with_nulls(void* arg, const void* key1,
-                                                  const void* key2);
 int group_concat_key_cmp_with_order(void* arg, const void* key1,
                                     const void* key2);
-int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1,
-                                               const void *key2);
 int dump_leaf_key(void* key_arg,
                   element_count count __attribute__((unused)),
                   void* item_arg);
@@ -1864,7 +1843,6 @@ C_MODE_END
 
 class Item_func_group_concat : public Item_sum
 {
-protected:
   TMP_TABLE_PARAM *tmp_table_param;
   String result;
   String *separator;
@@ -1911,40 +1889,16 @@ protected:
   */
   Item_func_group_concat *original;
 
-  /*
-    Used by Item_func_group_concat and Item_func_json_arrayagg. The latter
-    needs null values but the former doesn't.
-  */
-  bool add(bool exclude_nulls);
-
   friend int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                                 const void* key2);
-  friend int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
-                                                           const void* key1,
-                                                           const void* key2);
   friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
 					     const void* key2);
-  friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
-                                       const void *key1, const void *key2);
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
 
   bool repack_tree(THD *thd);
 
-  /*
-    Says whether the function should skip NULL arguments
-    or add them to the result.
-    Redefined in JSON_ARRAYAGG.
-  */
-  virtual bool skip_nulls() const { return true; }
-  virtual String *get_str_from_item(Item *i, String *tmp)
-    { return i->val_str(tmp); }
-  virtual String *get_str_from_field(Item *i, Field *f, String *tmp,
-                                     const uchar *key, size_t offset)
-    { return f->val_str(tmp, key + offset); }
-  virtual void cut_max_length(String *result,
-                              uint old_length, uint max_length) const;
 public:
   // Methods used by ColumnStore
   bool get_distinct() const { return distinct; }
@@ -1972,10 +1926,7 @@ public:
     return &type_handler_varchar;
   }
   void clear();
-  bool add()
-  {
-    return add(skip_nulls());
-  }
+  bool add();
   void reset_field() { DBUG_ASSERT(0); }        // not used
   void update_field() { DBUG_ASSERT(0); }       // not used
   bool fix_fields(THD *,Item **);
@@ -2017,11 +1968,6 @@ public:
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }
-  qsort_cmp2 get_comparator_function_for_distinct();
-  qsort_cmp2 get_comparator_function_for_order_by();
-  uchar* get_record_pointer();
-  uint get_null_bytes();
-
 };
 
 #endif /* ITEM_SUM_INCLUDED */

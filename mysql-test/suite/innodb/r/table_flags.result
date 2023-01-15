@@ -193,6 +193,7 @@ a
 DROP TABLE tr,tc,td,tz,tp;
 # restart
 ib_logfile0
+ib_logfile1
 ibdata1
 sys_tables.bin
 call mtr.add_suppression("ERROR HY000: Can't create table `test`.`t1`");

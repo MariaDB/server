@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'MyISAM';
+SET @@session.storage_engine = 'MyISAM';
 #
 # NUMERIC FUNCTIONS
 #

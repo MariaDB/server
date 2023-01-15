@@ -1,5 +1,3 @@
---source include/have_innodb.inc
-
 call mtr.add_suppression("table or database name 'abc`def'");
 
 # Initialise
@@ -177,27 +175,6 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 copy_file $MYSQLD_DATADIR/mysql_test/t1.frm $MYSQLD_DATADIR/mysql_test/#sql-347f_6.frm;
 drop database mysql_test;
 
-#
-# Bug#26704: Failing DROP DATABASE brings mysql-client out of sync.
-#
-
-create database mysql_test;
-use mysql_test;
-create table t1(c int);
-
-write_file $MYSQLD_DATADIR/mysql_test/do_not_delete;
-do_not_delete
-EOF
-
-replace_result $MYSQLD_DATADIR ./ \\ / 66 39 93 39 17 39 247 39 41 39 "File exists" "Directory not empty";
-error ER_DB_DROP_RMDIR;
-drop database mysql_test;
-select database();
-remove_file $MYSQLD_DATADIR/mysql_test/do_not_delete;
-drop database mysql_test;
-select database();
-use test;
-
 ###########################################################################
 
 --echo
@@ -347,17 +324,3 @@ CREATE DATABASE mysqltest;
 CREATE TABLE mysqltest.db(id INT);
 DROP DATABASE mysqltest;
 
---echo #
---echo # Verify sql_if_exists
---echo #
-
---error ER_DB_DROP_EXISTS
-DROP DATABASE mysqltest;
-CREATE DATABASE mysqltest;
---error ER_BAD_TABLE_ERROR
-drop table mysqltest.does_not_exists;
-set @@session.sql_if_exists=1;
-drop table mysqltest.does_not_exists;
-drop database mysqltest;
-drop database mysqltest;
-set @@session.sql_if_exists=0;

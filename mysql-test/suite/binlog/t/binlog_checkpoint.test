@@ -140,15 +140,10 @@ INSERT INTO t1 VALUES (31, REPEAT("x", 4100));
 --source include/show_binary_logs.inc
 SET debug_sync = 'reset';
 
-SET GLOBAL max_binlog_size= @old_max_binlog_size;
-SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
-
---source include/shutdown_mysqld.inc
---source include/start_mysqld.inc
-
 
 --echo *** MDEV-7402: 'reset master' hangs, waits for signalled COND_xid_list ***
 
+--source include/wait_for_binlog_checkpoint.inc
 
 connect(con3,localhost,root,,);
 # Make the binlog background thread wait before clearing the pending checkpoint.
@@ -174,63 +169,9 @@ REAP;
 --connection default
 SET debug_sync = 'reset';
 
---echo *** MDEV-24660: MYSQL_BIN_LOG::cleanup(): Assertion `b->xid_count == 0' failed in MYSQL_BIN_LOG::cleanup
-# Test a scenario of forcibly rolled back mixed engine "unsafe" transaction
-# at shutdown. That should not let to the assert.
-
-SET @old_max_binlog_size= @@global.max_binlog_size;
-SET GLOBAL max_binlog_size= 4096;
-
---connect(con_24660,localhost,root,,)
-
-# Construct an unsafe xa transaction that is rolled back
-# in binlog at the shutdown time. That requires STATEMENT binlog format.
-FLUSH LOGS;
---let $binlog_file =  query_get_value(SHOW MASTER STATUS, File, 1)
-SET @@session.binlog_format = STATEMENT;
-CREATE TABLE tm (a INT) ENGINE = myisam;
-
-call mtr.add_suppression("Table './test/tm' is marked as crashed");
-call mtr.add_suppression("Checking table");
-
-XA START 'xa1';
-  --let $a = `SELECT a + 1 FROM t1`
-  --eval INSERT INTO t1 VALUES ($a, 1)
-         INSERT INTO tm SET a = 1;
-  --inc $a
-  --let $repeat_x = `SELECT REPEAT("x", 4100)`
---disable_query_log
-  --eval INSERT INTO t1 VALUES ($a, "$repeat_x")
---enable_query_log
-XA END 'xa1';
-
---connection default
-  # In the patch's base BBT would exit first to win the race against
-  # the XA transaction's binloging.
-  SET GLOBAL debug_dbug="+d,only_kill_system_threads_no_loop";
---source include/shutdown_mysqld.inc
---source include/start_mysqld.inc
-
---echo ** Proof of shutdown caused ROLLBACK-completed transaction
-
---let assert_file=$MYSQLTEST_VARDIR/tmp/binlog_decoded.out
---let datadir=`select @@datadir`
-
---echo # MYSQL_BINLOG datadir/binlog_file --result-file=assert_file
---exec $MYSQL_BINLOG $datadir/$binlog_file --result-file=$assert_file
-
---let $assert_text= No XA statements should be written into the binary log
---let $assert_count= 0
---let assert_select= XA START|XA END|XA PREPARE|XA COMMIT|XA ROLLBACK
---source include/assert_grep.inc
-
---let $assert_text= The transaction should be rolled back
---let $assert_count= 1
---let assert_select= ^ROLLBACK\$
---source include/assert_grep.inc
-
-SELECT * FROM tm;
---eval SELECT * FROM t1 WHERE a = $a
 
 # Clean up.
-DROP TABLE t1, t2, tm;
+DROP TABLE t1, t2;
+SET GLOBAL max_binlog_size= @old_max_binlog_size;
+SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
+SET debug_sync = 'reset';

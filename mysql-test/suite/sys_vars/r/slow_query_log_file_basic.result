@@ -16,7 +16,7 @@ ERROR 42000: Variable 'slow_query_log_file' can't be set to the value of '/tmp/m
 SET @@global.general_log_file = '.my.cnf';
 ERROR 42000: Variable 'general_log_file' can't be set to the value of '.my.cnf'
 SET @@global.general_log_file = 'my.cnf\0foo';
-ERROR 42000: Variable 'general_log_file' can't be set to the value of 'my.cnf\0000foo'
+ERROR 42000: Variable 'general_log_file' can't be set to the value of 'my.cnf'
 SET @@global.general_log_file = 'my.ini';
 ERROR 42000: Variable 'general_log_file' can't be set to the value of 'my.ini'
 '#----------------------FN_DYNVARS_004_03------------------------#'

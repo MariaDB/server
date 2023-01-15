@@ -27,7 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "write_filt.h"
 #include "fil_cur.h"
-#include "xtrabackup.h"
+#include <os0proc.h>
 
 /************************************************************************
 Write-through page write filter. */
@@ -75,7 +75,7 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 
 	/* allocate buffer for incremental backup (4096 pages) */
 	cp->delta_buf_size = (cursor->page_size / 4) * cursor->page_size;
-	cp->delta_buf = (unsigned char *)my_large_malloc(&cp->delta_buf_size, MYF(0));
+	cp->delta_buf = (unsigned char *)os_mem_alloc_large(&cp->delta_buf_size);
 
 	if (!cp->delta_buf) {
 		msg(cursor->thread_n,"Can't allocate %zu bytes",
@@ -114,7 +114,7 @@ Run the next batch of pages through incremental page write filter.
 static my_bool
 wf_incremental_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 {
-	unsigned				i;
+	ulint				i;
 	xb_fil_cur_t			*cursor = ctxt->cursor;
 	byte				*page;
 	const ulint			page_size = cursor->page_size;
@@ -187,7 +187,7 @@ static void
 wf_incremental_deinit(xb_write_filt_ctxt_t *ctxt)
 {
 	xb_wf_incremental_ctxt_t	*cp = &(ctxt->wf_incremental_ctxt);
-	my_large_free(cp->delta_buf, cp->delta_buf_size);
+	os_mem_free_large(cp->delta_buf, cp->delta_buf_size);
 }
 
 /************************************************************************

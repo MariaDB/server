@@ -14,7 +14,6 @@ show grants;
 Grants for pfsuser@localhost
 GRANT USAGE ON *.* TO `pfsuser`@`localhost`
 GRANT SELECT, UPDATE ON `performance_schema`.* TO `pfsuser`@`localhost`
-# Update on perf_schema is allowed in read_only mode.
 select * from performance_schema.setup_instruments;
 update performance_schema.setup_instruments set enabled='NO';
 update performance_schema.setup_instruments set enabled='YES';
@@ -32,7 +31,7 @@ select * from performance_schema.setup_instruments;
 update performance_schema.setup_instruments set enabled='NO';
 update performance_schema.setup_instruments set enabled='YES';
 connection default;
-grant READ_ONLY ADMIN on *.* to pfsuser@localhost;
+grant super on *.* to pfsuser@localhost;
 flush privileges;
 disconnect con1;
 connect  con1, localhost, pfsuser, , test;
@@ -41,7 +40,7 @@ select @@global.read_only;
 1
 show grants;
 Grants for pfsuser@localhost
-GRANT READ_ONLY ADMIN ON *.* TO `pfsuser`@`localhost`
+GRANT SUPER ON *.* TO `pfsuser`@`localhost`
 GRANT SELECT, UPDATE ON `performance_schema`.* TO `pfsuser`@`localhost`
 select * from performance_schema.setup_instruments;
 update performance_schema.setup_instruments set enabled='NO';

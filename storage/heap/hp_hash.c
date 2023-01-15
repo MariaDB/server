@@ -1,6 +1,5 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,14 +18,6 @@
 
 #include "heapdef.h"
 #include <m_ctype.h>
-
-
-static inline size_t
-hp_charpos(CHARSET_INFO *cs, const uchar *b, const uchar *e, size_t num)
-{
-  return my_ci_charpos(cs, (const char*) b, (const char *) e, num);
-}
-
 
 static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
 /*
@@ -55,9 +46,8 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
 			the range.
 */
 
-ha_rows hp_rb_records_in_range(HP_INFO *info, int inx,
-                               const key_range *min_key,
-                               const key_range *max_key)
+ha_rows hp_rb_records_in_range(HP_INFO *info, int inx,  key_range *min_key,
+                               key_range *max_key)
 {
   ha_rows start_pos, end_pos;
   HP_KEYDEF *keyinfo= info->s->keydef + inx;
@@ -252,10 +242,10 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
        if (cs->mbmaxlen > 1)
        {
          size_t char_length;
-         char_length= hp_charpos(cs, pos, pos + length, length/cs->mbmaxlen);
+         char_length= my_charpos(cs, pos, pos + length, length/cs->mbmaxlen);
          set_if_smaller(length, char_length);
        }
-       my_ci_hash_sort(cs, pos, length, &nr, &nr2);
+       cs->coll->hash_sort(cs, pos, length, &nr, &nr2);
     }
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
     {
@@ -265,12 +255,12 @@ static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
        if (cs->mbmaxlen > 1)
        {
          size_t char_length;
-         char_length= hp_charpos(cs, pos +pack_length,
+         char_length= my_charpos(cs, pos +pack_length,
                                  pos +pack_length + length,
                                  seg->length/cs->mbmaxlen);
          set_if_smaller(length, char_length);
        }
-       my_ci_hash_sort(cs, pos+pack_length, length, &nr, &nr2);
+       cs->coll->hash_sort(cs, pos+pack_length, length, &nr, &nr2);
        key+= pack_length;
     }
     else
@@ -312,11 +302,11 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
       size_t char_length= seg->length;
       if (cs->mbmaxlen > 1)
       {
-        char_length= hp_charpos(cs, pos, pos + char_length,
+        char_length= my_charpos(cs, pos, pos + char_length,
                                 char_length / cs->mbmaxlen);
         set_if_smaller(char_length, seg->length); /* QQ: ok to remove? */
       }
-      my_ci_hash_sort(cs, pos, char_length, &nr, &nr2);
+      cs->coll->hash_sort(cs, pos, char_length, &nr, &nr2);
     }
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
     {
@@ -326,14 +316,14 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
       if (cs->mbmaxlen > 1)
       {
         size_t char_length;
-        char_length= hp_charpos(cs, pos + pack_length,
+        char_length= my_charpos(cs, pos + pack_length,
                                 pos + pack_length + length,
                                 seg->length/cs->mbmaxlen);
         set_if_smaller(length, char_length);
       }
       else
         set_if_smaller(length, seg->length);
-      my_ci_hash_sort(cs, pos+pack_length, length, &nr, &nr2);
+      cs->coll->hash_sort(cs, pos+pack_length, length, &nr, &nr2);
     }
     else
     {
@@ -402,18 +392,18 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2)
       if (cs->mbmaxlen > 1)
       {
         size_t char_length= seg->length / cs->mbmaxlen;
-        char_length1= hp_charpos(cs, pos1, pos1 + seg->length, char_length);
+        char_length1= my_charpos(cs, pos1, pos1 + seg->length, char_length);
         set_if_smaller(char_length1, seg->length);
-        char_length2= hp_charpos(cs, pos2, pos2 + seg->length, char_length);
+        char_length2= my_charpos(cs, pos2, pos2 + seg->length, char_length);
         set_if_smaller(char_length2, seg->length);
       }
       else
       {
         char_length1= char_length2= seg->length;
       }
-      if (my_ci_strnncollsp(seg->charset,
-                            pos1, char_length1,
-                            pos2, char_length2))
+      if (seg->charset->coll->strnncollsp(seg->charset,
+      					  pos1,char_length1,
+					  pos2,char_length2))
 	return 1;
     }
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
@@ -440,9 +430,9 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2)
         size_t safe_length1= char_length1;
         size_t safe_length2= char_length2;
         size_t char_length= seg->length / cs->mbmaxlen;
-        char_length1= hp_charpos(cs, pos1, pos1 + char_length1, char_length);
+        char_length1= my_charpos(cs, pos1, pos1 + char_length1, char_length);
         set_if_smaller(char_length1, safe_length1);
-        char_length2= hp_charpos(cs, pos2, pos2 + char_length2, char_length);
+        char_length2= my_charpos(cs, pos2, pos2 + char_length2, char_length);
         set_if_smaller(char_length2, safe_length2);
       }
       else
@@ -451,9 +441,9 @@ int hp_rec_key_cmp(HP_KEYDEF *keydef, const uchar *rec1, const uchar *rec2)
         set_if_smaller(char_length2, seg->length);
       }
 
-      if (my_ci_strnncollsp(seg->charset,
-                            pos1, char_length1,
-                            pos2, char_length2))
+      if (cs->coll->strnncollsp(seg->charset,
+                                pos1, char_length1,
+                                pos2, char_length2))
 	return 1;
     }
     else
@@ -508,9 +498,9 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key)
       if (cs->mbmaxlen > 1)
       {
         size_t char_length= seg->length / cs->mbmaxlen;
-        char_length_key= hp_charpos(cs, key, key + seg->length, char_length);
+        char_length_key= my_charpos(cs, key, key + seg->length, char_length);
         set_if_smaller(char_length_key, seg->length);
-        char_length_rec= hp_charpos(cs, pos, pos + seg->length, char_length);
+        char_length_rec= my_charpos(cs, pos, pos + seg->length, char_length);
         set_if_smaller(char_length_rec, seg->length);
       }
       else
@@ -519,9 +509,9 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key)
         char_length_rec= seg->length;
       }
       
-      if (my_ci_strnncollsp(seg->charset,
-                            pos, char_length_rec,
-                            key, char_length_key))
+      if (seg->charset->coll->strnncollsp(seg->charset,
+					  (uchar*) pos, char_length_rec,
+					  (uchar*) key, char_length_key))
 	return 1;
     }
     else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
@@ -539,17 +529,17 @@ int hp_key_cmp(HP_KEYDEF *keydef, const uchar *rec, const uchar *key)
       {
         size_t char_length1, char_length2;
         char_length1= char_length2= seg->length / cs->mbmaxlen; 
-        char_length1= hp_charpos(cs, key, key + char_length_key, char_length1);
+        char_length1= my_charpos(cs, key, key + char_length_key, char_length1);
         set_if_smaller(char_length_key, char_length1);
-        char_length2= hp_charpos(cs, pos, pos + char_length_rec, char_length2);
+        char_length2= my_charpos(cs, pos, pos + char_length_rec, char_length2);
         set_if_smaller(char_length_rec, char_length2);
       }
       else
         set_if_smaller(char_length_rec, seg->length);
 
-      if (my_ci_strnncollsp(seg->charset,
-                            pos, char_length_rec,
-                            key, char_length_key))
+      if (cs->coll->strnncollsp(seg->charset,
+                                (uchar*) pos, char_length_rec,
+                                (uchar*) key, char_length_key))
 	return 1;
     }
     else
@@ -588,7 +578,7 @@ void hp_make_key(HP_KEYDEF *keydef, uchar *key, const uchar *rec)
       *key++= MY_TEST(rec[seg->null_pos] & seg->null_bit);
     if (cs->mbmaxlen > 1)
     {
-      char_length= hp_charpos(cs, pos, pos + seg->length,
+      char_length= my_charpos(cs, pos, pos + seg->length,
                               char_length / cs->mbmaxlen);
       set_if_smaller(char_length, seg->length); /* QQ: ok to remove? */
     }
@@ -608,7 +598,7 @@ void hp_make_key(HP_KEYDEF *keydef, uchar *key, const uchar *rec)
 #define FIX_LENGTH(cs, pos, length, char_length)                        \
   do {                                                                  \
     if (length > char_length)                                           \
-      char_length= hp_charpos(cs, pos, pos+length, char_length);        \
+      char_length= my_charpos(cs, pos, pos+length, char_length);        \
     set_if_smaller(char_length,length);                                 \
   } while(0)
 
@@ -686,12 +676,12 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
     char_length= seg->length;
     if (seg->charset->mbmaxlen > 1)
     {
-      char_length= hp_charpos(seg->charset, 
+      char_length= my_charpos(seg->charset, 
                               rec + seg->start, rec + seg->start + char_length,
                               char_length / seg->charset->mbmaxlen);
       set_if_smaller(char_length, seg->length); /* QQ: ok to remove? */
       if (char_length < seg->length)
-        my_ci_fill(seg->charset, (char*) key + char_length,
+        seg->charset->cset->fill(seg->charset, (char*) key + char_length,
                                  seg->length - char_length, ' ');
     }
     if (seg->type == HA_KEYTYPE_BIT && seg->bit_length)
@@ -760,11 +750,11 @@ uint hp_rb_pack_key(HP_KEYDEF *keydef, uchar *key, const uchar *old,
     char_length= seg->length;
     if (seg->charset->mbmaxlen > 1)
     {
-      char_length= hp_charpos(seg->charset, old, old+char_length,
+      char_length= my_charpos(seg->charset, old, old+char_length,
                               char_length / seg->charset->mbmaxlen);
       set_if_smaller(char_length, seg->length); /* QQ: ok to remove? */
       if (char_length < seg->length)
-        my_ci_fill(seg->charset, (char*) key + char_length,
+        seg->charset->cset->fill(seg->charset, (char*) key + char_length, 
                                  seg->length - char_length, ' ');
     }
     memcpy(key, old, (size_t) char_length);

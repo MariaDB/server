@@ -39,7 +39,7 @@ ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_
 <ID>	root	<HOST_NAME>	test	Query	<TIME>	Filling schema table	SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST	<TIME_MS>	0	0	0.000	<MEMORY>	<MAX_MEMORY>	<ROWS>	<QUERY_ID>	SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST	<TID>
 SHOW FULL PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
-<ID>	root	<HOST_NAME>	test	Query	<TIME>	starting	SHOW FULL PROCESSLIST	<TIME_MS>
+<ID>	root	<HOST_NAME>	test	Query	<TIME>	Init	SHOW FULL PROCESSLIST	<TIME_MS>
 SET @default_id = CONNECTION_ID();
 SELECT COUNT(*)  = 1 AS "Expect exact one connection with this id"
 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = @default_id;
@@ -85,7 +85,7 @@ ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_
 <ID>	root	<HOST_NAME>	information_schema	Query	<TIME>	<STATE>	SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST	<TIME_MS>	0	0	0.000	<MEMORY>	<MAX_MEMORY>	<ROWS>	<QUERY_ID>	SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST	<TID>
 SHOW FULL PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
-<ID>	root	<HOST_NAME>	information_schema	Query	<TIME>	starting	SHOW FULL PROCESSLIST	0.000
+<ID>	root	<HOST_NAME>	information_schema	Query	<TIME>	Init	SHOW FULL PROCESSLIST	0.000
 <ID>	test_user	<HOST_NAME>	information_schema	Sleep	<TIME>		NULL	0.000
 SELECT ID,TIME INTO @test_user_con1_id,@time FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE COMMAND = 'Sleep' AND USER = 'test_user';
@@ -117,7 +117,7 @@ ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_
 <ID>	test_user	<HOST_NAME>	information_schema	Query	<TIME>	Filling schema table	SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST	<TIME_MS>	0	0	0.000	<MEMORY>	<MAX_MEMORY>	<ROWS>	<QUERY_ID>	SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST	<TID>
 SHOW FULL PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
-<ID>	test_user	<HOST_NAME>	information_schema	Query	<TIME>	starting	SHOW FULL PROCESSLIST	0.000
+<ID>	test_user	<HOST_NAME>	information_schema	Query	<TIME>	Init	SHOW FULL PROCESSLIST	0.000
 # Ensure that the user test_user sees all connections with his username.
 #----------------------------------------------------------------------------
 
@@ -133,7 +133,7 @@ ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_
 SHOW FULL PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
 <ID>	test_user	<HOST_NAME>	information_schema	Sleep	<TIME>		NULL	0.000
-<ID>	test_user	<HOST_NAME>	information_schema	Query	<TIME>	starting	SHOW FULL PROCESSLIST	0.000
+<ID>	test_user	<HOST_NAME>	information_schema	Query	<TIME>	Init	SHOW FULL PROCESSLIST	0.000
 connection default;
 SELECT ID INTO @test_user_con2_id FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE ID <> @test_user_con1_id
@@ -156,7 +156,7 @@ ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS	MEMORY_
 <ID>	root	<HOST_NAME>	information_schema	Query	<TIME>	Filling schema table	SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST	<TIME_MS>	0	0	0.000	<MEMORY>	<MAX_MEMORY>	<ROWS>	<QUERY_ID>	SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST	<TID>
 SHOW FULL PROCESSLIST;
 Id	User	Host	db	Command	Time	State	Info	Progress
-<ID>	root	<HOST_NAME>	information_schema	Query	<TIME>	starting	SHOW FULL PROCESSLIST	0.000
+<ID>	root	<HOST_NAME>	information_schema	Query	<TIME>	Init	SHOW FULL PROCESSLIST	0.000
 <ID>	test_user	<HOST_NAME>	information_schema	Sleep	<TIME>		NULL	0.000
 <ID>	test_user	<HOST_NAME>	information_schema	Query	<TIME>	User sleep	SELECT sleep(10), 17	0.000
 SELECT STATE, TIME, INFO INTO @state, @time, @info

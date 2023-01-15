@@ -3283,7 +3283,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select coercibility(uuid()), coercibility(cast('a' as char character set latin1));
 coercibility(uuid())	coercibility(cast('a' as char character set latin1))
-5	2
+4	2
 select charset(concat(uuid(), cast('a' as char character set latin1)));
 charset(concat(uuid(), cast('a' as char character set latin1)))
 latin1
@@ -5409,21 +5409,18 @@ DROP TABLE t1;
 #
 # Bug#11764503 (Bug#57341) Query in EXPLAIN EXTENDED shows wrong characters
 #
-# Emulate utf8 client erroneously started with --default-character-set=latin1,
-# # as in the bug report. EXPLAIN output should still be pretty readable
 SET NAMES latin1;
 EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8'abcdÁÂÃÄÅ' AS u;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 'abcd�\0081ÂÃÄÅ' AS `abcd�\0081ÂÃÄÅ`,_latin1'abcd\xC3\x81\xC3\x82\xC3\x83\xC3\x84\xC3\x85' AS `abcd�\0081ÂÃÄÅ`,_utf8'abcd\xC3\x81\xC3\x82\xC3\x83\xC3\x84\xC3\x85' AS `u`
-# Test normal utf8
+Note	1003	select 'abcdÁÂÃÄÅ' AS `abcdÁÂÃÄÅ`,_latin1'abcd\xC3\x81\xC3\x82\xC3\x83\xC3\x84\xC3\x85' AS `abcdÁÂÃÄÅ`,_utf8'abcd\xC3\x81\xC3\x82\xC3\x83\xC3\x84\xC3\x85' AS `u`
 SET NAMES utf8;
 EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8'abcdÁÂÃÄÅ';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 'abcdÁÂÃÄÅ' AS `abcdÁÂÃÄÅ`,_latin1'abcd\xC3\x81\xC3\x82\xC3\x83\xC3\x84\xC3\x85' AS `abcdÃ\0081Ã‚ÃƒÃ„Ã…`,_utf8'abcd\xC3\x81\xC3\x82\xC3\x83\xC3\x84\xC3\x85' AS `abcdÁÂÃÄÅ`
+Note	1003	select 'abcdÁÂÃÄÅ' AS `abcdÁÂÃÄÅ`,_latin1'abcd\xC3\x81\xC3\x82\xC3\x83\xC3\x84\xC3\x85' AS `abcdÃÃ‚ÃƒÃ„Ã…`,_utf8'abcd\xC3\x81\xC3\x82\xC3\x83\xC3\x84\xC3\x85' AS `abcdÁÂÃÄÅ`
 #
 # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT
 #
@@ -10689,7 +10686,7 @@ DROP TABLE t1;
 #
 # MDEV-9711 NO PAD Collatons
 #
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -10827,7 +10824,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -10965,8 +10962,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -11104,7 +11101,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -11242,7 +11239,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=Default;
 #
 # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
 #
@@ -11381,98 +11378,4 @@ _latin1 0xDF
 a
 #
 # End of 10.3 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-20712 Wrong data type for CAST(@a AS BINARY) for a numeric variable
-#
-SET NAMES utf8;
-SET @a=2;
-CREATE OR REPLACE TABLE t1 AS SELECT CAST(1 AS BINARY), CAST(@a AS BINARY), CAST(@b:=3 AS BINARY);
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `CAST(1 AS BINARY)` varbinary(1) DEFAULT NULL,
-  `CAST(@a AS BINARY)` varbinary(20) DEFAULT NULL,
-  `CAST(@b:=3 AS BINARY)` varbinary(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-DROP TABLE t1;
-#
-# MDEV-20890 Illegal mix of collations with UUID()
-#
-SET NAMES utf8 COLLATE utf8_unicode_ci;
-SELECT uuid()>'';
-uuid()>''
-1
-#
-# MDEV-8844 Unreadable control characters printed as is in warnings
-#
-SET NAMES utf8;
-# control, part1
-SELECT CAST(_utf8 0x610062 AS INT);
-CAST(_utf8 0x610062 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\0000b'
-SELECT CAST(_utf8 0x610162 AS INT);
-CAST(_utf8 0x610162 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\0001b'
-SELECT CAST(_utf8 0x611F62 AS INT);
-CAST(_utf8 0x611F62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\001Fb'
-# control, part2: U+0080..U+009F
-SELECT CAST(_utf8 0x617F62 AS INT);
-CAST(_utf8 0x617F62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\007Fb'
-SELECT CAST(_utf8 0x61C28062 AS INT);
-CAST(_utf8 0x61C28062 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\0080b'
-SELECT CAST(_utf8 0x61C29F62 AS INT);
-CAST(_utf8 0x61C29F62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\009Fb'
-# normal characters
-SELECT CAST(_utf8 0x612062 AS INT);
-CAST(_utf8 0x612062 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a b'
-SELECT CAST(_utf8 0x617E62 AS INT);
-CAST(_utf8 0x617E62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a~b'
-SELECT CAST(_utf8 0x61C2BF62 AS INT);
-CAST(_utf8 0x61C2BF62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a¿b'
-SELECT CAST(_utf8 'ëëë' AS INT);
-CAST(_utf8 'ëëë' AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'ëëë'
-SELECT CAST(_utf8 'œœœ' AS INT);
-CAST(_utf8 'œœœ' AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'œœœ'
-SELECT CAST(_utf8 'яяя' AS INT);
-CAST(_utf8 'яяя' AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'яяя'
-#
-# End of 10.5 tests
 #

@@ -31,7 +31,7 @@
 
 ##### Storage engine to be tested
 # Set the session storage engine
-SET @@session.default_storage_engine = 'memory';
+SET @@session.storage_engine = 'memory';
 
 ##### Workarounds for known open engine specific bugs
 #     none

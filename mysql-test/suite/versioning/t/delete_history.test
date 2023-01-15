@@ -5,8 +5,6 @@
 set @saved_frequency= @@global.innodb_purge_rseg_truncate_frequency;
 set global innodb_purge_rseg_truncate_frequency= 1;
 
-call mtr.add_suppression("need more HISTORY partitions");
-
 create table t (a int);
 --error ER_VERS_NOT_VERSIONED
 delete history from t before system_time now();
@@ -61,8 +59,12 @@ select * from t for system_time all;
 drop procedure truncate_sp;
 
 --echo # Truncate partitioned
-create or replace table t (a int) with system versioning
-partition by system_time limit 1 partitions 3;
+create or replace table t (a int)
+with system versioning
+partition by system_time limit 1 (
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;

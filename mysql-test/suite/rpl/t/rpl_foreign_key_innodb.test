@@ -57,22 +57,5 @@ select count(*) from t1 /* must be zero */;
 
 connection master;
 drop table t2,t1;
-set foreign_key_checks=1;
-
---echo #
---echo # MDEV-25530 Error 1451 on slave: Cannot delete or update a parent row: a foreign key constraint fails
---echo #
-
-create table t1 (id int primary key)engine=innodb;
-create table t2 (id int not null primary key auto_increment,
-	id2 int default null,  key f1 (id2),
-	constraint f1 foreign key (id2) references t1 (id) on delete cascade) engine=innodb;
-error ER_ROW_IS_REFERENCED_2;
-drop table t1,t2;
-sync_slave_with_master;
-show tables;
-connection master;
-drop table t1;
-sync_slave_with_master;
 
 --source include/rpl_end.inc

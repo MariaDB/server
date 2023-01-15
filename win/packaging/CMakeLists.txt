@@ -123,7 +123,7 @@ ELSE()
 ENDIF()
 SET(CPACK_WIX_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/CPackWixConfig.cmake)
 
-IF(NOT TARGET mariadb-upgrade-wizard)
+IF(NOT TARGET mysql_upgrade_wizard)
   SET(EXTRA_WIX_PREPROCESSOR_FLAGS "-dHaveUpgradeWizard=0")
 ENDIF()
 IF(WITH_INNOBASE_STORAGE_ENGINE)
@@ -176,6 +176,26 @@ IF(CMAKE_GENERATOR MATCHES "Visual Studio")
  SET(CONFIG_PARAM "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_CFG_INTDIR}")
 ENDIF()
 
+IF(MSVC_CRT_TYPE MATCHES "/MD" AND (NOT VCRedist_MSM))
+  # Find out CRT merge module path, we're going to use it in installer
+
+  # merge module file name depends on MSVC version.
+  MATH(EXPR VC_CRT_VER  "(${MSVC_VERSION} - 1900)/10 + 140")
+  SET(VCREDIST_MSM_FILENAME Microsoft_VC${VC_CRT_VER}_CRT_${WIX_ARCH_SUFFIX}.msm)
+
+  FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
+  LIST(LENGTH MSM_LIST LEN)
+  IF(LEN GREATER 0)
+    LIST(GET MSM_LIST 0 VCRedist_MSM_Location)
+  ENDIF()
+  IF (NOT VCRedist_MSM_Location)
+    MESSAGE(WARNING "Can't find merge module ${VCREDIST_MSM_FILENAME}")
+  ELSE()
+    FILE(TO_NATIVE_PATH  ${VCRedist_MSM_Location} VCRedist_MSM_Location)
+    SET(VCRedist_MSM "${VCRedist_MSM_Location}" CACHE INTERNAL "Location of redistributable merge module")
+    # MESSAGE("VCRedist_MSM=${VCRedist_MSM}")
+  ENDIF()
+ENDIF()
 
 ADD_CUSTOM_TARGET(
   MSI
@@ -208,7 +228,7 @@ ADD_CUSTOM_TARGET(
     -DWITH_THIRD_PARTY="${WITH_THIRD_PARTY}"
     -DWIXCA_LOCATION="$<TARGET_FILE:wixca>"
     -DMSVC_CRT_TYPE="${MSVC_CRT_TYPE}"
-    -DDYNAMIC_UCRT_LINK="${DYNAMIC_UCRT_LINK}"
+    -DVCRedist_MSM="${VCRedist_MSM}"
     -P  ${CMAKE_CURRENT_SOURCE_DIR}/create_msi.cmake
 )
 ADD_DEPENDENCIES(MSI wixca)

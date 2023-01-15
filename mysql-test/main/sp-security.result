@@ -417,7 +417,7 @@ CREATE DATABASE mysqltest;
 CREATE USER mysqltest_1@localhost;
 GRANT ALL PRIVILEGES ON mysqltest.* TO mysqltest_1@localhost;
 CREATE USER mysqltest_2@localhost;
-GRANT SET USER ON *.* TO mysqltest_2@localhost;
+GRANT SUPER ON *.* TO mysqltest_2@localhost;
 GRANT ALL PRIVILEGES ON mysqltest.* TO mysqltest_2@localhost;
 connect  mysqltest_2_con,localhost,mysqltest_2,,mysqltest;
 connect  mysqltest_1_con,localhost,mysqltest_1,,mysqltest;
@@ -428,9 +428,9 @@ CREATE FUNCTION wl2897_f1() RETURNS INT RETURN 1;
 connection mysqltest_1_con;
 USE mysqltest;
 CREATE DEFINER=root@localhost PROCEDURE wl2897_p2() SELECT 2;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 CREATE DEFINER=root@localhost FUNCTION wl2897_f2() RETURNS INT RETURN 2;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 connection mysqltest_2_con;
 use mysqltest;
 CREATE DEFINER='a @ b @ c'@localhost PROCEDURE wl2897_p3() SELECT 3;
@@ -802,21 +802,3 @@ connection default;
 DROP DATABASE u1;
 DROP USER u1@localhost;
 set @@global.character_set_server=@save_character_set_server;
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-20366 Server crashes in get_current_user upon SET PASSWORD via SP
-#
-CREATE PROCEDURE p1() SET PASSWORD FOR foo@localhost=PASSWORD('x');
-CALL p1();
-ERROR 28000: Can't find any matching row in the user table
-DROP PROCEDURE p1;
-CREATE USER foo@localhost;
-CREATE  PROCEDURE p1() SET PASSWORD FOR foo@localhost=PASSWORD('x');
-CALL p1();
-DROP PROCEDURE p1;
-DROP USER foo@localhost;
-#
-# End of 10.5 tests
-#

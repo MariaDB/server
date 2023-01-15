@@ -1,6 +1,5 @@
 --source include/have_perfschema.inc
 --source include/word_size.inc
---source include/platform.inc
 --vertical_results
 
 # need stable timestamp, because its current value is printed below

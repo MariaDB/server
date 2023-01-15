@@ -231,7 +231,7 @@ private:
   */
   int allocate_block()
   {
-    Block *block= (Block *)my_malloc(PSI_INSTRUMENT_ME, sizeof(Block), MYF(0));
+    Block *block= (Block *)my_malloc(sizeof(Block), MYF(0));
     if (block)
     {
       block->next= NULL;

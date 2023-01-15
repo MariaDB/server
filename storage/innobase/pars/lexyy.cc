@@ -260,7 +260,7 @@ static YY_BUFFER_STATE * yy_buffer_stack = NULL; /**< Stack as an array. */
  */
 #define YY_CURRENT_BUFFER ( (yy_buffer_stack) \
                           ? (yy_buffer_stack)[(yy_buffer_stack_top)] \
-                          : 0)
+                          : NULL)
 /* Same as previous macro, but useful when we know that the buffer stack is not
  * NULL or when we need an lvalue. For internal use only.
  */
@@ -816,6 +816,7 @@ Created 12/14/1997 Heikki Tuuri
 #include "pars0grm.h"
 #include "pars0sym.h"
 #include "mem0mem.h"
+#include "os0proc.h"
 
 #define malloc(A)	ut_malloc_nokey(A)
 #define free(A)		ut_free(A)
@@ -1724,7 +1725,7 @@ YY_RULE_SETUP
 {
 			yylval = sym_tab_add_id(pars_sym_tab_global,
 							(byte*) yytext,
-							strlen(yytext));
+							ut_strlen(yytext));
 			return(PARS_ID_TOKEN);
 }
 	YY_BREAK
@@ -1734,7 +1735,7 @@ YY_RULE_SETUP
 {
 			yylval = sym_tab_add_id(pars_sym_tab_global,
 							(byte*) yytext,
-							strlen(yytext));
+							ut_strlen(yytext));
 			return(PARS_TABLE_NAME_TOKEN);
 }
 	YY_BREAK

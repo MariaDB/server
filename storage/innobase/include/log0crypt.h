@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2020, MariaDB Corporation.
+Copyright (C) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -55,18 +55,23 @@ log_crypt_write_checkpoint_buf(
 /** Read the MariaDB 10.1 checkpoint crypto (version, msg and iv) info.
 @param[in]	buf	checkpoint buffer
 @return	whether the operation was successful */
-ATTRIBUTE_COLD bool log_crypt_101_read_checkpoint(const byte* buf);
+UNIV_INTERN
+bool
+log_crypt_101_read_checkpoint(const byte* buf);
 
 /** Decrypt a MariaDB 10.1 redo log block.
-@param[in,out]	buf		log block
-@param[in]	start_lsn	server start LSN
+@param[in,out]	buf	log block
 @return	whether the decryption was successful */
-ATTRIBUTE_COLD bool log_crypt_101_read_block(byte* buf, lsn_t start_lsn);
+UNIV_INTERN
+bool
+log_crypt_101_read_block(byte* buf);
 
 /** Read the checkpoint crypto (version, msg and iv) info.
 @param[in]	buf	checkpoint buffer
 @return	whether the operation was successful */
-bool log_crypt_read_checkpoint_buf(const byte* buf);
+UNIV_INTERN
+bool
+log_crypt_read_checkpoint_buf(const byte* buf);
 
 /** log_crypt() operation code */
 enum log_crypt_t {

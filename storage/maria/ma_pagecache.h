@@ -1,5 +1,4 @@
 /* Copyright (C) 2006 MySQL AB
-   Copyright (c) 2011, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -87,25 +86,9 @@ typedef struct st_pagecache_io_hook_args
   uchar *crypt_buf; /* when using encryption */
 } PAGECACHE_IO_HOOK_ARGS;
 
-struct st_pagecache;
-
-/* Structure to store things from get_object */
-
-typedef struct st_S3_BLOCK
-{
-  uchar *str, *alloc_ptr;
-  size_t length;
-} S3_BLOCK;
-
-
 /* file descriptor for Maria */
 typedef struct st_pagecache_file
 {
-  /* Number of pages in the header which are not read with big blocks */
-  size_t head_blocks;
-  /* size of a big block for S3 or 0 */
-  size_t big_block_size;
-  /* File number */
   File file;
 
   /** Cannot be NULL */
@@ -116,9 +99,9 @@ typedef struct st_pagecache_file
   my_bool (*pre_write_hook)(PAGECACHE_IO_HOOK_ARGS *args);
   void (*post_write_hook)(int error, PAGECACHE_IO_HOOK_ARGS *args);
 
+  /** Cannot be NULL */
   my_bool (*flush_log_callback)(PAGECACHE_IO_HOOK_ARGS *args);
 
-  /** Cannot be NULL */
   uchar *callback_data;
 } PAGECACHE_FILE;
 
@@ -181,17 +164,6 @@ typedef struct st_pagecache
   /* hash for other file bl.*/
   PAGECACHE_BLOCK_LINK **file_blocks;
 
-  /**
-    Function for reading file in big hunks from S3
-    Data will be filled with pointer and length to data read
-    start_page will be contain first page read.
-  */
-  my_bool (*big_block_read)(struct st_pagecache *pagecache,
-                            PAGECACHE_IO_HOOK_ARGS *args,
-                            struct st_pagecache_file *file, S3_BLOCK *data);
-  void (*big_block_free)(S3_BLOCK *data);
-
-
   /*
     The following variables are and variables used to hold parameters for
     initializing the key cache.
@@ -239,7 +211,7 @@ extern PAGECACHE dflt_pagecache_var, *dflt_pagecache;
 extern size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
                             uint division_limit, uint age_threshold,
                             uint block_size, uint changed_blocks_hash_size,
-                            myf my_read_flags)__attribute__((visibility("default"))) ;
+                            myf my_read_flags);
 extern size_t resize_pagecache(PAGECACHE *pagecache,
                               size_t use_mem, uint division_limit,
                               uint age_threshold, uint changed_blocks_hash_size);
@@ -319,7 +291,7 @@ extern int flush_pagecache_blocks_with_filter(PAGECACHE *keycache,
                                               PAGECACHE_FILE *file,
                                               enum flush_type type,
                                               PAGECACHE_FLUSH_FILTER filter,
-                                              void *filter_arg)__attribute__((visibility("default"))) ;
+                                              void *filter_arg);
 extern my_bool pagecache_delete(PAGECACHE *pagecache,
                                 PAGECACHE_FILE *file,
                                 pgcache_page_no_t pageno,
@@ -335,7 +307,7 @@ extern my_bool pagecache_delete_pages(PAGECACHE *pagecache,
                                       uint page_count,
                                       enum pagecache_page_lock lock,
                                       my_bool flush);
-extern void end_pagecache(PAGECACHE *keycache, my_bool cleanup)__attribute__((visibility("default"))) ;
+extern void end_pagecache(PAGECACHE *keycache, my_bool cleanup);
 extern my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
                                                          LEX_STRING *str,
                                                          LSN *min_lsn);
@@ -355,6 +327,8 @@ extern my_bool multi_pagecache_set(const uchar *key, uint length,
 				   PAGECACHE *pagecache);
 extern void multi_pagecache_change(PAGECACHE *old_data,
 				   PAGECACHE *new_data);
+extern int reset_pagecache_counters(const char *name,
+                                    PAGECACHE *pagecache);
 #ifndef DBUG_OFF
 void pagecache_file_no_dirty_page(PAGECACHE *pagecache, PAGECACHE_FILE *file);
 #else

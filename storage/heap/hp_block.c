@@ -78,7 +78,7 @@ int hp_get_new_block(HP_SHARE *info, HP_BLOCK *block, size_t *alloc_length)
    */
   *alloc_length= (sizeof(HP_PTRS) * ((i == block->levels) ? i : i - 1) +
                   (ulonglong)block->records_in_block * block->recbuffer);
-  if (!(root=(HP_PTRS*) my_malloc(hp_key_memory_HP_PTRS, *alloc_length,
+  if (!(root=(HP_PTRS*) my_malloc(*alloc_length,
                                   MYF(MY_WME |
                                       (info->internal ?
                                        MY_THREAD_SPECIFIC : 0)))))

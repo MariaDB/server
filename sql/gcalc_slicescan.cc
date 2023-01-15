@@ -208,7 +208,7 @@ void Gcalc_dyn_list::format_blk(void* block)
 
 Gcalc_dyn_list::Item *Gcalc_dyn_list::alloc_new_blk()
 {
-  void *new_block= my_malloc(PSI_INSTRUMENT_ME, m_blk_size, MYF(MY_WME));
+  void *new_block= my_malloc(m_blk_size, MYF(MY_WME));
   if (!new_block)
     return NULL;
   *m_blk_hook= new_block;

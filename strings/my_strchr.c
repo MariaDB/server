@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009-2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,8 +38,7 @@
     const char *acc_end= (ACC) + (LEN);                                 \
     for (ptr_str= (STR) ; ptr_str < (END) ; ptr_str+= mbl)              \
     {                                                                   \
-      mbl= my_ci_charlen_fix((CS), (const uchar *) ptr_str,             \
-                                   (const uchar *) (END));              \
+      mbl= my_charlen_fix((CS), ptr_str, (END));                        \
       if (mbl < 2)                                                      \
       {                                                                 \
         DBUG_ASSERT(mbl == 1);                                          \

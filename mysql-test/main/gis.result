@@ -488,7 +488,7 @@ explain extended select issimple(MultiPoint(Point(3, 6), Point(4, 10))), issimpl
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select st_issimple(multipoint(point(3,6),point(4,10))) AS `issimple(MultiPoint(Point(3, 6), Point(4, 10)))`,st_issimple(point(3,6)) AS `issimple(Point(3, 6))`
+Note	1003	select st_issimple(geometrycollection(point(3,6),point(4,10))) AS `issimple(MultiPoint(Point(3, 6), Point(4, 10)))`,st_issimple(point(3,6)) AS `issimple(Point(3, 6))`
 create table t1 (a geometry not null);
 insert into t1 values (GeomFromText('Point(1 2)'));
 insert into t1 values ('Garbage');
@@ -1049,7 +1049,7 @@ f5	datetime	YES		NULL
 drop view v1;
 drop table t1;
 SELECT MultiPoint(12345,'');
-ERROR HY000: Illegal parameter data type int for operation 'multipoint'
+ERROR HY000: Illegal parameter data type int for operation 'geometrycollection'
 SELECT 1 FROM (SELECT GREATEST(1,GEOMETRYCOLLECTION('00000','00000')) b FROM DUAL) AS d WHERE (LINESTRING(d.b));
 ERROR HY000: Illegal parameter data type varchar for operation 'geometrycollection'
 #
@@ -1889,10 +1889,10 @@ DROP TABLE t1;
 create view v1 as select AsWKT(GeometryCollection(Point(44, 6), LineString(Point(3, 6), Point(7, 9))));
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select st_astext(geometrycollection(point(44,6),linestring(point(3,6),point(7,9)))) AS `Name_exp_1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select st_astext(geometrycollection(point(44,6),geometrycollection(point(3,6),point(7,9)))) AS `Name_exp_1`	latin1	latin1_swedish_ci
 select * from v1;
 Name_exp_1
-GEOMETRYCOLLECTION(POINT(44 6),LINESTRING(3 6,7 9))
+GEOMETRYCOLLECTION(POINT(44 6),GEOMETRYCOLLECTION(POINT(3 6),POINT(7 9)))
 drop view v1;
 #
 # MDEV-10134 Add full support for DEFAULT
@@ -2505,309 +2505,309 @@ CREATE TABLE t1 (a TINYINT, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'case'
+Illegal parameter data types tinyint and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'coalesce'
+Illegal parameter data types tinyint and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'if'
+Illegal parameter data types tinyint and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'ifnull'
+Illegal parameter data types tinyint and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'UNION'
+Illegal parameter data types tinyint and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a SMALLINT, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'case'
+Illegal parameter data types smallint and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'coalesce'
+Illegal parameter data types smallint and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'if'
+Illegal parameter data types smallint and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'ifnull'
+Illegal parameter data types smallint and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'UNION'
+Illegal parameter data types smallint and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a MEDIUMINT, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'case'
+Illegal parameter data types mediumint and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'coalesce'
+Illegal parameter data types mediumint and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'if'
+Illegal parameter data types mediumint and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'ifnull'
+Illegal parameter data types mediumint and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'UNION'
+Illegal parameter data types mediumint and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a INT, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'case'
+Illegal parameter data types int and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'coalesce'
+Illegal parameter data types int and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'if'
+Illegal parameter data types int and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'ifnull'
+Illegal parameter data types int and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'UNION'
+Illegal parameter data types int and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a BIGINT, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'case'
+Illegal parameter data types bigint and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'coalesce'
+Illegal parameter data types bigint and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'if'
+Illegal parameter data types bigint and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'ifnull'
+Illegal parameter data types bigint and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'UNION'
+Illegal parameter data types bigint and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a FLOAT, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'case'
+Illegal parameter data types float and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'coalesce'
+Illegal parameter data types float and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'if'
+Illegal parameter data types float and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'ifnull'
+Illegal parameter data types float and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'UNION'
+Illegal parameter data types float and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a DOUBLE, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'case'
+Illegal parameter data types double and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'coalesce'
+Illegal parameter data types double and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'if'
+Illegal parameter data types double and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'ifnull'
+Illegal parameter data types double and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'UNION'
+Illegal parameter data types double and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a DECIMAL(10,2), b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'case'
+Illegal parameter data types decimal and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'coalesce'
+Illegal parameter data types decimal and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'if'
+Illegal parameter data types decimal and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'ifnull'
+Illegal parameter data types decimal and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'UNION'
+Illegal parameter data types decimal and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a BIT(8), b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'case'
+Illegal parameter data types bigint and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'coalesce'
+Illegal parameter data types bigint and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'if'
+Illegal parameter data types bigint and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'ifnull'
+Illegal parameter data types bigint and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation 'UNION'
+Illegal parameter data types bit and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a TIME, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'case'
+Illegal parameter data types time and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'coalesce'
+Illegal parameter data types time and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'if'
+Illegal parameter data types time and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'ifnull'
+Illegal parameter data types time and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'UNION'
+Illegal parameter data types time and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a DATE, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'case'
+Illegal parameter data types date and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'coalesce'
+Illegal parameter data types date and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'if'
+Illegal parameter data types date and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'ifnull'
+Illegal parameter data types date and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'UNION'
+Illegal parameter data types date and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a DATETIME, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'case'
+Illegal parameter data types datetime and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'coalesce'
+Illegal parameter data types datetime and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'if'
+Illegal parameter data types datetime and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'ifnull'
+Illegal parameter data types datetime and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'UNION'
+Illegal parameter data types datetime and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a TIMESTAMP, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'case'
+Illegal parameter data types timestamp and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'coalesce'
+Illegal parameter data types timestamp and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'if'
+Illegal parameter data types timestamp and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'ifnull'
+Illegal parameter data types timestamp and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'UNION'
+Illegal parameter data types timestamp and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a YEAR, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'case'
+Illegal parameter data types year and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'coalesce'
+Illegal parameter data types year and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'if'
+Illegal parameter data types year and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'ifnull'
+Illegal parameter data types year and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'UNION'
+Illegal parameter data types year and geometry for operation 'UNION'
 # This creates BLOB with hybrid functions, but fails on error with UNION (MDEV-11458)
 -------------------------------------
 CREATE TABLE t1 (a ENUM(0x61), b Point)
@@ -2838,7 +2838,7 @@ t2	CREATE TABLE `t2` (
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types enum and point for operation 'UNION'
+Illegal parameter data types enum and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a SET(0x61), b Point)
 
@@ -2868,7 +2868,7 @@ t2	CREATE TABLE `t2` (
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types set and point for operation 'UNION'
+Illegal parameter data types set and geometry for operation 'UNION'
 CREATE TABLE t1 AS SELECT COALESCE(NULL, Point(1,1));
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -3155,602 +3155,602 @@ CREATE TABLE t1 (a TINYINT, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation '='
+Illegal parameter data types tinyint and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and tinyint for operation '='
+Illegal parameter data types geometry and tinyint for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'between'
+Illegal parameter data types tinyint and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'in'
+Illegal parameter data types tinyint and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'case..when'
+Illegal parameter data types tinyint and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation '='
+Illegal parameter data types tinyint and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and tinyint for operation '='
+Illegal parameter data types geometry and tinyint for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'between'
+Illegal parameter data types tinyint and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'in'
+Illegal parameter data types tinyint and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'case..when'
+Illegal parameter data types tinyint and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a SMALLINT, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a SMALLINT, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation '='
+Illegal parameter data types smallint and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and smallint for operation '='
+Illegal parameter data types geometry and smallint for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'between'
+Illegal parameter data types smallint and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'in'
+Illegal parameter data types smallint and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'case..when'
+Illegal parameter data types smallint and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation '='
+Illegal parameter data types smallint and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and smallint for operation '='
+Illegal parameter data types geometry and smallint for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'between'
+Illegal parameter data types smallint and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'in'
+Illegal parameter data types smallint and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'case..when'
+Illegal parameter data types smallint and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a MEDIUMINT, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a MEDIUMINT, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation '='
+Illegal parameter data types mediumint and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and mediumint for operation '='
+Illegal parameter data types geometry and mediumint for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'between'
+Illegal parameter data types mediumint and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'in'
+Illegal parameter data types mediumint and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'case..when'
+Illegal parameter data types mediumint and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation '='
+Illegal parameter data types mediumint and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and mediumint for operation '='
+Illegal parameter data types geometry and mediumint for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'between'
+Illegal parameter data types mediumint and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'in'
+Illegal parameter data types mediumint and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'case..when'
+Illegal parameter data types mediumint and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a INT, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a INT, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation '='
+Illegal parameter data types int and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and int for operation '='
+Illegal parameter data types geometry and int for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'between'
+Illegal parameter data types int and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'in'
+Illegal parameter data types int and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'case..when'
+Illegal parameter data types int and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation '='
+Illegal parameter data types int and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and int for operation '='
+Illegal parameter data types geometry and int for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'between'
+Illegal parameter data types int and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'in'
+Illegal parameter data types int and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'case..when'
+Illegal parameter data types int and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a BIGINT, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a BIGINT, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation '='
+Illegal parameter data types bigint and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and bigint for operation '='
+Illegal parameter data types geometry and bigint for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'between'
+Illegal parameter data types bigint and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'in'
+Illegal parameter data types bigint and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'case..when'
+Illegal parameter data types bigint and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation '='
+Illegal parameter data types bigint and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and bigint for operation '='
+Illegal parameter data types geometry and bigint for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'between'
+Illegal parameter data types bigint and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'in'
+Illegal parameter data types bigint and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'case..when'
+Illegal parameter data types bigint and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a FLOAT, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a FLOAT, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation '='
+Illegal parameter data types float and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and float for operation '='
+Illegal parameter data types geometry and float for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'between'
+Illegal parameter data types float and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'in'
+Illegal parameter data types float and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'case..when'
+Illegal parameter data types float and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation '='
+Illegal parameter data types float and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and float for operation '='
+Illegal parameter data types geometry and float for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'between'
+Illegal parameter data types float and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'in'
+Illegal parameter data types float and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'case..when'
+Illegal parameter data types float and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a DOUBLE, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a DOUBLE, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation '='
+Illegal parameter data types double and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and double for operation '='
+Illegal parameter data types geometry and double for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'between'
+Illegal parameter data types double and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'in'
+Illegal parameter data types double and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'case..when'
+Illegal parameter data types double and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation '='
+Illegal parameter data types double and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and double for operation '='
+Illegal parameter data types geometry and double for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'between'
+Illegal parameter data types double and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'in'
+Illegal parameter data types double and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'case..when'
+Illegal parameter data types double and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a DECIMAL(10,2), b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a DECIMAL(10,2), b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation '='
+Illegal parameter data types decimal and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and decimal for operation '='
+Illegal parameter data types geometry and decimal for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'between'
+Illegal parameter data types decimal and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'in'
+Illegal parameter data types decimal and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'case..when'
+Illegal parameter data types decimal and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation '='
+Illegal parameter data types decimal and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and decimal for operation '='
+Illegal parameter data types geometry and decimal for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'between'
+Illegal parameter data types decimal and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'in'
+Illegal parameter data types decimal and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'case..when'
+Illegal parameter data types decimal and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a BIT(8), b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a BIT(8), b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation '='
+Illegal parameter data types bit and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and bit for operation '='
+Illegal parameter data types geometry and bit for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation 'between'
+Illegal parameter data types bit and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation 'in'
+Illegal parameter data types bit and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation 'case..when'
+Illegal parameter data types bit and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation '='
+Illegal parameter data types bit and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and bit for operation '='
+Illegal parameter data types geometry and bit for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation 'between'
+Illegal parameter data types bit and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation 'in'
+Illegal parameter data types bit and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation 'case..when'
+Illegal parameter data types bit and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a TIME, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a TIME, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation '='
+Illegal parameter data types time and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and time for operation '='
+Illegal parameter data types geometry and time for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'between'
+Illegal parameter data types time and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'in'
+Illegal parameter data types time and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'case..when'
+Illegal parameter data types time and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation '='
+Illegal parameter data types time and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and time for operation '='
+Illegal parameter data types geometry and time for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'between'
+Illegal parameter data types time and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'in'
+Illegal parameter data types time and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'case..when'
+Illegal parameter data types time and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a DATE, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a DATE, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation '='
+Illegal parameter data types date and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and date for operation '='
+Illegal parameter data types geometry and date for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'between'
+Illegal parameter data types date and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'in'
+Illegal parameter data types date and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'case..when'
+Illegal parameter data types date and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation '='
+Illegal parameter data types date and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and date for operation '='
+Illegal parameter data types geometry and date for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'between'
+Illegal parameter data types date and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'in'
+Illegal parameter data types date and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'case..when'
+Illegal parameter data types date and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a DATETIME, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a DATETIME, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation '='
+Illegal parameter data types datetime and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and datetime for operation '='
+Illegal parameter data types geometry and datetime for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'between'
+Illegal parameter data types datetime and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'in'
+Illegal parameter data types datetime and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'case..when'
+Illegal parameter data types datetime and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation '='
+Illegal parameter data types datetime and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and datetime for operation '='
+Illegal parameter data types geometry and datetime for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'between'
+Illegal parameter data types datetime and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'in'
+Illegal parameter data types datetime and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'case..when'
+Illegal parameter data types datetime and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a TIMESTAMP, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a TIMESTAMP, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation '='
+Illegal parameter data types timestamp and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and timestamp for operation '='
+Illegal parameter data types geometry and timestamp for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'between'
+Illegal parameter data types timestamp and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'in'
+Illegal parameter data types timestamp and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'case..when'
+Illegal parameter data types timestamp and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation '='
+Illegal parameter data types timestamp and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and timestamp for operation '='
+Illegal parameter data types geometry and timestamp for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'between'
+Illegal parameter data types timestamp and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'in'
+Illegal parameter data types timestamp and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'case..when'
+Illegal parameter data types timestamp and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a YEAR, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a YEAR, b Point, c Point)
 
 SELECT a=b FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation '='
+Illegal parameter data types year and geometry for operation '='
 
 SELECT b=a FROM t1
 ERROR: 
-Illegal parameter data types point and year for operation '='
+Illegal parameter data types geometry and year for operation '='
 
 SELECT a BETWEEN b AND c FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'between'
+Illegal parameter data types year and geometry for operation 'between'
 
 SELECT a IN (b,c) FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'in'
+Illegal parameter data types year and geometry for operation 'in'
 
 SELECT CASE a WHEN b THEN "a" WHEN c THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'case..when'
+Illegal parameter data types year and geometry for operation 'case..when'
 
 SELECT a=POINT(1,1) FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation '='
+Illegal parameter data types year and geometry for operation '='
 
 SELECT POINT(1,1)=a FROM t1
 ERROR: 
-Illegal parameter data types point and year for operation '='
+Illegal parameter data types geometry and year for operation '='
 
 SELECT a BETWEEN POINT(1,1) AND POINT(1,2) FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'between'
+Illegal parameter data types year and geometry for operation 'between'
 
 SELECT a IN (POINT(1,1),POINT(1,2)) FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'in'
+Illegal parameter data types year and geometry for operation 'in'
 
 SELECT CASE a WHEN POINT(1,1) THEN "a" WHEN POINT(1,2) THEN "b" END FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'case..when'
+Illegal parameter data types year and geometry for operation 'case..when'
 CALL p1('CREATE TABLE t1 (a Point, b Point, c Point)');
 -------------------------------------
 CREATE TABLE t1 (a Point, b Point, c Point)
@@ -3869,85 +3869,85 @@ CREATE TABLE t1 (a TINYINT, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types tinyint and point for operation 'least'
+Illegal parameter data types tinyint and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a SMALLINT, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types smallint and point for operation 'least'
+Illegal parameter data types smallint and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a MEDIUMINT, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types mediumint and point for operation 'least'
+Illegal parameter data types mediumint and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a INT, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types int and point for operation 'least'
+Illegal parameter data types int and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a BIGINT, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types bigint and point for operation 'least'
+Illegal parameter data types bigint and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a FLOAT, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types float and point for operation 'least'
+Illegal parameter data types float and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a DOUBLE, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types double and point for operation 'least'
+Illegal parameter data types double and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a DECIMAL(10,2), b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types decimal and point for operation 'least'
+Illegal parameter data types decimal and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a BIT(8), b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types bit and point for operation 'least'
+Illegal parameter data types bit and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a TIME, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types time and point for operation 'least'
+Illegal parameter data types time and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a DATE, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types date and point for operation 'least'
+Illegal parameter data types date and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a DATETIME, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types datetime and point for operation 'least'
+Illegal parameter data types datetime and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a TIMESTAMP, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types timestamp and point for operation 'least'
+Illegal parameter data types timestamp and geometry for operation 'least'
 -------------------------------------
 CREATE TABLE t1 (a YEAR, b Point)
 
 CREATE TABLE t2 AS SELECT LEAST(a,b) FROM t1
 ERROR: 
-Illegal parameter data types year and point for operation 'least'
+Illegal parameter data types year and geometry for operation 'least'
 # This LEAST(ENUM,GEOMETRY) creates BLOB, but fails on error with UNION (see MDEV-12503)
 -------------------------------------
 CREATE TABLE t1 (a ENUM(0x61), b Point)
@@ -3982,7 +3982,7 @@ SELECT ROUND(a) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'round'
 DROP TABLE t1;
 SELECT ROUND(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'round'
+ERROR HY000: Illegal parameter data type geometry for operation 'round'
 #
 # MDEV-12199 Split Item_func_{abs|neg|int_val}::fix_length_and_dec() into methods in Type_handler
 #
@@ -4005,37 +4005,37 @@ SELECT FLOOR(COALESCE(a)) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'floor'
 DROP TABLE t1;
 SELECT -POINT(1,1);
-ERROR HY000: Illegal parameter data type point for operation '-'
+ERROR HY000: Illegal parameter data type geometry for operation '-'
 SELECT ABS(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'abs'
+ERROR HY000: Illegal parameter data type geometry for operation 'abs'
 SELECT CEILING(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'ceiling'
+ERROR HY000: Illegal parameter data type geometry for operation 'ceiling'
 SELECT FLOOR(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'floor'
+ERROR HY000: Illegal parameter data type geometry for operation 'floor'
 #
 # MDEV-12239 Add Type_handler::Item_sum_{sum|avg|variance}_fix_length_and_dec()
 #
 CREATE TABLE t1 (a GEOMETRY);
 SELECT SUM(POINT(1,1)) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'sum'
+ERROR HY000: Illegal parameter data type geometry for operation 'sum'
 SELECT SUM(a) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'sum'
 SELECT SUM(COALESCE(a)) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'sum'
 SELECT AVG(POINT(1,1)) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'avg'
+ERROR HY000: Illegal parameter data type geometry for operation 'avg'
 SELECT AVG(a) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'avg'
 SELECT AVG(COALESCE(a)) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'avg'
 SELECT VARIANCE(POINT(1,1)) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'variance('
+ERROR HY000: Illegal parameter data type geometry for operation 'variance('
 SELECT VARIANCE(a) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'variance('
 SELECT VARIANCE(COALESCE(a)) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'variance('
 SELECT STDDEV(POINT(1,1)) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'std('
+ERROR HY000: Illegal parameter data type geometry for operation 'std('
 SELECT STDDEV(a) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'std('
 SELECT STDDEV(COALESCE(a)) FROM t1;
@@ -4046,23 +4046,23 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a GEOMETRY);
 SELECT CAST(POINT(1,1) AS SIGNED) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'cast_as_signed'
+ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(POINT(1,1) AS UNSIGNED) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'cast_as_unsigned'
+ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
 SELECT CAST(POINT(1,1) AS FLOAT) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'float_typecast'
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(POINT(1,1) AS DOUBLE) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'double_typecast'
+ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(POINT(1,1) AS DECIMAL(10,1)) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'decimal_typecast'
+ERROR HY000: Illegal parameter data type geometry for operation 'decimal_typecast'
 SELECT CAST(POINT(1,1) AS CHAR) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'cast_as_char'
+ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_char'
 SELECT CAST(POINT(1,1) AS TIME) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'cast_as_time'
+ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_time'
 SELECT CAST(POINT(1,1) AS DATE) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'cast_as_date'
+ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_date'
 SELECT CAST(POINT(1,1) AS DATETIME) FROM t1;
-ERROR HY000: Illegal parameter data type point for operation 'cast_as_datetime'
+ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_datetime'
 SELECT CAST(a AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(a AS UNSIGNED) FROM t1;
@@ -4111,25 +4111,25 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a GEOMETRY);
 SELECT POINT(1,1) + 1;
-ERROR HY000: Illegal parameter data types point and int for operation '+'
+ERROR HY000: Illegal parameter data types geometry and int for operation '+'
 SELECT POINT(1,1) - 1;
-ERROR HY000: Illegal parameter data types point and int for operation '-'
+ERROR HY000: Illegal parameter data types geometry and int for operation '-'
 SELECT POINT(1,1) * 1;
-ERROR HY000: Illegal parameter data types point and int for operation '*'
+ERROR HY000: Illegal parameter data types geometry and int for operation '*'
 SELECT POINT(1,1) / 1;
-ERROR HY000: Illegal parameter data types point and int for operation '/'
+ERROR HY000: Illegal parameter data types geometry and int for operation '/'
 SELECT POINT(1,1) MOD 1;
-ERROR HY000: Illegal parameter data types point and int for operation 'MOD'
+ERROR HY000: Illegal parameter data types geometry and int for operation 'MOD'
 SELECT 1 + POINT(1,1);
-ERROR HY000: Illegal parameter data types int and point for operation '+'
+ERROR HY000: Illegal parameter data types int and geometry for operation '+'
 SELECT 1 - POINT(1,1);
-ERROR HY000: Illegal parameter data types int and point for operation '-'
+ERROR HY000: Illegal parameter data types int and geometry for operation '-'
 SELECT 1 * POINT(1,1);
-ERROR HY000: Illegal parameter data types int and point for operation '*'
+ERROR HY000: Illegal parameter data types int and geometry for operation '*'
 SELECT 1 / POINT(1,1);
-ERROR HY000: Illegal parameter data types int and point for operation '/'
+ERROR HY000: Illegal parameter data types int and geometry for operation '/'
 SELECT 1 MOD POINT(1,1);
-ERROR HY000: Illegal parameter data types int and point for operation 'MOD'
+ERROR HY000: Illegal parameter data types int and geometry for operation 'MOD'
 SELECT a + 1 FROM t1;
 ERROR HY000: Illegal parameter data types geometry and int for operation '+'
 SELECT a - 1 FROM t1;
@@ -4175,33 +4175,33 @@ DROP TABLE t1;
 # MDEV-12514 Split Item_temporal_func::fix_length_and_dec()
 #
 SELECT DATE_ADD(POINT(1,1), INTERVAL 10 DAY);
-ERROR HY000: Illegal parameter data types point and interval for operation 'date_add_interval'
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT DATE_SUB(POINT(1,1), INTERVAL 10 DAY);
-ERROR HY000: Illegal parameter data types point and interval for operation 'date_add_interval'
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT POINT(1,1) + INTERVAL 10 DAY;
-ERROR HY000: Illegal parameter data types point and interval for operation 'date_add_interval'
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT POINT(1,1) - INTERVAL 10 DAY;
-ERROR HY000: Illegal parameter data types point and interval for operation 'date_add_interval'
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT INTERVAL 10 DAY + POINT(1,1);
-ERROR HY000: Illegal parameter data types point and interval for operation 'date_add_interval'
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT INTERVAL 10 DAY + POINT(1,1);
-ERROR HY000: Illegal parameter data types point and interval for operation 'date_add_interval'
+ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT ADDTIME(POINT(1,1), '10:10:10');
-ERROR HY000: Illegal parameter data types point and varchar for operation 'addtime'
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'addtime'
 SELECT ADDTIME('10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types varchar and point for operation 'addtime'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'addtime'
 SELECT ADDTIME(POINT(1,1), TIME'10:10:10');
-ERROR HY000: Illegal parameter data types point and time for operation 'addtime'
+ERROR HY000: Illegal parameter data types geometry and time for operation 'addtime'
 SELECT ADDTIME(TIME'10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types time and point for operation 'addtime'
+ERROR HY000: Illegal parameter data types time and geometry for operation 'addtime'
 SELECT ADDTIME(POINT(1,1), TIMESTAMP'2001-01-01 10:10:10');
-ERROR HY000: Illegal parameter data types point and datetime for operation 'addtime'
+ERROR HY000: Illegal parameter data types geometry and datetime for operation 'addtime'
 SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types datetime and point for operation 'addtime'
+ERROR HY000: Illegal parameter data types datetime and geometry for operation 'addtime'
 SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
-ERROR HY000: Illegal parameter data types point and varchar for operation 'str_to_date'
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'str_to_date'
 SELECT STR_TO_DATE('2001-01-01', POINT(1,1));
-ERROR HY000: Illegal parameter data types varchar and point for operation 'str_to_date'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'str_to_date'
 #
 # MDEV-12665 Hybrid functions do not preserve geometry type
 #
@@ -4442,11 +4442,11 @@ ERROR HY000: Illegal parameter data type int for operation 'st_pointonsurface'
 SELECT ST_POINTN(1,1);
 ERROR HY000: Illegal parameter data type int for operation 'st_pointn'
 SELECT ST_POINTN(LineString(Point(1,1)),Point(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_pointn'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_pointn'
 SELECT ST_BUFFER(1, 1);
 ERROR HY000: Illegal parameter data type int for operation 'st_buffer'
 SELECT ST_BUFFER(Point(1,1), Point(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_buffer'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_buffer'
 PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_ENVELOPE(?) AS g';
 EXECUTE stmt USING 1;
 ERROR HY000: Illegal parameter data type int for operation 'st_envelope'
@@ -4465,7 +4465,7 @@ PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_BUFFER(?,?) AS g';
 EXECUTE stmt USING 1,1;
 ERROR HY000: Illegal parameter data type int for operation 'st_buffer'
 EXECUTE stmt USING POINT(1,1),POINT(1,1);
-ERROR HY000: Illegal parameter data type point for operation 'st_buffer'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_buffer'
 EXECUTE stmt USING POINT(1,1),0;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -4483,11 +4483,11 @@ DEALLOCATE PREPARE stmt;
 SELECT ST_GEOMETRYFROMTEXT(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'st_geometryfromtext'
 SELECT ST_GEOMETRYFROMTEXT(Point(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_geometryfromtext'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
 SELECT ST_GEOMETRYFROMTEXT(Point(1,1), 1);
-ERROR HY000: Illegal parameter data type point for operation 'st_geometryfromtext'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
 SELECT ST_GEOMETRYFROMTEXT('test', Point(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_geometryfromtext'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
 SELECT ST_GEOMETRYFROMWKB(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'st_geometryfromwkb'
 SELECT ST_GEOMETRYFROMWKB(1);
@@ -4495,7 +4495,7 @@ ERROR HY000: Illegal parameter data type int for operation 'st_geometryfromwkb'
 SELECT ST_GEOMETRYFROMWKB(1, 1);
 ERROR HY000: Illegal parameter data type int for operation 'st_geometryfromwkb'
 SELECT ST_GEOMETRYFROMWKB(Point(1,1), Point(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_geometryfromwkb'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromwkb'
 SELECT ST_GEOMFROMGEOJSON(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'st_geomfromgeojson'
 SELECT ST_GEOMFROMGEOJSON(1);
@@ -4503,20 +4503,20 @@ ERROR HY000: Illegal parameter data type int for operation 'st_geomfromgeojson'
 SELECT ST_GEOMFROMGEOJSON(1,1);
 ERROR HY000: Illegal parameter data type int for operation 'st_geomfromgeojson'
 SELECT ST_GEOMFROMGEOJSON(Point(1,1), Point(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_geomfromgeojson'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geomfromgeojson'
 SELECT POINT(ROW(1,1),1);
 ERROR HY000: Illegal parameter data type row for operation 'point'
 SELECT POINT(POINT(1,1),1);
-ERROR HY000: Illegal parameter data type point for operation 'point'
+ERROR HY000: Illegal parameter data type geometry for operation 'point'
 SELECT POINT(1,ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'point'
 SELECT POINT(1,POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'point'
+ERROR HY000: Illegal parameter data type geometry for operation 'point'
 PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ST_GEOMFROMTEXT(?,?) AS g';
 EXECUTE stmt USING 1,1;
 ERROR HY000: Illegal parameter data type int for operation 'st_geometryfromtext'
 EXECUTE stmt USING POINT(1,1),POINT(1,1);
-ERROR HY000: Illegal parameter data type point for operation 'st_geometryfromtext'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_geometryfromtext'
 EXECUTE stmt USING 'POINT(1 1)',1;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -4677,7 +4677,7 @@ ERROR HY000: Illegal parameter data type date for operation 'st_relate'
 SELECT ST_RELATE(Point(1,1),Point(1,1),TIMESTAMP'2010-01-01 10:10:10');
 ERROR HY000: Illegal parameter data type datetime for operation 'st_relate'
 SELECT ST_RELATE(Point(1,1),Point(1,1),Point(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_relate'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_relate'
 # Item_str_ascii_func_args_geometry
 SELECT ST_ASTEXT(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'st_astext'
@@ -4698,9 +4698,9 @@ ERROR HY000: Illegal parameter data type int for operation 'st_asgeojson'
 SELECT ST_ASGEOJSON('test');
 ERROR HY000: Illegal parameter data type varchar for operation 'st_asgeojson'
 SELECT ST_ASGEOJSON(POINT(1,1), POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_asgeojson'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_asgeojson'
 SELECT ST_ASGEOJSON(POINT(1,1), 1, POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'st_asgeojson'
+ERROR HY000: Illegal parameter data type geometry for operation 'st_asgeojson'
 # Item_func_spatial_rel
 SELECT ST_TOUCHES(ROW(1,1), POINT(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'st_touches'
@@ -4730,47 +4730,47 @@ ERROR HY000: Illegal parameter data type varchar for operation 'st_touches'
 # MDEV-13964 Parameter data type control for Item_real_func
 #
 SELECT EXP(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'exp'
+ERROR HY000: Illegal parameter data type geometry for operation 'exp'
 SELECT LN(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'ln'
+ERROR HY000: Illegal parameter data type geometry for operation 'ln'
 SELECT LOG2(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'log2'
+ERROR HY000: Illegal parameter data type geometry for operation 'log2'
 SELECT LOG10(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'log10'
+ERROR HY000: Illegal parameter data type geometry for operation 'log10'
 SELECT SQRT(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'sqrt'
+ERROR HY000: Illegal parameter data type geometry for operation 'sqrt'
 SELECT ACOS(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'acos'
+ERROR HY000: Illegal parameter data type geometry for operation 'acos'
 SELECT ASIN(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'asin'
+ERROR HY000: Illegal parameter data type geometry for operation 'asin'
 SELECT COS(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'cos'
+ERROR HY000: Illegal parameter data type geometry for operation 'cos'
 SELECT SIN(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'sin'
+ERROR HY000: Illegal parameter data type geometry for operation 'sin'
 SELECT TAN(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'tan'
+ERROR HY000: Illegal parameter data type geometry for operation 'tan'
 SELECT COT(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'cot'
+ERROR HY000: Illegal parameter data type geometry for operation 'cot'
 SELECT LOG(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'log'
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
 SELECT LOG(POINT(1,1),POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'log'
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
 SELECT LOG(1, POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'log'
+ERROR HY000: Illegal parameter data type geometry for operation 'log'
 SELECT ATAN(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'atan'
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
 SELECT ATAN(POINT(1,1),POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'atan'
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
 SELECT ATAN(1, POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'atan'
+ERROR HY000: Illegal parameter data type geometry for operation 'atan'
 SELECT POW(POINT(1,1),POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'pow'
+ERROR HY000: Illegal parameter data type geometry for operation 'pow'
 SELECT RAND(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'rand'
+ERROR HY000: Illegal parameter data type geometry for operation 'rand'
 SELECT RADIANS(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'radians'
+ERROR HY000: Illegal parameter data type geometry for operation 'radians'
 SELECT DEGREES(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'degrees'
+ERROR HY000: Illegal parameter data type geometry for operation 'degrees'
 SELECT EXP(ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'exp'
 SELECT LN(ROW(1,1));
@@ -4817,64 +4817,64 @@ ERROR HY000: Illegal parameter data type row for operation 'degrees'
 # MDEV-13965 Parameter data type control for Item_longlong_func
 #
 SELECT POINT(1,1) | 1;
-ERROR HY000: Illegal parameter data type point for operation '|'
+ERROR HY000: Illegal parameter data type geometry for operation '|'
 SELECT 1 | POINT(1,1);
-ERROR HY000: Illegal parameter data type point for operation '|'
+ERROR HY000: Illegal parameter data type geometry for operation '|'
 SELECT POINT(1,1) & 1;
-ERROR HY000: Illegal parameter data type point for operation '&'
+ERROR HY000: Illegal parameter data type geometry for operation '&'
 SELECT 1 & POINT(1,1);
-ERROR HY000: Illegal parameter data type point for operation '&'
+ERROR HY000: Illegal parameter data type geometry for operation '&'
 SELECT POINT(1,1) << 1;
-ERROR HY000: Illegal parameter data type point for operation '<<'
+ERROR HY000: Illegal parameter data type geometry for operation '<<'
 SELECT 1 << POINT(1,1);
-ERROR HY000: Illegal parameter data type point for operation '<<'
+ERROR HY000: Illegal parameter data type geometry for operation '<<'
 SELECT POINT(1,1) >> 1;
-ERROR HY000: Illegal parameter data type point for operation '>>'
+ERROR HY000: Illegal parameter data type geometry for operation '>>'
 SELECT 1 >> POINT(1,1);
-ERROR HY000: Illegal parameter data type point for operation '>>'
+ERROR HY000: Illegal parameter data type geometry for operation '>>'
 SELECT ~POINT(1,1);
-ERROR HY000: Illegal parameter data type point for operation '~'
+ERROR HY000: Illegal parameter data type geometry for operation '~'
 SELECT TO_SECONDS(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'to_seconds'
+ERROR HY000: Illegal parameter data type geometry for operation 'to_seconds'
 SELECT TIMESTAMPDIFF(SECOND,POINT(1,1), 1);
-ERROR HY000: Illegal parameter data type point for operation 'timestampdiff'
+ERROR HY000: Illegal parameter data type geometry for operation 'timestampdiff'
 SELECT TIMESTAMPDIFF(SECOND,1, POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'timestampdiff'
+ERROR HY000: Illegal parameter data type geometry for operation 'timestampdiff'
 SELECT INET_ATON(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'inet_aton'
+ERROR HY000: Illegal parameter data type geometry for operation 'inet_aton'
 SELECT LAST_INSERT_ID(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'last_insert_id'
+ERROR HY000: Illegal parameter data type geometry for operation 'last_insert_id'
 #
 # MDEV-13966 Parameter data type control for Item_temporal_func
 #
 SELECT FROM_DAYS(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'from_days'
+ERROR HY000: Illegal parameter data type geometry for operation 'from_days'
 SELECT MAKEDATE(POINT(1,1),1);
-ERROR HY000: Illegal parameter data type point for operation 'makedate'
+ERROR HY000: Illegal parameter data type geometry for operation 'makedate'
 SELECT MAKEDATE(1, POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'makedate'
+ERROR HY000: Illegal parameter data type geometry for operation 'makedate'
 SELECT LAST_DAY(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'last_day'
+ERROR HY000: Illegal parameter data type geometry for operation 'last_day'
 SELECT SEC_TO_TIME(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'sec_to_time'
+ERROR HY000: Illegal parameter data type geometry for operation 'sec_to_time'
 SELECT TIMEDIFF(POINT(1,1),1);
-ERROR HY000: Illegal parameter data type point for operation 'timediff'
+ERROR HY000: Illegal parameter data type geometry for operation 'timediff'
 SELECT TIMEDIFF(1, POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'timediff'
+ERROR HY000: Illegal parameter data type geometry for operation 'timediff'
 SELECT MAKETIME(POINT(1,1),1,1);
-ERROR HY000: Illegal parameter data type point for operation 'maketime'
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
 SELECT MAKETIME(1, POINT(1,1), 1);
-ERROR HY000: Illegal parameter data type point for operation 'maketime'
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
 SELECT MAKETIME(1, 1, POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'maketime'
+ERROR HY000: Illegal parameter data type geometry for operation 'maketime'
 SELECT FROM_UNIXTIME(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'from_unixtime'
+ERROR HY000: Illegal parameter data type geometry for operation 'from_unixtime'
 SELECT CONVERT_TZ(POINT(1,1),1,1);
-ERROR HY000: Illegal parameter data type point for operation 'convert_tz'
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
 SELECT CONVERT_TZ(1, POINT(1,1), 1);
-ERROR HY000: Illegal parameter data type point for operation 'convert_tz'
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
 SELECT CONVERT_TZ(1, 1, POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'convert_tz'
+ERROR HY000: Illegal parameter data type geometry for operation 'convert_tz'
 #
 # MDEV-13967 Parameter data type control for Item_long_func
 #
@@ -4903,67 +4903,67 @@ SELECT ORD(POINT(1,1));
 ORD(POINT(1,1))
 0
 SELECT SIGN(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'sign'
+ERROR HY000: Illegal parameter data type geometry for operation 'sign'
 SELECT LOCATE('a','a',POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'locate'
+ERROR HY000: Illegal parameter data type geometry for operation 'locate'
 SELECT LOCATE(POINT(1,1),POINT(1,1));
 LOCATE(POINT(1,1),POINT(1,1))
 1
 SELECT BIT_COUNT(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'bit_count'
+ERROR HY000: Illegal parameter data type geometry for operation 'bit_count'
 SELECT BENCHMARK(POINT(1,1),'');
-ERROR HY000: Illegal parameter data type point for operation 'benchmark'
+ERROR HY000: Illegal parameter data type geometry for operation 'benchmark'
 SELECT SLEEP(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'sleep'
+ERROR HY000: Illegal parameter data type geometry for operation 'sleep'
 SELECT GET_LOCK('x', POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'get_lock'
+ERROR HY000: Illegal parameter data type geometry for operation 'get_lock'
 SELECT PERIOD_ADD(POINT(1,1),1);
-ERROR HY000: Illegal parameter data type point for operation 'period_add'
+ERROR HY000: Illegal parameter data type geometry for operation 'period_add'
 SELECT PERIOD_ADD(1,POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'period_add'
+ERROR HY000: Illegal parameter data type geometry for operation 'period_add'
 SELECT PERIOD_DIFF(POINT(1,1),1);
-ERROR HY000: Illegal parameter data type point for operation 'period_diff'
+ERROR HY000: Illegal parameter data type geometry for operation 'period_diff'
 SELECT PERIOD_DIFF(1,POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'period_diff'
+ERROR HY000: Illegal parameter data type geometry for operation 'period_diff'
 SELECT TO_DAYS(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'to_days'
+ERROR HY000: Illegal parameter data type geometry for operation 'to_days'
 SELECT DAYOFMONTH(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'dayofmonth'
+ERROR HY000: Illegal parameter data type geometry for operation 'dayofmonth'
 SELECT DAYOFYEAR(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'dayofyear'
+ERROR HY000: Illegal parameter data type geometry for operation 'dayofyear'
 SELECT QUARTER(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'quarter'
+ERROR HY000: Illegal parameter data type geometry for operation 'quarter'
 SELECT YEAR(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'year'
+ERROR HY000: Illegal parameter data type geometry for operation 'year'
 SELECT YEARWEEK(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'yearweek'
+ERROR HY000: Illegal parameter data type geometry for operation 'yearweek'
 SELECT WEEK(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'week'
+ERROR HY000: Illegal parameter data type geometry for operation 'week'
 SELECT WEEK(POINT(1,1),1);
-ERROR HY000: Illegal parameter data type point for operation 'week'
+ERROR HY000: Illegal parameter data type geometry for operation 'week'
 SELECT WEEK(1,POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'week'
+ERROR HY000: Illegal parameter data type geometry for operation 'week'
 SELECT HOUR(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'hour'
+ERROR HY000: Illegal parameter data type geometry for operation 'hour'
 SELECT MINUTE(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'minute'
+ERROR HY000: Illegal parameter data type geometry for operation 'minute'
 SELECT SECOND(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'second'
+ERROR HY000: Illegal parameter data type geometry for operation 'second'
 SELECT MICROSECOND(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'microsecond'
+ERROR HY000: Illegal parameter data type geometry for operation 'microsecond'
 SELECT JSON_DEPTH(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'json_depth'
+ERROR HY000: Illegal parameter data type geometry for operation 'json_depth'
 SELECT JSON_LENGTH(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'json_length'
+ERROR HY000: Illegal parameter data type geometry for operation 'json_length'
 SELECT JSON_LENGTH('json', POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'json_length'
+ERROR HY000: Illegal parameter data type geometry for operation 'json_length'
 SELECT JSON_LENGTH(POINT(1,1), POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'json_length'
+ERROR HY000: Illegal parameter data type geometry for operation 'json_length'
 SELECT REGEXP_INSTR(POINT(1,1),'');
 REGEXP_INSTR(POINT(1,1),'')
 1
 SELECT REGEXP_INSTR('',POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'regexp_instr'
+ERROR HY000: Illegal parameter data type geometry for operation 'regexp_instr'
 SELECT FIND_IN_SET(POINT(1,1),'');
 FIND_IN_SET(POINT(1,1),'')
 0
@@ -4971,11 +4971,11 @@ SELECT FIND_IN_SET('',POINT(1,1));
 FIND_IN_SET('',POINT(1,1))
 0
 SELECT RELEASE_LOCK(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'release_lock'
+ERROR HY000: Illegal parameter data type geometry for operation 'release_lock'
 SELECT IS_FREE_LOCK(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'is_free_lock'
+ERROR HY000: Illegal parameter data type geometry for operation 'is_free_lock'
 SELECT IS_USED_LOCK(POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'is_used_lock'
+ERROR HY000: Illegal parameter data type geometry for operation 'is_used_lock'
 #
 # MDEV-26161 crash in Gis_point::calculate_haversine
 #
@@ -5028,16 +5028,16 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 SELECT 0x60+POINT(1,1);
-ERROR HY000: Illegal parameter data types bigint unsigned and point for operation '+'
+ERROR HY000: Illegal parameter data types bigint and geometry for operation '+'
 SELECT POINT(1,1)+0x60;
-ERROR HY000: Illegal parameter data types point and bigint unsigned for operation '+'
+ERROR HY000: Illegal parameter data types geometry and bigint for operation '+'
 #
 # MDEV-16454 Bad results for IN with ROW
 #
 SELECT (1,0) IN ((POINT(1,1),0),(0,0));
-ERROR HY000: Illegal parameter data types int and point for operation 'in'
+ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
-ERROR HY000: Illegal parameter data types int and point for operation 'in'
+ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 #
 # MDEV-19819 ALTER from POINT to LINESTRING erroneously preserves POINT values
 #
@@ -5056,284 +5056,4 @@ AsText(a)
 DROP TABLE t1, t2;
 #
 # End of 10.4 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-19994 Add class Function_collection
-#
-SELECT CONTAINS();
-ERROR 42000: Incorrect parameter count in the call to native function 'CONTAINS()'
-SELECT CONTAINS(POINT(1,1));
-ERROR 42000: Incorrect parameter count in the call to native function 'CONTAINS(POINT(1,1))'
-SELECT CONTAINS(POINT(1,1), POINT(1,1), POINT(1,1));
-ERROR 42000: Incorrect parameter count in the call to native function 'CONTAINS(POINT(1,1), POINT(1,1), POINT(1,1))'
-SELECT WITHIN();
-ERROR 42000: Incorrect parameter count in the call to native function 'WITHIN()'
-SELECT WITHIN(POINT(1,1));
-ERROR 42000: Incorrect parameter count in the call to native function 'WITHIN(POINT(1,1))'
-SELECT WITHIN(POINT(1,1), POINT(1,1), POINT(1,1));
-ERROR 42000: Incorrect parameter count in the call to native function 'WITHIN(POINT(1,1), POINT(1,1), POINT(1,1))'
-#
-# MDEV-20009 Add CAST(expr AS pluggable_type)
-#
-SELECT CAST(1 AS GEOMETRY);
-ERROR HY000: Operator does not exists: 'CAST(expr AS geometry)'
-SELECT CAST(1 AS GEOMETRYCOLLECTION);
-ERROR HY000: Operator does not exists: 'CAST(expr AS geometrycollection)'
-SELECT CAST(1 AS POINT);
-ERROR HY000: Operator does not exists: 'CAST(expr AS point)'
-SELECT CAST(1 AS LINESTRING);
-ERROR HY000: Operator does not exists: 'CAST(expr AS linestring)'
-SELECT CAST(1 AS POLYGON);
-ERROR HY000: Operator does not exists: 'CAST(expr AS polygon)'
-SELECT CAST(1 AS MULTIPOINT);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multipoint)'
-SELECT CAST(1 AS MULTILINESTRING);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multilinestring)'
-SELECT CAST(1 AS MULTIPOLYGON);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multipolygon)'
-SELECT CONVERT(1, GEOMETRY);
-ERROR HY000: Operator does not exists: 'CAST(expr AS geometry)'
-SELECT CONVERT(1, GEOMETRYCOLLECTION);
-ERROR HY000: Operator does not exists: 'CAST(expr AS geometrycollection)'
-SELECT CONVERT(1, POINT);
-ERROR HY000: Operator does not exists: 'CAST(expr AS point)'
-SELECT CONVERT(1, LINESTRING);
-ERROR HY000: Operator does not exists: 'CAST(expr AS linestring)'
-SELECT CONVERT(1, POLYGON);
-ERROR HY000: Operator does not exists: 'CAST(expr AS polygon)'
-SELECT CONVERT(1, MULTIPOINT);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multipoint)'
-SELECT CONVERT(1, MULTILINESTRING);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multilinestring)'
-SELECT CONVERT(1, MULTIPOLYGON);
-ERROR HY000: Operator does not exists: 'CAST(expr AS multipolygon)'
-#
-# MDEV-17832 Protocol: extensions for Pluggable types and JSON, GEOMETRY
-#
-SET NAMES utf8;
-CREATE TABLE t1 (
-p    POINT,
-ls   LINESTRING,
-pl   POLYGON,
-mp   MULTIPOINT,
-mls  MULTILINESTRING,
-mpl  MULTIPOLYGON,
-gc   GEOMETRYCOLLECTION,
-g    GEOMETRY
-) CHARACTER SET utf8;
-SELECT * FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	p	p	255 (type=point)	4294967295	0	Y	144	0	63
-def	test	t1	t1	ls	ls	255 (type=linestring)	4294967295	0	Y	144	0	63
-def	test	t1	t1	pl	pl	255 (type=polygon)	4294967295	0	Y	144	0	63
-def	test	t1	t1	mp	mp	255 (type=multipoint)	4294967295	0	Y	144	0	63
-def	test	t1	t1	mls	mls	255 (type=multilinestring)	4294967295	0	Y	144	0	63
-def	test	t1	t1	mpl	mpl	255 (type=multipolygon)	4294967295	0	Y	144	0	63
-def	test	t1	t1	gc	gc	255 (type=geometrycollection)	4294967295	0	Y	144	0	63
-def	test	t1	t1	g	g	255	4294967295	0	Y	144	0	63
-p	ls	pl	mp	mls	mpl	gc	g
-SELECT
-COALESCE(p) AS p,
-COALESCE(ls) AS ls,
-COALESCE(pl) AS pl,
-COALESCE(mp) AS mp,
-COALESCE(mls) AS mls,
-COALESCE(mpl) AS mpl,
-COALESCE(gc) AS gc,
-COALESCE(g) AS g
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					p	255 (type=point)	4294967295	0	Y	128	0	63
-def					ls	255 (type=linestring)	4294967295	0	Y	128	0	63
-def					pl	255 (type=polygon)	4294967295	0	Y	128	0	63
-def					mp	255 (type=multipoint)	4294967295	0	Y	128	0	63
-def					mls	255 (type=multilinestring)	4294967295	0	Y	128	0	63
-def					mpl	255 (type=multipolygon)	4294967295	0	Y	128	0	63
-def					gc	255 (type=geometrycollection)	4294967295	0	Y	128	0	63
-def					g	255	4294967295	0	Y	128	0	63
-p	ls	pl	mp	mls	mpl	gc	g
-SELECT
-COALESCE(p,p),
-COALESCE(p,ls),
-COALESCE(p,pl),
-COALESCE(p,mp),
-COALESCE(p,mls),
-COALESCE(p,mpl),
-COALESCE(p,g),
-COALESCE(p,gc)
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(p,p)	255 (type=point)	4294967295	0	Y	128	0	63
-def					COALESCE(p,ls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(p,pl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(p,mp)	255	4294967295	0	Y	128	0	63
-def					COALESCE(p,mls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(p,mpl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(p,g)	255	4294967295	0	Y	128	0	63
-def					COALESCE(p,gc)	255	4294967295	0	Y	128	0	63
-COALESCE(p,p)	COALESCE(p,ls)	COALESCE(p,pl)	COALESCE(p,mp)	COALESCE(p,mls)	COALESCE(p,mpl)	COALESCE(p,g)	COALESCE(p,gc)
-SELECT
-COALESCE(ls,p),
-COALESCE(ls,ls),
-COALESCE(ls,pl),
-COALESCE(ls,mp),
-COALESCE(ls,mls),
-COALESCE(ls,mpl),
-COALESCE(ls,g),
-COALESCE(ls,gc)
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(ls,p)	255	4294967295	0	Y	128	0	63
-def					COALESCE(ls,ls)	255 (type=linestring)	4294967295	0	Y	128	0	63
-def					COALESCE(ls,pl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(ls,mp)	255	4294967295	0	Y	128	0	63
-def					COALESCE(ls,mls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(ls,mpl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(ls,g)	255	4294967295	0	Y	128	0	63
-def					COALESCE(ls,gc)	255	4294967295	0	Y	128	0	63
-COALESCE(ls,p)	COALESCE(ls,ls)	COALESCE(ls,pl)	COALESCE(ls,mp)	COALESCE(ls,mls)	COALESCE(ls,mpl)	COALESCE(ls,g)	COALESCE(ls,gc)
-SELECT
-COALESCE(pl,p),
-COALESCE(pl,ls),
-COALESCE(pl,pl),
-COALESCE(pl,mp),
-COALESCE(pl,mls),
-COALESCE(pl,mpl),
-COALESCE(pl,g),
-COALESCE(pl,gc)
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(pl,p)	255	4294967295	0	Y	128	0	63
-def					COALESCE(pl,ls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(pl,pl)	255 (type=polygon)	4294967295	0	Y	128	0	63
-def					COALESCE(pl,mp)	255	4294967295	0	Y	128	0	63
-def					COALESCE(pl,mls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(pl,mpl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(pl,g)	255	4294967295	0	Y	128	0	63
-def					COALESCE(pl,gc)	255	4294967295	0	Y	128	0	63
-COALESCE(pl,p)	COALESCE(pl,ls)	COALESCE(pl,pl)	COALESCE(pl,mp)	COALESCE(pl,mls)	COALESCE(pl,mpl)	COALESCE(pl,g)	COALESCE(pl,gc)
-SELECT
-COALESCE(mp,p),
-COALESCE(mp,ls),
-COALESCE(mp,pl),
-COALESCE(mp,mp),
-COALESCE(mp,mls),
-COALESCE(mp,mpl),
-COALESCE(mp,g),
-COALESCE(mp,gc)
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(mp,p)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mp,ls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mp,pl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mp,mp)	255 (type=multipoint)	4294967295	0	Y	128	0	63
-def					COALESCE(mp,mls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mp,mpl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mp,g)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mp,gc)	255	4294967295	0	Y	128	0	63
-COALESCE(mp,p)	COALESCE(mp,ls)	COALESCE(mp,pl)	COALESCE(mp,mp)	COALESCE(mp,mls)	COALESCE(mp,mpl)	COALESCE(mp,g)	COALESCE(mp,gc)
-SELECT
-COALESCE(mls,p),
-COALESCE(mls,ls),
-COALESCE(mls,pl),
-COALESCE(mls,mp),
-COALESCE(mls,mls),
-COALESCE(mls,mpl),
-COALESCE(mls,g),
-COALESCE(mls,gc)
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(mls,p)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mls,ls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mls,pl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mls,mp)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mls,mls)	255 (type=multilinestring)	4294967295	0	Y	128	0	63
-def					COALESCE(mls,mpl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mls,g)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mls,gc)	255	4294967295	0	Y	128	0	63
-COALESCE(mls,p)	COALESCE(mls,ls)	COALESCE(mls,pl)	COALESCE(mls,mp)	COALESCE(mls,mls)	COALESCE(mls,mpl)	COALESCE(mls,g)	COALESCE(mls,gc)
-SELECT
-COALESCE(mpl,p),
-COALESCE(mpl,ls),
-COALESCE(mpl,pl),
-COALESCE(mpl,mp),
-COALESCE(mpl,mls),
-COALESCE(mpl,mpl),
-COALESCE(mpl,g),
-COALESCE(mpl,gc)
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(mpl,p)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mpl,ls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mpl,pl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mpl,mp)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mpl,mls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mpl,mpl)	255 (type=multipolygon)	4294967295	0	Y	128	0	63
-def					COALESCE(mpl,g)	255	4294967295	0	Y	128	0	63
-def					COALESCE(mpl,gc)	255	4294967295	0	Y	128	0	63
-COALESCE(mpl,p)	COALESCE(mpl,ls)	COALESCE(mpl,pl)	COALESCE(mpl,mp)	COALESCE(mpl,mls)	COALESCE(mpl,mpl)	COALESCE(mpl,g)	COALESCE(mpl,gc)
-SELECT
-COALESCE(g,p),
-COALESCE(g,ls),
-COALESCE(g,pl),
-COALESCE(g,mp),
-COALESCE(g,mls),
-COALESCE(g,mpl),
-COALESCE(g,g),
-COALESCE(g,gc)
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(g,p)	255	4294967295	0	Y	128	0	63
-def					COALESCE(g,ls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(g,pl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(g,mp)	255	4294967295	0	Y	128	0	63
-def					COALESCE(g,mls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(g,mpl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(g,g)	255	4294967295	0	Y	128	0	63
-def					COALESCE(g,gc)	255	4294967295	0	Y	128	0	63
-COALESCE(g,p)	COALESCE(g,ls)	COALESCE(g,pl)	COALESCE(g,mp)	COALESCE(g,mls)	COALESCE(g,mpl)	COALESCE(g,g)	COALESCE(g,gc)
-SELECT
-COALESCE(gc,p),
-COALESCE(gc,ls),
-COALESCE(gc,pl),
-COALESCE(gc,mp),
-COALESCE(gc,mls),
-COALESCE(gc,mpl),
-COALESCE(gc,g),
-COALESCE(gc,gc)
-FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(gc,p)	255	4294967295	0	Y	128	0	63
-def					COALESCE(gc,ls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(gc,pl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(gc,mp)	255	4294967295	0	Y	128	0	63
-def					COALESCE(gc,mls)	255	4294967295	0	Y	128	0	63
-def					COALESCE(gc,mpl)	255	4294967295	0	Y	128	0	63
-def					COALESCE(gc,g)	255	4294967295	0	Y	128	0	63
-def					COALESCE(gc,gc)	255 (type=geometrycollection)	4294967295	0	Y	128	0	63
-COALESCE(gc,p)	COALESCE(gc,ls)	COALESCE(gc,pl)	COALESCE(gc,mp)	COALESCE(gc,mls)	COALESCE(gc,mpl)	COALESCE(gc,g)	COALESCE(gc,gc)
-DROP TABLE t1;
-#
-# MDEV-20809 EXTRACT from INET6 value does not produce any warnings
-#
-CREATE TABLE t1 (a GEOMETRY);
-SELECT EXTRACT(DAY FROM a) FROM t1;
-ERROR HY000: Illegal parameter data type geometry for operation 'extract(day)'
-DROP TABLE t1;
-#
-# MDEV-21765 Possibly inconsistent behavior of BIT_xx functions with INET6 field
-#
-CREATE TABLE t1 (a GEOMETRY);
-SELECT BIT_AND(a) FROM t1;
-ERROR HY000: Illegal parameter data type geometry for operation 'bit_and('
-SELECT BIT_OR(a) FROM t1;
-ERROR HY000: Illegal parameter data type geometry for operation 'bit_or('
-SELECT BIT_XOR(a) FROM t1;
-ERROR HY000: Illegal parameter data type geometry for operation 'bit_xor('
-DROP TABLE t1;
-#
-# End of 10.5 tests
 #

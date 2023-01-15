@@ -745,18 +745,13 @@ f1	f2
 drop view v1;
 drop table t1;
 SET @@sql_mode= @save_mode;
-#
-# MDEV-13861 Assertion `0' failed in Protocol::end_statement
-#
 CREATE TABLE t1 (f INT);
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE f <=> 'foo' WITH CHECK OPTION;
 REPLACE INTO v1 SET f = NULL;
 ERROR 22007: Truncated incorrect DECIMAL value: 'foo'
 DROP VIEW v1;
 DROP TABLE t1;
-#
 # End of 10.0 tests
-#
 #
 # MDEV-26412: INSERT CREATE with subquery in ON expression
 #
@@ -783,28 +778,4 @@ create table t2 (j int) ;
 create table t4 select * from t1 join t2 on (select t3.i);
 ERROR 42S22: Unknown column 't3.i' in 'field list'
 drop table t1, t2;
-#
 # End of 10.4 tests
-#
-#
-# outer references in subqueries in INSERT
-#
-create table t1 (a int default 5);
-insert t1 values (1);
-insert t1 values (a);
-insert t1 values ((select a+1));
-insert t1 set a=2;
-insert t1 set a=a+2;
-insert t1 set a=(select a+3);
-select * from t1;
-a
-1
-5
-6
-2
-7
-8
-drop table t1;
-#
-# End of 10.5 tests
-#

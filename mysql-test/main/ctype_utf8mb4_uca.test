@@ -45,7 +45,7 @@ DROP TABLE t1;
 --echo #
 #
 # Bug#57737 Character sets: search fails with like, contraction, index
-# Test like_range and contractions
+# Test my_like_range and contractions
 #
 SET collation_connection=utf8mb4_czech_ci;
 --source include/ctype_czech.inc

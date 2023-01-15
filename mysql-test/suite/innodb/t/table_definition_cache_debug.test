@@ -4,7 +4,7 @@
 # This test is slow on buildbot.
 --source include/big_test.inc
 
-call mtr.add_suppression("InnoDB: innodb_open_files=.* is exceeded");
+call mtr.add_suppression("InnoDB: innodb_open_files=13 is exceeded");
 
 SET @save_tdc= @@GLOBAL.table_definition_cache;
 SET @save_toc= @@GLOBAL.table_open_cache;

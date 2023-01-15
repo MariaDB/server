@@ -291,7 +291,7 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
     If ndocs == 0, this will not allocate RAM for FT_INFO.doc[],
     so if ndocs == 0, FT_INFO.doc[] must not be accessed.
    */
-  dlist=(FT_INFO *)my_malloc(PSI_INSTRUMENT_ME, sizeof(FT_INFO)+
+  dlist=(FT_INFO *)my_malloc(sizeof(FT_INFO)+
 			     sizeof(FT_DOC)*
 			     (int)(aio.dtree.elements_in_tree-1),
 			     MYF(0));

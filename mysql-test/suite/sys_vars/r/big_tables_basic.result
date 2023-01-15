@@ -4,24 +4,16 @@ SELECT @start_value;
 0
 '#--------------------FN_DYNVARS_005_01------------------------#'
 SET @@big_tables = 1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SET @@big_tables = DEFAULT;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 0
 '#--------------------FN_DYNVARS_005_02------------------------#'
 SET @@big_tables = 0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 0
 SET @@big_tables = 1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 1
@@ -52,14 +44,10 @@ SET @@big_tables = '';
 ERROR 42000: Variable 'big_tables' can't be set to the value of ''
 '#-------------------FN_DYNVARS_005_04----------------------------#'
 SET @@global.big_tables = 1-@@global.big_tables;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@global.big_tables;
 @@global.big_tables
 1
 SET @@global.big_tables = 1-@@global.big_tables;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 '#----------------------FN_DYNVARS_005_05------------------------#'
 SELECT IF(@@big_tables, "ON", "OFF") = VARIABLE_VALUE 
 FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
@@ -68,47 +56,33 @@ IF(@@big_tables, "ON", "OFF") = VARIABLE_VALUE
 1
 '#---------------------FN_DYNVARS_005_06----------------------#'
 SET @@big_tables = OFF;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 0
 SET @@big_tables = ON;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 1
 '#---------------------FN_DYNVARS_005_07----------------------#'
 SET @@big_tables = TRUE;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 1
 SET @@big_tables = FALSE;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 0
 '#---------------------FN_DYNVARS_005_08----------------------#'
 SET @@big_tables = 0;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables = @@session.big_tables;
 @@big_tables = @@session.big_tables
 1
 SET @@big_tables = 1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables = @@local.big_tables and @@local.big_tables = @@session.big_tables;
 @@big_tables = @@local.big_tables and @@local.big_tables = @@session.big_tables
 1
 '#---------------------FN_DYNVARS_005_09----------------------#'
 SET big_tables = 1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 1
@@ -119,8 +93,6 @@ ERROR 42S02: Unknown table 'session' in field list
 select big_tables;
 ERROR 42S22: Unknown column 'big_tables' in 'field list'
 SET @@big_tables = @start_value;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 SELECT @@big_tables;
 @@big_tables
 0

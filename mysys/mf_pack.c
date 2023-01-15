@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2020, MariaDB Corporation.
+   Copyright (c) 2012, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -152,7 +152,7 @@ size_t cleanup_dirname(register char *to, const char *from)
   {
 #ifdef BACKSLASH_MBTAIL
     uint l;
-    if (my_ci_use_mb(fs) && (l= my_ismbchar(fs, from_ptr - 1, from_ptr + 2)))
+    if (use_mb(fs) && (l= my_ismbchar(fs, from_ptr - 1, from_ptr + 2)))
     {
       for (l-- ; l ; *++pos= *from_ptr++, l--);
       start= pos + 1; /* Don't look inside multi-byte char */

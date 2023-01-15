@@ -844,9 +844,7 @@ public:
     int external_lock(THD * thd, int lock_type);
     int start_stmt(THD * thd, thr_lock_type lock_type);
 
-    ha_rows records_in_range(uint inx, const key_range * min_key,
-                             const key_range * max_key,
-                             page_range *pages);
+    ha_rows records_in_range(uint inx, key_range * min_key, key_range * max_key);
 
     uint32_t get_cursor_isolation_flags(enum thr_lock_type lock_type, THD* thd);
     THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type);
@@ -871,6 +869,10 @@ public:
     uint8 table_cache_type() {
         return HA_CACHE_TBL_TRANSACT;
     }
+    bool primary_key_is_clustered() {
+        return true;
+    }
+    bool is_clustering_key(uint index);
     int cmp_ref(const uchar * ref1, const uchar * ref2);
     bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
 

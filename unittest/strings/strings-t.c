@@ -1,5 +1,4 @@
 /* Copyright (c) 2010, Oracle and/or its affiliates
-   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,8 +52,8 @@ test_like_range_for_charset(CHARSET_INFO *cs, const char *src, size_t src_len)
   size_t min_len, max_len, min_well_formed_len, max_well_formed_len;
   int error= 0;
   
-  my_ci_like_range(cs, src, src_len, '\\', '_', '%',
-                   sizeof(min_str),  min_str, max_str, &min_len, &max_len);
+  cs->coll->like_range(cs, src, src_len, '\\', '_', '%',
+                       sizeof(min_str),  min_str, max_str, &min_len, &max_len);
   diag("min_len=%d\tmax_len=%d\t%s", (int) min_len, (int) max_len, cs->name);
   min_well_formed_len= my_well_formed_length(cs,
                                              min_str, min_str + min_len,
@@ -110,12 +109,12 @@ static CHARSET_INFO *charset_list[]=
   &my_charset_ujis_japanese_ci,
   &my_charset_ujis_bin,
 #endif
-#ifdef HAVE_CHARSET_utf8mb3
-  &my_charset_utf8mb3_general_ci,
+#ifdef HAVE_CHARSET_utf8
+  &my_charset_utf8_general_ci,
 #ifdef HAVE_UCA_COLLATIONS
-  &my_charset_utf8mb3_unicode_ci,
+  &my_charset_utf8_unicode_ci,
 #endif
-  &my_charset_utf8mb3_bin,
+  &my_charset_utf8_bin,
 #endif
 };
 
@@ -651,8 +650,8 @@ strcollsp(CHARSET_INFO *cs, const STRNNCOLL_PARAM *param)
   for (p= param; p->a; p++)
   {
     char ahex[64], bhex[64];
-    int res= my_ci_strnncollsp(cs, (const uchar *) p->a, p->alen,
-                                   (const uchar *) p->b, p->blen);
+    int res= cs->coll->strnncollsp(cs, (uchar *) p->a, p->alen,
+                                       (uchar *) p->b, p->blen);
     str2hex(ahex, sizeof(ahex), p->a, p->alen);
     str2hex(bhex, sizeof(bhex), p->b, p->blen);
     diag("%-20s %-10s %-10s %10d %10d%s",
@@ -665,8 +664,8 @@ strcollsp(CHARSET_INFO *cs, const STRNNCOLL_PARAM *param)
     else
     {
       /* Test in reverse order */
-      res= my_ci_strnncollsp(cs, (const uchar *) p->b, p->blen,
-                                 (const uchar *) p->a, p->alen);
+      res= cs->coll->strnncollsp(cs, (uchar *) p->b, p->blen,
+                                     (uchar *) p->a, p->alen);
       if (!eqres(res, -p->res))
       {
         diag("Comparison in reverse order failed. Expected %d, got %d",
@@ -768,9 +767,9 @@ test_strcollsp()
   failed+= strcollsp(&my_charset_utf32_bin,         strcoll_utf32_common);
 #endif
 #ifdef HAVE_CHARSET_utf8
-  failed+= strcollsp(&my_charset_utf8mb3_general_ci,          strcoll_utf8mb3_common);
-  failed+= strcollsp(&my_charset_utf8mb3_general_mysql500_ci, strcoll_utf8mb3_common);
-  failed+= strcollsp(&my_charset_utf8mb3_bin,                 strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8_general_ci,          strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8_general_mysql500_ci, strcoll_utf8mb3_common);
+  failed+= strcollsp(&my_charset_utf8_bin,                 strcoll_utf8mb3_common);
 #endif
 #ifdef HAVE_CHARSET_utf8mb4
   failed+= strcollsp(&my_charset_utf8mb4_general_ci,          strcoll_utf8mb3_common);
@@ -1274,9 +1273,9 @@ int main(int ac, char **av)
   }
   ok(failed == 0, "Testing my_like_range_xxx() functions");
 
-  diag("my_ci_strnncollsp()");
+  diag("Testing cs->coll->strnncollsp()");
   failed= test_strcollsp();
-  ok(failed == 0, "Testing my_ci_strnncollsp()");
+  ok(failed == 0, "Testing cs->coll->strnncollsp()");
 
   diag("Testing cs->coll->strnncollsp_char()");
   failed= test_strnncollsp_char();

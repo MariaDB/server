@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2017, 2020, MariaDB Corporation.
+   Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -480,11 +480,11 @@ int federated_db_init(void *p)
 #endif /* HAVE_PSI_INTERFACE */
 
   handlerton *federated_hton= (handlerton *)p;
+  federated_hton->state= SHOW_OPTION_YES;
   federated_hton->db_type= DB_TYPE_FEDERATED_DB;
   federated_hton->commit= federated_commit;
   federated_hton->rollback= federated_rollback;
   federated_hton->create= federated_create_handler;
-  federated_hton->drop_table= [](handlerton *, const char*) { return -1; };
   federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION;
 
   /*
@@ -497,8 +497,8 @@ int federated_db_init(void *p)
   if (mysql_mutex_init(fe_key_mutex_federated,
                        &federated_mutex, MY_MUTEX_INIT_FAST))
     goto error;
-  if (!my_hash_init(PSI_INSTRUMENT_ME, &federated_open_tables, &my_charset_bin,
-                    32, 0, 0, (my_hash_get_key) federated_get_key, 0, 0))
+  if (!my_hash_init(&federated_open_tables, &my_charset_bin, 32, 0, 0,
+                    (my_hash_get_key) federated_get_key, 0, 0))
   {
     DBUG_RETURN(FALSE);
   }
@@ -561,7 +561,7 @@ static bool append_ident(String *string, const char *name, size_t length,
     for (name_end= name+length; name < name_end; name+= clen)
     {
       uchar c= *(uchar *) name;
-      clen= system_charset_info->charlen_fix(name, name_end);
+      clen= my_charlen_fix(system_charset_info, name, name_end);
       if (clen == 1 && c == (uchar) quote_char &&
           (result= string->append(&quote_char, 1, system_charset_info)))
         goto err;
@@ -960,7 +960,7 @@ uint ha_federated::convert_row_to_internal_format(uchar *record,
       if (bitmap_is_set(table->read_set, (*field)->field_index))
       {
         (*field)->set_notnull();
-        (*field)->store_text(*row, *lengths, &my_charset_bin);
+        (*field)->store(*row, *lengths, &my_charset_bin);
       }
     }
     (*field)->move_field_offset(-old_ptr);
@@ -1516,7 +1516,7 @@ static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
   */
   query.length(0);
 
-  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 256, 0, MYF(0));
+  init_alloc_root(&mem_root, "federated_share", 256, 0, MYF(0));
 
   mysql_mutex_lock(&federated_mutex);
 
@@ -1603,10 +1603,8 @@ static int free_share(FEDERATED_SHARE *share)
 }
 
 
-ha_rows ha_federated::records_in_range(uint inx,
-                                       const key_range *start_key,
-                                       const key_range *end_key,
-                                       page_range *pages)
+ha_rows ha_federated::records_in_range(uint inx, key_range *start_key,
+                                       key_range *end_key)
 {
   /*
 
@@ -1644,7 +1642,7 @@ int ha_federated::open(const char *name, int mode, uint test_if_locked)
   ref_length= sizeof(MYSQL_RES *) + sizeof(MYSQL_ROW_OFFSET);
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(PSI_INSTRUMENT_ME, &results, sizeof(MYSQL_RES *), 4, 4, MYF(0));
+  my_init_dynamic_array(&results, sizeof(MYSQL_RES *), 4, 4, MYF(0));
   reset();
 
   DBUG_RETURN(0);
@@ -3388,13 +3386,30 @@ int ha_federated::execute_simple_query(const char *query, int len)
 struct st_mysql_storage_engine federated_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+mysql_declare_plugin(federated)
+{
+  MYSQL_STORAGE_ENGINE_PLUGIN,
+  &federated_storage_engine,
+  "FEDERATED",
+  "Patrick Galbraith and Brian Aker, MySQL AB",
+  "Federated MySQL storage engine",
+  PLUGIN_LICENSE_GPL,
+  federated_db_init, /* Plugin Init */
+  federated_done, /* Plugin Deinit */
+  0x0100 /* 1.0 */,
+  NULL,                       /* status variables                */
+  NULL,                       /* system variables                */
+  NULL,                       /* config options                  */
+  0,                          /* flags                           */
+}
+mysql_declare_plugin_end;
 maria_declare_plugin(federated)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &federated_storage_engine,
   "FEDERATED",
   "Patrick Galbraith and Brian Aker, MySQL AB",
-  "Allows accessing tables on other MariaDB servers",
+  "Allows to access tables on other MariaDB servers",
   PLUGIN_LICENSE_GPL,
   federated_db_init, /* Plugin Init */
   federated_done, /* Plugin Deinit */

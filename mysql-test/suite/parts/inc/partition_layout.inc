@@ -1,6 +1,6 @@
 # inc/partition_layout.inc
 #
-# Print partitioning related information about the table t1
+# Print partitioning related informations about the table t1
 #
 
 eval SHOW CREATE TABLE t1;

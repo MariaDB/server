@@ -170,12 +170,12 @@
 #define JSONMAX      50             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 March 22, 2021";
+       char version[]= "Version 1.07.0003 June 06, 2021";
 #if defined(_WIN32)
-       char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
-       static char slash= '\\';
+       char compver[]= "Version 1.07.0003 " __DATE__ " "  __TIME__;
+       char slash= '\\';
 #else   // !_WIN32
-       static char slash= '/';
+       char slash= '/';
 #endif  // !_WIN32
 } // extern "C"
 
@@ -824,6 +824,7 @@ static int connect_init_func(void *p)
   init_connect_psi_keys();
 
   connect_hton= (handlerton *)p;
+  connect_hton->state= SHOW_OPTION_YES;
   connect_hton->create= connect_create_handler;
   connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
   connect_hton->table_options= connect_table_option_list;
@@ -1177,8 +1178,7 @@ ulonglong ha_connect::table_flags() const
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
-                     HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN |
-                     HA_REUSES_FILE_NAMES;
+                     HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN;
   ha_connect *hp= (ha_connect*)this;
   PTOS        pos= hp->GetTableOptionStruct();
 
@@ -2269,7 +2269,7 @@ int ha_connect::MakeRecord(char *buf)
           case TYPE_DECIM:
             p= value->GetCharString(val);
             charset= tdbp->data_charset();
-            rc= fp->store_text(p, strlen(p), charset, CHECK_FIELD_WARN);
+            rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
             break;
 					case TYPE_BIN:
 						p= value->GetCharValue();
@@ -5269,14 +5269,6 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     thd->push_internal_handler(&error_handler);
     bool got_error= open_table_def(thd, share);
     thd->pop_internal_handler();
-    if (!got_error && share->db_type() != connect_hton)
-    {
-      /* The .frm file is not for the connect engine. Something is wrong! */
-      got_error= 1;
-      rc= HA_ERR_INTERNAL_ERROR;
-      my_error(HA_ERR_INTERNAL_ERROR, MYF(0),
-               "TABLE_SHARE is not for the CONNECT engine");
-    }
     if (!got_error) {
       // Now we can work
       if ((pos= share->option_struct)) {
@@ -5289,8 +5281,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
         } // endif pos
 
       } // endif open_table_def
-      else
-        rc= ENOENT;
+
     free_table_share(share);
   } else              // Temporary file
     ok= true;
@@ -5330,11 +5321,8 @@ int ha_connect::rename_table(const char *from, const char *to)
   @see
   check_quick_keys() in opt_range.cc
 */
-ha_rows ha_connect::records_in_range(uint inx,
-                                     const key_range *min_key,
-                                     const key_range *max_key,
-                                     page_range *pages)
-
+ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
+                                               key_range *max_key)
 {
   ha_rows rows;
   DBUG_ENTER("ha_connect::records_in_range");
@@ -5405,7 +5393,7 @@ static char *encode(PGLOBAL g, const char *cnm)
   char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(cnm) * 3);
   uint   dummy_errors;
   uint32 len= copy_and_convert(buf, strlen(cnm) * 3,
-                               &my_charset_utf8mb3_general_ci,
+                               &my_charset_utf8_general_ci,
                                cnm, strlen(cnm),
                                &my_charset_latin1,
                                &dummy_errors);
@@ -6529,7 +6517,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       } // endif charset
 
-    if (type == TAB_XML && data_charset != &my_charset_utf8mb3_general_ci) {
+    if (type == TAB_XML && data_charset != &my_charset_utf8_general_ci) {
       my_printf_error(ER_UNKNOWN_ERROR,
                       "DATA_CHARSET='%s' is not supported for TABLE_TYPE=XML",
                         MYF(0), options->data_charset);
@@ -7211,8 +7199,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     ALTER_ADD_UNIQUE_INDEX |
     ALTER_DROP_UNIQUE_INDEX |
     ALTER_ADD_PK_INDEX |
-    ALTER_DROP_PK_INDEX |
-    ALTER_INDEX_ORDER;
+    ALTER_DROP_PK_INDEX;
 
   alter_table_operations inplace_offline_operations=
     ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE |

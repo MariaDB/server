@@ -84,8 +84,7 @@ LOGGER_HANDLE *logger_open(const char *path,
     return 0;
   }
 
-  if (!(l_perm= (LOGGER_HANDLE *) my_malloc(PSI_INSTRUMENT_ME,
-                                            sizeof(LOGGER_HANDLE), MYF(0))))
+  if (!(l_perm= (LOGGER_HANDLE *) my_malloc(sizeof(LOGGER_HANDLE), MYF(0))))
   {
     my_close(new_log.file, MYF(0));
     new_log.file= -1;

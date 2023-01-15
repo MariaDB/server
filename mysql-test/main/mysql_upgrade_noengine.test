@@ -1,7 +1,6 @@
 #
 # MDEV-11942 BLACKHOLE is no longer active in 10.1 by default, mysql_upgrade not handling the situation
 #
-source include/mysql_upgrade_preparation.inc;
 source include/have_innodb.inc;
 source include/not_embedded.inc;
 
@@ -80,6 +79,3 @@ uninstall plugin archive;
 
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
-
-FLUSH PRIVILEGES;
-SHOW GRANTS FOR root@localhost;

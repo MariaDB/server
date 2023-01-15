@@ -110,7 +110,7 @@ trx_undo_update_rec_get_sys_cols(
 					general parameters */
 	trx_id_t*	trx_id,		/*!< out: trx id */
 	roll_ptr_t*	roll_ptr,	/*!< out: roll ptr */
-	byte*		info_bits);	/*!< out: info bits state */
+	ulint*		info_bits);	/*!< out: info bits state */
 /*******************************************************************//**
 Builds an update vector based on a remaining part of an undo log record.
 @return remaining part of the record, NULL if an error detected, which
@@ -132,7 +132,7 @@ trx_undo_update_rec_get_update(
 				the update vector */
 	trx_id_t	trx_id,	/*!< in: transaction id from this undorecord */
 	roll_ptr_t	roll_ptr,/*!< in: roll pointer from this undo record */
-	byte		info_bits,/*!< in: info bits from this undo record */
+	ulint		info_bits,/*!< in: info bits from this undo record */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	upd_t**		upd);	/*!< out, own: update vector */
@@ -216,6 +216,23 @@ trx_undo_prev_version_build(
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
 
+/** Parse MLOG_UNDO_INSERT.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log record buffer
+@param[in,out]	page	page or NULL
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte*
+trx_undo_parse_add_undo_rec(
+	const byte*	ptr,
+	const byte*	end_ptr,
+	page_t*		page);
+/** Erase the unused undo log page end.
+@param[in,out]	undo_page	undo log page
+@return whether the page contained something */
+bool
+trx_undo_erase_page_end(page_t* undo_page);
+
 /** Read from an undo log record a non-virtual column value.
 @param[in,out]	ptr		pointer to remaining part of the undo record
 @param[in,out]	field		stored field
@@ -223,8 +240,12 @@ trx_undo_prev_version_build(
 @param[in,out]	orig_len	original length of the locally stored part
 of an externally stored column, or 0
 @return remaining part of undo log record after reading these values */
-byte *trx_undo_rec_get_col_val(const byte *ptr, const byte **field,
-                               uint32_t *len, uint32_t *orig_len);
+byte*
+trx_undo_rec_get_col_val(
+        const byte*     ptr,
+        const byte**    field,
+        ulint*          len,
+        ulint*          orig_len);
 
 /** Read virtual column value from undo log
 @param[in]	table		the table
@@ -247,7 +268,7 @@ info, and verify the column is still indexed, and output its position
 @param[in,out]	is_undo_log	his function is used to parse both undo log,
 				and online log for virtual columns. So
 				check to see if this is undo log
-@param[out]	field_no	the column number, or FIL_NULL if not indexed
+@param[out]	field_no	the column number
 @return remaining part of undo log record after reading these values */
 const byte*
 trx_undo_read_v_idx(
@@ -255,7 +276,7 @@ trx_undo_read_v_idx(
 	const byte*		ptr,
 	bool			first_v_col,
 	bool*			is_undo_log,
-	uint32_t*		field_no);
+	ulint*			field_no);
 
 /* Types of an undo log record: these have to be smaller than 16, as the
 compilation info multiplied by 16 is ORed to this value in an undo log
@@ -281,16 +302,6 @@ record */
 
 /** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
 extern const dtuple_t trx_undo_metadata;
-
-/** Read the table id from an undo log record.
-@param[in]      rec        Undo log record
-@return table id stored as a part of undo log record */
-inline table_id_t trx_undo_rec_get_table_id(const trx_undo_rec_t *rec)
-{
-  rec+= 3;
-  mach_read_next_much_compressed(&rec);
-  return mach_read_next_much_compressed(&rec);
-}
 
 #include "trx0rec.inl"
 

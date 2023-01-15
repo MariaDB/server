@@ -21,11 +21,6 @@ SET(HEAP_SOURCES  _check.c _rectest.c hp_block.c hp_clear.c hp_close.c hp_create
 
 MYSQL_ADD_PLUGIN(heap ${HEAP_SOURCES} STORAGE_ENGINE MANDATORY RECOMPILE_FOR_EMBEDDED)
 
-IF(CMAKE_SYSTEM_NAME MATCHES AIX AND CMAKE_BUILD_TYPE STREQUAL "DEBUG")
-  # Workaround linker bug on AIX
-  SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-berok")
-ENDIF()
-
 IF(WITH_UNIT_TESTS)
   ADD_EXECUTABLE(hp_test1 hp_test1.c)
   TARGET_LINK_LIBRARIES(hp_test1 heap mysys dbug strings)

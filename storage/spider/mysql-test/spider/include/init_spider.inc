@@ -3,16 +3,6 @@ let $VERSION_COMPILE_OS_WIN=
 if ($VERSION_COMPILE_OS_WIN)
 {
   INSTALL PLUGIN spider SONAME 'ha_spider.dll';
-  if ($MASTER_1_MYPORT)
-  {
-    eval CREATE SERVER s_1 FOREIGN DATA WRAPPER mysql OPTIONS (
-      HOST 'localhost',
-      DATABASE 'auto_test_local',
-      USER 'root',
-      PASSWORD '',
-      PORT $MASTER_1_MYPORT
-    );
-  }
   if ($CHILD2_1_MYPORT)
   {
     eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
@@ -77,16 +67,6 @@ if ($VERSION_COMPILE_OS_WIN)
 if (!$VERSION_COMPILE_OS_WIN)
 {
   INSTALL PLUGIN spider SONAME 'ha_spider.so';
-  if ($MASTER_1_MYSOCK)
-  {
-    eval CREATE SERVER s_1 FOREIGN DATA WRAPPER mysql OPTIONS (
-      HOST 'localhost',
-      DATABASE 'auto_test_local',
-      USER 'root',
-      PASSWORD '',
-      SOCKET '$MASTER_1_MYSOCK'
-    );
-  }
   if ($CHILD2_1_MYSOCK)
   {
     eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
@@ -151,11 +131,6 @@ if (!$VERSION_COMPILE_OS_WIN)
 
 let $SERVER_NAME=
   `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(version(), '-', 2), '-', -1)`;
-if (`SELECT IF('$SERVER_NAME' REGEXP '^[0-9]+\$', 1, 0)`)
-{
-  let $SERVER_NAME=
-    `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(version(), '-', 3), '-', -1)`;
-}
 let $SERVER_MAJOR_VERSION=
   `SELECT SUBSTRING_INDEX(version(), '.', 1)`;
 let $SERVER_MINOR_VERSION=

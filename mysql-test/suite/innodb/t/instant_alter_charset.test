@@ -657,7 +657,7 @@ SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
 --echo #
---echo # MDEV-19285 INSTANT ALTER from ascii_general_ci to latin1_general_ci produces corrupt data
+--echo # MDEV-19285 INSTANT ALTER from ascii_general_ci to latin1_general_ci produces currupt data
 --echo #
 
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii COLLATE ascii_general_ci, PRIMARY KEY(a)) ENGINE=InnoDB;

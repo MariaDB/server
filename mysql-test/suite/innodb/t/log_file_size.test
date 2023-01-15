@@ -12,16 +12,17 @@ if (`SELECT @@innodb_log_file_size = 1048576`) {
 }
 
 --disable_query_log
-call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata file do not match the log sequence number [0-9]+ in the ib_logfile");
+call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata files do not match the log sequence number [0-9]+ in the ib_logfiles");
 call mtr.add_suppression("syntax error in innodb_log_group_home_dir");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("InnoDB: innodb_read_only prevents crash recovery");
-call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfile");
-call mtr.add_suppression("InnoDB: Cannot (create|resize) log file in read-only mode");
+call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfiles");
+call mtr.add_suppression("InnoDB: Cannot (create|resize) log files in read-only mode");
 call mtr.add_suppression("InnoDB: Can't initiate database recovery, running in read-only-mode");
-call mtr.add_suppression("InnoDB: Log file .*ib_logfile0.* size");
+call mtr.add_suppression("InnoDB: Only one log file found");
+call mtr.add_suppression("InnoDB: Log file .*ib_logfile[01].* size");
 call mtr.add_suppression("InnoDB: Unable to open .*ib_logfile0. to check native AIO read support");
 FLUSH TABLES;
 --enable_query_log
@@ -36,19 +37,26 @@ let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
---let $restart_parameters= --innodb-thread-concurrency=1 --innodb-log-file-size=2m
+--let $restart_parameters= --innodb-thread-concurrency=1 --innodb-log-file-size=1m --innodb-log-files-in-group=2
 --source include/start_mysqld.inc
 
+eval $check_no_innodb;
+--remove_file $MYSQLD_DATADIR/ib_logfile0
+--move_file $MYSQLD_DATADIR/ib_logfile.old $MYSQLD_DATADIR/ib_logfile.0
+--source include/shutdown_mysqld.inc
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= InnoDB: Log file .*ib_logfile1 is of different size .* bytes than other log files 0 bytes!;
+--source include/search_pattern_in_file.inc
+--source include/start_mysqld.inc
 CHECK TABLE t1;
 
---let $restart_parameters= --innodb-thread-concurrency=100 --innodb-log-file-size=20M
+--let $restart_parameters= --innodb-thread-concurrency=100 --innodb-log-file-size=10M --innodb-log-files-in-group=2
 --source include/restart_mysqld.inc
 
 BEGIN;
 INSERT INTO t1 VALUES (42);
 
-let $restart_parameters = --innodb-log-file-size=12M;
+let $restart_parameters = --innodb-log-file-size=6M;
 let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
 
@@ -58,7 +66,7 @@ INSERT INTO t1 VALUES (42);
 BEGIN;
 DELETE FROM t1;
 
-let $restart_parameters = --innodb-log-file-size=5M;
+let $restart_parameters = --innodb-log-files-in-group=3 --innodb-log-file-size=5M;
 --source include/restart_mysqld.inc
 let $shutdown_timeout=;
 
@@ -112,14 +120,14 @@ let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
-let SEARCH_PATTERN= redo log from [0-9]+ to [0-9]+ bytes;
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --debug=d,innodb_log_abort_5
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
-let SEARCH_PATTERN= redo log from [0-9]+ to [0-9]+ bytes;
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --innodb-read-only
@@ -134,7 +142,7 @@ let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
 
-let SEARCH_PATTERN= redo log from [0-9]+ to [0-9]+ bytes;
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --debug=d,innodb_log_abort_7
@@ -149,7 +157,7 @@ SELECT * FROM t1;
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
 
-let SEARCH_PATTERN= InnoDB: Cannot create log file in read-only mode;
+let SEARCH_PATTERN= InnoDB: Cannot create log files in read-only mode;
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters= --debug=d,innodb_log_abort_8
@@ -170,7 +178,8 @@ let SEARCH_PATTERN= InnoDB: Setting log file .*ib_logfile[0-9]+ size to;
 --source include/shutdown_mysqld.inc
 
 # We should have perfectly synced files here.
-# Trigger an error in recovery.
+# Rename the log files, and trigger an error in recovery.
+--move_file $MYSQLD_DATADIR/ib_logfile1 $MYSQLD_DATADIR/ib_logfile1_hidden
 
 perl;
 die unless open(FILE, ">$ENV{MYSQLD_DATADIR}/ib_logfile0");
@@ -193,10 +202,14 @@ close(FILE);
 EOF
 
 --source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
 
+let SEARCH_PATTERN= InnoDB: Log file .*ib_logfile1 is of different size 1048576 bytes than other log files;
+--source include/search_pattern_in_file.inc
 --remove_file $MYSQLD_DATADIR/ib_logfile1
 --move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile101
+--move_file $MYSQLD_DATADIR/ib_logfile1_hidden $MYSQLD_DATADIR/ib_logfile1
 
 --let $restart_parameters= --debug=d,innodb_log_abort_10
 --source include/restart_mysqld.inc

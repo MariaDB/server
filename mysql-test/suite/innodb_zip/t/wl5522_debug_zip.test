@@ -19,12 +19,6 @@ call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* becau
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
 call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=0x");
-call mtr.add_suppression("InnoDB: Unknown index id .* on page");
-call mtr.add_suppression("InnoDB: Operating system error number");
-call mtr.add_suppression("InnoDB: The error means");
-call mtr.add_suppression("InnoDB: If you are installing InnoDB");
-call mtr.add_suppression("InnoDB: Cannot open datafile .*t1\\.ibd");
-call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\\.`t1`");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -283,6 +277,14 @@ EOF
 
 DROP TABLE t1;
 
+--disable_query_log
+# Enable metrics for the counters we are going to use
+set global innodb_monitor_enable = purge_stop_count;
+set global innodb_monitor_enable = purge_resume_count;
+set global innodb_monitor_enable = ibuf_merges;
+set global innodb_monitor_enable = ibuf_merges_insert;
+--enable_query_log
+
 #
 # Create a large table with delete marked records, disable purge during
 # the update so that we can test the IMPORT purge code.
@@ -301,6 +303,12 @@ CREATE TABLE t1 (
 connect (purge_control,localhost,root);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
+
+# Disable change buffer merge from the master thread, additionally
+# enable aggressive flushing so that more changes are buffered.
+SET GLOBAL innodb_disable_background_merge=ON;
+SET GLOBAL innodb_monitor_reset = ibuf_merges;
+SET GLOBAL innodb_monitor_reset = ibuf_merges_insert;
 
 INSERT INTO t1
 SELECT 1 + seq, 1 + (seq MOD 4),
@@ -338,6 +346,11 @@ ib_backup_tablespaces("test", "t1");
 EOF
 
 UNLOCK TABLES;
+
+SELECT name FROM information_schema.innodb_metrics
+WHERE name IN ('ibuf_merges','ibuf_merges_insert') AND count>0 ORDER BY name;
+
+SET GLOBAL innodb_disable_background_merge=OFF;
 
 # Enable normal operation
 connection purge_control;
@@ -623,8 +636,20 @@ do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
 ib_unlink_tablespace("test", "t1");
 EOF
 
+set global innodb_monitor_disable = all;
+set global innodb_monitor_reset_all = all;
+
+-- disable_warnings
+set global innodb_monitor_enable = default;
+set global innodb_monitor_disable = default;
+set global innodb_monitor_reset = default;
+set global innodb_monitor_reset_all = default;
+-- enable_warnings
+
 --disable_query_log
 call mtr.add_suppression("'Resource temporarily unavailable'");
+call mtr.add_suppression("Monitor ibuf_merges is already enabled");
+call mtr.add_suppression("Monitor ibuf_merges_insert is already enabled");
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Table '.*' tablespace is set as discarded.");
 call mtr.add_suppression("InnoDB: Tablespace '.*' exists in the cache");

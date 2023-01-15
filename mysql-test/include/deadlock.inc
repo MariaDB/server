@@ -133,7 +133,7 @@ drop table t1, t2;
 # Bug#25164 create table `a` as select * from `A` hangs
 #
 
-set default_storage_engine=innodb;
+set storage_engine=innodb;
 
 --disable_warnings
 drop table if exists a;
@@ -150,7 +150,7 @@ drop table A;
 drop table if exists a;
 --enable_warnings
 
-set default_storage_engine=default;
+set storage_engine=default;
 
 --echo End of 5.0 tests.
 --enable_service_connection

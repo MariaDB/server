@@ -68,7 +68,7 @@ parse_arguments() {
 
 wsrep_recover_position() {
   # Redirect server's error log to the log file.
-  eval @sbindir@/mariadbd $cmdline_args --user=$user --wsrep_recover \
+  eval @sbindir@/mysqld $cmdline_args --user=$user --wsrep_recover \
     --disable-log-error 2> "$log_file"
   ret=$?
   if [ $ret -ne 0 ]; then

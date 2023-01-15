@@ -142,7 +142,7 @@ DROP SERVER s1;
 CREATE SERVER IF NOT EXISTS s1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'root', HOST 'localhost', DATABASE 'test');
 CREATE SERVER IF NOT EXISTS s1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'root', HOST 'localhost', DATABASE 'test');
 Warnings:
-Note	1476	Cannot create foreign server 's1' as it already exists
+Note	1476	The foreign server, s1, you are trying to create already exists
 DROP SERVER IF EXISTS s1;
 DROP SERVER IF EXISTS s1;
 SHOW BINLOG EVENTS;

@@ -23,6 +23,7 @@ case "${TRAVIS_OS_NAME}" in
     brew outdated pkg-config || brew upgrade pkg-config
     brew reinstall libtool
     brew outdated libevent || brew upgrade libevent
+    brew outdated pcre || brew upgrade pcre
     brew install \
          autoconf-archive \
          msgpack \

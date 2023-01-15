@@ -2038,9 +2038,9 @@ values (1,2),(3,4,5);
 ERROR HY000: The used table value constructor has a different number of values
 # illegal parameter data types in TVC
 values (1,point(1,1)),(1,1);
-ERROR HY000: Illegal parameter data types point and int for operation 'TABLE VALUE CONSTRUCTOR'
+ERROR HY000: Illegal parameter data types geometry and int for operation 'TABLE VALUE CONSTRUCTOR'
 values (1,point(1,1)+1);
-ERROR HY000: Illegal parameter data types point and int for operation '+'
+ERROR HY000: Illegal parameter data types geometry and int for operation '+'
 # field reference in TVC
 select * from (values (1), (b), (2)) as new_tvc;
 ERROR HY000: Field reference 'b' can't be used in table value constructor
@@ -2569,7 +2569,7 @@ ERROR 42S22: Unknown column '2' in 'order clause'
 create view v1 as with t(a) as (values (2), (1)) select a from t;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(`a`) as (values (2),(1))select `t`.`a` AS `a` from `t`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(a) as (values (2),(1))select `t`.`a` AS `a` from `t`	latin1	latin1_swedish_ci
 select * from v1;
 a
 2
@@ -2813,8 +2813,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 6	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	11	Using where
-3	SUBQUERY	<derived5>	ref	key0	key0	8	test.t3.a	2	Using where; FirstMatch(t3)
+3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	11	
+3	SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
+4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	11	
 5	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
 prepare stmt from "select
 (values ((select * from t3 where a in (select * from v1))))";
@@ -2839,7 +2840,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 6	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	11	Using where
-3	SUBQUERY	<derived5>	ref	key0	key0	8	test.t3.a	2	Using where; FirstMatch(t3)
+3	SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	8	func	1	Using where
+4	MATERIALIZED	<derived5>	ALL	NULL	NULL	NULL	NULL	11	
 5	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
 prepare stmt from "select
 (values ((select * from t3

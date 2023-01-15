@@ -429,7 +429,7 @@ static void usage(void)
   -q, --quick         Faster repair by not modifying the data file.\n\
                       One can give a second '-q' to force myisamchk to\n\
 		      modify the original datafile in case of duplicate keys.\n\
-		      NOTE: Tables where the data file is corrupted can't be\n\
+		      NOTE: Tables where the data file is currupted can't be\n\
 		      fixed with this option.\n\
   -u, --unpack        Unpack file packed with myisampack.\n\
 ");
@@ -470,10 +470,11 @@ TYPELIB myisam_stats_method_typelib= {
 	 /* Read options */
 
 static my_bool
-get_one_option(const struct my_option *opt,
-	       const char *argument, const char *filename __attribute__((unused)))
+get_one_option(int optid,
+	       const struct my_option *opt __attribute__((unused)),
+	       char *argument)
 {
-  switch (opt->id) {
+  switch (optid) {
   case 'a':
     if (argument == disabled_my_option)
       check_param.testflag&= ~T_STATISTICS;
@@ -797,7 +798,7 @@ static void get_options(register int *argc,register char ***argv)
                                              MYF(MY_WME))))
       exit(1);
 
-  myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);
+  myisam_block_size=(uint) 1 << my_bit_log2(opt_myisam_block_size);
   return;
 } /* get options */
 
@@ -1427,25 +1428,20 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
       else
 	type=(enum en_fieldtype) share->rec[field].type;
       end=strmov(buff,field_pack[type]);
-      if (end != buff)
-      {
-        *(end++)=',';
-        *(end++)=' ';
-      }
       if (share->options & HA_OPTION_COMPRESS_RECORD)
       {
 	if (share->rec[field].pack_type & PACK_TYPE_SELECTED)
-	  end=strmov(end,"not_always, ");
+	  end=strmov(end,", not_always");
 	if (share->rec[field].pack_type & PACK_TYPE_SPACE_FIELDS)
-	  end=strmov(end,"no empty, ");
+	  end=strmov(end,", no empty");
 	if (share->rec[field].pack_type & PACK_TYPE_ZERO_FILL)
 	{
-	  sprintf(end,"zerofill(%d), ",share->rec[field].space_length_bits);
+	  sprintf(end,", zerofill(%d)",share->rec[field].space_length_bits);
 	  end=strend(end);
 	}
       }
-      if (end != buff)
-        end[-2]= 0;                               /* Remove ", " */
+      if (buff[0] == ',')
+	strmov(buff,buff+2);
       int10_to_str((long) share->rec[field].length,length,10);
       null_bit[0]=null_pos[0]=0;
       if (share->rec[field].null_bit)

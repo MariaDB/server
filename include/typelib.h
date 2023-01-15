@@ -27,8 +27,7 @@ typedef struct st_typelib {	/* Different types saved here */
   unsigned int *type_lengths;
 } TYPELIB;
 
-extern my_ulonglong find_typeset(const char *x, TYPELIB *typelib,
-                                 int *error_position);
+extern my_ulonglong find_typeset(char *x, TYPELIB *typelib,int *error_position);
 extern int find_type_with_warning(const char *x, TYPELIB *typelib,
                                   const char *option);
 #define FIND_TYPE_BASIC           0
@@ -44,7 +43,7 @@ extern int find_type_with_warning(const char *x, TYPELIB *typelib,
 extern int find_type(const char *x, const TYPELIB *typelib, unsigned int flags);
 extern void make_type(char *to,unsigned int nr,TYPELIB *typelib);
 extern const char *get_type(TYPELIB *typelib,unsigned int nr);
-extern TYPELIB *copy_typelib(MEM_ROOT *root, const TYPELIB *from);
+extern TYPELIB *copy_typelib(MEM_ROOT *root, TYPELIB *from);
 
 extern TYPELIB sql_protocol_typelib;
 

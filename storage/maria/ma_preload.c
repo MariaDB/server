@@ -56,7 +56,7 @@ int maria_preload(MARIA_HA *info, ulonglong key_map, my_bool ignore_leaves)
 
   block_length= share->pagecache->block_size;
 
-  if (!(buff= (uchar *) my_malloc(PSI_INSTRUMENT_ME, block_length, MYF(MY_WME))))
+  if (!(buff= (uchar *) my_malloc(block_length, MYF(MY_WME))))
     DBUG_RETURN(my_errno= HA_ERR_OUT_OF_MEM);
 
   if (flush_pagecache_blocks(share->pagecache, &share->kfile, FLUSH_RELEASE))

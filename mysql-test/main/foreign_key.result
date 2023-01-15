@@ -1,7 +1,7 @@
 drop table if exists t1,t2;
 create table t1 (
 a int not null references t2,
-b int not null constraint t2_c references t2 (c),
+b int not null references t2 (c),
 primary key (a,b),
 foreign key (a) references t3 match full,
 foreign key (a) references t3 match partial,

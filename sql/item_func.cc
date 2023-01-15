@@ -408,25 +408,6 @@ Item_func::eval_not_null_tables(void *opt_arg)
 }
 
 
-bool
-Item_func::find_not_null_fields(table_map allowed)
-{
-  if (~allowed & used_tables())
-    return false;
-
-  Item **arg,**arg_end;
-  if (arg_count)
-  {
-    for (arg=args, arg_end=args+arg_count; arg != arg_end ; arg++)
-    {
-      if (!(*arg)->find_not_null_fields(allowed))
-        continue;
-    }
-  }
-  return false;
-}
-
-
 void Item_func::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                   bool merge)
 {
@@ -677,6 +658,16 @@ bool Item_func::is_expensive_processor(uchar *arg)
   return is_expensive();
 }
 */
+
+my_decimal *Item_func::val_decimal(my_decimal *decimal_value)
+{
+  DBUG_ASSERT(fixed);
+  longlong nr= val_int();
+  if (null_value)
+    return 0; /* purecov: inspected */
+  int2my_decimal(E_DEC_FATAL_ERROR, nr, unsigned_flag, decimal_value);
+  return decimal_value;
+}
 
 
 bool Item_hybrid_func::fix_attributes(Item **items, uint nitems)
@@ -1166,10 +1157,14 @@ longlong Item_func_plus::int_op()
     }
   }
 
+#ifndef WITH_UBSAN
+  res= val0 + val1;
+#else
   if (res_unsigned)
     res= (longlong) ((ulonglong) val0 + (ulonglong) val1);
   else
-    res= val0 + val1;
+    res= val0+val1;
+#endif /* WITH_UBSAN */
 
   return check_integer_overflow(res, res_unsigned);
 
@@ -1231,10 +1226,7 @@ void Item_func_minus::fix_unsigned_flag()
 {
   if (unsigned_flag &&
       (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
-  {
     unsigned_flag=0;
-    set_handler(Item_func_minus::type_handler()->type_handler_signed());
-  }
 }
 
 
@@ -1250,8 +1242,9 @@ bool Item_func_minus::fix_length_and_dec()
   if (Item_func_minus::type_handler()->Item_func_minus_fix_length_and_dec(this))
     DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  m_depends_on_sql_mode_no_unsigned_subtraction= unsigned_flag;
-  fix_unsigned_flag();
+  if ((m_depends_on_sql_mode_no_unsigned_subtraction= unsigned_flag) &&
+      (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
+    unsigned_flag= false;
   DBUG_RETURN(FALSE);
 }
 
@@ -1332,10 +1325,14 @@ longlong Item_func_minus::int_op()
         goto err;
     }
   }
+#ifndef WITH_UBSAN
+  res= val0 - val1;
+#else
   if (res_unsigned)
     res= (longlong) ((ulonglong) val0 - (ulonglong) val1);
   else
     res= val0 - val1;
+#endif /* WITH_UBSAN */
 
   return check_integer_overflow(res, res_unsigned);
 
@@ -1763,9 +1760,9 @@ static void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str)
   uchar l[4];
   int4store(l, str->length());
   cs= str->charset();
-  cs->hash_sort(l, sizeof(l), &nr1, &nr2);
+  cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
   cs= str->charset();
-  cs->hash_sort((uchar *)str->ptr(), str->length(), &nr1, &nr2);
+  cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
 }
 
 longlong  Item_func_hash::val_int()
@@ -1863,7 +1860,7 @@ void Item_func_neg::fix_length_and_dec_int()
         Ensure that result is converted to DECIMAL, as longlong can't hold
         the negated number
       */
-      set_handler(&type_handler_newdecimal);
+      set_handler_by_result_type(DECIMAL_RESULT);
       DBUG_PRINT("info", ("Type changed: DECIMAL_RESULT"));
     }
   }
@@ -2162,103 +2159,42 @@ double Item_func_cot::val_real()
 // Shift-functions, same as << and >> in C/C++
 
 
-class Func_handler_shift_left_int_to_ulonglong:
-        public Item_handled_func::Handler_ulonglong
+longlong Item_func_shift_left::val_int()
 {
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  DBUG_ASSERT(fixed == 1);
+  uint shift= (uint) args[1]->val_int();
+  ulonglong value= args[0]->val_int();
+  if (args[0]->null_value || args[1]->null_value)
   {
-    DBUG_ASSERT(item->is_fixed());
-    return item->arguments()[0]->to_longlong_null() <<
-           item->arguments()[1]->to_longlong_null();
+    null_value=1;
+    return 0;
   }
-};
+  null_value=0;
+  return (shift < sizeof(longlong)*8 ? (value << shift) : 0);
+}
 
-
-class Func_handler_shift_left_decimal_to_ulonglong:
-        public Item_handled_func::Handler_ulonglong
+longlong Item_func_shift_right::val_int()
 {
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  DBUG_ASSERT(fixed == 1);
+  uint shift= (uint) args[1]->val_int();
+  ulonglong value= args[0]->val_int();
+  if (args[0]->null_value || args[1]->null_value)
   {
-    DBUG_ASSERT(item->is_fixed());
-    return VDec(item->arguments()[0]).to_xlonglong_null() <<
-           item->arguments()[1]->to_longlong_null();
+    null_value=1;
+    return 0;
   }
-};
-
-
-bool Item_func_shift_left::fix_length_and_dec()
-{
-  static Func_handler_shift_left_int_to_ulonglong ha_int_to_ull;
-  static Func_handler_shift_left_decimal_to_ulonglong ha_dec_to_ull;
-  return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
+  null_value=0;
+  return (shift < sizeof(longlong)*8 ? (value >> shift) : 0);
 }
 
 
-class Func_handler_shift_right_int_to_ulonglong:
-        public Item_handled_func::Handler_ulonglong
+longlong Item_func_bit_neg::val_int()
 {
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
-  {
-    DBUG_ASSERT(item->fixed == 1);
-    return item->arguments()[0]->to_longlong_null() >>
-           item->arguments()[1]->to_longlong_null();
-  }
-};
-
-
-class Func_handler_shift_right_decimal_to_ulonglong:
-        public Item_handled_func::Handler_ulonglong
-{
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
-  {
-    DBUG_ASSERT(item->is_fixed());
-    return VDec(item->arguments()[0]).to_xlonglong_null() >>
-           item->arguments()[1]->to_longlong_null();
-  }
-};
-
-
-bool Item_func_shift_right::fix_length_and_dec()
-{
-  static Func_handler_shift_right_int_to_ulonglong ha_int_to_ull;
-  static Func_handler_shift_right_decimal_to_ulonglong ha_dec_to_ull;
-  return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
-}
-
-
-class Func_handler_bit_neg_int_to_ulonglong:
-        public Item_handled_func::Handler_ulonglong
-{
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
-  {
-    DBUG_ASSERT(item->is_fixed());
-    return ~ item->arguments()[0]->to_longlong_null();
-  }
-};
-
-
-class Func_handler_bit_neg_decimal_to_ulonglong:
-        public Item_handled_func::Handler_ulonglong
-{
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
-  {
-    DBUG_ASSERT(item->is_fixed());
-    return ~ VDec(item->arguments()[0]).to_xlonglong_null();
-  }
-};
-
-
-bool Item_func_bit_neg::fix_length_and_dec()
-{
-  static Func_handler_bit_neg_int_to_ulonglong ha_int_to_ull;
-  static Func_handler_bit_neg_decimal_to_ulonglong ha_dec_to_ull;
-  return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
+  DBUG_ASSERT(fixed == 1);
+  ulonglong res= (ulonglong) args[0]->val_int();
+  if ((null_value=args[0]->null_value))
+    return 0;
+  return ~res;
 }
 
 
@@ -2302,17 +2238,27 @@ void Item_func_int_val::fix_length_and_dec_int_or_decimal()
     fix_char_length(precision + sign_length);
     if (precision > 9)
     {
+#if MYSQL_VERSION_ID > 100500
+#error Remove the '#else' branch and the conditional compilation
       if (unsigned_flag)
         set_handler(&type_handler_ulonglong);
       else
         set_handler(&type_handler_slonglong);
+#else
+      set_handler(&type_handler_longlong);
+#endif
     }
     else
     {
+#if MYSQL_VERSION_ID > 100500
+#error Remove the '#else' branch and the conditional compilation
       if (unsigned_flag)
         set_handler(&type_handler_ulong);
       else
         set_handler(&type_handler_slong);
+#else
+      set_handler(&type_handler_long);
+#endif
     }
   }
 }
@@ -3154,10 +3100,11 @@ longlong Item_func_locate::val_int()
   if (!b->length())				// Found empty string at start
     return start + 1;
   
-  if (!cmp_collation.collation->instr(a->ptr() + start,
-                                      (uint) (a->length() - start),
-                                      b->ptr(), b->length(),
-                                      &match, 1))
+  if (!cmp_collation.collation->coll->instr(cmp_collation.collation,
+                                            a->ptr()+start,
+                                            (uint) (a->length()-start),
+                                            b->ptr(), b->length(),
+                                            &match, 1))
     return 0;
   return (longlong) match.mb_len + start0 + 1;
 }
@@ -3270,7 +3217,7 @@ longlong Item_func_ord::val_int()
   null_value=0;
   if (!res->length()) return 0;
 #ifdef USE_MB
-  if (res->use_mb())
+  if (use_mb(res->charset()))
   {
     const char *str=res->ptr();
     uint32 n=0, l=my_ismbchar(res->charset(),str,str+res->length());
@@ -3356,14 +3303,14 @@ longlong Item_func_find_in_set::val_int()
     const char *str_begin= buffer->ptr();
     const char *str_end= buffer->ptr();
     const char *real_end= str_end+buffer->length();
-    const char *find_str= find->ptr();
+    const uchar *find_str= (const uchar *) find->ptr();
     uint find_str_len= find->length();
     int position= 0;
     while (1)
     {
       int symbol_len;
-      if ((symbol_len= cs->mb_wc(&wc, (uchar*) str_end,
-                                 (uchar*) real_end)) > 0)
+      if ((symbol_len= cs->cset->mb_wc(cs, &wc, (uchar*) str_end, 
+                                       (uchar*) real_end)) > 0)
       {
         const char *substr_end= str_end + symbol_len;
         bool is_last_item= (substr_end == real_end);
@@ -3373,8 +3320,9 @@ longlong Item_func_find_in_set::val_int()
           position++;
           if (is_last_item && !is_separator)
             str_end= substr_end;
-          if (!cs->strnncoll(str_begin, (uint) (str_end - str_begin),
-                             find_str, find_str_len))
+          if (!my_strnncoll(cs, (const uchar *) str_begin,
+                            (uint) (str_end - str_begin),
+                            find_str, find_str_len))
             return (longlong) position;
           else
             str_begin= substr_end;
@@ -3392,39 +3340,13 @@ longlong Item_func_find_in_set::val_int()
   return 0;
 }
 
-
-class Func_handler_bit_count_int_to_slong:
-        public Item_handled_func::Handler_slong2
+longlong Item_func_bit_count::val_int()
 {
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
-  {
-    DBUG_ASSERT(item->is_fixed());
-    return item->arguments()[0]->to_longlong_null().bit_count();
-  }
-};
-
-
-class Func_handler_bit_count_decimal_to_slong:
-        public Item_handled_func::Handler_slong2
-{
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
-  {
-    DBUG_ASSERT(item->is_fixed());
-    return VDec(item->arguments()[0]).to_xlonglong_null().bit_count();
-  }
-};
-
-
-bool Item_func_bit_count::fix_length_and_dec()
-{
-  static Func_handler_bit_count_int_to_slong ha_int_to_slong;
-  static Func_handler_bit_count_decimal_to_slong ha_dec_to_slong;
-  set_func_handler(args[0]->cmp_type() == INT_RESULT ?
-                   (const Handler *) &ha_int_to_slong :
-                   (const Handler *) &ha_dec_to_slong);
-  return m_func_handler->fix_length_and_dec(this);
+  DBUG_ASSERT(fixed == 1);
+  ulonglong value= (ulonglong) args[0]->val_int();
+  if ((null_value= args[0]->null_value))
+    return 0; /* purecov: inspected */
+  return (longlong) my_count_bits(value);
 }
 
 
@@ -3879,13 +3801,12 @@ longlong Item_master_pos_wait::val_int()
   THD* thd = current_thd;
   String *log_name = args[0]->val_str(&value);
   int event_count= 0;
-  DBUG_ENTER("Item_master_pos_wait::val_int");
 
   null_value=0;
   if (thd->slave_thread || !log_name || !log_name->length())
   {
     null_value = 1;
-    DBUG_RETURN(0);
+    return 0;
   }
 #ifdef HAVE_REPLICATION
   longlong pos = (ulong)args[1]->val_int();
@@ -3921,15 +3842,13 @@ longlong Item_master_pos_wait::val_int()
   }
   mi->release();
 #endif
-  DBUG_PRINT("exit", ("event_count: %d  null_value: %d", event_count,
-                      (int) null_value));
-  DBUG_RETURN(event_count);
+  return event_count;
 
 #ifdef HAVE_REPLICATION
 err:
   {
     null_value = 1;
-    DBUG_RETURN(0);
+    return 0;
   }
 #endif
 }
@@ -3940,12 +3859,11 @@ longlong Item_master_gtid_wait::val_int()
   DBUG_ASSERT(fixed == 1);
   longlong result= 0;
   String *gtid_pos __attribute__((unused)) = args[0]->val_str(&value);
-  DBUG_ENTER("Item_master_gtid_wait::val_int");
 
   if (args[0]->null_value)
   {
     null_value= 1;
-    DBUG_RETURN(0);
+    return 0;
   }
 
   null_value=0;
@@ -3962,7 +3880,7 @@ longlong Item_master_gtid_wait::val_int()
 #else
   null_value= 0;
 #endif /* REPLICATION */
-  DBUG_RETURN(result);
+  return result;
 }
 
 
@@ -4241,17 +4159,16 @@ longlong Item_func_get_lock::val_int()
   DBUG_PRINT("enter", ("lock: %.*s", res->length(), res->ptr()));
   /* HASH entries are of type User_level_lock. */
   if (! my_hash_inited(&thd->ull_hash) &&
-        my_hash_init(key_memory_User_level_lock, &thd->ull_hash,
-                     &my_charset_bin, 16 /* small hash */, 0, 0, ull_get_key,
-                     NULL, 0))
+        my_hash_init(&thd->ull_hash, &my_charset_bin,
+                     16 /* small hash */, 0, 0, ull_get_key, NULL, 0))
   {
     DBUG_RETURN(0);
   }
 
   MDL_request ull_request;
-  MDL_REQUEST_INIT(&ull_request, MDL_key::USER_LOCK, res->c_ptr_safe(), "",
+  ull_request.init(MDL_key::USER_LOCK, res->c_ptr_safe(), "",
                    MDL_SHARED_NO_WRITE, MDL_EXPLICIT);
-  MDL_key *ull_key= &ull_request.key;
+  MDL_key *ull_key = &ull_request.key;
 
 
   if ((ull= (User_level_lock*)
@@ -4259,7 +4176,7 @@ longlong Item_func_get_lock::val_int()
   {
     /* Recursive lock */
     ull->refs++;
-    null_value= 0;
+    null_value = 0;
     DBUG_PRINT("info", ("recursive lock, ref-count: %d", (int) ull->refs));
     DBUG_RETURN(1);
   }
@@ -4275,8 +4192,7 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(0);
   }
 
-  ull= (User_level_lock*) my_malloc(key_memory_User_level_lock,
-                                    sizeof(User_level_lock),
+  ull= (User_level_lock*) my_malloc(sizeof(User_level_lock),
                                     MYF(MY_WME|MY_THREAD_SPECIFIC));
   if (ull == NULL)
   {
@@ -4296,30 +4212,6 @@ longlong Item_func_get_lock::val_int()
   null_value= 0;
 
   DBUG_RETURN(1);
-}
-
-
-/**
-  Release all user level locks.
-  @return
-    - N if N-lock released
-    - 0 if lock wasn't held
-*/
-longlong Item_func_release_all_locks::val_int()
-{
-  DBUG_ASSERT(fixed == 1);
-  THD *thd= current_thd;
-  ulong num_unlocked= 0;
-  DBUG_ENTER("Item_func_release_all_locks::val_int");
-  for (size_t i= 0; i < thd->ull_hash.records; i++)
-  {
-    auto ull= (User_level_lock *) my_hash_element(&thd->ull_hash, i);
-    thd->mdl_context.release_lock(ull->lock);
-    num_unlocked+= ull->refs;
-    my_free(ull);
-  }
-  my_hash_free(&thd->ull_hash);
-  DBUG_RETURN(num_unlocked);
 }
 
 
@@ -4523,7 +4415,7 @@ static PSI_mutex_key key_LOCK_item_func_sleep;
 
 static PSI_mutex_info item_func_sleep_mutexes[]=
 {
-  { &key_LOCK_item_func_sleep, "LOCK_item_func_sleep", PSI_FLAG_GLOBAL}
+  { &key_LOCK_item_func_sleep, "LOCK_user_locks", PSI_FLAG_GLOBAL}
 };
 
 
@@ -4646,7 +4538,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
     size_t size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
-    if (!(entry = (user_var_entry*) my_malloc(key_memory_user_var_entry, size,
+    if (!(entry = (user_var_entry*) my_malloc(size,
                                               MYF(MY_WME | ME_FATAL |
                                                   MY_THREAD_SPECIFIC))))
       return 0;
@@ -4738,10 +4630,8 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
   null_item= (args[0]->type() == NULL_ITEM);
   if (!m_var_entry->charset() || !null_item)
     m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
-                             &my_charset_numeric : args[0]->collation.collation);
-  collation.set(m_var_entry->charset(),
-                args[0]->collation.derivation == DERIVATION_NUMERIC ?
-                DERIVATION_NUMERIC : DERIVATION_IMPLICIT);
+                             default_charset() : args[0]->collation.collation);
+  collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
   switch (args[0]->result_type()) {
   case STRING_RESULT:
   case TIME_RESULT:
@@ -4753,8 +4643,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     set_handler(&type_handler_double);
     break;
   case INT_RESULT:
-    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length(),
-                                                            unsigned_flag));
+    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length()));
     break;
   case DECIMAL_RESULT:
     set_handler(&type_handler_newdecimal);
@@ -4794,14 +4683,11 @@ Item_func_set_user_var::fix_length_and_dec()
 {
   maybe_null=args[0]->maybe_null;
   decimals=args[0]->decimals;
+  collation.set(DERIVATION_IMPLICIT);
   if (args[0]->collation.derivation == DERIVATION_NUMERIC)
-  {
-    collation.set(DERIVATION_NUMERIC);
-    fix_length_and_charset(args[0]->max_char_length(), &my_charset_numeric);
-  }
+    fix_length_and_charset(args[0]->max_char_length(), default_charset());
   else
   {
-    collation.set(DERIVATION_IMPLICIT);
     fix_length_and_charset(args[0]->max_char_length(),
                            args[0]->collation.collation);
   }
@@ -4906,10 +4792,10 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 	char *pos= (char*) entry+ ALIGN_SIZE(sizeof(user_var_entry));
 	if (entry->value == pos)
 	  entry->value=0;
-        entry->value= (char*) my_realloc(key_memory_user_var_entry_value,
-                                         entry->value, length,
+        entry->value= (char*) my_realloc(entry->value, length,
                                          MYF(MY_ALLOW_ZERO_PTR | MY_WME |
-                                             ME_FATAL | MY_THREAD_SPECIFIC));
+                                             ME_FATAL |
+                                             MY_THREAD_SPECIFIC));
         if (!entry->value)
 	  return 1;
       }
@@ -4928,12 +4814,6 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
     entry->unsigned_flag= unsigned_arg;
   }
   entry->type=type;
-#ifdef USER_VAR_TRACKING
-#ifndef EMBEDDED_LIBRARY
-  THD *thd= current_thd;
-  thd->session_tracker.user_variables.mark_as_changed(thd, entry);
-#endif
-#endif // USER_VAR_TRACKING
   return 0;
 }
 
@@ -5023,7 +4903,7 @@ longlong user_var_entry::val_int(bool *null_value) const
 /** Get the value of a variable as a string. */
 
 String *user_var_entry::val_str(bool *null_value, String *str,
-                                uint decimals) const
+				uint decimals)
 {
   if ((*null_value= (value == 0)))
     return (String*) 0;
@@ -5199,13 +5079,13 @@ Item_func_set_user_var::update()
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
-		     REAL_RESULT, &my_charset_numeric, 0);
+		     REAL_RESULT, default_charset(), 0);
     break;
   }
   case INT_RESULT:
   {
     res= update_hash((void*) &save_result.vint, sizeof(save_result.vint),
-                     INT_RESULT, &my_charset_numeric, unsigned_flag);
+                     INT_RESULT, default_charset(), unsigned_flag);
     break;
   }
   case STRING_RESULT:
@@ -5225,7 +5105,7 @@ Item_func_set_user_var::update()
     else
       res= update_hash((void*) save_result.vdec,
                        sizeof(my_decimal), DECIMAL_RESULT,
-                       &my_charset_numeric, 0);
+                       default_charset(), 0);
     break;
   }
   case ROW_RESULT:
@@ -5356,7 +5236,7 @@ void Item_func_set_user_var::make_send_field(THD *thd, Send_field *tmp_field)
   if (result_field)
   {
     result_field->make_send_field(tmp_field);
-    DBUG_ASSERT(tmp_field->table_name.str != 0);
+    DBUG_ASSERT(tmp_field->table_name != 0);
     if (Item::name.str)
       tmp_field->col_name= Item::name;          // Use user supplied name
   }
@@ -5664,31 +5544,22 @@ bool Item_func_get_user_var::fix_length_and_dec()
   {
     unsigned_flag= m_var_entry->unsigned_flag;
     max_length= (uint32)m_var_entry->length;
-    switch (m_var_entry->type) {
+    collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
+    set_handler_by_result_type(m_var_entry->type);
+    switch (result_type()) {
     case REAL_RESULT:
-      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(DBL_DIG + 8);
-      set_handler(&type_handler_double);
       break;
     case INT_RESULT:
-      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(MAX_BIGINT_WIDTH);
       decimals=0;
-      if (unsigned_flag)
-        set_handler(&type_handler_ulonglong);
-      else
-        set_handler(&type_handler_slonglong);
       break;
     case STRING_RESULT:
-      collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
       max_length= MAX_BLOB_WIDTH - 1;
-      set_handler(&type_handler_long_blob);
       break;
     case DECIMAL_RESULT:
-      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
       decimals= DECIMAL_MAX_SCALE;
-      set_handler(&type_handler_newdecimal);
       break;
     case ROW_RESULT:                            // Keep compiler happy
     case TIME_RESULT:
@@ -5885,7 +5756,7 @@ bool Item_func_get_system_var::fix_length_and_dec()
     case SHOW_SINT:
     case SHOW_SLONG:
     case SHOW_SLONGLONG:
-      collation= DTCollation_numeric();
+      collation.set_numeric();
       fix_char_length(MY_INT64_NUM_DECIMAL_DIGITS);
       decimals=0;
       break;
@@ -5899,8 +5770,9 @@ bool Item_func_get_system_var::fix_length_and_dec()
                                                                var_type,
                                                                &component));
       if (cptr)
-        max_length= (uint32) system_charset_info->numchars(cptr,
-                                                           cptr + strlen(cptr));
+        max_length= (uint32)system_charset_info->cset->numchars(system_charset_info,
+                                                        cptr,
+                                                        cptr + strlen(cptr));
       mysql_mutex_unlock(&LOCK_global_system_variables);
       collation.set(system_charset_info, DERIVATION_SYSCONST);
       max_length*= system_charset_info->mbmaxlen;
@@ -5913,8 +5785,9 @@ bool Item_func_get_system_var::fix_length_and_dec()
                 reinterpret_cast<const LEX_STRING*>(var->value_ptr(current_thd,
                                                                    var_type,
                                                                    &component));
-        max_length= (uint32) system_charset_info->numchars(ls->str,
-                                                           ls->str + ls->length);
+        max_length= (uint32)system_charset_info->cset->numchars(system_charset_info,
+                                                        ls->str,
+                                                        ls->str + ls->length);
         mysql_mutex_unlock(&LOCK_global_system_variables);
         collation.set(system_charset_info, DERIVATION_SYSCONST);
         max_length*= system_charset_info->mbmaxlen;
@@ -5923,13 +5796,13 @@ bool Item_func_get_system_var::fix_length_and_dec()
       break;
     case SHOW_BOOL:
     case SHOW_MY_BOOL:
-      collation= DTCollation_numeric();
+      collation.set_numeric();
       fix_char_length(1);
       decimals=0;
       break;
     case SHOW_DOUBLE:
       decimals= 6;
-      collation= DTCollation_numeric();
+      collation.set_numeric();
       fix_char_length(DBL_DIG + 6);
       break;
     default:
@@ -5975,12 +5848,11 @@ const Type_handler *Item_func_get_system_var::type_handler() const
     case SHOW_SINT:
     case SHOW_SLONG:
     case SHOW_SLONGLONG:
-      return &type_handler_slonglong;
     case SHOW_UINT:
     case SHOW_ULONG:
     case SHOW_ULONGLONG:
     case SHOW_HA_ROWS:
-      return &type_handler_ulonglong;
+      return &type_handler_longlong;
     case SHOW_CHAR: 
     case SHOW_CHAR_PTR: 
     case SHOW_LEX_STRING:
@@ -6457,38 +6329,14 @@ void Item_func_match::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN("))"));
 }
 
-
-class Func_handler_bit_xor_int_to_ulonglong:
-        public Item_handled_func::Handler_ulonglong
+longlong Item_func_bit_xor::val_int()
 {
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
-  {
-    DBUG_ASSERT(item->is_fixed());
-    return item->arguments()[0]->to_longlong_null() ^
-           item->arguments()[1]->to_longlong_null();
-  }
-};
-
-
-class Func_handler_bit_xor_dec_to_ulonglong:
-        public Item_handled_func::Handler_ulonglong
-{
-public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
-  {
-    DBUG_ASSERT(item->is_fixed());
-    return VDec(item->arguments()[0]).to_xlonglong_null() ^
-           VDec(item->arguments()[1]).to_xlonglong_null();
-  }
-};
-
-
-bool Item_func_bit_xor::fix_length_and_dec()
-{
-  static const Func_handler_bit_xor_int_to_ulonglong ha_int_to_ull;
-  static const Func_handler_bit_xor_dec_to_ulonglong ha_dec_to_ull;
-  return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
+  DBUG_ASSERT(fixed == 1);
+  ulonglong arg1= (ulonglong) args[0]->val_int();
+  ulonglong arg2= (ulonglong) args[1]->val_int();
+  if ((null_value= (args[0]->null_value || args[1]->null_value)))
+    return 0;
+  return (longlong) (arg1 ^ arg2);
 }
 
 
@@ -7055,7 +6903,7 @@ longlong Item_func_nextval::val_int()
   if (!(entry= ((SEQUENCE_LAST_VALUE*)
                 my_hash_search(&thd->sequences, (uchar*) key, length))))
   {
-    if (!(key= (char*) my_memdup(PSI_INSTRUMENT_ME, key, length, MYF(MY_WME))) ||
+    if (!(key= (char*) my_memdup(key, length, MYF(MY_WME))) ||
         !(entry= new SEQUENCE_LAST_VALUE((uchar*) key, length)))
     {
       /* EOM, error given */

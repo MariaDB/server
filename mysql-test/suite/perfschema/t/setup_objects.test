@@ -48,7 +48,8 @@ insert into performance_schema.setup_objects
   values ('TABLE', 'db4', '%', 'YES', 'NO');
 
 # Also test insert of invalid enum values
-SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+
+set sql_mode= '';
 --error ER_NO_REFERENCED_ROW_2
 insert into performance_schema.setup_objects
   values ('SOMETHING', 'bad1', 'bad1', 'YES', 'NO');
@@ -88,7 +89,8 @@ update performance_schema.setup_objects
 
 select * from performance_schema.setup_objects
   order by OBJECT_TYPE, OBJECT_SCHEMA, OBJECT_NAME;
-SET sql_mode = default;
+set sql_mode= DEFAULT;
+
 --disable_warnings
 drop database if exists db1;
 drop database if exists db2;

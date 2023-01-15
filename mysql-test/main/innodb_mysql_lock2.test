@@ -261,7 +261,8 @@ let $statement= show keys from t1;
 --echo # statement-by-statement) and thanks to MVCC we can always get
 --echo # versions of rows prior to the update that has locked them.
 --echo # But in practice InnoDB does locking reads for all statements
---echo # other than SELECT (unless READ UNCOMMITTED or READ COMMITTED).
+--echo # other than SELECT (unless it is a READ-COMITTED mode or
+--echo # innodb_locks_unsafe_for_binlog is ON).
 let $statement= call p1((select i + 5 from t1 where i = 1));
 let $wait_statement= $statement;
 --source include/check_shared_row_lock.inc

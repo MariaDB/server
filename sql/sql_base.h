@@ -125,11 +125,6 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
 */
 #define MYSQL_OPEN_IGNORE_REPAIR                0x10000
 
-/**
-   Don't call decide_logging_format. Used for statistic tables etc
-*/
-#define MYSQL_OPEN_IGNORE_LOGGING_FORMAT        0x20000
-
 /** Please refer to the internals manual. */
 #define MYSQL_OPEN_REOPEN  (MYSQL_OPEN_IGNORE_FLUSH |\
                             MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |\
@@ -160,7 +155,7 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                TABLE_LIST *TABLE_LIST::*link,
                                const LEX_CSTRING *db_name,
                                const LEX_CSTRING *table_name);
-int close_thread_tables(THD *thd);
+void close_thread_tables(THD *thd);
 void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *);
 void switch_defaults_to_nullable_trigger_fields(TABLE *table);
 bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
@@ -176,12 +171,11 @@ bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 bool insert_fields(THD *thd, Name_resolution_context *context,
 		   const char *db_name, const char *table_name,
                    List_iterator<Item> *it, bool any_privileges,
-                   uint *hidden_bit_fields, bool returning_field);
+                   uint *hidden_bit_fields);
 void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary);
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
-	       List<Item> *sum_func_list, SELECT_LEX *sl, bool returning_field);
-int setup_returning_fields(THD* thd, TABLE_LIST* table_list);
+	       List<Item> *sum_func_list, uint wild_num, uint * hidden_bit_fields);
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &item, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
@@ -223,8 +217,8 @@ bool setup_tables_and_check_access(THD *thd,
                                    TABLE_LIST *tables,
                                    List<TABLE_LIST> &leaves, 
                                    bool select_insert,
-                                   privilege_t want_access_first,
-                                   privilege_t want_access,
+                                   ulong want_access_first,
+                                   ulong want_access,
                                    bool full_table_list);
 bool wait_while_table_is_used(THD *thd, TABLE *table,
                               enum ha_extra_function function);
@@ -294,8 +288,9 @@ bool is_equal(const LEX_CSTRING *a, const LEX_CSTRING *b);
 
 class Open_tables_backup;
 /* Functions to work with system tables. */
-bool open_system_tables_for_read(THD *thd, TABLE_LIST *table_list);
-void close_system_tables(THD *thd);
+bool open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
+                                 Open_tables_backup *backup);
+void close_system_tables(THD *thd, Open_tables_backup *backup);
 void close_mysql_tables(THD *thd);
 TABLE *open_system_table_for_update(THD *thd, TABLE_LIST *one_table);
 TABLE *open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup);
@@ -303,8 +298,9 @@ void close_log_table(THD *thd, Open_tables_backup *backup);
 
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout);
-void purge_tables();
+void purge_tables(bool purge_flag);
 bool flush_tables(THD *thd, flush_tables_type flag);
+bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connect_string);
 void close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                                ha_extra_function extra,
                                TABLE *skip_table);

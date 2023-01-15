@@ -1,5 +1,4 @@
-/* Copyright (C) 2008-2020 Kentoku Shiba
-   Copyright (C) 2019-2020 MariaDB corp
+/* Copyright (C) 2008-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -121,19 +120,13 @@
 #define ER_SPIDER_ORACLE_STR "Error from Oracle %d %d %s"
 #define ER_SPIDER_ORACLE_NUM 12712
 #define ER_SPIDER_ORACLE_ERR "Oracle error"
-#define ER_SPIDER_DATASOURCE_STR "Error from %s %d %s %s"
-#define ER_SPIDER_DATASOURCE_NUM 12712
 #define ER_SPIDER_CON_COUNT_ERROR 12713
 #define ER_SPIDER_CON_COUNT_ERROR_STR "Too many connections between spider and remote"
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM 12714
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_STR "Table %s.%s open timeout"
-#define ER_SPIDER_INFINITE_LOOP_NUM 12719
-#define ER_SPIDER_INFINITE_LOOP_STR "An infinite loop is detected when opening table %s.%s"
 #define ER_SPIDER_SAME_SERVER_LINK_NUM 12720
 #define ER_SPIDER_SAME_SERVER_LINK_STR1 "Host:%s and Socket:%s aim self server. Please change spider_same_server_link parameter if this link is required."
 #define ER_SPIDER_SAME_SERVER_LINK_STR2 "Host:%s and Port:%ld aim self server. Please change spider_same_server_link parameter if this link is required."
-#define ER_SPIDER_CANT_NUM 12721
-#define ER_SPIDER_CANT_STR1 "Can't %s%d"
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

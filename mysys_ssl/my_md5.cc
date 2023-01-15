@@ -52,23 +52,12 @@ static void md5_result(EVP_MD_CTX *context, uchar digest[MD5_HASH_SIZE])
 
 static void md5_init(EVP_MD_CTX *context)
 {
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-  EVP_MD *md5;
-  EVP_MD_CTX_init(context);
-  /* Ok to ignore FIPS: MD5 is not used for crypto here */
-  /* In OpenSSL 3.0.0+ it is a different EVP_MD provider */
-  md5 = EVP_MD_fetch(NULL, "MD5", "fips=no");
-  EVP_DigestInit_ex(context, md5, NULL);
-  EVP_MD_free(md5);
-#else
   EVP_MD_CTX_init(context);
 #ifdef EVP_MD_CTX_FLAG_NON_FIPS_ALLOW
   /* Ok to ignore FIPS: MD5 is not used for crypto here */
-  /* In OpenSSL 1.1.1 the non FIPS allowed flag is context specific */
   EVP_MD_CTX_set_flags(context, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW);
 #endif
   EVP_DigestInit_ex(context, EVP_md5(), NULL);
-#endif
 }
 
 static void md5_input(EVP_MD_CTX *context, const uchar *buf, unsigned len)

@@ -11,8 +11,8 @@ SELECT @start_global_value;
 #
 # exists as global only
 #
---echo Valid values are one or above
-SELECT @@global.innodb_stats_transient_sample_pages >=1;
+--echo Valid values are zero or above
+SELECT @@global.innodb_stats_transient_sample_pages >=0;
 SELECT @@global.innodb_stats_transient_sample_pages;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.innodb_stats_transient_sample_pages;

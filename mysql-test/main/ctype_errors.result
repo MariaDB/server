@@ -49,14 +49,3 @@ ERROR 42000: \0423 \0432\0430\0441 \043E\0448\0438\0431\043A\0430 \0432 \0437\04
 disconnect con1;
 connection default;
 End of 5.5 tests
-#
-# MDEV-22130 SHOW WARNINGS will SIGSEGV 10.5 optimized build after setting CHARACTER_SET_RESULTS to NULL and running any invalid SQL | Binary_string::copy_printable_hhhh
-#
-SET NAMES latin1;
-SET @@CHARACTER_SET_RESULTS=NULL;
-a;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a' at line 1
-SHOW WARNINGS;
-Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a' at line 1
-SET NAMES latin1;

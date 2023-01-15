@@ -1,6 +1,6 @@
 SET global query_cache_type=ON;
 SET local query_cache_type=ON;
-SET SESSION DEFAULT_STORAGE_ENGINE = myisam;
+SET SESSION STORAGE_ENGINE = myisam;
 drop table if exists t1;
 set @save_query_cache_size = @@global.query_cache_size;
 # Test that partitions works with query cache

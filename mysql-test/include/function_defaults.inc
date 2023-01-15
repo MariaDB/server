@@ -1,7 +1,7 @@
 SET TIME_ZONE = "+00:00";
 
 --echo #
---echo # Test of errors for column data types that don't support function
+--echo # Test of errors for column data types that dont support function
 --echo # defaults.
 --echo #
 

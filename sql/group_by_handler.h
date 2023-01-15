@@ -14,10 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifndef GROUP_BY_HANDLER_INCLUDED
-#define GROUP_BY_HANDLER_INCLUDED
-
-class Select_limit_counters;
 /*
   This file implements the group_by_handler interface. This interface
   can be used by storage handlers that can intercept summary or GROUP
@@ -60,7 +56,6 @@ struct Query
   ORDER      *order_by;
   Item       *having;
   // LIMIT
-  Select_limit_counters *limit;
 };
 
 class group_by_handler
@@ -105,4 +100,3 @@ public:
   virtual void print_error(int error, myf errflag);
 };
 
-#endif //GROUP_BY_HANDLER_INCLUDED

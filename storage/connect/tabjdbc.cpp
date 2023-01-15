@@ -381,7 +381,7 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 	int    len = 0;
 	uint   pos;
 	bool   b = false;
-	// PTABLE tablep = To_Table;
+	PTABLE tablep = To_Table;
 	PCOL   colp;
 
 	for (colp = Columns; colp; colp = colp->GetNext())
@@ -585,13 +585,11 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 			if (Memory < 3) {
 				// Method will depend on cursor type
 				if ((Rbuf = Query ? Jcp->Rewind(Query->GetStr()) : 0) < 0)
-                                {
 					if (Mode != MODE_READX) {
 						Jcp->Close();
 						return true;
 					} else
 						Rbuf = 0;
-                                }
 
 			} else
 				Rbuf = Qrp->Nblin;
@@ -1024,7 +1022,7 @@ JDBCCOL::JDBCCOL(JDBCCOL *col1, PTDB tdbp) : EXTCOL(col1, tdbp)
 void JDBCCOL::ReadColumn(PGLOBAL g)
 {
 	PTDBJDBC tdbp = (PTDBJDBC)To_Tdb;
-	int i = tdbp->Fpos - 1;
+	int i = tdbp->Fpos - 1, n = tdbp->CurNum;
 
 	if (tdbp->Memory == 3) {
 		// Get the value from the stored memory
@@ -1144,6 +1142,8 @@ int TDBXJDC::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 bool TDBXJDC::OpenDB(PGLOBAL g)
 {
+	bool rc = false;
+
 	if (trace(1))
 		htrc("JDBC OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
 		this, Tdb_No, Use, Mode);

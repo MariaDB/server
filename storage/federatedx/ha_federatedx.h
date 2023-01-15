@@ -262,7 +262,7 @@ public:
 /*
   Class definition for the storage engine
 */
-class ha_federatedx final : public handler
+class ha_federatedx: public handler
 {
   friend int federatedx_db_init(void *p);
 
@@ -447,15 +447,12 @@ public:
   void update_auto_increment(void);
   int repair(THD* thd, HA_CHECK_OPT* check_opt);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
-  int delete_table(const char *name)
-  {
-    return 0;
-  }
+
   int delete_all_rows(void);
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      //required
-  ha_rows records_in_range(uint inx, const key_range *start_key,
-                           const key_range *end_key, page_range *pages);
+  ha_rows records_in_range(uint inx, key_range *start_key,
+                                   key_range *end_key);
   uint8 table_cache_type() { return HA_CACHE_TBL_NOCACHE; }
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,

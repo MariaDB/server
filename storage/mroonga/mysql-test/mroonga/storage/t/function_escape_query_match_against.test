@@ -22,7 +22,7 @@
 DROP TABLE IF EXISTS memos;
 --enable_warnings
 
-SET GLOBAL mroonga_default_tokenizer = TokenDelimit;
+SET GLOBAL mroonga_default_parser = TokenDelimit;
 
 SET NAMES utf8mb4;
 CREATE TABLE memos (
@@ -40,7 +40,7 @@ SELECT * FROM memos
 
 DROP TABLE memos;
 
-SET GLOBAL mroonga_default_tokenizer = TokenBigram;
+SET GLOBAL mroonga_default_parser = TokenBigram;
 
 --source ../../include/mroonga/unload_mroonga_functions.inc
 --source ../../include/mroonga/have_mroonga_deinit.inc

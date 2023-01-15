@@ -23,9 +23,6 @@
 NAMED_ILIST key_caches;
 NAMED_ILIST rpl_filters;
 
-extern "C" PSI_memory_key key_memory_KEY_CACHE;
-extern PSI_memory_key key_memory_NAMED_ILINK_name;
-
 /**
   ilink (intrusive list element) with a name
 */
@@ -40,8 +37,7 @@ public:
              size_t name_length_arg, uchar* data_arg)
     :name_length(name_length_arg), data(data_arg)
   {
-    name= my_strndup(key_memory_NAMED_ILINK_name, name_arg, name_length,
-                     MYF(MY_WME));
+    name= my_strndup(name_arg, name_length, MYF(MY_WME));
     links->push_back(this);
   }
   inline bool cmp(const char *name_cmp, size_t length)
@@ -122,8 +118,8 @@ KEY_CACHE *create_key_cache(const char *name, size_t length)
   DBUG_ENTER("create_key_cache");
   DBUG_PRINT("enter",("name: %.*s", (int)length, name));
   
-  if ((key_cache= (KEY_CACHE*) my_malloc(key_memory_KEY_CACHE,
-                                sizeof(KEY_CACHE), MYF(MY_ZEROFILL | MY_WME))))
+  if ((key_cache= (KEY_CACHE*) my_malloc(sizeof(KEY_CACHE),
+                                             MYF(MY_ZEROFILL | MY_WME))))
   {
     if (!new NAMED_ILINK(&key_caches, name, length, (uchar*) key_cache))
     {

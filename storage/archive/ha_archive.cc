@@ -215,6 +215,7 @@ int archive_db_init(void *p)
 #endif
 
   archive_hton= (handlerton *)p;
+  archive_hton->state= SHOW_OPTION_YES;
   archive_hton->db_type= DB_TYPE_ARCHIVE_DB;
   archive_hton->create= archive_create_handler;
   archive_hton->flags= HTON_NO_FLAGS;
@@ -292,7 +293,7 @@ int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
   if (frm_stream.frm_length == 0)
     DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
-  frm_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME, frm_stream.frm_length,
+  frm_ptr= (uchar *)my_malloc(sizeof(char) * frm_stream.frm_length,
                               MYF(MY_THREAD_SPECIFIC | MY_WME));
   if (!frm_ptr)
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -718,7 +719,7 @@ int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
     return 0;
   }
 
-  if (!(frm_ptr= (uchar *) my_malloc(PSI_INSTRUMENT_ME, src->frm_length,
+  if (!(frm_ptr= (uchar *) my_malloc(src->frm_length,
                                      MYF(MY_THREAD_SPECIFIC | MY_WME))))
     return HA_ERR_OUT_OF_MEM;
 
@@ -1227,8 +1228,8 @@ bool ha_archive::fix_rec_buff(unsigned int length)
   if (length > record_buffer->length)
   {
     uchar *newptr;
-    if (!(newptr=(uchar*) my_realloc(PSI_INSTRUMENT_ME,
-                                     (uchar*) record_buffer->buffer, length,
+    if (!(newptr=(uchar*) my_realloc((uchar*) record_buffer->buffer, 
+                                    length,
 				    MYF(MY_ALLOW_ZERO_PTR))))
       DBUG_RETURN(1);
     record_buffer->buffer= newptr;
@@ -1902,14 +1903,16 @@ archive_record_buffer *ha_archive::create_record_buffer(unsigned int length)
 {
   DBUG_ENTER("ha_archive::create_record_buffer");
   archive_record_buffer *r;
-  if (!(r= (archive_record_buffer*) my_malloc(PSI_INSTRUMENT_ME,
-                                 sizeof(archive_record_buffer), MYF(MY_WME))))
+  if (!(r= 
+        (archive_record_buffer*) my_malloc(sizeof(archive_record_buffer),
+                                           MYF(MY_WME))))
   {
     DBUG_RETURN(NULL); /* purecov: inspected */
   }
   r->length= (int)length;
 
-  if (!(r->buffer= (uchar*) my_malloc(PSI_INSTRUMENT_ME, r->length, MYF(MY_WME))))
+  if (!(r->buffer= (uchar*) my_malloc(r->length,
+                                    MYF(MY_WME))))
   {
     my_free(r);
     DBUG_RETURN(NULL); /* purecov: inspected */

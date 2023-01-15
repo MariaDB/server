@@ -615,11 +615,10 @@ dtuple_convert_big_rec(
 	stored externally */
 
 	ut_d(ulint n_fields = 0);
-	uint16_t longest_i;
-	ulint longest;
+	ulint longest_i;
 
 	const bool mblob = entry->is_alter_metadata();
-	ut_ad(entry->n_fields - mblob >= index->first_user_field());
+	ut_ad(entry->n_fields >= index->first_user_field() + mblob);
 	ut_ad(entry->n_fields - mblob <= index->n_fields);
 
 	if (mblob) {
@@ -645,9 +644,8 @@ dtuple_convert_big_rec(
 				      dict_index_get_n_fields(index),
 				      zip_size)) {
 		longest_i = 0;
-		longest = 0;
-		for (uint16_t i = index->first_user_field();
-		     i < entry->n_fields - mblob; i++) {
+		for (ulint i = index->first_user_field(), longest = 0;
+		     i + mblob < entry->n_fields; i++) {
 			ulint	savings;
 			dfield = dtuple_get_nth_field(entry, i + mblob);
 
@@ -687,7 +685,7 @@ dtuple_convert_big_rec(
 				goto skip_field;
 			}
 
-			longest_i = uint16_t(i + mblob);
+			longest_i = i + mblob;
 			longest = savings;
 
 skip_field:
@@ -738,7 +736,7 @@ ext_write:
 			DEBUG_SYNC_C("ib_mv_nonupdated_column_offpage");
 
 			upd_field_t	upd_field;
-			upd_field.field_no = longest_i;
+			upd_field.field_no = unsigned(longest_i);
 			upd_field.orig_len = 0;
 			upd_field.exp = NULL;
 			upd_field.old_v_val = NULL;

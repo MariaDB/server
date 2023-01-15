@@ -51,7 +51,7 @@ formatID	gtrid_length	bqual_length	data
 11	5	5	testb 0@P`
 1	5	5	testatestb
 xa commit 'testb',0x2030405060,11;
-ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
+ERROR XAE04: XAER_NOTA: Unknown XID
 xa rollback 'testa','testb';
 xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
@@ -59,9 +59,6 @@ select * from t1;
 a
 20
 disconnect con1;
-xa rollback 'testb',0x2030405060,11;
-xa recover;
-formatID	gtrid_length	bqual_length	data
 connection default;
 xa start 'tr1';
 insert t1 values (40);
@@ -375,61 +372,6 @@ DROP TABLE t1;
 disconnect con1;
 connection default;
 #
-# MDEV-21766 - Forbid XID with empty 'gtrid'
-#
-CREATE TABLE t1(a INT) ENGINE=InnoDB;
-XA BEGIN '';
-ERROR XAE05: XAER_INVAL: Invalid arguments (or unsupported command)
-XA BEGIN '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x',
-'8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x';
-INSERT INTO t1 VALUES(1);
-XA END '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x',
-'8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x';
-XA PREPARE '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x',
-'8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x';
-XA ROLLBACK '8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x',
-'8bytes1x8bytes2x8bytes3x8bytes4x8bytes5x8bytes6x8bytes7x8bytes8x';
-SET NAMES utf8;
-XA BEGIN 'Я_упала_с_сеновала_тормозила_головой';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
-XA BEGIN 'Я_упaлa_c_сеновала_тормозила_головой';
-XA END 'Я_упaлa_c_сеновала_тормозила_головой';
-XA PREPARE 'Я_упaлa_c_сеновала_тормозила_головой';
-XA ROLLBACK 'Я_упaлa_c_сеновала_тормозила_головой';
-SET NAMES default;
-DROP TABLE t1;
-#
-# MDEV-21659 XA rollback foreign_xid is allowed inside active XA
-# MDEV-21854 - xa commit  one phase for already prepared transaction
-#              must always error out
-#
-BEGIN;
-XA COMMIT 'unknown';
-ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
-XA COMMIT 'unknown' ONE PHASE;
-ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
-BEGIN;
-XA ROLLBACK 'unknown';
-ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
-ROLLBACK;
-XA START 'xid1';
-XA COMMIT 'unknown';
-ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
-XA COMMIT 'unknown' ONE PHASE;
-ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
-XA ROLLBACK 'unknown';
-ERROR XAE09: XAER_OUTSIDE: Some work is done outside global transaction
-XA END 'xid1';
-XA PREPARE 'xid1';
-XA COMMIT 'xid1' ONE PHASE;
-ERROR XAE05: XAER_INVAL: Invalid arguments (or unsupported command)
-XA ROLLBACK 'xid1';
-#
-# MDEV-21856 - xid_t::formatID has to be constrained to 4 byte size
-#
-XA START 'gtrid', 'bqual', 0x80000000;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0x80000000' at line 1
-#
 # XA states and SHOW commands
 #
 create table t1 (pk int primary key) engine=innodb;
@@ -482,68 +424,4 @@ XA END 'xid';
 XA ROLLBACK 'xid';
 #
 # End of 10.3 tests
-#
-#
-# Start of 10.5 tests
-#
-# MDEV-7974 related
-# Check XA state when lock_wait_timeout happens
-# More tests added to flush_read_lock.test
-connect  con_tmp,localhost,root,,;
-set session lock_wait_timeout=1;
-create table asd (a int) engine=innodb;
-xa start 'test1';
-insert into asd values(1);
-xa end 'test1';
-connection default;
-flush table with read lock;
-connection con_tmp;
-# PREPARE error will do auto rollback.
-xa prepare 'test1';
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-show errors;
-Level	Code	Message
-Error	1205	Lock wait timeout exceeded; try restarting transaction
-Error	1402	XA_RBROLLBACK: Transaction branch was rolled back
-connection default;
-unlock tables;
-connection con_tmp;
-xa start 'test1';
-insert into asd values(1);
-xa end 'test1';
-xa prepare 'test1';
-connection default;
-flush tables with read lock;
-connection con_tmp;
-# LOCK error during ROLLBACK will not alter transaction state.
-xa rollback 'test1';
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-show errors;
-Level	Code	Message
-Error	1205	Lock wait timeout exceeded; try restarting transaction
-Error	1401	XAER_RMERR: Fatal error occurred in the transaction branch - check your data for consistency
-xa recover;
-formatID	gtrid_length	bqual_length	data
-1	5	0	test1
-# LOCK error during COMMIT will not alter transaction state.
-xa commit 'test1';
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-show errors;
-Level	Code	Message
-Error	1205	Lock wait timeout exceeded; try restarting transaction
-Error	1401	XAER_RMERR: Fatal error occurred in the transaction branch - check your data for consistency
-xa recover;
-formatID	gtrid_length	bqual_length	data
-1	5	0	test1
-connection default;
-unlock tables;
-connection con_tmp;
-xa rollback 'test1';
-xa recover;
-formatID	gtrid_length	bqual_length	data
-drop table asd;
-disconnect con_tmp;
-connection default;
-#
-# End of 10.5 tests
 #

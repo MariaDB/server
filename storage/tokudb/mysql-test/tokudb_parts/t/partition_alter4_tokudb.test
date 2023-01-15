@@ -49,8 +49,6 @@ let $more_pk_ui_tests= 0;
 --source include/big_test.inc
 # Skiping this test from Valgrind execution as per Bug-14627884
 --source include/not_valgrind.inc
-# Don't run with asan as it causes timeouts
---source include/not_asan.inc
 
 #------------------------------------------------------------------------------#
 # Engine specific settings and requirements

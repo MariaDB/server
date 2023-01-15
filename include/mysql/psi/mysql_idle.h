@@ -1,5 +1,5 @@
-/* Copyright (c) 2011, 2022, Oracle and/or its affiliates
-   Copyright (c) 2017, 2019, MariaDB Corporation.
+/* Copyright (c) 2011, 2012, Oracle and/or its affiliates. All rights reserved.   
+   Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -30,10 +30,6 @@
 */
 
 #include "mysql/psi/psi.h"
-
-#ifndef PSI_IDLE_CALL
-#define PSI_IDLE_CALL(M) PSI_DYNAMIC_CALL(M)
-#endif
 
 /**
   @defgroup Idle_instrumentation Idle Instrumentation

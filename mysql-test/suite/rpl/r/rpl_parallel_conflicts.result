@@ -8,12 +8,6 @@ CREATE TABLE t7 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 CREATE TABLE t8 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 connection server_2;
 include/stop_slave.inc
-SET @old_mode= @@GLOBAL.slave_parallel_mode;
-SET GLOBAL slave_parallel_mode='conservative';
-SET @old_threads= @@GLOBAL.slave_parallel_threads;
-SET GLOBAL slave_parallel_threads=40;
-SET @old_transaction_retries= @@GLOBAL.slave_transaction_retries;
-SET GLOBAL slave_transaction_retries=5;
 connection server_1;
 INSERT INTO t7 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
 SET @old_dbug= @@SESSION.debug_dbug;
@@ -331,9 +325,6 @@ a	b
 104	4
 include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
-SET GLOBAL slave_parallel_mode=@old_mode;
-SET GLOBAL slave_parallel_threads=@old_threads;
-SET GLOBAL slave_transaction_retries=@old_transaction_retries;
 include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 connection server_1;

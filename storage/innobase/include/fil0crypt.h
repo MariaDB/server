@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -85,14 +85,19 @@ struct fil_space_rotate_state_t
 {
 	time_t start_time;	/*!< time when rotation started */
 	ulint active_threads;	/*!< active threads in space */
-	uint32_t next_offset;	/*!< next "free" offset */
-	uint32_t max_offset;	/*!< max offset needing to be rotated */
+	ulint next_offset;	/*!< next "free" offset */
+	ulint max_offset;	/*!< max offset needing to be rotated */
 	uint  min_key_version_found; /*!< min key version found but not
 				     rotated */
 	lsn_t end_lsn;		/*!< max lsn created when rotating this
 				space */
 	bool starting;		/*!< initial write of IV */
 	bool flushing;		/*!< space is being flushed at end of rotate */
+	struct {
+		bool is_active; /*!< is scrubbing active in this space */
+		time_t last_scrub_completed; /*!< when was last scrub
+					     completed */
+	} scrubbing;
 };
 
 #ifndef UNIV_INNOCHECKSUM
@@ -110,6 +115,7 @@ struct fil_space_crypt_t : st_encryption_scheme
 		fil_encryption_t new_encryption)
 		: st_encryption_scheme(),
 		min_key_version(new_min_key_version),
+		page0_offset(0),
 		encryption(new_encryption),
 		key_found(0),
 		rotate_state()
@@ -178,12 +184,14 @@ struct fil_space_crypt_t : st_encryption_scheme
 	@param[in,out]	page	first page of the tablespace */
 	void fill_page0(ulint flags, byte* page);
 
-	/** Write encryption metadata to the first page.
-	@param[in,out]	block	first page of the tablespace
+	/** Write crypt data to a page (0)
+	@param[in]	space	tablespace
+	@param[in,out]	page0	first page of the tablespace
 	@param[in,out]	mtr	mini-transaction */
-	void write_page0(buf_block_t* block, mtr_t* mtr);
+	void write_page0(const fil_space_t* space, byte* page0, mtr_t* mtr);
 
 	uint min_key_version; // min key version for this space
+	ulint page0_offset;   // byte offset on page 0 for crypt data
 	fil_encryption_t encryption; // Encryption setup
 
 	ib_mutex_t mutex;   // mutex protecting following variables
@@ -219,6 +227,18 @@ struct fil_crypt_stat_t {
 	ulint pages_modified;
 	ulint pages_flushed;
 	ulint estimated_iops;
+};
+
+/** Status info about scrubbing */
+struct fil_space_scrub_status_t {
+	ulint space;             /*!< tablespace id */
+	bool compressed;        /*!< is space compressed  */
+	time_t last_scrub_completed;  /*!< when was last scrub completed */
+	bool scrubbing;               /*!< is scrubbing ongoing */
+	time_t current_scrub_started; /*!< when started current scrubbing */
+	ulint current_scrub_active_threads; /*!< current scrub active threads */
+	ulint current_scrub_page_number; /*!< current scrub page no */
+	ulint current_scrub_max_page_number; /*!< current scrub max page no */
 };
 
 /*********************************************************************
@@ -274,15 +294,25 @@ void
 fil_space_destroy_crypt_data(
 	fil_space_crypt_t **crypt_data);
 
-/** Amend encryption information from redo log.
-@param[in]	space	tablespace
-@param[in]	data	encryption metadata */
-void fil_crypt_parse(fil_space_t* space, const byte* data);
+/******************************************************************
+Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
+@param[in]	ptr		Log entry start
+@param[in]	end_ptr		Log entry end
+@param[out]	err		DB_SUCCESS or DB_DECRYPTION_FAILED
+@return position on log buffer */
+UNIV_INTERN
+byte*
+fil_parse_write_crypt_data(
+	byte*			ptr,
+	const byte*		end_ptr,
+	dberr_t*		err)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Encrypt a buffer.
 @param[in,out]		crypt_data		Crypt data
 @param[in]		space			space_id
 @param[in]		offset			Page offset
+@param[in]		lsn			Log sequence number
 @param[in]		src_frame		Page to encrypt
 @param[in]		zip_size		ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]		dst_frame		Output buffer
@@ -294,6 +324,7 @@ fil_encrypt_buf(
 	fil_space_crypt_t*	crypt_data,
 	ulint			space,
 	ulint			offset,
+	lsn_t			lsn,
 	const byte*		src_frame,
 	ulint			zip_size,
 	byte*			dst_frame,
@@ -305,12 +336,16 @@ Encrypt a page.
 
 @param[in]		space		Tablespace
 @param[in]		offset		Page offset
+@param[in]		lsn		Log sequence number
 @param[in]		src_frame	Page to encrypt
 @param[in,out]		dst_frame	Output buffer
 @return encrypted buffer or NULL */
-byte* fil_space_encrypt(
+UNIV_INTERN
+byte*
+fil_space_encrypt(
 	const fil_space_t* space,
 	ulint		offset,
+	lsn_t		lsn,
 	byte*		src_frame,
 	byte*		dst_frame)
 	MY_ATTRIBUTE((warn_unused_result));
@@ -386,7 +421,10 @@ fil_crypt_set_rotation_iops(
 /*********************************************************************
 Adjust encrypt tables
 @param[in]	val		New setting for innodb-encrypt-tables */
-void fil_crypt_set_encrypt_tables(ulong val);
+UNIV_INTERN
+void
+fil_crypt_set_encrypt_tables(
+	uint val);
 
 /*********************************************************************
 Init threads for key rotation */
@@ -426,6 +464,18 @@ UNIV_INTERN
 void
 fil_crypt_total_stat(
 	fil_crypt_stat_t *stat);
+
+/**
+Get scrub status for a space (used by information_schema)
+
+@param[in]	space		Tablespace
+@param[out]	status		Scrub status
+return 0 if data found */
+UNIV_INTERN
+void
+fil_space_get_scrub_status(
+	const fil_space_t*		space,
+	fil_space_scrub_status_t*	status);
 
 #include "fil0crypt.inl"
 #endif /* !UNIV_INNOCHECKSUM */

@@ -59,7 +59,7 @@ INSERT INTO t0
 -- source include/search_pattern_in_file.inc
 
 --echo # Restart without redo log encryption
--- let $restart_parameters=--skip-innodb-encrypt-log
+-- let $restart_parameters=--skip-innodb-encrypt-log --innodb-log-files-in-group=1
 -- source include/start_mysqld.inc
 
 SELECT COUNT(*) FROM t0;

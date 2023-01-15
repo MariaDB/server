@@ -81,8 +81,8 @@ drop table t6;
 # type to avoid Inno's column-number limits (~1000 columns) etc.
 # Here because it needs Inno-engine.
 
-SELECT @@global.default_storage_engine INTO @old_engine;
-SET GLOBAL default_storage_engine=InnoDB;
+SELECT @@global.storage_engine INTO @old_engine;
+SET GLOBAL storage_engine=InnoDB;
 
 --disable_query_log
 CREATE TABLE `t1` (
@@ -1128,7 +1128,7 @@ SELECT COUNT(*) FROM v1;
 DROP VIEW  v1;
 DROP TABLE t1;
 
-SET GLOBAL default_storage_engine=@old_engine;
+SET GLOBAL storage_engine=@old_engine;
 
 # Test fully non-locking mysqldump with consistent binlog position (MWL#136).
 

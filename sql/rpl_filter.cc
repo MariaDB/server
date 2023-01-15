@@ -1,5 +1,4 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +24,7 @@
 #define TABLE_RULE_ARR_SIZE   16
 
 Rpl_filter::Rpl_filter() : 
-  parallel_mode(SLAVE_PARALLEL_OPTIMISTIC),
+  parallel_mode(SLAVE_PARALLEL_CONSERVATIVE),
   table_rules_on(0),
   do_table_inited(0), ignore_table_inited(0),
   wild_do_table_inited(0), wild_ignore_table_inited(0)
@@ -286,7 +285,7 @@ Rpl_filter::parse_filter_rule(const char* spec, Add_filter add)
   if (!spec)
     return false;
   
-  if (! (ptr= my_strdup(key_memory_rpl_filter, spec, MYF(MY_WME))))
+  if (! (ptr= my_strdup(spec, MYF(MY_WME))))
     return true;
 
   pstr= ptr;
@@ -485,9 +484,8 @@ Rpl_filter::add_table_rule(HASH* h, const char* table_spec)
   if (!dot) return 1;
   // len is always > 0 because we know the there exists a '.'
   uint len = (uint)strlen(table_spec);
-  TABLE_RULE_ENT* e = (TABLE_RULE_ENT*)my_malloc(key_memory_TABLE_RULE_ENT,
-                                                 sizeof(TABLE_RULE_ENT) + len,
-                                                 MYF(MY_WME));
+  TABLE_RULE_ENT* e = (TABLE_RULE_ENT*)my_malloc(sizeof(TABLE_RULE_ENT)
+						 + len, MYF(MY_WME));
   if (!e) return 1;
   e->db= (char*)e + sizeof(TABLE_RULE_ENT);
   e->tbl_name= e->db + (dot - table_spec) + 1;
@@ -508,9 +506,8 @@ Rpl_filter::add_wild_table_rule(DYNAMIC_ARRAY* a, const char* table_spec)
   const char* dot = strchr(table_spec, '.');
   if (!dot) return 1;
   uint len = (uint)strlen(table_spec);
-  TABLE_RULE_ENT* e = (TABLE_RULE_ENT*)my_malloc(key_memory_TABLE_RULE_ENT,
-                                                 sizeof(TABLE_RULE_ENT) + len,
-                                                 MYF(MY_WME));
+  TABLE_RULE_ENT* e = (TABLE_RULE_ENT*)my_malloc(sizeof(TABLE_RULE_ENT)
+						 + len, MYF(MY_WME));
   if (!e) return 1;
   e->db= (char*)e + sizeof(TABLE_RULE_ENT);
   e->tbl_name= e->db + (dot - table_spec) + 1;
@@ -526,7 +523,7 @@ Rpl_filter::add_string_list(I_List<i_string> *list, const char* spec)
   char *str;
   i_string *node;
 
-  if (! (str= my_strdup(key_memory_rpl_filter, spec, MYF(MY_WME))))
+  if (! (str= my_strdup(spec, MYF(MY_WME))))
     return true;
 
   if (! (node= new i_string(str)))
@@ -597,9 +594,8 @@ void free_table_ent(void* a)
 void 
 Rpl_filter::init_table_rule_hash(HASH* h, bool* h_inited)
 {
-  my_hash_init(key_memory_TABLE_RULE_ENT, h,
-               system_charset_info,TABLE_RULE_HASH_SIZE,0,0, get_table_key,
-               free_table_ent, 0);
+  my_hash_init(h, system_charset_info,TABLE_RULE_HASH_SIZE,0,0,
+	    get_table_key, free_table_ent, 0);
   *h_inited = 1;
 }
 
@@ -607,8 +603,8 @@ Rpl_filter::init_table_rule_hash(HASH* h, bool* h_inited)
 void 
 Rpl_filter::init_table_rule_array(DYNAMIC_ARRAY* a, bool* a_inited)
 {
-  my_init_dynamic_array(key_memory_TABLE_RULE_ENT, a, sizeof(TABLE_RULE_ENT*),
-                        TABLE_RULE_ARR_SIZE, TABLE_RULE_ARR_SIZE, MYF(0));
+  my_init_dynamic_array(a, sizeof(TABLE_RULE_ENT*), TABLE_RULE_ARR_SIZE,
+			TABLE_RULE_ARR_SIZE, MYF(0));
   *a_inited = 1;
 }
 
@@ -623,10 +619,10 @@ Rpl_filter::find_wild(DYNAMIC_ARRAY *a, const char* key, int len)
   {
     TABLE_RULE_ENT* e ;
     get_dynamic(a, (uchar*)&e, i);
-    if (!system_charset_info->wildcmp(key, key_end, 
-                                      (const char*)e->db,
-                                      (const char*)(e->db + e->key_len),
-                                      '\\', wild_one, wild_many))
+    if (!my_wildcmp(system_charset_info, key, key_end, 
+		    (const char*)e->db,
+		    (const char*)(e->db + e->key_len),
+		    '\\',wild_one,wild_many))
       return e;
   }
   

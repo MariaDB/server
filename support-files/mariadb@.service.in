@@ -34,10 +34,10 @@
 # like network ports, sockets and data directories listed under CONFLICTING
 # VARIABLES below. The systemd environment variable MYSQLD_MULTI_INSTANCE
 # controls each instance to ensure it is run independently. It is passed to
-# mariadbd and mysql_install
+# mysqld and mysql_install
 #
 # By default, a group suffix exists and within the default configuration
-# files, a group [mariadbd.{instancename}] is read for each service. Other
+# files, a group [mysqld.{instancename}] is read for each service. Other
 # default groups, like [server.{instancename}] and [mariadb.{instancename}],
 # are also read. For each instance, one of the groups will need to contain
 # the conflicting variables listed below under CONFLICTING VARIABLES.
@@ -100,7 +100,7 @@
 # in configuration between instances.
 #
 #   [Service]
-#   Environment=MYSQLD_MULTI_INSTANCE="--socket=/run/mysqld/%I.sock \
+#   Environment=MYSQLD_MULTI_INSTANCE="--socket=/var/run/mysqld/%I.sock \
 #                        --datadir=/var/lib/mysqld-multi/%I \
 #                        --skip-networking"
 #
@@ -119,7 +119,7 @@
 # Before 10.4 MYSQLD_MULTI_INSTANCE was effectively --defaults-file=@sysconf2dir@/my%I.cnf
 # As @sysconfdir@/my.cnf included these files it was a bad choice as an
 # existing single instance would include all these files. If you want to
-# continue a file based multi-instance mariadbd, recommend the Configuration File
+# continue a file based multi-instance mysqld, recommend the Configuration File
 # Based Mechanism above and moving @sysconf2dir@/my%I.cnf files to @sysconfdir@/my%I.cnf.
 #
 #
@@ -145,7 +145,7 @@
 
 [Unit]
 Description=MariaDB @VERSION@ database server (multi-instance %I)
-Documentation=man:mariadbd(8)
+Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
 
@@ -170,7 +170,7 @@ WantedBy=multi-user.target
 Type=notify
 
 # Setting this to true can break replication and the Type=notify settings
-# See also bind-address mariadbd option.
+# See also bind-address mysqld option.
 PrivateNetwork=false
 
 ##############################################################################
@@ -208,7 +208,7 @@ ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE
 # * MYSQLD_OPTS - user definable extras - not a replacement for my.cnf
 #
 # Note 1: Place $MYSQLD_OPTS at the very end for its options to take precedence.
-ExecStart=@sbindir@/mariadbd $MYSQLD_MULTI_INSTANCE $MYSQLD_OPTS
+ExecStart=@sbindir@/mysqld $MYSQLD_MULTI_INSTANCE $MYSQLD_OPTS
 
 @SYSTEMD_EXECSTARTPOST@
 
@@ -234,7 +234,7 @@ UMask=007
 
 # Useful options not previously available in [mysqld_safe]
 
-# Kernels like killing mariadbd when out of memory because its big.
+# Kernels like killing mysqld when out of memory because its big.
 # Lets temper that preference a little.
 # OOMScoreAdjust=-600
 
@@ -290,7 +290,7 @@ LimitNOFILE=32768
 # ExecStartPre=sysctl -q -w vm.drop_caches=3
 
 # numa-interleave=1 equalivant
-# Change ExecStart=numactl --interleave=all @sbindir@/mariadbd......
+# Change ExecStart=numactl --interleave=all @sbindir@/mysqld......
 
 # crash-script equalivent
 # FailureAction=

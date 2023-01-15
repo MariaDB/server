@@ -30,6 +30,7 @@ Created 7/19/1997 Heikki Tuuri
 #include "mtr0mtr.h"
 #include "dict0mem.h"
 #include "fsp0fsp.h"
+#include "ibuf0types.h"
 
 /** Default value for maximum on-disk size of change buffer in terms
 of percentage of the buffer pool. */
@@ -60,39 +61,8 @@ enum ibuf_use_t {
 /** Operations that can currently be buffered. */
 extern ulong		innodb_change_buffering;
 
-/** Insert buffer struct */
-struct ibuf_t{
-	Atomic_relaxed<ulint> size;	/*!< current size of the ibuf index
-					tree, in pages */
-	Atomic_relaxed<ulint> max_size;	/*!< recommended maximum size of the
-					ibuf index tree, in pages */
-	ulint		seg_size;	/*!< allocated pages of the file
-					segment containing ibuf header and
-					tree */
-	bool		empty;		/*!< Protected by the page
-					latch of the root page of the
-					insert buffer tree
-					(FSP_IBUF_TREE_ROOT_PAGE_NO). true
-					if and only if the insert
-					buffer tree is empty. */
-	ulint		free_list_len;	/*!< length of the free list */
-	ulint		height;		/*!< tree height */
-	dict_index_t*	index;		/*!< insert buffer index */
-
-	/** number of pages merged */
-	Atomic_counter<ulint> n_merges;
-	Atomic_counter<ulint> n_merged_ops[IBUF_OP_COUNT];
-					/*!< number of operations of each type
-					merged to index pages */
-	Atomic_counter<ulint> n_discarded_ops[IBUF_OP_COUNT];
-					/*!< number of operations of each type
-					discarded without merging due to the
-					tablespace being deleted or the
-					index being dropped */
-};
-
 /** The insert buffer control structure */
-extern ibuf_t		ibuf;
+extern ibuf_t*		ibuf;
 
 /* The purpose of the insert buffer is to reduce random disk access.
 When we wish to insert a record into a non-unique secondary index and
@@ -346,11 +316,13 @@ ibuf_insert(
 	ulint			zip_size,
 	que_thr_t*		thr);
 
-/** Check whether buffered changes exist for a page.
-@param[in]	id		page identifier
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@return whether buffered changes exist */
-bool ibuf_page_exists(const page_id_t id, ulint zip_size);
+/**
+Delete any buffered entries for a page.
+This prevents an infinite loop on slow shutdown
+in the case where the change buffer bitmap claims that no buffered
+changes exist, while entries exist in the change buffer tree.
+@param page_id  page number for which there should be no unbuffered changes */
+ATTRIBUTE_COLD void ibuf_delete_recs(const page_id_t page_id);
 
 /** When an index page is read from a disk to the buffer pool, this function
 applies any buffered operations to the page and deletes the entries from the
@@ -370,10 +342,15 @@ in DISCARD TABLESPACE, IMPORT TABLESPACE, or read-ahead.
 void ibuf_delete_for_discarded_space(ulint space);
 
 /** Contract the change buffer by reading pages to the buffer pool.
+@param[in]	full		If true, do a full contraction based
+on PCT_IO(100). If false, the size of contract batch is determined
+based on the current size of the change buffer.
 @return a lower limit for the combined size in bytes of entries which
-will be merged from ibuf trees to the pages read
-@retval 0 if ibuf.empty */
-ulint ibuf_contract();
+will be merged from ibuf trees to the pages read, 0 if ibuf is
+empty */
+ulint
+ibuf_merge_in_background(
+	bool	full);
 
 /** Contracts insert buffer trees by reading pages referring to space_id
 to the buffer pool.
@@ -382,6 +359,9 @@ ulint
 ibuf_merge_space(
 /*=============*/
 	ulint	space);	/*!< in: space id */
+
+/** Apply MLOG_IBUF_BITMAP_INIT when crash-upgrading */
+ATTRIBUTE_COLD void ibuf_bitmap_init_apply(buf_block_t* block);
 
 /******************************************************************//**
 Looks if the insert buffer is empty.

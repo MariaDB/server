@@ -1,5 +1,5 @@
 --echo #
---echo # Bug#34300 Tinyblob & tinytext fields corrupted after export/import and alter in 5.1
+--echo # Bug#34300 Tinyblob & tinytext fields currupted after export/import and alter in 5.1
 --echo #
 
 -- source include/have_innodb.inc

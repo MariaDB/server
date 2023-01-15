@@ -187,7 +187,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 		} // endif picol
 
 	  // Prepare the column list
-		for (pcrp = &Qryp->Colresp; (crp = *pcrp); ) {
+		for (pcrp = &Qryp->Colresp; (crp = *pcrp); )
 			if (SkipColumn(crp, skc)) {
 				// Ignore this column
 				*pcrp = crp->Next;
@@ -204,7 +204,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 				*pcrp = crp->Next;
 			} else
 				pcrp = &crp->Next;
-		}
+
 		if (!Rblkp) {
 			strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
 			goto err;
@@ -340,6 +340,7 @@ int PIVAID::Qcompare(int *i1, int *i2)
 bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   char *p1, *p2;
+  PHC    hc __attribute__((unused))= ((MYCAT*)Cat)->GetHandler();
 
   if (PRXDEF::DefineAM(g, am, poff))
     return TRUE;
@@ -404,7 +405,7 @@ TDBPIVOT::TDBPIVOT(PPIVOTDEF tdp) : TDBPRX(tdp)
   Accept = tdp->Accept;
   Mult = -1;                // Estimated table size
   N = 0;                    // The current table index
-  M = 0;                    // The occurrence rank
+  M = 0;                    // The occurence rank
   FileStatus = 0;           // Logical End-of-File
   RowFlag = 0;              // 0: Ok, 1: Same, 2: Skip
   } // end of TDBPIVOT constructor
@@ -644,7 +645,7 @@ int TDBPIVOT::GetMaxSize(PGLOBAL g __attribute__((unused)))
 
 /***********************************************************************/
 /*  In this sample, ROWID will be the (virtual) row number,            */
-/*  while ROWNUM will be the occurrence rank in the multiple column.    */
+/*  while ROWNUM will be the occurence rank in the multiple column.    */
 /***********************************************************************/
 int TDBPIVOT::RowNumber(PGLOBAL, bool b)
   {

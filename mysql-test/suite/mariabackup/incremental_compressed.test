@@ -1,6 +1,5 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
---source include/innodb_undo_tablespaces.inc
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;

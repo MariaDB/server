@@ -358,8 +358,8 @@ os_event::wait_time_low(
 
 	if (time_in_usec != OS_SYNC_INFINITE_TIME) {
 		ulonglong usec = ulonglong(time_in_usec) + my_hrtime().val;
-		abstime.tv_sec = static_cast<time_t>(usec / 1000000);
-		abstime.tv_nsec = static_cast<uint>((usec % 1000000) * 1000);
+		abstime.tv_sec = usec / 1000000;
+		abstime.tv_nsec = (usec % 1000000) * 1000;
 	} else {
 		abstime.tv_nsec = 999999999;
 		abstime.tv_sec = (time_t) ULINT_MAX;

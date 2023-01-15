@@ -22,7 +22,7 @@ hex(inet_aton('127.1.1'))
 7F010001
 select length(uuid()), charset(uuid()), length(unhex(replace(uuid(),_utf8'-',_utf8'')));
 length(uuid())	charset(uuid())	length(unhex(replace(uuid(),_utf8'-',_utf8'')))
-36	latin1	16
+36	utf8	16
 set @a= uuid_short();
 set @b= uuid_short();
 select @b - @a;
@@ -107,7 +107,7 @@ create table t1 as select uuid(), length(uuid());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `uuid()` varchar(36) DEFAULT NULL,
+  `uuid()` varchar(36) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
   `length(uuid())` int(10) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
@@ -1345,9 +1345,6 @@ SELECT IS_IPV4_MAPPED(INET6_ATON('1.2.3.4')),
 IS_IPV4_COMPAT(INET6_ATON('1.2.3.4'));
 IS_IPV4_MAPPED(INET6_ATON('1.2.3.4'))	IS_IPV4_COMPAT(INET6_ATON('1.2.3.4'))
 0	0
-Warnings:
-Warning	1292	Incorrect inet6 value: '\x01\x02\x03\x04'
-Warning	1292	Incorrect inet6 value: '\x01\x02\x03\x04'
 SELECT IS_IPV4_MAPPED(INET6_ATON('::1.2.3.4')),
 IS_IPV4_COMPAT(INET6_ATON('::1.2.3.4'));
 IS_IPV4_MAPPED(INET6_ATON('::1.2.3.4'))	IS_IPV4_COMPAT(INET6_ATON('::1.2.3.4'))
@@ -1641,94 +1638,3 @@ DROP TABLE t1;
 #
 # End of 10.4 tests
 #
-#
-# MDEV-10569 Add RELEASE_ALL_LOCKS SQL-function
-#
-# Test function without any locks
-SELECT RELEASE_ALL_LOCKS();
-RELEASE_ALL_LOCKS()
-0
-# Test function with one lock only
-SELECT GET_LOCK('l1',10);
-GET_LOCK('l1',10)
-1
-SELECT RELEASE_ALL_LOCKS();
-RELEASE_ALL_LOCKS()
-1
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
-FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
-LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA
-# Test function with multiple locks
-SELECT GET_LOCK('l01',10),
-GET_LOCK('l02',10),
-GET_LOCK('l03',10),
-GET_LOCK('l04',10),
-GET_LOCK('l05',10),
-GET_LOCK('l06',10),
-GET_LOCK('l07',10),
-GET_LOCK('l08',10),
-GET_LOCK('l09',10),
-GET_LOCK('l10',10),
-GET_LOCK('l11',10),
-GET_LOCK('l12',10),
-GET_LOCK('l13',10),
-GET_LOCK('l14',10),
-GET_LOCK('l15',10);
-GET_LOCK('l01',10)	GET_LOCK('l02',10)	GET_LOCK('l03',10)	GET_LOCK('l04',10)	GET_LOCK('l05',10)	GET_LOCK('l06',10)	GET_LOCK('l07',10)	GET_LOCK('l08',10)	GET_LOCK('l09',10)	GET_LOCK('l10',10)	GET_LOCK('l11',10)	GET_LOCK('l12',10)	GET_LOCK('l13',10)	GET_LOCK('l14',10)	GET_LOCK('l15',10)
-1	1	1	1	1	1	1	1	1	1	1	1	1	1	1
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
-FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
-LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA
-MDL_SHARED_NO_WRITE	User lock	l01
-MDL_SHARED_NO_WRITE	User lock	l02
-MDL_SHARED_NO_WRITE	User lock	l03
-MDL_SHARED_NO_WRITE	User lock	l04
-MDL_SHARED_NO_WRITE	User lock	l05
-MDL_SHARED_NO_WRITE	User lock	l06
-MDL_SHARED_NO_WRITE	User lock	l07
-MDL_SHARED_NO_WRITE	User lock	l08
-MDL_SHARED_NO_WRITE	User lock	l09
-MDL_SHARED_NO_WRITE	User lock	l10
-MDL_SHARED_NO_WRITE	User lock	l11
-MDL_SHARED_NO_WRITE	User lock	l12
-MDL_SHARED_NO_WRITE	User lock	l13
-MDL_SHARED_NO_WRITE	User lock	l14
-MDL_SHARED_NO_WRITE	User lock	l15
-SELECT RELEASE_ALL_LOCKS();
-RELEASE_ALL_LOCKS()
-15
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
-FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
-LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA
-# Test function with recursive locks
-SELECT GET_LOCK('l1',10),
-GET_LOCK('l2',10),
-GET_LOCK('l2',10),
-GET_LOCK('l3',10),
-GET_LOCK('l3',10),
-GET_LOCK('l3',10),
-GET_LOCK('l4',10),
-GET_LOCK('l4',10),
-GET_LOCK('l4',10),
-GET_LOCK('l4',10),
-GET_LOCK('l5',10),
-GET_LOCK('l5',10),
-GET_LOCK('l5',10),
-GET_LOCK('l5',10),
-GET_LOCK('l5',10);
-GET_LOCK('l1',10)	GET_LOCK('l2',10)	GET_LOCK('l2',10)	GET_LOCK('l3',10)	GET_LOCK('l3',10)	GET_LOCK('l3',10)	GET_LOCK('l4',10)	GET_LOCK('l4',10)	GET_LOCK('l4',10)	GET_LOCK('l4',10)	GET_LOCK('l5',10)	GET_LOCK('l5',10)	GET_LOCK('l5',10)	GET_LOCK('l5',10)	GET_LOCK('l5',10)
-1	1	1	1	1	1	1	1	1	1	1	1	1	1	1
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
-FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
-LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA
-MDL_SHARED_NO_WRITE	User lock	l1
-MDL_SHARED_NO_WRITE	User lock	l2
-MDL_SHARED_NO_WRITE	User lock	l3
-MDL_SHARED_NO_WRITE	User lock	l4
-MDL_SHARED_NO_WRITE	User lock	l5
-SELECT RELEASE_ALL_LOCKS();
-RELEASE_ALL_LOCKS()
-15
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
-FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
-LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA

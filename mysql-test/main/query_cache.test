@@ -1802,13 +1802,6 @@ show status like "Qcache_queries_in_cache";
 DROP FUNCTION foo;
 drop table t1;
 
---echo #
---echo # MDEV-24858 SIGABRT in DbugExit from my_malloc in Query_cache::init_cache Regression
---echo #
---disable_warnings
-set global Query_cache_size=18446744073709547520;
---enable_warnings
-
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;

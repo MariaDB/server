@@ -3,5 +3,4 @@ innodb
 default-storage-engine=innodb
 
 [myisam]
-innodb
 default-storage-engine=myisam

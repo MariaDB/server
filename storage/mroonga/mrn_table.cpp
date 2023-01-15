@@ -1080,7 +1080,6 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
   if (open_table_def(thd, share, GTS_TABLE))
   {
     *error = ER_CANT_OPEN_FILE;
-    mrn_free_tmp_table_share(share);
     DBUG_RETURN(NULL);
   }
   DBUG_RETURN(share);
@@ -1141,7 +1140,7 @@ st_mrn_slot_data *mrn_get_slot_data(THD *thd, bool can_create)
 {
   MRN_DBUG_ENTER_FUNCTION();
   st_mrn_slot_data *slot_data =
-    (st_mrn_slot_data*) thd_get_ha_data(thd, mrn_hton_ptr);
+    (st_mrn_slot_data*) *thd_ha_data(thd, mrn_hton_ptr);
   if (slot_data == NULL) {
     slot_data = (st_mrn_slot_data*) malloc(sizeof(st_mrn_slot_data));
     slot_data->last_insert_record_id = GRN_ID_NIL;
@@ -1150,7 +1149,7 @@ st_mrn_slot_data *mrn_get_slot_data(THD *thd, bool can_create)
     slot_data->disable_keys_create_info = NULL;
     slot_data->alter_connect_string = NULL;
     slot_data->alter_comment = NULL;
-    thd_set_ha_data(thd, mrn_hton_ptr, slot_data);
+    *thd_ha_data(thd, mrn_hton_ptr) = (void *) slot_data;
     {
       mrn::Lock lock(&mrn_allocated_thds_mutex);
       if (my_hash_insert(&mrn_allocated_thds, (uchar*) thd))

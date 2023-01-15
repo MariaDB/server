@@ -133,7 +133,10 @@ BEGIN
 RETURN CURRENT_DATE;
 END;
 $$
-ERROR HY000: Unknown data type: 'mariadb_schema'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'mariadb_schema.DATE AS
+BEGIN
+RETURN CURRENT_DATE;
+END' at line 1
 CREATE PROCEDURE p1(a mariadb_schema.DATE) AS
 BEGIN
 NULL;

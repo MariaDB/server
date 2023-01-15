@@ -48,9 +48,7 @@ if ($rpl_debug)
 
 # Send shutdown to the connected server and give
 # it 60 seconds (of mysqltest's default) to die before zapping it
-let $rpl_shutdown_timeout= `select 60*(1+9*count(*)) from information_schema.system_variables where variable_name='have_sanitizer' and global_value like "MSAN%"`;
-
-shutdown_server $rpl_shutdown_timeout;
+shutdown_server;
 
 --source include/wait_until_disconnected.inc
 

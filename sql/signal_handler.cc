@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2021, MariaDB Corporation.
+   Copyright (c) 2011, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,6 +49,9 @@
 static volatile sig_atomic_t segfaulted= 0;
 extern ulong max_used_connections;
 extern volatile sig_atomic_t calling_initgroups;
+#ifdef HAVE_NPTL
+extern volatile sig_atomic_t ld_assume_kernel_is_set;
+#endif
 
 extern const char *optimizer_switch_names[];
 
@@ -59,17 +62,12 @@ static inline void output_core_info()
   char buff[PATH_MAX];
   ssize_t len;
   int fd;
-  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff)-1)) >= 0)
+  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
   {
-    buff[len]= 0;
     my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
                           (int) len, buff);
   }
-#ifdef __FreeBSD__
-  if ((fd= my_open("/proc/curproc/rlimit", O_RDONLY, MYF(0))) >= 0)
-#else
   if ((fd= my_open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
-#endif
   {
     my_safe_printf_stderr("Resource Limits:\n");
     while ((len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0))) > 0)
@@ -185,36 +183,35 @@ extern "C" sig_handler handle_fatal_signal(int sig)
 		        server_version, SOURCE_REVISION);
 
   if (dflt_key_cache)
-    my_safe_printf_stderr("key_buffer_size=%zu\n",
-                          dflt_key_cache->key_cache_mem_size);
+    my_safe_printf_stderr("key_buffer_size=%lu\n",
+                          (ulong) dflt_key_cache->key_cache_mem_size);
 
-  my_safe_printf_stderr("read_buffer_size=%lu\n",
-                        global_system_variables.read_buff_size);
+  my_safe_printf_stderr("read_buffer_size=%ld\n",
+                        (long) global_system_variables.read_buff_size);
 
   my_safe_printf_stderr("max_used_connections=%lu\n",
-                        max_used_connections);
+                        (ulong) max_used_connections);
 
   if (thread_scheduler)
-    my_safe_printf_stderr("max_threads=%lu\n",
-                          thread_scheduler->max_threads +
-                          extra_max_connections);
+    my_safe_printf_stderr("max_threads=%u\n",
+                          (uint) thread_scheduler->max_threads +
+                          (uint) extra_max_connections);
 
   my_safe_printf_stderr("thread_count=%u\n", THD_count::value());
 
   if (dflt_key_cache && thread_scheduler)
   {
-    size_t used_mem=
-        (dflt_key_cache->key_cache_mem_size +
-         (global_system_variables.read_buff_size +
-          (size_t) global_system_variables.sortbuff_size) *
-             (thread_scheduler->max_threads + extra_max_connections) +
-         (max_connections + extra_max_connections) * sizeof(THD)) / 1024;
-
     my_safe_printf_stderr("It is possible that mysqld could use up to \n"
                           "key_buffer_size + "
                           "(read_buffer_size + sort_buffer_size)*max_threads = "
-                          "%zu K  bytes of memory\n", used_mem);
-
+                          "%lu K  bytes of memory\n",
+                          (ulong)
+                          (dflt_key_cache->key_cache_mem_size +
+                           (global_system_variables.read_buff_size +
+                            global_system_variables.sortbuff_size) *
+                           (thread_scheduler->max_threads + extra_max_connections) +
+                           (max_connections + extra_max_connections) *
+                           sizeof(THD)) / 1024);
     my_safe_printf_stderr("%s",
                           "Hope that's ok; if not, decrease some variables in "
                           "the equation.\n\n");
@@ -321,6 +318,21 @@ extern "C" sig_handler handle_fatal_signal(int sig)
       "have this problem (2.3.4 or later when used with nscd),\n"
       "disable LDAP in your nsswitch.conf, or use a "
       "mysqld that is not statically linked.\n");
+  }
+#endif
+
+#ifdef HAVE_NPTL
+  if (thd_lib_detected == THD_LIB_LT && !ld_assume_kernel_is_set)
+  {
+    my_safe_printf_stderr("%s",
+      "You are running a statically-linked LinuxThreads binary on an NPTL\n"
+      "system. This can result in crashes on some distributions due to "
+      "LT/NPTL conflicts.\n"
+      "You should either build a dynamically-linked binary, "
+      "or force LinuxThreads\n"
+      "to be used with the LD_ASSUME_KERNEL environment variable.\n"
+      "Please consult the documentation for your distribution "
+      "on how to do that.\n");
   }
 #endif
 

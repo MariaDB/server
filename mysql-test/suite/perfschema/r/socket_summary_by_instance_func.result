@@ -1,3 +1,4 @@
+set global session_track_schema=FALSE;
 # The logging of commands and result sets is mostly disabled.
 # There are some messages which help to observe the progress of the test.
 # In case some check fails
@@ -7,8 +8,6 @@
 # - the test might abort
 #
 # 0. Check, build or set prequisites
-Warnings:
-Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 UPDATE performance_schema.threads
 SET INSTRUMENTED='NO' WHERE PROCESSLIST_ID = CONNECTION_ID();
 # 1. Basic checks
@@ -140,47 +139,47 @@ connection default;
 # 4.4.4 Compare impact of statements
 #       SELECT col2 FROM does_not_exist WHERE col1 = 0
 #       SELECT col2 FROM does_not_exist
-# # One statement is longer than the other.
+# One statement is longer than the other.
 # Both statements fail with the same error message (table does not exist)
 # 4.4.5 Compare impact of statements
 #       SELECT col2 FROM does_not_exist WHERE col1 A 0
 #       SELECT col2 FROM does_not_exist WHERE col1 = 0
-# # Both statements have the same length and fail.
+# Both statements have the same length and fail.
 # The length of the error messages differs.
 # 4.4.6 Compare impact of statements
 #       SELECT col2 FROM does_not_exist0123
 #       SELECT col2 FROM does_not_exist
-# # Both statements fail (table does not exist).
+# Both statements fail (table does not exist).
 # The length of the statement and the length of the error messages differs.
 # Reason for both differences is the length of the table name.
 # 4.4.7 Compare impact of statements
 #       SELECT col2 AS my_super_col FROM mysqltest.my_aux WHERE col1 = -1
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 = -1
-# # Both statements get an empty result set.
+# Both statements get an empty result set.
 # The length of the statements and the length of the result sets differs.
 # Reason for both differences is the length of the some column name.
 # 4.4.8 Compare impact of statements
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 = 1
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 = -1
-# # Both statements differ in the statement length.
+# Both statements differ in the statement length.
 # One statement earns an empty result set.
 # The other statement earns one row containing an empty string.
 # 4.4.9 Compare impact of statements
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 = 2
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 = 1
-# # Both statements have the same length.
+# Both statements have the same length.
 # One statement earns an one row containing an empty string.
 # The other statement earns one row containing a string 1 byte long.
 # 4.4.10 Compare impact of statements
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 = 3
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 = 1
-# # Both statements have the same length.
+# Both statements have the same length.
 # One statement earns an one row containing an empty string.
 # The other statement earns one row containing a string 1024 byte long.
 # 4.4.11 Compare impact of statements
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 < 2
 #       SELECT col2 FROM mysqltest.my_aux WHERE col1 = 1
-# # Both statements have the same length.
+# Both statements have the same length.
 # One statement earns an one row containing an empty string.
 # The other statement earns two rows containing an empty string.
 # 4.5 Check the differences caused by Connects
@@ -209,9 +208,7 @@ connection default;
 #       server_unix_socket are already checked
 #     - the stability of results is already checked
 #       So we con go with the results of the first run.
-# 4.6.1 The SUM_OF_BYTES_WRITE value depends on length of database
-#       since the database name is written in OK packet.
-#       Hence the value 2.
+# 4.6.1 The SUM_OF_BYTES_WRITE value is the same for all Connects.
 # 4.6.2 The SUM_OF_BYTES_WRITE value hast to be > 100.
 # 4.6.3 COUNT_READ, COUNT_WRITE and COUNT_MISC have to be to be > 0
 # 4.6.4 Checks based on comparison of results for connects
@@ -221,6 +218,5 @@ connection default;
 #    It must reset all counters.
 TRUNCATE TABLE performance_schema.socket_summary_by_instance;
 # 6. Cleanup
-Warnings:
-Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
 connection default;
+set global session_track_schema=DEFAULT;

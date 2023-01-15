@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,7 +48,7 @@ lock_prdt_lock(
 				records: LOCK_S or LOCK_X; the
 				latter is possible in
 				SELECT FOR UPDATE */
-	unsigned	type_mode,
+	ulint		type_mode,
 				/*!< in: LOCK_PREDICATE or LOCK_PRDT_PAGE */
 	que_thr_t*	thr);	/*!< in: query thread
 				(can be NULL if BTR_NO_LOCKING_FLAG) */
@@ -58,7 +58,9 @@ Acquire a "Page" lock on a block
 @return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_place_prdt_page_lock(
-	const page_id_t	page_id,	/*!< in: page identifier */
+/*======================*/
+	ulint		space,	/*!< in: space for the page to lock */
+	ulint		pageno,	/*!< in: page number */
 	dict_index_t*	index,	/*!< in: secondary index */
 	que_thr_t*	thr);	/*!< in: query thread */
 
@@ -88,7 +90,7 @@ bool
 lock_prdt_has_to_wait(
 /*==================*/
 	const trx_t*	trx,	/*!< in: trx of new lock */
-	unsigned	type_mode,/*!< in: precise mode of the new lock
+	ulint		type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
 				ORed to LOCK_PREDICATE or LOCK_PRDT_PAGE,
 				LOCK_INSERT_INTENTION */
@@ -106,7 +108,8 @@ lock_prdt_update_split(
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
-	const page_id_t	page_id);	/*!< in: page number */
+	ulint		space,		/*!< in: space id */
+	ulint		page_no);	/*!< in: page number */
 
 /**************************************************************//**
 Ajust locks from an ancester page of Rtree on the appropriate level . */
@@ -117,7 +120,8 @@ lock_prdt_update_parent(
 	buf_block_t*	right_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	left_prdt,	/*!< in: MBR on the old page */
 	lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
-	const page_id_t	page_id);	/*!< in: parent page */
+	ulint		space,		/*!< in: space id */
+	ulint		page_no);	/*!< in: page number */
 
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
@@ -154,7 +158,7 @@ bool
 lock_prdt_has_to_wait(
 /*==================*/
 	const trx_t*	trx,	/*!< in: trx of new lock */
-	unsigned	type_mode,/*!< in: precise mode of the new lock
+	ulint		type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
 				ORed to LOCK_PREDICATE or LOCK_PRDT_PAGE,
 				LOCK_INSERT_INTENTION */
@@ -186,11 +190,17 @@ lock_prdt_rec_move(
 	const buf_block_t*	donator);	/*!< in: buffer block containing
 						the donating record */
 
-/** Check whether there are R-tree Page lock on a page
+/** Check whether there are R-tree Page lock on a buffer page
 @param[in]	trx	trx to test the lock
-@param[in]	page_id	page identifier
-@return	true if there is none */
-bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id);
+@param[in]	space	space id for the page
+@param[in]	page_no	page number
+@return true if there is none */
+bool
+lock_test_prdt_page_lock(
+/*=====================*/
+	const trx_t*	trx,
+	ulint		space,
+	ulint		page_no);
 
 /** Removes predicate lock objects set on an index page which is discarded.
 @param[in]	block		page to be discarded

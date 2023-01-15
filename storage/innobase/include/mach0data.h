@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -251,6 +251,25 @@ mach_u64_read_much_compressed(
 /*==========================*/
 	const byte*	b)	/*!< in: pointer to memory from where to read */
 	MY_ATTRIBUTE((warn_unused_result));
+/** Read a 32-bit integer in a compressed form.
+@param[in,out]	ptr	pointer to memory where to read;
+advanced by the number of bytes consumed, or set NULL if out of space
+@param[in]	end_ptr	end of the buffer
+@return unsigned value */
+ib_uint32_t
+mach_parse_compressed(
+	const byte**	ptr,
+	const byte*	end_ptr);
+/** Read a 64-bit integer in a compressed form.
+@param[in,out]	ptr	pointer to memory where to read;
+advanced by the number of bytes consumed, or set NULL if out of space
+@param[in]	end_ptr	end of the buffer
+@return unsigned value */
+UNIV_INLINE
+ib_uint64_t
+mach_u64_parse_compressed(
+	const byte**	ptr,
+	const byte*	end_ptr);
 
 /*********************************************************//**
 Reads a double. It is stored in a little-endian format.

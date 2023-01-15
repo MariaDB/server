@@ -57,9 +57,9 @@ let $ip_localhost=
 --echo # 1.0 Get the default connection object_instance_begin, thread id and verify
 --echo #     the expected number of client connections.
 --echo #==============================================================================
---echo #
+--echo
 --echo # 1.1 Confirm only one client connection
---echo #
+--echo
 eval $count_client_connections;
 
 if (`SELECT @my_client_connections != 1`)
@@ -70,15 +70,15 @@ if (`SELECT @my_client_connections != 1`)
   exit;
 }
 
---echo #
+--echo
 --echo # 1.2 Get the default THREAD_ID;
---echo #
+--echo
 eval $get_thread_id;
 let $default_thread_id= `SELECT @my_thread_id`;
 
---echo #
+--echo
 --echo # 1.3 Get the default OBJECT_INSTANCE_BEGIN
---echo #
+--echo
 eval $get_object_instance_begin;
 let $default_object_instance_begin= `SELECT @my_object_instance_begin`;
 --disable_query_log
@@ -99,19 +99,19 @@ if ($my_socket_debug)
 --connect (con1,$my_localhost,root,,test,,$MASTER_MYPORT)
 --enable_query_log
 
---echo #
+--echo
 --echo # 2.1 Get the connection thread id
---echo #
+--echo
 eval $get_thread_id;
 
---echo #
+--echo
 --echo # 2.2 Get the connection object instance begin
---echo #
+--echo
 eval $get_object_instance_begin;
 
---echo #
+--echo
 --echo # 2.3 Get the connection port
---echo #
+--echo
 eval $get_port;
 
 --disable_query_log
@@ -134,9 +134,9 @@ if ($my_socket_debug)
   --echo # Con1 name2     = $con1_name2
 }
 
---echo #
+--echo
 --echo # 2.4 Verify that the connection is 127.0.0.1 or ::1
---echo #
+--echo
 eval SELECT COUNT(*) = 1 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME LIKE '%client_connection%'
@@ -144,17 +144,17 @@ WHERE EVENT_NAME LIKE '%client_connection%'
   AND PORT= @con1_port
   AND OBJECT_INSTANCE_BEGIN= @con1_object_id;
 
---echo #
+--echo
 --echo # 2.5 Verify that the same connection is in the summary instance table
---echo #
+--echo
 eval SELECT COUNT(*) = 1 AS 'Expect 1'
 FROM performance_schema.socket_summary_by_instance
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN= @con1_object_id;
 
---echo #
+--echo
 --echo # Switch to connection default
---echo #
+--echo
 --connection default
 
 --echo #==============================================================================
@@ -165,19 +165,19 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --connect (con2,$my_localhost,root,,test,,$MASTER_MYPORT)
 --enable_query_log
 
---echo #
+--echo
 --echo # 3.1 Get the connection thread id
---echo #
+--echo
 eval $get_thread_id;
 
---echo #
+--echo
 --echo # 3.2 Get the connection object instance begin
---echo #
+--echo
 eval $get_object_instance_begin;
 
---echo #
+--echo
 --echo # 3.3 Get the connection port
---echo #
+--echo
 eval $get_port;
 
 --disable_query_log
@@ -200,9 +200,9 @@ if ($my_socket_debug)
   --echo # con2 name2     = $con2_name2
 }
 
---echo #
+--echo
 --echo # 3.4 Verify that the connection is 127.0.0.1 or ::1
---echo #
+--echo
 
 eval SELECT COUNT(*) = 1 AS 'Expect 1'
 FROM performance_schema.socket_instances
@@ -211,17 +211,17 @@ WHERE EVENT_NAME LIKE '%client_connection%'
   AND PORT= @con2_port
   AND OBJECT_INSTANCE_BEGIN= @con2_object_id;
 
---echo #
+--echo
 --echo # 3.5 Verify that the same connection is in the summary instance table
---echo #
+--echo
 eval SELECT COUNT(*) = 1 AS 'Expect 1'
 FROM performance_schema.socket_summary_by_instance
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN= @con2_object_id;
 
---echo #
+--echo
 --echo # 3.6 Verify that the connection is 127.0.0.1 or ::1
---echo #
+--echo
 eval SELECT COUNT(*) = 1 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME LIKE '%client_connection%'
@@ -234,18 +234,18 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --echo #==============================================================================
 --connection default
 
---echo #
+--echo
 --echo # 4.1 Verify that there are two TCP/IP connections in the socket instance table
---echo #
+--echo
 eval SELECT COUNT(*) = 2 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin
   AND $ip_localhost;
 
---echo #
+--echo
 --echo # 4.2 Verify that there are two TCP/IP connections in the summary instance table
---echo #
+--echo
 eval SELECT COUNT(*) = 2 AS 'Expect 1'
 FROM performance_schema.socket_summary_by_instance
 WHERE EVENT_NAME LIKE '%client_connection%'
@@ -270,9 +270,9 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --echo # 6.0 Verify sockets were removed from the instance tables
 --echo #==============================================================================
 
---echo #
+--echo
 --echo # 6.1 Verify that there are no TCP/IP connections in the socket instance table
---echo #
+--echo
 let $wait_condition=
 SELECT COUNT(*) = 0 AS 'Expect 1'
 FROM performance_schema.socket_instances
@@ -281,9 +281,9 @@ WHERE EVENT_NAME LIKE '%client_connection%'
   AND $ip_localhost;
 --source include/wait_condition.inc
 
---echo #
+--echo
 --echo # 6.2 Verify that there are no TCP/IP connections in the summary instance table
---echo #
+--echo
 let $wait_condition=
 SELECT COUNT(*) = 0 AS 'Expect 1'
 FROM performance_schema.socket_summary_by_instance

@@ -1,4 +1,4 @@
-SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+SET SESSION STORAGE_ENGINE='InnoDB';
 set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 drop table if exists t0,t1,t2,t3;
@@ -1651,8 +1651,8 @@ drop function f1;
 #
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
-analyze table t1 persistent for all;
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
@@ -1664,14 +1664,14 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`a` in (17,51,5)
 explain extended select * from t1 use index () where b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	2.34	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	5.47	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`b` = 2
 # Now, the equality is used for ref access, while the range condition
 # gives selectivity data
 explain extended select * from t1 where a in (17,51,5) and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	b,a	b	5	const	24	2.90	Using where
+1	SIMPLE	t1	ref	b,a	b	5	const	59	2.90	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (17,51,5)
 drop table t1;
@@ -1827,12 +1827,6 @@ create table t1 (id int, a int, PRIMARY KEY(id), key(a));
 insert into t1 select seq,seq from seq_1_to_100;
 create table t2 (id int, a int, b int, PRIMARY KEY(id), key(a), key(b));
 insert into t2 select seq,seq,seq from seq_1_to_100;
-analyze table t1,t2 persistent for all;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	OK
-test.t2	analyze	status	Engine-independent statistics collected
-test.t2	analyze	status	OK
 set optimizer_switch='exists_to_in=off';
 set optimizer_use_condition_selectivity=2;
 SELECT * FROM t1
@@ -2158,4 +2152,4 @@ drop table t1;
 set use_stat_tables= @tmp_ust;
 set optimizer_use_condition_selectivity= @tmp_oucs;
 set @@global.histogram_size=@save_histogram_size;
-SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
+SET SESSION STORAGE_ENGINE=DEFAULT;

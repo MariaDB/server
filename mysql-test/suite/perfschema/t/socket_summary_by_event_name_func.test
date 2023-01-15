@@ -28,8 +28,6 @@
 # prepared statement.
 --source include/no_protocol.inc
 
-#--source include/turn_off_only_full_group_by.inc
-
 # Set this to enable debugging output
 let $my_socket_debug_dbug= 0;
 
@@ -139,22 +137,22 @@ WHERE t_inst.event_name LIKE '%client%'
 --echo #==============================================================================
 --echo # 1.0 TEST INITIALIZATION
 --echo #==============================================================================
---echo #
+--echo
 --echo # 1.1 Disable instrumentation of the default (this) connection
---echo #
+--echo
 --connection default
 UPDATE performance_schema.threads
   SET INSTRUMENTED='NO' WHERE PROCESSLIST_ID = CONNECTION_ID();
 
---echo #
+--echo
 --echo # 1.2 Get the default THREAD_ID;
---echo #
+--echo
 eval $get_thread_id;
 let $default_thread_id= `SELECT @my_thread_id`;
 
---echo #
+--echo
 --echo # 1.3 Get the default OBJECT_INSTANCE_BEGIN
---echo #
+--echo
 eval $get_object_instance_begin;
 let $default_object_instance_begin= `SELECT @my_object_instance_begin`;
 
@@ -168,50 +166,50 @@ if ($my_socket_debug)
   --echo # Default thread id = $default_thread_id
 }
 
---echo #
+--echo
 --echo # 1.4 Create a test database
---echo #
+--echo
 CREATE SCHEMA mysqltest;
 
---echo #
+--echo
 --echo # 1.5 Create a table to store summary values from socket_summary_by_instance
 --echo        and socket_summary_by_event_name
---echo #
+--echo
 CREATE TABLE mysqltest.my_socket_summary AS
   SELECT * FROM performance_schema.socket_summary_by_instance
   WHERE 1 = 0;
 
---echo #
+--echo
 --echo # 1.6 Drop object_instance_begin from my_socket_summary
---echo #
+--echo
 ALTER TABLE mysqltest.my_socket_summary
   DROP COLUMN OBJECT_INSTANCE_BEGIN;
 
---echo #
+--echo
 --echo # 1.7 Add an auto_inc column to my_socket_summary
---echo #
+--echo
 ALTER TABLE mysqltest.my_socket_summary
   ADD COLUMN (n INT AUTO_INCREMENT, PRIMARY KEY(n));
 
---echo #
+--echo
 --echo # 1.8 Create test tables
---echo #
+--echo
 CREATE TABLE mysqltest.t1 (n INT AUTO_INCREMENT, s1 VARCHAR(1024), PRIMARY KEY(n));
 CREATE TABLE mysqltest.t2 (n INT AUTO_INCREMENT, s1 VARCHAR(1024), PRIMARY KEY(n));
 
 --echo #==============================================================================
 --echo # 2.0 ESTABLISH CLIENT CONNECTIONS
 --echo #==============================================================================
---echo #
+--echo
 --echo # 2.1 Connection 1 (tcp/ip, 127.0.0.1 or ::1)
---echo #
+--echo
 --disable_query_log
 --connect (con1,$my_localhost,root,,,,$MASTER_MYPORT)
 --enable_query_log
 
---echo #
+--echo
 --echo # 2.2 Connection 2 (localhost or unix domain socket)
---echo #
+--echo
 --disable_query_log
 --connect (con2,localhost,root,,,,)
 --enable_query_log
@@ -219,47 +217,47 @@ CREATE TABLE mysqltest.t2 (n INT AUTO_INCREMENT, s1 VARCHAR(1024), PRIMARY KEY(n
 --echo #==============================================================================
 --echo # 3.0 RUN THE TESTS
 --echo #==============================================================================
---echo #
+--echo
 --echo # 3.1 Clear performance schema tables
---echo #
+--echo
 TRUNCATE performance_schema.socket_summary_by_instance;
 TRUNCATE performance_schema.socket_summary_by_event_name;
 
---echo #
+--echo
 --echo # 3.2 Get the 'before' sum of bytes written from socket_summary_by_instance
 --echo       for later comparison to the 'after' byte count as a simple confirmation
 --echo       that the table was updated.
---echo #
+--echo
 --connection default
 eval $get_write_count;
 let $my_count_before= `SELECT @my_write_count`;
 
---echo #
+--echo
 --echo # 3.3 From connection 1, insert one a 1K row of data into t1
---echo #
+--echo
 --connection con1
 USE mysqltest;
 INSERT INTO t1 (s1) VALUES (REPEAT('a', 1024));
 INSERT INTO t1 (s1) SELECT s1 FROM t1;
 
---echo #
+--echo
 --echo # 3.4 From connection 2, insert one a 1K row of data into t2
---echo #
+--echo
 --connection con2
 USE mysqltest;
 INSERT INTO t2 (s1) VALUES (REPEAT('a', 1024));
 INSERT INTO t2 (s1) SELECT s1 FROM t2;
 
---echo #
+--echo
 --echo # 3.5 Get the 'after' sum of bytes written from socket_summary_by_instance
---echo #
+--echo
 --connection default
 eval $get_write_count;
 let $my_count_after= `SELECT @my_write_count`;
 
---echo #
+--echo
 --echo # 3.6 Verify that SUM_NUMBER_OF_BYTES_WRITE increased
---echo #
+--echo
 
 if ($my_count_before >= $my_count_after)
 {
@@ -274,17 +272,17 @@ if ($my_count_before >= $my_count_after)
   exit;
 }
 
---echo #
+--echo
 --echo # socket_summary_by_instance was updated
---echo #
+--echo
 
 --echo #==============================================================================
 --echo # 4.0 VERIFY RESULTS
 --echo #==============================================================================
---echo #
+--echo
 --echo # 4.1 Verify that the totals in socket_summary_by_event_name are
 --echo       consistent with totals in socket_summary_by_instance
---echo #
+--echo
 
 --disable_query_log
 eval $compare_tables_and_verify;
@@ -311,27 +309,25 @@ if (`SELECT @tables_match = 0`)
 --echo # 5.0 Clean up
 --echo #==============================================================================
 
---echo #
+--echo
 --echo # 5.1 Disconnect con1
---echo #
+--echo
 --connection con1
 --disconnect con1
 --source include/wait_until_disconnected.inc
 
---echo #
+--echo
 --echo # 5.2 Disconnect con2
---echo #
+--echo
 --connection con2
 --disconnect con2
 --source include/wait_until_disconnected.inc
 
---echo #
+--echo
 --echo # 5.3 Drop mysqltest
---echo #
+--echo
 --connection default
 DROP DATABASE mysqltest;
-
-#--source include/restore_sql_mode_after_turn_off_only_full_group_by.inc
 
 exit;
 

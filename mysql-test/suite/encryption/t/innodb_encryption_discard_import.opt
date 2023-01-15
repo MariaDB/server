@@ -3,5 +3,6 @@
 --innodb-encryption-rotate-key-age=15
 --innodb-encryption-threads=4
 --innodb-tablespaces-encryption
---innodb-max-dirty-pages-pct_lwm=0
 --innodb-max-dirty-pages-pct=0.001
+
+

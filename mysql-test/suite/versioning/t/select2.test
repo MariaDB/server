@@ -41,14 +41,14 @@ select x as BETWAND_x, y from t1 for system_time between '1970-01-01 00:00' and 
 select x as ALL_x, y from t1 for system_time all;
 
 if($MTR_COMBINATION_TRX_ID) {
-  select x as ASOF2_x, y from t1 for system_time as of transaction @x0;
-  select x as FROMTO2_x, y from t1 for system_time from transaction @x0 to transaction @x1;
+  select x as ASOF2_x, y from t1 for system_time as of @x0;
+  select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
   select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
 }
 if(!$MTR_COMBINATION_TRX_ID) {
   select x as ASOF2_x, y from t1 for system_time as of @t0;
   select x as FROMTO2_x, y from t1 for system_time from '1970-01-01 00:00' to @t1;
-  select x as BETWAND2_x, y from t1 for system_time between '1970-01-01 00:00' and timestamp @t1;
+  select x as BETWAND2_x, y from t1 for system_time between timestamp '1970-01-01 00:00' and timestamp @t1;
 }
 
 drop table t1;

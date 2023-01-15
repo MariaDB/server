@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include <zlib.h>
 #include "common.h"
 #include "xbstream.h"
+#include "crc_glue.h"
 
 /* Allocate 1 MB for the payload buffer initially */
 #define INIT_BUFFER_LEN (1024 * 1024)
@@ -41,7 +42,7 @@ xb_stream_read_new(void)
 {
 	xb_rstream_t *stream;
 
-	stream = (xb_rstream_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(xb_rstream_t), MYF(MY_FAE));
+	stream = (xb_rstream_t *) my_malloc(sizeof(xb_rstream_t), MYF(MY_FAE));
 
 #ifdef __WIN__
 	setmode(fileno(stdin), _O_BINARY);
@@ -70,7 +71,8 @@ xb_rstream_result_t
 xb_stream_validate_checksum(xb_rstream_chunk_t *chunk)
 {
 	ulong	checksum;
-	checksum = my_checksum(0, chunk->data, chunk->length);
+
+	checksum = crc32_iso3309(0, (unsigned char *)chunk->data, (uint)chunk->length);
 	if (checksum != chunk->checksum) {
 		msg("xb_stream_read_chunk(): invalid checksum at offset "
 		    "0x%llx: expected 0x%lx, read 0x%lx.",
@@ -188,7 +190,7 @@ xb_stream_read_chunk(xb_rstream_t *stream, xb_rstream_chunk_t *chunk)
 
 	/* Reallocate the buffer if needed */
 	if (chunk->length > chunk->buflen) {
-		chunk->data = my_realloc(PSI_NOT_INSTRUMENTED, chunk->data, chunk->length,
+		chunk->data = my_realloc(chunk->data, chunk->length,
 					 MYF(MY_WME | MY_ALLOW_ZERO_PTR));
 		if (chunk->data == NULL) {
 			msg("xb_stream_read_chunk(): failed to increase buffer "

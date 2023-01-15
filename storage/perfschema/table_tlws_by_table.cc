@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,22 +26,15 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_tlws_by_table.h"
 #include "pfs_global.h"
 #include "pfs_visitor.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_tlws_by_table::m_table_lock;
-
-PFS_engine_table_share_state
-table_tlws_by_table::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_tlws_by_table::m_share=
@@ -51,7 +44,8 @@ table_tlws_by_table::m_share=
   table_tlws_by_table::create,
   NULL, /* write_row */
   table_tlws_by_table::delete_all_rows,
-  table_tlws_by_table::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE table_lock_waits_summary_by_table("
@@ -127,10 +121,7 @@ table_tlws_by_table::m_share=
                       "SUM_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Total wait time of all external write locks that are timed.',"
                       "MIN_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Minimum wait time of all external write locks that are timed.',"
                       "AVG_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Average wait time of all external write locks that are timed.',"
-                      "MAX_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Maximum wait time of all external write locks that are timed.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "MAX_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Maximum wait time of all external write locks that are timed.')") }
 };
 
 PFS_engine_table*
@@ -145,12 +136,6 @@ table_tlws_by_table::delete_all_rows(void)
   reset_table_lock_waits_by_table_handle();
   reset_table_lock_waits_by_table();
   return 0;
-}
-
-ha_rows
-table_tlws_by_table::get_row_count(void)
-{
-  return global_table_share_container.get_row_count();
 }
 
 table_tlws_by_table::table_tlws_by_table()
@@ -172,23 +157,20 @@ int table_tlws_by_table::rnd_init(bool scan)
 
 int table_tlws_by_table::rnd_next(void)
 {
-  PFS_table_share *pfs;
+  PFS_table_share *table_share;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_table_share_iterator it= global_table_share_container.iterate(m_pos.m_index);
-  do
+  for (m_pos.set_at(&m_next_pos);
+       m_pos.m_index < table_share_max;
+       m_pos.m_index++)
   {
-    pfs= it.scan_next(& m_pos.m_index);
-    if (pfs != NULL)
+    table_share= &table_share_array[m_pos.m_index];
+    if (table_share->m_lock.is_populated())
     {
-      if (pfs->m_enabled)
-      {
-        make_row(pfs);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
+      make_row(table_share);
+      m_next_pos.set_after(&m_pos);
+      return 0;
     }
-  } while (pfs != NULL);
+  }
 
   return HA_ERR_END_OF_FILE;
 }
@@ -196,18 +178,15 @@ int table_tlws_by_table::rnd_next(void)
 int
 table_tlws_by_table::rnd_pos(const void *pos)
 {
-  PFS_table_share *pfs;
+  PFS_table_share *table_share;
 
   set_position(pos);
 
-  pfs= global_table_share_container.get(m_pos.m_index);
-  if (pfs != NULL)
+  table_share= &table_share_array[m_pos.m_index];
+  if (table_share->m_lock.is_populated())
   {
-    if (pfs->m_enabled)
-    {
-      make_row(pfs);
-      return 0;
-    }
+    make_row(table_share);
+    return 0;
   }
 
   return HA_ERR_RECORD_DELETED;
@@ -215,7 +194,7 @@ table_tlws_by_table::rnd_pos(const void *pos)
 
 void table_tlws_by_table::make_row(PFS_table_share *share)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
 
   m_row_exists= false;
 
@@ -245,7 +224,7 @@ int table_tlws_by_table::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -482,7 +461,7 @@ int table_tlws_by_table::read_row_values(TABLE *table,
         break;
 
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }

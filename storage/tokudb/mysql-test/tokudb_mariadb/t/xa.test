@@ -68,9 +68,6 @@ xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
 select * from t1;
 
 disconnect con1;
-xa recover;
-
 connection default;
-xa rollback 'testb',0x2030405060,11;
 drop table t1;
 

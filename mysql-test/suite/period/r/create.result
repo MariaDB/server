@@ -7,8 +7,8 @@ t	CREATE TABLE `t` (
   `id` int(11) NOT NULL,
   `s` date NOT NULL,
   `e` date NOT NULL,
-  PERIOD FOR `mytime` (`s`, `e`),
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  PERIOD FOR `mytime` (`s`, `e`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
 period for mytime(s,e));
@@ -18,8 +18,8 @@ t	CREATE TABLE `t` (
   `id` int(11) NOT NULL,
   `s` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   `e` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  PERIOD FOR `mytime` (`s`, `e`),
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  PERIOD FOR `mytime` (`s`, `e`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 # SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)a)
 # 2) If a <table period definition> TPD is specified, then:

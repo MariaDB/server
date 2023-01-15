@@ -3,7 +3,7 @@
 --source include/big_test.inc
 --source include/default_optimizer_switch.inc
 
-SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+SET SESSION STORAGE_ENGINE='InnoDB';
 
 set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
@@ -232,4 +232,4 @@ drop table t1;
 set use_stat_tables= @tmp_ust;
 set optimizer_use_condition_selectivity= @tmp_oucs;
 set @@global.histogram_size=@save_histogram_size;
-SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
+SET SESSION STORAGE_ENGINE=DEFAULT;

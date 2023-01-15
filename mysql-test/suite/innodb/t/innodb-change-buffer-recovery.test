@@ -33,7 +33,6 @@ ENGINE=InnoDB STATS_PERSISTENT=0;
 # change buffering is possible, so that the change buffer will be used
 # whenever possible.
 SET GLOBAL innodb_change_buffering_debug = 1;
-SET GLOBAL innodb_change_buffering = all;
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 # Create enough rows for the table, so that the change buffer will be
@@ -77,6 +76,6 @@ SET GLOBAL innodb_fast_shutdown=0;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 CHECK TABLE t1;
-replace_regex /.*operations:.* insert [1-9][0-9]*, delete mark [1-9][0-9]*, delete \d.*discarded .*//;
+replace_regex /.*operations:.* (insert.*), delete \d.*discarded .*/\1/;
 SHOW ENGINE INNODB STATUS;
 DROP TABLE t1;

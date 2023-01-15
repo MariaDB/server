@@ -2619,7 +2619,7 @@ DROP TABLE t1, t2;
 --echo # End of 5.3 tests.
 
 #
-# MDEV-4829 BEFORE INSERT triggers don't issue 1406 error
+# MDEV-4829 BEFORE INSERT triggers dont issue 1406 error
 # Also check timestamp for trigger
 #
 

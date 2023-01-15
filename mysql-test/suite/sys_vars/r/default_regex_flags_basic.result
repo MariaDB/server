@@ -13,8 +13,8 @@ SELECT @@default_regex_flags;
 
 SET default_regex_flags='UNKNOWN';
 ERROR 42000: Variable 'default_regex_flags' can't be set to the value of 'UNKNOWN'
-SET default_regex_flags=325;
-ERROR 42000: Variable 'default_regex_flags' can't be set to the value of '325'
+SET default_regex_flags=123;
+ERROR 42000: Variable 'default_regex_flags' can't be set to the value of '123'
 SET default_regex_flags=123.0;
 ERROR 42000: Incorrect argument type to variable 'default_regex_flags'
 SET default_regex_flags=123e0;
@@ -31,7 +31,7 @@ DOTALL
 SET @@default_regex_flags=63;
 SELECT @@default_regex_flags;
 @@default_regex_flags
-DOTALL,DUPNAMES,EXTENDED,EXTENDED_MORE,EXTRA,MULTILINE
+DOTALL,DUPNAMES,EXTENDED,EXTRA,MULTILINE,UNGREEDY
 SET @@default_regex_flags='DOTALL';
 SELECT @@default_regex_flags;
 @@default_regex_flags

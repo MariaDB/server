@@ -1,8 +1,6 @@
 --source include/innodb_page_size.inc
 --source include/have_sequence.inc
 
-let $datadir=`select @@datadir`;
-
 --echo #
 --echo # MDEV-11369: Instant ADD COLUMN for InnoDB
 --echo #
@@ -876,18 +874,6 @@ eval CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) $engine;
 ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
 
-# MDEV-21744 Assertion `!rec_offs_nth_sql_null(offsets, n)' failed
-eval CREATE TABLE t1 (pk INT PRIMARY KEY) $engine;
-INSERT INTO t1 SET pk=1;
-ALTER TABLE t1 ADD COLUMN b INT;
-BEGIN;
-UPDATE t1 SET pk=2;
-UPDATE t1 SET pk=1;
-connection analyze;
-SELECT * FROM t1;
-connection default;
-DROP TABLE t1;
-
 dec $format;
 let $redundant_4k= 0;
 }
@@ -951,19 +937,3 @@ ALTER TABLE t1 DROP COLUMN f3, ADD FOREIGN KEY fk (f1)
 ALTER TABLE t1 DROP COLUMN f5;
 SHOW CREATE TABLE t1;
 DROP TABLE t1, t2;
-
-
---echo #
---echo # MDEV-28822 Table from older version requires table rebuild when adding column to table with multi-column index
---echo #
-
-CREATE TABLE mdev28822_100427_innodb (
-  id int not null primary key,
-  msg varchar(10),
-  index(id, msg)
-) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
-FLUSH TABLES;
-remove_file $datadir/test/mdev28822_100427_innodb.frm;
-copy_file std_data/mysql_upgrade/mdev28822_100427_innodb.frm $datadir/test/mdev28822_100427_innodb.frm;
-ALTER TABLE mdev28822_100427_innodb ADD i1 INTEGER, ALGORITHM=INSTANT;
-DROP TABLE mdev28822_100427_innodb;

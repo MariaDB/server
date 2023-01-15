@@ -14,8 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
-IF(MSVC OR MYSQL_MAINTAINER_MODE STREQUAL "NO")
-  # Windows support is in cmake/os/Windows.cmake, not here
+IF(MYSQL_MAINTAINER_MODE STREQUAL "NO")
   RETURN()
 ENDIF()
 

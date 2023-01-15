@@ -2036,9 +2036,9 @@ values (1,2),(3,4,5);
 ERROR HY000: The used table value constructor has a different number of values
 # illegal parameter data types in TVC
 values (1,point(1,1)),(1,1);
-ERROR HY000: Illegal parameter data types point and int for operation 'TABLE VALUE CONSTRUCTOR'
+ERROR HY000: Illegal parameter data types geometry and int for operation 'TABLE VALUE CONSTRUCTOR'
 values (1,point(1,1)+1);
-ERROR HY000: Illegal parameter data types point and int for operation '+'
+ERROR HY000: Illegal parameter data types geometry and int for operation '+'
 # field reference in TVC
 select * from (values (1), (b), (2)) as new_tvc;
 ERROR HY000: Field reference 'b' can't be used in table value constructor

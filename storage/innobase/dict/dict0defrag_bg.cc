@@ -44,6 +44,7 @@ typedef defrag_pool_t::iterator		defrag_pool_iterator_t;
 by background defragmentation. */
 defrag_pool_t			defrag_pool;
 
+extern bool dict_stats_start_shutdown;
 
 /*****************************************************************//**
 Initialize the defrag pool, called once during thread initialization. */
@@ -133,11 +134,10 @@ dict_stats_defrag_pool_add(
 	item.table_id = index->table->id;
 	item.index_id = index->id;
 	defrag_pool.push_back(item);
-	if (defrag_pool.size() == 1) {
-		/* Kick off dict stats optimizer work */
-		dict_stats_schedule_now();
-	}
+
 	mutex_exit(&defrag_pool_mutex);
+
+	os_event_set(dict_stats_event);
 }
 
 /*****************************************************************//**
@@ -224,7 +224,7 @@ void
 dict_defrag_process_entries_from_defrag_pool()
 /*==========================================*/
 {
-	while (defrag_pool.size()) {
+	while (defrag_pool.size() && !dict_stats_start_shutdown) {
 		dict_stats_process_entry_from_defrag_pool();
 	}
 }

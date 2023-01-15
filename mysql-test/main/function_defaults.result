@@ -6,7 +6,7 @@
 #
 SET TIME_ZONE = "+00:00";
 #
-# Test of errors for column data types that don't support function
+# Test of errors for column data types that dont support function
 # defaults.
 #
 CREATE OR REPLACE TABLE t1( a BIT DEFAULT CURRENT_TIMESTAMP );
@@ -1552,7 +1552,7 @@ DROP TABLE t1;
 #
 SET TIME_ZONE = "+00:00";
 #
-# Test of errors for column data types that don't support function
+# Test of errors for column data types that dont support function
 # defaults.
 #
 CREATE OR REPLACE TABLE t1( a BIT DEFAULT CURRENT_TIMESTAMP(6) );

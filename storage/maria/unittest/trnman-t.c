@@ -79,7 +79,7 @@ void run_test(const char *test, pthread_handler handler, int n, int m)
 
   litmus= 0;
 
-  threads= (pthread_t *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(void *)*n, MYF(0));
+  threads= (pthread_t *)my_malloc(sizeof(void *)*n, MYF(0));
   if (!threads)
   {
     diag("Out of memory");

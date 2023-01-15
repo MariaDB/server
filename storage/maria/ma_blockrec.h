@@ -245,10 +245,10 @@ void _ma_bitmap_set_pagecache_callbacks(PAGECACHE_FILE *file,
 void _ma_print_bitmap(MARIA_FILE_BITMAP *bitmap, uchar *data,
                       pgcache_page_no_t page);
 #endif
-size_t _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
-                                  uchar *bitmap_data,
-                                  pgcache_page_no_t page,
-                                  char *out);
+void _ma_get_bitmap_description(MARIA_FILE_BITMAP *bitmap,
+                                uchar *bitmap_data,
+                                pgcache_page_no_t page,
+                                char *out);
 
 uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
                                             uint page_type,
@@ -306,7 +306,7 @@ my_bool write_hook_for_file_id(enum translog_record_type type,
 my_bool write_hook_for_commit(enum translog_record_type type,
                               TRN *trn, MARIA_HA *tbl_info, LSN *lsn,
                               void *hook_arg);
-my_bool _ma_block_get_status(void *param, my_bool concurrent_insert);
+void _ma_block_get_status(void *param, my_bool concurrent_insert);
 my_bool _ma_block_start_trans(void* param);
 my_bool _ma_block_start_trans_no_versioning(void *param);
 void _ma_block_update_status(void *param);

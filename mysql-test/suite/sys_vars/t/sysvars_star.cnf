@@ -1,5 +1,0 @@
-!include include/default_my.cnf
-
-[server]
-loose-sql-error-log-rotations=5
-plugin-maturity=alpha

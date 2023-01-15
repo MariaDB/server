@@ -195,16 +195,6 @@ public:
     return res;
   }
   longlong to_longlong(bool unsigned_flag) const;
-  /*
-    Return the value as a signed or unsigned longlong, depending on the sign.
-    - Positive values are returned as unsigned.
-    - Negative values are returned as signed.
-    This is used by bit SQL operators: | & ^ ~
-    as well as by the SQL function BIT_COUNT().
-  */
-  longlong to_xlonglong() const
-  { return to_longlong(!sign()); }
-
   // Convert to string returning decimal2string() error code
   int to_string_native(String *to, uint prec, uint dec, char filler,
                        uint mask= E_DEC_FATAL_ERROR) const;

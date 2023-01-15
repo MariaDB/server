@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -63,6 +63,9 @@
 /** Size of the DIGEST columns. */
 #define COL_DIGEST_SIZE 64
 
+/** Size of the DIGEST_TEXT columns. */
+#define COL_DIGEST_TEXT_SIZE 1024
+
 /**
   Enum values for the TIMER_NAME columns.
   This enum is found in the following tables:
@@ -111,89 +114,78 @@ enum enum_operation_type
   OPERATION_TYPE_LOCK= 1,
   OPERATION_TYPE_TRYLOCK= 2,
 
-  /* Rwlock operations (RW-lock) */
+  /* Rwlock operations */
   OPERATION_TYPE_READLOCK= 3,
   OPERATION_TYPE_WRITELOCK= 4,
   OPERATION_TYPE_TRYREADLOCK= 5,
   OPERATION_TYPE_TRYWRITELOCK= 6,
 
-  /* Rwlock operations (SX-lock) */
-  OPERATION_TYPE_SHAREDLOCK= 7,
-  OPERATION_TYPE_SHAREDEXCLUSIVELOCK= 8,
-  OPERATION_TYPE_EXCLUSIVELOCK= 9,
-  OPERATION_TYPE_TRYSHAREDLOCK= 10,
-  OPERATION_TYPE_TRYSHAREDEXCLUSIVELOCK= 11,
-  OPERATION_TYPE_TRYEXCLUSIVELOCK= 12,
-
   /* Cond operations */
-  OPERATION_TYPE_WAIT= 13,
-  OPERATION_TYPE_TIMEDWAIT= 14,
+  OPERATION_TYPE_WAIT= 7,
+  OPERATION_TYPE_TIMEDWAIT= 8,
 
   /* File operations */
-  OPERATION_TYPE_FILECREATE= 15,
-  OPERATION_TYPE_FILECREATETMP= 16,
-  OPERATION_TYPE_FILEOPEN= 17,
-  OPERATION_TYPE_FILESTREAMOPEN= 18,
-  OPERATION_TYPE_FILECLOSE= 19,
-  OPERATION_TYPE_FILESTREAMCLOSE= 20,
-  OPERATION_TYPE_FILEREAD= 21,
-  OPERATION_TYPE_FILEWRITE= 22,
-  OPERATION_TYPE_FILESEEK= 23,
-  OPERATION_TYPE_FILETELL= 24,
-  OPERATION_TYPE_FILEFLUSH= 25,
-  OPERATION_TYPE_FILESTAT= 26,
-  OPERATION_TYPE_FILEFSTAT= 27,
-  OPERATION_TYPE_FILECHSIZE= 28,
-  OPERATION_TYPE_FILEDELETE= 29,
-  OPERATION_TYPE_FILERENAME= 30,
-  OPERATION_TYPE_FILESYNC= 31,
+  OPERATION_TYPE_FILECREATE= 9,
+  OPERATION_TYPE_FILECREATETMP= 10,
+  OPERATION_TYPE_FILEOPEN= 11,
+  OPERATION_TYPE_FILESTREAMOPEN= 12,
+  OPERATION_TYPE_FILECLOSE= 13,
+  OPERATION_TYPE_FILESTREAMCLOSE= 14,
+  OPERATION_TYPE_FILEREAD= 15,
+  OPERATION_TYPE_FILEWRITE= 16,
+  OPERATION_TYPE_FILESEEK= 17,
+  OPERATION_TYPE_FILETELL= 18,
+  OPERATION_TYPE_FILEFLUSH= 19,
+  OPERATION_TYPE_FILESTAT= 20,
+  OPERATION_TYPE_FILEFSTAT= 21,
+  OPERATION_TYPE_FILECHSIZE= 22,
+  OPERATION_TYPE_FILEDELETE= 23,
+  OPERATION_TYPE_FILERENAME= 24,
+  OPERATION_TYPE_FILESYNC= 25,
 
   /* Table io operations */
-  OPERATION_TYPE_TABLE_FETCH= 32,
-  OPERATION_TYPE_TABLE_WRITE_ROW= 33,
-  OPERATION_TYPE_TABLE_UPDATE_ROW= 34,
-  OPERATION_TYPE_TABLE_DELETE_ROW= 35,
+  OPERATION_TYPE_TABLE_FETCH= 26,
+  OPERATION_TYPE_TABLE_WRITE_ROW= 27,
+  OPERATION_TYPE_TABLE_UPDATE_ROW= 28,
+  OPERATION_TYPE_TABLE_DELETE_ROW= 29,
 
   /* Table lock operations */
-  OPERATION_TYPE_TL_READ_NORMAL= 36,
-  OPERATION_TYPE_TL_READ_WITH_SHARED_LOCKS= 37,
-  OPERATION_TYPE_TL_READ_HIGH_PRIORITY= 38,
-  OPERATION_TYPE_TL_READ_NO_INSERTS= 39,
-  OPERATION_TYPE_TL_WRITE_ALLOW_WRITE= 40,
-  OPERATION_TYPE_TL_WRITE_CONCURRENT_INSERT= 41,
-  OPERATION_TYPE_TL_WRITE_DELAYED= 42,
-  OPERATION_TYPE_TL_WRITE_LOW_PRIORITY= 43,
-  OPERATION_TYPE_TL_WRITE_NORMAL= 44,
-  OPERATION_TYPE_TL_READ_EXTERNAL= 45,
-  OPERATION_TYPE_TL_WRITE_EXTERNAL= 46,
+  OPERATION_TYPE_TL_READ_NORMAL= 30,
+  OPERATION_TYPE_TL_READ_WITH_SHARED_LOCKS= 31,
+  OPERATION_TYPE_TL_READ_HIGH_PRIORITY= 32,
+  OPERATION_TYPE_TL_READ_NO_INSERTS= 33,
+  OPERATION_TYPE_TL_WRITE_ALLOW_WRITE= 34,
+  OPERATION_TYPE_TL_WRITE_CONCURRENT_INSERT= 35,
+  OPERATION_TYPE_TL_WRITE_DELAYED= 36,
+  OPERATION_TYPE_TL_WRITE_LOW_PRIORITY= 37,
+  OPERATION_TYPE_TL_WRITE_NORMAL= 38,
+  OPERATION_TYPE_TL_READ_EXTERNAL= 39,
+  OPERATION_TYPE_TL_WRITE_EXTERNAL= 40,
 
   /* Socket operations */
-  OPERATION_TYPE_SOCKETCREATE = 47,
-  OPERATION_TYPE_SOCKETCONNECT = 48,
-  OPERATION_TYPE_SOCKETBIND = 49,
-  OPERATION_TYPE_SOCKETCLOSE = 50,
-  OPERATION_TYPE_SOCKETSEND = 51,
-  OPERATION_TYPE_SOCKETRECV = 52,
-  OPERATION_TYPE_SOCKETSENDTO = 53,
-  OPERATION_TYPE_SOCKETRECVFROM = 54,
-  OPERATION_TYPE_SOCKETSENDMSG = 55,
-  OPERATION_TYPE_SOCKETRECVMSG = 56,
-  OPERATION_TYPE_SOCKETSEEK = 57,
-  OPERATION_TYPE_SOCKETOPT = 58,
-  OPERATION_TYPE_SOCKETSTAT = 59,
-  OPERATION_TYPE_SOCKETSHUTDOWN = 60,
-  OPERATION_TYPE_SOCKETSELECT = 61,
+  OPERATION_TYPE_SOCKETCREATE = 41,
+  OPERATION_TYPE_SOCKETCONNECT = 42,
+  OPERATION_TYPE_SOCKETBIND = 43,
+  OPERATION_TYPE_SOCKETCLOSE = 44,
+  OPERATION_TYPE_SOCKETSEND = 45,
+  OPERATION_TYPE_SOCKETRECV = 46,
+  OPERATION_TYPE_SOCKETSENDTO = 47,
+  OPERATION_TYPE_SOCKETRECVFROM = 48,
+  OPERATION_TYPE_SOCKETSENDMSG = 49,
+  OPERATION_TYPE_SOCKETRECVMSG = 50,
+  OPERATION_TYPE_SOCKETSEEK = 51,
+  OPERATION_TYPE_SOCKETOPT = 52,
+  OPERATION_TYPE_SOCKETSTAT = 53,
+  OPERATION_TYPE_SOCKETSHUTDOWN = 54,
+  OPERATION_TYPE_SOCKETSELECT = 55,
 
   /* Idle operation */
-  OPERATION_TYPE_IDLE= 62,
-
-  /* Metadata lock operation */
-  OPERATION_TYPE_METADATA= 63
+  OPERATION_TYPE_IDLE= 56
 };
 /** Integer, first value of @sa enum_operation_type. */
 #define FIRST_OPERATION_TYPE (static_cast<int> (OPERATION_TYPE_LOCK))
 /** Integer, last value of @sa enum_operation_type. */
-#define LAST_OPERATION_TYPE (static_cast<int> (OPERATION_TYPE_METADATA))
+#define LAST_OPERATION_TYPE (static_cast<int> (OPERATION_TYPE_IDLE))
 /** Integer, number of values of @sa enum_operation_type. */
 #define COUNT_OPERATION_TYPE (LAST_OPERATION_TYPE - FIRST_OPERATION_TYPE + 1)
 
@@ -202,29 +194,13 @@ enum enum_operation_type
 */
 enum enum_object_type
 {
-  NO_OBJECT_TYPE= 0,
-
-  /* Advertised in SQL ENUM (see table_setup_object.cc) */
-
-  OBJECT_TYPE_EVENT= 1,
-  OBJECT_TYPE_FUNCTION= 2,
-  OBJECT_TYPE_PROCEDURE= 3,
-  OBJECT_TYPE_TABLE= 4,
-  OBJECT_TYPE_TRIGGER= 5,
-
-  /* Not advertised in SQL ENUM, only displayed as VARCHAR */
-
-  OBJECT_TYPE_TEMPORARY_TABLE= 6,
-  OBJECT_TYPE_BACKUP= 7,
-  OBJECT_TYPE_SCHEMA= 8,
-  OBJECT_TYPE_PACKAGE= 9,
-  OBJECT_TYPE_PACKAGE_BODY= 10,
-  OBJECT_TYPE_USER_LEVEL_LOCK= 11,
+  OBJECT_TYPE_TABLE= 1,
+  OBJECT_TYPE_TEMPORARY_TABLE= 2
 };
 /** Integer, first value of @sa enum_object_type. */
-#define FIRST_OBJECT_TYPE (static_cast<int> (OBJECT_TYPE_EVENT))
+#define FIRST_OBJECT_TYPE (static_cast<int> (OBJECT_TYPE_TABLE))
 /** Integer, last value of @sa enum_object_type. */
-#define LAST_OBJECT_TYPE (static_cast<int> (OBJECT_TYPE_USER_LEVEL_LOCK))
+#define LAST_OBJECT_TYPE (static_cast<int> (OBJECT_TYPE_TEMPORARY_TABLE))
 /** Integer, number of values of @sa enum_object_type. */
 #define COUNT_OBJECT_TYPE (LAST_OBJECT_TYPE - FIRST_OBJECT_TYPE + 1)
 
@@ -237,92 +213,17 @@ enum enum_object_type
 */
 enum enum_event_type
 {
-  EVENT_TYPE_TRANSACTION= 1,
-  EVENT_TYPE_STATEMENT= 2,
-  EVENT_TYPE_STAGE= 3,
-  EVENT_TYPE_WAIT= 4
+  EVENT_TYPE_STATEMENT= 1,
+  EVENT_TYPE_STAGE= 2,
+  EVENT_TYPE_WAIT= 3
 };
 
 /** Integer, first value of @sa enum_event_type. */
-#define FIRST_EVENT_TYPE (static_cast<int> (EVENT_TYPE_TRANSACTION))
+#define FIRST_EVENT_TYPE (static_cast<int> (EVENT_TYPE_STATEMENT))
 /** Integer, last value of @sa enum_event_type. */
 #define LAST_EVENT_TYPE (static_cast<int> (EVENT_TYPE_WAIT))
 /** Integer, number of values of @sa enum_event_type. */
 #define COUNT_EVENT_TYPE (LAST_EVENT_TYPE - FIRST_EVENT_TYPE + 1)
-
-/**
-  Enum values for transaction state columns.
-*/
-enum enum_transaction_state
-{
-  TRANS_STATE_ACTIVE= 1,
-  TRANS_STATE_COMMITTED= 2,
-  TRANS_STATE_ROLLED_BACK= 3
-};
-
-/** Integer, first value of @sa enum_transaction_state. */
-#define FIRST_TRANS_STATE (static_cast<int> (TRANS_STATE_ACTIVE))
-/** Integer, last value of @sa enum_transaction_state. */
-#define LAST_TRANS_STATE (static_cast<int> (TRANS_STATE_ROLLED_BACK))
-/** Integer, number of values of @sa enum_transaction_state. */
-#define COUNT_TRANS_STATE (LAST_TRANS_STATE - FIRST_TRANS_STATE + 1)
-
-/**
-  Enum values for XA transaction state columns. Enums 0-3 match those used by
-  the server. See XID_STATE::enum xa_states in xa.h.
-*/
-enum enum_xa_transaction_state
-{
-  TRANS_STATE_XA_NOTR=-1,
-  TRANS_STATE_XA_ACTIVE=0,
-  TRANS_STATE_XA_IDLE,
-  TRANS_STATE_XA_PREPARED,
-  TRANS_STATE_XA_ROLLBACK_ONLY,
-  TRANS_STATE_XA_COMMITTED
-};
-
-/** Integer, first value of @sa enum_xa_transaction_state. */
-#define FIRST_TRANS_STATE_XA (static_cast<int> (TRANS_STATE_XA_NOTR))
-/** Integer, last value of @sa enum_xa_transaction_state. */
-#define LAST_TRANS_STATE_XA (static_cast<int> (TRANS_STATE_XA_COMMITTED))
-/** Integer, number of values of @sa enum_xa_transaction_state. */
-#define COUNT_TRANS_STATE_XA (LAST_TRANS_STATE_XA - FIRST_TRANS_STATE_XA + 1)
-
-/**
-  Enum values for transaction isolation level columns.
-  See enum_tx_isolation in handler.h.
-*/
-enum enum_isolation_level
-{
-  TRANS_LEVEL_READ_UNCOMMITTED,
-  TRANS_LEVEL_READ_COMMITTED,
-  TRANS_LEVEL_REPEATABLE_READ,
-  TRANS_LEVEL_SERIALIZABLE
-};
-
-/** Integer, first value of @sa enum_isolation_level. */
-#define FIRST_TRANS_LEVEL (static_cast<int> (TRANS_LEVEL_READ_UNCOMMITTED))
-/** Integer, last value of @sa enum_isolation_level. */
-#define LAST_TRANS_LEVEL (static_cast<int> (TRANS_LEVEL_SERIALIZABLE))
-/** Integer, number of values of @sa enum_isolation_level. */
-#define COUNT_TRANS_LEVEL (LAST_TRANS_LEVEL - FIRST_TRANS_LEVEL + 1)
-
-/**
-  Enum values for transaction acces mode columns.
-*/
-enum enum_transaction_mode
-{
-  TRANS_MODE_READ_ONLY= 1,
-  TRANS_MODE_READ_WRITE= 2
-};
-
-/** Integer, first value of @sa enum_transaction_mode. */
-#define FIRST_TRANS_MODE (static_cast<int> (TRANS_MODE_READ_WRITE))
-/** Integer, last value of @sa enum_transaction_mode. */
-#define LAST_TRANS_MODE (static_cast<int> (TRANS_MODE_READ_ONLY))
-/** Integer, number of values of @sa enum_transaction_mode. */
-#define COUNT_TRANS_MODE (LAST_TRANS_MODE - FIRST_TRANS_MODE + 1)
-
 
 #endif
 

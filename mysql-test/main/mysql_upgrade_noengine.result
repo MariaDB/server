@@ -322,7 +322,3 @@ uninstall plugin blackhole;
 uninstall plugin archive;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
-FLUSH PRIVILEGES;
-SHOW GRANTS FOR root@localhost;
-Grants for root@localhost	GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
-Grants for root@localhost	GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION

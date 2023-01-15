@@ -162,6 +162,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select @@IDENTITY AS `@@IDENTITY`,last_insert_id() AS `last_insert_id()`,@@identity AS `@@identity`
+set big_tables=OFF, big_tables=ON, big_tables=0, big_tables=1, big_tables="OFF", big_tables="ON";
 set global concurrent_insert=2;
 show variables like 'concurrent_insert';
 Variable_name	Value
@@ -187,6 +188,24 @@ set global concurrent_insert=DEFAULT;
 select @@concurrent_insert;
 @@concurrent_insert
 AUTO
+set global timed_mutexes=ON;
+Warnings:
+Warning	1287	'@@timed_mutexes' is deprecated and will be removed in a future release
+show variables like 'timed_mutexes';
+Variable_name	Value
+timed_mutexes	ON
+select * from information_schema.session_variables where variable_name like 'timed_mutexes';
+VARIABLE_NAME	VARIABLE_VALUE
+TIMED_MUTEXES	ON
+set global timed_mutexes=0;
+Warnings:
+Warning	1287	'@@timed_mutexes' is deprecated and will be removed in a future release
+show variables like 'timed_mutexes';
+Variable_name	Value
+timed_mutexes	OFF
+select * from information_schema.session_variables where variable_name like 'timed_mutexes';
+VARIABLE_NAME	VARIABLE_VALUE
+TIMED_MUTEXES	OFF
 set default_storage_engine=MYISAM, default_storage_engine="HEAP", global default_storage_engine="MERGE";
 show local variables like 'default_storage_engine';
 Variable_name	Value
@@ -403,14 +422,18 @@ SELECT @@version LIKE 'non-existent';
 SELECT @@version_compile_os LIKE 'non-existent';
 @@version_compile_os LIKE 'non-existent'
 0
+set big_tables=OFFF;
+ERROR 42000: Variable 'big_tables' can't be set to the value of 'OFFF'
+set big_tables="OFFF";
+ERROR 42000: Variable 'big_tables' can't be set to the value of 'OFFF'
 set unknown_variable=1;
 ERROR HY000: Unknown system variable 'unknown_variable'
 set max_join_size="hello";
 ERROR 42000: Incorrect argument type to variable 'max_join_size'
 set default_storage_engine=UNKNOWN_TABLE_TYPE;
 ERROR 42000: Unknown storage engine 'UNKNOWN_TABLE_TYPE'
-set default_storage_engine=MERGE, sql_warnings=NULL;
-ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'NULL'
+set default_storage_engine=MERGE, big_tables=2;
+ERROR 42000: Variable 'big_tables' can't be set to the value of '2'
 show local variables like 'default_storage_engine';
 Variable_name	Value
 default_storage_engine	MEMORY
@@ -433,9 +456,10 @@ ERROR HY000: Variable 'myisam_max_sort_file_size' is a GLOBAL variable and shoul
 set @@SQL_WARNINGS=NULL;
 ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'NULL'
 set autocommit=1;
-select @@autocommit;
-@@autocommit
-1
+set big_tables=1;
+select @@autocommit, @@big_tables;
+@@autocommit	@@big_tables
+1	1
 set global binlog_cache_size=100;
 Warnings:
 Warning	1292	Truncated incorrect binlog_cache_size value: '100'
@@ -1508,6 +1532,9 @@ SET @@global.max_binlog_cache_size=DEFAULT;
 SET @@global.max_join_size=DEFAULT;
 SET @@global.key_buffer_size=@kbs;
 SET @@global.key_cache_block_size=@kcbs;
+select @@max_long_data_size > 0;
+@@max_long_data_size > 0
+1
 #
 # Bug#11766424  59527:
 # Assert in DECIMAL_BIN_SIZE: 

@@ -43,8 +43,8 @@ SELECT @@medium.key_buffer_size;
 SET @@global.key_buffer_size=@save_key_buffer_size;
 SELECT @@default.key_buffer_size;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'default.key_buffer_size' at line 1
-SELECT @@skr.default_storage_engine="test";
-ERROR HY000: Variable 'default_storage_engine' is not a variable component (can't be used as XXXX.variable_name)
+SELECT @@skr.storage_engine="test";
+ERROR HY000: Variable 'storage_engine' is not a variable component (can't be used as XXXX.variable_name)
 select @@keycache1.key_cache_block_size;
 @@keycache1.key_cache_block_size
 0
@@ -739,13 +739,13 @@ p
 1019
 explain select i from t2 where a='yyyy' and i=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index_merge	k1,k2	k1,k2	5,11	NULL	50	Using intersect(k1,k2); Using where; Using index
+1	SIMPLE	t2	ref	k1,k2	k1	5	const	189	Using where
 select i from t2 where a='yyyy' and i=3;
 i
 3
 explain select a from t2 where a='yyyy' and i=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index_merge	k1,k2	k1,k2	5,11	NULL	50	Using intersect(k1,k2); Using where; Using index
+1	SIMPLE	t2	ref	k1,k2	k1	5	const	189	Using where
 select a from t2 where a='yyyy' and i=3 ;
 a
 yyyy
@@ -753,7 +753,7 @@ select * from information_schema.key_caches where segment_number is null;
 KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_BLOCKS	DIRTY_BLOCKS	READ_REQUESTS	READS	WRITE_REQUESTS	WRITES
 default	2	NULL	32768	1024	#	#	0	3172	24	1552	18
 small	NULL	NULL	1048576	1024	#	#	0	0	0	0	0
-keycache1	7	NULL	262143	2048	#	#	0	3229	43	1594	30
+keycache1	7	NULL	262143	2048	#	#	0	3201	43	1594	30
 keycache2	NULL	NULL	1048576	1024	#	#	0	6	6	3	3
 set global keycache1.key_cache_block_size=2*1024;
 insert into t2 values (7000, 3, 'yyyy');

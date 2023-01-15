@@ -5,8 +5,8 @@
 
 call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 
-let $default_engine=`select @@session.default_storage_engine`;
-set session default_storage_engine=aria;
+let $default_engine=`select @@session.storage_engine`;
+set session storage_engine=aria;
 
 # Verify that INSERT DELAYED is disabled only for transactional tables
 # ("embedded" server translates them to plain INSERT)
@@ -96,6 +96,6 @@ drop table t1;
 
 --disable_result_log
 --disable_query_log
-eval set session default_storage_engine=$default_engine;
+eval set session storage_engine=$default_engine;
 --enable_result_log
 --enable_query_log

@@ -1,7 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 
---echo # Create 2 UNDO TABLESPACE(UNDO001(space_id =3), UNDO002(space_id =4))
+--echo # Create 2 UNDO TABLESPACE(UNDO003, UNDO004)
 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 

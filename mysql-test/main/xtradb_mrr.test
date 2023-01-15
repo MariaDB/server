@@ -4,15 +4,15 @@
 drop table if exists t1,t2,t3,t4;
 --enable_warnings
 
-set @save_storage_engine= @@default_storage_engine;
-set default_storage_engine=InnoDB;
+set @save_storage_engine= @@storage_engine;
+set storage_engine=InnoDB;
 
 set @innodb_mrr_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 
 --source include/mrr_tests.inc 
 
-set default_storage_engine= @save_storage_engine;
+set storage_engine= @save_storage_engine;
 
 # Try big rowid sizes
 set @mrr_buffer_size_save= @@mrr_buffer_size;

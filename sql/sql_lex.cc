@@ -56,540 +56,6 @@ const LEX_CSTRING empty_clex_str= {"", 0};
 const LEX_CSTRING star_clex_str=  {"*", 1};
 const LEX_CSTRING param_clex_str= {"?", 1};
 
-
-/**
-  Helper action for a case expression statement (the expr in 'CASE expr').
-  This helper is used for 'searched' cases only.
-  @param lex the parser lex context
-  @param expr the parsed expression
-  @return 0 on success
-*/
-
-int sp_expr_lex::case_stmt_action_expr()
-{
-  int case_expr_id= spcont->register_case_expr();
-  sp_instr_set_case_expr *i;
-
-  if (spcont->push_case_expr_id(case_expr_id))
-    return 1;
-
-  i= new (thd->mem_root)
-    sp_instr_set_case_expr(sphead->instructions(), spcont, case_expr_id,
-                           get_item(), this);
-
-  sphead->add_cont_backpatch(i);
-  return sphead->add_instr(i);
-}
-
-/**
-  Helper action for a case when condition.
-  This helper is used for both 'simple' and 'searched' cases.
-  @param lex the parser lex context
-  @param when the parsed expression for the WHEN clause
-  @param simple true for simple cases, false for searched cases
-*/
-
-int sp_expr_lex::case_stmt_action_when(bool simple)
-{
-  uint ip= sphead->instructions();
-  sp_instr_jump_if_not *i;
-  Item_case_expr *var;
-  Item *expr;
-
-  if (simple)
-  {
-    var= new (thd->mem_root)
-         Item_case_expr(thd, spcont->get_current_case_expr_id());
-
-#ifdef DBUG_ASSERT_EXISTS
-    if (var)
-    {
-      var->m_sp= sphead;
-    }
-#endif
-
-    expr= new (thd->mem_root) Item_func_eq(thd, var, get_item());
-    i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, expr, this);
-  }
-  else
-    i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, get_item(), this);
-
-  /*
-    BACKPATCH: Registering forward jump from
-    "case_stmt_action_when" to "case_stmt_action_then"
-    (jump_if_not from instruction 2 to 5, 5 to 8 ... in the example)
-  */
-
-  return
-    !MY_TEST(i) ||
-    sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0)) ||
-    sphead->add_cont_backpatch(i) ||
-    sphead->add_instr(i);
-}
-
-/**
-  Helper action for a case then statements.
-  This helper is used for both 'simple' and 'searched' cases.
-  @param lex the parser lex context
-*/
-
-int LEX::case_stmt_action_then()
-{
-  uint ip= sphead->instructions();
-  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, spcont);
-  if (!MY_TEST(i) || sphead->add_instr(i))
-    return 1;
-
-  /*
-    BACKPATCH: Resolving forward jump from
-    "case_stmt_action_when" to "case_stmt_action_then"
-    (jump_if_not from instruction 2 to 5, 5 to 8 ... in the example)
-  */
-
-  sphead->backpatch(spcont->pop_label());
-
-  /*
-    BACKPATCH: Registering forward jump from
-    "case_stmt_action_then" to after END CASE
-    (jump from instruction 4 to 12, 7 to 12 ... in the example)
-  */
-
-  return sphead->push_backpatch(thd, i, spcont->last_label());
-}
-
-
-/**
-  Helper action for a SET statement.
-  Used to push a system variable into the assignment list.
-
-  @param tmp      the system variable with base name
-  @param var_type the scope of the variable
-  @param val      the value being assigned to the variable
-
-  @return TRUE if error, FALSE otherwise.
-*/
-
-bool
-LEX::set_system_variable(enum enum_var_type var_type,
-                         sys_var *sysvar, const Lex_ident_sys_st *base_name,
-                         Item *val)
-{
-  set_var *setvar;
-
-  /* No AUTOCOMMIT from a stored function or trigger. */
-  if (spcont && sysvar == Sys_autocommit_ptr)
-    sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
-
-  if (val && val->type() == Item::FIELD_ITEM &&
-      ((Item_field*)val)->table_name.str)
-  {
-    my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), sysvar->name.str);
-    return TRUE;
-  }
-
-  if (!(setvar= new (thd->mem_root) set_var(thd, var_type, sysvar,
-                                            base_name, val)))
-    return TRUE;
-
-  return var_list.push_back(setvar, thd->mem_root);
-}
-
-
-/**
-  Helper action for a SET statement.
-  Used to SET a field of NEW row.
-
-  @param name     the field name
-  @param val      the value being assigned to the row
-
-  @return TRUE if error, FALSE otherwise.
-*/
-
-bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val)
-{
-  Item_trigger_field *trg_fld;
-  sp_instr_set_trigger_field *sp_fld;
-
-  /* QQ: Shouldn't this be field's default value ? */
-  if (! val)
-    val= new (thd->mem_root) Item_null(thd);
-
-  DBUG_ASSERT(trg_chistics.action_time == TRG_ACTION_BEFORE &&
-              (trg_chistics.event == TRG_EVENT_INSERT ||
-               trg_chistics.event == TRG_EVENT_UPDATE));
-
-  trg_fld= new (thd->mem_root)
-            Item_trigger_field(thd, current_context(),
-                               Item_trigger_field::NEW_ROW,
-                               *name, UPDATE_ACL, FALSE);
-
-  if (unlikely(trg_fld == NULL))
-    return TRUE;
-
-  sp_fld= new (thd->mem_root)
-        sp_instr_set_trigger_field(sphead->instructions(),
-                                   spcont, trg_fld, val, this);
-
-  if (unlikely(sp_fld == NULL))
-    return TRUE;
-
-  /*
-    Let us add this item to list of all Item_trigger_field
-    objects in trigger.
-  */
-  trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
-
-  return sphead->add_instr(sp_fld);
-}
-
-
-/**
-  Create an object to represent a SP variable in the Item-hierarchy.
-
-  @param  name        The SP variable name.
-  @param  spvar       The SP variable (optional).
-  @param  start_in_q  Start position of the SP variable name in the query.
-  @param  end_in_q    End position of the SP variable name in the query.
-
-  @remark If spvar is not specified, the name is used to search for the
-          variable in the parse-time context. If the variable does not
-          exist, a error is set and NULL is returned to the caller.
-
-  @return An Item_splocal object representing the SP variable, or NULL on error.
-*/
-Item_splocal*
-LEX::create_item_for_sp_var(const Lex_ident_cli_st *cname, sp_variable *spvar)
-{
-  const Sp_rcontext_handler *rh;
-  Item_splocal *item;
-  const char *start_in_q= cname->pos();
-  const char *end_in_q= cname->end();
-  uint pos_in_q, len_in_q;
-  Lex_ident_sys name(thd, cname);
-
-  if (name.is_null())
-    return NULL;  // EOM
-
-  /* If necessary, look for the variable. */
-  if (spcont && !spvar)
-    spvar= find_variable(&name, &rh);
-
-  if (!spvar)
-  {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
-    return NULL;
-  }
-
-  DBUG_ASSERT(spcont && spvar);
-
-  /* Position and length of the SP variable name in the query. */
-  pos_in_q= (uint)(start_in_q - sphead->m_tmp_query);
-  len_in_q= (uint)(end_in_q - start_in_q);
-
-  item= new (thd->mem_root)
-    Item_splocal(thd, rh, &name, spvar->offset, spvar->type_handler(),
-                 pos_in_q, len_in_q);
-
-#ifdef DBUG_ASSERT_EXISTS
-  if (item)
-    item->m_sp= sphead;
-#endif
-
-  return item;
-}
-
-
-/**
-  Helper to resolve the SQL:2003 Syntax exception 1) in <in predicate>.
-  See SQL:2003, Part 2, section 8.4 <in predicate>, Note 184, page 383.
-  This function returns the proper item for the SQL expression
-  <code>left [NOT] IN ( expr )</code>
-  @param thd the current thread
-  @param left the in predicand
-  @param equal true for IN predicates, false for NOT IN predicates
-  @param expr first and only expression of the in value list
-  @return an expression representing the IN predicate.
-*/
-Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
-                                       Item *expr)
-{
-  /*
-    Relevant references for this issue:
-    - SQL:2003, Part 2, section 8.4 <in predicate>, page 383,
-    - SQL:2003, Part 2, section 7.2 <row value expression>, page 296,
-    - SQL:2003, Part 2, section 6.3 <value expression primary>, page 174,
-    - SQL:2003, Part 2, section 7.15 <subquery>, page 370,
-    - SQL:2003 Feature F561, "Full value expressions".
-
-    The exception in SQL:2003 Note 184 means:
-    Item_singlerow_subselect, which corresponds to a <scalar subquery>,
-    should be re-interpreted as an Item_in_subselect, which corresponds
-    to a <table subquery> when used inside an <in predicate>.
-
-    Our reading of Note 184 is reccursive, so that all:
-    - IN (( <subquery> ))
-    - IN ((( <subquery> )))
-    - IN '('^N <subquery> ')'^N
-    - etc
-    should be interpreted as a <table subquery>, no matter how deep in the
-    expression the <subquery> is.
-  */
-
-  Item *result;
-
-  DBUG_ENTER("handle_sql2003_note184_exception");
-
-  if (expr->type() == Item::SUBSELECT_ITEM)
-  {
-    Item_subselect *expr2 = (Item_subselect*) expr;
-
-    if (expr2->substype() == Item_subselect::SINGLEROW_SUBS)
-    {
-      Item_singlerow_subselect *expr3 = (Item_singlerow_subselect*) expr2;
-      st_select_lex *subselect;
-
-      /*
-        Implement the mandated change, by altering the semantic tree:
-          left IN Item_singlerow_subselect(subselect)
-        is modified to
-          left IN (subselect)
-        which is represented as
-          Item_in_subselect(left, subselect)
-      */
-      subselect= expr3->invalidate_and_restore_select_lex();
-      result= new (thd->mem_root) Item_in_subselect(thd, left, subselect);
-
-      if (! equal)
-        result = negate_expression(thd, result);
-
-      DBUG_RETURN(result);
-    }
-  }
-
-  if (equal)
-    result= new (thd->mem_root) Item_func_eq(thd, left, expr);
-  else
-    result= new (thd->mem_root) Item_func_ne(thd, left, expr);
-
-  DBUG_RETURN(result);
-}
-
-/**
-  Create a separate LEX for each assignment if in SP.
-
-  If we are in SP we want have own LEX for each assignment.
-  This is mostly because it is hard for several sp_instr_set
-  and sp_instr_set_trigger instructions share one LEX.
-  (Well, it is theoretically possible but adds some extra
-  overhead on preparation for execution stage and IMO less
-  robust).
-
-  QQ: May be we should simply prohibit group assignments in SP?
-
-  @see sp_create_assignment_instr
-
-  @param thd           Thread context
-  @param pos           The position in the raw SQL buffer
-*/
-
-
-bool sp_create_assignment_lex(THD *thd, const char *pos)
-{
-  if (thd->lex->sphead)
-  {
-    sp_lex_local *new_lex;
-    if (!(new_lex= new (thd->mem_root) sp_lex_set_var(thd, thd->lex)) ||
-        new_lex->main_select_push())
-      return true;
-    new_lex->sphead->m_tmp_query= pos;
-    return thd->lex->sphead->reset_lex(thd, new_lex);
-  }
-  else
-    if (thd->lex->main_select_push(false))
-      return true;
-  return false;
-}
-
-
-/**
-  Create a SP instruction for a SET assignment.
-
-  @see sp_create_assignment_lex
-
-  @param thd              - Thread context
-  @param no_lookahead     - True if the parser has no lookahead
-  @param need_set_keyword - if a SET statement "SET a=10",
-                            or a direct assignment overwise "a:=10"
-  @return false if success, true otherwise.
-*/
-
-bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
-                                bool need_set_keyword)
-{
-  LEX *lex= thd->lex;
-
-  if (lex->sphead)
-  {
-    if (!lex->var_list.is_empty())
-    {
-      /*
-        - Every variable assignment from the same SET command, e.g.:
-            SET @var1=expr1, @var2=expr2;
-          produce each own sp_create_assignment_instr() call
-          lex->var_list.elements is 1 in this case.
-        - This query:
-            SET TRANSACTION READ ONLY, ISOLATION LEVEL SERIALIZABLE;
-          in translated to:
-            SET tx_read_only=1, tx_isolation=ISO_SERIALIZABLE;
-          but produces a single sp_create_assignment_instr() call
-          which includes the query fragment covering both options.
-      */
-      DBUG_ASSERT(lex->var_list.elements >= 1 && lex->var_list.elements <= 2);
-      /*
-        sql_mode=ORACLE's direct assignment of a global variable
-        is not possible by the grammar.
-      */
-      DBUG_ASSERT(lex->option_type != OPT_GLOBAL || need_set_keyword);
-      /*
-        We have assignment to user or system variable or
-        option setting, so we should construct sp_instr_stmt
-        for it.
-      */
-      Lex_input_stream *lip= &thd->m_parser_state->m_lip;
-
-      /*
-        Extract the query statement from the tokenizer.  The
-        end is either lip->ptr, if there was no lookahead,
-        lip->tok_end otherwise.
-      */
-      static const LEX_CSTRING setlc= { STRING_WITH_LEN("SET ") };
-      static const LEX_CSTRING setgl= { STRING_WITH_LEN("SET GLOBAL ") };
-      const char *qend= no_lookahead ? lip->get_ptr() : lip->get_tok_end();
-      Lex_cstring qbuf(lex->sphead->m_tmp_query, qend);
-      if (lex->new_sp_instr_stmt(thd,
-                                 lex->option_type == OPT_GLOBAL ? setgl :
-                                 need_set_keyword ?               setlc :
-                                                                  null_clex_str,
-                                 qbuf))
-        return true;
-    }
-    lex->pop_select();
-    if (lex->check_main_unit_semantics())
-    {
-      /*
-        "lex" can be referrenced by:
-        - sp_instr_set                          SET a= expr;
-        - sp_instr_set_row_field                SET r.a= expr;
-        - sp_instr_stmt (just generated above)  SET @a= expr;
-        In this case, "lex" is fully owned by sp_instr_xxx and it will
-        be deleted by the destructor ~sp_instr_xxx().
-        So we should remove "lex" from the stack sp_head::m_lex,
-        to avoid double free.
-        Note, in case "lex" is not owned by any sp_instr_xxx,
-        it's also safe to remove it from the stack right now.
-        So we can remove it unconditionally, without testing lex->sp_lex_in_use.
-      */
-      lex->sphead->restore_lex(thd);
-      return true;
-    }
-    enum_var_type inner_option_type= lex->option_type;
-    if (lex->sphead->restore_lex(thd))
-      return true;
-    /* Copy option_type to outer lex in case it has changed. */
-    thd->lex->option_type= inner_option_type;
-  }
-  else
-    lex->pop_select();
-  return false;
-}
-
-
-void LEX::add_key_to_list(LEX_CSTRING *field_name,
-                          enum Key::Keytype type, bool check_exists)
-{
-  Key *key;
-  MEM_ROOT *mem_root= thd->mem_root;
-  key= new (mem_root)
-        Key(type, &null_clex_str, HA_KEY_ALG_UNDEF, false,
-             DDL_options(check_exists ?
-                         DDL_options::OPT_IF_NOT_EXISTS :
-                         DDL_options::OPT_NONE));
-  key->columns.push_back(new (mem_root) Key_part_spec(field_name, 0),
-                         mem_root);
-  alter_info.key_list.push_back(key, mem_root);
-}
-
-
-bool LEX::add_alter_list(LEX_CSTRING name, Virtual_column_info *expr,
-                         bool exists)
-{
-  MEM_ROOT *mem_root= thd->mem_root;
-  Alter_column *ac= new (mem_root) Alter_column(name, expr, exists);
-  if (unlikely(ac == NULL))
-    return true;
-  alter_info.alter_list.push_back(ac, mem_root);
-  alter_info.flags|= ALTER_CHANGE_COLUMN_DEFAULT;
-  return false;
-}
-
-
-bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists)
-{
-  Alter_column *ac= new (thd->mem_root) Alter_column(name, new_name, exists);
-  if (unlikely(ac == NULL))
-    return true;
-  alter_info.alter_list.push_back(ac, thd->mem_root);
-  alter_info.flags|= ALTER_RENAME_COLUMN;
-  return false;
-}
-
-
-void LEX::init_last_field(Column_definition *field,
-                          const LEX_CSTRING *field_name,
-                          const CHARSET_INFO *cs)
-{
-  last_field= field;
-
-  field->field_name= *field_name;
-
-  /* reset LEX fields that are used in Create_field::set_and_check() */
-  charset= cs;
-}
-
-
-bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
-{
-  /*
-     if charset is NULL - we're parsing a field declaration.
-     we cannot call find_bin_collation for a field here, because actual
-     field charset is determined in get_sql_field_charset() much later.
-     so we only set a flag.
-  */
-  if (!charset)
-  {
-    charset= cs;
-    last_field->flags|= bin ? BINCMP_FLAG : 0;
-    return false;
-  }
-
-  charset= bin ? find_bin_collation(cs ? cs : charset)
-               :                    cs ? cs : charset;
-  return charset == NULL;
-}
-
-
-Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
-{
-  Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
-  if (unlikely(!v))
-     return 0;
-   v->expr= expr;
-   v->utf8= 0;  /* connection charset */
-   return v;
-}
-
-
-
 /**
   @note The order of the elements of this array must correspond to
   the order of elements in enum_binlog_stmt_unsafe.
@@ -895,7 +361,7 @@ size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
     "2" should be a reasonable multiplier that safely covers escaping needs.
   */
   return (m_buf_length / thd->variables.character_set_client->mbminlen) *
-          my_charset_utf8mb3_bin.mbmaxlen * 2/*for escaping*/;
+          my_charset_utf8_bin.mbmaxlen * 2/*for escaping*/;
 }
 
 
@@ -1000,14 +466,14 @@ extern "C" {
   @param end    - the end of the destination string
   @returns      - a code according to the wc_mb() convension.
 */
-int my_wc_mb_utf8mb3_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
-                                 uchar *str, uchar *end)
+int my_wc_mb_utf8_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
+                              uchar *str, uchar *end)
 {
   DBUG_ASSERT(escape > 0);
   if (str + 1 >= end)
     return MY_CS_TOOSMALL2;  // Not enough space, need at least two bytes.
   *str= (uchar)escape;
-  int cnvres= my_charset_utf8mb3_handler.wc_mb(cs, wc, str + 1, end);
+  int cnvres= my_charset_utf8_handler.wc_mb(cs, wc, str + 1, end);
   if (cnvres > 0)
     return cnvres + 1;       // The character was normally put
   if (cnvres == MY_CS_ILUNI)
@@ -1029,12 +495,12 @@ int my_wc_mb_utf8mb3_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
   @param end    - the end of the destination string
   @returns      - a code according to the wc_mb() conversion.
 */
-int my_wc_mb_utf8mb3_opt_escape(CHARSET_INFO *cs,
-                                my_wc_t wc, my_wc_t escape, my_wc_t ewc,
-                                uchar *str, uchar *end)
+int my_wc_mb_utf8_opt_escape(CHARSET_INFO *cs,
+                             my_wc_t wc, my_wc_t escape, my_wc_t ewc,
+                             uchar *str, uchar *end)
 {
-  return escape ? my_wc_mb_utf8mb3_with_escape(cs, escape, ewc, str, end) :
-                  my_charset_utf8mb3_handler.wc_mb(cs, wc, str, end);
+  return escape ? my_wc_mb_utf8_with_escape(cs, escape, ewc, str, end) :
+                  my_charset_utf8_handler.wc_mb(cs, wc, str, end);
 }
 
 /**
@@ -1053,55 +519,54 @@ int my_wc_mb_utf8mb3_opt_escape(CHARSET_INFO *cs,
   @param escape    - the escape character (backslash, or 0)
   @returns         - a code according to the wc_mb() convension.
 */
-int my_wc_mb_utf8mb3_escape(CHARSET_INFO *cs, my_wc_t wc,
-                            uchar *str, uchar *end,
-                            my_wc_t sep, my_wc_t escape)
+int my_wc_mb_utf8_escape(CHARSET_INFO *cs, my_wc_t wc, uchar *str, uchar *end,
+                         my_wc_t sep, my_wc_t escape)
 {
   DBUG_ASSERT(escape == 0 || escape == '\\');
   DBUG_ASSERT(sep == '"' || sep == '\'');
   switch (wc) {
-  case 0:      return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, '0', str, end);
-  case '\t':   return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, 't', str, end);
-  case '\r':   return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, 'r', str, end);
-  case '\n':   return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, 'n', str, end);
-  case '\032': return my_wc_mb_utf8mb3_opt_escape(cs, wc, escape, 'Z', str, end);
+  case 0:      return my_wc_mb_utf8_opt_escape(cs, wc, escape, '0', str, end);
+  case '\t':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 't', str, end);
+  case '\r':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'r', str, end);
+  case '\n':   return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'n', str, end);
+  case '\032': return my_wc_mb_utf8_opt_escape(cs, wc, escape, 'Z', str, end);
   case '\'':
   case '\"':
     if (wc == sep)
-      return my_wc_mb_utf8mb3_with_escape(cs, wc, wc, str, end);
+      return my_wc_mb_utf8_with_escape(cs, wc, wc, str, end);
   }
-  return my_charset_utf8mb3_handler.wc_mb(cs, wc, str, end); // No escaping needed
+  return my_charset_utf8_handler.wc_mb(cs, wc, str, end); // No escaping needed
 }
 
 
 /** wc_mb() compatible routines for all sql_mode and delimiter combinations */
-int my_wc_mb_utf8mb3_escape_single_quote_and_backslash(CHARSET_INFO *cs,
+int my_wc_mb_utf8_escape_single_quote_and_backslash(CHARSET_INFO *cs,
                                                     my_wc_t wc,
                                                     uchar *str, uchar *end)
 {
-  return my_wc_mb_utf8mb3_escape(cs, wc, str, end, '\'', '\\');
+  return my_wc_mb_utf8_escape(cs, wc, str, end, '\'', '\\');
 }
 
 
-int my_wc_mb_utf8mb3_escape_double_quote_and_backslash(CHARSET_INFO *cs,
+int my_wc_mb_utf8_escape_double_quote_and_backslash(CHARSET_INFO *cs,
                                                     my_wc_t wc,
                                                     uchar *str, uchar *end)
 {
-  return my_wc_mb_utf8mb3_escape(cs, wc, str, end, '"', '\\');
+  return my_wc_mb_utf8_escape(cs, wc, str, end, '"', '\\');
 }
 
 
-int my_wc_mb_utf8mb3_escape_single_quote(CHARSET_INFO *cs, my_wc_t wc,
+int my_wc_mb_utf8_escape_single_quote(CHARSET_INFO *cs, my_wc_t wc,
                                       uchar *str, uchar *end)
 {
-  return my_wc_mb_utf8mb3_escape(cs, wc, str, end, '\'', 0);
+  return my_wc_mb_utf8_escape(cs, wc, str, end, '\'', 0);
 }
 
 
-int my_wc_mb_utf8mb3_escape_double_quote(CHARSET_INFO *cs, my_wc_t wc,
+int my_wc_mb_utf8_escape_double_quote(CHARSET_INFO *cs, my_wc_t wc,
                                       uchar *str, uchar *end)
 {
-  return my_wc_mb_utf8mb3_escape(cs, wc, str, end, '"', 0);
+  return my_wc_mb_utf8_escape(cs, wc, str, end, '"', 0);
 }
 
 }; // End of extern "C"
@@ -1115,10 +580,10 @@ my_charset_conv_wc_mb
 Lex_input_stream::get_escape_func(THD *thd, my_wc_t sep) const
 {
   return thd->backslash_escapes() ?
-         (sep == '"' ? my_wc_mb_utf8mb3_escape_double_quote_and_backslash:
-                       my_wc_mb_utf8mb3_escape_single_quote_and_backslash) :
-         (sep == '"' ? my_wc_mb_utf8mb3_escape_double_quote:
-                       my_wc_mb_utf8mb3_escape_single_quote);
+         (sep == '"' ? my_wc_mb_utf8_escape_double_quote_and_backslash:
+                       my_wc_mb_utf8_escape_single_quote_and_backslash) :
+         (sep == '"' ? my_wc_mb_utf8_escape_double_quote:
+                       my_wc_mb_utf8_escape_single_quote);
 }
 
 
@@ -1158,7 +623,7 @@ void Lex_input_stream::body_utf8_append_escape(THD *thd,
   DBUG_ASSERT(m_body_utf8 + get_body_utf8_maximum_length(thd) >=
               m_body_utf8_ptr + txt->length * 2);
   uint32 cnv_length= my_convert_using_func(m_body_utf8_ptr, txt->length * 2,
-                                           &my_charset_utf8mb3_general_ci,
+                                           &my_charset_utf8_general_ci,
                                            get_escape_func(thd, sep),
                                            txt->str, txt->length,
                                            cs, cs->cset->mb_wc,
@@ -1252,6 +717,7 @@ void LEX::start(THD *thd_arg)
   set_var_list.empty();
   param_list.empty();
   view_list.empty();
+  with_column_list.empty();
   with_persistent_for_clause= FALSE;
   column_list= NULL;
   index_list= NULL;
@@ -1483,9 +949,6 @@ bool is_native_function(THD *thd, const LEX_CSTRING *name)
   if (is_lex_native_function(name))
     return true;
 
-  if (Type_handler::handler_by_name(thd, *name))
-    return true;
-
   return false;
 }
 
@@ -1555,7 +1018,7 @@ my_unescape(CHARSET_INFO *cs, char *to, const char *str, const char *end,
   {
 #ifdef USE_MB
     int l;
-    if (cs->use_mb() && (l= my_ismbchar(cs, str, end)))
+    if (use_mb(cs) && (l= my_ismbchar(cs, str, end)))
     {
       while (l--)
         *to++ = *str++;
@@ -1633,7 +1096,7 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
 #ifdef USE_MB
     {
       int l;
-      if (cs->use_mb() &&
+      if (use_mb(cs) &&
           (l = my_ismbchar(cs,
                            get_ptr() -1,
                            get_end_of_query()))) {
@@ -2576,7 +2039,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
         next_state= MY_LEX_HOSTNAME;
         break;
       }
-      yylval->lex_str.str= (char*) get_ptr() - 1;
+      yylval->lex_str.str= (char*) get_ptr();
       yylval->lex_str.length= 1;
       return((int) '@');
     case MY_LEX_HOSTNAME:               // end '@' of user@hostname
@@ -2674,12 +2137,12 @@ int Lex_input_stream::scan_ident_start(THD *thd, Lex_ident_cli_st *str)
   const uchar *const ident_map= cs->ident_map;
   DBUG_ASSERT(m_tok_start <= m_ptr);
 
-  if (cs->use_mb())
+  if (use_mb(cs))
   {
     is_8bit= true;
     while (ident_map[c= yyGet()])
     {
-      int char_length= cs->charlen(get_ptr() - 1, get_end_of_query());
+      int char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
       if (char_length <= 0)
         break;
       skip_binary(char_length - 1);
@@ -2717,10 +2180,10 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   bool resolve_introducer= true;
   DBUG_ASSERT(m_ptr == m_tok_start + 1); // m_ptr points to the second byte
 
-  if (cs->use_mb())
+  if (use_mb(cs))
   {
     is_8bit= true;
-    int char_length= cs->charlen(get_ptr() - 1, get_end_of_query());
+    int char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
     if (char_length <= 0)
     {
       *st= MY_LEX_CHAR;
@@ -2730,7 +2193,7 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
 
     while (ident_map[c= yyGet()])
     {
-      char_length= cs->charlen(get_ptr() - 1, get_end_of_query());
+      char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
       if (char_length <= 0)
         break;
       if (char_length > 1 || (c & 0x80))
@@ -2823,7 +2286,7 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
         m_cpp_ptr= (char *) m_cpp_tok_start + 1;
       return quote_char;
     }
-    int var_length= cs->charlen(get_ptr() - 1, get_end_of_query());
+    int var_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
     if (var_length == 1)
     {
       if (c == quote_char)
@@ -2901,10 +2364,10 @@ void st_select_lex_unit::init_query()
 {
   init_query_common();
   set_linkage(GLOBAL_OPTIONS_TYPE);
-  lim.set_unlimited();
+  select_limit_cnt= HA_POS_ERROR;
+  offset_limit_cnt= 0;
   union_distinct= 0;
   prepared= optimized= optimized_2= executed= 0;
-  bag_set_op_optimized= 0;
   optimize_started= 0;
   item= 0;
   union_result= 0;
@@ -2921,8 +2384,8 @@ void st_select_lex_unit::init_query()
   with_element= 0;
   cloned_from= 0;
   columns_are_renamed= false;
+  intersect_mark= NULL;
   with_wrapped_tvc= false;
-  have_except_all_or_intersect_all= false;
 }
 
 void st_select_lex::init_query()
@@ -3026,7 +2489,6 @@ void st_select_lex::init_select()
   curr_tvc_name= 0;
   in_tvc= false;
   versioned_tables= 0;
-  nest_flags= 0;
 }
 
 /*
@@ -3175,7 +2637,7 @@ st_select_lex_node *st_select_lex_node:: insert_chain_before(
 {
   end_chain_node->link_next= *ptr_pos_to_insert;
   (*ptr_pos_to_insert)->link_prev= &end_chain_node->link_next;
-  link_prev= ptr_pos_to_insert;
+  this->link_prev= ptr_pos_to_insert;
   return this;
 }
 
@@ -3365,7 +2827,7 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
       return TRUE;
   } while ((c= c->outer_context) != NULL && (c->select_lex != last));
   is_correlated= TRUE;
-  master_unit()->item->is_correlated= TRUE;
+  this->master_unit()->item->is_correlated= TRUE;
   return FALSE;
 }
 
@@ -3559,114 +3021,11 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 }
 
 
-/*
-  @brief
-    Print the whole statement
-
-    @param str         Print into this string
-    @param query_type  Flags describing how to print
-
-  @detail
-    The intent is to allow to eventually print back any query.
-
-    This is useful e.g. for storage engines that take over diferrent kinds of
-    queries
-*/
-
-void LEX::print(String *str, enum_query_type query_type)
-{
-  if (sql_command == SQLCOM_UPDATE)
-  {
-    SELECT_LEX *sel= first_select_lex();
-    str->append(STRING_WITH_LEN("UPDATE "));
-    if (ignore)
-      str->append(STRING_WITH_LEN("IGNORE "));
-    // table name. If the query was using a view, we need
-    // the underlying table name, not the view name
-    TABLE_LIST *base_tbl= query_tables->table->pos_in_table_list;
-    base_tbl->print(thd, table_map(0), str, query_type);
-    str->append(STRING_WITH_LEN(" SET "));
-    // print item assignments
-    List_iterator<Item> it(sel->item_list);
-    List_iterator<Item> it2(value_list);
-    Item *col_ref, *value;
-    bool first= true;
-    while ((col_ref= it++) && (value= it2++))
-    {
-      if (first)
-        first= false;
-      else
-        str->append(STRING_WITH_LEN(", "));
-      col_ref->print(str, query_type);
-      str->append(STRING_WITH_LEN("="));
-      value->print(str, query_type);
-    }
-
-    if (sel->where)
-    {
-      str->append(STRING_WITH_LEN(" WHERE "));
-      sel->where->print(str, query_type);
-    }
-
-    if (sel->order_list.elements)
-    {
-      str->append(STRING_WITH_LEN(" ORDER BY "));
-      for (ORDER *ord= sel->order_list.first; ord; ord= ord->next)
-      {
-        if (ord != sel->order_list.first)
-          str->append(STRING_WITH_LEN(", "));
-        (*ord->item)->print(str, query_type);
-      }
-    }
-    if (sel->select_limit)
-    {
-      str->append(STRING_WITH_LEN(" LIMIT "));
-      sel->select_limit->print(str, query_type);
-    }
-  }
-  else if (sql_command == SQLCOM_DELETE)
-  {
-    SELECT_LEX *sel= first_select_lex();
-    str->append(STRING_WITH_LEN("DELETE "));
-    if (ignore)
-      str->append(STRING_WITH_LEN("IGNORE "));
-
-    str->append(STRING_WITH_LEN("FROM "));
-    // table name. If the query was using a view, we need
-    // the underlying table name, not the view name
-    TABLE_LIST *base_tbl= query_tables->table->pos_in_table_list;
-    base_tbl->print(thd, table_map(0), str, query_type);
-
-    if (sel->where)
-    {
-      str->append(STRING_WITH_LEN(" WHERE "));
-      sel->where->print(str, query_type);
-    }
-
-    if (sel->order_list.elements)
-    {
-      str->append(STRING_WITH_LEN(" ORDER BY "));
-      for (ORDER *ord= sel->order_list.first; ord; ord= ord->next)
-      {
-        if (ord != sel->order_list.first)
-          str->append(STRING_WITH_LEN(", "));
-        (*ord->item)->print(str, query_type);
-      }
-    }
-    if (sel->select_limit)
-    {
-      str->append(STRING_WITH_LEN(" LIMIT "));
-      sel->select_limit->print(str, query_type);
-    }
-  }
-  else
-    DBUG_ASSERT(0); // Not implemented yet
-}
-
 void st_select_lex_unit::print(String *str, enum_query_type query_type)
 {
+  bool union_all= !union_distinct;
   if (with_clause)
-    with_clause->print(thd, str, query_type);
+    with_clause->print(str, query_type);
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
   {
     if (sl != first_select())
@@ -3678,6 +3037,8 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         /* fall through */
       case UNION_TYPE:
         str->append(STRING_WITH_LEN(" union "));
+        if (union_all)
+          str->append(STRING_WITH_LEN("all "));
         break;
       case INTERSECT_TYPE:
         str->append(STRING_WITH_LEN(" intersect "));
@@ -3686,8 +3047,8 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" except "));
         break;
       }
-      if (!sl->distinct)
-        str->append(STRING_WITH_LEN("all "));
+      if (sl == union_distinct)
+        union_all= TRUE;
     }
     if (sl->braces)
       str->append('(');
@@ -3911,12 +3272,12 @@ LEX::LEX()
     default_used(0), is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
-  init_dynamic_array2(PSI_INSTRUMENT_ME, &plugins, sizeof(plugin_ref),
-                      plugins_static_buffer, INITIAL_LEX_PLUGIN_LIST_SIZE,
+  init_dynamic_array2(&plugins, sizeof(plugin_ref), plugins_static_buffer,
+                      INITIAL_LEX_PLUGIN_LIST_SIZE,
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
-  init_dynamic_array2(PSI_INSTRUMENT_ME, &delete_gtid_domain, sizeof(uint32),
+  init_dynamic_array2(&delete_gtid_domain, sizeof(uint32),
                       gtid_domain_static_buffer,
                       initial_gtid_domain_buffer_size,
                       initial_gtid_domain_buffer_size, 0);
@@ -4173,7 +3534,12 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
-  lim.set_limit(sl->get_limit(), sl->get_offset());
+  offset_limit_cnt= sl->get_offset();
+  select_limit_cnt= sl->get_limit();
+  if (select_limit_cnt + offset_limit_cnt >= select_limit_cnt)
+    select_limit_cnt+= offset_limit_cnt;
+  else
+    select_limit_cnt= HA_POS_ERROR;
 }
 
 
@@ -4197,8 +3563,6 @@ bool st_select_lex_unit::union_needs_tmp_table()
         with_wrapped_tvc= true;
         break;
       }
-      if (sl != first_select() && sl->linkage != UNION_TYPE)
-        return true;
     }
   }
   if (with_wrapped_tvc)
@@ -4568,7 +3932,7 @@ void LEX::reset_n_backup_query_tables_list(Query_tables_list *backup)
     We have to perform full initialization here since otherwise we
     will damage backed up state.
   */
-  reset_query_tables_list(TRUE);
+  this->reset_query_tables_list(TRUE);
 }
 
 
@@ -4582,8 +3946,8 @@ void LEX::reset_n_backup_query_tables_list(Query_tables_list *backup)
 
 void LEX::restore_backup_query_tables_list(Query_tables_list *backup)
 {
-  destroy_query_tables_list();
-  set_query_tables_list(backup);
+  this->destroy_query_tables_list();
+  this->set_query_tables_list(backup);
 }
 
 
@@ -4814,7 +4178,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       }
       if (subquery_predicate->substype() == Item_subselect::IN_SUBS)
       {
-        Item_in_subselect *in_subs= subquery_predicate->get_IN_subquery();
+        Item_in_subselect *in_subs= (Item_in_subselect*) subquery_predicate;
         if (in_subs->is_jtbm_merged)
           continue;
       }
@@ -5260,7 +4624,7 @@ void SELECT_LEX::update_used_tables()
     */
     if (tl->jtbm_subselect)
     {
-      Item *left_expr= tl->jtbm_subselect->left_exp();
+      Item *left_expr= tl->jtbm_subselect->left_expr;
       left_expr->walk(&Item::update_table_bitmaps_processor, FALSE, NULL);
     }
 
@@ -5420,7 +4784,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
   if ((parent_item= master_unit()->item) &&
       parent_item->substype() == Item_subselect::IN_SUBS)
   {
-    Item_in_subselect *in_subs= parent_item->get_IN_subquery();
+    Item_in_subselect *in_subs= (Item_in_subselect*)parent_item;
     /*
       Surprisingly, in_subs->is_set_strategy() can return FALSE here,
       even for the last invocation of this function for the select.
@@ -5735,10 +5099,9 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
        sl=sl->outer_select())
   {
     Item *subs= sl->master_unit()->item;
-    Item_in_subselect *in_subs= (subs ? subs->get_IN_subquery() : NULL);
-    if (in_subs &&
+    if (subs && subs->type() == Item::SUBSELECT_ITEM && 
         ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
-        in_subs->test_strategy(SUBS_SEMI_JOIN))
+        ((Item_in_subselect*)subs)->test_strategy(SUBS_SEMI_JOIN))
     {
       continue;
     }
@@ -5795,8 +5158,8 @@ bool LEX::set_arena_for_set_stmt(Query_arena *backup)
     mem_root_for_set_stmt= new MEM_ROOT();
     if (unlikely(!(mem_root_for_set_stmt)))
       DBUG_RETURN(1);
-    init_sql_alloc(PSI_INSTRUMENT_ME, mem_root_for_set_stmt, ALLOC_ROOT_SET,
-                   ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(mem_root_for_set_stmt, "set_stmt",
+                   ALLOC_ROOT_SET, ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
   }
   if (unlikely(!(arena_for_set_stmt= new(mem_root_for_set_stmt)
                  Query_arena_memroot(mem_root_for_set_stmt,
@@ -5924,7 +5287,7 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
     eu->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
   /* 
     Note: Non-merged semi-joins cannot be made out of UNIONs currently, so we
-    don't ever set EXPLAIN_NODE_NON_MERGED_SJ.
+    dont ever set EXPLAIN_NODE_NON_MERGED_SJ.
   */
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
     eu->add_select(sl->select_number);
@@ -5955,8 +5318,10 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
     for (SELECT_LEX_UNIT *unit= fake_select_lex->first_inner_unit(); 
          unit; unit= unit->next_unit())
     {
-      if (unit->explainable())
+      if (!(unit->item && unit->item->eliminated))
+      {
         eu->add_child(unit->first_select()->select_number);
+      }
     }
     fake_select_lex->join->explain= &eu->fake_select_lex_explain;
   }
@@ -6117,7 +5482,7 @@ LEX::wrap_unit_into_derived(SELECT_LEX_UNIT *unit)
   Name_resolution_context *context= &wrapping_sel->context;
   context->init();
   wrapping_sel->automatic_brackets= FALSE;
-  wrapping_sel->mark_as_unit_nest();
+
   wrapping_sel->register_unit(unit, context);
 
   /* stuff dummy SELECT * FROM (...) */
@@ -6127,7 +5492,8 @@ LEX::wrap_unit_into_derived(SELECT_LEX_UNIT *unit)
 
   /* add SELECT list*/
   {
-    Item *item= new (thd->mem_root) Item_field(thd, context, star_clex_str);
+    Item *item= new (thd->mem_root)
+      Item_field(thd, context, NULL, NULL, &star_clex_str);
     if (item == NULL)
       goto err;
     if (add_item_to_list(thd, item))
@@ -6189,7 +5555,8 @@ SELECT_LEX *LEX::wrap_select_chain_into_derived(SELECT_LEX *sel)
 
   /* add SELECT list*/
   {
-    Item *item= new (thd->mem_root) Item_field(thd, context, star_clex_str);
+    Item *item= new (thd->mem_root)
+      Item_field(thd, context, NULL, NULL, &star_clex_str);
     if (item == NULL)
       goto err;
     if (add_item_to_list(thd, item))
@@ -6310,22 +5677,9 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
 }
 
 
-bool LEX::sp_param_fill_definition(sp_variable *spvar,
-                                   const Lex_field_type_st &def)
+bool LEX::sp_param_fill_definition(sp_variable *spvar)
 {
-  return
-    last_field->set_attributes(thd, def, charset,
-                               COLUMN_DEFINITION_ROUTINE_PARAM) ||
-    sphead->fill_spvar_definition(thd, last_field, &spvar->name);
-}
-
-
-bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
-{
-  return
-    last_field->set_attributes(thd, def, charset,
-                               COLUMN_DEFINITION_FUNCTION_RETURN) ||
-    sphead->fill_field_definition(thd, last_field);
+  return sphead->fill_spvar_definition(thd, last_field, &spvar->name);
 }
 
 
@@ -6335,7 +5689,6 @@ void LEX::set_stmt_init()
   mysql_init_select(this);
   option_type= OPT_SESSION;
   autocommit= 0;
-  var_list.empty();
 };
 
 
@@ -6393,7 +5746,7 @@ static bool is_old(const char *str)
 bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name) const
 {
   // "name" is not necessarily NULL-terminated!
-  return sphead && sphead->m_handler->type() == SP_TYPE_TRIGGER &&
+  return sphead && sphead->m_handler->type() == TYPE_ENUM_TRIGGER &&
          name->length == 3 && (is_new(name->str) || is_old(name->str));
 }
 
@@ -6442,7 +5795,7 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
     bool last= i + 1 == (uint) nvars;
     spvar->default_value= dflt_value_item;
     /* The last instruction is responsible for freeing LEX. */
-    sp_instr_set *is= new (thd->mem_root)
+    sp_instr_set *is= new (this->thd->mem_root)
                       sp_instr_set(sphead->instructions(),
                                    spcont, &sp_rcontext_handler_local,
                                    spvar->offset, dflt_value_item,
@@ -6735,14 +6088,14 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
   sp_variable *spvar= spcont->add_variable(thd, name);
   spcont->declare_var_boundary(1);
   spvar->field_def.field_name= spvar->name;
-  spvar->field_def.set_handler(&type_handler_slonglong);
-  type_handler_slonglong.Column_definition_prepare_stage2(&spvar->field_def,
-                                                          NULL, HA_CAN_GEOMETRY);
+  spvar->field_def.set_handler(&type_handler_longlong);
+  type_handler_longlong.Column_definition_prepare_stage2(&spvar->field_def,
+                                                         NULL, HA_CAN_GEOMETRY);
   if (!value && unlikely(!(value= new (thd->mem_root) Item_null(thd))))
     return NULL;
 
   spvar->default_value= value;
-  sp_instr_set *is= new (thd->mem_root)
+  sp_instr_set *is= new (this->thd->mem_root)
                     sp_instr_set(sphead->instructions(),
                                  spcont, &sp_rcontext_handler_local,
                                  spvar->offset, value,
@@ -6780,7 +6133,7 @@ bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
         SELECT rec.a, rec.b;
       END FOR;
   */
-  if (!(item= new (thd->mem_root) Item_field(thd, NULL, name)))
+  if (!(item= new (thd->mem_root) Item_field(thd, NULL, NullS, NullS, &name)))
     return true;
   bounds->m_index->set_item_and_free_list(item, NULL);
   if (thd->lex->sphead->restore_lex(thd))
@@ -6934,7 +6287,7 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
     name= item_splocal->m_name;
   else if ((item_field= item->type() == Item::FIELD_ITEM ?
                         static_cast<Item_field *>(item) : NULL) &&
-           item_field->table_name.str == NULL)
+           item_field->table_name == NULL)
     name= item_field->field_name;
   else if (item->type() == Item::FUNC_ITEM &&
            static_cast<Item_func*>(item)->functype() == Item_func::FUNC_SP &&
@@ -7566,7 +6919,7 @@ bool LEX::sp_exit_block(THD *thd, sp_label *lab, Item *when)
   sp_instr_jump_if_not *i= new (thd->mem_root)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
-                                                when, this);
+                                                when, thd->lex);
   if (unlikely(i == NULL) ||
       unlikely(sphead->add_instr(i)) ||
       unlikely(sp_exit_block(thd, lab)))
@@ -7629,40 +6982,17 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab)
 }
 
 
-bool LEX::sp_continue_statement(THD *thd)
-{
-  sp_label *lab= spcont->find_label_current_loop_start();
-  if (unlikely(!lab))
-  {
-    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", "");
-    return true;
-  }
-  DBUG_ASSERT(lab->type == sp_label::ITERATION);
-  return sp_continue_loop(thd, lab);
-}
-
-
-bool LEX::sp_continue_statement(THD *thd, const LEX_CSTRING *label_name)
-{
-  sp_label *lab= spcont->find_label(label_name);
-  if (!lab || lab->type != sp_label::ITERATION)
-  {
-    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", label_name->str);
-    return true;
-  }
-  return sp_continue_loop(thd, lab);
-}
-
-
 bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
 {
-  DBUG_ASSERT(when);
+  if (!when)
+    return sp_continue_loop(thd, lab);
+
   DBUG_ASSERT(sphead == thd->lex->sphead);
   DBUG_ASSERT(spcont == thd->lex->spcont);
   sp_instr_jump_if_not *i= new (thd->mem_root)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
-                                                when, this);
+                                                when, thd->lex);
   if (unlikely(i == NULL) ||
       unlikely(sphead->add_instr(i)) ||
       unlikely(sp_continue_loop(thd, lab)))
@@ -7672,7 +7002,7 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
 }
 
 
-bool sp_expr_lex::sp_continue_when_statement(THD *thd)
+bool LEX::sp_continue_statement(THD *thd, Item *when)
 {
   sp_label *lab= spcont->find_label_current_loop_start();
   if (unlikely(!lab))
@@ -7681,12 +7011,12 @@ bool sp_expr_lex::sp_continue_when_statement(THD *thd)
     return true;
   }
   DBUG_ASSERT(lab->type == sp_label::ITERATION);
-  return sp_continue_loop(thd, lab, get_item());
+  return sp_continue_loop(thd, lab, when);
 }
 
 
-bool sp_expr_lex::sp_continue_when_statement(THD *thd,
-                                             const LEX_CSTRING *label_name)
+bool LEX::sp_continue_statement(THD *thd, const LEX_CSTRING *label_name,
+                                Item *when)
 {
   sp_label *lab= spcont->find_label(label_name);
   if (!lab || lab->type != sp_label::ITERATION)
@@ -7694,7 +7024,7 @@ bool sp_expr_lex::sp_continue_when_statement(THD *thd,
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", label_name->str);
     return true;
   }
-  return sp_continue_loop(thd, lab, get_item());
+  return sp_continue_loop(thd, lab, when);
 }
 
 
@@ -7759,10 +7089,10 @@ void LEX::sp_pop_loop_empty_label(THD *thd)
 }
 
 
-bool LEX::sp_while_loop_expression(THD *thd, Item *item)
+bool LEX::sp_while_loop_expression(THD *thd, Item *expr)
 {
   sp_instr_jump_if_not *i= new (thd->mem_root)
-    sp_instr_jump_if_not(sphead->instructions(), spcont, item, this);
+    sp_instr_jump_if_not(sphead->instructions(), spcont, expr, this);
   return (unlikely(i == NULL) ||
           /* Jumping forward */
           unlikely(sphead->push_backpatch(thd, i, spcont->last_label())) ||
@@ -7813,7 +7143,7 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
                                 new_row ?
                                   Item_trigger_field::NEW_ROW:
                                   Item_trigger_field::OLD_ROW,
-                                *name, SELECT_ACL, tmp_read_only);
+                                name, SELECT_ACL, tmp_read_only);
   /*
     Let us add this item to list of all Item_trigger_field objects
     in trigger.
@@ -7962,7 +7292,7 @@ Item *LEX::create_item_for_loop_bound(THD *thd,
     Pass NULL as the name resolution context.
     This is OK, fix_fields() won't be called for this Item_field.
   */
-  return new (thd->mem_root) Item_field(thd, NULL, *a, *b, *c);
+  return new (thd->mem_root) Item_field(thd, NULL, a->str, b->str, c);
 }
 
 
@@ -8000,7 +7330,7 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
   if (current_select->parsing_place == FOR_LOOP_BOUND)
     return create_item_for_loop_bound(thd, &null_clex_str, a, b);
 
-  return create_item_ident_field(thd, Lex_ident_sys(), *a, *b);
+  return create_item_ident_field(thd, NullS, a->str, b);
 }
 
 
@@ -8173,11 +7503,11 @@ Item *LEX::create_item_ident(THD *thd,
 
   if ((thd->variables.sql_mode & MODE_ORACLE) && b.length == 7)
   {
-    if (!system_charset_info->strnncoll(
+    if (!my_strnncoll(system_charset_info,
                       (const uchar *) b.str, 7,
                       (const uchar *) "NEXTVAL", 7))
       return create_item_func_nextval(thd, &null_clex_str, &a);
-    else if (!system_charset_info->strnncoll(
+    else if (!my_strnncoll(system_charset_info,
                           (const uchar *) b.str, 7,
                           (const uchar *) "CURRVAL", 7))
       return create_item_func_lastval(thd, &null_clex_str, &a);
@@ -8192,15 +7522,16 @@ Item *LEX::create_item_ident(THD *thd,
                              const Lex_ident_sys_st *b,
                              const Lex_ident_sys_st *c)
 {
-  Lex_ident_sys_st schema= thd->client_capabilities & CLIENT_NO_SCHEMA ?
-                           Lex_ident_sys() : *a;
+  const char *schema= (thd->client_capabilities & CLIENT_NO_SCHEMA ?
+                       NullS : a->str);
+
   if ((thd->variables.sql_mode & MODE_ORACLE) && c->length == 7)
   {
-    if (!system_charset_info->strnncoll(
+    if (!my_strnncoll(system_charset_info,
                       (const uchar *) c->str, 7,
                       (const uchar *) "NEXTVAL", 7))
       return create_item_func_nextval(thd, a, b);
-    else if (!system_charset_info->strnncoll(
+    else if (!my_strnncoll(system_charset_info,
                           (const uchar *) c->str, 7,
                           (const uchar *) "CURRVAL", 7))
       return create_item_func_lastval(thd, a, b);
@@ -8215,7 +7546,7 @@ Item *LEX::create_item_ident(THD *thd,
   if (current_select->parsing_place == FOR_LOOP_BOUND)
     return create_item_for_loop_bound(thd, &null_clex_str, b, c);
 
-  return create_item_ident_field(thd, schema, *b, *c);
+  return create_item_ident_field(thd, schema, b->str, c);
 }
 
 
@@ -8302,12 +7633,11 @@ bool LEX::set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val)
 }
 
 
-Item *LEX::create_item_ident_field(THD *thd,
-                                   const Lex_ident_sys_st &db,
-                                   const Lex_ident_sys_st &table,
-                                   const Lex_ident_sys_st &name)
+Item *LEX::create_item_ident_field(THD *thd, const char *db,
+                                   const char *table,
+                                   const Lex_ident_sys_st *name)
 {
-  if (check_expr_allows_fields_or_error(thd, name.str))
+  if (check_expr_allows_fields_or_error(thd, name->str))
     return NULL;
 
   if (current_select->parsing_place != IN_HAVING ||
@@ -8387,7 +7717,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 
 
 
-bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item)
+bool LEX::set_variable(const LEX_CSTRING *name, Item *item)
 {
   sp_pcontext *ctx;
   const Sp_rcontext_handler *rh;
@@ -8401,8 +7731,8 @@ bool LEX::set_variable(const Lex_ident_sys_st *name, Item *item)
   Generate instructions for:
     SET x.y= expr;
 */
-bool LEX::set_variable(const Lex_ident_sys_st *name1,
-                       const Lex_ident_sys_st *name2,
+bool LEX::set_variable(const LEX_CSTRING *name1,
+                       const LEX_CSTRING *name2,
                        Item *item)
 {
   const Sp_rcontext_handler *rh;
@@ -8432,10 +7762,10 @@ bool LEX::set_variable(const Lex_ident_sys_st *name1,
 
 
 bool LEX::set_default_system_variable(enum_var_type var_type,
-                                      const Lex_ident_sys_st *name,
+                                      const LEX_CSTRING *name,
                                       Item *val)
 {
-  static Lex_ident_sys default_base_name= {STRING_WITH_LEN("default")};
+  static LEX_CSTRING default_base_name= {STRING_WITH_LEN("default")};
   sys_var *var= find_sys_var(thd, name->str, name->length);
   if (!var)
     return true;
@@ -8449,19 +7779,18 @@ bool LEX::set_default_system_variable(enum_var_type var_type,
 
 
 bool LEX::set_system_variable(enum_var_type var_type,
-                              const Lex_ident_sys_st *name,
+                              const LEX_CSTRING *name,
                               Item *val)
 {
   sys_var *var= find_sys_var(thd, name->str, name->length);
   DBUG_ASSERT(thd->is_error() || var != NULL);
-  static Lex_ident_sys null_str;
-  return likely(var) ? set_system_variable(var_type, var, &null_str, val) : true;
+  return likely(var) ? set_system_variable(var_type, var, &null_clex_str, val) : true;
 }
 
 
 bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
-                              const Lex_ident_sys_st *name1,
-                              const Lex_ident_sys_st *name2,
+                              const LEX_CSTRING *name1,
+                              const LEX_CSTRING *name2,
                               Item *val)
 {
   sys_var *tmp;
@@ -9145,25 +8474,24 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 }
 
 
-bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
+bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name)
 {
   sp_name *spname= make_sp_name(thd, name);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
 
-bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name1,
-                                         const Lex_ident_sys_st *name2)
+bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name1,
+                                         const LEX_CSTRING *name2)
 {
   sp_name *spname= make_sp_name(thd, name1, name2);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
 
-bool LEX::call_statement_start(THD *thd,
-                               const Lex_ident_sys_st *db,
-                               const Lex_ident_sys_st *pkg,
-                               const Lex_ident_sys_st *proc)
+bool LEX::call_statement_start(THD *thd, const LEX_CSTRING &db,
+                                         const LEX_CSTRING &pkg,
+                                         const LEX_CSTRING &proc)
 {
   Database_qualified_name q_db_pkg(db, pkg);
   Database_qualified_name q_pkg_proc(pkg, proc);
@@ -9171,22 +8499,20 @@ bool LEX::call_statement_start(THD *thd,
 
   sql_command= SQLCOM_CALL;
 
-  if (check_db_name(reinterpret_cast<LEX_STRING*>
-                    (const_cast<LEX_CSTRING*>
-                     (static_cast<const LEX_CSTRING*>(db)))))
+  if (check_db_name((LEX_STRING*) const_cast<LEX_CSTRING*>(&db)))
   {
-    my_error(ER_WRONG_DB_NAME, MYF(0), db->str);
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
     return true;
   }
-  if (check_routine_name(pkg) ||
-      check_routine_name(proc))
+  if (check_routine_name(&pkg) ||
+      check_routine_name(&proc))
     return true;
 
   // Concat `pkg` and `name` to `pkg.name`
   LEX_CSTRING pkg_dot_proc;
   if (q_pkg_proc.make_qname(thd->mem_root, &pkg_dot_proc) ||
       check_ident_length(&pkg_dot_proc) ||
-      !(spname= new (thd->mem_root) sp_name(db, &pkg_dot_proc, true)))
+      !(spname= new (thd->mem_root) sp_name(&db, &pkg_dot_proc, true)))
     return true;
 
   sp_handler_package_function.add_used_routine(thd->lex, thd, spname);
@@ -9218,7 +8544,7 @@ sp_package *LEX::create_package_start(THD *thd,
   }
   if (unlikely(set_command_with_check(command, options)))
     return NULL;
-  if (sph->type() == SP_TYPE_PACKAGE_BODY)
+  if (sph->type() == TYPE_ENUM_PACKAGE_BODY)
   {
     /*
       If we start parsing a "CREATE PACKAGE BODY", we need to load
@@ -9293,13 +8619,16 @@ bool LEX::create_package_finalize(THD *thd,
 }
 
 
-bool LEX::add_grant_command(THD *thd, const List<LEX_COLUMN> &columns)
+bool LEX::add_grant_command(THD *thd, enum_sql_command sql_command_arg,
+                            stored_procedure_type type_arg)
 {
   if (columns.elements)
   {
     thd->parse_error();
     return true;
   }
+  sql_command= sql_command_arg,
+  type= type_arg;
   return false;
 }
 
@@ -9336,9 +8665,9 @@ bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table,
 {
   DBUG_ASSERT(field_name.str);
   Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
-                                                  table->db,
-                                                  table->alias,
-                                                  field_name);
+                                                  table->db.str,
+                                                  table->alias.str,
+                                                  &field_name);
   if (unlikely(!fld) || unlikely(item_list.push_back(fld)))
     return true;
 
@@ -9501,30 +8830,15 @@ Item *LEX::make_item_func_call_generic(THD *thd,
 }
 
 
-Item *LEX::make_item_func_call_native_or_parse_error(THD *thd,
-                                                     Lex_ident_cli_st &name,
-                                                     List<Item> *args)
-{
-  Create_func *builder= find_native_function_builder(thd, &name);
-  DBUG_EXECUTE_IF("make_item_func_call_native_simulate_not_found",
-                  builder= NULL;);
-  if (builder)
-    return builder->create_func(thd, &name, args);
-  thd->parse_error(ER_SYNTAX_ERROR, name.end());
-  return NULL;
-}
-
-
 Item *LEX::create_item_qualified_asterisk(THD *thd,
                                           const Lex_ident_sys_st *name)
 {
   Item *item;
   if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
-                                             null_clex_str, *name,
-                                             star_clex_str)))
+                                             NullS, name->str,
+                                             &star_clex_str)))
     return NULL;
-  current_select->parsing_place == IN_RETURNING ?
-              thd->lex->returning()->with_wild++ : current_select->with_wild++;
+  current_select->with_wild++;
   return item;
 }
 
@@ -9534,13 +8848,13 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
                                           const Lex_ident_sys_st *b)
 {
   Item *item;
-  Lex_ident_sys_st schema= thd->client_capabilities & CLIENT_NO_SCHEMA ?
-                           Lex_ident_sys() : *a;
+  const char* schema= thd->client_capabilities & CLIENT_NO_SCHEMA ?
+                      NullS : a->str;
   if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
-                                             schema, *b, star_clex_str)))
+                                             schema, b->str,
+                                             &star_clex_str)))
    return NULL;
-  current_select->parsing_place == IN_RETURNING ?
-            thd->lex->returning()->with_wild++ : current_select->with_wild++;
+  current_select->with_wild++;
   return item;
 }
 
@@ -9813,7 +9127,6 @@ void st_select_lex::add_statistics(SELECT_LEX_UNIT *unit)
 bool LEX::main_select_push(bool service)
 {
   DBUG_ENTER("LEX::main_select_push");
-  DBUG_PRINT("info", ("service: %u", service));
   current_select_number= ++thd->lex->stmt_lex->current_select_number;
   builtin_select.select_number= current_select_number;
   builtin_select.is_service_select= service;
@@ -10088,17 +9401,6 @@ LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
   return unit;
 }
 
-
-SELECT_LEX_UNIT *
-LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
-                                          SELECT_LEX *sel,
-                                          enum sub_select_type unit_type,
-                                          bool distinct)
-{
-  return
-    add_primary_to_query_expression_body(unit, sel, unit_type, distinct,
-                                         thd->variables.sql_mode & MODE_ORACLE);
-}
 
 /**
   Add query primary to a parenthesized query primary
@@ -10502,7 +9804,7 @@ bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
     It is done by transformer.
 
     The extracted condition is saved in cond_pushed_into_where of this select.
-    COND can remain not empty after the extraction of the conditions that can be
+    cond can remain un empty after the extraction of the condition that can be
     pushed into WHERE. It is saved in remaining_cond.
 
   @note
@@ -11305,89 +10607,6 @@ bool LEX::stmt_create_stored_function_start(const DDL_options_st &options,
 }
 
 
-bool LEX::stmt_drop_function(const DDL_options_st &options,
-                             const Lex_ident_sys_st &db,
-                             const Lex_ident_sys_st &name)
-{
-  if (unlikely(db.str && check_db_name((LEX_STRING*) &db)))
-  {
-    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
-    return true;
-  }
-  if (unlikely(sphead))
-  {
-    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
-    return true;
-  }
-  set_command(SQLCOM_DROP_FUNCTION, options);
-  spname= new (thd->mem_root) sp_name(&db, &name, true);
-  return spname == NULL;
-}
-
-
-bool LEX::stmt_drop_function(const DDL_options_st &options,
-                             const Lex_ident_sys_st &name)
-{
-  LEX_CSTRING db= {0, 0};
-  if (unlikely(sphead))
-  {
-    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
-    return true;
-  }
-  if (thd->db.str && unlikely(copy_db_to(&db)))
-    return true;
-  set_command(SQLCOM_DROP_FUNCTION, options);
-  spname= new (thd->mem_root) sp_name(&db, &name, false);
-  return spname == NULL;
-}
-
-
-bool LEX::stmt_drop_procedure(const DDL_options_st &options,
-                              sp_name *name)
-{
-  if (unlikely(sphead))
-  {
-    my_error(ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE");
-    return true;
-  }
-  set_command(SQLCOM_DROP_PROCEDURE, options);
-  spname= name;
-  return false;
-}
-
-
-bool LEX::stmt_alter_function_start(sp_name *name)
-{
-  if (unlikely(sphead))
-  {
-    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
-    return true;
-  }
-  if (main_select_push())
-    return true;
-  sp_chistics.init();
-  sql_command= SQLCOM_ALTER_FUNCTION;
-  spname= name;
-  return false;
-}
-
-
-bool LEX::stmt_alter_procedure_start(sp_name *name)
-{
-  if (unlikely(sphead))
-  {
-    my_error(ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE");
-    return true;
-  }
-  if (main_select_push())
-    return true;
-  sp_chistics.init();
-  sql_command= SQLCOM_ALTER_PROCEDURE;
-  spname= name;
-  return false;
-}
-
-
 Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
 {
   Spvar_definition *res;
@@ -11404,301 +10623,6 @@ Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
 }
 
 
-Item *
-Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item,
-                                                CHARSET_INFO *cs) const
-{
-  Item *tmp= create_typecast_item(thd, item, cs);
-  if (!tmp)
-  {
-    Name name= m_type_handler->name();
-    char buf[128];
-    size_t length= my_snprintf(buf, sizeof(buf), "CAST(expr AS %.*s)",
-                               (int) name.length(), name.ptr());
-    my_error(ER_UNKNOWN_OPERATOR, MYF(0),
-             ErrConvString(buf, length, system_charset_info).ptr());
-  }
-  return tmp;
-}
-
-
-void Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
-                                                 const char *length,
-                                                 uint32 flags)
-{
-  DBUG_ASSERT(!handler->is_unsigned());
-  if (flags & UNSIGNED_FLAG)
-    handler= handler->type_handler_unsigned();
-  set(handler, length, NULL);
-}
-
-
-bool LEX::set_field_type_udt(Lex_field_type_st *type,
-                             const LEX_CSTRING &name,
-                             const Lex_length_and_dec_st &attr)
-{
-  const Type_handler *h;
-  if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
-    return true;
-  type->set(h, attr);
-  charset= &my_charset_bin;
-  return false;
-}
-
-
-bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
-                             const LEX_CSTRING &name)
-{
-  const Type_handler *h;
-  if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
-    return true;
-  type->set(h);
-  charset= NULL;
-  return false;
-}
-
-
-bool sp_expr_lex::sp_repeat_loop_finalize(THD *thd)
-{
-  uint ip= sphead->instructions();
-  sp_label *lab= spcont->last_label();  /* Jumping back */
-  sp_instr_jump_if_not *i= new (thd->mem_root)
-    sp_instr_jump_if_not(ip, spcont, get_item(), lab->ip, this);
-  if (unlikely(i == NULL) ||
-      unlikely(sphead->add_instr(i)))
-    return true;
-  /* We can shortcut the cont_backpatch here */
-  i->m_cont_dest= ip+1;
-  return false;
-}
-
-
-bool sp_expr_lex::sp_if_expr(THD *thd)
-{
-  uint ip= sphead->instructions();
-  sp_instr_jump_if_not *i= new (thd->mem_root)
-                           sp_instr_jump_if_not(ip, spcont, get_item(), this);
-  return
-    (unlikely(i == NULL) ||
-    unlikely(sphead->push_backpatch(thd, i,
-                                    spcont->push_label(thd, &empty_clex_str,
-                                                       0))) ||
-    unlikely(sphead->add_cont_backpatch(i)) ||
-    unlikely(sphead->add_instr(i)));
-}
-
-
-bool LEX::sp_if_after_statements(THD *thd)
-{
-  uint ip= sphead->instructions();
-  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, spcont);
-  if (unlikely(i == NULL) ||
-      unlikely(sphead->add_instr(i)))
-    return true;
-  sphead->backpatch(spcont->pop_label());
-  sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0));
-  return false;
-}
-
-
-sp_condition_value *LEX::stmt_signal_value(const Lex_ident_sys_st &ident)
-{
-  sp_condition_value *cond;
-  /* SIGNAL foo cannot be used outside of stored programs */
-  if (unlikely(spcont == NULL))
-  {
-    my_error(ER_SP_COND_MISMATCH, MYF(0), ident.str);
-    return NULL;
-  }
-  cond= spcont->find_declared_or_predefined_condition(thd, &ident);
-  if (unlikely(cond == NULL))
-  {
-    my_error(ER_SP_COND_MISMATCH, MYF(0), ident.str);
-    return NULL;
-  }
-  bool bad= thd->variables.sql_mode & MODE_ORACLE ?
-            !cond->has_sql_state() :
-            cond->type != sp_condition_value::SQLSTATE;
-  if (unlikely(bad))
-  {
-    my_error(ER_SIGNAL_BAD_CONDITION_TYPE, MYF(0));
-    return NULL;
-  }
-  return cond;
-}
-
-
-bool LEX::add_table_foreign_key(const LEX_CSTRING *name,
-                                const LEX_CSTRING *constraint_name,
-                                Table_ident *ref_table_name,
-                                DDL_options ddl_options)
-{
-  Key *key= new (thd->mem_root) Foreign_key(name,
-                                            &last_key->columns,
-                                            constraint_name,
-                                            &ref_table_name->db,
-                                            &ref_table_name->table,
-                                            &ref_list,
-                                            fk_delete_opt,
-                                            fk_update_opt,
-                                            fk_match_option,
-                                            ddl_options);
-  if (unlikely(key == NULL))
-    return true;
-
-  /*
-    handle_if_exists_options() expects the two keys in this order:
-    the Foreign_key, followed by its auto-generated Key.
-  */
-  alter_info.key_list.push_back(key, thd->mem_root);
-  alter_info.key_list.push_back(last_key, thd->mem_root);
-
-  option_list= NULL;
-
-  /* Only used for ALTER TABLE. Ignored otherwise. */
-  alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
-
-  return false;
-}
-
-
-bool LEX::add_column_foreign_key(const LEX_CSTRING *name,
-                                 const LEX_CSTRING *constraint_name,
-                                 Table_ident *ref_table_name,
-                                 DDL_options ddl_options)
-{
-  if (last_field->vcol_info || last_field->vers_sys_field())
-  {
-    thd->parse_error();
-    return true;
-  }
-  if (unlikely(!(last_key= (new (thd->mem_root)
-                            Key(Key::MULTIPLE, constraint_name,
-                            HA_KEY_ALG_UNDEF, true, ddl_options)))))
-    return true;
-  Key_part_spec *key= new (thd->mem_root) Key_part_spec(name, 0);
-  if (unlikely(key == NULL))
-    return true;
-  last_key->columns.push_back(key, thd->mem_root);
-  if (ref_list.is_empty())
-  {
-    ref_list.push_back(key, thd->mem_root);
-  }
-  if (unlikely(add_table_foreign_key(constraint_name, constraint_name,
-                                     ref_table_name, ddl_options)))
-      return true;
-  option_list= NULL;
-
-  /* Only used for ALTER TABLE. Ignored otherwise. */
-  alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
-
-  return false;
-}
-
-
-bool LEX::stmt_grant_table(THD *thd,
-                           Grant_privilege *grant,
-                           const Lex_grant_object_name &ident,
-                           privilege_t grant_option)
-{
-  sql_command= SQLCOM_GRANT;
-  return
-    grant->set_object_name(thd, ident, current_select, grant_option) ||
-    !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_table(sql_command, *grant));
-}
-
-
-bool LEX::stmt_revoke_table(THD *thd,
-                            Grant_privilege *grant,
-                            const Lex_grant_object_name &ident)
-{
-  sql_command= SQLCOM_REVOKE;
-  return
-    grant->set_object_name(thd, ident, current_select, NO_ACL) ||
-    !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_table(sql_command, *grant));
-}
-
-
-bool LEX::stmt_grant_sp(THD *thd,
-                        Grant_privilege *grant,
-                        const Lex_grant_object_name &ident,
-                        const Sp_handler &sph,
-                        privilege_t grant_option)
-{
-  sql_command= SQLCOM_GRANT;
-  return
-    grant->set_object_name(thd, ident, current_select, grant_option) ||
-    add_grant_command(thd, grant->columns()) ||
-    !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_sp(sql_command,
-                                                      *grant, sph));
-}
-
-
-bool LEX::stmt_revoke_sp(THD *thd,
-                         Grant_privilege *grant,
-                         const Lex_grant_object_name &ident,
-                         const Sp_handler &sph)
-{
-  sql_command= SQLCOM_REVOKE;
-  return
-    grant->set_object_name(thd, ident, current_select, NO_ACL) ||
-    add_grant_command(thd, grant->columns()) ||
-    !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_sp(sql_command,
-                                                      *grant, sph));
-}
-
-
-bool LEX::stmt_grant_proxy(THD *thd, LEX_USER *user, privilege_t grant_option)
-{
-  users_list.push_front(user);
-  sql_command= SQLCOM_GRANT;
-  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_proxy(sql_command,
-                                                              grant_option));
-}
-
-
-bool LEX::stmt_revoke_proxy(THD *thd, LEX_USER *user)
-{
-  users_list.push_front(user);
-  sql_command= SQLCOM_REVOKE;
-  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_proxy(sql_command,
-                                                              NO_ACL));
-}
-
-
-LEX_USER *LEX::current_user_for_set_password(THD *thd)
-{
-  LEX_CSTRING pw= { STRING_WITH_LEN("password") };
-  if (unlikely(spcont && spcont->find_variable(&pw, false)))
-  {
-    my_error(ER_SP_BAD_VAR_SHADOW, MYF(0), pw.str);
-    return NULL;
-  }
-  LEX_USER *res;
-  if (unlikely(!(res= (LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
-    return NULL;
-  res->user= current_user;
-  return res;
-}
-
-
-bool LEX::sp_create_set_password_instr(THD *thd,
-                                       LEX_USER *user,
-                                       USER_AUTH *auth,
-                                       bool no_lookahead)
-{
-  user->auth= auth;
-  set_var_password *var= new (thd->mem_root) set_var_password(user);
-  if (unlikely(var == NULL) ||
-      unlikely(var_list.push_back(var, thd->mem_root)))
-    return true;
-  autocommit= true;
-  if (sphead)
-    sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
-  return sp_create_assignment_instr(thd, no_lookahead);
-}
-
-
 bool LEX::map_data_type(const Lex_ident_sys_st &schema_name,
                         Lex_field_type_st *type) const
 {
@@ -11712,30 +10636,16 @@ bool LEX::map_data_type(const Lex_ident_sys_st &schema_name,
     my_snprintf(buf, sizeof(buf), "%.*s.%.*s",
                 (int) schema_name.length, schema_name.str,
                 (int) type_name.length(), type_name.ptr());
+#if MYSQL_VERSION_ID > 100500
+#error Please remove the old code
     my_error(ER_UNKNOWN_DATA_TYPE, MYF(0), buf);
+#else
+    my_printf_error(ER_UNKNOWN_ERROR, "Unknown data type: '%-.64s'",
+                    MYF(0), buf);
+#endif
     return true;
   }
   const Type_handler *mapped= schema->map_data_type(thd, type->type_handler());
   type->set_handler(mapped);
   return false;
-}
-
-
-bool SELECT_LEX_UNIT::explainable() const
-{
-  /*
-    EXPLAIN/ANALYZE unit, when:
-    (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
-    (2) if it's a CTE - it's not hanging (needed for execution)
-    (3) if it's a derived - it's not merged
-    if it's not 1/2/3 - it's some weird internal thing, ignore it
-  */
-  return item ?
-           !item->eliminated :                        // (1)
-           with_element ?
-             derived && derived->derived_result &&
-               !with_element->is_hanging_recursive(): // (2)
-             derived ?
-               derived->is_materialized_derived() :   // (3)
-               false;
 }

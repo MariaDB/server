@@ -23,7 +23,7 @@
 #include "event_queue.h"
 #include "event_db_repository.h"
 #include "sql_connect.h"         // init_new_connection_handler_thread
-#include "sql_class.h"
+#include "sql_acl.h"             // SUPER_ACL
 
 /**
   @addtogroup Event_Scheduler
@@ -129,12 +129,11 @@ bool
 post_init_event_thread(THD *thd)
 {
   (void) init_new_connection_handler_thread();
-  if (init_thr_lock())
+  if (init_thr_lock() || thd->store_globals())
   {
     thd->cleanup();
     return TRUE;
   }
-  thd->store_globals();
   return FALSE;
 }
 
@@ -179,8 +178,8 @@ pre_init_event_thread(THD* thd)
 
   set_current_thd(thd);
   thd->client_capabilities= 0;
-  thd->security_ctx->master_access= NO_ACL;
-  thd->security_ctx->db_access= NO_ACL;
+  thd->security_ctx->master_access= 0;
+  thd->security_ctx->db_access= 0;
   thd->security_ctx->host_or_ip= (char*)my_localhost;
   my_net_init(&thd->net, NULL, thd, MYF(MY_THREAD_SPECIFIC));
   thd->security_ctx->set_user((char*)"event_scheduler");
@@ -293,15 +292,6 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
   DBUG_ASSERT(thd->m_digest == NULL);
   DBUG_ASSERT(thd->m_statement_psi == NULL);
 
-#ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_statement_locker_state state;
-  thd->m_statement_psi= MYSQL_START_STATEMENT(& state,
-                                              event->get_psi_info()->m_key,
-                                              event->dbname.str,
-                                              event->dbname.length,
-                                              thd->charset(), NULL);
-#endif
-
   thd->thread_stack= &my_stack;                // remember where our stack is
   res= post_init_event_thread(thd);
 
@@ -330,10 +320,7 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
                           job_data.definer.str,
                           job_data.dbname.str, job_data.name.str);
 end:
-#ifdef HAVE_PSI_STATEMENT_INTERFACE
-  MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
-  thd->m_statement_psi= NULL;
-#endif
+  DBUG_ASSERT(thd->m_statement_psi == NULL);
   DBUG_ASSERT(thd->m_digest == NULL);
   DBUG_PRINT("info", ("Done with Event %s.%s", event->dbname.str,
              event->name.str));
@@ -419,14 +406,13 @@ Event_scheduler::start(int *err_no)
 
     Same goes for transaction access mode. Set it to read-write for this thd.
   */
-  new_thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
+  new_thd->security_ctx->master_access |= SUPER_ACL;
   new_thd->variables.tx_read_only= false;
   new_thd->tx_read_only= false;
 
   /* This should not be marked with MY_THREAD_SPECIFIC */
   scheduler_param_value=
-    (struct scheduler_param *)my_malloc(key_memory_Event_scheduler_scheduler_param,
-                                        sizeof(struct scheduler_param), MYF(0));
+    (struct scheduler_param *)my_malloc(sizeof(struct scheduler_param), MYF(0));
   scheduler_param_value->thd= new_thd;
   scheduler_param_value->scheduler= this;
 
@@ -511,8 +497,6 @@ Event_scheduler::run(THD *thd)
     }
     DBUG_PRINT("info", ("state=%s", scheduler_states_names[state].str));
     free_root(thd->mem_root, MYF(0));
-    /* Ensure we don't have any open tables or table locks */
-    DBUG_ASSERT(thd->lock == 0);
   }
 
   LOCK_DATA();

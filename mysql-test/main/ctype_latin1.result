@@ -1527,12 +1527,12 @@ create table t1 as select concat(uuid()) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(36) DEFAULT NULL
+  `c1` varchar(36) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select coercibility(uuid()), coercibility(cast('a' as char character set latin1));
 coercibility(uuid())	coercibility(cast('a' as char character set latin1))
-5	2
+4	2
 select charset(concat(uuid(), cast('a' as char character set latin1)));
 charset(concat(uuid(), cast('a' as char character set latin1)))
 latin1
@@ -8309,7 +8309,7 @@ CONVERT(1, CHAR) IN ('100', '10', '1')
 # MDEV-9711 NO PAD Collatons
 #
 SET character_set_connection=latin1;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -8447,7 +8447,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -8585,8 +8585,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -8724,7 +8724,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -8862,7 +8862,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=Default;
 SET NAMES latin1;
 #
 # MDEV-14350 Index use with collation utf8mb4_unicode_nopad_ci on LIKE pattern with wrong results
@@ -8890,63 +8890,4 @@ a	b
 DROP TABLE t1;
 #
 # End of 10.2 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-20712 Wrong data type for CAST(@a AS BINARY) for a numeric variable
-#
-SET NAMES latin1;
-SET @a=2;
-CREATE OR REPLACE TABLE t1 AS SELECT CAST(1 AS BINARY), CAST(@a AS BINARY), CAST(@b:=3 AS BINARY);
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `CAST(1 AS BINARY)` varbinary(1) DEFAULT NULL,
-  `CAST(@a AS BINARY)` varbinary(20) DEFAULT NULL,
-  `CAST(@b:=3 AS BINARY)` varbinary(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-DROP TABLE t1;
-#
-# MDEV-8844 Unreadable control characters printed as is in warnings
-#
-SET NAMES latin1;
-SELECT CAST(_latin1 0x610062 AS INT);
-CAST(_latin1 0x610062 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\0000b'
-SELECT CAST(_latin1 0x610162 AS INT);
-CAST(_latin1 0x610162 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\0001b'
-SELECT CAST(_latin1 0x611F62 AS INT);
-CAST(_latin1 0x611F62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\001Fb'
-SELECT CAST(_latin1 0x617F62 AS INT);
-CAST(_latin1 0x617F62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a\007Fb'
-SELECT CAST(_latin1 0x612062 AS INT);
-CAST(_latin1 0x612062 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a b'
-SELECT CAST(_latin1 0x617E62 AS INT);
-CAST(_latin1 0x617E62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'a~b'
-SELECT CAST(_latin1 0x61FF62 AS INT);
-CAST(_latin1 0x61FF62 AS INT)
-0
-Warnings:
-Warning	1292	Truncated incorrect INTEGER value: 'aÿb'
-#
-# End of 10.5 tests
 #

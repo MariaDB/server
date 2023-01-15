@@ -9,9 +9,6 @@
 #
 #    The environment variables SEARCH_FILE and SEARCH_PATTERN must be set
 #    before sourcing this routine.
-#    SEARCH_TYPE can also be set to either NULL(default) or _gm_
-#    NULL is equivalent of using m/SEARCH_PATTERN/gs
-#    _gm_ is equivalent of using m/SEARCH_RANGE/gm
 #
 #    Optionally, SEARCH_RANGE can be set to the max number of bytes of the file
 #    to search. If negative, it will search that many bytes at the end of the
@@ -80,15 +77,7 @@ perl;
         close(FILE);
         $content.= $file_content;
     }
-    my @matches;
-    if (not defined($ENV{SEARCH_TYPE}))
-    {
-      @matches=($content =~ /$search_pattern/gs);
-    }
-    elsif($ENV{SEARCH_TYPE} == "_gm_")
-    {
-      @matches=($content =~ /$search_pattern/gm);
-    }
+    my @matches=($content =~ m/$search_pattern/gs);
     my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
 

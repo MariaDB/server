@@ -35,13 +35,24 @@ Created 4/18/1996 Heikki Tuuri
 #include "log0recv.h"
 #include "os0file.h"
 
-/** @return the DICT_HDR block, x-latched */
-buf_block_t *dict_hdr_get(mtr_t* mtr)
+/**********************************************************************//**
+Gets a pointer to the dictionary header and x-latches its page.
+@return pointer to the dictionary header, page x-latched */
+dict_hdr_t*
+dict_hdr_get(
+/*=========*/
+	mtr_t*	mtr)	/*!< in: mtr */
 {
-  buf_block_t *block= buf_page_get(page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO),
-				   0, RW_X_LATCH, mtr);
-  buf_block_dbg_add_level(block, SYNC_DICT_HEADER);
-  return block;
+	buf_block_t*	block;
+	dict_hdr_t*	header;
+
+	block = buf_page_get(page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO),
+			     0, RW_X_LATCH, mtr);
+	header = DICT_HDR + buf_block_get_frame(block);
+
+	buf_block_dbg_add_level(block, SYNC_DICT_HEADER);
+
+	return(header);
 }
 
 /**********************************************************************//**
@@ -56,41 +67,36 @@ dict_hdr_get_new_id(
 	ulint*			space_id)	/*!< out: space id
 						(not assigned if NULL) */
 {
+	dict_hdr_t*	dict_hdr;
 	ib_id_t		id;
 	mtr_t		mtr;
 
-	mtr.start();
-	buf_block_t* dict_hdr = dict_hdr_get(&mtr);
+	mtr_start(&mtr);
+	dict_hdr = dict_hdr_get(&mtr);
 
 	if (table_id) {
-		id = mach_read_from_8(DICT_HDR + DICT_HDR_TABLE_ID
-				      + dict_hdr->frame);
+		id = mach_read_from_8(dict_hdr + DICT_HDR_TABLE_ID);
 		id++;
-		mtr.write<8>(*dict_hdr, DICT_HDR + DICT_HDR_TABLE_ID
-			     + dict_hdr->frame, id);
+		mlog_write_ull(dict_hdr + DICT_HDR_TABLE_ID, id, &mtr);
 		*table_id = id;
 	}
 
 	if (index_id) {
-		id = mach_read_from_8(DICT_HDR + DICT_HDR_INDEX_ID
-				      + dict_hdr->frame);
+		id = mach_read_from_8(dict_hdr + DICT_HDR_INDEX_ID);
 		id++;
-		mtr.write<8>(*dict_hdr, DICT_HDR + DICT_HDR_INDEX_ID
-			     + dict_hdr->frame, id);
+		mlog_write_ull(dict_hdr + DICT_HDR_INDEX_ID, id, &mtr);
 		*index_id = id;
 	}
 
 	if (space_id) {
-		*space_id = mach_read_from_4(DICT_HDR + DICT_HDR_MAX_SPACE_ID
-					     + dict_hdr->frame);
+		*space_id = mach_read_from_4(dict_hdr + DICT_HDR_MAX_SPACE_ID);
 		if (fil_assign_new_space_id(space_id)) {
-			mtr.write<4>(*dict_hdr,
-				     DICT_HDR + DICT_HDR_MAX_SPACE_ID
-				     + dict_hdr->frame, *space_id);
+			mlog_write_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
+					 *space_id, MLOG_4BYTES, &mtr);
 		}
 	}
 
-	mtr.commit();
+	mtr_commit(&mtr);
 }
 
 /**********************************************************************//**
@@ -100,6 +106,7 @@ void
 dict_hdr_flush_row_id(void)
 /*=======================*/
 {
+	dict_hdr_t*	dict_hdr;
 	row_id_t	id;
 	mtr_t		mtr;
 
@@ -107,13 +114,13 @@ dict_hdr_flush_row_id(void)
 
 	id = dict_sys.row_id;
 
-	mtr.start();
+	mtr_start(&mtr);
 
-	buf_block_t* d = dict_hdr_get(&mtr);
+	dict_hdr = dict_hdr_get(&mtr);
 
-	mtr.write<8>(*d, DICT_HDR + DICT_HDR_ROW_ID + d->frame, id);
+	mlog_write_ull(dict_hdr + DICT_HDR_ROW_ID, id, &mtr);
 
-	mtr.commit();
+	mtr_commit(&mtr);
 }
 
 /*****************************************************************//**
@@ -127,6 +134,7 @@ dict_hdr_create(
 	mtr_t*	mtr)	/*!< in: mtr */
 {
 	buf_block_t*	block;
+	dict_hdr_t*	dict_header;
 	ulint		root_page_no;
 
 	ut_ad(mtr);
@@ -137,24 +145,26 @@ dict_hdr_create(
 	block = fseg_create(fil_system.sys_space,
 			    DICT_HDR + DICT_HDR_FSEG_HEADER, mtr);
 
-	ut_a(block->page.id() == page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO));
+	ut_a(DICT_HDR_PAGE_NO == block->page.id.page_no());
 
-	buf_block_t* d = dict_hdr_get(mtr);
+	dict_header = dict_hdr_get(mtr);
 
 	/* Start counting row, table, index, and tree ids from
 	DICT_HDR_FIRST_ID */
-	mtr->write<8>(*d, DICT_HDR + DICT_HDR_ROW_ID + d->frame,
-		      DICT_HDR_FIRST_ID);
-	mtr->write<8>(*d, DICT_HDR + DICT_HDR_TABLE_ID + d->frame,
-		      DICT_HDR_FIRST_ID);
-	mtr->write<8>(*d, DICT_HDR + DICT_HDR_INDEX_ID + d->frame,
-		      DICT_HDR_FIRST_ID);
+	mlog_write_ull(dict_header + DICT_HDR_ROW_ID,
+		       DICT_HDR_FIRST_ID, mtr);
 
-	ut_ad(!mach_read_from_4(DICT_HDR + DICT_HDR_MAX_SPACE_ID + d->frame));
+	mlog_write_ull(dict_header + DICT_HDR_TABLE_ID,
+		       DICT_HDR_FIRST_ID, mtr);
+
+	mlog_write_ull(dict_header + DICT_HDR_INDEX_ID,
+		       DICT_HDR_FIRST_ID, mtr);
+
+	ut_ad(mach_read_from_4(dict_header + DICT_HDR_MAX_SPACE_ID) == 0);
 
 	/* Obsolete, but we must initialize it anyway. */
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_MIX_ID_LOW + d->frame,
-		      DICT_HDR_FIRST_ID);
+	mlog_write_ulint(dict_header + DICT_HDR_MIX_ID_LOW,
+			 DICT_HDR_FIRST_ID, MLOG_4BYTES, mtr);
 
 	/* Create the B-tree roots for the clustered indexes of the basic
 	system tables */
@@ -162,56 +172,58 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLES_ID,
-				  nullptr, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_TABLES + d->frame, root_page_no);
+	mlog_write_ulint(dict_header + DICT_HDR_TABLES, root_page_no,
+			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLE_IDS_ID,
-				  nullptr, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_TABLE_IDS + d->frame,
-		      root_page_no);
+	mlog_write_ulint(dict_header + DICT_HDR_TABLE_IDS, root_page_no,
+			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_COLUMNS_ID,
-				  nullptr, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_COLUMNS + d->frame,
-		      root_page_no);
+	mlog_write_ulint(dict_header + DICT_HDR_COLUMNS, root_page_no,
+			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_INDEXES_ID,
-				  nullptr, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_INDEXES + d->frame,
-		      root_page_no);
+	mlog_write_ulint(dict_header + DICT_HDR_INDEXES, root_page_no,
+			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_FIELDS_ID,
-				  nullptr, mtr);
+				  dict_ind_redundant, mtr);
 	if (root_page_no == FIL_NULL) {
 
 		return(FALSE);
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_FIELDS + d->frame, root_page_no);
+	mlog_write_ulint(dict_header + DICT_HDR_FIELDS, root_page_no,
+			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
 
 	return(TRUE);
@@ -227,6 +239,7 @@ dict_boot(void)
 {
 	dict_table_t*	table;
 	dict_index_t*	index;
+	dict_hdr_t*	dict_hdr;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
 
@@ -258,7 +271,7 @@ dict_boot(void)
 	mutex_enter(&dict_sys.mutex);
 
 	/* Get the dictionary header */
-	const byte* dict_hdr = &dict_hdr_get(&mtr)->frame[DICT_HDR];
+	dict_hdr = dict_hdr_get(&mtr);
 
 	/* Because we only write new row ids to disk-based data structure
 	(dictionary header) when it is divisible by
@@ -273,11 +286,6 @@ dict_boot(void)
 	dict_sys.row_id = DICT_HDR_ROW_ID_WRITE_MARGIN
 		+ ut_uint64_align_up(mach_read_from_8(dict_hdr + DICT_HDR_ROW_ID),
 				     DICT_HDR_ROW_ID_WRITE_MARGIN);
-	if (ulint max_space_id = mach_read_from_4(dict_hdr
-						  + DICT_HDR_MAX_SPACE_ID)) {
-		max_space_id--;
-		fil_assign_new_space_id(&max_space_id);
-	}
 
 	/* Insert into the dictionary cache the descriptions of the basic
 	system tables */
@@ -313,21 +321,21 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "NAME", 0);
 
 	index->id = DICT_TABLES_ID;
-	dberr_t err = dict_index_add_to_cache(
+	dberr_t error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLES));
-	ut_a(err == DB_SUCCESS);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
-	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
-		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
+	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
+		unsigned(table->indexes.start->n_nullable));
 
 	/*-------------------------*/
 	index = dict_mem_index_create(table, "ID_IND", DICT_UNIQUE, 1);
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_TABLE_IDS_ID;
-	err = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLE_IDS));
-	ut_a(err == DB_SUCCESS);
+	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_COLUMNS", fil_system.sys_space,
@@ -355,12 +363,12 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_COLUMNS_ID;
-	err = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_COLUMNS));
-	ut_a(err == DB_SUCCESS);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
-	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
-		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
+	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
+		unsigned(table->indexes.start->n_nullable));
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_INDEXES", fil_system.sys_space,
@@ -398,12 +406,12 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_INDEXES_ID;
-	err = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_INDEXES));
-	ut_a(err == DB_SUCCESS);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
-	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
-		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
+	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
+		unsigned(table->indexes.start->n_nullable));
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_FIELDS", fil_system.sys_space,
@@ -427,12 +435,12 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_FIELDS_ID;
-	err = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_FIELDS));
-	ut_a(err == DB_SUCCESS);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
-	table->indexes.start->n_core_null_bytes = static_cast<uint8_t>(
-		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
+	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
+		unsigned(table->indexes.start->n_nullable));
 
 	mtr_commit(&mtr);
 
@@ -440,17 +448,36 @@ dict_boot(void)
 
 	/* Initialize the insert buffer table and index for each tablespace */
 
+	dberr_t	err = DB_SUCCESS;
+
 	err = ibuf_init_at_db_start();
 
-	if (err == DB_SUCCESS
-	    || srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
-		err = DB_SUCCESS;
-		/* Load definitions of other indexes on system tables */
+	if (err == DB_SUCCESS) {
+		if (srv_read_only_mode
+		    && srv_force_recovery != SRV_FORCE_NO_LOG_REDO
+		    && !ibuf_is_empty()) {
 
-		dict_load_sys_table(dict_sys.sys_tables);
-		dict_load_sys_table(dict_sys.sys_columns);
-		dict_load_sys_table(dict_sys.sys_indexes);
-		dict_load_sys_table(dict_sys.sys_fields);
+			if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
+				ib::error() << "Change buffer must be empty when"
+					" --innodb-read-only is set!"
+					"You can try to recover the database with innodb_force_recovery=5";
+
+				err = DB_ERROR;
+			} else {
+				ib::warn() << "Change buffer not empty when --innodb-read-only "
+					"is set! but srv_force_recovery = " << srv_force_recovery
+					   << " , ignoring.";
+			}
+		}
+
+		if (err == DB_SUCCESS) {
+			/* Load definitions of other indexes on system tables */
+
+			dict_load_sys_table(dict_sys.sys_tables);
+			dict_load_sys_table(dict_sys.sys_columns);
+			dict_load_sys_table(dict_sys.sys_indexes);
+			dict_load_sys_table(dict_sys.sys_fields);
+		}
 	}
 
 	mutex_exit(&dict_sys.mutex);

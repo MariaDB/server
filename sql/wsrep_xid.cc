@@ -33,24 +33,20 @@
 #define WSREP_XID_VERSION_OFFSET WSREP_XID_PREFIX_LEN
 #define WSREP_XID_VERSION_1 'd'
 #define WSREP_XID_VERSION_2 'e'
-#define WSREP_XID_VERSION_3 'f'
 #define WSREP_XID_UUID_OFFSET 8
 #define WSREP_XID_SEQNO_OFFSET (WSREP_XID_UUID_OFFSET + sizeof(wsrep_uuid_t))
-#define WSREP_XID_GTRID_LEN_V_1_2 (WSREP_XID_SEQNO_OFFSET + sizeof(wsrep_seqno_t))
-#define WSREP_XID_RPL_GTID_OFFSET (WSREP_XID_SEQNO_OFFSET + sizeof(wsrep_seqno_t))
-#define WSREP_XID_GTRID_LEN_V_3 (WSREP_XID_RPL_GTID_OFFSET + sizeof(wsrep_server_gtid_t))
+#define WSREP_XID_GTRID_LEN (WSREP_XID_SEQNO_OFFSET + sizeof(wsrep_seqno_t))
 
-void wsrep_xid_init(XID* xid, const wsrep::gtid& wsgtid, const wsrep_server_gtid_t& gtid)
+void wsrep_xid_init(XID* xid, const wsrep::gtid& wsgtid)
 {
   xid->formatID= 1;
-  xid->gtrid_length= WSREP_XID_GTRID_LEN_V_3;
+  xid->gtrid_length= WSREP_XID_GTRID_LEN;
   xid->bqual_length= 0;
   memset(xid->data, 0, sizeof(xid->data));
   memcpy(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN);
-  xid->data[WSREP_XID_VERSION_OFFSET]= WSREP_XID_VERSION_3;
+  xid->data[WSREP_XID_VERSION_OFFSET]= WSREP_XID_VERSION_2;
   memcpy(xid->data + WSREP_XID_UUID_OFFSET,  wsgtid.id().data(),sizeof(wsrep::id));
   int8store(xid->data + WSREP_XID_SEQNO_OFFSET, wsgtid.seqno().get());
-  memcpy(xid->data + WSREP_XID_RPL_GTID_OFFSET, &gtid, sizeof(wsrep_server_gtid_t));
 }
 
 extern "C"
@@ -58,14 +54,11 @@ int wsrep_is_wsrep_xid(const void* xid_ptr)
 {
   const XID* xid= static_cast<const XID*>(xid_ptr);
   return (xid->formatID      == 1                   &&
+          xid->gtrid_length  == WSREP_XID_GTRID_LEN &&
           xid->bqual_length  == 0                   &&
-          xid->gtrid_length  >= static_cast<long>(WSREP_XID_GTRID_LEN_V_1_2) &&
-          !memcmp(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN)      &&
-          (((xid->data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_1   ||
-             xid->data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_2)  &&
-            xid->gtrid_length  == WSREP_XID_GTRID_LEN_V_1_2)              ||
-           (xid->data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_3    &&
-            xid->gtrid_length  == WSREP_XID_GTRID_LEN_V_3)));
+          !memcmp(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN) &&
+          (xid->data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_1 ||
+           xid->data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_2));
 }
 
 const unsigned char* wsrep_xid_uuid(const xid_t* xid)
@@ -97,7 +90,6 @@ long long wsrep_xid_seqno(const xid_t* xid)
       memcpy(&ret, xid->data + WSREP_XID_SEQNO_OFFSET, sizeof ret);
       break;
     case WSREP_XID_VERSION_2:
-    case WSREP_XID_VERSION_3:
       ret= sint8korr(xid->data + WSREP_XID_SEQNO_OFFSET);
       break;
     default:
@@ -135,10 +127,10 @@ bool wsrep_set_SE_checkpoint(XID& xid)
                         &xid);
 }
 
-bool wsrep_set_SE_checkpoint(const wsrep::gtid& wsgtid, const wsrep_server_gtid_t& gtid)
+bool wsrep_set_SE_checkpoint(const wsrep::gtid& wsgtid)
 {
   XID xid;
-  wsrep_xid_init(&xid, wsgtid, gtid);
+  wsrep_xid_init(&xid, wsgtid);
   return wsrep_set_SE_checkpoint(xid);
 }
 
@@ -166,59 +158,28 @@ bool wsrep_get_SE_checkpoint(XID& xid)
                         &xid);
 }
 
-static bool wsrep_get_SE_checkpoint_common(XID& xid)
+wsrep::gtid wsrep_get_SE_checkpoint()
 {
+  XID xid;
   xid.null();
 
   if (wsrep_get_SE_checkpoint(xid))
   {
-    return FALSE;
+    return wsrep::gtid();
   }
 
   if (xid.is_null())
   {
-    return FALSE;
+    return wsrep::gtid();
   }
 
   if (!wsrep_is_wsrep_xid(&xid))
   {
     WSREP_WARN("Read non-wsrep XID from storage engines.");
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-template<>
-wsrep::gtid wsrep_get_SE_checkpoint()
-{
-  XID xid;
-
-  if (!wsrep_get_SE_checkpoint_common(xid))
-  {
     return wsrep::gtid();
   }
 
   return wsrep::gtid(wsrep_xid_uuid(xid),wsrep_xid_seqno(xid));
-}
-
-template<>
-wsrep_server_gtid_t wsrep_get_SE_checkpoint()
-{
-  XID xid;
-  wsrep_server_gtid_t gtid= {0,0,0};
-
-  if (!wsrep_get_SE_checkpoint_common(xid))
-  {
-    return gtid;
-  }
-
-  if (xid.data[WSREP_XID_VERSION_OFFSET] == WSREP_XID_VERSION_3)
-  {
-    memcpy(&gtid, &xid.data[WSREP_XID_RPL_GTID_OFFSET], sizeof(wsrep_server_gtid_t));
-  }
-
-  return gtid;
 }
 
 /*

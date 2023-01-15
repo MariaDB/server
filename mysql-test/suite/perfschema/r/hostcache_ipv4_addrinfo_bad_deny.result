@@ -24,7 +24,7 @@ SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_bad_ipv4";
 ERROR HY000: Host '192.0.2.4' is not allowed to connect to this MariaDB server
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	NULL
 HOST_VALIDATED	YES
@@ -54,7 +54,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR HY000: Host '192.0.2.4' is not allowed to connect to this MariaDB server
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	NULL
 HOST_VALIDATED	YES

@@ -9,7 +9,7 @@
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
---echo # Testing mysql_upgrade with TABLE performance_schema.user_table
+--echo "Testing mysql_upgrade with TABLE performance_schema.user_table"
 
 create table test.user_table(a int);
 

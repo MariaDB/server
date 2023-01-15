@@ -105,7 +105,22 @@ ibool
 que_thr_stop(
 /*=========*/
 	que_thr_t*	thr);	/*!< in: query thread */
-
+/**********************************************************************//**
+Moves a thread from another state to the QUE_THR_RUNNING state. Increments
+the n_active_thrs counters of the query graph and transaction. */
+void
+que_thr_move_to_run_state_for_mysql(
+/*================================*/
+	que_thr_t*	thr,	/*!< in: an query thread */
+	trx_t*		trx);	/*!< in: transaction */
+/**********************************************************************//**
+A patch for MySQL used to 'stop' a dummy query thread used in MySQL
+select, when there is no error or lock wait. */
+void
+que_thr_stop_for_mysql_no_error(
+/*============================*/
+	que_thr_t*	thr,	/*!< in: query thread */
+	trx_t*		trx);	/*!< in: transaction */
 /**********************************************************************//**
 A patch for MySQL used to 'stop' a dummy query thread used in MySQL. The
 query thread is stopped and made inactive, except in the case where
@@ -309,10 +324,16 @@ trx_t::mutex with the exceptions named below */
 
 struct que_thr_t{
 	que_common_t	common;		/*!< type: QUE_NODE_THR */
+	ulint		magic_n;	/*!< magic number to catch memory
+					corruption */
 	que_node_t*	child;		/*!< graph child node */
 	que_t*		graph;		/*!< graph where this node belongs */
 	que_thr_state_t	state;		/*!< state of the query thread */
-	bool		is_active;	/*!< whether the thread is active */
+	ibool		is_active;	/*!< TRUE if the thread has been set
+					to the run state in
+					que_thr_move_to_run_state, but not
+					deactivated in
+					que_thr_dec_reference_count */
 	/*------------------------------*/
 	/* The following fields are private to the OS thread executing the
 	query thread, and are not protected by any mutex: */
@@ -344,39 +365,23 @@ struct que_thr_t{
 	row_prebuilt_t*	prebuilt;	/*!< prebuilt structure processed by
 					the query thread */
 
-#ifdef UNIV_DEBUG
-  /** Change the 'active' status */
-  inline void set_active(bool active);
-#endif
-  /** Transition to the QUE_THR_RUNNING state. */
-  inline void start_running()
-  {
-    ut_d(if (!is_active) set_active(true));
-    is_active= true;
-    state= QUE_THR_RUNNING;
-  }
-
-  /** Stop query execution when there is no error or lock wait. */
-  void stop_no_error()
-  {
-    ut_ad(is_active);
-    ut_d(set_active(false));
-    state= QUE_THR_COMPLETED;
-    is_active= false;
-  }
+	/** a slot of srv_sys.sys_threads, for DEBUG_SYNC in purge thread */
+	ut_d(srv_slot_t* thread_slot;)
 };
+
+#define QUE_THR_MAGIC_N		8476583
+#define QUE_THR_MAGIC_FREED	123461526
 
 /* Query graph fork node: its fields are protected by the query thread mutex */
 struct que_fork_t{
 	que_common_t	common;		/*!< type: QUE_NODE_FORK */
 	que_t*		graph;		/*!< query graph of this node */
 	ulint		fork_type;	/*!< fork type */
-#ifdef UNIV_DEBUG
-  /** For the query graph root, updated in set_active() */
-  ulint n_active_thrs;
-  /** Change the 'active' status */
-  void set_active(bool active);
-#endif
+	ulint		n_active_thrs;	/*!< if this is the root of a graph, the
+					number query threads that have been
+					started in que_thr_move_to_run_state
+					but for which que_thr_dec_refer_count
+					has not yet been called */
 	trx_t*		trx;		/*!< transaction: this is set only in
 					the root node */
 	ulint		state;		/*!< state of the fork node */
@@ -401,10 +406,6 @@ struct que_fork_t{
 					created */
 
 };
-
-#ifdef UNIV_DEBUG
-inline void que_thr_t::set_active(bool active) { graph->set_active(active); };
-#endif
 
 /* Query fork (or graph) types */
 #define QUE_FORK_SELECT_NON_SCROLL	1	/* forward-only cursor */

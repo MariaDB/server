@@ -1,4 +1,4 @@
-/* Copyright 2018-2022 Codership Oy <info@codership.com>
+/* Copyright 2018-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,13 +15,13 @@
 
 #include "wsrep_client_service.h"
 #include "wsrep_high_priority_service.h"
+#include "wsrep_applier.h" /* wsrep_apply_events() */
 #include "wsrep_binlog.h"  /* wsrep_dump_rbr_buf() */
 #include "wsrep_schema.h"  /* remove_fragments() */
 #include "wsrep_thd.h"
 #include "wsrep_xid.h"
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
-#include "wsrep_mysqld.h"
 
 #include "sql_base.h"    /* close_temporary_table() */
 #include "sql_class.h"   /* THD */
@@ -354,8 +354,7 @@ int Wsrep_client_service::bf_rollback()
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
   if (m_thd->locked_tables_mode && m_thd->lock)
   {
-    if (m_thd->locked_tables_list.unlock_locked_tables(m_thd))
-      ret= 1;
+    m_thd->locked_tables_list.unlock_locked_tables(m_thd);
     m_thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
   }
   if (m_thd->global_read_lock.is_acquired())

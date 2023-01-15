@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,11 +28,21 @@ Created Apr 26, 2012 Vasil Dimov
 #define dict0stats_bg_h
 
 #include "dict0types.h"
+#include "os0event.h"
 #include "os0thread.h"
+
+/** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
+or shutdown. Not protected by any mutex. */
+extern os_event_t	dict_stats_event;
 
 #ifdef HAVE_PSI_INTERFACE
 extern mysql_pfs_key_t	dict_stats_recalc_pool_mutex_key;
 #endif /* HAVE_PSI_INTERFACE */
+
+#ifdef UNIV_DEBUG
+/** Value of MySQL global used to disable dict_stats thread. */
+extern my_bool		innodb_dict_stats_disabled_debug;
+#endif /* UNIV_DEBUG */
 
 /*****************************************************************//**
 Delete a given table from the auto recalc pool.
@@ -89,21 +99,40 @@ dict_stats_wait_bg_to_stop_using_table(
 				unlocking/locking the data dict */
 /*****************************************************************//**
 Initialize global variables needed for the operation of dict_stats_thread().
-Must be called before dict_stats task is started. */
-void dict_stats_init();
+Must be called before dict_stats_thread() is started. */
+void
+dict_stats_thread_init();
+/*====================*/
 
 /*****************************************************************//**
 Free resources allocated by dict_stats_thread_init(), must be called
-after dict_stats task has exited. */
-void dict_stats_deinit();
+after dict_stats_thread() has exited. */
+void
+dict_stats_thread_deinit();
+/*======================*/
 
-/** Start the dict stats timer. */
-void dict_stats_start();
+#ifdef UNIV_DEBUG
+/** Disables dict stats thread. It's used by:
+	SET GLOBAL innodb_dict_stats_disabled_debug = 1 (0).
+@param[in]	save		immediate result from check function */
+void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
+				      const void* save);
+#endif /* UNIV_DEBUG */
 
-/** Shut down the dict_stats timer. */
-void dict_stats_shutdown();
+/*****************************************************************//**
+This is the thread for background stats gathering. It pops tables, from
+the auto recalc list and proceeds them, eventually recalculating their
+statistics.
+@return this function does not return, it calls os_thread_exit() */
+extern "C"
+os_thread_ret_t
+DECLARE_THREAD(dict_stats_thread)(
+/*==============================*/
+	void*	arg);	/*!< in: a dummy parameter
+			required by os_thread_create */
 
-/** Reschedule dict stats timer to run now. */
-void dict_stats_schedule_now();
+/** Shut down the dict_stats_thread. */
+void
+dict_stats_shutdown();
 
 #endif /* dict0stats_bg_h */

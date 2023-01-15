@@ -51,15 +51,15 @@
 #define SPIDER_SYS_XA_COL_CNT 5
 #define SPIDER_SYS_XA_PK_COL_CNT 3
 #define SPIDER_SYS_XA_IDX1_COL_CNT 1
-#define SPIDER_SYS_XA_MEMBER_COL_CNT 19
+#define SPIDER_SYS_XA_MEMBER_COL_CNT 18
 #define SPIDER_SYS_XA_MEMBER_PK_COL_CNT 6
-#define SPIDER_SYS_TABLES_COL_CNT 26
+#define SPIDER_SYS_TABLES_COL_CNT 25
 #define SPIDER_SYS_TABLES_PK_COL_CNT 3
 #define SPIDER_SYS_TABLES_IDX1_COL_CNT 1
 #define SPIDER_SYS_TABLES_UIDX1_COL_CNT 3
-#define SPIDER_SYS_LINK_MON_TABLE_COL_CNT 20
+#define SPIDER_SYS_LINK_MON_TABLE_COL_CNT 19
 #define SPIDER_SYS_LINK_FAILED_TABLE_COL_CNT 4
-#define SPIDER_SYS_XA_FAILED_TABLE_COL_CNT 22
+#define SPIDER_SYS_XA_FAILED_TABLE_COL_CNT 21
 #define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_COL_CNT 7
 #define SPIDER_SYS_TABLE_STS_COL_CNT 11
 #define SPIDER_SYS_TABLE_STS_PK_COL_CNT 2
@@ -86,12 +86,13 @@ public:
   uint link_id_length;
 };
 
+#if MYSQL_VERSION_ID < 50500
 TABLE *spider_open_sys_table(
   THD *thd,
   const char *table_name,
   int table_name_length,
   bool write,
-  SPIDER_Open_tables_backup *open_tables_backup,
+  Open_tables_state *open_tables_backup,
   bool need_lock,
   int *error_num
 );
@@ -99,27 +100,42 @@ TABLE *spider_open_sys_table(
 void spider_close_sys_table(
   THD *thd,
   TABLE *table,
-  SPIDER_Open_tables_backup *open_tables_backup,
+  Open_tables_state *open_tables_backup,
+  bool need_lock
+);
+#else
+TABLE *spider_open_sys_table(
+  THD *thd,
+  const char *table_name,
+  int table_name_length,
+  bool write,
+  Open_tables_backup *open_tables_backup,
+  bool need_lock,
+  int *error_num
+);
+
+void spider_close_sys_table(
+  THD *thd,
+  TABLE *table,
+  Open_tables_backup *open_tables_backup,
   bool need_lock
 );
 
-#if MYSQL_VERSION_ID < 50500
-#else
-bool spider_sys_open_and_lock_tables(
+bool spider_sys_open_tables(
   THD *thd,
   TABLE_LIST **tables,
-  SPIDER_Open_tables_backup *open_tables_backup
+  Open_tables_backup *open_tables_backup
 );
 
 TABLE *spider_sys_open_table(
   THD *thd,
   TABLE_LIST *tables,
-  SPIDER_Open_tables_backup *open_tables_backup
+  Open_tables_backup *open_tables_backup
 );
 
 void spider_sys_close_table(
   THD *thd,
-  SPIDER_Open_tables_backup *open_tables_backup
+  Open_tables_backup *open_tables_backup
 );
 #endif
 
@@ -256,6 +272,11 @@ void spider_store_tables_connect_info(
 void spider_store_tables_link_status(
   TABLE *table,
   long link_status
+);
+
+void spider_store_link_chk_server_id(
+  TABLE *table,
+  uint32 server_id
 );
 
 void spider_store_binlog_pos_failed_link_idx(

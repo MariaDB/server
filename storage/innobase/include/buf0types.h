@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2019, 2022, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,20 +24,41 @@ The database buffer pool global types for the directory
 Created 11/17/1995 Heikki Tuuri
 *******************************************************/
 
-#pragma once
-#include "univ.i"
+#ifndef buf0types_h
+#define buf0types_h
+
+#include "os0event.h"
+#include "ut0ut.h"
 
 /** Buffer page (uncompressed or compressed) */
 class buf_page_t;
 /** Buffer block for which an uncompressed page exists */
 struct buf_block_t;
+/** Buffer pool chunk comprising buf_block_t */
+struct buf_chunk_t;
+/** Buffer pool comprising buf_chunk_t */
+struct buf_pool_t;
 /** Buffer pool statistics struct */
 struct buf_pool_stat_t;
 /** Buffer pool buddy statistics struct */
 struct buf_buddy_stat_t;
+/** Doublewrite memory struct */
+struct buf_dblwr_t;
+/** Flush observer for bulk create index */
+class FlushObserver;
 
 /** A buffer frame. @see page_t */
 typedef	byte	buf_frame_t;
+
+/** Flags for flush types */
+enum buf_flush_t {
+	BUF_FLUSH_LRU = 0,		/*!< flush via the LRU list */
+	BUF_FLUSH_LIST,			/*!< flush via the flush list
+					of dirty blocks */
+	BUF_FLUSH_SINGLE_PAGE,		/*!< flush via the LRU list
+					but only a single page */
+	BUF_FLUSH_N_TYPES		/*!< index of last element + 1  */
+};
 
 /** Flags for io_fix types */
 enum buf_io_fix {
@@ -114,114 +135,98 @@ this must be equal to srv_page_size */
 /* @} */
 
 /** Page identifier. */
-class page_id_t
-{
+class page_id_t {
 public:
-  /** Constructor from (space, page_no).
-  @param[in]	space	tablespace id
-  @param[in]	page_no	page number */
-  constexpr page_id_t(ulint space, uint32_t page_no) :
-    m_id(uint64_t{space} << 32 | page_no) {}
 
-  constexpr page_id_t(uint64_t id) : m_id(id) {}
-  constexpr bool operator==(const page_id_t& rhs) const
-  { return m_id == rhs.m_id; }
-  constexpr bool operator!=(const page_id_t& rhs) const
-  { return m_id != rhs.m_id; }
-  constexpr bool operator<(const page_id_t& rhs) const
-  { return m_id < rhs.m_id; }
-  constexpr bool operator>(const page_id_t& rhs) const
-  { return m_id > rhs.m_id; }
-  constexpr bool operator<=(const page_id_t& rhs) const
-  { return m_id <= rhs.m_id; }
-  constexpr bool operator>=(const page_id_t& rhs) const
-  { return m_id >= rhs.m_id; }
-  page_id_t &operator--() { ut_ad(page_no()); m_id--; return *this; }
-  page_id_t &operator++()
-  {
-    ut_ad(page_no() < 0xFFFFFFFFU);
-    m_id++;
-    return *this;
-  }
-  page_id_t operator-(uint32_t i) const
-  {
-    ut_ad(page_no() >= i);
-    return page_id_t(m_id - i);
-  }
-  page_id_t operator+(uint32_t i) const
-  {
-    ut_ad(page_no() < ~i);
-    return page_id_t(m_id + i);
-  }
+	/** Constructor from (space, page_no).
+	@param[in]	space	tablespace id
+	@param[in]	page_no	page number */
+	page_id_t(ulint space, ulint page_no)
+		: m_space(uint32_t(space)), m_page_no(uint32(page_no))
+	{
+		ut_ad(space <= 0xFFFFFFFFU);
+		ut_ad(page_no <= 0xFFFFFFFFU);
+	}
 
-  /** Retrieve the tablespace id.
-  @return tablespace id */
-  constexpr uint32_t space() const { return static_cast<uint32_t>(m_id >> 32); }
+	bool operator==(const page_id_t& rhs) const
+	{
+		return m_space == rhs.m_space && m_page_no == rhs.m_page_no;
+	}
+	bool operator!=(const page_id_t& rhs) const { return !(*this == rhs); }
 
-  /** Retrieve the page number.
-  @return page number */
-  constexpr uint32_t page_no() const { return static_cast<uint32_t>(m_id); }
+	bool operator<(const page_id_t& rhs) const
+	{
+		if (m_space == rhs.m_space) {
+			return m_page_no < rhs.m_page_no;
+		}
 
-  /** Retrieve the fold value.
-  @return fold value */
-  constexpr ulint fold() const
-  { return (ulint{space()} << 20) + space() + page_no(); }
+		return m_space < rhs.m_space;
+	}
 
-  /** Reset the page number only.
-  @param[in]	page_no	page number */
-  void set_page_no(uint32_t page_no)
-  {
-    m_id= (m_id & ~uint64_t{0} << 32) | page_no;
-  }
+	/** Retrieve the tablespace id.
+	@return tablespace id */
+	uint32_t space() const { return m_space; }
 
-  constexpr ulonglong raw() const { return m_id; }
+	/** Retrieve the page number.
+	@return page number */
+	uint32_t page_no() const { return m_page_no; }
+
+	/** Retrieve the fold value.
+	@return fold value */
+	ulint fold() const { return (m_space << 20) + m_space + m_page_no; }
+
+	/** Reset the page number only.
+	@param[in]	page_no	page number */
+	void set_page_no(ulint page_no)
+	{
+		m_page_no = uint32_t(page_no);
+
+		ut_ad(page_no <= 0xFFFFFFFFU);
+	}
+
+	/** Set the FIL_NULL for the space and page_no */
+	void set_corrupt_id()
+	{
+		m_space = m_page_no = ULINT32_UNDEFINED;
+	}
 
 private:
-  /** The page identifier */
-  uint64_t m_id;
+
+	/** Tablespace id. */
+	uint32_t	m_space;
+
+	/** Page number. */
+	uint32_t	m_page_no;
+
+	/** Declare the overloaded global operator<< as a friend of this
+	class. Refer to the global declaration for further details.  Print
+	the given page_id_t object.
+	@param[in,out]	out	the output stream
+	@param[in]	page_id	the page_id_t object to be printed
+	@return the output stream */
+        friend
+        std::ostream&
+        operator<<(
+                std::ostream&           out,
+                const page_id_t        page_id);
 };
 
-/** A 64KiB buffer of NUL bytes, for use in assertions and checks,
+/** A field reference full of zero, for use in assertions and checks,
 and dummy default values of instantly dropped columns.
-Initially, BLOB field references are set to NUL bytes, in
+Initially, BLOB field references are set to zero, in
 dtuple_convert_big_rec(). */
-extern const byte *field_ref_zero;
+extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 
 #ifndef UNIV_INNOCHECKSUM
 
 #include "ut0mutex.h"
 #include "sync0rw.h"
-#include "rw_lock.h"
 
-class page_hash_latch : public rw_lock
-{
-public:
-  /** Wait for a shared lock */
-  void read_lock_wait();
-  /** Wait for an exclusive lock */
-  void write_lock_wait();
-
-  /** Acquire a shared lock */
-  inline void read_lock();
-  /** Acquire an exclusive lock */
-  inline void write_lock();
-
-  /** Acquire a lock */
-  template<bool exclusive> void acquire()
-  {
-    if (exclusive)
-      write_lock();
-    else
-      read_lock();
-  }
-  /** Release a lock */
-  template<bool exclusive> void release()
-  {
-    if (exclusive)
-      write_unlock();
-    else
-      read_unlock();
-  }
-};
-
+typedef ib_bpmutex_t BPageMutex;
+typedef ib_mutex_t BufPoolMutex;
+typedef ib_mutex_t FlushListMutex;
+typedef BPageMutex BufPoolZipMutex;
+typedef rw_lock_t BPageLock;
 #endif /* !UNIV_INNOCHECKSUM */
+
+#endif /* buf0types.h */

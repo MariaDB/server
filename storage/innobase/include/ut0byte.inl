@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -73,6 +72,65 @@ ut_uint64_align_up(
 	ut_ad(ut_is_2pow(align_no));
 
 	return((n + align_1) & ~align_1);
+}
+
+/*********************************************************//**
+The following function rounds up a pointer to the nearest aligned address.
+@return aligned pointer */
+UNIV_INLINE ATTRIBUTE_ACCESS((none,1))
+void*
+ut_align(
+/*=====*/
+	const void*	ptr,		/*!< in: pointer */
+	ulint		align_no)	/*!< in: align by this number */
+{
+	ut_ad(align_no > 0);
+	ut_ad(((align_no - 1) & align_no) == 0);
+	ut_ad(ptr);
+
+	ut_ad(sizeof(void*) == sizeof(ulint));
+
+	return((void*)((((ulint) ptr) + align_no - 1) & ~(align_no - 1)));
+}
+
+/*********************************************************//**
+The following function rounds down a pointer to the nearest
+aligned address.
+@return aligned pointer */
+UNIV_INLINE ATTRIBUTE_ACCESS((none,1))
+void*
+ut_align_down(
+/*==========*/
+	const void*	ptr,		/*!< in: pointer */
+	ulint		align_no)	/*!< in: align by this number */
+{
+	ut_ad(align_no > 0);
+	ut_ad(((align_no - 1) & align_no) == 0);
+	ut_ad(ptr);
+
+	ut_ad(sizeof(void*) == sizeof(ulint));
+
+	return((void*)(((ulint) ptr) & ~(align_no - 1)));
+}
+
+/*********************************************************//**
+The following function computes the offset of a pointer from the nearest
+aligned address.
+@return distance from aligned pointer */
+UNIV_INLINE ATTRIBUTE_ACCESS((none,1))
+ulint
+ut_align_offset(
+/*============*/
+	const void*	ptr,		/*!< in: pointer */
+	ulint		align_no)	/*!< in: align by this number */
+{
+	ut_ad(align_no > 0);
+	ut_ad(((align_no - 1) & align_no) == 0);
+	ut_ad(ptr);
+
+	ut_ad(sizeof(void*) == sizeof(ulint));
+
+	return(((ulint) ptr) & (align_no - 1));
 }
 
 /*****************************************************************//**

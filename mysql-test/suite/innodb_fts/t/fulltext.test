@@ -736,12 +736,10 @@ SET sql_mode = DEFAULT;
 --echo # MDEV-25070 SIGSEGV in fts_create_in_mem_aux_table
 --echo #
 CREATE TABLE t1 (a CHAR, FULLTEXT KEY(a)) ENGINE=InnoDB;
---disable_warnings
 ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t1 ADD FULLTEXT INDEX (a);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
---enable_warnings
 
 --echo #
 --echo # MDEV-25257 SEGV in fts_get_next_doc_id upon some INSERT

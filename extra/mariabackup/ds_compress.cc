@@ -101,15 +101,16 @@ compress_init(const char *root)
 		return NULL;
 	}
 
-	ctxt = (ds_ctxt_t *) my_malloc(PSI_NOT_INSTRUMENTED,
-                  sizeof(ds_ctxt_t) + sizeof(ds_compress_ctxt_t), MYF(MY_FAE));
+	ctxt = (ds_ctxt_t *) my_malloc(sizeof(ds_ctxt_t) +
+				       sizeof(ds_compress_ctxt_t),
+				       MYF(MY_FAE));
 
 	compress_ctxt = (ds_compress_ctxt_t *) (ctxt + 1);
 	compress_ctxt->threads = threads;
 	compress_ctxt->nthreads = xtrabackup_compress_threads;
 
 	ctxt->ptr = compress_ctxt;
-	ctxt->root = my_strdup(PSI_NOT_INSTRUMENTED, root, MYF(MY_FAE));
+	ctxt->root = my_strdup(root, MYF(MY_FAE));
 
 	return ctxt;
 }
@@ -159,8 +160,9 @@ compress_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 		goto err;
 	}
 
-	file = (ds_file_t *) my_malloc(PSI_NOT_INSTRUMENTED,
-                  sizeof(ds_file_t) + sizeof(ds_compress_file_t), MYF(MY_FAE));
+	file = (ds_file_t *) my_malloc(sizeof(ds_file_t) +
+				       sizeof(ds_compress_file_t),
+				       MYF(MY_FAE));
 	comp_file = (ds_compress_file_t *) (file + 1);
 	comp_file->dest_file = dest_file;
 	comp_file->comp_ctxt = comp_ctxt;
@@ -380,19 +382,16 @@ create_worker_threads(uint n)
 	comp_thread_ctxt_t	*threads;
 	uint 			i;
 
-	threads = static_cast<comp_thread_ctxt_t*>
-		(my_malloc(PSI_NOT_INSTRUMENTED, n * sizeof *threads,
-			   MYF(MY_ZEROFILL|MY_FAE)));
+	threads = (comp_thread_ctxt_t *)
+		my_malloc(n * sizeof *threads, MYF(MY_ZEROFILL|MY_FAE));
 
 	for (i = 0; i < n; i++) {
 		comp_thread_ctxt_t *thd = threads + i;
 
 		thd->num = i + 1;
-		thd->to = static_cast<char*>
-			(my_malloc(PSI_NOT_INSTRUMENTED,
-				   COMPRESS_CHUNK_SIZE +
-				   MY_QLZ_COMPRESS_OVERHEAD,
-				   MYF(MY_FAE)));
+		thd->to = (char *) my_malloc(COMPRESS_CHUNK_SIZE +
+						   MY_QLZ_COMPRESS_OVERHEAD,
+						   MYF(MY_FAE));
 
 		/* Initialize and data mutex and condition var */
 		if (pthread_mutex_init(&thd->data_mutex, NULL) ||

@@ -1,4 +1,4 @@
-/* Copyright (C) 2018,2020 MariaDB Corporation Ab
+/* Copyright (C) 2018 MariaDB corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,15 +23,10 @@ typedef struct st_aria_table_capabilities
   ulong bitmap_pages_covered;
   uint block_size;
   uint keypage_header;
-  enum data_file_type data_file_type;
   my_bool checksum;
   my_bool transactional;
-  my_bool encrypted;
   /* This is true if the table can be copied without any locks */
   my_bool online_backup_safe;
-  /* s3 capabilities */
-  ulong s3_block_size;
-  uint8 compression;
 } ARIA_TABLE_CAPABILITIES;
 
 int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap);

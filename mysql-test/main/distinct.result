@@ -538,10 +538,10 @@ PRIMARY KEY (a,b));
 INSERT INTO t2 VALUES (1,1,1,50), (1,2,3,40), (2,1,3,4);
 EXPLAIN SELECT DISTINCT a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	PRIMARY	4	NULL	4	Using index for group-by
+1	SIMPLE	t2	index	NULL	PRIMARY	8	NULL	3	Using index
 EXPLAIN SELECT DISTINCT a,a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	PRIMARY	4	NULL	4	Using index for group-by
+1	SIMPLE	t2	index	NULL	PRIMARY	8	NULL	3	Using index
 EXPLAIN SELECT DISTINCT b,a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	NULL	PRIMARY	8	NULL	3	Using index
@@ -756,7 +756,7 @@ INSERT INTO t1(a, b, c) VALUES (1, 1, 1),
 (1, 2, 3);
 EXPLAIN SELECT DISTINCT a, b, d, c FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	PRIMARY	16	NULL	7	Using index for group-by; Using temporary
+1	SIMPLE	t1	index	NULL	a	16	NULL	6	Using index
 SELECT DISTINCT a, b, d, c FROM t1;
 a	b	d	c
 1	1	0	1
@@ -1070,39 +1070,3 @@ UNION
 1
 drop table t1;
 End of 5.5 tests
-#
-# MDEV-27382: OFFSET is ignored when it is combined with the DISTINCT, IN() and JOIN
-#
-CREATE TABLE t1 (
-id int(7) NOT NULL AUTO_INCREMENT,
-name varchar(50) DEFAULT NULL,
-primary key (id)
-);
-INSERT INTO t1 VALUES (1, 'Reed'), (10, 'no-child');
-CREATE TABLE t2 (
-id int(11) NOT NULL AUTO_INCREMENT,
-parent_id int(7) NOT NULL,
-name varchar(100) DEFAULT NULL,
-primary key (id),
-key(parent_id)
-);
-INSERT INTO t2 VALUES (1, 1,'John'), (2, 2,'no-parent');
-SELECT DISTINCT p.id
-FROM t1 p LEFT JOIN t2 c ON p.id = c.parent_id
-WHERE p.id=1
-LIMIT 0;
-id
-SELECT DISTINCT p.id
-FROM t1 p LEFT JOIN t2 c ON p.id = c.parent_id
-WHERE p.id=1
-LIMIT 0 offset 5;
-id
-# Test the second part of the fix: just check that "LIMIT 0 OFFSET n" is
-# handled in the same way as "LIMIT 0"
-explain select * from t1 limit 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
-explain select * from t1 limit 0 offset 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
-drop table t1, t2;

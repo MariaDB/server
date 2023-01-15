@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-IMPORT\FR" "1" "27 June 2019" "MariaDB 10\&.5" "MariaDB Database System"
+.TH "\FBMYSQLIMPORT\FR" "1" "21 May 2019" "MariaDB 10\&.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -17,7 +17,7 @@
 .\" files: text
 .\" text files: importing
 .SH "NAME"
-mariadb-import \- a data import program (mysqlimport is now a symlink to mariadb-import)
+mysqlimport \- a data import program
 .SH "SYNOPSIS"
 .HP \w'\fBmysqlimport\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\fB\ \fR\fB\fItextfile1\fR\fR\fB\ \&.\&.\&.\fR\ 'u
 \fBmysqlimport [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB \fR\fB\fItextfile1\fR\fR\fB \&.\&.\&.\fR
@@ -863,7 +863,7 @@ shell> \fBmysql \-e \'SELECT * FROM imptest\' test\fR
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2019 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

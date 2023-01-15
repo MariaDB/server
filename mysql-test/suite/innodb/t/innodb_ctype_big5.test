@@ -1,7 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_big5.inc
 
-SET DEFAULT_STORAGE_ENGINE=InnoDB;
+SET STORAGE_ENGINE=InnoDB;
 
 --echo #
 --echo # Start of 10.2 tests

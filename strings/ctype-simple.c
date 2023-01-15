@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1458,7 +1458,7 @@ my_cset_init_8bit(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
   cs->caseup_multiply= 1;
   cs->casedn_multiply= 1;
   cs->pad_char= ' ';
-  if (!cs->to_lower || !cs->to_upper || !cs->m_ctype || !cs->tab_to_uni)
+  if (!cs->to_lower || !cs->to_upper || !cs->ctype || !cs->tab_to_uni)
     return TRUE;
   return create_fromuni(cs, loader);
 }
@@ -1508,7 +1508,7 @@ int my_mb_ctype_8bit(CHARSET_INFO *cs, int *ctype,
     *ctype= 0;
     return MY_CS_TOOSMALL;
   }
-  *ctype= cs->m_ctype[*s + 1];
+  *ctype= cs->ctype[*s + 1];
   return 1;
 }
 
@@ -2035,14 +2035,14 @@ my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
   if (nweights && frmend < strend && (flags & MY_STRXFRM_PAD_WITH_SPACE))
   {
     uint fill_length= MY_MIN((uint) (strend - frmend), nweights * cs->mbminlen);
-    my_ci_fill(cs, (char*) frmend, fill_length, cs->pad_char);
+    cs->cset->fill(cs, (char*) frmend, fill_length, cs->pad_char);
     frmend+= fill_length;
   }
   my_strxfrm_desc_and_reverse(str, frmend, flags, level);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && frmend < strend)
   {
     size_t fill_length= strend - frmend;
-    my_ci_fill(cs, (char*) frmend, fill_length, cs->pad_char);
+    cs->cset->fill(cs, (char*) frmend, fill_length, cs->pad_char);
     frmend= strend;
   }
   return frmend - str;
@@ -2101,7 +2101,6 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
-    my_wc_to_printable_8bit
 };
 
 MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =

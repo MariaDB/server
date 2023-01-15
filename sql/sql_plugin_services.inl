@@ -1,5 +1,5 @@
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2020, MariaDB Corporation.
+   Copyright (c) 2012, 2014, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 /* support for Services */
 #include <service_versions.h>
 #include <mysql/service_wsrep.h>
-#include <mysql/service_thd_mdl.h>
 
 struct st_service_ref {
   const char *name;
@@ -174,9 +173,6 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_get_debug,
   wsrep_commit_ordered,
   wsrep_thd_is_applying,
-  wsrep_OSU_method_get,
-  wsrep_thd_has_ignored_error,
-  wsrep_thd_set_ignored_error,
   wsrep_thd_set_wsrep_aborter,
   wsrep_report_bf_lock_wait,
   wsrep_thd_kill_LOCK,
@@ -226,11 +222,6 @@ struct json_service_st json_handler=
   json_unescape_json
 };
 
-static struct thd_mdl_service_st thd_mdl_handler=
-{
-  thd_mdl_context
-};
-
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -254,6 +245,5 @@ static struct st_service_ref list_of_services[]=
   { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
-  { "json_service",                VERSION_json,                &json_handler },
-  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler }
+  { "json_service",                VERSION_json,                &json_handler }
 };

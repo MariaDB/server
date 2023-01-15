@@ -1,4 +1,4 @@
-SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+SET SESSION STORAGE_ENGINE='InnoDB';
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
 @@innodb_stats_persistent_sample_pages;
@@ -561,10 +561,6 @@ INSERT INTO t2 VALUES
 (547118223,998,0,NULL,4,'','',0,0,NULL,NULL,''),(547119246,998,0,NULL,5,'','',0,0,NULL,NULL,''),
 (547115155,999,0,NULL,1,'','',0,0,NULL,NULL,''),(547116178,999,0,NULL,2,'','',0,0,NULL,NULL,''),
 (547117201,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547118224,999,0,NULL,4,'','',0,0,NULL,NULL,''),
-(547117213,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547117217,999,0,NULL,4,'','',0,0,NULL,NULL,''),
-(547117214,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547117218,999,0,NULL,4,'','',0,0,NULL,NULL,''),
-(547117215,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547117219,999,0,NULL,4,'','',0,0,NULL,NULL,''),
-(547117216,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547117220,999,0,NULL,4,'','',0,0,NULL,NULL,''),
 (547119271,38928081,0,NULL,10,'','',0,0,NULL,NULL,''),(547119272,38928081,0,NULL,11,'','',0,0,NULL,NULL,''),
 (547119273,38928081,0,NULL,12,'','',0,0,NULL,NULL,''),(547119274,38928081,0,NULL,13,'','',0,0,NULL,NULL,''),
 (547119275,38928081,0,NULL,14,'','',0,0,NULL,NULL,''),(547119276,38928081,0,NULL,15,'','',0,0,NULL,NULL,''),
@@ -761,7 +757,7 @@ EXPLAIN
       "key_length": "3070",
       "used_key_parts": ["f2", "pk1"],
       "rows": 1,
-      "filtered": 100,
+      "filtered": 50,
       "index_condition": "t1.pk1 <= 5 and t1.pk2 <= 5 and t1.f2 = 'abc'",
       "attached_condition": "t1.f1 <= '3'"
     }
@@ -791,7 +787,7 @@ EXPLAIN
       "key_length": "3011",
       "used_key_parts": ["pk1", "f2", "pk2"],
       "rows": 1,
-      "filtered": 100,
+      "filtered": 50,
       "index_condition": "t1.f2 <= 5 and t1.pk2 <= 5 and t1.pk1 = 'abc'",
       "attached_condition": "t1.f1 <= '3'"
     }

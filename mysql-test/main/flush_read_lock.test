@@ -65,9 +65,6 @@ set local sql_mode="";
 --echo # used in this test in order to be able to 
 --echo # check that DDL statements on temporary tables
 --echo # are compatible with FTRWL. 
-
-call mtr.add_suppression("BINLOG_BASE64_EVENT: Error executing row event.*error code: 1223");
-
 --disable_warnings
 drop tables if exists t1_base, t2_base, t3_trans;
 drop tables if exists tm_base, tm_base_temp;
@@ -302,6 +299,7 @@ delete from t3_trans;
 set debug_sync= "RESET";
 --echo # We don't run similar test for BEGIN and ROLLBACK as
 --echo # they release metadata locks in non-standard place.
+
 
 --echo #
 --echo # 4) BINLOG statement should be incompatible with FTWRL.
@@ -545,6 +543,8 @@ let $statement= execute stmt1;
 let $cleanup_stmt= ; 
 --source include/check_ftwrl_compatible.inc
 deallocate prepare stmt1;
+
+call mtr.add_suppression("Slave SQL.*Can.t execute the query because you have a conflicting read lock., error.* 1223");
 
 --echo #
 --echo # 9.2.b) EXECUTE for statement which is incompatible with FTWRL
@@ -1592,8 +1592,6 @@ unlock tables;
 --echo # Check that XA non-COMMIT statements are not and COMMIT is
 --echo # blocked by active FTWRL in another connection
 --echo #
---echo # XA COMMIT, XA ROLLBACK and XA PREPARE does take COMMIT lock to ensure
---echo # that nothing is written to bin log and redo log under FTWRL mode.
 connection $con_aux1;
 flush tables with read lock;
 connection default;
@@ -1606,37 +1604,11 @@ connection $con_aux1;
 flush tables with read lock;
 connection default;
 xa end 'test1';
---send xa prepare 'test1';
+xa prepare 'test1';
+xa rollback 'test1';
 connection $con_aux1;
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
-        info = "xa prepare 'test1'";
---source include/wait_condition.inc
-unlock tables;
---echo # Switching to connection 'default'.
-connection default;
---echo # Reap XA PREPARE.
---reap
---echo # Switching to connection '$con_aux1'.
-connection $con_aux1;
-flush tables with read lock;
---echo # Switching to connection 'default'.
-connection default;
---echo # Send XA ROLLBACK 'test1'
---send xa rollback 'test1'
---echo # Switching to connection '$con_aux1'.
-connection $con_aux1;
---echo # Wait until XA ROLLBACK is blocked.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
-        info = "xa rollback 'test1'";
---source include/wait_condition.inc
 unlock tables;
 connection default;
---echo # Reap XA ROLLBACK
---reap
 xa start 'test1';
 insert into t3_trans values (1);
 connection $con_aux1;
@@ -1644,27 +1616,7 @@ flush tables with read lock;
 connection default;
 connection default;
 xa end 'test1';
---echo # Send XA PREPARE 'test1'
---send xa prepare 'test1'
---echo # Switching to connection '$con_aux1'.
-connection $con_aux1;
---echo # Wait until XA PREPARE is blocked.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
-        info = "xa prepare 'test1'";
---source include/wait_condition.inc
-unlock tables;
---echo # Switching to connection 'default'.
-connection default;
---echo # Reap XA PREPARE.
---reap
---echo # Switching to connection '$con_aux1'.
-connection $con_aux1;
-flush tables with read lock;
---echo # Switching to connection 'default'.
-connection default;
-
+xa prepare 'test1';
 --echo # Send:
 --send xa commit 'test1';
 connection $con_aux1;
@@ -1679,75 +1631,6 @@ connection default;
 --echo # Reap XA COMMIT.
 --reap
 delete from t3_trans;
---echo #
---echo # Check that XA COMMIT / ROLLBACK for prepared transaction from a
---echo # disconnected session is blocked by active FTWRL in another connection.
---echo #
---echo # Create temporary connection for XA transaction.
-connect (con_tmp,localhost,root,,);
-xa start 'test1';
-insert into t3_trans values (1);
-xa end 'test1';
-xa prepare 'test1';
---echo # Disconnect temporary connection
-set debug_sync='thread_end SIGNAL test1_prepare';
-disconnect con_tmp;
-connection $con_aux1;
-set debug_sync='now WAIT_FOR test1_prepare';
-
-
---echo # Create temporary connection for XA transaction.
-connect (con_tmp1,localhost,root,,);
-xa start 'test2';
-insert into t3_trans values (2);
-xa end 'test2';
-xa prepare 'test2';
---echo # Disconnect temporary connection
-set debug_sync='thread_end SIGNAL test2_prepare';
-disconnect con_tmp1;
-
-
---echo # Switching to connection '$con_aux1'.
-connection $con_aux1;
-set debug_sync='now WAIT_FOR test2_prepare';
-flush tables with read lock;
-
---echo # Switching to connection 'default'.
-connection default;
---echo # Send XA ROLLBACK 'test1'
---send xa rollback 'test1'
---echo # Switching to connection '$con_aux1'.
-
-connection $con_aux1;
---echo # Wait until XA ROLLBACK is blocked.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
-        info = "xa rollback 'test1'";
---source include/wait_condition.inc
-unlock tables;
-flush tables with read lock;
---echo # Switching to connection 'default'.
-connection default;
---echo # Reap XA ROLLBACK
---reap
---echo # Send XA COMMIT
---send xa commit 'test2';
---echo # Switching to connection '$con_aux1'.
-connection $con_aux1;
---echo # Wait until XA COMMIT is blocked.
-let $wait_condition=
-  select count(*) = 1 from information_schema.processlist
-  where state = "Waiting for backup lock" and
-        info = "xa commit 'test2'";
---source include/wait_condition.inc
-unlock tables;
---echo # Switching to connection 'default'.
-connection default;
---echo # Reap XA COMMIT.
---reap
-delete from t3_trans;
-
 --echo #
 --echo # Check that XA COMMIT blocks FTWRL in another connection.
 xa start 'test1';

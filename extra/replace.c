@@ -64,7 +64,7 @@ typedef struct st_pointer_array {		/* when using array-strings */
 #define LAST_CHAR_CODE	259
 
 typedef struct st_replace {
-  uint8 found;
+  my_bool   found;
   struct st_replace *next[256];
 } REPLACE;
 
@@ -256,12 +256,12 @@ static int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name)
   if (! pa->typelib.count)
   {
     if (!(pa->typelib.type_names=(const char **)
-	  my_malloc(PSI_NOT_INSTRUMENTED, ((PC_MALLOC-MALLOC_OVERHEAD)/
+	  my_malloc(((PC_MALLOC-MALLOC_OVERHEAD)/
 		     (sizeof(char *)+sizeof(*pa->flag))*
 		     (sizeof(char *)+sizeof(*pa->flag))),MYF(MY_WME))))
       DBUG_RETURN(-1);
-    if (!(pa->str= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED,
-                                      PS_MALLOC-MALLOC_OVERHEAD, MYF(MY_WME))))
+    if (!(pa->str= (uchar*) my_malloc((uint) (PS_MALLOC-MALLOC_OVERHEAD),
+				     MYF(MY_WME))))
     {
       my_free((void*) pa->typelib.type_names);
       DBUG_RETURN (-1);
@@ -278,8 +278,9 @@ static int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name)
   {
     pa->max_length=(pa->length+length+MALLOC_OVERHEAD+PS_MALLOC-1)/PS_MALLOC;
     pa->max_length=pa->max_length*PS_MALLOC-MALLOC_OVERHEAD;
-    if (!(new_pos= (uchar*) my_realloc(PSI_NOT_INSTRUMENTED, (uchar*) pa->str,
-                                      (uint) pa->max_length, MYF(MY_WME))))
+    if (!(new_pos= (uchar*) my_realloc((uchar*) pa->str,
+				      (uint) pa->max_length,
+				      MYF(MY_WME))))
       DBUG_RETURN(1);
     if (new_pos != pa->str)
     {
@@ -295,7 +296,7 @@ static int insert_pointer_name(reg1 POINTER_ARRAY *pa,char * name)
     int len;
     pa->array_allocs++;
     len=(PC_MALLOC*pa->array_allocs - MALLOC_OVERHEAD);
-    if (!(new_array=(const char **) my_realloc(PSI_NOT_INSTRUMENTED, (void*)(pa->typelib.type_names),
+    if (!(new_array=(const char **) my_realloc((uchar*) pa->typelib.type_names,
 					       (uint) len/
 					 (sizeof(uchar*)+sizeof(*pa->flag))*
 					 (sizeof(uchar*)+sizeof(*pa->flag)),
@@ -427,8 +428,7 @@ static REPLACE *init_replace(char * *from, char * *to,uint count,
   if (init_sets(&sets,states))
     DBUG_RETURN(0);
   found_sets=0;
-  if (!(found_set= (FOUND_SET*) my_malloc(PSI_NOT_INSTRUMENTED,
-                                          sizeof(FOUND_SET)*max_length*count,
+  if (!(found_set= (FOUND_SET*) my_malloc(sizeof(FOUND_SET)*max_length*count,
 					  MYF(MY_WME))))
   {
     free_sets(&sets);
@@ -439,8 +439,7 @@ static REPLACE *init_replace(char * *from, char * *to,uint count,
   used_sets=-1;
   word_states=make_new_set(&sets);		/* Start of new word */
   start_states=make_new_set(&sets);		/* This is first state */
-  if (!(follow=(FOLLOWS*) my_malloc(PSI_NOT_INSTRUMENTED,
-                                    (states+2)*sizeof(FOLLOWS), MYF(MY_WME))))
+  if (!(follow=(FOLLOWS*) my_malloc((states+2)*sizeof(FOLLOWS),MYF(MY_WME))))
   {
     free_sets(&sets);
     my_free(found_set);
@@ -632,8 +631,7 @@ static REPLACE *init_replace(char * *from, char * *to,uint count,
 
 	/* Alloc replace structure for the replace-state-machine */
 
-  if ((replace=(REPLACE*) my_malloc(PSI_NOT_INSTRUMENTED,
-                                    sizeof(REPLACE)*(sets.count)+
+  if ((replace=(REPLACE*) my_malloc(sizeof(REPLACE)*(sets.count)+
 				    sizeof(REPLACE_STRING)*(found_sets+1)+
 				    sizeof(char *)*count+result_len,
 				    MYF(MY_WME | MY_ZEROFILL))))
@@ -651,13 +649,7 @@ static REPLACE *init_replace(char * *from, char * *to,uint count,
     for (i=1 ; i <= found_sets ; i++)
     {
       pos=from[found_set[i-1].table_offset];
-      /*
-        Test if we are matching start of string (\^)
-        We can't use bcmp() here as pos may be only 1 character and
-        that would confuse MSAN.
-      */
-      rep_str[i].found= (uint8) ((pos[0] == '\\' && pos[1] == '^' &&
-                                  pos[2] == 0) ? 2 : 1);
+      rep_str[i].found= (my_bool) (!memcmp(pos,"\\^",3) ? 2 : 1);
       rep_str[i].replace_string=to_array[found_set[i-1].table_offset];
       rep_str[i].to_offset=found_set[i-1].found_offset-start_at_word(pos);
       rep_str[i].from_offset=found_set[i-1].found_offset-replace_len(pos)+
@@ -684,12 +676,10 @@ static int init_sets(REP_SETS *sets,uint states)
 {
   bzero((char*) sets,sizeof(*sets));
   sets->size_of_bits=((states+7)/8);
-  if (!(sets->set_buffer=(REP_SET*) my_malloc(PSI_NOT_INSTRUMENTED,
-                                              sizeof(REP_SET)*SET_MALLOC_HUNC,
+  if (!(sets->set_buffer=(REP_SET*) my_malloc(sizeof(REP_SET)*SET_MALLOC_HUNC,
 					      MYF(MY_WME))))
     return 1;
-  if (!(sets->bit_buffer=(uint*) my_malloc(PSI_NOT_INSTRUMENTED,
-                                           sizeof(uint)*sets->size_of_bits*
+  if (!(sets->bit_buffer=(uint*) my_malloc(sizeof(uint)*sets->size_of_bits*
 					   SET_MALLOC_HUNC,MYF(MY_WME))))
   {
     my_free(sets->set);
@@ -724,14 +714,15 @@ static REP_SET *make_new_set(REP_SETS *sets)
     return set;
   }
   count=sets->count+sets->invisible+SET_MALLOC_HUNC;
-  if (!(set=(REP_SET*) my_realloc(PSI_NOT_INSTRUMENTED, sets->set_buffer,
-                                  sizeof(REP_SET)*count, MYF(MY_WME))))
+  if (!(set=(REP_SET*) my_realloc((uchar*) sets->set_buffer,
+				   sizeof(REP_SET)*count,
+				  MYF(MY_WME))))
     return 0;
   sets->set_buffer=set;
   sets->set=set+sets->invisible;
-  if (!(bit_buffer=(uint*) my_realloc(PSI_NOT_INSTRUMENTED, sets->bit_buffer,
-                                      (sizeof(uint)*sets->size_of_bits)*count,
-                                      MYF(MY_WME))))
+  if (!(bit_buffer=(uint*) my_realloc((uchar*) sets->bit_buffer,
+				      (sizeof(uint)*sets->size_of_bits)*count,
+				      MYF(MY_WME))))
     return 0;
   sets->bit_buffer=bit_buffer;
   for (i=0 ; i < count ; i++)
@@ -904,7 +895,7 @@ static uint replace_strings(REPLACE *rep, char **start, uint *max_length,
       if (to == end)
       {
 	(*max_length)+=8192;
-	if (!(new=my_realloc(PSI_NOT_INSTRUMENTED, *start,*max_length,MYF(MY_WME))))
+	if (!(new=my_realloc(*start,*max_length,MYF(MY_WME))))
 	  return (uint) -1;
 	to=new+(to - *start);
 	end=(*start=new)+ *max_length-1;
@@ -920,7 +911,7 @@ static uint replace_strings(REPLACE *rep, char **start, uint *max_length,
       if (to == end)
       {
 	(*max_length)*=2;
-	if (!(new=my_realloc(PSI_NOT_INSTRUMENTED, *start,*max_length,MYF(MY_WME))))
+	if (!(new=my_realloc(*start,*max_length,MYF(MY_WME))))
 	  return (uint) -1;
 	to=new+(to - *start);
 	end=(*start=new)+ *max_length-1;
@@ -944,11 +935,11 @@ static int initialize_buffer()
 {
   bufread = 8192;
   bufalloc = bufread + bufread / 2;
-  if (!(buffer = my_malloc(PSI_NOT_INSTRUMENTED, bufalloc+1, MYF(MY_WME))))
+  if (!(buffer = my_malloc(bufalloc+1,MYF(MY_WME))))
     return 1;
   bufbytes=my_eof=0;
   out_length=bufread;
-  if (!(out_buff=my_malloc(PSI_NOT_INSTRUMENTED, out_length, MYF(MY_WME))))
+  if (!(out_buff=my_malloc(out_length,MYF(MY_WME))))
     return(1);
   return 0;
 }
@@ -983,7 +974,7 @@ static int fill_buffer_retaining(File fd, int n)
       bufalloc *= 2;
       bufread *= 2;
     }
-    buffer = my_realloc(PSI_NOT_INSTRUMENTED, buffer, bufalloc+1, MYF(MY_WME));
+    buffer = my_realloc(buffer, bufalloc+1, MYF(MY_WME));
     if (! buffer)
       return(-1);
   }

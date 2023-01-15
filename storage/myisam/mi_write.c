@@ -546,10 +546,8 @@ int _mi_insert(register MI_INFO *info, register MI_KEYDEF *keyinfo,
       {
         /* yup. converting */
         info->ft1_to_ft2=(DYNAMIC_ARRAY *)
-          my_malloc(mi_key_memory_MI_INFO_ft1_to_ft2,
-                    sizeof(DYNAMIC_ARRAY), MYF(MY_WME));
-        my_init_dynamic_array(mi_key_memory_MI_INFO_ft1_to_ft2,
-                              info->ft1_to_ft2, ft2len, 300, 50, MYF(0));
+          my_malloc(sizeof(DYNAMIC_ARRAY), MYF(MY_WME));
+        my_init_dynamic_array(info->ft1_to_ft2, ft2len, 300, 50, MYF(0));
 
         /*
           now, adding all keys from the page to dynarray
@@ -1000,8 +998,7 @@ int mi_init_bulk_insert(MI_INFO *info, size_t cache_size, ha_rows rows)
     cache_size/=total_keylength*16;
 
   info->bulk_insert=(TREE *)
-    my_malloc(mi_key_memory_MI_INFO_bulk_insert,
-              (sizeof(TREE)*share->base.keys+
+    my_malloc((sizeof(TREE)*share->base.keys+
                sizeof(bulk_insert_param)*num_keys),MYF(0));
 
   if (!info->bulk_insert)

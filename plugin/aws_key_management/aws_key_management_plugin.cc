@@ -81,7 +81,6 @@ static unsigned long key_spec;
 static unsigned long log_level;
 static int rotate_key;
 static int request_timeout;
-static char* endpoint_url;
 
 #ifndef DBUG_OFF
 #define WITH_AWS_MOCK 1
@@ -233,10 +232,6 @@ static int aws_init()
   if (region && region[0])
   {
     clientConfiguration.region = region;
-  }
-  if (endpoint_url && endpoint_url[0])
-  {
-    clientConfiguration.endpointOverride = endpoint_url;
   }
   if (request_timeout)
   {
@@ -720,11 +715,6 @@ static MYSQL_SYSVAR_STR(region, region,
   "AWS region. For example us-east-1, or eu-central-1. If no value provided, SDK default is used.",
   NULL, NULL, "");
 
-static MYSQL_SYSVAR_STR(endpoint_url, endpoint_url,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Used to override the default AWS API endpoint. If not set, the default will be used",
-  NULL, NULL, "");
-
 #if WITH_AWS_MOCK
 static MYSQL_SYSVAR_BOOL(mock, mock,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -739,7 +729,6 @@ static struct st_mysql_sys_var* settings[]= {
   MYSQL_SYSVAR(log_level),
   MYSQL_SYSVAR(request_timeout),
   MYSQL_SYSVAR(region),
-  MYSQL_SYSVAR(endpoint_url),
 #if WITH_AWS_MOCK
   MYSQL_SYSVAR(mock),
 #endif

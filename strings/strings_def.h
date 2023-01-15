@@ -127,26 +127,4 @@ uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
 #define MY_HASH_ADD_16(A, B, value) \
   do { MY_HASH_ADD(A, B, ((value) & 0xFF)) ; MY_HASH_ADD(A, B, ((value >>8 ))); } while(0) 
 
-
-#define my_wc_t ulong
-
-int my_wc_to_printable_ex(CHARSET_INFO *cs, my_wc_t wc,
-                          uchar *s, uchar *e,
-                          uint bs, uint bslen, uint diglen);
-
-int my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
-                               uchar *s, uchar *e);
-
-int my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
-                            uchar *s, uchar *e);
-
-/* Some common character set names */
-extern const char charset_name_latin2[];
-extern const char charset_name_utf8[];
-extern const char charset_name_utf16[];
-extern const char charset_name_utf32[];
-extern const char charset_name_ucs2[];
-extern const char charset_name_ucs2[];
-extern const char charset_name_utf8mb4[];
-
-#endif /*STRINGS_DEF_INCLUDED */
+#endif

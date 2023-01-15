@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -25,20 +25,16 @@
 
 THR_LOCK table_session_account_connect_attrs::m_table_lock;
 
-PFS_engine_table_share_state
-table_session_account_connect_attrs::m_share_state = {
-  false /* m_checked */
-};
-
 PFS_engine_table_share
 table_session_account_connect_attrs::m_share=
 {
   { C_STRING_WITH_LEN("session_account_connect_attrs") },
-  &pfs_readonly_world_acl,
-  table_session_account_connect_attrs::create,
+  &pfs_readonly_acl,
+  &table_session_account_connect_attrs::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  cursor_by_thread_connect_attr::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(pos_connect_attr_by_thread_by_attr), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE session_account_connect_attrs("
@@ -46,10 +42,7 @@ table_session_account_connect_attrs::m_share=
                       "ATTR_NAME VARCHAR(32) NOT NULL comment 'Attribute name.',"
                       "ATTR_VALUE VARCHAR(1024) comment 'Attribute value.',"
                       "ORDINAL_POSITION INT comment 'Order in which attribute was added to the connection attributes.'"
-                      ") CHARACTER SET utf8 COLLATE utf8_bin") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      ") CHARACTER SET utf8 COLLATE utf8_bin") }
 };
 
 PFS_engine_table* table_session_account_connect_attrs::create()
@@ -70,7 +63,7 @@ table_session_account_connect_attrs::thread_fits(PFS_thread *thread)
     return false;
 
   /* The thread we compare to, by definition, has some instrumentation. */
-  assert(thread != NULL);
+  DBUG_ASSERT(thread != NULL);
 
   uint username_length= current_thread->m_username_length;
   uint hostname_length= current_thread->m_hostname_length;

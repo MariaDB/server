@@ -2,7 +2,6 @@
 #define PROCEDURE_INCLUDED
 
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +44,7 @@ public:
      this->name.length= strlen(name_par);
   }
   enum Type type() const { return Item::PROC_ITEM; }
-  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     /*
@@ -53,7 +52,7 @@ public:
         DECLARE c CURSOR FOR SELECT * FROM t1 PROCEDURE analyse();
         OPEN c;
     */
-    return create_tmp_field_ex_simple(root, table, src, param);
+    return create_tmp_field_ex_simple(table, src, param);
   }
   virtual void set(double nr)=0;
   virtual void set(const char *str,uint length,CHARSET_INFO *cs)=0;
@@ -89,7 +88,7 @@ public:
   {
     int err_not_used;
     char *end_not_used;
-    value= cs->strntod((char*) str,length, &end_not_used, &err_not_used);
+    value= my_strntod(cs,(char*) str,length, &end_not_used, &err_not_used);
   }
   double val_real() { return value; }
   longlong val_int() { return (longlong) value; }
@@ -108,16 +107,11 @@ class Item_proc_int :public Item_proc
 public:
   Item_proc_int(THD *thd, const char *name_par): Item_proc(thd, name_par)
   { max_length=11; }
-  const Type_handler *type_handler() const
-  {
-    if (unsigned_flag)
-      return &type_handler_ulonglong;
-    return &type_handler_slonglong;
-  }
+  const Type_handler *type_handler() const { return &type_handler_longlong; }
   void set(double nr) { value=(longlong) nr; }
   void set(longlong nr) { value=nr; }
   void set(const char *str,uint length, CHARSET_INFO *cs)
-  { int err; value= cs->strntoll(str,length,10,NULL,&err); }
+  { int err; value=my_strntoll(cs,str,length,10,NULL,&err); }
   double val_real() { return (double) value; }
   longlong val_int() { return value; }
   String *val_str(String *s) { s->set(value, default_charset()); return s; }
@@ -141,14 +135,14 @@ public:
     int err_not_used;
     char *end_not_used;
     CHARSET_INFO *cs= str_value.charset();
-    return cs->strntod((char*) str_value.ptr(), str_value.length(),
-		       &end_not_used, &err_not_used);
+    return my_strntod(cs, (char*) str_value.ptr(), str_value.length(),
+		      &end_not_used, &err_not_used);
   }
   longlong val_int()
   { 
     int err;
     CHARSET_INFO *cs=str_value.charset();
-    return cs->strntoll(str_value.ptr(),str_value.length(),10,NULL,&err);
+    return my_strntoll(cs,str_value.ptr(),str_value.length(),10,NULL,&err);
   }
   String *val_str(String*)
   {

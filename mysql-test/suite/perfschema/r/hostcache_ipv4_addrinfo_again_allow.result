@@ -33,7 +33,7 @@ current_user()
 root@192.0.2.4
 disconnect con2;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	NULL
 HOST_VALIDATED	NO
@@ -70,7 +70,7 @@ current_user()
 root@192.0.2.4
 disconnect con3;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	NULL
 HOST_VALIDATED	NO

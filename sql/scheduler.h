@@ -31,14 +31,15 @@ class THD;
 
 struct scheduler_functions
 {
-  uint max_threads;
-  Atomic_counter<uint> *connection_count;
+  uint max_threads, *connection_count;
   ulong *max_connections;
   bool (*init)(void);
+  bool (*init_new_connection_thread)(void);
   void (*add_connection)(CONNECT *connect);
   void (*thd_wait_begin)(THD *thd, int wait_type);
   void (*thd_wait_end)(THD *thd);
   void (*post_kill_notification)(THD *thd);
+  bool (*end_thread)(THD *thd, bool cache_thread);
   void (*end)(void);
 };
 
@@ -71,7 +72,7 @@ enum scheduler_types
 };
 
 void one_thread_per_connection_scheduler(scheduler_functions *func,
-    ulong *arg_max_connections, Atomic_counter<uint> *arg_connection_count);
+    ulong *arg_max_connections, uint *arg_connection_count);
 void one_thread_scheduler(scheduler_functions *func);
 
 extern void scheduler_init();
@@ -82,13 +83,24 @@ extern void post_kill_notification(THD *);
 struct thd_scheduler
 {
 public:
+  /*
+    Thread instrumentation for the user job.
+    This member holds the instrumentation while the user job is not run
+    by a thread.
+
+    Note that this member is not conditionally declared
+    (ifdef HAVE_PSI_INTERFACE), because doing so will change the binary
+    layout of THD, which is exposed to plugin code that may be compiled
+    differently.
+  */
+  PSI_thread *m_psi;
   void *data;                  /* scheduler-specific data structure */
 };
 
 #ifdef HAVE_POOL_OF_THREADS
 void pool_of_threads_scheduler(scheduler_functions* func,
    ulong *arg_max_connections,
-   Atomic_counter<uint> *arg_connection_count);
+   uint *arg_connection_count);
 #else
 #define pool_of_threads_scheduler(A,B,C) \
   one_thread_per_connection_scheduler(A, B, C)

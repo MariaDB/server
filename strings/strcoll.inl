@@ -1,6 +1,5 @@
 /*
    Copyright (c) 2015, MariaDB Foundation
-   Copyright (c) 2015, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -106,7 +105,7 @@ MY_FUNCTION_NAME(scan_weight)(int *weight, const uchar *str, const uchar *end)
 #ifdef IS_MB1_MBHEAD_UNUSED_GAP
   /*
     Quickly filter out unused bytes that are neither MB1 nor MBHEAD.
-    E.g. [0x80..0xC1] in utf8mb(3|4). This allows using simplified conditions
+    E.g. [0x80..0xC1] in utf8. This allows using simplified conditions
     in IS_MB2_CHAR(), IS_MB3_CHAR(), etc.
   */
   if (IS_MB1_MBHEAD_UNUSED_GAP(*str))
@@ -157,9 +156,9 @@ bad:
   Compare two strings according to the collation,
   without handling the PAD SPACE property.
 
-  Note, strnncoll() is usually used to compare identifiers.
+  Note, cs->coll->strnncoll() is usually used to compare identifiers.
   Perhaps we should eventually (in 10.2?) create a new collation 
-  my_charset_utf8mb3_general_ci_no_pad and have only one comparison function
+  my_charset_utf8_general_ci_no_pad and have only one comparison function
   in MY_COLLATION_HANDLER.
 
   @param cs          - the character set and collation
@@ -358,11 +357,11 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
 
   for (; dst < de && src < se && nweights; nweights--)
   {
-    if (my_ci_charlen(cs, src, se) > 1)
+    if (my_charlen(cs, (const char *) src, (const char *) se) > 1)
     {
       /*
         Note, it is safe not to check (src < se)
-        in the code below, because my_ci_charlen() would
+        in the code below, because my_charlen() would
         not return 2 if src was too short
       */
       uint16 e= WEIGHT_MB2_FRM(src[0], src[1]);
@@ -390,7 +389,7 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
   Store sorting weights using 2 bytes per character.
 
   This function is shared between
-  - utf8mb3_general_ci, utf8mb3_bin, ucs2_general_ci, ucs2_bin
+  - utf8mb3_general_ci, utf8_bin, ucs2_general_ci, ucs2_bin
     which support BMP only (U+0000..U+FFFF).
   - utf8mb4_general_ci, utf16_general_ci, utf32_general_ci,
     which map all supplementary characters to weight 0xFFFD.
@@ -524,7 +523,7 @@ MY_FUNCTION_NAME(strnxfrm_nopad)(CHARSET_INFO *cs,
   Store sorting weights using 2 bytes per character.
 
   These functions are shared between
-  - utf8mb3_general_ci, utf8mb3_bin, ucs2_general_ci, ucs2_bin
+  - utf8mb3_general_ci, utf8_bin, ucs2_general_ci, ucs2_bin
     which support BMP only (U+0000..U+FFFF).
   - utf8mb4_general_ci, utf16_general_ci, utf32_general_ci,
     which map all supplementary characters to weight 0xFFFD.

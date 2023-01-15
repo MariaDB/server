@@ -118,9 +118,7 @@ public:
 
     return source_type;
   }
-#ifdef MYSQL_SERVER
-  const Type_handler *field_type_handler(uint index) const;
-#endif
+
 
   /*
     This function allows callers to get the extra field data from the

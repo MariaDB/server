@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -22,7 +22,7 @@
 
 /**
   @file storage/perfschema/pfs_account.cc
-  Performance schema account (implementation).
+  Performance schema user@host (implementation).
 */
 
 #include "my_global.h"
@@ -37,12 +37,20 @@
 #include "pfs_account.h"
 #include "pfs_global.h"
 #include "pfs_instr_class.h"
-#include "pfs_buffer_container.h"
 
 /**
   @addtogroup Performance_schema_buffers
   @{
 */
+
+ulong account_max;
+ulong account_lost;
+
+PFS_account *account_array= NULL;
+
+static PFS_single_stat *account_instr_class_waits_array= NULL;
+static PFS_stage_stat *account_instr_class_stages_array= NULL;
+static PFS_statement_stat *account_instr_class_statements_array= NULL;
 
 LF_HASH account_hash;
 static bool account_hash_inited= false;
@@ -54,16 +62,75 @@ static bool account_hash_inited= false;
 */
 int init_account(const PFS_global_param *param)
 {
-  if (global_account_container.init(param->m_account_sizing))
-    return 1;
+  uint index;
+
+  account_max= param->m_account_sizing;
+
+  account_array= NULL;
+  account_instr_class_waits_array= NULL;
+  account_instr_class_stages_array= NULL;
+  account_instr_class_statements_array= NULL;
+  uint waits_sizing= account_max * wait_class_max;
+  uint stages_sizing= account_max * stage_class_max;
+  uint statements_sizing= account_max * statement_class_max;
+
+  if (account_max > 0)
+  {
+    account_array= PFS_MALLOC_ARRAY(account_max, sizeof(PFS_account), PFS_account,
+                                    MYF(MY_ZEROFILL));
+    if (unlikely(account_array == NULL))
+      return 1;
+  }
+
+  if (waits_sizing > 0)
+  {
+    account_instr_class_waits_array=
+      PFS_connection_slice::alloc_waits_slice(waits_sizing);
+    if (unlikely(account_instr_class_waits_array == NULL))
+      return 1;
+  }
+
+  if (stages_sizing > 0)
+  {
+    account_instr_class_stages_array=
+      PFS_connection_slice::alloc_stages_slice(stages_sizing);
+    if (unlikely(account_instr_class_stages_array == NULL))
+      return 1;
+  }
+
+  if (statements_sizing > 0)
+  {
+    account_instr_class_statements_array=
+      PFS_connection_slice::alloc_statements_slice(statements_sizing);
+    if (unlikely(account_instr_class_statements_array == NULL))
+      return 1;
+  }
+
+  for (index= 0; index < account_max; index++)
+  {
+    account_array[index].m_instr_class_waits_stats=
+      &account_instr_class_waits_array[index * wait_class_max];
+    account_array[index].m_instr_class_stages_stats=
+      &account_instr_class_stages_array[index * stage_class_max];
+    account_array[index].m_instr_class_statements_stats=
+      &account_instr_class_statements_array[index * statement_class_max];
+  }
 
   return 0;
 }
 
-/** Cleanup all the account buffers. */
+/** Cleanup all the user buffers. */
 void cleanup_account(void)
 {
-  global_account_container.cleanup();
+  pfs_free(account_array);
+  account_array= NULL;
+  pfs_free(account_instr_class_waits_array);
+  account_instr_class_waits_array= NULL;
+  pfs_free(account_instr_class_stages_array);
+  account_instr_class_stages_array= 0;
+  pfs_free(account_instr_class_statements_array);
+  account_instr_class_statements_array=0;
+  account_max= 0;
 }
 
 C_MODE_START
@@ -74,9 +141,9 @@ static uchar *account_hash_get_key(const uchar *entry, size_t *length,
   const PFS_account *account;
   const void *result;
   typed_entry= reinterpret_cast<const PFS_account* const *> (entry);
-  assert(typed_entry != NULL);
+  DBUG_ASSERT(typed_entry != NULL);
   account= *typed_entry;
-  assert(account != NULL);
+  DBUG_ASSERT(account != NULL);
   *length= account->m_key.m_key_length;
   result= account->m_key.m_hash_key;
   return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
@@ -87,12 +154,13 @@ C_MODE_END
   Initialize the user hash.
   @return 0 on success
 */
-int init_account_hash(const PFS_global_param *param)
+int init_account_hash(void)
 {
-  if ((! account_hash_inited) && (param->m_account_sizing != 0))
+  if ((! account_hash_inited) && (account_max > 0))
   {
     lf_hash_init(&account_hash, sizeof(PFS_account*), LF_HASH_UNIQUE,
                  0, 0, account_hash_get_key, &my_charset_bin);
+    /* account_hash.size= account_max; */
     account_hash_inited= true;
   }
   return 0;
@@ -123,8 +191,8 @@ static void set_account_key(PFS_account_key *key,
                               const char *user, uint user_length,
                               const char *host, uint host_length)
 {
-  assert(user_length <= USERNAME_LENGTH);
-  assert(host_length <= HOSTNAME_LENGTH);
+  DBUG_ASSERT(user_length <= USERNAME_LENGTH);
+  DBUG_ASSERT(host_length <= HOSTNAME_LENGTH);
 
   char *ptr= &key->m_hash_key[0];
   if (user_length > 0)
@@ -149,10 +217,16 @@ find_or_create_account(PFS_thread *thread,
                          const char *username, uint username_length,
                          const char *hostname, uint hostname_length)
 {
+  if (account_max == 0)
+  {
+    account_lost++;
+    return NULL;
+  }
+
   LF_PINS *pins= get_account_hash_pins(thread);
   if (unlikely(pins == NULL))
   {
-    global_account_container.m_lost++;
+    account_lost++;
     return NULL;
   }
 
@@ -161,10 +235,8 @@ find_or_create_account(PFS_thread *thread,
                     hostname, hostname_length);
 
   PFS_account **entry;
-  PFS_account *pfs;
   uint retry_count= 0;
   const uint retry_max= 3;
-  pfs_dirty_state dirty_state;
 
 search:
   entry= reinterpret_cast<PFS_account**>
@@ -172,6 +244,7 @@ search:
                     key.m_hash_key, key.m_key_length));
   if (entry && (entry != MY_ERRPTR))
   {
+    PFS_account *pfs;
     pfs= *entry;
     pfs->inc_refcount();
     lf_hash_search_unpin(pins);
@@ -180,94 +253,93 @@ search:
 
   lf_hash_search_unpin(pins);
 
-  pfs= global_account_container.allocate(& dirty_state);
-  if (pfs != NULL)
+  PFS_scan scan;
+  uint random= randomized_index(username, account_max);
+
+  for (scan.init(random, account_max);
+       scan.has_pass();
+       scan.next_pass())
   {
-    pfs->m_key= key;
-    if (username_length > 0)
-      pfs->m_username= &pfs->m_key.m_hash_key[0];
-    else
-      pfs->m_username= NULL;
-    pfs->m_username_length= username_length;
-
-    if (hostname_length > 0)
-      pfs->m_hostname= &pfs->m_key.m_hash_key[username_length + 1];
-    else
-      pfs->m_hostname= NULL;
-    pfs->m_hostname_length= hostname_length;
-
-    pfs->m_user= find_or_create_user(thread, username, username_length);
-    pfs->m_host= find_or_create_host(thread, hostname, hostname_length);
-
-    pfs->init_refcount();
-    pfs->reset_stats();
-    pfs->m_disconnected_count= 0;
-
-    if (username_length > 0 && hostname_length > 0)
+    PFS_account *pfs= account_array + scan.first();
+    PFS_account *pfs_last= account_array + scan.last();
+    for ( ; pfs < pfs_last; pfs++)
     {
-      lookup_setup_actor(thread, username, username_length, hostname, hostname_length,
-                         & pfs->m_enabled, & pfs->m_history);
-    }
-    else
-    {
-      pfs->m_enabled= true;
-      pfs->m_history= true;
-    }
-
-    int res;
-    pfs->m_lock.dirty_to_allocated(& dirty_state);
-    res= lf_hash_insert(&account_hash, pins, &pfs);
-    if (likely(res == 0))
-    {
-      return pfs;
-    }
-
-    if (pfs->m_user)
-    {
-      pfs->m_user->release();
-      pfs->m_user= NULL;
-    }
-    if (pfs->m_host)
-    {
-      pfs->m_host->release();
-      pfs->m_host= NULL;
-    }
-
-    global_account_container.deallocate(pfs);
-
-    if (res > 0)
-    {
-      if (++retry_count > retry_max)
+      if (pfs->m_lock.is_free())
       {
-        global_account_container.m_lost++;
-        return NULL;
-      }
-      goto search;
-    }
+        if (pfs->m_lock.free_to_dirty())
+        {
+          pfs->m_key= key;
+          if (username_length > 0)
+            pfs->m_username= &pfs->m_key.m_hash_key[0];
+          else
+            pfs->m_username= NULL;
+          pfs->m_username_length= username_length;
 
-    global_account_container.m_lost++;
-    return NULL;
+          if (hostname_length > 0)
+            pfs->m_hostname= &pfs->m_key.m_hash_key[username_length + 1];
+          else
+            pfs->m_hostname= NULL;
+          pfs->m_hostname_length= hostname_length;
+
+          pfs->m_user= find_or_create_user(thread, username, username_length);
+          pfs->m_host= find_or_create_host(thread, hostname, hostname_length);
+
+          pfs->init_refcount();
+          pfs->reset_stats();
+          pfs->m_disconnected_count= 0;
+
+          int res;
+          res= lf_hash_insert(&account_hash, pins, &pfs);
+          if (likely(res == 0))
+          {
+            pfs->m_lock.dirty_to_allocated();
+            return pfs;
+          }
+
+          if (pfs->m_user)
+          {
+            pfs->m_user->release();
+            pfs->m_user= NULL;
+          }
+          if (pfs->m_host)
+          {
+            pfs->m_host->release();
+            pfs->m_host= NULL;
+          }
+
+          pfs->m_lock.dirty_to_free();
+
+          if (res > 0)
+          {
+            if (++retry_count > retry_max)
+            {
+              account_lost++;
+              return NULL;
+            }
+            goto search;
+          }
+
+          account_lost++;
+          return NULL;
+        }
+      }
+    }
   }
 
+  account_lost++;
   return NULL;
 }
 
-void PFS_account::aggregate(bool alive, PFS_user *safe_user, PFS_host *safe_host)
+void PFS_account::aggregate(PFS_user *safe_user, PFS_host *safe_host)
 {
   aggregate_waits(safe_user, safe_host);
   aggregate_stages(safe_user, safe_host);
   aggregate_statements(safe_user, safe_host);
-  aggregate_transactions(safe_user, safe_host);
-  aggregate_memory(alive, safe_user, safe_host);
-  aggregate_status(safe_user, safe_host);
   aggregate_stats(safe_user, safe_host);
 }
 
 void PFS_account::aggregate_waits(PFS_user *safe_user, PFS_host *safe_host)
 {
-  if (read_instr_class_waits_stats() == NULL)
-    return;
-
   if (likely(safe_user != NULL && safe_host != NULL))
   {
     /*
@@ -276,9 +348,9 @@ void PFS_account::aggregate_waits(PFS_user *safe_user, PFS_host *safe_host)
       -  EVENTS_WAITS_SUMMARY_BY_HOST_BY_EVENT_NAME
       in parallel.
     */
-    aggregate_all_event_names(write_instr_class_waits_stats(),
-                              safe_user->write_instr_class_waits_stats(),
-                              safe_host->write_instr_class_waits_stats());
+    aggregate_all_event_names(m_instr_class_waits_stats,
+                              safe_user->m_instr_class_waits_stats,
+                              safe_host->m_instr_class_waits_stats);
     return;
   }
 
@@ -288,8 +360,8 @@ void PFS_account::aggregate_waits(PFS_user *safe_user, PFS_host *safe_host)
       Aggregate EVENTS_WAITS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
       -  EVENTS_WAITS_SUMMARY_BY_USER_BY_EVENT_NAME
     */
-    aggregate_all_event_names(write_instr_class_waits_stats(),
-                              safe_user->write_instr_class_waits_stats());
+    aggregate_all_event_names(m_instr_class_waits_stats,
+                              safe_user->m_instr_class_waits_stats);
     return;
   }
 
@@ -299,8 +371,8 @@ void PFS_account::aggregate_waits(PFS_user *safe_user, PFS_host *safe_host)
       Aggregate EVENTS_WAITS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
       -  EVENTS_WAITS_SUMMARY_BY_HOST_BY_EVENT_NAME
     */
-    aggregate_all_event_names(write_instr_class_waits_stats(),
-                              safe_host->write_instr_class_waits_stats());
+    aggregate_all_event_names(m_instr_class_waits_stats,
+                              safe_host->m_instr_class_waits_stats);
     return;
   }
 
@@ -311,9 +383,6 @@ void PFS_account::aggregate_waits(PFS_user *safe_user, PFS_host *safe_host)
 
 void PFS_account::aggregate_stages(PFS_user *safe_user, PFS_host *safe_host)
 {
-  if (read_instr_class_stages_stats() == NULL)
-    return;
-
   if (likely(safe_user != NULL && safe_host != NULL))
   {
     /*
@@ -322,9 +391,9 @@ void PFS_account::aggregate_stages(PFS_user *safe_user, PFS_host *safe_host)
       -  EVENTS_STAGES_SUMMARY_BY_HOST_BY_EVENT_NAME
       in parallel.
     */
-    aggregate_all_stages(write_instr_class_stages_stats(),
-                         safe_user->write_instr_class_stages_stats(),
-                         safe_host->write_instr_class_stages_stats());
+    aggregate_all_stages(m_instr_class_stages_stats,
+                         safe_user->m_instr_class_stages_stats,
+                         safe_host->m_instr_class_stages_stats);
     return;
   }
 
@@ -336,8 +405,8 @@ void PFS_account::aggregate_stages(PFS_user *safe_user, PFS_host *safe_host)
       -  EVENTS_STAGES_SUMMARY_GLOBAL_BY_EVENT_NAME
       in parallel.
     */
-    aggregate_all_stages(write_instr_class_stages_stats(),
-                         safe_user->write_instr_class_stages_stats(),
+    aggregate_all_stages(m_instr_class_stages_stats,
+                         safe_user->m_instr_class_stages_stats,
                          global_instr_class_stages_array);
     return;
   }
@@ -348,8 +417,8 @@ void PFS_account::aggregate_stages(PFS_user *safe_user, PFS_host *safe_host)
       Aggregate EVENTS_STAGES_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
       -  EVENTS_STAGES_SUMMARY_BY_HOST_BY_EVENT_NAME
     */
-    aggregate_all_stages(write_instr_class_stages_stats(),
-                         safe_host->write_instr_class_stages_stats());
+    aggregate_all_stages(m_instr_class_stages_stats,
+                         safe_host->m_instr_class_stages_stats);
     return;
   }
 
@@ -357,16 +426,13 @@ void PFS_account::aggregate_stages(PFS_user *safe_user, PFS_host *safe_host)
     Aggregate EVENTS_STAGES_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
     -  EVENTS_STAGES_SUMMARY_GLOBAL_BY_EVENT_NAME
   */
-  aggregate_all_stages(write_instr_class_stages_stats(),
+  aggregate_all_stages(m_instr_class_stages_stats,
                        global_instr_class_stages_array);
   return;
 }
 
 void PFS_account::aggregate_statements(PFS_user *safe_user, PFS_host *safe_host)
 {
-  if (read_instr_class_statements_stats() == NULL)
-    return;
-
   if (likely(safe_user != NULL && safe_host != NULL))
   {
     /*
@@ -375,9 +441,9 @@ void PFS_account::aggregate_statements(PFS_user *safe_user, PFS_host *safe_host)
       -  EVENTS_STATEMENTS_SUMMARY_BY_HOST_BY_EVENT_NAME
       in parallel.
     */
-    aggregate_all_statements(write_instr_class_statements_stats(),
-                             safe_user->write_instr_class_statements_stats(),
-                             safe_host->write_instr_class_statements_stats());
+    aggregate_all_statements(m_instr_class_statements_stats,
+                             safe_user->m_instr_class_statements_stats,
+                             safe_host->m_instr_class_statements_stats);
     return;
   }
 
@@ -389,8 +455,8 @@ void PFS_account::aggregate_statements(PFS_user *safe_user, PFS_host *safe_host)
       -  EVENTS_STATEMENTS_SUMMARY_GLOBAL_BY_EVENT_NAME
       in parallel.
     */
-    aggregate_all_statements(write_instr_class_statements_stats(),
-                             safe_user->write_instr_class_statements_stats(),
+    aggregate_all_statements(m_instr_class_statements_stats,
+                             safe_user->m_instr_class_statements_stats,
                              global_instr_class_statements_array);
     return;
   }
@@ -401,8 +467,8 @@ void PFS_account::aggregate_statements(PFS_user *safe_user, PFS_host *safe_host)
       Aggregate EVENTS_STATEMENTS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
       -  EVENTS_STATEMENTS_SUMMARY_BY_HOST_BY_EVENT_NAME
     */
-    aggregate_all_statements(write_instr_class_statements_stats(),
-                             safe_host->write_instr_class_statements_stats());
+    aggregate_all_statements(m_instr_class_statements_stats,
+                             safe_host->m_instr_class_statements_stats);
     return;
   }
 
@@ -410,147 +476,8 @@ void PFS_account::aggregate_statements(PFS_user *safe_user, PFS_host *safe_host)
     Aggregate EVENTS_STATEMENTS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
     -  EVENTS_STATEMENTS_SUMMARY_GLOBAL_BY_EVENT_NAME
   */
-  aggregate_all_statements(write_instr_class_statements_stats(),
+  aggregate_all_statements(m_instr_class_statements_stats,
                            global_instr_class_statements_array);
-  return;
-}
-
-void PFS_account::aggregate_transactions(PFS_user *safe_user, PFS_host *safe_host)
-{
-  if (read_instr_class_transactions_stats() == NULL)
-    return;
-
-  if (likely(safe_user != NULL && safe_host != NULL))
-  {
-    /*
-      Aggregate EVENTS_TRANSACTIONS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
-      -  EVENTS_TRANSACTIONS_SUMMARY_BY_USER_BY_EVENT_NAME
-      -  EVENTS_TRANSACTIONS_SUMMARY_BY_HOST_BY_EVENT_NAME
-      in parallel.
-    */
-    aggregate_all_transactions(write_instr_class_transactions_stats(),
-                               safe_user->write_instr_class_transactions_stats(),
-                               safe_host->write_instr_class_transactions_stats());
-    return;
-  }
-
-  if (safe_user != NULL)
-  {
-    /*
-      Aggregate EVENTS_TRANSACTIONS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
-      -  EVENTS_TRANSACTIONS_SUMMARY_BY_USER_BY_EVENT_NAME
-      -  EVENTS_TRANSACTIONS_SUMMARY_GLOBAL_BY_EVENT_NAME
-      in parallel.
-    */
-    aggregate_all_transactions(write_instr_class_transactions_stats(),
-                               safe_user->write_instr_class_transactions_stats(),
-                               &global_transaction_stat);
-    return;
-  }
-
-  if (safe_host != NULL)
-  {
-    /*
-      Aggregate EVENTS_TRANSACTIONS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
-      -  EVENTS_TRANSACTIONS_SUMMARY_BY_HOST_BY_EVENT_NAME
-    */
-    aggregate_all_transactions(write_instr_class_transactions_stats(),
-                               safe_host->write_instr_class_transactions_stats());
-    return;
-  }
-
-  /*
-    Aggregate EVENTS_TRANSACTIONS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
-    -  EVENTS_TRANSACTIONS_SUMMARY_GLOBAL_BY_EVENT_NAME
-  */
-  aggregate_all_transactions(write_instr_class_transactions_stats(),
-                             &global_transaction_stat);
-  return;
-}
-
-void PFS_account::aggregate_memory(bool alive, PFS_user *safe_user, PFS_host *safe_host)
-{
-  if (read_instr_class_memory_stats() == NULL)
-    return;
-
-  if (likely(safe_user != NULL && safe_host != NULL))
-  {
-    /*
-      Aggregate MEMORY_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
-      - MEMORY_SUMMARY_BY_USER_BY_EVENT_NAME
-      - MEMORY_SUMMARY_BY_HOST_BY_EVENT_NAME
-      in parallel.
-    */
-    aggregate_all_memory(alive,
-                         write_instr_class_memory_stats(),
-                         safe_user->write_instr_class_memory_stats(),
-                         safe_host->write_instr_class_memory_stats());
-    return;
-  }
-
-  if (safe_user != NULL)
-  {
-    /*
-      Aggregate MEMORY_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
-      - MEMORY_SUMMARY_BY_USER_BY_EVENT_NAME
-      - MEMORY_SUMMARY_GLOBAL_BY_EVENT_NAME
-      in parallel.
-    */
-    aggregate_all_memory(alive,
-                         write_instr_class_memory_stats(),
-                         safe_user->write_instr_class_memory_stats(),
-                         global_instr_class_memory_array);
-    return;
-  }
-
-  if (safe_host != NULL)
-  {
-    /*
-      Aggregate MEMORY_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
-      - MEMORY_SUMMARY_BY_HOST_BY_EVENT_NAME
-    */
-    aggregate_all_memory(alive,
-                         write_instr_class_memory_stats(),
-                         safe_host->write_instr_class_memory_stats());
-    return;
-  }
-
-  /*
-    Aggregate MEMORY_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME to:
-    - MEMORY_SUMMARY_GLOBAL_BY_EVENT_NAME
-  */
-  aggregate_all_memory(alive,
-                       write_instr_class_memory_stats(),
-                       global_instr_class_memory_array);
-  return;
-}
-
-void PFS_account::aggregate_status(PFS_user *safe_user, PFS_host *safe_host)
-{
-  /*
-    Never aggregate to global_status_var,
-    because of the parallel THD -> global_status_var flow.
-  */
-
-  if (safe_user != NULL)
-  {
-    /*
-      Aggregate STATUS_BY_ACCOUNT to:
-      - STATUS_BY_USER
-    */
-    safe_user->m_status_stats.aggregate(& m_status_stats);
-  }
-
-  if (safe_host != NULL)
-  {
-    /*
-      Aggregate STATUS_BY_ACCOUNT to:
-      - STATUS_BY_HOST
-    */
-    safe_host->m_status_stats.aggregate(& m_status_stats);
-  }
-
-  m_status_stats.reset();
   return;
 }
 
@@ -587,42 +514,19 @@ void PFS_account::release()
   dec_refcount();
 }
 
-void PFS_account::carry_memory_stat_delta(PFS_memory_stat_delta *delta, uint index)
-{
-  PFS_memory_stat *event_name_array;
-  PFS_memory_stat *stat;
-  PFS_memory_stat_delta delta_buffer;
-  PFS_memory_stat_delta *remaining_delta;
-
-  event_name_array= write_instr_class_memory_stats();
-  stat= & event_name_array[index];
-  remaining_delta= stat->apply_delta(delta, &delta_buffer);
-
-  if (remaining_delta == NULL)
-    return;
-
-  if (m_user != NULL)
-  {
-    m_user->carry_memory_stat_delta(remaining_delta, index);
-    /* do not return, need to process m_host below */
-  }
-
-  if (m_host != NULL)
-  {
-    m_host->carry_memory_stat_delta(remaining_delta, index);
-    return;
-  }
-
-  carry_global_memory_stat_delta(remaining_delta, index);
-}
-
 PFS_account *sanitize_account(PFS_account *unsafe)
 {
-  return global_account_container.sanitize(unsafe);
+  if ((&account_array[0] <= unsafe) &&
+      (unsafe < &account_array[account_max]))
+    return unsafe;
+  return NULL;
 }
 
-void purge_account(PFS_thread *thread, PFS_account *account)
+void purge_account(PFS_thread *thread, PFS_account *account,
+                   PFS_user *safe_user, PFS_host *safe_host)
 {
+  account->aggregate(safe_user, safe_host);
+
   LF_PINS *pins= get_account_hash_pins(thread);
   if (unlikely(pins == NULL))
     return;
@@ -634,13 +538,12 @@ void purge_account(PFS_thread *thread, PFS_account *account)
                     account->m_key.m_key_length));
   if (entry && (entry != MY_ERRPTR))
   {
-    assert(*entry == account);
+    DBUG_ASSERT(*entry == account);
     if (account->get_refcount() == 0)
     {
       lf_hash_delete(&account_hash, pins,
                      account->m_key.m_hash_key,
                      account->m_key.m_key_length);
-      account->aggregate(false, account->m_user, account->m_host);
       if (account->m_user != NULL)
       {
         account->m_user->release();
@@ -651,78 +554,37 @@ void purge_account(PFS_thread *thread, PFS_account *account)
         account->m_host->release();
         account->m_host= NULL;
       }
-      global_account_container.deallocate(account);
+      account->m_lock.allocated_to_free();
     }
   }
 
   lf_hash_search_unpin(pins);
 }
 
-class Proc_purge_account
-  : public PFS_buffer_processor<PFS_account>
-{
-public:
-  Proc_purge_account(PFS_thread *thread)
-    : m_thread(thread)
-  {}
-
-  virtual void operator()(PFS_account *pfs)
-  {
-    PFS_user *user= sanitize_user(pfs->m_user);
-    PFS_host *host= sanitize_host(pfs->m_host);
-    pfs->aggregate(true, user, host);
-
-    if (pfs->get_refcount() == 0)
-      purge_account(m_thread, pfs);
-  }
-
-private:
-  PFS_thread *m_thread;
-};
-
-/** Purge non connected accounts, reset stats of connected account. */
+/** Purge non connected user@host, reset stats of connected user@host. */
 void purge_all_account(void)
 {
   PFS_thread *thread= PFS_thread::get_current_thread();
   if (unlikely(thread == NULL))
     return;
 
-  Proc_purge_account proc(thread);
-  global_account_container.apply(proc);
-}
+  PFS_account *pfs= account_array;
+  PFS_account *pfs_last= account_array + account_max;
+  PFS_user *user;
+  PFS_host *host;
 
-class Proc_update_accounts_derived_flags
-  : public PFS_buffer_processor<PFS_account>
-{
-public:
-  Proc_update_accounts_derived_flags(PFS_thread *thread)
-    : m_thread(thread)
-  {}
-
-  virtual void operator()(PFS_account *pfs)
+  for ( ; pfs < pfs_last; pfs++)
   {
-    if (pfs->m_username_length > 0 && pfs->m_hostname_length > 0)
+    if (pfs->m_lock.is_populated())
     {
-      lookup_setup_actor(m_thread,
-                         pfs->m_username, pfs->m_username_length,
-                         pfs->m_hostname, pfs->m_hostname_length,
-                         & pfs->m_enabled, & pfs->m_history);
-    }
-    else
-    {
-      pfs->m_enabled= true;
-      pfs->m_history= true;
+      user= sanitize_user(pfs->m_user);
+      host= sanitize_host(pfs->m_host);
+      pfs->aggregate_stats(user, host);
+
+      if (pfs->get_refcount() == 0)
+        purge_account(thread, pfs, user, host);
     }
   }
-
-private:
-  PFS_thread *m_thread;
-};
-
-void update_accounts_derived_flags(PFS_thread *thread)
-{
-  Proc_update_accounts_derived_flags proc(thread);
-  global_account_container.apply(proc);
 }
 
 /** @} */

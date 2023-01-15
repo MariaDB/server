@@ -39,7 +39,7 @@ Connection_errors_max_connections	0
 Connection_errors_peer_address	1
 Connection_errors_select	0
 Connection_errors_tcpwrap	0
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 ERROR HY000: Can't get hostname for your address
 connection default;
 show global status like "connection_errors_%";
@@ -50,7 +50,7 @@ Connection_errors_max_connections	0
 Connection_errors_peer_address	2
 Connection_errors_select	0
 Connection_errors_tcpwrap	0
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 SET @@GLOBAL.debug_dbug = @saved_dbug;
 flush status;
 show global status like "connection_errors_%";

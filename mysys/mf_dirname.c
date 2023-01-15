@@ -1,5 +1,4 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -35,7 +34,7 @@ size_t dirname_length(const char *name)
   {
 #ifdef BASKSLASH_MBTAIL
     uint l;
-    if (my_ci_use_mb(fs) && (l= my_ismbchar(fs, pos, pos + 3)))
+    if (use_mb(fs) && (l= my_ismbchar(fs, pos, pos + 3)))
     {
       pos+= l - 1;
       continue;
@@ -124,7 +123,7 @@ char *convert_dirname(char *to, const char *from, const char *from_end)
       {
 #ifdef BACKSLASH_MBTAIL
         uint l;
-        if (my_ci_use_mb(fs) && (l= my_ismbchar(fs, from, from + 3)))
+        if (use_mb(fs) && (l= my_ismbchar(fs, from, from + 3)))
         {
           memmove(to, from, l);
           to+= l;

@@ -25,23 +25,17 @@ INNODB_BACKGROUND_SCRUB_DATA_COMPRESSED	OFF
 # show that it's writable
 #
 set global innodb_background_scrub_data_compressed=ON;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_compressed is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_compressed;
 @@global.innodb_background_scrub_data_compressed
-0
+1
 set global innodb_background_scrub_data_compressed=OFF;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_compressed is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_compressed;
 @@global.innodb_background_scrub_data_compressed
 0
 set global innodb_background_scrub_data_compressed=1;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_compressed is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_compressed;
 @@global.innodb_background_scrub_data_compressed
-0
+1
 set session innodb_background_scrub_data_compressed=1;
 ERROR HY000: Variable 'innodb_background_scrub_data_compressed' is a GLOBAL variable and should be set with SET GLOBAL
 #
@@ -54,5 +48,3 @@ ERROR 42000: Incorrect argument type to variable 'innodb_background_scrub_data_c
 set global innodb_background_scrub_data_compressed="foo";
 ERROR 42000: Variable 'innodb_background_scrub_data_compressed' can't be set to the value of 'foo'
 SET @@global.innodb_background_scrub_data_compressed = @start_global_value;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_compressed is deprecated and has no effect.

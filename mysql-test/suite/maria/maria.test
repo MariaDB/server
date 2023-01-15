@@ -10,10 +10,10 @@ call mtr.add_suppression("Can't find record in '.*'");
 
 select * from INFORMATION_SCHEMA.ENGINES where ENGINE="ARIA";
 
-let $default_engine=`select @@global.default_storage_engine`;
+let $default_engine=`select @@global.storage_engine`;
 let $default_checksum=`select @@global.aria_page_checksum`;
-set global default_storage_engine=aria;
-set session default_storage_engine=aria;
+set global storage_engine=aria;
+set session storage_engine=aria;
 set global aria_page_checksum=0;
 let $default_log_file_size=`select @@global.aria_log_file_size`;
 set global aria_log_file_size=4294959104;
@@ -373,12 +373,12 @@ drop table t1;
 #
 
 --error 1071
-CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), f varchar(255), g varchar(255), h varchar(255), i varchar(255), KEY t1 (a, b, c, d, e, f, g, h, i));
+CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), KEY t1 (a, b, c, d, e));
 --error 1070
 CREATE TABLE t1 (a varchar(1), b varchar(1), key (a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b));
-CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), f varchar(255), g varchar(255), h varchar(255), i varchar(255));
+CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255));
 --error 1071
-ALTER TABLE t1 ADD INDEX t1 (a, b, c, d, e, f, g, h, i);
+ALTER TABLE t1 ADD INDEX t1 (a, b, c, d, e);
 DROP TABLE t1;
 
 #
@@ -2094,7 +2094,7 @@ drop table t1;
 # Set defaults back
 --disable_result_log
 --disable_query_log
-eval set global default_storage_engine=$default_engine,
+eval set global storage_engine=$default_engine,
 aria_page_checksum=$default_checksum,
 aria_log_file_size=$default_log_file_size;
 --enable_result_log

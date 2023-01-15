@@ -15,12 +15,7 @@ CREATE TABLE t8 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 --connection server_2
 --sync_with_master
 --source include/stop_slave.inc
-SET @old_mode= @@GLOBAL.slave_parallel_mode;
-SET GLOBAL slave_parallel_mode='conservative';
-SET @old_threads= @@GLOBAL.slave_parallel_threads;
-SET GLOBAL slave_parallel_threads=40;
-SET @old_transaction_retries= @@GLOBAL.slave_transaction_retries;
-SET GLOBAL slave_transaction_retries=5;
+
 
 # Using dbug error injection, we artificially create event groups with a lot of
 # conflicting transactions in each event group. The bugs were originally seen
@@ -254,9 +249,6 @@ SELECT * FROM t7 ORDER BY a;
 
 --source include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
-SET GLOBAL slave_parallel_mode=@old_mode;
-SET GLOBAL slave_parallel_threads=@old_threads;
-SET GLOBAL slave_transaction_retries=@old_transaction_retries;
 
 # Clean up.
 --source include/start_slave.inc

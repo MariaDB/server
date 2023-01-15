@@ -26,17 +26,7 @@ if ($rpl_inited)
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
 --exec echo "wait" > $_expect_file_name
 
-# Avoid warnings from connection threads that does not have time to exit
---disable_query_log
-set @@global.log_warnings=0;
---enable_query_log
-
 --let $server_shutdown_timeout= 60
-if ($VALGRIND_TEST)
-{
-  --let $server_shutdown_timeout= 300
-}
-
 if ($shutdown_timeout)
 {
   --let $server_shutdown_timeout= $shutdown_timeout

@@ -15,7 +15,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir
 exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir ;
 
 let SEARCH_FILE=$MYSQLTEST_VARDIR/log/current_test;
---let SEARCH_PATTERN= Last binlog file .+, position \d+
+--let SEARCH_PATTERN= Last binlog file .*, position .*
 --source include/search_pattern_in_file.inc
 --echo # expect FOUND
 

@@ -1,5 +1,4 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates. All rights reserved.
-   Copyright (C) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,20 +25,20 @@
 
 const char *client_errors[]=
 {
-  "Unknown error",
+  "Unknown MySQL error",
   "Can't create UNIX socket (%d)",
-  "Can't connect to local server through socket '%-.100s' (%M)",
-  "Can't connect to server on '%-.100s' (%M)",
+  "Can't connect to local MySQL server through socket '%-.100s' (%M)",
+  "Can't connect to MySQL server on '%-.100s' (%M)",
   "Can't create TCP/IP socket (%M)",
-  "Unknown server host '%-.100s' (%d)",
-  "Server has gone away",
+  "Unknown MySQL server host '%-.100s' (%d)",
+  "MySQL server has gone away",
   "Protocol mismatch; server version = %d, client version = %d",
-  "MariaDB client ran out of memory",
+  "MySQL client ran out of memory",
   "Wrong host info",
   "Localhost via UNIX socket",
   "%-.100s via TCP/IP",
   "Error in server handshake",
-  "Lost connection to server during query",
+  "Lost connection to MySQL server during query",
   "Commands out of sync; you can't run this command now",
   "Named pipe: %-.32s",
   "Can't wait for named pipe to host: %-.64s  pipe: %-.32s (%lu)",
@@ -54,7 +53,7 @@ const char *client_errors[]=
   "Error connecting to master:",
   "SSL connection error: %-.100s",
   "Malformed packet",
-  "This client library is licensed only for use with servers having '%s' license",
+  "This client library is licensed only for use with MySQL servers having '%s' license",
   "Invalid use of null pointer",
   "Statement not prepared",
   "No data supplied for parameters in prepared statement",
@@ -81,7 +80,7 @@ const char *client_errors[]=
   "Prepared statement contains no metadata",
   "Attempt to read a row while there is no result set associated with the statement",
   "This feature is not implemented yet",
-  "Lost connection to server at '%s', system error: %M",
+  "Lost connection to MySQL server at '%s', system error: %M",
   "Statement closed indirectly because of a preceding %s() call",
   "The number of columns in the result set differs from the number of bound buffers. You must reset the statement, rebind the result set columns, and execute the statement again",
   "This handle is already connected. Use a separate handle for each connection.",

@@ -1827,7 +1827,6 @@ GRANT REPLICATION SLAVE       ON *.* TO mysqltest_u1@localhost;
 GRANT SHOW DATABASES          ON *.* TO mysqltest_u1@localhost;
 GRANT SHUTDOWN                ON *.* TO mysqltest_u1@localhost;
 GRANT USAGE                   ON *.* TO mysqltest_u1@localhost;
-GRANT SLAVE MONITOR           ON *.* TO mysqltest_u1@localhost;
 
 --echo
 SHOW GRANTS FOR mysqltest_u1@localhost;

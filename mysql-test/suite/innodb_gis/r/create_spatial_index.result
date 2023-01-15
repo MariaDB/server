@@ -1244,7 +1244,7 @@ Table	Op	Msg_type	Msg_text
 test.tab	check	status	OK
 DROP TABLE tab;
 CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(c1 > 0) ) ENGINE=InnoDB;
-ERROR HY000: Illegal parameter data types point and int for operation '>'
+ERROR HY000: Illegal parameter data types geometry and int for operation '>'
 CREATE TABLE tab(c1 POINT NOT NULL,CONSTRAINT tab_const check(CAST(c1 AS BINARY) > 0) ) ENGINE=InnoDB;
 CREATE SPATIAL INDEX idx1 ON tab(c1) ;
 SHOW CREATE TABLE tab;

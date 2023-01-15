@@ -150,9 +150,10 @@ bool hostname_cache_init()
   Host_entry tmp;
   uint key_offset= (uint) ((char*) (&tmp.ip_key) - (char*) &tmp);
 
-  if (!(hostname_cache= new Hash_filo<Host_entry>(key_memory_host_cache_hostname,
-                             host_cache_size, key_offset, HOST_ENTRY_KEY_SIZE,
-                             NULL, (my_hash_free_key) free, &my_charset_bin)))
+  if (!(hostname_cache= new Hash_filo<Host_entry>(host_cache_size,
+                                      key_offset, HOST_ENTRY_KEY_SIZE,
+                                      NULL, (my_hash_free_key) free,
+                                      &my_charset_bin)))
     return 1;
 
   hostname_cache->clear();
@@ -475,8 +476,7 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
       if (entry->m_host_validated)
       {
         if (entry->m_hostname_length)
-          *hostname= my_strdup(key_memory_host_cache_hostname,
-                               entry->m_hostname, MYF(0));
+          *hostname= my_strdup(entry->m_hostname, MYF(0));
 
         DBUG_PRINT("info",("IP (%s) has been found in the cache. "
                            "Hostname: '%s'",
@@ -926,8 +926,7 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
     {
       /* Copy host name string to be stored in the cache. */
 
-      *hostname= my_strdup(key_memory_host_cache_hostname,
-                           hostname_buffer, MYF(0));
+      *hostname= my_strdup(hostname_buffer, MYF(0));
 
       if (!*hostname)
       {

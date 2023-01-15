@@ -1,4 +1,4 @@
-# Testing mysql_upgrade with EVENT performance_schema.user_event
+"Testing mysql_upgrade with EVENT performance_schema.user_event"
 create event test.user_event on schedule every 1 day do
 select "not supposed to be here";
 Warnings:

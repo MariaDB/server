@@ -20,6 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #define fil0pagecompress_h
 
 #include "fsp0fsp.h"
+#include "fsp0pagecompress.h"
 
 /******************************************************************//**
 @file include/fil0pagecompress.h

@@ -1662,18 +1662,3 @@ DROP TABLE t1;
 #
 # End of 10.4 tests
 #
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-20363 Assertion `is_unsigned() == attr.unsigned_flag' failed in Type_handler_longlong::make_table_field
-#
-CREATE TABLE t1 (a INT);
-INSERT INTO t1 VALUES (1),(2);
-SELECT DISTINCT 1 FROM t1 GROUP BY 0 >> NULL WITH ROLLUP;
-1
-1
-DROP TABLE t1;
-#
-# End of 10.5 tests
-#

@@ -12,9 +12,9 @@
 # which should return error 1031, "Table storage engine for '<table name>'
 # doesn't have this option."
 #
---echo #
+--echo
 --echo # Create a temporary table of performance schema table names
---echo #
+--echo
  
 CREATE TEMPORARY TABLE table_list (id INT AUTO_INCREMENT, PRIMARY KEY (id)) AS
   SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
@@ -25,10 +25,10 @@ SELECT COUNT(*) FROM table_list INTO @table_count;
 
 let $count=`SELECT @table_count`;
 
---echo #
+--echo
 --echo # For each table in the performance schema, attempt HANDLER...OPEN,
 --echo # which should fail with an error 1031, ER_ILLEGAL_HA.
---echo #
+--echo
 
 while ($count > 0)
 {

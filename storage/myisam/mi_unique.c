@@ -1,6 +1,5 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -122,9 +121,9 @@ ha_checksum mi_unique_hash(MI_UNIQUEDEF *def, const uchar *record)
     if (type == HA_KEYTYPE_TEXT || type == HA_KEYTYPE_VARTEXT1 ||
         type == HA_KEYTYPE_VARTEXT2)
     {
-      my_ci_hash_sort(keyseg->charset,
-                      (const uchar*) pos, length,
-                      &seed1, &seed2);
+      keyseg->charset->coll->hash_sort(keyseg->charset,
+                                       (const uchar*) pos, length, &seed1,
+                                       &seed2);
       crc^= seed1;
     }
     else

@@ -473,13 +473,13 @@ void wsrep_restore_threadvars(const Wsrep_threadvars& globals)
   pthread_setspecific(THR_KEY_mysys, globals.mysys_var);
 }
 
-void wsrep_store_threadvars(THD *thd)
+int wsrep_store_threadvars(THD *thd)
 {
   if (thread_handling ==  SCHEDULER_TYPES_COUNT)
   {
     pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
   }
-  thd->store_globals();
+  return thd->store_globals();
 }
 
 void wsrep_reset_threadvars(THD *thd)

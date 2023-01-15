@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,147 +24,138 @@ Doublewrite buffer module
 Created 2011/12/19 Inaam Rana
 *******************************************************/
 
-#pragma once
+#ifndef buf0dblwr_h
+#define buf0dblwr_h
 
-#include "os0file.h"
+#include "ut0byte.h"
+#include "log0log.h"
 #include "buf0types.h"
+#include "log0recv.h"
+
+/** Doublewrite system */
+extern buf_dblwr_t*	buf_dblwr;
+/** Set to TRUE when the doublewrite buffer is being created */
+extern ibool		buf_dblwr_being_created;
+
+/** Create the doublewrite buffer if the doublewrite buffer header
+is not present in the TRX_SYS page.
+@return	whether the operation succeeded
+@retval	true	if the doublewrite buffer exists or was created
+@retval	false	if the creation failed (too small first data file) */
+MY_ATTRIBUTE((warn_unused_result))
+bool
+buf_dblwr_create();
+
+/**
+At database startup initializes the doublewrite buffer memory structure if
+we already have a doublewrite buffer created in the data files. If we are
+upgrading to an InnoDB version which supports multiple tablespaces, then this
+function performs the necessary update operations. If we are in a crash
+recovery, this function loads the pages from double write buffer into memory.
+@param[in]	file		File handle
+@param[in]	path		Path name of file
+@return DB_SUCCESS or error code */
+dberr_t
+buf_dblwr_init_or_load_pages(
+	pfs_os_file_t	file,
+	const char*	path);
+
+/** Process and remove the double write buffer pages for all tablespaces. */
+void
+buf_dblwr_process();
+
+/****************************************************************//**
+frees doublewrite buffer. */
+void
+buf_dblwr_free();
+
+/********************************************************************//**
+Updates the doublewrite buffer when an IO request is completed. */
+void
+buf_dblwr_update(
+/*=============*/
+	const buf_page_t*	bpage,	/*!< in: buffer block descriptor */
+	buf_flush_t		flush_type);/*!< in: flush type */
+/****************************************************************//**
+Determines if a page number is located inside the doublewrite buffer.
+@return TRUE if the location is inside the two blocks of the
+doublewrite buffer */
+ibool
+buf_dblwr_page_inside(
+/*==================*/
+	ulint	page_no);	/*!< in: page number */
+/********************************************************************//**
+Posts a buffer page for writing. If the doublewrite memory buffer is
+full, calls buf_dblwr_flush_buffered_writes and waits for for free
+space to appear. */
+void
+buf_dblwr_add_to_batch(
+/*====================*/
+	buf_page_t*	bpage);	/*!< in: buffer block to write */
+
+/********************************************************************//**
+Flush a batch of writes to the datafiles that have already been
+written to the dblwr buffer on disk. */
+void
+buf_dblwr_sync_datafiles();
+
+/********************************************************************//**
+Flushes possible buffered writes from the doublewrite memory buffer to disk,
+and also wakes up the aio thread if simulated aio is used. It is very
+important to call this function after a batch of writes has been posted,
+and also when we may have to wait for a page latch! Otherwise a deadlock
+of threads can occur. */
+void
+buf_dblwr_flush_buffered_writes();
+
+/********************************************************************//**
+Writes a page to the doublewrite buffer on disk, sync it, then write
+the page to the datafile and sync the datafile. This function is used
+for single page flushes. If all the buffers allocated for single page
+flushes in the doublewrite buffer are in use we wait here for one to
+become free. We are guaranteed that a slot will become free because any
+thread that is using a slot must also release the slot before leaving
+this function. */
+void
+buf_dblwr_write_single_page(
+/*========================*/
+	buf_page_t*	bpage,	/*!< in: buffer block to write */
+	bool		sync);	/*!< in: true if sync IO requested */
 
 /** Doublewrite control struct */
-class buf_dblwr_t
-{
-  struct element
-  {
-    /** asynchronous write request */
-    IORequest request;
-    /** payload size in bytes */
-    size_t size;
-  };
-
-  struct slot
-  {
-    /** first free position in write_buf measured in units of
-     * srv_page_size */
-    ulint first_free;
-    /** number of slots reserved for the current write batch */
-    ulint reserved;
-    /** the doublewrite buffer, aligned to srv_page_size */
-    byte* write_buf;
-    /** buffer blocks to be written via write_buf */
-    element* buf_block_arr;
-  };
-
-  /** the page number of the first doublewrite block (block_size() pages) */
-  page_id_t block1= page_id_t(0, 0);
-  /** the page number of the second doublewrite block (block_size() pages) */
-  page_id_t block2= page_id_t(0, 0);
-
-  /** mutex protecting the data members below */
-  mysql_mutex_t mutex;
-  /** condition variable for !batch_running */
-  pthread_cond_t cond;
-  /** whether a batch is being written from the doublewrite buffer */
-  bool batch_running;
-  /** number of expected flush_buffered_writes_completed() calls */
-  unsigned flushing_buffered_writes;
-  /** pages submitted to flush_buffered_writes() */
-  ulint pages_submitted;
-  /** number of flush_buffered_writes_completed() calls */
-  ulint writes_completed;
-  /** number of pages written by flush_buffered_writes_completed() */
-  ulint pages_written;
-
-  slot slots[2];
-  slot *active_slot= &slots[0];
-
-  /** Initialize the doublewrite buffer data structure.
-  @param header   doublewrite page header in the TRX_SYS page */
-  inline void init(const byte *header);
-
-  /** Flush possible buffered writes to persistent storage. */
-  bool flush_buffered_writes(const ulint size);
-
-public:
-  /** Create or restore the doublewrite buffer in the TRX_SYS page.
-  @return whether the operation succeeded */
-  bool create();
-  /** Free the doublewrite buffer. */
-  void close();
-
-  /** Acquire the mutex */
-  void lock() { mysql_mutex_lock(&mutex); }
-  /** @return the number of submitted page writes */
-  ulint submitted() const
-  { mysql_mutex_assert_owner(&mutex); return pages_submitted; }
-  /** @return the number of completed batches */
-  ulint batches() const
-  { mysql_mutex_assert_owner(&mutex); return writes_completed; }
-  /** @return the number of final pages written */
-  ulint written() const
-  { mysql_mutex_assert_owner(&mutex); return pages_written; }
-  /** Release the mutex */
-  void unlock() { mysql_mutex_unlock(&mutex); }
-
-  /** Initialize the doublewrite buffer memory structure on recovery.
-  If we are upgrading from a version before MySQL 4.1, then this
-  function performs the necessary update operations to support
-  innodb_file_per_table. If we are in a crash recovery, this function
-  loads the pages from double write buffer into memory.
-  @param file File handle
-  @param path Path name of file
-  @return DB_SUCCESS or error code */
-  dberr_t init_or_load_pages(pfs_os_file_t file, const char *path);
-
-  /** Process and remove the double write buffer pages for all tablespaces. */
-  void recover();
-
-  /** Update the doublewrite buffer on data page write completion. */
-  void write_completed();
-  /** Flush possible buffered writes to persistent storage.
-  It is very important to call this function after a batch of writes has been
-  posted, and also when we may have to wait for a page latch!
-  Otherwise a deadlock of threads can occur. */
-  void flush_buffered_writes();
-  /** Update the doublewrite buffer on write batch completion
-  @param request  the completed batch write request */
-  void flush_buffered_writes_completed(const IORequest &request);
-
-  /** Size of the doublewrite block in pages */
-  uint32_t block_size() const { return FSP_EXTENT_SIZE; }
-
-  /** Schedule a page write. If the doublewrite memory buffer is full,
-  flush_buffered_writes() will be invoked to make space.
-  @param request    asynchronous write request
-  @param size       payload size in bytes */
-  void add_to_batch(const IORequest &request, size_t size);
-
-  /** Determine whether the doublewrite buffer is initialized */
-  bool is_initialised() const
-  { return UNIV_LIKELY(block1 != page_id_t(0, 0)); }
-
-  /** @return whether a page identifier is part of the doublewrite buffer */
-  bool is_inside(const page_id_t id) const
-  {
-    if (!is_initialised())
-      return false;
-    ut_ad(block1 < block2);
-    if (id < block1)
-      return false;
-    const uint32_t size= block_size();
-    return id < block1 + size || (id >= block2 && id < block2 + size);
-  }
-
-  /** Wait for flush_buffered_writes() to be fully completed */
-  void wait_flush_buffered_writes()
-  {
-    if (is_initialised())
-    {
-      mysql_mutex_lock(&mutex);
-      while (batch_running)
-        my_cond_wait(&cond, &mutex.m_mutex);
-      mysql_mutex_unlock(&mutex);
-    }
-  }
+struct buf_dblwr_t{
+	ib_mutex_t	mutex;	/*!< mutex protecting the first_free
+				field and write_buf */
+	ulint		block1;	/*!< the page number of the first
+				doublewrite block (64 pages) */
+	ulint		block2;	/*!< page number of the second block */
+	ulint		first_free;/*!< first free position in write_buf
+				measured in units of srv_page_size */
+	ulint		b_reserved;/*!< number of slots currently reserved
+				for batch flush. */
+	os_event_t	b_event;/*!< event where threads wait for a
+				batch flush to end;
+				os_event_set() and os_event_reset()
+				are protected by buf_dblwr_t::mutex */
+	ulint		s_reserved;/*!< number of slots currently
+				reserved for single page flushes. */
+	os_event_t	s_event;/*!< event where threads wait for a
+				single page flush slot. Protected by mutex. */
+	bool*		in_use;	/*!< flag used to indicate if a slot is
+				in use. Only used for single page
+				flushes. */
+	bool		batch_running;/*!< set to TRUE if currently a batch
+				is being written from the doublewrite
+				buffer. */
+	byte*		write_buf;/*!< write buffer used in writing to the
+				doublewrite buffer, aligned to an
+				address divisible by srv_page_size
+				(which is required by Windows aio) */
+	byte*		write_buf_unaligned;/*!< pointer to write_buf,
+				but unaligned */
+	buf_page_t**	buf_block_arr;/*!< array to store pointers to
+				the buffer blocks which have been
+				cached to write_buf */
 };
 
-/** The doublewrite buffer */
-extern buf_dblwr_t buf_dblwr;
+#endif

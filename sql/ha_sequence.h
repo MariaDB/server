@@ -140,9 +140,9 @@ public:
   int rename_table(const char *from, const char *to)
   { return file->rename_table(from, to); }
   void unbind_psi()
-  { file->unbind_psi(); }
+  { return file->unbind_psi(); }
   void rebind_psi()
-  { file->rebind_psi(); }
+  { return file->rebind_psi(); }
 
   bool auto_repair(int error) const
   { return file->auto_repair(error); }

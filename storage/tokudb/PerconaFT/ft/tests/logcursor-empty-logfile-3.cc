@@ -174,7 +174,7 @@ test_main (int argc, const char *argv[]) {
         r = toku_logger_open(TOKU_TEST_FILENAME, logger);  assert(r==0);
 
         toku_logger_maybe_trim_log(logger, trim_lsn);
-        assert( toku_logfilemgr_num_logfiles(logger->logfilemgr) == 4 ); // untrimmed log, empty log, plus newly opened log
+        assert( toku_logfilemgr_num_logfiles(logger->logfilemgr) == 4 ); // untrimmed log, empty log, plus newly openned log
 
         r = toku_logger_close(&logger);
     }

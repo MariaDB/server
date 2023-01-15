@@ -708,6 +708,8 @@ SET sql_mode = DEFAULT;
 CREATE TABLE t1 (a CHAR, FULLTEXT KEY(a)) ENGINE=InnoDB;
 ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t1 ADD FULLTEXT INDEX (a);
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

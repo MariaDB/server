@@ -495,10 +495,7 @@ let $connect_user= root;
 --echo #     length of user name  = 10 character
 --echo #     length of default db = 9 character
 #========================================================================
-SET @orig_sql_mode= @@sql_mode;
-SET sql_mode= (SELECT replace(@@sql_mode,'NO_AUTO_CREATE_USER',''));
 GRANT ALL PRIVILEGES ON *.* TO 'root012345'@'localhost';
-SET sql_mode= @orig_sql_mode;
 let $connect_host= localhost;
 let $connect_db= mysqltest;
 let $connect_user= root012345;
@@ -509,10 +506,7 @@ DROP USER 'root012345'@'localhost';
 --echo #     length of user name  = 14 character
 --echo #     length of default db = 9 character
 #========================================================================
-SET @orig_sql_mode= @@sql_mode;
-SET sql_mode= (SELECT replace(@@sql_mode,'NO_AUTO_CREATE_USER',''));
 GRANT ALL PRIVILEGES ON *.* to 'root0123456789'@'localhost';
-SET sql_mode= @orig_sql_mode;
 let $connect_host= localhost;
 let $connect_db= mysqltest;
 let $connect_user= root0123456789;
@@ -1479,11 +1473,9 @@ if(`SELECT COUNT(*) $part`)
 #     4  6706392    85      3 15509472    117     2 34851168 Connect (con*,localhost,root012345,,mysqltest,,)
 #     4 10543632    89      3 10578744    117     2 39460872 Connect (con*,localhost,root0123456789,,mysqltest,,)
 
---echo # 4.6.1 The SUM_OF_BYTES_WRITE value depends on length of database
---echo #       since the database name is written in OK packet.
---echo #       Hence the value 2.
+--echo # 4.6.1 The SUM_OF_BYTES_WRITE value is the same for all Connects.
 #========================================================================
-let $my_rules= COUNT(DISTINCT SUM_NUMBER_OF_BYTES_WRITE) = 2;
+let $my_rules= COUNT(DISTINCT SUM_NUMBER_OF_BYTES_WRITE) = 1;
 let $part=
 FROM mysqltest.socket_summary_by_instance_detail
 WHERE OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin

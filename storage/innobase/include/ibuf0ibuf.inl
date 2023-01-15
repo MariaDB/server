@@ -44,11 +44,6 @@ ibuf_mtr_start(
 {
 	mtr_start(mtr);
 	mtr->enter_ibuf();
-
-	if (high_level_read_only || srv_read_only_mode) {
-		mtr_set_log_mode(mtr, MTR_LOG_NO_REDO);
-	}
-
 }
 /***************************************************************//**
 Commits an insert buffer mini-transaction. */
@@ -63,6 +58,37 @@ ibuf_mtr_commit(
 
 	mtr_commit(mtr);
 }
+
+/** Insert buffer struct */
+struct ibuf_t{
+	ulint		size;		/*!< current size of the ibuf index
+					tree, in pages */
+	ulint		max_size;	/*!< recommended maximum size of the
+					ibuf index tree, in pages */
+	ulint		seg_size;	/*!< allocated pages of the file
+					segment containing ibuf header and
+					tree */
+	bool		empty;		/*!< Protected by the page
+					latch of the root page of the
+					insert buffer tree
+					(FSP_IBUF_TREE_ROOT_PAGE_NO). true
+					if and only if the insert
+					buffer tree is empty. */
+	ulint		free_list_len;	/*!< length of the free list */
+	ulint		height;		/*!< tree height */
+	dict_index_t*	index;		/*!< insert buffer index */
+
+	/** number of pages merged */
+	Atomic_counter<ulint> n_merges;
+	Atomic_counter<ulint> n_merged_ops[IBUF_OP_COUNT];
+					/*!< number of operations of each type
+					merged to index pages */
+	Atomic_counter<ulint> n_discarded_ops[IBUF_OP_COUNT];
+					/*!< number of operations of each type
+					discarded without merging due to the
+					tablespace being deleted or the
+					index being dropped */
+};
 
 /************************************************************************//**
 Sets the free bit of the page in the ibuf bitmap. This is done in a separate
@@ -100,11 +126,12 @@ ibuf_should_try(
 						decide */
 {
 	return(innodb_change_buffering
-	       && ibuf.max_size != 0
+	       && ibuf->max_size != 0
 	       && !dict_index_is_clust(index)
 	       && !dict_index_is_spatial(index)
 	       && index->table->quiesce == QUIESCE_NONE
-	       && (ignore_sec_unique || !dict_index_is_unique(index)));
+	       && (ignore_sec_unique || !dict_index_is_unique(index))
+	       && srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE);
 }
 
 /******************************************************************//**

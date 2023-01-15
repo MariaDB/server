@@ -33,7 +33,7 @@ namespace mrn {
 
   ExternalLock::~ExternalLock() {
     if (lock_type_ != F_UNLCK) {
-      handler_->ha_external_unlock(thd_);
+      handler_->ha_external_lock(thd_, F_UNLCK);
     }
   }
 

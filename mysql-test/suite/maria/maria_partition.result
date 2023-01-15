@@ -1,5 +1,5 @@
-set global default_storage_engine=aria;
-set session default_storage_engine=aria;
+set global storage_engine=aria;
+set session storage_engine=aria;
 set global aria_page_checksum=0;
 drop table if exists t1,t2;
 drop view if exists v1;

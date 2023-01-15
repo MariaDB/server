@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,12 +40,11 @@ typedef unsigned short int rec_offs;
 
 /* Maximum number of user defined fields/columns. The reserved columns
 are the ones InnoDB adds internally: DB_ROW_ID, DB_TRX_ID, DB_ROLL_PTR.
-Before MariaDB Server 10.5, we needed "* 2" because mlog_parse_index()
-created a dummy table object possibly, with some of the system columns
-in it, and then adds the 3 system columns (again) using
-dict_table_add_system_columns().
-For now, we will keep this limitation to maintain file format compatibility
-with older versions. */
+We need "* 2" because mlog_parse_index() creates a dummy table object
+possibly, with some of the system columns in it, and then adds the 3
+system columns (again) using dict_table_add_system_columns(). The problem
+is that mlog_parse_index() cannot recognize the system columns by
+just having n_fields, n_uniq and the lengths of the columns. */
 #define REC_MAX_N_USER_FIELDS	(REC_MAX_N_FIELDS - DATA_N_SYS_COLS * 2)
 
 /* REC_ANTELOPE_MAX_INDEX_COL_LEN is measured in bytes and is the maximum

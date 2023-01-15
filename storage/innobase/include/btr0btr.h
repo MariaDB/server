@@ -218,55 +218,37 @@ btr_height_get(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Get an index page and declare its latching order level.
-@param[in]	index	index tree
-@param[in]	page	page number
+/** Gets a buffer page and declares its latching order level.
+@param[in]	page_id	page id
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	mode	latch mode
-@param[in]	merge	whether change buffer merge should be attempted
 @param[in]	file	file name
 @param[in]	line	line where called
+@param[in]	index	index tree, may be NULL if it is not an insert buffer
+tree
 @param[in,out]	mtr	mini-transaction
 @return block */
-inline buf_block_t* btr_block_get_func(const dict_index_t& index,
-				       uint32_t page, ulint mode, bool merge,
-				       const char* file, unsigned line,
-				       mtr_t* mtr)
-{
-	dberr_t err;
-
-	if (buf_block_t* block = buf_page_get_gen(
-		    page_id_t(index.table->space->id, page),
-		    index.table->space->zip_size(), mode, NULL, BUF_GET,
-		    file, line, mtr, &err, merge && !index.is_clust())) {
-		ut_ad(err == DB_SUCCESS);
-		if (mode != RW_NO_LATCH) {
-			buf_block_dbg_add_level(block, index.is_ibuf()
-						? SYNC_IBUF_TREE_NODE
-						: SYNC_TREE_NODE);
-		}
-		return block;
-	} else {
-		ut_ad(err != DB_SUCCESS);
-
-		if (err == DB_DECRYPTION_FAILED) {
-			if (index.table) {
-				index.table->file_unreadable = true;
-			}
-		}
-
-		return NULL;
-	}
-}
+UNIV_INLINE
+buf_block_t*
+btr_block_get_func(
+	const page_id_t		page_id,
+	ulint			zip_size,
+	ulint			mode,
+	const char*		file,
+	unsigned		line,
+	dict_index_t*		index,
+	mtr_t*			mtr);
 
 /** Gets a buffer page and declares its latching order level.
-@param index index tree
-@param page page number
+@param page_id tablespace/page identifier
+@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
 @param mode latch mode
-@param merge whether change buffer merge should be attempted
+@param index index tree, may be NULL if not the insert buffer tree
 @param mtr mini-transaction handle
 @return the block descriptor */
-# define btr_block_get(index, page, mode, merge, mtr)		\
-	btr_block_get_func(index, page, mode, merge, __FILE__, __LINE__, mtr)
+# define btr_block_get(page_id, zip_size, mode, index, mtr)	\
+	btr_block_get_func(page_id, zip_size, mode,		\
+		__FILE__, __LINE__, (dict_index_t*)index, mtr)
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */
@@ -276,16 +258,23 @@ btr_page_get_index_id(
 /*==================*/
 	const page_t*	page)	/*!< in: index page */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Read the B-tree or R-tree PAGE_LEVEL.
-@param page B-tree or R-tree page
-@return number of child page links to reach the leaf level
-@retval 0 for leaf pages */
-inline uint16_t btr_page_get_level(const page_t *page)
+/********************************************************//**
+Gets the node level field in an index page.
+@param[in]	page	index page
+@return level, leaf level == 0 */
+UNIV_INLINE
+ulint
+btr_page_get_level(const page_t* page)
 {
-  uint16_t level= mach_read_from_2(my_assume_aligned<2>
-                                   (PAGE_HEADER + PAGE_LEVEL + page));
-  ut_ad(level <= BTR_MAX_NODE_LEVEL);
-  return level;
+	ulint	level;
+
+	ut_ad(page);
+
+	level = mach_read_from_2(page + PAGE_HEADER + PAGE_LEVEL);
+
+	ut_ad(level <= BTR_MAX_NODE_LEVEL);
+
+	return(level);
 } MY_ATTRIBUTE((warn_unused_result))
 
 /** Read FIL_PAGE_NEXT.
@@ -293,7 +282,7 @@ inline uint16_t btr_page_get_level(const page_t *page)
 @return previous page number */
 inline uint32_t btr_page_get_next(const page_t* page)
 {
-  return mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_NEXT));
+  return mach_read_from_4(page + FIL_PAGE_NEXT);
 }
 
 /** Read FIL_PAGE_PREV.
@@ -301,7 +290,7 @@ inline uint32_t btr_page_get_next(const page_t* page)
 @return previous page number */
 inline uint32_t btr_page_get_prev(const page_t* page)
 {
-  return mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_PREV));
+  return mach_read_from_4(page + FIL_PAGE_PREV);
 }
 
 /**************************************************************//**
@@ -323,7 +312,7 @@ the child page number. In other words offsets must have been retrieved
 with rec_get_offsets(n_fields=ULINT_UNDEFINED).
 @return child node address */
 UNIV_INLINE
-uint32_t
+ulint
 btr_node_ptr_get_child_page_no(
 /*===========================*/
 	const rec_t*	rec,	/*!< in: node pointer record */
@@ -334,11 +323,11 @@ btr_node_ptr_get_child_page_no(
 @param[in]	type			type of the index
 @param[in,out]	space			tablespace where created
 @param[in]	index_id		index id
-@param[in]	index			index, or NULL to create a system table
+@param[in]	index			index
 @param[in,out]	mtr			mini-transaction
 @return	page number of the created root
 @retval	FIL_NULL	if did not succeed */
-uint32_t
+ulint
 btr_create(
 	ulint			type,
 	fil_space_t*		space,
@@ -396,13 +385,6 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset = false)
 @param[in,out]	mtr	mini-transaction */
 void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr);
 
-/** Reset the table to the canonical format on ROLLBACK of instant ALTER TABLE.
-@param[in]      index   clustered index with instant ALTER TABLE
-@param[in]      all     whether to reset FIL_PAGE_TYPE as well
-@param[in,out]  mtr     mini-transaction */
-ATTRIBUTE_COLD __attribute__((nonnull))
-void btr_reset_instant(const dict_index_t &index, bool all, mtr_t *mtr);
-
 /*************************************************************//**
 Makes tree one level higher by splitting the root, and inserts
 the tuple. It is assumed that mtr contains an x-latch on the tree.
@@ -424,6 +406,31 @@ btr_root_raise_and_insert(
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mtr */
+	MY_ATTRIBUTE((warn_unused_result));
+/*************************************************************//**
+Reorganizes an index page.
+
+IMPORTANT: On success, the caller will have to update IBUF_BITMAP_FREE
+if this is a compressed leaf page in a secondary index. This has to
+be done either within the same mini-transaction, or by invoking
+ibuf_reset_free_bits() before mtr_commit(). On uncompressed pages,
+IBUF_BITMAP_FREE is unaffected by reorganization.
+
+@retval true if the operation was successful
+@retval false if it is a compressed page, and recompression failed */
+bool
+btr_page_reorganize_low(
+/*====================*/
+	bool		recovery,/*!< in: true if called in recovery:
+				locks should not be updated, i.e.,
+				there cannot exist locks on the
+				page, and a hash index should not be
+				dropped: it cannot exist */
+	ulint		z_level,/*!< in: compression level to be used
+				if dealing with compressed page */
+	page_cur_t*	cursor,	/*!< in/out: page cursor */
+	dict_index_t*	index,	/*!< in: the index tree of the page */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 /*************************************************************//**
 Reorganizes an index page.
@@ -499,28 +506,8 @@ btr_insert_on_non_leaf_level_func(
 #define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
 	btr_insert_on_non_leaf_level_func(f,i,l,t,__FILE__,__LINE__,m)
 
-/** Set a child page pointer record as the predefined minimum record.
-@tparam has_prev  whether the page is supposed to have a left sibling
-@param[in,out]  rec     leftmost record on a leftmost non-leaf page
-@param[in,out]  block   buffer pool block
-@param[in,out]  mtr     mini-transaction */
-template<bool has_prev= false>
-inline void btr_set_min_rec_mark(rec_t *rec, const buf_block_t &block,
-                                 mtr_t *mtr)
-{
-  ut_ad(block.frame == page_align(rec));
-  ut_ad(!page_is_leaf(block.frame));
-  ut_ad(has_prev == page_has_prev(block.frame));
-
-  rec-= page_rec_is_comp(rec) ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS;
-
-  if (block.page.zip.data)
-    /* This flag is computed from other contents on a ROW_FORMAT=COMPRESSED
-    page. We are not modifying the compressed page frame at all. */
-    *rec|= REC_INFO_MIN_REC_FLAG;
-  else
-    mtr->write<1>(block, rec, *rec | REC_INFO_MIN_REC_FLAG);
-}
+/** Sets a record as the predefined minimum record. */
+void btr_set_min_rec_mark(rec_t* rec, mtr_t* mtr) MY_ATTRIBUTE((nonnull));
 
 /** Seek to the parent page of a B-tree page.
 @param[in,out]	index	b-tree
@@ -573,6 +560,32 @@ btr_discard_page(
 	btr_cur_t*	cursor,	/*!< in: cursor on the page to discard: not on
 				the root page */
 	mtr_t*		mtr);	/*!< in: mtr */
+/****************************************************************//**
+Parses the redo log record for setting an index record as the predefined
+minimum record.
+@return end of log record or NULL */
+byte*
+btr_parse_set_min_rec_mark(
+/*=======================*/
+	byte*	ptr,	/*!< in: buffer */
+	byte*	end_ptr,/*!< in: buffer end */
+	ulint	comp,	/*!< in: nonzero=compact page format */
+	page_t*	page,	/*!< in: page or NULL */
+	mtr_t*	mtr)	/*!< in: mtr or NULL */
+	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
+/***********************************************************//**
+Parses a redo log record of reorganizing a page.
+@return end of log record or NULL */
+byte*
+btr_parse_page_reorganize(
+/*======================*/
+	byte*		ptr,	/*!< in: buffer */
+	byte*		end_ptr,/*!< in: buffer end */
+	dict_index_t*	index,	/*!< in: record descriptor */
+	bool		compressed,/*!< in: true if compressed page */
+	buf_block_t*	block,	/*!< in: page to be reorganized, or NULL */
+	mtr_t*		mtr)	/*!< in: mtr or NULL */
+	MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
 Gets the number of pages in a B-tree.
 @return number of pages, or ULINT_UNDEFINED if the index is unavailable */
@@ -602,12 +615,15 @@ btr_get_size_and_reserved(
 /**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
 that the caller has made the reservation for free extents!
-@retval NULL if no page could be allocated */
+@retval NULL if no page could be allocated
+@retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
+(init_mtr == mtr, or the page was not previously freed in mtr)
+@retval block (not allocated or initialized) otherwise */
 buf_block_t*
 btr_page_alloc(
 /*===========*/
 	dict_index_t*	index,		/*!< in: index tree */
-	uint32_t	hint_page_no,	/*!< in: hint of a good page */
+	ulint		hint_page_no,	/*!< in: hint of a good page */
 	byte		file_direction,	/*!< in: direction where a possible
 					page split is made */
 	ulint		level,		/*!< in: level where the page is placed
@@ -660,7 +676,7 @@ buf_block_t*
 btr_root_block_get(
 /*===============*/
 	const dict_index_t*	index,	/*!< in: index tree */
-	rw_lock_type_t		mode,	/*!< in: either RW_S_LATCH
+	ulint			mode,	/*!< in: either RW_S_LATCH
 					or RW_X_LATCH */
 	mtr_t*			mtr);	/*!< in: mtr */
 
@@ -675,7 +691,15 @@ IBUF_BITMAP_FREE is unaffected by reorganization.
 
 @retval true if the operation was successful
 @retval false if it is a compressed page, and recompression failed */
-bool btr_page_reorganize_block(
+UNIV_INTERN
+bool
+btr_page_reorganize_block(
+/*======================*/
+	bool		recovery,/*!< in: true if called in recovery:
+				locks should not be updated, i.e.,
+				there cannot exist locks on the
+				page, and a hash index should not be
+				dropped: it cannot exist */
 	ulint		z_level,/*!< in: compression level to be used
 				if dealing with compressed page */
 	buf_block_t*	block,	/*!< in/out: B-tree page */
@@ -725,12 +749,29 @@ btr_validate_index(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Remove a page from the level list of pages.
-@param[in]	block		page to remove
+@param[in]	space		space where removed
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]	page		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-dberr_t btr_level_list_remove(const buf_block_t& block,
-                              const dict_index_t& index, mtr_t* mtr)
-  MY_ATTRIBUTE((warn_unused_result));
+dberr_t
+btr_level_list_remove_func(
+	ulint			space,
+	ulint			zip_size,
+	page_t*			page,
+	dict_index_t*		index,
+	mtr_t*			mtr)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/*************************************************************//**
+Removes a page from the level list of pages.
+@param space	in: space where removed
+@param zip_size	in: compressed page size in bytes, or 0 for uncompressed
+@param page	in/out: page to remove
+@param index	in: index tree
+@param mtr	in/out: mini-transaction */
+# define btr_level_list_remove(space,zip_size,page,index,mtr)		\
+	btr_level_list_remove_func(space,zip_size,page,index,mtr)
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the

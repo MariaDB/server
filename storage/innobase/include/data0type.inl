@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,9 +72,9 @@ dtype_get_mblen(
 /*============*/
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type (and collation) */
-	unsigned*mbminlen,	/*!< out: minimum length of a
+	ulint*	mbminlen,	/*!< out: minimum length of a
 				multi-byte character */
-	unsigned*mbmaxlen)	/*!< out: maximum length of a
+	ulint*	mbmaxlen)	/*!< out: maximum length of a
 				multi-byte character */
 {
 	if (dtype_is_string_type(mtype)) {
@@ -96,11 +96,12 @@ dtype_set_mblen(
 /*============*/
 	dtype_t*	type)	/*!< in/out: type */
 {
-	unsigned mbminlen, mbmaxlen;
+	ulint	mbminlen;
+	ulint	mbmaxlen;
 
 	dtype_get_mblen(type->mtype, type->prtype, &mbminlen, &mbmaxlen);
-	type->mbminlen = mbminlen & 7;
-	type->mbmaxlen = mbmaxlen & 7;
+	type->mbminlen = mbminlen;
+	type->mbmaxlen = mbmaxlen;
 
 	ut_ad(dtype_validate(type));
 }
@@ -119,9 +120,9 @@ dtype_set(
 	ut_ad(type);
 	ut_ad(mtype <= DATA_MTYPE_MAX);
 
-	type->mtype = static_cast<byte>(mtype);
-	type->prtype = static_cast<unsigned>(prtype);
-	type->len = static_cast<uint16_t>(len);
+	type->mtype = unsigned(mtype);
+	type->prtype = unsigned(prtype);
+	type->len = unsigned(len);
 
 	dtype_set_mblen(type);
 }
@@ -428,7 +429,7 @@ dtype_sql_name(
 Returns the size of a fixed size data type, 0 if not a fixed size type.
 @return fixed size, or 0 */
 UNIV_INLINE
-unsigned
+ulint
 dtype_get_fixed_size_low(
 /*=====================*/
 	ulint	mtype,		/*!< in: main type */
@@ -464,15 +465,15 @@ dtype_get_fixed_size_low(
 	case DATA_INT:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
-		return static_cast<unsigned>(len);
+		return(len);
 	case DATA_MYSQL:
 		if (prtype & DATA_BINARY_TYPE) {
-			return static_cast<unsigned>(len);
+			return(len);
 		} else if (!comp) {
-			return static_cast<unsigned>(len);
+			return(len);
 		} else {
 #ifdef UNIV_DEBUG
-			unsigned i_mbminlen, i_mbmaxlen;
+			ulint	i_mbminlen, i_mbmaxlen;
 
 			innobase_get_cset_width(
 				dtype_get_charset_coll(prtype),
@@ -482,7 +483,7 @@ dtype_get_fixed_size_low(
 			ut_ad(i_mbmaxlen == mbmaxlen);
 #endif /* UNIV_DEBUG */
 			if (mbminlen == mbmaxlen) {
-				return static_cast<unsigned>(len);
+				return(len);
 			}
 		}
 		/* Treat as variable-length. */
@@ -505,7 +506,7 @@ dtype_get_fixed_size_low(
 Returns the minimum size of a data type.
 @return minimum size */
 UNIV_INLINE
-unsigned
+ulint
 dtype_get_min_size_low(
 /*===================*/
 	ulint	mtype,		/*!< in: main type */
@@ -538,21 +539,20 @@ dtype_get_min_size_low(
 	case DATA_INT:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
-		return static_cast<unsigned>(len);
+		return(len);
 	case DATA_MYSQL:
 		if (prtype & DATA_BINARY_TYPE) {
-			return static_cast<unsigned>(len);
+			return(len);
 		} else {
 			if (mbminlen == mbmaxlen) {
-				return static_cast<unsigned>(len);
+				return(len);
 			}
 
 			/* this is a variable-length character set */
 			ut_a(mbminlen > 0);
 			ut_a(mbmaxlen > mbminlen);
 			ut_a(len % mbmaxlen == 0);
-			return static_cast<unsigned>(
-				len * mbminlen / mbmaxlen);
+			return(len * mbminlen / mbmaxlen);
 		}
 	case DATA_VARCHAR:
 	case DATA_BINARY:

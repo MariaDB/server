@@ -50,7 +50,7 @@ then
   exit 1
 fi
 
-echo "mariadbd $svr $mode"
+echo "mysqld $svr $mode"
 
 parse_arguments() {
   for arg do
@@ -107,7 +107,7 @@ fi
 datadir=@localstatedir@
 basedir=
 pid_file=
-parse_arguments `$print_defaults $defaults mariadbd mysqld mysql_server mysql_multi_server`
+parse_arguments `$print_defaults $defaults mysqld mysql_server mysql_multi_server`
 
 if test -z "$basedir"
 then
@@ -157,15 +157,15 @@ case "$mode" in
     # root password.
     if test -f "$pid_file"
     then
-      mariadbd_pid=`cat $pid_file`
-      echo "Killing mariadbd $svr with pid $mariadbd_pid"
-      kill $mariadbd_pid
-      # mariadbd should remove the pid_file when it exits, so wait for it.
+      mysqld_pid=`cat $pid_file`
+      echo "Killing mysqld $svr with pid $mysqld_pid"
+      kill $mysqld_pid
+      # mysqld should remove the pid_file when it exits, so wait for it.
 
       sleep 1
       while [ -s $pid_file -a "$flags" != aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ]
       do
-        [ -z "$flags" ] && echo "Wait for mariadbd $svr to exit\c" || echo ".\c"
+        [ -z "$flags" ] && echo "Wait for mysqld $svr to exit\c" || echo ".\c"
         flags=a$flags
         sleep 1
       done
@@ -180,7 +180,7 @@ case "$mode" in
         rm /var/lock/subsys/mysql
       fi
     else
-      echo "No mariadbd pid file found. Looked for $pid_file."
+      echo "No mysqld pid file found. Looked for $pid_file."
     fi
     ;;
 

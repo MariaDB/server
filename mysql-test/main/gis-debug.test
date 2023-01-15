@@ -73,19 +73,15 @@ SET SESSION debug_dbug="-d,Item_func_in";
 
 SET debug_dbug='+d,num_op';
 
-# (GEOMETRY,GEOMETRY) goes through
-# Type_collection_geometry::aggregate_for_num_op() which fails.
-
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT POINT(0,0)+POINT(0,0);
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT POINT(0,0)-POINT(0,0);
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT POINT(0,0)*POINT(0,0);
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT POINT(0,0)/POINT(0,0);
---error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
-SELECT POINT(0,0) MOD POINT(0,0);
+# (GEOMETRY,GEOMETRY) gives GEOMETRY for all operators
+CREATE TABLE t1 AS SELECT
+  POINT(0,0)+POINT(0,0),
+  POINT(0,0)-POINT(0,0),
+  POINT(0,0)*POINT(0,0),
+  POINT(0,0)/POINT(0,0),
+  POINT(0,0) MOD POINT(0,0) LIMIT 0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
 
 # (GEOMETRY,VARCHAR) gives GEOMETRY for all operators
 CREATE TABLE t1 AS SELECT
@@ -150,35 +146,4 @@ SET SESSION debug_dbug="-d,cmp_item";
 
 --echo #
 --echo # End of 10.4 tests
---echo #
-
-
---echo #
---echo # Start of 10.5 tests
---echo #
-
---echo #
---echo # MDEV-19994 Add class Function_collection
---echo #
-
---disable_service_connection
-SET SESSION debug_dbug="+d,make_item_func_call_native_simulate_not_found";
---error ER_PARSE_ERROR
-SELECT CONTAINS(POINT(1,1),POINT(1,1));
---error ER_PARSE_ERROR
-SELECT WITHIN(POINT(1,1),POINT(1,1));
-SET SESSION debug_dbug="-d,make_item_func_call_native_simulate_not_found";
---enable_service_connection
-
---echo #
---echo # MDEV-20009 Add CAST(expr AS pluggable_type)
---echo #
-
-SET SESSION debug_dbug="+d,emulate_geometry_create_typecast_item";
-SELECT AsText(CAST('POINT(0 0)' AS GEOMETRY));
-SET SESSION debug_dbug="-d,emulate_geometry_create_typecast_item";
-
-
---echo #
---echo # End of 10.5 tests
 --echo #

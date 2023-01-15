@@ -38,7 +38,7 @@ enum enum_sql_command {
   SQLCOM_SHOW_DATABASES, SQLCOM_SHOW_TABLES, SQLCOM_SHOW_FIELDS,
   SQLCOM_SHOW_KEYS, SQLCOM_SHOW_VARIABLES, SQLCOM_SHOW_STATUS,
   SQLCOM_SHOW_ENGINE_LOGS, SQLCOM_SHOW_ENGINE_STATUS, SQLCOM_SHOW_ENGINE_MUTEX,
-  SQLCOM_SHOW_PROCESSLIST, SQLCOM_SHOW_BINLOG_STAT, SQLCOM_SHOW_SLAVE_STAT,
+  SQLCOM_SHOW_PROCESSLIST, SQLCOM_SHOW_MASTER_STAT, SQLCOM_SHOW_SLAVE_STAT,
   SQLCOM_SHOW_GRANTS, SQLCOM_SHOW_CREATE, SQLCOM_SHOW_CHARSETS,
   SQLCOM_SHOW_COLLATIONS, SQLCOM_SHOW_CREATE_DB, SQLCOM_SHOW_TABLE_STATUS,
   SQLCOM_SHOW_TRIGGERS,
@@ -207,26 +207,6 @@ protected:
     DBUG_ASSERT(FALSE);
   }
 };
-
-class Sql_cmd_show_slave_status: public Sql_cmd
-{
-protected:
-  bool show_all_slaves_status;
-public:
-  Sql_cmd_show_slave_status()
-    :show_all_slaves_status(false)
-  {}
-
-  Sql_cmd_show_slave_status(bool status_all)
-    :show_all_slaves_status(status_all)
-  {}
-
-  enum_sql_command sql_command_code() const { return SQLCOM_SHOW_SLAVE_STAT; }
-
-  bool execute(THD *thd);
-  bool is_show_all_slaves_stat() { return show_all_slaves_status; }
-};
-
 
 class Sql_cmd_create_table_like: public Sql_cmd,
                                  public Storage_engine_name

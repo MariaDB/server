@@ -27,7 +27,7 @@ Url* http_create(const char *url, size_t url_length);
 */
 Url* Url::create(const char *url, size_t url_length)
 {
-  url= my_strndup(PSI_INSTRUMENT_ME, url, url_length, MYF(MY_WME));
+  url= my_strndup(url, url_length, MYF(MY_WME));
   
   if (!url)
     return NULL;
@@ -88,8 +88,8 @@ int Url::parse_proxy_server(const char *proxy_server, size_t proxy_length,
     port->length= 2;
   }
 
-  host->str= my_strndup(PSI_INSTRUMENT_ME, host->str, host->length, MYF(MY_WME));
-  port->str= my_strndup(PSI_INSTRUMENT_ME, port->str, port->length, MYF(MY_WME));
+  host->str= my_strndup(host->str, host->length, MYF(MY_WME));
+  port->str= my_strndup(port->str, port->length, MYF(MY_WME));
   return 0;
 }
 

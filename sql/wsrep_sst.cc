@@ -248,7 +248,7 @@ static bool sst_auth_real_set (const char* value)
 
   if (value)
   {
-    v= my_strdup(PSI_INSTRUMENT_ME, value, MYF(0));
+    v= my_strdup(value, MYF(0));
   }
   else                                          // its NULL
   {
@@ -266,7 +266,7 @@ static bool sst_auth_real_set (const char* value)
     if (strlen(sst_auth_real))
     {
       if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
-      wsrep_sst_auth= my_strdup(PSI_INSTRUMENT_ME, WSREP_SST_AUTH_MASK, MYF(0));
+      wsrep_sst_auth= my_strdup(WSREP_SST_AUTH_MASK, MYF(0));
     }
     else
     {
@@ -390,8 +390,8 @@ bool wsrep_sst_received (THD*                thd,
                                wsrep::seqno(seqno));
 
     if (!wsrep_before_SE()) {
-      wsrep_set_SE_checkpoint(wsrep::gtid::undefined(), wsrep_gtid_server.undefined());
-      wsrep_set_SE_checkpoint(sst_gtid, wsrep_gtid_server.gtid());
+      wsrep_set_SE_checkpoint(wsrep::gtid::undefined());
+      wsrep_set_SE_checkpoint(sst_gtid);
     }
     wsrep_verify_SE_checkpoint(uuid, seqno);
 
@@ -403,7 +403,7 @@ bool wsrep_sst_received (THD*                thd,
       wsrep_store_threadvars(thd);
     }
     else {
-      set_current_thd(nullptr);
+      my_pthread_setspecific_ptr(THR_THD, NULL);
     }
 
     /* During sst WSREP(thd) is not yet set for joiner. */
@@ -456,7 +456,7 @@ static char* generate_name_value(const char* name, const char* value)
   size_t name_len= strlen(name);
   size_t value_len= strlen(value);
   char* buf=
-    (char*) my_malloc(PSI_INSTRUMENT_ME, (name_len + value_len + 5), MYF(0));
+    (char*) my_malloc((name_len + value_len + 5) * sizeof(char), MYF(0));
   if (buf)
   {
     char* ref= buf;
@@ -491,11 +491,11 @@ static int generate_binlog_opt_val(char** ret)
     *ret= strcmp(opt_bin_logname, "0") ?
       generate_name_value(WSREP_SST_OPT_BINLOG,
                           opt_bin_logname) :
-      my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
+      my_strdup("", MYF(0));
   }
   else
   {
-    *ret= my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
+    *ret= my_strdup("", MYF(0));
   }
   if (!*ret) return -ENOMEM;
   return 0;
@@ -510,11 +510,11 @@ static int generate_binlog_index_opt_val(char** ret)
     *ret= strcmp(opt_binlog_index_name, "0") ?
       generate_name_value(WSREP_SST_OPT_BINLOG_INDEX,
                           opt_binlog_index_name) :
-      my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
+      my_strdup("", MYF(0));
   }
   else
   {
-    *ret= my_strdup(PSI_INSTRUMENT_ME, "", MYF(0));
+    *ret= my_strdup("", MYF(0));
   }
   if (!*ret) return -ENOMEM;
   return 0;
@@ -636,8 +636,7 @@ static void* sst_joiner_thread (void* a)
             err= EINVAL;
             goto err;
           } else {
-            wsrep_gtid_server.domain_id= (uint32) domain_id;
-            wsrep_gtid_domain_id= (uint32)domain_id;
+            wsrep_gtid_domain_id= (uint32) domain_id;
           }
         }
       }
@@ -1460,15 +1459,13 @@ static int sst_donate_mysqldump (const char*         addr,
                      WSREP_SST_OPT_LPORT " '%u' "
                      WSREP_SST_OPT_SOCKET " '%s' "
                      "%s"
-                     WSREP_SST_OPT_GTID " '%s:%lld,%d-%d-%llu' "
+                     WSREP_SST_OPT_GTID " '%s:%lld' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
                      addr, port, mysqld_port, mysqld_unix_port,
                      wsrep_defaults_file,
                      uuid_oss.str().c_str(), gtid.seqno().get(),
-                     wsrep_gtid_server.domain_id, wsrep_gtid_server.server_id,
-                     wsrep_gtid_server.seqno(),
-                     wsrep_gtid_server.domain_id,
+                     wsrep_gtid_domain_id,
                      bypass ? " " WSREP_SST_OPT_BYPASS : "");
 
   if (ret < 0 || size_t(ret) >= cmd_len)
@@ -1633,7 +1630,7 @@ static int sst_flush_tables(THD* thd)
     // Create a file with cluster state ID and wsrep_gtid_domain_id.
     char content[100];
     snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
-             (long long)wsrep_locked_seqno, wsrep_gtid_server.domain_id);
+             (long long)wsrep_locked_seqno, wsrep_gtid_domain_id);
     err= sst_create_file(flush_success, content);
 
     if (err)
@@ -1661,7 +1658,7 @@ static int sst_flush_tables(THD* thd)
 
       fprintf(file, "%s:%lld %u\n",
               uuid_oss.str().c_str(), server_state.pause_seqno().get(),
-              wsrep_gtid_server.domain_id);
+              wsrep_gtid_domain_id);
       fsync(fileno(file));
       fclose(file);
       if (rename(tmp_name, real_name) == -1)
@@ -1871,7 +1868,7 @@ static int sst_donate_other (const char*        method,
                  0,
                  mysql_real_data_home,
                  wsrep_defaults_file,
-                 uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_server.domain_id,
+                 uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_domain_id,
                  binlog_opt_val, binlog_index_opt_val,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
 

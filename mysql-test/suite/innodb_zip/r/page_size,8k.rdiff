@@ -15,12 +15,12 @@
 +test/t3	5	39	PRIMARY	3	3	1	50
  test/t4	5	33	PRIMARY	3	3	1	50
  === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
- Space_Name	Page_Size	Zip_Size	Path
- test/t1	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1.ibd
- test/t2	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2.ibd
--test/t3	DEFAULT	8192	MYSQLD_DATADIR/test/t3.ibd
-+test/t3	DEFAULT	4096	MYSQLD_DATADIR/test/t3.ibd
- test/t4	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4.ibd
+ Space_Name	Space_Type	Page_Size	Zip_Size	Path
+ test/t1	Single	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t1.ibd
+ test/t2	Single	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t2.ibd
+-test/t3	Single	DEFAULT	8192	MYSQLD_DATADIR/test/t3.ibd
++test/t3	Single	DEFAULT	4096	MYSQLD_DATADIR/test/t3.ibd
+ test/t4	Single	DEFAULT	DEFAULT	MYSQLD_DATADIR/test/t4.ibd
  DROP TABLE t1, t2, t3, t4;
  # Test 4) The maximum row size is dependent upon the page size.
 @@ -53,133 +53,97 @@

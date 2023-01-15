@@ -233,7 +233,7 @@ dict_get_first_table_name_in_db(
 	tuple = dtuple_create(heap, 1);
 	dfield = dtuple_get_nth_field(tuple, 0);
 
-	dfield_set_data(dfield, name, strlen(name));
+	dfield_set_data(dfield, name, ut_strlen(name));
 	dict_index_copy_types(tuple, sys_index, 1);
 
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
@@ -255,7 +255,7 @@ loop:
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
 
 	if (len < strlen(name)
-	    || memcmp(name, field, strlen(name))) {
+	    || ut_memcmp(name, field, strlen(name)) != 0) {
 		/* Not found */
 
 		btr_pcur_close(&pcur);
@@ -387,7 +387,7 @@ dict_process_sys_tables_rec_and_mtr_commit(
 
 	ut_a(!rec_get_deleted_flag(rec, 0));
 
-	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
 
 	/* Get the table name */
 	table_name_t table_name(mem_heap_strdupl(heap, field, len));
@@ -528,6 +528,7 @@ dict_process_sys_foreign_rec(
 {
 	ulint		len;
 	const byte*	field;
+	ulint		n_fields_and_type;
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return("delete-marked record in SYS_FOREIGN");
@@ -585,10 +586,10 @@ err_len:
 	if (len != 4) {
 		goto err_len;
 	}
-	uint32_t n_fields_and_type = mach_read_from_4(field);
+	n_fields_and_type = mach_read_from_4(field);
 
-	foreign->type = n_fields_and_type >> 24 & ((1U << 6) - 1);
-	foreign->n_fields = n_fields_and_type & dict_index_t::MAX_N_FIELDS;
+	foreign->type = (unsigned int) (n_fields_and_type >> 24);
+	foreign->n_fields = (unsigned int) (n_fields_and_type & 0x3FFUL);
 
 	return(NULL);
 }
@@ -671,12 +672,17 @@ dict_process_sys_tablespaces(
 /*=========================*/
 	mem_heap_t*	heap,		/*!< in/out: heap memory */
 	const rec_t*	rec,		/*!< in: current SYS_TABLESPACES rec */
-	uint32_t*	space,		/*!< out: tablespace identifier */
+	ulint*		space,		/*!< out: space id */
 	const char**	name,		/*!< out: tablespace name */
 	ulint*		flags)		/*!< out: tablespace flags */
 {
 	ulint		len;
 	const byte*	field;
+
+	/* Initialize the output values */
+	*space = ULINT_UNDEFINED;
+	*name = NULL;
+	*flags = ULINT_UNDEFINED;
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return("delete-marked record in SYS_TABLESPACES");
@@ -732,7 +738,7 @@ dict_process_sys_datafiles(
 /*=======================*/
 	mem_heap_t*	heap,		/*!< in/out: heap memory */
 	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
-	uint32_t*	space,		/*!< out: space id */
+	ulint*		space,		/*!< out: space id */
 	const char**	path)		/*!< out: datafile paths */
 {
 	ulint		len;
@@ -1482,8 +1488,7 @@ void dict_check_tablespaces_and_store_max_id()
 	/* Initialize the max space_id from sys header */
 	mtr.start();
 	ulint max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
-					      + DICT_HDR
-					      + dict_hdr_get(&mtr)->frame);
+					      + dict_hdr_get(&mtr));
 	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
@@ -1845,6 +1850,7 @@ dict_load_columns(
 				table->fts = fts_create(table);
 				table->fts->cache = fts_cache_create(table);
 				DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
+				fts_optimize_add_table(table);
 			}
 
 			ut_a(table->fts->doc_col == ULINT_UNDEFINED);
@@ -2100,7 +2106,7 @@ err_len:
 
 		sys_field->name = mem_heap_strdupl(
 			heap, (const char*) field, len);
-		sys_field->prefix_len = prefix_len & ((1U << 12) - 1);
+		sys_field->prefix_len = prefix_len;
 		*pos = position;
 	}
 
@@ -2329,7 +2335,7 @@ err_len:
 	(*index)->id = id;
 	(*index)->page = mach_read_from_4(field);
 	ut_ad((*index)->page);
-	(*index)->merge_threshold = merge_threshold & ((1U << 6) - 1);
+	(*index)->merge_threshold = merge_threshold;
 
 	return(NULL);
 }
@@ -2710,8 +2716,7 @@ dict_get_and_save_data_dir_path(
 			dict_mutex_enter_for_mysql();
 		}
 
-		table->flags |= 1 << DICT_TF_POS_DATA_DIR
-			& ((1U << DICT_TF_BITS) - 1);
+		table->flags |= (1 << DICT_TF_POS_DATA_DIR);
 		dict_save_data_dir_path(table,
 					table->space->chain.start->name);
 
@@ -2721,8 +2726,7 @@ dict_get_and_save_data_dir_path(
 			or SYS_TABLES or FSP_SPACE_FLAGS on the header page
 			of the tablespace, but it makes dict_table_t
 			consistent. */
-			table->flags &= ~DICT_TF_MASK_DATA_DIR
-				& ((1U << DICT_TF_BITS) - 1);
+			table->flags &= ~DICT_TF_MASK_DATA_DIR;
 		}
 
 		if (!dict_mutex_own) {
@@ -2780,7 +2784,7 @@ dict_load_tablespace(
 {
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
-	ut_ad(table->space_id < SRV_SPACE_ID_UPPER_BOUND);
+	ut_ad(table->space_id < SRV_LOG_SPACE_FIRST_ID);
 	ut_ad(fil_system.sys_space);
 
 	if (table->space_id == TRX_SYS_SPACE) {
@@ -2907,7 +2911,7 @@ dict_load_table_one(
 	tuple = dtuple_create(heap, 1);
 	dfield = dtuple_get_nth_field(tuple, 0);
 
-	dfield_set_data(dfield, name.m_name, strlen(name.m_name));
+	dfield_set_data(dfield, name.m_name, ut_strlen(name.m_name));
 	dict_index_copy_types(tuple, sys_index, 1);
 
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
@@ -2929,8 +2933,8 @@ err_exit:
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
 
 	/* Check if the table name in record is the searched one */
-	if (len != strlen(name.m_name)
-	    || memcmp(name.m_name, field, len)) {
+	if (len != ut_strlen(name.m_name)
+	    || 0 != ut_memcmp(name.m_name, field, len)) {
 
 		goto err_exit;
 	}
@@ -2994,15 +2998,15 @@ err_exit:
 	}
 
 	if (err == DB_SUCCESS && table->is_readable()) {
-		const auto root = dict_table_get_first_index(table)->page;
-
-		if (root >= table->space->get_size()) {
+		if (table->space && !fil_space_get_size(table->space_id)) {
 corrupted:
 			table->corrupted = true;
 			table->file_unreadable = true;
 			err = DB_CORRUPTION;
 		} else {
-			const page_id_t page_id(table->space->id, root);
+			const page_id_t page_id(
+				table->space->id,
+				dict_table_get_first_index(table)->page);
 			mtr.start();
 			buf_block_t* block = buf_page_get(
 				page_id, table->space->zip_size(),
@@ -3092,6 +3096,7 @@ func_exit:
 			/* the table->fts could be created in dict_load_column
 			when a user defined FTS_DOC_ID is present, but no
 			FTS */
+			fts_optimize_remove_table(table);
 			fts_free(table);
 		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
@@ -3289,7 +3294,7 @@ dict_load_foreign_cols(
 		field = rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_FOREIGN_COLS__ID, &len);
 
-		if (len != id_len || memcmp(foreign->id, field, len)) {
+		if (len != id_len || ut_memcmp(foreign->id, field, len) != 0) {
 			const rec_t*	pos;
 			ulint		pos_len;
 			const rec_t*	for_col_name;
@@ -3389,6 +3394,7 @@ dict_load_foreign(
 	const rec_t*	rec;
 	const byte*	field;
 	ulint		len;
+	ulint		n_fields_and_type;
 	mtr_t		mtr;
 	dict_table_t*	for_table;
 	dict_table_t*	ref_table;
@@ -3439,7 +3445,8 @@ dict_load_foreign(
 	field = rec_get_nth_field_old(rec, DICT_FLD__SYS_FOREIGN__ID, &len);
 
 	/* Check if the id in record is the searched one */
-	if (len != id_len || memcmp(id, field, len)) {
+	if (len != id_len || ut_memcmp(id, field, len) != 0) {
+
 		{
 			ib::error	err;
 			err << "Cannot load foreign constraint " << id
@@ -3462,7 +3469,7 @@ dict_load_foreign(
 
 	foreign = dict_mem_foreign_create();
 
-	uint32_t n_fields_and_type = mach_read_from_4(
+	n_fields_and_type = mach_read_from_4(
 		rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_FOREIGN__N_COLS, &len));
 
@@ -3470,8 +3477,8 @@ dict_load_foreign(
 
 	/* We store the type in the bits 24..29 of n_fields_and_type. */
 
-	foreign->type = (n_fields_and_type >> 24) & ((1U << 6) - 1);
-	foreign->n_fields = n_fields_and_type & dict_index_t::MAX_N_FIELDS;
+	foreign->type = (unsigned int) (n_fields_and_type >> 24);
+	foreign->n_fields = (unsigned int) (n_fields_and_type & 0x3FFUL);
 
 	foreign->id = mem_heap_strdupl(foreign->heap, id, id_len);
 
@@ -3598,7 +3605,7 @@ start_load:
 	tuple = dtuple_create_from_mem(tuple_buf, sizeof(tuple_buf), 1, 0);
 	dfield = dtuple_get_nth_field(tuple, 0);
 
-	dfield_set_data(dfield, table_name, strlen(table_name));
+	dfield_set_data(dfield, table_name, ut_strlen(table_name));
 	dict_index_copy_types(tuple, sec_index, 1);
 
 	btr_pcur_open_on_user_rec(sec_index, tuple, PAGE_CUR_GE,
@@ -3643,8 +3650,8 @@ loop:
 		goto next_rec;
 	}
 
-	if (innobase_get_lower_case_table_names() != 2
-	    && memcmp(field, table_name, len)) {
+	if ((innobase_get_lower_case_table_names() != 2)
+	    && (0 != ut_memcmp(field, table_name, len))) {
 		goto next_rec;
 	}
 
@@ -3708,4 +3715,82 @@ load_next_index:
 	}
 
 	DBUG_RETURN(DB_SUCCESS);
+}
+
+/***********************************************************************//**
+Loads a table id based on the index id.
+@return	true if found */
+static
+bool
+dict_load_table_id_on_index_id(
+/*===========================*/
+	index_id_t		index_id,  /*!< in: index id */
+	table_id_t*		table_id) /*!< out: table id */
+{
+	/* check hard coded indexes */
+	switch(index_id) {
+	case DICT_TABLES_ID:
+	case DICT_COLUMNS_ID:
+	case DICT_INDEXES_ID:
+	case DICT_FIELDS_ID:
+		*table_id = index_id;
+		return true;
+	case DICT_TABLE_IDS_ID:
+		/* The following is a secondary index on SYS_TABLES */
+		*table_id = DICT_TABLES_ID;
+		return true;
+	}
+
+	bool		found = false;
+	mtr_t		mtr;
+
+	ut_ad(mutex_own(&dict_sys.mutex));
+
+	/* NOTE that the operation of this function is protected by
+	the dictionary mutex, and therefore no deadlocks can occur
+	with other dictionary operations. */
+
+	mtr_start(&mtr);
+
+	btr_pcur_t pcur;
+	const rec_t* rec = dict_startscan_system(&pcur, &mtr, SYS_INDEXES);
+
+	while (rec) {
+		ulint len;
+		const byte* field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_INDEXES__ID, &len);
+		ut_ad(len == 8);
+
+		/* Check if the index id is the one searched for */
+		if (index_id == mach_read_from_8(field)) {
+			found = true;
+			/* Now we get the table id */
+			const byte* field = rec_get_nth_field_old(
+				rec,
+				DICT_FLD__SYS_INDEXES__TABLE_ID,
+				&len);
+			*table_id = mach_read_from_8(field);
+			break;
+		}
+		mtr_commit(&mtr);
+		mtr_start(&mtr);
+		rec = dict_getnext_system(&pcur, &mtr);
+	}
+
+	btr_pcur_close(&pcur);
+	mtr_commit(&mtr);
+
+	return(found);
+}
+
+dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
+{
+	table_id_t table_id;
+	dict_table_t * table = NULL;
+	if (dict_load_table_id_on_index_id(index_id, &table_id)) {
+		table = dict_table_open_on_id(table_id, true,
+					      DICT_TABLE_OP_LOAD_TABLESPACE);
+	}
+
+	return table;
 }

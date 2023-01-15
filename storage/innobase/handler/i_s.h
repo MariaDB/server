@@ -63,6 +63,7 @@ extern struct st_maria_plugin	i_s_innodb_sys_datafiles;
 extern struct st_maria_plugin	i_s_innodb_mutexes;
 extern struct st_maria_plugin	i_s_innodb_sys_virtual;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
+extern struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing;
 extern struct st_maria_plugin	i_s_innodb_sys_semaphore_waits;
 
 /** The latest successfully looked up innodb_fts_aux_table */
@@ -116,6 +117,16 @@ HPUX aCC: HP ANSI C++ B3910B A.03.65) can't handle it. */
 #define SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE 17
 #define SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE 18
 #define SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT 19
+
+/*******************************************************************//**
+Auxiliary function to store ulint value in MYSQL_TYPE_LONGLONG field.
+If the value is ULINT_UNDEFINED then the field it set to NULL.
+@return	0 on success */
+int
+field_store_ulint(
+/*==============*/
+	Field*	field,	/*!< in/out: target field for storage */
+	ulint	n);	/*!< in: value to store */
 
 /*******************************************************************//**
 Auxiliary function to store char* value in MYSQL_TYPE_STRING field.

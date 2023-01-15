@@ -6,7 +6,6 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
---enable_connect_log
 
 use performance_schema;
 
@@ -27,7 +26,6 @@ connection con1;
 select @@global.read_only;
 show grants;
 --disable_result_log
---echo # Update on perf_schema is allowed in read_only mode.
 select * from performance_schema.setup_instruments;
 update performance_schema.setup_instruments set enabled='NO';
 update performance_schema.setup_instruments set enabled='YES';
@@ -51,7 +49,7 @@ update performance_schema.setup_instruments set enabled='YES';
 
 connection default;
 
-grant READ_ONLY ADMIN on *.* to pfsuser@localhost;
+grant super on *.* to pfsuser@localhost;
 flush privileges;
 
 disconnect con1;

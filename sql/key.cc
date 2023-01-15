@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2018, 2020, MariaDB
+   Copyright (c) 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -112,7 +112,7 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
   @param with_zerofill  skipped bytes in the key buffer to be filled with 0
 */
 
-void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
+void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
               uint key_length, bool with_zerofill)
 {
   uint length;
@@ -141,13 +141,12 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
         continue;
       }
     }
-    auto *from_ptr= key_part->field->ptr_in_record(from_record);
     if (key_part->key_part_flag & HA_BLOB_PART ||
         key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
-      uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
+      uint bytes= key_part->field->get_key_image(to_key, length,
 		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
@@ -158,9 +157,9 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
       length= MY_MIN(key_length, key_part->length);
       Field *field= key_part->field;
       CHARSET_INFO *cs= field->charset();
-      uint bytes= field->get_key_image(to_key, length, from_ptr, Field::itRAW);
+      uint bytes= field->get_key_image(to_key, length, Field::itRAW);
       if (bytes < length)
-        cs->fill((char*) to_key + bytes, length - bytes, ' ');
+        cs->cset->fill(cs, (char*) to_key + bytes, length - bytes, ' ');
     }
   }
 }
@@ -324,10 +323,12 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
       const uchar *pos= table->record[0] + key_part->offset;
       if (length > char_length)
       {
-        char_length= cs->charpos(pos, pos + length, char_length);
+        char_length= my_charpos(cs, pos, pos + length, char_length);
         set_if_smaller(char_length, length);
       }
-      if (cs->strnncollsp(key, length, pos, char_length))
+      if (cs->coll->strnncollsp(cs,
+                                (const uchar*) key, length,
+                                (const uchar*) pos, char_length))
         return 1;
       continue;
     }
@@ -385,9 +386,9 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
         Align, returning not more than "char_length" characters.
       */
       size_t charpos, char_length= max_length / cs->mbmaxlen;
-      if ((charpos= cs->charpos(tmp.ptr(),
-                                tmp.ptr() + tmp.length(),
-                                char_length)) < tmp.length())
+      if ((charpos= my_charpos(cs, tmp.ptr(),
+                               tmp.ptr() + tmp.length(),
+                               char_length)) < tmp.length())
         tmp.length(charpos);
     }
     if (max_length < field->pack_length())
@@ -755,12 +756,12 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
     {
       if (cs->mbmaxlen > 1)
       {
-        size_t char_length= cs->charpos(pos + pack_length,
-                                        pos + pack_length + length,
-                                        length / cs->mbmaxlen);
+        size_t char_length= my_charpos(cs, pos + pack_length,
+                                     pos + pack_length + length,
+                                     length / cs->mbmaxlen);
         set_if_smaller(length, char_length);
       }
-      cs->hash_sort(pos+pack_length, length, &nr, &nr2);
+      cs->coll->hash_sort(cs, pos+pack_length, length, &nr, &nr2);
       key+= pack_length;
     }
     else
@@ -869,18 +870,19 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
       size_t byte_len1= length1, byte_len2= length2;
       if (cs->mbmaxlen > 1)
       {
-        size_t char_length1= cs->charpos(pos1 + pack_length,
-                                         pos1 + pack_length + length1,
-                                         length1 / cs->mbmaxlen);
-        size_t char_length2= cs->charpos(pos2 + pack_length,
-                                         pos2 + pack_length + length2,
-                                         length2 / cs->mbmaxlen);
+        size_t char_length1= my_charpos(cs, pos1 + pack_length,
+                                      pos1 + pack_length + length1,
+                                      length1 / cs->mbmaxlen);
+        size_t char_length2= my_charpos(cs, pos2 + pack_length,
+                                      pos2 + pack_length + length2,
+                                      length2 / cs->mbmaxlen);
         set_if_smaller(length1, char_length1);
         set_if_smaller(length2, char_length2);
       }
       if (length1 != length2 ||
-          cs->strnncollsp(pos1 + pack_length, byte_len1,
-                          pos2 + pack_length, byte_len2))
+          cs->coll->strnncollsp(cs,
+                                pos1 + pack_length, byte_len1,
+                                pos2 + pack_length, byte_len2))
         return TRUE;
       key1+= pack_length; key2+= pack_length;
     }

@@ -48,7 +48,7 @@ trx_sys_t		trx_sys;
 @param[in]	id              transaction id to check
 @param[in]      name            table name */
 void
-ReadViewBase::check_trx_id_sanity(
+ReadView::check_trx_id_sanity(
 	trx_id_t		id,
 	const table_name_t&	name)
 {
@@ -147,6 +147,8 @@ trx_sysf_create(
 {
 	ulint		slot_no;
 	buf_block_t*	block;
+	page_t*		page;
+	byte*		ptr;
 
 	ut_ad(mtr);
 
@@ -163,31 +165,33 @@ trx_sysf_create(
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 
-	ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
+	ut_a(block->page.id.page_no() == TRX_SYS_PAGE_NO);
 
-	mtr->write<2>(*block, FIL_PAGE_TYPE + block->frame,
-		      FIL_PAGE_TYPE_TRX_SYS);
+	page = buf_block_get_frame(block);
 
-	ut_ad(!mach_read_from_4(block->frame
-				+ TRX_SYS_DOUBLEWRITE
-				+ TRX_SYS_DOUBLEWRITE_MAGIC));
+	mlog_write_ulint(page + FIL_PAGE_TYPE, FIL_PAGE_TYPE_TRX_SYS,
+			 MLOG_2BYTES, mtr);
+
+	/* Reset the doublewrite buffer magic number to zero so that we
+	know that the doublewrite buffer has not yet been created (this
+	suppresses a Valgrind warning) */
+
+	mlog_write_ulint(page + TRX_SYS_DOUBLEWRITE
+			 + TRX_SYS_DOUBLEWRITE_MAGIC, 0, MLOG_4BYTES, mtr);
 
 	/* Reset the rollback segment slots.  Old versions of InnoDB
 	(before MySQL 5.5) define TRX_SYS_N_RSEGS as 256 and expect
 	that the whole array is initialized. */
+	ptr = TRX_SYS + TRX_SYS_RSEGS + page;
 	compile_time_assert(256 >= TRX_SYS_N_RSEGS);
-	compile_time_assert(TRX_SYS + TRX_SYS_RSEGS
-			    + 256 * TRX_SYS_RSEG_SLOT_SIZE
-			    <= UNIV_PAGE_SIZE_MIN - FIL_PAGE_DATA_END);
-	mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS,
-		    256 * TRX_SYS_RSEG_SLOT_SIZE, 0xff);
+	memset(ptr, 0xff, 256 * TRX_SYS_RSEG_SLOT_SIZE);
+	ptr += 256 * TRX_SYS_RSEG_SLOT_SIZE;
+	ut_a(ptr <= page + (srv_page_size - FIL_PAGE_DATA_END));
+
 	/* Initialize all of the page.  This part used to be uninitialized. */
-	mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS
-		    + 256 * TRX_SYS_RSEG_SLOT_SIZE,
-		    srv_page_size
-		    - (FIL_PAGE_DATA_END + TRX_SYS + TRX_SYS_RSEGS
-		       + 256 * TRX_SYS_RSEG_SLOT_SIZE),
-		    0);
+	mlog_memset(block, ptr - page,
+		    srv_page_size - FIL_PAGE_DATA_END + size_t(page - ptr),
+		    0, mtr);
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
@@ -195,7 +199,7 @@ trx_sysf_create(
 						     slot_no, 0, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(rblock->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
+	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Create the instance */
@@ -205,7 +209,8 @@ trx_sys_t::create()
 	ut_ad(this == &trx_sys);
 	ut_ad(!is_initialised());
 	m_initialised = true;
-	trx_list.create();
+	mutex_create(LATCH_ID_TRX_SYS, &mutex);
+	UT_LIST_INIT(trx_list, &trx_t::trx_list);
 	rseg_history_len= 0;
 
 	rw_trx_hash.init();
@@ -233,11 +238,16 @@ trx_sys_create_rsegs()
 {
 	/* srv_available_undo_logs reflects the number of persistent
 	rollback segments that have been initialized in the
-	transaction system header page. */
-	ut_ad(srv_undo_tablespaces <= TRX_SYS_MAX_UNDO_SPACES);
+	transaction system header page.
 
-	if (high_level_read_only) {
-		srv_available_undo_logs = 0;
+	srv_undo_logs determines how many of the
+	srv_available_undo_logs rollback segments may be used for
+	logging new transactions. */
+	ut_ad(srv_undo_tablespaces <= TRX_SYS_MAX_UNDO_SPACES);
+	ut_ad(srv_undo_logs <= TRX_SYS_N_RSEGS);
+
+	if (srv_read_only_mode) {
+		srv_undo_logs = srv_available_undo_logs = ULONG_UNDEFINED;
 		return(true);
 	}
 
@@ -252,35 +262,43 @@ trx_sys_create_rsegs()
 	in the system tablespace. */
 	ut_a(srv_available_undo_logs > 0);
 
-	for (ulint i = 0; srv_available_undo_logs < TRX_SYS_N_RSEGS;
-	     i++, srv_available_undo_logs++) {
-		/* Tablespace 0 is the system tablespace.
-		Dedicated undo log tablespaces start from 1. */
-		ulint space = srv_undo_tablespaces > 0
-			? (i % srv_undo_tablespaces)
-			+ srv_undo_space_id_start
-			: TRX_SYS_SPACE;
-
-		if (!trx_rseg_create(space)) {
-			ib::error() << "Unable to allocate the"
-				" requested innodb_undo_logs";
-			return(false);
+	if (srv_force_recovery) {
+		/* Do not create additional rollback segments if
+		innodb_force_recovery has been set. */
+		if (srv_undo_logs > srv_available_undo_logs) {
+			srv_undo_logs = srv_available_undo_logs;
 		}
+	} else {
+		for (ulint i = 0; srv_available_undo_logs < srv_undo_logs;
+		     i++, srv_available_undo_logs++) {
+			/* Tablespace 0 is the system tablespace.
+			Dedicated undo log tablespaces start from 1. */
+			ulint space = srv_undo_tablespaces > 0
+				? (i % srv_undo_tablespaces)
+				+ srv_undo_space_id_start
+				: TRX_SYS_SPACE;
 
-		/* Increase the number of active undo
-		tablespace in case new rollback segment
-		assigned to new undo tablespace. */
-		if (space > srv_undo_tablespaces_active) {
-			srv_undo_tablespaces_active++;
+			if (!trx_rseg_create(space)) {
+				ib::error() << "Unable to allocate the"
+					" requested innodb_undo_logs";
+				return(false);
+			}
 
-			ut_ad(srv_undo_tablespaces_active == space);
+			/* Increase the number of active undo
+			tablespace in case new rollback segment
+			assigned to new undo tablespace. */
+			if (space > srv_undo_tablespaces_active) {
+				srv_undo_tablespaces_active++;
+
+				ut_ad(srv_undo_tablespaces_active == space);
+			}
 		}
 	}
 
-	ut_ad(srv_available_undo_logs == TRX_SYS_N_RSEGS);
+	ut_ad(srv_undo_logs <= srv_available_undo_logs);
 
 	ib::info info;
-	info << srv_available_undo_logs;
+	info << srv_undo_logs << " out of " << srv_available_undo_logs;
 	if (srv_undo_tablespaces_active) {
 		info << " rollback segments in " << srv_undo_tablespaces_active
 		<< " undo tablespaces are active.";
@@ -319,8 +337,8 @@ trx_sys_t::close()
 		}
 	}
 
-	ut_a(trx_list.empty());
-	trx_list.close();
+	ut_a(UT_LIST_GET_LEN(trx_list) == 0);
+	mutex_free(&mutex);
 	m_initialised = false;
 }
 
@@ -329,11 +347,15 @@ ulint trx_sys_t::any_active_transactions()
 {
   uint32_t total_trx= 0;
 
-  trx_sys.trx_list.for_each([&total_trx](const trx_t &trx) {
-    if (trx.state == TRX_STATE_COMMITTED_IN_MEMORY ||
-        (trx.state == TRX_STATE_ACTIVE && trx.id))
+  mutex_enter(&mutex);
+  for (trx_t* trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
+       trx != NULL;
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
+  {
+    if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY ||
+        (trx->state == TRX_STATE_ACTIVE && trx->id))
       total_trx++;
-  });
-
+  }
+  mutex_exit(&mutex);
   return total_trx;
 }

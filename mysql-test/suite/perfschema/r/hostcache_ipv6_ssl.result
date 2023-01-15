@@ -32,7 +32,7 @@ SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 ERROR 28000: Access denied for user 'user_ssl'@'santa.claus.ipv6.example.com' (using password: NO)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -62,7 +62,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_ssl'@'santa.claus.ipv6.example.com' (using password: NO)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -92,7 +92,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_ssl_x509'@'santa.claus.ipv6.example.com' (using password: YES)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -122,7 +122,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'user_ssl_x509'@'santa.claus.ipv6.example.com' (using password: YES)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES

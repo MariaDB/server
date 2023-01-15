@@ -40,7 +40,7 @@ The following specify which files/extra groups are read (specified before remain
  --big-tables        Old variable, which if set to 1, allows large result sets
  by saving all temporary sets to disk, avoiding 'table
  full' errors. No longer needed, as the server now handles
- this automatically.
+ this automatically. sql_big_tables is a synonym.
  --bind-address=name IP address to bind to.
  --binlog-annotate-row-events 
  Tells the master to annotate RBR events with the
@@ -114,12 +114,6 @@ The following specify which files/extra groups are read (specified before remain
  the table) is logged in the before image, and only
  changed columns are logged in the after image. (Default:
  FULL).
- --binlog-row-metadata=name 
- Controls whether metadata is logged using FULL , MINIMAL
- format and NO_LOG.FULL causes all metadata to be logged;
- MINIMAL means that only metadata actually required by
- slave is logged; NO_LOG NO metadata will be
- logged.Default: NO_LOG.
  --binlog-stmt-cache-size=# 
  The size of the statement cache for updates to
  non-transactional engines for the binary log. If you
@@ -202,8 +196,7 @@ The following specify which files/extra groups are read (specified before remain
  using the password expiration options in ALTER USER.
  --default-regex-flags=name 
  Default flags for the regex library. Any combination of: 
- DOTALL, DUPNAMES, EXTENDED, EXTENDED_MORE, EXTRA, 
- MULTILINE, UNGREEDY
+ DOTALL, DUPNAMES, EXTENDED, EXTRA, MULTILINE, UNGREEDY
  --default-storage-engine=name 
  The default storage engine for new tables
  --default-time-zone=name 
@@ -490,7 +483,6 @@ The following specify which files/extra groups are read (specified before remain
  administrative statements to the slow log if it is open. 
  Resets or sets the option 'admin' in
  log_slow_disabled_statements
- (Defaults to on; use --skip-log-slow-admin-statements to disable.)
  --log-slow-disabled-statements=name 
  Don't log certain types of statements to slow log. Any
  combination of: admin, call, slave, sp
@@ -511,7 +503,6 @@ The following specify which files/extra groups are read (specified before remain
  Log slow statements executed by slave thread to the slow
  log if it is open. Resets or sets the option 'slave' in
  log_slow_disabled_statements
- (Defaults to on; use --skip-log-slow-slave-statements to disable.)
  --log-slow-verbosity=name 
  Verbosity level for the slow log. Any combination of: 
  innodb, query_plan, explain
@@ -570,6 +561,10 @@ The following specify which files/extra groups are read (specified before remain
  max_join_size records return an error
  --max-length-for-sort-data=# 
  Max number of bytes in sorted records
+ --max-long-data-size=# 
+ The maximum BLOB length to send to server from
+ mysql_send_long_data API. Deprecated option; use
+ max_allowed_packet instead.
  --max-password-errors=# 
  If there is more than this number of failed connect
  attempts due to invalid password, user will be blocked
@@ -618,6 +613,8 @@ The following specify which files/extra groups are read (specified before remain
  Don't write queries to slow log that examine fewer rows
  than that
  --mrr-buffer-size=# Size of buffer to use when using MRR with range access
+ --multi-range-count=# 
+ Ignored. Use mrr_buffer_size instead
  --myisam-block-size=# 
  Block size to be used for MyISAM index pages
  --myisam-data-pointer-size=# 
@@ -683,9 +680,6 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
- --optimizer-max-sel-arg-weight=# 
- The maximum weight of the SEL_ARG graph. Set to 0 for no
- limit
  --optimizer-prune-level=# 
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
@@ -720,7 +714,7 @@ The following specify which files/extra groups are read (specified before remain
  extended_keys, exists_to_in, orderby_uses_equalities, 
  condition_pushdown_for_derived, split_materialized, 
  condition_pushdown_for_subquery, rowid_filter, 
- condition_pushdown_from_having, not_null_range_scan
+ condition_pushdown_from_having
  --optimizer-trace=name 
  Controls tracing of the Optimizer:
  optimizer_trace=option=val[,option=val...], where option
@@ -761,21 +755,13 @@ The following specify which files/extra groups are read (specified before remain
  --performance-schema-consumer-events-statements-current 
  Default startup value for the events_statements_current
  consumer.
+ (Defaults to on; use --skip-performance-schema-consumer-events-statements-current to disable.)
  --performance-schema-consumer-events-statements-history 
  Default startup value for the events_statements_history
  consumer.
  --performance-schema-consumer-events-statements-history-long 
  Default startup value for the
  events_statements_history_long consumer.
- --performance-schema-consumer-events-transactions-current 
- Default startup value for the events_transactions_current
- consumer.
- --performance-schema-consumer-events-transactions-history 
- Default startup value for the events_transactions_history
- consumer.
- --performance-schema-consumer-events-transactions-history-long 
- Default startup value for the
- events_transactions_history_long consumer.
  --performance-schema-consumer-events-waits-current 
  Default startup value for the events_waits_current
  consumer.
@@ -811,12 +797,6 @@ The following specify which files/extra groups are read (specified before remain
  --performance-schema-events-statements-history-size=# 
  Number of rows per thread in EVENTS_STATEMENTS_HISTORY.
  Use 0 to disable, -1 for automated sizing.
- --performance-schema-events-transactions-history-long-size=# 
- Number of rows in EVENTS_TRANSACTIONS_HISTORY_LONG. Use 0
- to disable, -1 for automated sizing.
- --performance-schema-events-transactions-history-size=# 
- Number of rows per thread in EVENTS_TRANSACTIONS_HISTORY.
- Use 0 to disable, -1 for automated sizing.
  --performance-schema-events-waits-history-long-size=# 
  Number of rows in EVENTS_WAITS_HISTORY_LONG. Use 0 to
  disable, -1 for automated sizing.
@@ -844,25 +824,11 @@ The following specify which files/extra groups are read (specified before remain
  --performance-schema-max-file-instances=# 
  Maximum number of instrumented files. Use 0 to disable,
  -1 for automated sizing.
- --performance-schema-max-index-stat=# 
- Maximum number of index statistics for instrumented
- tables. Use 0 to disable, -1 for automated scaling.
- --performance-schema-max-memory-classes=# 
- Maximum number of memory pool instruments.
- --performance-schema-max-metadata-locks=# 
- Maximum number of metadata locks. Use 0 to disable, -1
- for automated scaling.
  --performance-schema-max-mutex-classes=# 
  Maximum number of mutex instruments.
  --performance-schema-max-mutex-instances=# 
  Maximum number of instrumented MUTEX objects. Use 0 to
  disable, -1 for automated sizing.
- --performance-schema-max-prepared-statements-instances=# 
- Maximum number of instrumented prepared statements. Use 0
- to disable, -1 for automated scaling.
- --performance-schema-max-program-instances=# 
- Maximum number of instrumented programs. Use 0 to
- disable, -1 for automated scaling.
  --performance-schema-max-rwlock-classes=# 
  Maximum number of rwlock instruments.
  --performance-schema-max-rwlock-instances=# 
@@ -873,23 +839,16 @@ The following specify which files/extra groups are read (specified before remain
  --performance-schema-max-socket-instances=# 
  Maximum number of opened instrumented sockets. Use 0 to
  disable, -1 for automated sizing.
- --performance-schema-max-sql-text-length=# 
- Maximum length of displayed sql text.
  --performance-schema-max-stage-classes=# 
  Maximum number of stage instruments.
  --performance-schema-max-statement-classes=# 
  Maximum number of statement instruments.
- --performance-schema-max-statement-stack=# 
- Number of rows per thread in EVENTS_STATEMENTS_CURRENT.
  --performance-schema-max-table-handles=# 
  Maximum number of opened instrumented tables. Use 0 to
  disable, -1 for automated sizing.
  --performance-schema-max-table-instances=# 
  Maximum number of instrumented tables. Use 0 to disable,
  -1 for automated sizing.
- --performance-schema-max-table-lock-stat=# 
- Maximum number of lock statistics for instrumented
- tables. Use 0 to disable, -1 for automated scaling.
  --performance-schema-max-thread-classes=# 
  Maximum number of thread instruments.
  --performance-schema-max-thread-instances=# 
@@ -1087,10 +1046,6 @@ The following specify which files/extra groups are read (specified before remain
  not sure, leave this option unset
  --report-user=name  The account user name of the slave to be reported to the
  master during slave registration
- --require-secure-transport 
- When this option is enabled, connections attempted using
- insecure transport will be rejected. Secure transports
- are SSL/TLS, Unix sockets or named pipes.
  --rowid-merge-buff-size=# 
  The size of the buffers used [NOT] IN evaluation via
  partial matching
@@ -1160,6 +1115,8 @@ The following specify which files/extra groups are read (specified before remain
  Show user and password in SHOW SLAVE HOSTS on this
  master.
  --silent-startup    Don't print [Note] to the error log during startup.
+ --skip-bdb          Deprecated option; Exist only for compatibility with old
+ my.cnf files
  --skip-grant-tables Start without grant tables. This gives all users FULL
  ACCESS to all tables.
  --skip-host-cache   Don't cache host names.
@@ -1229,15 +1186,13 @@ The following specify which files/extra groups are read (specified before remain
  Alias for slave_parallel_threads
  --slave-run-triggers-for-rbr=name 
  Modes for how triggers in row-base replication on slave
- side will be executed. Legal values are NO (default),
- YES, LOGGING and ENFORCE. NO means that trigger for RBR
- will not be running on slave. YES and LOGGING means that
- triggers will be running on slave, if there was not
- triggers running on the master for the statement. LOGGING
- also means results of that the executed triggers work
- will be written to the binlog. ENFORCE means that
- triggers will always be run on the slave, even if there
- are triggers on the master. ENFORCE implies LOGGING.
+ side will be executed. Legal values are NO (default), YES
+ and LOGGING. NO means that trigger for RBR will not be
+ running on slave. YES and LOGGING means that triggers
+ will be running on slave, if there was not triggers
+ running on the master for the statement. LOGGING also
+ means results of that the executed triggers work will be
+ written to the binlog.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list
@@ -1369,11 +1324,6 @@ The following specify which files/extra groups are read (specified before remain
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse.
  These are freed after 5 minutes of idle time
- --thread-pool-dedicated-listener 
- If set to 1,listener thread will not pick up queries
- --thread-pool-exact-stats 
- If set to 1, provides better statistics in
- information_schema threadpool tables
  --thread-pool-idle-timeout=# 
  Timeout in seconds for an idle thread in the thread
  pool.Worker thread will be shut down after timeout
@@ -1404,6 +1354,8 @@ The following specify which files/extra groups are read (specified before remain
  created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
  --time-format=name  The TIME format (ignored)
+ --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
+ effect.
  --tls-version=name  TLS protocol version for secure connections.. Any
  combination of: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3
  --tmp-disk-table-size=# 
@@ -1476,7 +1428,6 @@ binlog-format MIXED
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
 binlog-row-image FULL
-binlog-row-metadata NO_LOG
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
 character-set-client-handshake TRUE
@@ -1605,6 +1556,7 @@ max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
+max-long-data-size 16777216
 max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 18446744073709551615
@@ -1623,6 +1575,7 @@ metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
 min-examined-row-limit 0
 mrr-buffer-size 262144
+multi-range-count 256
 myisam-block-size 1024
 myisam-data-pointer-size 6
 myisam-max-sort-file-size 9223372036853727232
@@ -1642,7 +1595,6 @@ old-alter-table DEFAULT
 old-mode 
 old-passwords FALSE
 old-style-user-limits FALSE
-optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
@@ -1655,12 +1607,9 @@ performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE
 performance-schema-consumer-events-stages-history FALSE
 performance-schema-consumer-events-stages-history-long FALSE
-performance-schema-consumer-events-statements-current FALSE
+performance-schema-consumer-events-statements-current TRUE
 performance-schema-consumer-events-statements-history FALSE
 performance-schema-consumer-events-statements-history-long FALSE
-performance-schema-consumer-events-transactions-current FALSE
-performance-schema-consumer-events-transactions-history FALSE
-performance-schema-consumer-events-transactions-history-long FALSE
 performance-schema-consumer-events-waits-current FALSE
 performance-schema-consumer-events-waits-history FALSE
 performance-schema-consumer-events-waits-history-long FALSE
@@ -1672,8 +1621,6 @@ performance-schema-events-stages-history-long-size -1
 performance-schema-events-stages-history-size -1
 performance-schema-events-statements-history-long-size -1
 performance-schema-events-statements-history-size -1
-performance-schema-events-transactions-history-long-size -1
-performance-schema-events-transactions-history-size -1
 performance-schema-events-waits-history-long-size -1
 performance-schema-events-waits-history-size -1
 performance-schema-hosts-size -1
@@ -1681,32 +1628,24 @@ performance-schema-instrument
 performance-schema-max-cond-classes 90
 performance-schema-max-cond-instances -1
 performance-schema-max-digest-length 1024
-performance-schema-max-file-classes 80
+performance-schema-max-file-classes 50
 performance-schema-max-file-handles 32768
 performance-schema-max-file-instances -1
-performance-schema-max-index-stat -1
-performance-schema-max-memory-classes 320
-performance-schema-max-metadata-locks -1
-performance-schema-max-mutex-classes 210
+performance-schema-max-mutex-classes 200
 performance-schema-max-mutex-instances -1
-performance-schema-max-prepared-statements-instances -1
-performance-schema-max-program-instances -1
-performance-schema-max-rwlock-classes 50
+performance-schema-max-rwlock-classes 40
 performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
-performance-schema-max-sql-text-length 1024
 performance-schema-max-stage-classes 160
-performance-schema-max-statement-classes 222
-performance-schema-max-statement-stack 10
+performance-schema-max-statement-classes 202
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
-performance-schema-max-table-lock-stat -1
 performance-schema-max-thread-classes 50
 performance-schema-max-thread-instances -1
 performance-schema-session-connect-attrs-size -1
-performance-schema-setup-actors-size -1
-performance-schema-setup-objects-size -1
+performance-schema-setup-actors-size 100
+performance-schema-setup-objects-size 100
 performance-schema-users-size -1
 port 3306
 port-open-timeout 0
@@ -1741,7 +1680,6 @@ report-host (No default value)
 report-password (No default value)
 report-port 0
 report-user (No default value)
-require-secure-transport FALSE
 rowid-merge-buff-size 8388608
 rpl-semi-sync-master-enabled FALSE
 rpl-semi-sync-master-timeout 10000
@@ -1809,8 +1747,6 @@ tcp-keepalive-probes 0
 tcp-keepalive-time 0
 tcp-nodelay TRUE
 thread-cache-size 151
-thread-pool-dedicated-listener FALSE
-thread-pool-exact-stats FALSE
 thread-pool-idle-timeout 60
 thread-pool-max-threads 65536
 thread-pool-oversubscribe 3
@@ -1819,6 +1755,7 @@ thread-pool-priority auto
 thread-pool-stall-limit 500
 thread-stack 299008
 time-format %H:%i:%s
+timed-mutexes FALSE
 tmp-disk-table-size 18446744073709551615
 tmp-memory-table-size 16777216
 tmp-table-size 16777216

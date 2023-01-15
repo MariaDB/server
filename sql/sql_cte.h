@@ -159,8 +159,7 @@ public:
     inherited from the query that specified the table. Otherwise the list is
     always empty.
   */
-  List <Lex_ident_sys> column_list;
-  List <Lex_ident_sys> *cycle_list;
+  List <LEX_CSTRING> column_list;
   /* The query that specifies the table introduced by this with element */
   st_select_lex_unit *spec;
   /* 
@@ -212,14 +211,14 @@ public:
   SQL_I_List<TABLE_LIST> derived_with_rec_ref;
 
   With_element(With_element_head *h,
-               List <Lex_ident_sys> list,
+               List <LEX_CSTRING> list,
                st_select_lex_unit *unit)
     : next(NULL), base_dep_map(0), derived_dep_map(0),
       sq_dep_map(0), work_dep_map(0), mutually_recursive(0),
       top_level_dep_map(0), sq_rec_ref(NULL),
       next_mutually_recursive(NULL), references(0), 
       referenced(false), is_used_in_query(false),
-      head(h), column_list(list), cycle_list(0), spec(unit),
+      head(h), column_list(list), spec(unit),
       is_recursive(false), rec_outer_references(0), with_anchor(false),
       level(0), rec_result(NULL)
   { unit->with_element= this; }
@@ -266,7 +265,7 @@ public:
 
   void inc_references() { references++; }
 
-  bool process_columns_of_derived_unit(THD *thd, st_select_lex_unit *unit);
+  bool rename_columns_of_derived_unit(THD *thd, st_select_lex_unit *unit);
 
   bool prepare_unreferenced(THD *thd);
 
@@ -274,7 +273,7 @@ public:
                                     table_map &unrestricted,
                                     table_map &encountered);
 
-  void print(THD *thd, String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
 
   With_clause *get_owner() { return owner; }
 
@@ -318,8 +317,6 @@ public:
   bool instantiate_tmp_tables();
 
   void prepare_for_next_iteration();
-
-  void set_cycle_list(List<Lex_ident_sys> *cycle_list_arg);
 
   friend class With_clause;
 
@@ -435,7 +432,7 @@ public:
 
   void add_unrestricted(table_map map) { unrestricted|= map; }
 
-  void print(THD *thd, String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
 
   friend class With_element;
 

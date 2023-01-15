@@ -1,1 +1,1 @@
---loose-skip-stack-trace --skip-core-file --loose-debug-dbug=+d,xa_recover_expect_master_bin_000004
+--skip-stack-trace --skip-core-file --loose-debug-dbug=+d,xa_recover_expect_master_bin_000004

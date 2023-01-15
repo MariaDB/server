@@ -9,26 +9,18 @@ COUNT(@@GLOBAL.innodb_log_compressed_pages)
 1 Expected
 '#---------------------BS_STVARS_028_02----------------------#'
 SET @@global.innodb_log_compressed_pages = 0;
-Warnings:
-Warning	138	The parameter innodb_log_compressed_pages is deprecated and has no effect.
 SELECT @@global.innodb_log_compressed_pages;
 @@global.innodb_log_compressed_pages
-1
+0
 SET @@global.innodb_log_compressed_pages ='On' ;
-Warnings:
-Warning	138	The parameter innodb_log_compressed_pages is deprecated and has no effect.
 SELECT @@global.innodb_log_compressed_pages;
 @@global.innodb_log_compressed_pages
 1
 SET @@global.innodb_log_compressed_pages ='Off' ;
-Warnings:
-Warning	138	The parameter innodb_log_compressed_pages is deprecated and has no effect.
 SELECT @@global.innodb_log_compressed_pages;
 @@global.innodb_log_compressed_pages
-1
+0
 SET @@global.innodb_log_compressed_pages = 1;
-Warnings:
-Warning	138	The parameter innodb_log_compressed_pages is deprecated and has no effect.
 SELECT @@global.innodb_log_compressed_pages;
 @@global.innodb_log_compressed_pages
 1
@@ -72,8 +64,6 @@ COUNT(@@GLOBAL.innodb_log_compressed_pages)
 SELECT innodb_log_compressed_pages = @@SESSION.innodb_log_compressed_pages;
 ERROR 42S22: Unknown column 'innodb_log_compressed_pages' in 'field list'
 SET @@global.innodb_log_compressed_pages = @start_global_value;
-Warnings:
-Warning	138	The parameter innodb_log_compressed_pages is deprecated and has no effect.
 SELECT @@global.innodb_log_compressed_pages;
 @@global.innodb_log_compressed_pages
 1

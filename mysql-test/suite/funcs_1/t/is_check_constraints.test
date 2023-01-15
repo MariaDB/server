@@ -118,24 +118,3 @@ SELECT * FROM information_schema.check_constraints;
 
 DROP USER foo;
 DROP DATABASE db;
-
---echo #
---echo # MDEV-24601: INFORMATION_SCHEMA doesn't differentiate between
---echo #             column and table-level CHECK constraints
---echo #
-
-# Mix of table (>0) and field (<0) constraints
-# Note that there are 2 constraints `t2` - this is not allowed MDEV-24601
-use test;
-create table t(check (t0>0),
-               t0 int,
-               t1 int check (t1<0),
-               t2 int check (t2<-1),
-               CONSTRAINT tc_1 check(t1 > 1),
-               CONSTRAINT t2 check(t2 > 1));
-show create table t;
---sorted_result
-select * from information_schema.table_constraints where CONSTRAINT_TYPE='CHECK';
---sorted_result
-select * from information_schema.check_constraints;
-drop table t;

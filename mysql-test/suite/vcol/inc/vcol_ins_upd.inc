@@ -225,7 +225,7 @@ select * from t1;
 delete from t1;
 drop table t1;
 
-let $innodb_engine = `SELECT @@session.default_storage_engine='innodb'`;
+let $innodb_engine = `SELECT @@session.storage_engine='innodb'`;
 if ($innodb_engine)
 {
   --echo #

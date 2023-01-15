@@ -26,7 +26,7 @@ CREATE TABLE backing (
 # Here we enable scaffolding to let us create a deprecated table
 # so we can check that the new code will still allow queries to be performed
 # on a legacy database
-# It should still generate a warning (1287) - but I don't know how to test for that
+# It should still generate a warning (1287) - but I dont know how to test for that
 #
 #   latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future
 #   release. Please use 'latch VARCHAR(32) NULL' instead

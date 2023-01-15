@@ -99,7 +99,7 @@ row_undo_mod_clust_low(
 	pcur = &node->pcur;
 	btr_cur = btr_pcur_get_btr_cur(pcur);
 
-	ut_d(auto pcur_restore_result =)
+	ut_d(btr_pcur_t::restore_status pcur_restore_result =)
 	btr_pcur_restore_position(mode, pcur, mtr);
 
 	ut_ad(pcur_restore_result == btr_pcur_t::SAME_ALL);
@@ -144,12 +144,36 @@ row_undo_mod_clust_low(
 
 		ut_a(!dummy_big_rec);
 
+		static const byte
+			INFIMUM[8] = {'i','n','f','i','m','u','m',0},
+			SUPREMUM[8] = {'s','u','p','r','e','m','u','m'};
+
 		if (err == DB_SUCCESS
 		    && node->ref == &trx_undo_metadata
 		    && btr_cur_get_index(btr_cur)->table->instant
 		    && node->update->info_bits == REC_INFO_METADATA_ADD) {
-			btr_reset_instant(*btr_cur_get_index(btr_cur), false,
-					  mtr);
+			if (page_t* root = btr_root_get(
+				    btr_cur_get_index(btr_cur), mtr)) {
+				byte* infimum;
+				byte *supremum;
+				if (page_is_comp(root)) {
+					infimum = PAGE_NEW_INFIMUM + root;
+					supremum = PAGE_NEW_SUPREMUM + root;
+				} else {
+					infimum = PAGE_OLD_INFIMUM + root;
+					supremum = PAGE_OLD_SUPREMUM + root;
+				}
+
+				ut_ad(!memcmp(infimum, INFIMUM, 8)
+				      == !memcmp(supremum, SUPREMUM, 8));
+
+				if (memcmp(infimum, INFIMUM, 8)) {
+					mlog_write_string(infimum, INFIMUM,
+							  8, mtr);
+					mlog_write_string(supremum, SUPREMUM,
+							  8, mtr);
+				}
+			}
 		}
 	}
 
@@ -213,7 +237,8 @@ static bool row_undo_mod_must_purge(undo_node_t* node, mtr_t* mtr)
 
 	mtr->s_lock(&purge_sys.latch, __FILE__, __LINE__);
 
-	if (!purge_sys.changes_visible(node->new_trx_id, node->table->name)) {
+	if (!purge_sys.view.changes_visible(node->new_trx_id,
+					    node->table->name)) {
 		return false;
 	}
 
@@ -421,8 +446,8 @@ row_undo_mod_clust(
 		}
 		rec_t* rec = btr_pcur_get_rec(pcur);
 		mtr.s_lock(&purge_sys.latch, __FILE__, __LINE__);
-		if (!purge_sys.changes_visible(node->new_trx_id,
-					       node->table->name)) {
+		if (!purge_sys.view.changes_visible(node->new_trx_id,
+						   node->table->name)) {
 			goto mtr_commit_exit;
 		}
 
@@ -449,7 +474,7 @@ row_undo_mod_clust(
 #endif
 		} else if (rec_is_metadata(rec, *index)) {
 			ut_ad(!buf_block_get_page_zip(btr_pcur_get_block(
-							      pcur)));
+							      &node->pcur)));
 			for (unsigned i = index->first_user_field(); i--; ) {
 				trx_id_offset += index->fields[i].fixed_len;
 			}
@@ -470,21 +495,16 @@ row_undo_mod_clust(
 				      rec, dict_table_is_comp(node->table))
 			      || rec_is_alter_metadata(rec, *index));
 			index->set_modified(mtr);
-			buf_block_t* block = btr_pcur_get_block(pcur);
-			if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+			if (page_zip_des_t* page_zip = buf_block_get_page_zip(
+				    btr_pcur_get_block(&node->pcur))) {
 				page_zip_write_trx_id_and_roll_ptr(
-					block, rec, offsets, trx_id_pos,
+					page_zip, rec, offsets, trx_id_pos,
 					0, 1ULL << ROLL_PTR_INSERT_FLAG_POS,
 					&mtr);
 			} else {
-				size_t offs = page_offset(rec + trx_id_offset);
-				mtr.memset(block, offs, DATA_TRX_ID_LEN, 0);
-				offs += DATA_TRX_ID_LEN;
-				mtr.write<1,mtr_t::MAYBE_NOP>(*block,
-							      block->frame
-							      + offs, 0x80U);
-				mtr.memset(block, offs + 1,
-					   DATA_ROLL_PTR_LEN - 1, 0);
+				mlog_write_string(rec + trx_id_offset,
+						  reset_trx_id,
+						  sizeof reset_trx_id, &mtr);
 			}
 		}
 	} else {
@@ -598,8 +618,9 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	    || row_vers_old_has_index_entry(
 		    false, btr_pcur_get_rec(&node->pcur),
 		    &mtr_vers, index, entry, 0, 0)) {
-		btr_rec_set_deleted<true>(btr_cur_get_block(btr_cur),
-					  btr_cur_get_rec(btr_cur), &mtr);
+		err = btr_cur_del_mark_set_sec_rec(BTR_NO_LOCKING_FLAG,
+						   btr_cur, TRUE, thr, &mtr);
+		ut_ad(err == DB_SUCCESS);
 	} else {
 		/* Remove the index record */
 
@@ -834,8 +855,11 @@ try_again:
 
 		break;
 	case ROW_FOUND:
-		btr_rec_set_deleted<false>(btr_cur_get_block(btr_cur),
-					   btr_cur_get_rec(btr_cur), &mtr);
+		err = btr_cur_del_mark_set_sec_rec(
+			BTR_NO_LOCKING_FLAG,
+			btr_cur, FALSE, thr, &mtr);
+
+		ut_a(err == DB_SUCCESS);
 		heap = mem_heap_create(
 			sizeof(upd_t)
 			+ dtuple_get_n_fields(entry) * sizeof(upd_field_t));
@@ -1202,7 +1226,7 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	table_id_t	table_id;
 	trx_id_t	trx_id;
 	roll_ptr_t	roll_ptr;
-	byte		info_bits;
+	ulint		info_bits;
 	ulint		type;
 	ulint		cmpl_info;
 	bool		dummy_extern;
@@ -1233,7 +1257,7 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 
 	ut_ad(!node->table->skip_alter_undo);
 
-	if (UNIV_UNLIKELY(!node->table->is_accessible())) {
+	if (UNIV_UNLIKELY(!fil_table_accessible(node->table))) {
 close_table:
 		/* Normally, tables should not disappear or become
 		unaccessible during ROLLBACK, because they should be
@@ -1267,7 +1291,7 @@ close_table:
 	if (node->update->info_bits & REC_INFO_MIN_REC_FLAG) {
 		if ((node->update->info_bits & ~REC_INFO_DELETED_FLAG)
 		    != REC_INFO_MIN_REC_FLAG) {
-			ut_ad("wrong info_bits in undo log record" == 0);
+			ut_ad(!"wrong info_bits in undo log record");
 			goto close_table;
 		}
 		/* This must be an undo log record for a subsequent

@@ -549,12 +549,16 @@ a BLOB GENERATED ALWAYS AS ('') VIRTUAL,
 b TIMESTAMP(4) GENERATED ALWAYS AS ('') VIRTUAL,
 KEY (a(183),b)
 );
-ERROR HY000: Function or expression '''' cannot be used in the GENERATED ALWAYS AS clause of `b`
-CREATE TABLE t (
-a BLOB GENERATED ALWAYS AS ('') VIRTUAL,
-b TIMESTAMP(4) GENERATED ALWAYS AS ('') VIRTUAL
-);
+Warnings:
+Warning	1901	Function or expression '''' cannot be used in the GENERATED ALWAYS AS clause of `b`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
 INSERT IGNORE INTO t VALUES(), (), ();
+Warnings:
+Warning	1901	Function or expression '''' cannot be used in the GENERATED ALWAYS AS clause of `b`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 2
+Warning	1265	Data truncated for column 'b' at row 3
 DELETE IGNORE FROM t;
 DROP TABLE t;
 #

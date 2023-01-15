@@ -211,13 +211,11 @@ struct row_log_t {
 	row_log_buf_t	tail;	/*!< writer context;
 				protected by mutex and index->lock S-latch,
 				or by index->lock X-latch only */
-	size_t		crypt_tail_size; /*!< size of crypt_tail_size*/
 	byte*		crypt_tail; /*!< writer context;
 				temporary buffer used in encryption,
 				decryption or NULL*/
 	row_log_buf_t	head;	/*!< reader context; protected by MDL only;
 				modifiable by row_log_apply_ops() */
-	size_t		crypt_head_size; /*!< size of crypt_tail_size*/
 	byte*		crypt_head; /*!< reader context;
 				temporary buffer used in encryption,
 				decryption or NULL */
@@ -316,7 +314,8 @@ row_log_block_free(
 	DBUG_ENTER("row_log_block_free");
 	if (log_buf.block != NULL) {
 		ut_allocator<byte>(mem_key_row_log_buf).deallocate_large(
-			log_buf.block, &log_buf.block_pfx);
+			log_buf.block, &log_buf.block_pfx,
+			log_buf.size);
 		log_buf.block = NULL;
 	}
 	DBUG_VOID_RETURN;
@@ -410,6 +409,7 @@ row_log_online_op(
 		const os_offset_t	byte_offset
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
+		IORequest		request(IORequest::WRITE);
 		byte*			buf = log->tail.block;
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
@@ -447,7 +447,7 @@ row_log_online_op(
 
 		log->tail.blocks++;
 		if (os_file_write(
-			    IORequestWrite,
+			    request,
 			    "(modification log)",
 			    log->fd,
 			    buf, byte_offset, srv_sort_buf_size)
@@ -548,6 +548,7 @@ row_log_table_close_func(
 		const os_offset_t	byte_offset
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
+		IORequest		request(IORequest::WRITE);
 		byte*			buf = log->tail.block;
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
@@ -585,7 +586,7 @@ row_log_table_close_func(
 
 		log->tail.blocks++;
 		if (os_file_write(
-			    IORequestWrite,
+			    request,
 			    "(modification log)",
 			    log->fd,
 			    buf, byte_offset, srv_sort_buf_size)
@@ -970,7 +971,7 @@ row_log_table_low(
 		ut_ad(page_get_page_no(page_align(rec)) == index->page);
 		break;
 	default:
-		ut_ad("wrong page type" == 0);
+		ut_ad(!"wrong page type");
 	}
 #endif /* UNIV_DEBUG */
 	ut_ad(!rec_is_metadata(rec, *index));
@@ -2068,8 +2069,9 @@ row_log_table_apply_update(
 
 	ut_ad(dtuple_get_n_fields_cmp(old_pk)
 	      == dict_index_get_n_unique(index));
-	ut_ad(dtuple_get_n_fields(old_pk) - (log->same_pk ? 0 : 2)
-	      == dict_index_get_n_unique(index));
+	ut_ad(dtuple_get_n_fields(old_pk)
+	      == dict_index_get_n_unique(index)
+	      + (log->same_pk ? 0 : 2));
 
 	row = row_log_table_apply_convert_mrec(
 		mrec, dup->index, offsets, log, heap, &error);
@@ -2879,10 +2881,11 @@ all_done:
 			goto func_exit;
 		}
 
+		IORequest		request(IORequest::READ);
 		byte*			buf = index->online_log->head.block;
 
 		if (os_file_read_no_error_handling(
-			    IORequestRead, index->online_log->fd,
+			    request, index->online_log->fd,
 			    buf, ofs, srv_sort_buf_size, 0) != DB_SUCCESS) {
 			ib::error()
 				<< "Unable to read temporary file"
@@ -3246,11 +3249,9 @@ row_log_allocate(
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 
 	if (log_tmp_is_encrypted()) {
-		log->crypt_head_size = log->crypt_tail_size = srv_sort_buf_size;
-		log->crypt_head = static_cast<byte *>(
-			my_large_malloc(&log->crypt_head_size, MYF(MY_WME)));
-		log->crypt_tail = static_cast<byte *>(
-			my_large_malloc(&log->crypt_tail_size, MYF(MY_WME)));
+		ulint size = srv_sort_buf_size;
+		log->crypt_head = static_cast<byte *>(os_mem_alloc_large(&size));
+		log->crypt_tail = static_cast<byte *>(os_mem_alloc_large(&size));
 
 		if (!log->crypt_head || !log->crypt_tail) {
 			row_log_free(log);
@@ -3283,11 +3284,11 @@ row_log_free(
 	row_merge_file_destroy_low(log->fd);
 
 	if (log->crypt_head) {
-		my_large_free(log->crypt_head, log->crypt_head_size);
+		os_mem_free_large(log->crypt_head, srv_sort_buf_size);
 	}
 
 	if (log->crypt_tail) {
-		my_large_free(log->crypt_tail, log->crypt_tail_size);
+		os_mem_free_large(log->crypt_tail, srv_sort_buf_size);
 	}
 
 	mutex_free(&log->mutex);
@@ -3770,6 +3771,8 @@ all_done:
 		os_offset_t	ofs = static_cast<os_offset_t>(
 			index->online_log->head.blocks)
 			* srv_sort_buf_size;
+		IORequest	request(IORequest::READ);
+
 		ut_ad(has_index_lock);
 		has_index_lock = false;
 		rw_lock_x_unlock(dict_index_get_lock(index));
@@ -3784,7 +3787,7 @@ all_done:
 		byte*	buf = index->online_log->head.block;
 
 		if (os_file_read_no_error_handling(
-			    IORequestRead, index->online_log->fd,
+			    request, index->online_log->fd,
 			    buf, ofs, srv_sort_buf_size, 0) != DB_SUCCESS) {
 			ib::error()
 				<< "Unable to read temporary file"

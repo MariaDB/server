@@ -1418,8 +1418,6 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     flags.client_long_flag= MY_TEST(thd->client_capabilities & CLIENT_LONG_FLAG);
     flags.client_protocol_41= MY_TEST(thd->client_capabilities &
                                       CLIENT_PROTOCOL_41);
-    flags.client_extended_metadata= MY_TEST(thd->client_capabilities &
-                                            MARIADB_CLIENT_EXTENDED_METADATA);
     flags.client_depr_eof= MY_TEST(thd->client_capabilities &
                                       CLIENT_DEPRECATE_EOF);
     /*
@@ -1452,13 +1450,12 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     flags.div_precision_increment= thd->variables.div_precincrement;
     flags.default_week_format= thd->variables.default_week_format;
     DBUG_PRINT("qcache", ("\
-long %d, 4.1: %d, ex metadata: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
+long %d, 4.1: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
 sql mode: 0x%llx, sort len: %llu, concat len: %u, div_precision: %zu, \
 def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.client_long_flag,
                           (int)flags.client_protocol_41,
-                          (int)flags.client_extended_metadata,
                           (int)flags.client_depr_eof,
                           (int)flags.protocol_type,
                           (int)flags.more_results_exists,
@@ -1930,8 +1927,6 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   flags.client_long_flag= MY_TEST(thd->client_capabilities & CLIENT_LONG_FLAG);
   flags.client_protocol_41= MY_TEST(thd->client_capabilities &
                                     CLIENT_PROTOCOL_41);
-  flags.client_extended_metadata= MY_TEST(thd->client_capabilities &
-                                          MARIADB_CLIENT_EXTENDED_METADATA);
   flags.client_depr_eof= MY_TEST(thd->client_capabilities &
                                     CLIENT_DEPRECATE_EOF);
   flags.protocol_type= (unsigned int) thd->protocol->type();
@@ -1955,13 +1950,12 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   flags.default_week_format= thd->variables.default_week_format;
   flags.lc_time_names= thd->variables.lc_time_names;
   DBUG_PRINT("qcache", ("\
-long %d, 4.1: %d, ex metadata: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
+long %d, 4.1: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
 sql mode: 0x%llx, sort len: %llu, concat len: %u, div_precision: %zu, \
 def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.client_long_flag,
                           (int)flags.client_protocol_41,
-                          (int)flags.client_extended_metadata,
                           (int)flags.client_depr_eof,
                           (int)flags.protocol_type,
                           (int)flags.more_results_exists,
@@ -2131,7 +2125,8 @@ lookup:
                      ("Handler require invalidation queries of %.*s %llu-%llu",
                       (int)qcache_se_key_len, qcache_se_key_name,
                       engine_data, table->engine_data()));
-          invalidate_table_internal((uchar *) table->db(),
+          invalidate_table_internal(thd,
+                                    (uchar *) table->db(),
                                     table->key_length());
         }
         else
@@ -2380,7 +2375,7 @@ void Query_cache::invalidate(THD *thd, const char *db)
           if (strcmp(table->db(),db) == 0)
           {
             Query_cache_block_table *list_root= table_block->table(0);
-            invalidate_query_block_list(list_root);
+            invalidate_query_block_list(thd,list_root);
           }
 
           table_block= next;
@@ -2735,8 +2730,8 @@ size_t Query_cache::init_cache()
 
   DUMP(this);
 
-  (void) my_hash_init(key_memory_Query_cache, &queries, &my_charset_bin,
-                      def_query_hash_size, 0,0, query_cache_query_get_key,0,0);
+  (void) my_hash_init(&queries, &my_charset_bin, def_query_hash_size, 0, 0,
+                      query_cache_query_get_key, 0, 0);
 #ifndef FN_NO_CASE_SENSE
   /*
     If lower_case_table_names!=0 then db and table names are already 
@@ -2746,8 +2741,8 @@ size_t Query_cache::init_cache()
     lower_case_table_names == 0 then we should distinguish my_table
     and MY_TABLE cases and so again can use binary collation.
   */
-  (void) my_hash_init(key_memory_Query_cache, &tables, &my_charset_bin,
-                      def_table_hash_size, 0,0, query_cache_table_get_key, 0,0);
+  (void) my_hash_init(&tables, &my_charset_bin, def_table_hash_size, 0, 0,
+                      query_cache_table_get_key, 0, 0);
 #else
   /*
     On windows, OS/2, MacOS X with HFS+ or any other case insensitive
@@ -2757,9 +2752,11 @@ size_t Query_cache::init_cache()
     file system) and so should use case insensitive collation for
     comparison.
   */
-  (void) my_hash_init(PSI_INSTRUMENT_ME, &tables, lower_case_table_names ?
-                      &my_charset_bin : files_charset_info,
-                      def_table_hash_size, 0,0, query_cache_table_get_key, 0,0);
+  (void) my_hash_init(&tables,
+                      lower_case_table_names ? &my_charset_bin :
+                      files_charset_info,
+                      def_table_hash_size, 0, 0,query_cache_table_get_key,
+                      0, 0);
 #endif
 
   queries_in_cache = 0;
@@ -3319,7 +3316,7 @@ void Query_cache::invalidate_table(THD *thd, uchar * key, size_t key_length)
   DEBUG_SYNC(thd, "wait_in_query_cache_invalidate2");
 
   if (query_cache_size > 0)
-    invalidate_table_internal(key, key_length);
+    invalidate_table_internal(thd, key, key_length);
 
   unlock();
 }
@@ -3334,14 +3331,14 @@ void Query_cache::invalidate_table(THD *thd, uchar * key, size_t key_length)
 */
 
 void
-Query_cache::invalidate_table_internal(uchar *key, size_t key_length)
+Query_cache::invalidate_table_internal(THD *thd, uchar *key, size_t key_length)
 {
   Query_cache_block *table_block=
     (Query_cache_block*)my_hash_search(&tables, key, key_length);
   if (table_block)
   {
     Query_cache_block_table *list_root= table_block->table(0);
-    invalidate_query_block_list(list_root);
+    invalidate_query_block_list(thd, list_root);
   }
 }
 
@@ -3358,7 +3355,8 @@ Query_cache::invalidate_table_internal(uchar *key, size_t key_length)
 */
 
 void
-Query_cache::invalidate_query_block_list(Query_cache_block_table *list_root)
+Query_cache::invalidate_query_block_list(THD *thd,
+                                         Query_cache_block_table *list_root)
 {
   while (list_root->next != list_root)
   {
@@ -3510,8 +3508,7 @@ my_bool Query_cache::register_all_tables(THD *thd,
 
 my_bool
 Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
-			  Query_cache_block_table *node, size_t db_length,
-                          uint8 suffix_length_arg,
+			  Query_cache_block_table *node, size_t db_length, uint8 suffix_length_arg,
                           uint8 cache_type,
                           qc_engine_callback callback,
                           ulonglong engine_data,
@@ -3541,7 +3538,7 @@ Query_cache::insert_table(THD *thd, size_t key_len, const char *key,
     */
     {
       Query_cache_block_table *list_root= table_block->table(0);
-      invalidate_query_block_list(list_root);
+      invalidate_query_block_list(thd, list_root);
     }
 
     table_block= 0;
@@ -5138,7 +5135,7 @@ my_bool Query_cache::in_blocks(Query_cache_block * point)
     if (block->pprev->pnext != block)
     {
       DBUG_PRINT("error",
-		 ("block %p in physical list is incorrect linked, prev block %p referred as next to %p (check from %p)",
+		 ("block %p in physical list is incorrect linked, prev block %p refered as next to %p (check from %p)",
 		  block, block->pprev,
 		  block->pprev->pnext,
 		  point));
@@ -5166,7 +5163,7 @@ err1:
     if (block->pnext->pprev != block)
     {
       DBUG_PRINT("error",
-		 ("block %p in physicel list is incorrect linked, next block %p referred as prev to %p (check from %p)",
+		 ("block %p in physicel list is incorrect linked, next block %p refered as prev to %p (check from %p)",
 		  block, block->pnext,
 		  block->pnext->pprev,
 		  point));
@@ -5195,7 +5192,7 @@ my_bool Query_cache::in_list(Query_cache_block * root,
     if (block->prev->next != block)
     {
       DBUG_PRINT("error",
-		 ("block %p in list '%s' %p is incorrect linked, prev block %p referred as next to %p (check from %p)",
+		 ("block %p in list '%s' %p is incorrect linked, prev block %p refered as next to %p (check from %p)",
 		  block, name, root, block->prev,
 		  block->prev->next,
 		  point));
@@ -5224,7 +5221,7 @@ err1:
     if (block->next->prev != block)
     {
       DBUG_PRINT("error",
-		 ("block %p in list '%s' %p is incorrect linked, next block %p referred as prev to %p (check from %p)",
+		 ("block %p in list '%s' %p is incorrect linked, next block %p refered as prev to %p (check from %p)",
 		  block, name, root, block->next,
 		  block->next->prev,
 		  point));
@@ -5266,7 +5263,7 @@ my_bool Query_cache::in_table_list(Query_cache_block_table * root,
     if (table->prev->next != table)
     {
       DBUG_PRINT("error",
-		 ("table %p(%p) in list '%s' %p(%p) is incorrect linked, prev table %p(%p) referred as next to %p(%p) (check from %p(%p))",
+		 ("table %p(%p) in list '%s' %p(%p) is incorrect linked, prev table %p(%p) refered as next to %p(%p) (check from %p(%p))",
 		  table, table->block(), name, 
 		  root, root->block(),
 		  table->prev, table->prev->block(),
@@ -5301,7 +5298,7 @@ err1:
     if (table->next->prev != table)
     {
       DBUG_PRINT("error",
-		 ("table %p(%p) in list '%s' %p(%p) is incorrect linked, next table %p(%p) referred as prev to %p(%p) (check from %p(%p))",
+		 ("table %p(%p) in list '%s' %p(%p) is incorrect linked, next table %p(%p) refered as prev to %p(%p) (check from %p(%p))",
 		  table, table->block(),
 		  name, root, root->block(),
 		  table->next, table->next->block(),

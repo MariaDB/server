@@ -27,7 +27,6 @@ Created 12/18/1995 Heikki Tuuri
 #ifndef fsp0fsp_h
 #define fsp0fsp_h
 
-#include "assume_aligned.h"
 #include "fsp0types.h"
 #include "fut0lst.h"
 #include "ut0byte.h"
@@ -102,6 +101,7 @@ see the table in fsp0types.h @{ */
 #define FSP_HEADER_OFFSET	FIL_PAGE_DATA
 
 /* The data structures in files are defined just as byte strings in C */
+typedef	byte	fsp_header_t;
 typedef	byte	xdes_t;
 
 /*			SPACE HEADER
@@ -207,7 +207,7 @@ typedef	byte	fseg_inode_t;
 	(16 + 3 * FLST_BASE_NODE_SIZE			\
 	 + FSEG_FRAG_ARR_N_SLOTS * FSEG_FRAG_SLOT_SIZE)
 
-static constexpr uint32_t FSEG_MAGIC_N_VALUE= 97937874;
+#define FSEG_MAGIC_N_VALUE	97937874
 
 #define	FSEG_FILLFACTOR		8	/* If this value is x, then if
 					the number of unused but reserved
@@ -288,37 +288,36 @@ the extent are free and which contain old tuple version to clean. */
 /** Offset of the descriptor array on a descriptor page */
 #define	XDES_ARR_OFFSET		(FSP_HEADER_OFFSET + FSP_HEADER_SIZE)
 
-/**
-Determine if a page is marked free.
-@param[in]	descr	extent descriptor
-@param[in]	offset	page offset within extent
-@return whether the page is free */
-inline bool xdes_is_free(const xdes_t *descr, ulint offset)
-{
-  ut_ad(offset < FSP_EXTENT_SIZE);
-  ulint index= XDES_FREE_BIT + XDES_BITS_PER_PAGE * offset;
-  return ut_bit_get_nth(descr[XDES_BITMAP + (index >> 3)], index & 7);
-}
-
 #ifndef UNIV_INNOCHECKSUM
 /* @} */
+
+/**********************************************************************//**
+Reads the space id from the first page of a tablespace.
+@return space id, ULINT UNDEFINED if error */
+ulint
+fsp_header_get_space_id(
+/*====================*/
+	const page_t*	page);	/*!< in: first page of a tablespace */
 
 /** Read a tablespace header field.
 @param[in]	page	first page of a tablespace
 @param[in]	field	the header field
 @return the contents of the header field */
-inline uint32_t fsp_header_get_field(const page_t* page, ulint field)
+inline
+ulint
+fsp_header_get_field(const page_t* page, ulint field)
 {
-  return mach_read_from_4(FSP_HEADER_OFFSET + field +
-			  my_assume_aligned<UNIV_ZIP_SIZE_MIN>(page));
+	return(mach_read_from_4(FSP_HEADER_OFFSET + field + page));
 }
 
 /** Read the flags from the tablespace header page.
 @param[in]	page	first page of a tablespace
 @return the contents of FSP_SPACE_FLAGS */
-inline uint32_t fsp_header_get_flags(const page_t *page)
+inline
+ulint
+fsp_header_get_flags(const page_t* page)
 {
-  return fsp_header_get_field(page, FSP_SPACE_FLAGS);
+	return(fsp_header_get_field(page, FSP_SPACE_FLAGS));
 }
 
 /** Get the byte offset of encryption information in page 0.
@@ -357,7 +356,7 @@ fsp_header_init_fields(
 @param[in,out]	space	tablespace
 @param[in]	size	current size in blocks
 @param[in,out]	mtr	mini-transaction */
-void fsp_header_init(fil_space_t* space, uint32_t size, mtr_t* mtr)
+void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull));
 
 /** Create a new segment.
@@ -373,17 +372,16 @@ buf_block_t*
 fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
             bool has_done_reservation= false, buf_block_t *block= NULL);
 
-/** Calculate the number of pages reserved by a segment,
-and how many pages are currently used.
-@param[in]      block   buffer block containing the file segment header
-@param[in]      header  file segment header
-@param[out]     used    number of pages that are used (not more than reserved)
-@param[in,out]  mtr     mini-transaction
+/**********************************************************************//**
+Calculates the number of pages reserved by a segment, and how many pages are
+currently used.
 @return number of reserved pages */
-ulint fseg_n_reserved_pages(const buf_block_t &block,
-                            const fseg_header_t *header, ulint *used,
-                            mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
+ulint
+fseg_n_reserved_pages(
+/*==================*/
+	fseg_header_t*	header,	/*!< in: segment header */
+	ulint*		used,	/*!< out: number of pages used (<= reserved) */
+	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize
@@ -399,31 +397,36 @@ file space fragmentation.
 @return X-latched block, or NULL if no page could be allocated */
 #define fseg_alloc_free_page(seg_header, hint, direction, mtr)		\
 	fseg_alloc_free_page_general(seg_header, hint, direction,	\
-				     false, mtr, mtr)
+				     FALSE, mtr, mtr)
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize file space
 fragmentation.
-@retval NULL if no page could be allocated */
+@retval NULL if no page could be allocated
+@retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
+(init_mtr == mtr, or the page was not previously freed in mtr)
+@retval block (not allocated or initialized) otherwise */
 buf_block_t*
 fseg_alloc_free_page_general(
 /*=========================*/
 	fseg_header_t*	seg_header,/*!< in/out: segment header */
-	uint32_t	hint,	/*!< in: hint of which page would be
+	ulint		hint,	/*!< in: hint of which page would be
 				desirable */
 	byte		direction,/*!< in: if the new page is needed because
 				of an index page split, and records are
 				inserted there in order, into which
 				direction they go alphabetically: FSP_DOWN,
 				FSP_UP, FSP_NO_DIR */
-	bool		has_done_reservation, /*!< in: true if the caller has
+	ibool		has_done_reservation, /*!< in: TRUE if the caller has
 				already done the reservation for the page
 				with fsp_reserve_free_extents, then there
 				is no need to do the check for this individual
 				page */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
 	mtr_t*		init_mtr)/*!< in/out: mtr or another mini-transaction
-				in which the page should be initialized. */
+				in which the page should be initialized.
+				If init_mtr!=mtr, but the page is already
+				latched in mtr, do not initialize the page. */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
 
 /** Reserves free pages from a tablespace. All mini-transactions which may
@@ -466,23 +469,25 @@ free pages available.
 @return true if we were able to make the reservation */
 bool
 fsp_reserve_free_extents(
-	uint32_t*	n_reserved,
+	ulint*		n_reserved,
 	fil_space_t*	space,
-	uint32_t	n_ext,
+	ulint		n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,
-	uint32_t	n_pages = 2);
+	ulint		n_pages = 2);
 
 /** Free a page in a file segment.
 @param[in,out]	seg_header	file segment header
 @param[in,out]	space		tablespace
 @param[in]	offset		page number
+@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 void
 fseg_free_page(
 	fseg_header_t*	seg_header,
 	fil_space_t*	space,
-	uint32_t	offset,
+	ulint		offset,
+	bool		log,
 	mtr_t*		mtr);
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace
@@ -526,6 +531,14 @@ Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
 ATTRIBUTE_COLD
 void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr);
 
+/** Get the file page type.
+@param[in]	page	file page
+@return page type */
+inline uint16_t fil_page_get_type(const byte* page)
+{
+	return mach_read_from_2(page + FIL_PAGE_TYPE);
+}
+
 /** Check (and if needed, reset) the page type.
 Data files created before MySQL 5.1.48 may contain
 garbage in the FIL_PAGE_TYPE field.
@@ -557,7 +570,7 @@ inline bool fsp_descr_page(const page_id_t page_id, ulint physical_size)
 
 /** Initialize a file page whose prior contents should be ignored.
 @param[in,out]	block	buffer pool block */
-void fsp_apply_init_file_page(buf_block_t *block);
+void fsp_apply_init_file_page(buf_block_t* block);
 
 /** Initialize a file page.
 @param[in]	space	tablespace
@@ -570,9 +583,9 @@ inline void fsp_init_file_page(
 	buf_block_t* block, mtr_t* mtr)
 {
 	ut_d(space->modify_check(*mtr));
-	ut_ad(space->id == block->page.id().space());
+	ut_ad(space->id == block->page.id.space());
 	fsp_apply_init_file_page(block);
-	mtr->init(block);
+	mlog_write_initial_log_record(block->frame, MLOG_INIT_FILE_PAGE2, mtr);
 }
 
 #ifndef UNIV_DEBUG
@@ -733,6 +746,18 @@ inline ulint fsp_flags_is_incompatible_mysql(ulint flags)
   return flags >> 13 & 3;
 }
 
+/**********************************************************************//**
+Gets a descriptor bit of a page.
+@return TRUE if free */
+UNIV_INLINE
+ibool
+xdes_get_bit(
+/*=========*/
+	const xdes_t*	descr,	/*!< in: descriptor */
+	ulint		bit,	/*!< in: XDES_FREE_BIT or XDES_CLEAN_BIT */
+	ulint		offset);/*!< in: page offset within extent:
+				0 ... FSP_EXTENT_SIZE - 1 */
+
 /** Determine the descriptor index within a descriptor page.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	offset		page offset
@@ -748,7 +773,7 @@ inline ulint xdes_calc_descriptor_index(ulint zip_size, ulint offset)
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	offset		page offset
 @return descriptor page offset */
-inline uint32_t xdes_calc_descriptor_page(ulint zip_size, uint32_t offset)
+inline ulint xdes_calc_descriptor_page(ulint zip_size, ulint offset)
 {
 	compile_time_assert(UNIV_PAGE_SIZE_MAX > XDES_ARR_OFFSET
 			    + (UNIV_PAGE_SIZE_MAX / FSP_EXTENT_SIZE_MAX)
@@ -766,10 +791,12 @@ inline uint32_t xdes_calc_descriptor_page(ulint zip_size, uint32_t offset)
 	ut_ad(!zip_size
 	      || zip_size > XDES_ARR_OFFSET
 	      + (zip_size / FSP_EXTENT_SIZE) * XDES_SIZE);
-	return ut_2pow_round(offset,
-			     uint32_t(zip_size ? zip_size : srv_page_size));
+	return ut_2pow_round<ulint>(offset,
+				    zip_size ? zip_size : srv_page_size);
 }
 
 #endif /* UNIV_INNOCHECKSUM */
+
+#include "fsp0fsp.inl"
 
 #endif

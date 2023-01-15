@@ -29,22 +29,16 @@ SELECT @@global.innodb_log_checksums;
 1
 SET GLOBAL innodb_log_checksums = OFF;
 Warnings:
-Warning	138	The parameter innodb_log_checksums is deprecated and has no effect.
+Warning	138	innodb_log_checksums is deprecated and has no effect outside recovery
 SELECT @@global.innodb_log_checksums;
 @@global.innodb_log_checksums
 1
 SET GLOBAL innodb_log_checksums = default;
-Warnings:
-Warning	138	The parameter innodb_log_checksums is deprecated and has no effect.
 SET GLOBAL innodb_log_checksums = ON;
-Warnings:
-Warning	138	The parameter innodb_log_checksums is deprecated and has no effect.
 SELECT @@global.innodb_log_checksums;
 @@global.innodb_log_checksums
 1
 SET GLOBAL innodb_log_checksums = @orig;
-Warnings:
-Warning	138	The parameter innodb_log_checksums is deprecated and has no effect.
 SELECT @@global.innodb_log_checksums;
 @@global.innodb_log_checksums
 1

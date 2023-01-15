@@ -32,13 +32,12 @@ extern "C"
 #endif
 void myrg_print_wrong_table(const char *table_name);
 
-/* Always defined */
-extern PSI_memory_key rg_key_memory_MYRG_INFO;
+#ifdef HAVE_PSI_INTERFACE
 
 C_MODE_START
 extern PSI_mutex_key rg_key_mutex_MYRG_INFO_mutex;
-extern PSI_memory_key rg_key_memory_children;
 extern PSI_file_key rg_key_file_MRG;
 void init_myisammrg_psi_keys();
 C_MODE_END
+#endif /* HAVE_PSI_INTERFACE */
 

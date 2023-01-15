@@ -35,7 +35,7 @@
 
 ##### Storage engine to be tested
 # Set the session storage engine
-SET @@session.default_storage_engine = 'MyISAM';
+SET @@session.storage_engine = 'MyISAM';
 
 ##### Workarounds for known open engine specific bugs
 #     none

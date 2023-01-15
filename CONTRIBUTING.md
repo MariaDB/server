@@ -8,7 +8,8 @@ MariaDB Server has a vibrant community contributing in a wide range of areas. Th
 -   [maria-developers mailing list](http://launchpad.net/~maria-developers)
 -   [maria-discuss mailing list](http://launchpad.net/~maria-discuss)
 -   [maria-docs mailing list](http://launchpad.net/~maria-docs)
--   The MariaDB Foundation and MariaDB Corporation have a presence on Reddit, Twitter and Facebook. See the  [social media page](https://mariadb.com/kb/en/mariadb/social-media/).
+-   ircs://chat.freenode.net/maria ([see the IRC page on the Knowledge Base](https://mariadb.com/kb/en/meta/irc-chat-servers-and-zulip-instance/)  for help with IRC).
+-   The MariaDB Foundation and MariaDB Corporation have a presence on Reddit, Twitter, Facebook and Google Plus. See the  [social media page](https://mariadb.com/kb/en/mariadb/social-media/).
 
 ### Help document MariaDB
 ----
@@ -35,7 +36,7 @@ You’re very welcome to support MariaDB Server as an individual, or talk your c
 
 ### Live QA for beginner contributors
 ----
-MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip.
+MariaDB has a dedicated time each week when we answer new contributor questions live on Zulip and IRC.
 From 8:00 to 10:00 UTC on Mondays, and 10:00 to 12:00 UTC on Thursdays, anyone can ask any questions they’d like,
 and a live developer will be available to assist.
 New contributors can ask questions any time, but we will provide immediate feedback during that interval.

@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'falcon';
+SET @@session.storage_engine = 'falcon';
 create table t1 (a int, b virtual int as (a+1));
 ERROR HY000: 'Specified storage engine' is not yet supported for generated columns.
 create table t1 (a int);

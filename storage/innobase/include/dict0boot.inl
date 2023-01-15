@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,6 +47,19 @@ dict_sys_get_new_row_id(void)
 	mutex_exit(&dict_sys.mutex);
 
 	return(id);
+}
+
+/**********************************************************************//**
+Reads a row id from a record or other 6-byte stored form.
+@return row id */
+UNIV_INLINE
+row_id_t
+dict_sys_read_row_id(
+/*=================*/
+	const byte*	field)	/*!< in: record field */
+{
+	compile_time_assert(DATA_ROW_ID_LEN == 6);
+	return(mach_read_from_6(field));
 }
 
 /**********************************************************************//**

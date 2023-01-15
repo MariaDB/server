@@ -18,6 +18,9 @@ set @old_innodb_trx_rseg_n_slots_debug = @@innodb_trx_rseg_n_slots_debug;
 set global innodb_trx_rseg_n_slots_debug = 32;
 --enable_query_log
 
+set @old_innodb_undo_logs = @@innodb_undo_logs;
+set global innodb_undo_logs=1;
+
 show variables like "max_connections";
 show variables like "innodb_thread_concurrency";
 show variables like "innodb_file_per_table";
@@ -101,6 +104,8 @@ while ($c)
 # If the isolated .ibd file remained, the drop database should fail.
 #
 drop database mysqltest;
+
+set global innodb_undo_logs = @old_innodb_undo_logs;
 
 --disable_query_log
 set global innodb_trx_rseg_n_slots_debug = @old_innodb_trx_rseg_n_slots_debug;

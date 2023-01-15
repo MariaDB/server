@@ -88,7 +88,7 @@ static my_bool acquire_plugins(THD *thd, plugin_ref plugin, void *arg)
   if (unlikely(!thd->audit_class_plugins.buffer))
   {
     /* specify some reasonable initialization defaults */
-    my_init_dynamic_array(PSI_INSTRUMENT_ME, &thd->audit_class_plugins,
+    my_init_dynamic_array(&thd->audit_class_plugins,
                           sizeof(plugin_ref), 16, 16, MYF(0));
   }
   

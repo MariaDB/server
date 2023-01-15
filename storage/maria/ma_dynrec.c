@@ -249,20 +249,16 @@ my_bool _ma_write_blob_record(MARIA_HA *info, const uchar *record)
   uchar *rec_buff;
   int error;
   ulong reclength,reclength2,extra;
-  my_bool buff_alloced;
 
   extra= (ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER)+MARIA_SPLIT_LENGTH+
 	  MARIA_DYN_DELETE_BLOCK_HEADER+1);
   reclength= (info->s->base.pack_reclength +
 	      _ma_calc_total_blob_length(info,record)+ extra);
-
-  alloc_on_stack(*info->stack_end_ptr, rec_buff, buff_alloced, reclength);
-  if (!rec_buff)
+  if (!(rec_buff=(uchar*) my_safe_alloca(reclength)))
   {
     my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
     return(1);
   }
-
   reclength2= _ma_rec_pack(info,
                            rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
 			   record);
@@ -279,7 +275,7 @@ my_bool _ma_write_blob_record(MARIA_HA *info, const uchar *record)
                               rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
                               reclength2);
 err:
-  stack_alloc_free(rec_buff, buff_alloced);
+  my_safe_afree(rec_buff, reclength);
   return(error != 0);
 }
 
@@ -291,7 +287,6 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
   uchar *rec_buff;
   int error;
   ulong reclength,reclength2,extra;
-  my_bool buff_alloced;
 
   extra= (ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER)+MARIA_SPLIT_LENGTH+
 	  MARIA_DYN_DELETE_BLOCK_HEADER);
@@ -304,14 +299,11 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
     return 1;
   }
 #endif
-
-  alloc_on_stack(*info->stack_end_ptr, rec_buff, buff_alloced, reclength);
-  if (!rec_buff)
+  if (!(rec_buff=(uchar*) my_safe_alloca(reclength)))
   {
     my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
     return(1);
   }
-
   reclength2= _ma_rec_pack(info, rec_buff+
                            ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
                            record);
@@ -325,7 +317,7 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
 			      rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
 			      reclength2);
 err:
-  stack_alloc_free(rec_buff, buff_alloced);
+  my_safe_afree(rec_buff, reclength);
   return(error != 0);
 }
 
@@ -1589,12 +1581,10 @@ my_bool _ma_cmp_dynamic_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
 {
   uchar *old_rec_buff,*old_record;
   size_t old_rec_buff_size;
-  my_bool error, buff_alloced;
+  my_bool error;
   DBUG_ENTER("_ma_cmp_dynamic_unique");
 
-  alloc_on_stack(*info->stack_end_ptr, old_record, buff_alloced,
-                 info->s->base.reclength);
-  if (!old_record)
+  if (!(old_record= my_safe_alloca(info->s->base.reclength)))
     DBUG_RETURN(1);
 
   /* Don't let the compare destroy blobs that may be in use */
@@ -1615,7 +1605,7 @@ my_bool _ma_cmp_dynamic_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     info->rec_buff=      old_rec_buff;
     info->rec_buff_size= old_rec_buff_size;
   }
-  stack_alloc_free(old_record, buff_alloced);
+  my_safe_afree(old_record, info->s->base.reclength);
   DBUG_RETURN(error);
 }
 
@@ -1629,7 +1619,7 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
   my_off_t filepos;
   uchar *buffer;
   MARIA_BLOCK_INFO block_info;
-  my_bool error= 1, buff_alloced= 0;
+  my_bool error= 1;
   size_t UNINIT_VAR(buffer_length);
   DBUG_ENTER("_ma_cmp_dynamic_record");
 
@@ -1650,10 +1640,8 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
     {
       buffer_length= (info->s->base.pack_reclength +
                       _ma_calc_total_blob_length(info,record));
-
-      alloc_on_stack(*info->stack_end_ptr, buffer, buff_alloced, buffer_length);
-      if (!buffer)
-        DBUG_RETURN(1);
+      if (!(buffer=(uchar*) my_safe_alloca(buffer_length)))
+	DBUG_RETURN(1);
     }
     if (!(reclength= _ma_rec_pack(info,buffer,record)))
       goto err;
@@ -1705,7 +1693,8 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
   my_errno=0;
   error= 0;
 err:
-  stack_alloc_free(buffer, buff_alloced);
+  if (buffer != info->rec_buff)
+    my_safe_afree(buffer, buffer_length);
   DBUG_PRINT("exit", ("result: %d", error));
   DBUG_RETURN(error);
 }

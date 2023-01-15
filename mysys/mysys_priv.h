@@ -64,37 +64,6 @@ extern PSI_rwlock_key key_SAFEHASH_mutex;
 
 extern PSI_stage_info stage_waiting_for_table_level_lock;
 
-/* These keys are always defined. */
-
-extern PSI_memory_key key_memory_DYNAMIC_STRING;
-extern PSI_memory_key key_memory_IO_CACHE;
-extern PSI_memory_key key_memory_KEY_CACHE;
-extern PSI_memory_key key_memory_LIST;
-extern PSI_memory_key key_memory_MY_BITMAP_bitmap;
-extern PSI_memory_key key_memory_MY_DIR;
-extern PSI_memory_key key_memory_MY_STAT;
-extern PSI_memory_key key_memory_MY_TMPDIR_full_list;
-extern PSI_memory_key key_memory_QUEUE;
-extern PSI_memory_key key_memory_SAFE_HASH_ENTRY;
-extern PSI_memory_key key_memory_TREE;
-extern PSI_memory_key key_memory_charset_file;
-extern PSI_memory_key key_memory_charset_loader;
-extern PSI_memory_key key_memory_defaults;
-extern PSI_memory_key key_memory_lf_dynarray;
-extern PSI_memory_key key_memory_lf_node;
-extern PSI_memory_key key_memory_lf_slist;
-extern PSI_memory_key key_memory_my_compress_alloc;
-extern PSI_memory_key key_memory_my_err_head;
-extern PSI_memory_key key_memory_my_file_info;
-extern PSI_memory_key key_memory_pack_frm;
-extern PSI_memory_key key_memory_charsets;
-
-#ifdef _WIN32
-extern PSI_memory_key key_memory_win_SECURITY_ATTRIBUTES;
-extern PSI_memory_key key_memory_win_PACL;
-extern PSI_memory_key key_memory_win_IP_ADAPTER_ADDRESSES;
-#endif
-
 extern mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open, THR_LOCK_keycache;
 extern mysql_mutex_t THR_LOCK_lock, THR_LOCK_net;
 extern mysql_mutex_t THR_LOCK_charset;
@@ -102,6 +71,9 @@ extern mysql_mutex_t THR_LOCK_charset;
 #include <mysql/psi/mysql_file.h>
 
 #ifdef HAVE_PSI_INTERFACE
+#ifdef HUGETLB_USE_PROC_MEMINFO
+extern PSI_file_key key_file_proc_meminfo;
+#endif /* HUGETLB_USE_PROC_MEMINFO */
 extern PSI_file_key key_file_charset, key_file_cnf;
 #endif /* HAVE_PSI_INTERFACE */
 

@@ -1,5 +1,6 @@
 --source include/have_rocksdb.inc
 --source include/not_embedded.inc
+--source include/not_threadpool.inc
 
 # This test verifies that *all* MyRocks system variables are tested by the
 # rocksdb_sys_vars suite. For every MyRocks system variable there must be a

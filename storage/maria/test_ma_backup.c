@@ -41,13 +41,13 @@ int main(int argc __attribute__((unused)), char *argv[])
   safe_mutex_deadlock_detector= 1;
 #endif
   MY_INIT(argv[0]);
-  maria_data_root= ".";
+  maria_data_root= (char *)".";
 
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
       (init_pagecache(maria_pagecache, maria_block_size * 2000, 0, 0,
                       maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE, TRUE) ||
+      ma_control_file_open(TRUE, TRUE) ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
                       TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
@@ -113,7 +113,7 @@ static int copy_table(const char *table_name, int stage)
          cap.online_backup_safe);
   printf("- Copying index file\n");
 
-  copy_buffer= my_malloc(PSI_NOT_INSTRUMENTED, cap.block_size, MYF(0));
+  copy_buffer= my_malloc(cap.block_size, MYF(0));
   for (block= 0 ; ; block++)
   {
     if ((error= aria_read_index(org_file, &cap, block, copy_buffer) ==
@@ -310,7 +310,7 @@ static int create_test_table(const char *table_name, int type_of_table)
 		uniques, &uniquedef, &create_info,
 		create_flag))
     goto err;
-  if (!(file=maria_open(table_name,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
+  if (!(file=maria_open(table_name,2,HA_OPEN_ABORT_IF_LOCKED)))
     goto err;
   if (!silent)
     printf("- Writing key:s\n");

@@ -146,7 +146,7 @@ eval explain $s;
 #### This bug is presumably in base SQL routines as the same happens
 #### with this table:
 ####   create table t4 (a int primary key, b int, c int unique);
-let $myisam_engine = `SELECT @@session.default_storage_engine='myisam'`;
+let $myisam_engine = `SELECT @@session.storage_engine='myisam'`;
 if (!$myisam_engine)
 {
   --echo # SELECT * FROM tbl_name WHERE <non-vcol expr> ORDER BY <non-indexed vcol>
@@ -171,7 +171,7 @@ eval explain $s;
 #### This bug is presumably in base SQL routines as the same happens
 #### with this table:
 ####   create table t4 (a int primary key, b int, c int unique);
-let $innodb_engine = `SELECT @@session.default_storage_engine='innodb'`;
+let $innodb_engine = `SELECT @@session.storage_engine='innodb'`;
 if (!$innodb_engine)
 {
   --echo # SELECT * FROM tbl_name WHERE <indexed vcol expr> ORDER BY <non-vcol>

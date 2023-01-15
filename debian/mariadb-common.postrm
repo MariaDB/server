@@ -1,16 +1,8 @@
-#!/bin/sh
+#!/bin/bash -e
 
-set -e
-
-case "$1" in
-  remove|disappear)
-    # New packaging paradigm for my.cnf handling among MySQL variants
-    # Used in Ubuntu since Dec-2014 and in Debian since Jul-2015
-    if [ -f /usr/share/mysql-common/configure-symlinks ]
-    then
-      /usr/share/mysql-common/configure-symlinks remove mariadb "/etc/mysql/mariadb.cnf"
-    fi
-  ;;
-esac
+if [ "$1" = "purge" ]; then
+  rmdir /etc/mysql/conf.d 2>/dev/null || true
+  rmdir /etc/mysql 2>/dev/null || true
+fi
 
 #DEBHELPER#

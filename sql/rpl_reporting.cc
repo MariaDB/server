@@ -19,7 +19,6 @@
 #include "rpl_reporting.h"
 #include "log.h" // sql_print_error, sql_print_warning,
                  // sql_print_information
-#include "sql_class.h"
 
 Slave_reporting_capability::Slave_reporting_capability(char const *thread_name)
   : m_thread_name(thread_name)
@@ -71,8 +70,7 @@ Slave_reporting_capability::report(loglevel level, int err_code,
   va_end(args);
 
   /* If the msg string ends with '.', do not add a ',' it would be ugly */
-  report_function("%s %s: %s%s %s%sInternal MariaDB error code: %d",
-                  (current_thd && current_thd->rgi_fake) ? "" : "Slave",
+  report_function("Slave %s: %s%s %s%sInternal MariaDB error code: %d",
                   m_thread_name, pbuff,
                   (pbuff[0] && *(strend(pbuff)-1) == '.') ? "" : ",",
                   (extra_info ? extra_info : ""), (extra_info ? ", " : ""),

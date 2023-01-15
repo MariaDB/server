@@ -802,7 +802,8 @@ bool TDBCSV::OpenDB(PGLOBAL g)
             Fldtyp[i] = IsTypeNum(cdp->GetType());
             } // endif cdp
     }
-  } // endif Use
+
+    } // endif Use
 
   if (Header) {
     // Check that the Lrecl is at least equal to the header line length
@@ -1081,7 +1082,8 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
       else
         strcat(To_Line, Field[i]);
     }
-  } // endfor i
+
+    } // endfor i
 
 #if defined(_DEBUG)
   assert ((unsigned)nlen == strlen(To_Line));
@@ -1135,7 +1137,6 @@ int TDBCSV::CheckWrite(PGLOBAL g)
 
   // Check whether record is too int
   for (int i = 0; i < Fields; i++)
-  {
     if (Field[i]) {
       if (!(n = strlen(Field[i])))
         n += (Quoted > 2 ? 2 : 0);
@@ -1161,7 +1162,7 @@ int TDBCSV::CheckWrite(PGLOBAL g)
         } // endif nlen
 
       } // endif Field
-  }
+
   return nlen;
   } // end of CheckWrite
 

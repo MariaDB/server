@@ -54,10 +54,10 @@ DEALLOCATE PREPARE stmt_1;
 connect  con2,localhost,u1,,test;
 PREPARE stmt_1 FROM 'SHOW BINLOG EVENTS';
 EXECUTE stmt_1;
-ERROR 42000: Access denied; you need (at least one of) the BINLOG MONITOR privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the REPLICATION SLAVE privilege(s) for this operation
 PREPARE stmt_1 FROM 'SHOW RELAYLOG EVENTS';
 EXECUTE stmt_1;
-ERROR 42000: Access denied; you need (at least one of) the SLAVE MONITOR privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the REPLICATION SLAVE privilege(s) for this operation
 DEALLOCATE PREPARE stmt_1;
 include/rpl_end.inc
 connection default;

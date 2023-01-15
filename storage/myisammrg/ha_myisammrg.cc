@@ -120,7 +120,7 @@ static handler *myisammrg_create_handler(handlerton *hton,
 ha_myisammrg::ha_myisammrg(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), file(0), is_cloned(0)
 {
-  init_sql_alloc(rg_key_memory_children, &children_mem_root,
+  init_sql_alloc(&children_mem_root, "ha_myisammrg",
                  FN_REFLEN + ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(0));
 }
 
@@ -1216,14 +1216,11 @@ void ha_myisammrg::position(const uchar *record)
 }
 
 
-ha_rows ha_myisammrg::records_in_range(uint inx,
-                                       const key_range *min_key,
-                                       const key_range *max_key,
-                                       page_range *pages)
+ha_rows ha_myisammrg::records_in_range(uint inx, key_range *min_key,
+                                       key_range *max_key)
 {
   DBUG_ASSERT(this->file->children_attached);
-  return (ha_rows) myrg_records_in_range(file, (int) inx, min_key, max_key,
-                                         pages);
+  return (ha_rows) myrg_records_in_range(file, (int) inx, min_key, max_key);
 }
 
 

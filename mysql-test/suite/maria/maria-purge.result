@@ -4,8 +4,8 @@ connection default;
 connection admin;
 * shut down mysqld, removed logs, restarted it
 connection default;
-set global default_storage_engine=aria;
-set session default_storage_engine=aria;
+set global storage_engine=aria;
+set session storage_engine=aria;
 set global aria_log_file_size=4294959104;
 drop table if exists t1,t2;
 SET SQL_WARNINGS=1;

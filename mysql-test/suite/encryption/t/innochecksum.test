@@ -9,21 +9,11 @@
 -- source include/have_file_key_management_plugin.inc
 -- source include/innodb_page_size_small.inc
 -- source include/innodb_checksum_algorithm.inc
--- source include/maybe_debug.inc
 
 if (!$INNOCHECKSUM) {
   --echo Need innochecksum binary
   --die Need innochecksum binary
 }
-
---disable_query_log
-# This may be triggered on a slow system or one that lacks native AIO.
-call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
-if ($have_debug) {
-SET GLOBAL DEBUG_DBUG='+d,ib_log_checkpoint_avoid_hard';
-call mtr.add_suppression("InnoDB: Crash recovery is broken due to insufficient innodb_log_file_size");
-}
---enable_query_log
 
 let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
 SET GLOBAL innodb_file_per_table = ON;
@@ -263,15 +253,6 @@ seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
 print FILE pack("H*", "c00lcafedeadb017");
 close FILE or die "close";
 EOF
-
-if (0 && $have_debug) { # these messages sometimes fail to appear
---let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
---let SEARCH_PATTERN= InnoDB: Crash recovery is broken due to insufficient innodb_log_file_size; last checkpoint LSN=\\d+, current LSN=\\d+\\. Shutdown is in progress\\..*InnoDB: Crash recovery was broken.*
---echo # FOUND 1 is expected for both.
---source include/search_pattern_in_file.inc
---let SEARCH_PATTERN= InnoDB: Crash recovery was broken
---source include/search_pattern_in_file.inc
-}
 
 -- disable_result_log
 --error 1

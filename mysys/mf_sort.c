@@ -24,8 +24,7 @@ void my_string_ptr_sort(uchar *base, uint items, size_t size)
   uchar **ptr=0;
 
   if (radixsort_is_appliccable(items, size) &&
-      (ptr= (uchar**) my_malloc(PSI_NOT_INSTRUMENTED,
-                                items * sizeof(char*),MYF(0))))
+      (ptr= (uchar**) my_malloc(items*sizeof(char*),MYF(0))))
   {
     radixsort_for_str_ptr((uchar**) base,items,size,ptr);
     my_free(ptr);

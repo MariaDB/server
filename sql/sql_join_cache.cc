@@ -937,8 +937,7 @@ int JOIN_CACHE::alloc_buffer()
   {
     size_t next_buff_size;
 
-    if ((buff= (uchar*) my_malloc(key_memory_JOIN_CACHE, buff_size,
-                                  MYF(MY_THREAD_SPECIFIC))))
+    if ((buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))))
       break;
 
     next_buff_size= buff_size > buff_size_decr ? buff_size-buff_size_decr : 0;
@@ -1014,11 +1013,11 @@ bool JOIN_CACHE::shrink_join_buffer_in_ratio(ulonglong n, ulonglong d)
 
 int JOIN_CACHE::realloc_buffer()
 {
+  int rc;
   free();
-  buff= (uchar*) my_malloc(key_memory_JOIN_CACHE, buff_size,
-                                         MYF(MY_THREAD_SPECIFIC));
+  rc= MY_TEST(!(buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))));
   reset(TRUE);
-  return buff == NULL;
+  return rc;   	
 }
   
 
@@ -2144,13 +2143,8 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
 
   if (!join_tab->first_unmatched)
   {
-    bool pfs_batch_update= join_tab->pfs_batch_update(join);
-    if (pfs_batch_update)
-      join_tab->table->file->start_psi_batch_mode();
     /* Find all records from join_tab that match records from join buffer */
     rc= join_matching_records(skip_last);   
-    if (pfs_batch_update)
-      join_tab->table->file->end_psi_batch_mode();
     if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
       goto finish;
     if (outer_join_first_inner)
@@ -2909,12 +2903,12 @@ int JOIN_CACHE_HASHED::init_hash_table()
 
 int JOIN_CACHE_HASHED::realloc_buffer()
 {
+  int rc;
   free();
-  buff= (uchar*) my_malloc(key_memory_JOIN_CACHE, buff_size,
-                                         MYF(MY_THREAD_SPECIFIC));
+  rc= MY_TEST(!(buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))));
   init_hash_table();
   reset(TRUE);
-  return buff == NULL;
+  return rc;   	
 }
 
 

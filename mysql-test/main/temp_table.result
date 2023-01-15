@@ -1,3 +1,5 @@
+drop table if exists t1,t2;
+drop view if exists v1;
 #
 # test basic creation of temporary tables together with normal table
 #
@@ -599,23 +601,4 @@ a	b
 DROP TEMPORARY TABLE t1;
 #
 # End of 10.2 tests
-#
-create function f1() returns int
-begin
-drop temporary table t1, t2;
-return 1;
-end;
-$$
-create temporary table t1 (a int);
-create temporary table t2 (a int);
-insert t1 values (2);
-insert t2 values (3);
-select a,f1() from t1;
-ERROR HY000: Can't reopen table: 't1'
-drop function f1;
-drop temporary table t1;
-drop temporary table t2;
-ERROR 42S02: Unknown table 'test.t2'
-#
-# End of 10.5 tests
 #

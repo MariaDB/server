@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -27,13 +27,7 @@
 
 #include "my_global.h"
 #include "cursor_by_user.h"
-#include "pfs_buffer_container.h"
-
-ha_rows
-cursor_by_user::get_row_count(void)
-{
-  return global_user_container.get_row_count();
-}
+#include "pfs_user.h"
 
 cursor_by_user::cursor_by_user(const PFS_engine_table_share *share)
   : PFS_engine_table(share, &m_pos),
@@ -50,14 +44,17 @@ int cursor_by_user::rnd_next(void)
 {
   PFS_user *pfs;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_user_iterator it= global_user_container.iterate(m_pos.m_index);
-  pfs= it.scan_next(& m_pos.m_index);
-  if (pfs != NULL)
+  for (m_pos.set_at(&m_next_pos);
+       m_pos.m_index < user_max;
+       m_pos.next())
   {
-    make_row(pfs);
-    m_next_pos.set_after(&m_pos);
-    return 0;
+    pfs= &user_array[m_pos.m_index];
+    if (pfs->m_lock.is_populated())
+    {
+      make_row(pfs);
+      m_next_pos.set_after(&m_pos);
+      return 0;
+    }
   }
 
   return HA_ERR_END_OF_FILE;
@@ -69,9 +66,9 @@ cursor_by_user::rnd_pos(const void *pos)
   PFS_user *pfs;
 
   set_position(pos);
-
-  pfs= global_user_container.get(m_pos.m_index);
-  if (pfs != NULL)
+  DBUG_ASSERT(m_pos.m_index < user_max);
+  pfs= &user_array[m_pos.m_index];
+  if (pfs->m_lock.is_populated())
   {
     make_row(pfs);
     return 0;

@@ -1,5 +1,4 @@
 /* Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -96,9 +95,6 @@ sp_pcontext::sp_pcontext()
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
   m_parent(NULL), m_pboundary(0),
-  m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
-  m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
   m_scope(REGULAR_SCOPE)
 {
   init(0, 0, 0);
@@ -109,9 +105,6 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
   m_parent(prev), m_pboundary(0),
-  m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
-  m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
   m_scope(scope)
 {
   init(prev->m_var_offset + prev->m_max_var_index,
@@ -215,8 +208,9 @@ sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
   {
     sp_variable *p= m_vars.at(i);
 
-    if (system_charset_info->strnncoll(name->str, name->length,
-		                       p->name.str, p->name.length) == 0)
+    if (my_strnncoll(system_charset_info,
+		     (const uchar *)name->str, name->length,
+		     (const uchar *)p->name.str, p->name.length) == 0)
     {
       return p;
     }
@@ -630,8 +624,9 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
   {
     LEX_CSTRING n= m_cursors.at(i);
 
-    if (system_charset_info->strnncoll(name->str, name->length,
-		                       n.str, n.length) == 0)
+    if (my_strnncoll(system_charset_info,
+		     (const uchar *) name->str, name->length,
+		     (const uchar *) n.str, n.length) == 0)
     {
       *poff= m_cursor_offset + i;
       return &m_cursors.at(i);

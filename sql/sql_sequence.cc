@@ -1,6 +1,5 @@
 /*
    Copyright (c) 2017, MariaDB Corporation, Alibaba Corporation
-   Copyrgiht (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,20 +51,20 @@ struct Field_definition
 
 static Field_definition sequence_structure[]=
 {
-  {"next_not_cached_value", 21, &type_handler_slonglong,
+  {"next_not_cached_value", 21, &type_handler_longlong,
    {STRING_WITH_LEN("")}, FL},
-  {"minimum_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("")}, FL},
-  {"maximum_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("")}, FL},
-  {"start_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
-  {"increment", 21, &type_handler_slonglong,
+  {"minimum_value", 21, &type_handler_longlong, {STRING_WITH_LEN("")}, FL},
+  {"maximum_value", 21, &type_handler_longlong, {STRING_WITH_LEN("")}, FL},
+  {"start_value", 21, &type_handler_longlong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
+  {"increment", 21, &type_handler_longlong,
    {STRING_WITH_LEN("increment value")}, FL},
-  {"cache_size", 21, &type_handler_ulonglong, {STRING_WITH_LEN("")},
+  {"cache_size", 21, &type_handler_longlong, {STRING_WITH_LEN("")},
    FL | UNSIGNED_FLAG},
-  {"cycle_option", 1, &type_handler_utiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
+  {"cycle_option", 1, &type_handler_tiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
    FL | UNSIGNED_FLAG },
-  {"cycle_count", 21, &type_handler_slonglong,
+  {"cycle_count", 21, &type_handler_longlong,
    {STRING_WITH_LEN("How many cycles have been done")}, FL},
-  {NULL, 0, &type_handler_slonglong, {STRING_WITH_LEN("")}, 0}
+  {NULL, 0, &type_handler_longlong, {STRING_WITH_LEN("")}, 0}
 };
 
 #undef FL
@@ -321,7 +320,8 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   if (!temporary_table)
   {
     /*
-      The following code works like open_system_tables_for_read()
+      The following code works like open_system_tables_for_read() and
+      close_system_tables()
       The idea is:
       - Copy the table_list object for the sequence that was created
       - Backup the current state of open tables and create a new
@@ -375,10 +375,10 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   error= seq->write_initial_sequence(table);
   {
     uint save_unsafe_rollback_flags=
-      thd->transaction->stmt.m_unsafe_rollback_flags;
+      thd->transaction.stmt.m_unsafe_rollback_flags;
     if (trans_commit_stmt(thd))
       error= 1;
-    thd->transaction->stmt.m_unsafe_rollback_flags=
+    thd->transaction.stmt.m_unsafe_rollback_flags=
       save_unsafe_rollback_flags;
   }
   if (trans_commit_implicit(thd))
@@ -463,11 +463,11 @@ int SEQUENCE::read_initial_values(TABLE *table)
     MYSQL_LOCK *lock;
     bool mdl_lock_used= 0;
     THD *thd= table->in_use;
-    bool has_active_transaction= !thd->transaction->stmt.is_empty();
+    bool has_active_transaction= !thd->transaction.stmt.is_empty();
     /*
       There is already a mdl_ticket for this table. However, for list_fields
       the MDL lock is of type MDL_SHARED_HIGH_PRIO which is not usable
-      for doing a table lock. Get a proper read lock to solve this.
+      for doing a able lock. Get a proper read lock to solve this.
     */
     if (table->mdl_ticket == 0)
     {
@@ -478,9 +478,10 @@ int SEQUENCE::read_initial_values(TABLE *table)
         where we don't have a mdl lock on the table
       */
 
-      MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, table->s->db.str,
-                       table->s->table_name.str, MDL_SHARED_READ,
-                       MDL_EXPLICIT);
+      mdl_request.init(MDL_key::TABLE,
+                       table->s->db.str,
+                       table->s->table_name.str,
+                       MDL_SHARED_READ, MDL_EXPLICIT);
       mdl_requests.push_front(&mdl_request);
       if (thd->mdl_context.acquire_locks(&mdl_requests,
                                          thd->variables.lock_wait_timeout))
@@ -498,7 +499,7 @@ int SEQUENCE::read_initial_values(TABLE *table)
         thd->mdl_context.release_lock(mdl_request.ticket);
       write_unlock(table);
 
-      if (!has_active_transaction && !thd->transaction->stmt.is_empty() &&
+      if (!has_active_transaction && !thd->transaction.stmt.is_empty() &&
           !thd->in_sub_stmt)
         trans_commit_stmt(thd);
       DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
@@ -520,7 +521,7 @@ int SEQUENCE::read_initial_values(TABLE *table)
       But we also don't want to commit the stmt transaction while in a
       substatement, see MDEV-15977.
     */
-    if (!has_active_transaction && !thd->transaction->stmt.is_empty() &&
+    if (!has_active_transaction && !thd->transaction.stmt.is_empty() &&
         !thd->in_sub_stmt)
       trans_commit_stmt(thd);
   }
@@ -609,6 +610,7 @@ void sequence_definition::adjust_values(longlong next_value)
 int sequence_definition::write_initial_sequence(TABLE *table)
 {
   int error;
+  THD *thd= table->in_use;
   MY_BITMAP *save_write_set;
 
   store_fields(table);
@@ -616,14 +618,15 @@ int sequence_definition::write_initial_sequence(TABLE *table)
   table->s->sequence->copy(this);
   /*
     Sequence values will be replicated as a statement
-    like 'create sequence'. So disable row logging for this table & statement
+    like 'create sequence'. So disable binary log temporarily
   */
-  table->file->row_logging= table->file->row_logging_init= 0;
+  tmp_disable_binlog(thd);
   save_write_set= table->write_set;
   table->write_set= &table->s->all_set;
   table->s->sequence->initialized= SEQUENCE::SEQ_IN_PREPARE;
   error= table->file->ha_write_row(table->record[0]);
   table->s->sequence->initialized= SEQUENCE::SEQ_UNINTIALIZED;
+  reenable_binlog(thd);
   table->write_set= save_write_set;
   if (unlikely(error))
     table->file->print_error(error, MYF(0));
@@ -965,8 +968,6 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
 
   table= first_table->table;
   seq= table->s->sequence;
-
-  seq->write_lock(table);
   new_seq->reserved_until= seq->reserved_until;
 
   /* Copy from old sequence those fields that the user didn't specified */
@@ -999,18 +1000,18 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
              first_table->db.str,
              first_table->table_name.str);
     error= 1;
-    seq->write_unlock(table);
     goto end;
   }
 
+  table->s->sequence->write_lock(table);
   if (likely(!(error= new_seq->write(table, 1))))
   {
     /* Store the sequence values in table share */
-    seq->copy(new_seq);
+    table->s->sequence->copy(new_seq);
   }
   else
     table->file->print_error(error, MYF(0));
-  seq->write_unlock(table);
+  table->s->sequence->write_unlock(table);
   if (trans_commit_stmt(thd))
     error= 1;
   if (trans_commit_implicit(thd))

@@ -48,8 +48,6 @@ static const ulint TRX_SYS_SPACE = 0;
 /** Random value to check for corruption of trx_t */
 static const ulint TRX_MAGIC_N = 91118598;
 
-constexpr uint innodb_purge_threads_MAX= 32;
-
 /** Transaction execution states when trx->state == TRX_STATE_ACTIVE */
 enum trx_que_t {
 	TRX_QUE_RUNNING,		/*!< transaction is running */
@@ -121,6 +119,8 @@ struct trx_savept_t{
 
 /** File objects */
 /* @{ */
+/** Rollback segment header */
+typedef byte	trx_rsegf_t;
 /** Undo segment header */
 typedef byte	trx_usegf_t;
 /** Undo log header */

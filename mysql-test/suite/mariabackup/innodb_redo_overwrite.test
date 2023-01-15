@@ -52,6 +52,19 @@ INSERT INTO t SELECT * FROM t;
 --remove_file $backuplog
 --rmdir $targetdir
 
+--let before_innodb_log_copy_thread_started=INSERT INTO test.t SELECT * FROM test.t LIMIT 50000
+
+--disable_result_log
+--error 1
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --innodb-log-checksums=0 --dbug=+d,mariabackup_events  > $backuplog
+--enable_result_log
+
+--let SEARCH_PATTERN=failed: unknown reason
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+--remove_file $backuplog
+--rmdir $targetdir
+
 --let before_innodb_log_copy_thread_started=
 
 DROP TABLE t;

@@ -70,6 +70,7 @@ this case we return TRUE.
 @param[in]	ientry		secondary index entry
 @param[in]	roll_ptr	roll_ptr for the purge record
 @param[in]	trx_id		transaction ID on the purging record
+@param[in,out]	vcol_info	virtual column information for purge thread.
 @return TRUE if earlier version should have */
 bool
 row_vers_old_has_index_entry(
@@ -79,7 +80,8 @@ row_vers_old_has_index_entry(
 	dict_index_t*		index,
 	const dtuple_t*		ientry,
 	roll_ptr_t		roll_ptr,
-	trx_id_t		trx_id);
+	trx_id_t		trx_id,
+	purge_vcol_info_t*	vcol_info=NULL);
 
 /*****************************************************************//**
 Constructs the version of a clustered index record which a consistent

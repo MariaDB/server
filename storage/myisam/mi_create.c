@@ -94,8 +94,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     ci->reloc_rows=ci->max_rows;		/* Check if wrong parameter */
 
   if (!(rec_per_key_part=
-	(ulong*) my_malloc(mi_key_memory_MYISAM_SHARE,
-                           (keys + uniques) * HA_MAX_KEY_SEG * sizeof(long),
+	(ulong*) my_malloc((keys + uniques)*HA_MAX_KEY_SEG*sizeof(long),
 			   MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(my_errno);
 
@@ -623,7 +622,6 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     fn_format(kfilename, name, "", MI_NAME_IEXT, MY_UNPACK_FILENAME |
               (internal_table ? 0 : MY_RETURN_REAL_PATH) |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
-    klinkname_ptr= 0;
     /* Replace the current file */
     create_flag=(flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
   }

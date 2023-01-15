@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -292,8 +292,22 @@ fts_trx_table_id_cmp(
 	const void*	p1,		/*!< in: id1 */
 	const void*	p2)		/*!< in: id2 */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#define fts_sql_commit(trx) trx_commit_for_mysql(trx)
-#define fts_sql_rollback(trx) (trx)->rollback()
+/******************************************************************//**
+Commit a transaction.
+@return DB_SUCCESS if all OK */
+dberr_t
+fts_sql_commit(
+/*===========*/
+	trx_t*		trx)		/*!< in: transaction */
+	MY_ATTRIBUTE((nonnull));
+/******************************************************************//**
+Rollback a transaction.
+@return DB_SUCCESS if all OK */
+dberr_t
+fts_sql_rollback(
+/*=============*/
+	trx_t*		trx)		/*!< in: transaction */
+	MY_ATTRIBUTE((nonnull));
 /******************************************************************//**
 Parse an SQL string. %s is replaced with the table's id. Don't acquire
 the dict mutex

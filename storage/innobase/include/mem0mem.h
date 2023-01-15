@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -58,6 +58,8 @@ buffer pool; the latter method is used for very big heaps */
 
 /** Different type of heaps in terms of which datastructure is using them */
 #define MEM_HEAP_FOR_BTR_SEARCH		(MEM_HEAP_BTR_SEARCH | MEM_HEAP_BUFFER)
+#define MEM_HEAP_FOR_PAGE_HASH		(MEM_HEAP_DYNAMIC)
+#define MEM_HEAP_FOR_RECV_SYS		(MEM_HEAP_BUFFER)
 #define MEM_HEAP_FOR_LOCK_HEAP		(MEM_HEAP_BUFFER)
 
 /** The following start size is used for the first block in the memory heap if

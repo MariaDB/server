@@ -607,10 +607,13 @@ create procedure nodb.bug3339() begin end|
 #
 # BUG#2653
 #
---error ER_SP_UNDECLARED_VAR
 create procedure bug2653_1(a int, out b int)
   set b = aa|
 
+--error ER_BAD_FIELD_ERROR
+call bug2653_1(1, @b)|
+
+drop procedure bug2653_1|
 
 --error ER_SP_UNDECLARED_VAR
 create procedure bug2653_2(a int, out b int)
@@ -1713,7 +1716,6 @@ drop procedure if exists bug15091;
 --enable_warnings
 
 delimiter |;
---error ER_SP_UNDECLARED_VAR
 create procedure bug15091()
 begin
   declare selectstr varchar(6000) default ' ';
@@ -1725,6 +1727,15 @@ begin
                          'in (',conditionstr, ')');
 end|
 delimiter ;|
+
+# The error message used to be:
+#   ERROR 1109 (42S02): Unknown table 'c' in order clause
+# but is now rephrased to something less misleading:
+#   ERROR 1109 (42S02): Unknown table 'c' in field list
+--error ER_UNKNOWN_TABLE
+call bug15091();
+
+drop procedure bug15091;
 
 
 #
@@ -3164,7 +3175,7 @@ END|
 CALL p9()|
 
 --echo
---echo # -- Check that handlers are chosen properly in case of deep stack and
+--echo # -- Check that handlers are choosen properly in case of deep stack and
 --echo # -- nested SQL-blocks.
 --echo
 

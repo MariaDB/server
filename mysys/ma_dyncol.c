@@ -2417,8 +2417,8 @@ dynamic_column_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
       str->length)
     return ER_DYNCOL_FORMAT;
 
-  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, array_of_uint,
-                            sizeof(uint), header.column_count, 0, MYF(0)))
+  if (my_init_dynamic_array(array_of_uint, sizeof(uint), header.column_count,
+                            0, MYF(0)))
     return ER_DYNCOL_RESOURCE;
 
   for (i= 0, read= header.header;
@@ -2463,7 +2463,7 @@ mariadb_dyncol_list_num(DYNAMIC_COLUMN *str, uint *count, uint **nums)
       str->length)
     return ER_DYNCOL_FORMAT;
 
-  if (!((*nums)= my_malloc(PSI_INSTRUMENT_ME, sizeof(uint) * header.column_count, MYF(0))))
+  if (!((*nums)= my_malloc(sizeof(uint) * header.column_count, MYF(0))))
     return ER_DYNCOL_RESOURCE;
 
   for (i= 0, read= header.header;
@@ -2510,17 +2510,12 @@ mariadb_dyncol_list_named(DYNAMIC_COLUMN *str, uint *count, LEX_STRING **names)
       str->length)
     return ER_DYNCOL_FORMAT;
 
-  {
-    size_t size;
-    if (header.format == dyncol_fmt_num)
-      size= DYNCOL_NUM_CHAR * header.column_count;
-    else
-      size= header.nmpool_size + header.column_count;
-
-    *names= my_malloc(PSI_INSTRUMENT_ME,
-                      sizeof(LEX_STRING) * header.column_count + size, MYF(0));
-  }
-
+  if (header.format == dyncol_fmt_num)
+    *names= my_malloc(sizeof(LEX_STRING) * header.column_count +
+                      DYNCOL_NUM_CHAR * header.column_count, MYF(0));
+  else
+    *names= my_malloc(sizeof(LEX_STRING) * header.column_count +
+                      header.nmpool_size + header.column_count, MYF(0));
   if (!(*names))
     return ER_DYNCOL_RESOURCE;
   pool= ((char *)(*names)) + sizeof(LEX_STRING) * header.column_count;
@@ -3332,8 +3327,7 @@ dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
   if (IN_PLACE_PLAN > add_column_count)
     plan= in_place_plan;
   else if (!(alloc_plan= plan=
-             my_malloc(PSI_INSTRUMENT_ME,
-                       sizeof(PLAN) * (add_column_count + 1), MYF(0))))
+             my_malloc(sizeof(PLAN) * (add_column_count + 1), MYF(0))))
     return ER_DYNCOL_RESOURCE;
 
   not_null= add_column_count;
@@ -3929,10 +3923,12 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
                                      &dummy_errors);
             return ER_DYNCOL_OK;
           }
-          if ((alloc= (char *)my_malloc(PSI_INSTRUMENT_ME, bufflen, MYF(0))))
+          if ((alloc= (char *)my_malloc(bufflen, MYF(0))))
           {
-            len= my_convert(alloc, bufflen, cs, from, (uint32)len,
-                            val->x.string.charset, &dummy_errors);
+            len= my_convert(alloc, bufflen, cs,
+                            from, (uint32)len,
+                            val->x.string.charset,
+                            &dummy_errors);
             from= alloc;
           }
           else
@@ -4304,19 +4300,16 @@ mariadb_dyncol_unpack(DYNAMIC_COLUMN *str,
       str->length)
     return ER_DYNCOL_FORMAT;
 
-  *vals= my_malloc(PSI_INSTRUMENT_ME,
-                   sizeof(DYNAMIC_COLUMN_VALUE)* header.column_count, MYF(0));
+  *vals= my_malloc(sizeof(DYNAMIC_COLUMN_VALUE)* header.column_count, MYF(0));
   if (header.format == dyncol_fmt_num)
   {
-    *names= my_malloc(PSI_INSTRUMENT_ME,
-                      sizeof(LEX_STRING) * header.column_count +
+    *names= my_malloc(sizeof(LEX_STRING) * header.column_count +
                       DYNCOL_NUM_CHAR * header.column_count, MYF(0));
     nm= (char *)((*names) + header.column_count);
   }
   else
   {
-    *names= my_malloc(PSI_INSTRUMENT_ME,
-                      sizeof(LEX_STRING) * header.column_count, MYF(0));
+    *names= my_malloc(sizeof(LEX_STRING) * header.column_count, MYF(0));
     nm= 0;
   }
   if (!(*vals) || !(*names))

@@ -48,9 +48,10 @@ HASH likely_hash;
 void init_my_likely()
 {
   /* Allocate big enough to avoid malloc calls */
-  my_hash_init2(PSI_NOT_INSTRUMENTED, &likely_hash, 10000, &my_charset_bin,
-                1024, 0, 0, (my_hash_get_key) get_likely_key, 0, free,
-                HASH_UNIQUE);
+  my_hash_init2(&likely_hash, 10000, &my_charset_bin,
+                1024, 0, 0,
+                (my_hash_get_key) get_likely_key, 0,
+                free, HASH_UNIQUE);
   likely_inited= 1;
   pthread_mutex_init(&likely_mutex, MY_MUTEX_INIT_FAST);
 }

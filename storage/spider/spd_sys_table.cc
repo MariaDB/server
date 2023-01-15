@@ -39,113 +39,6 @@
 extern handlerton *spider_hton_ptr;
 extern Time_zone *spd_tz_system;
 
-#define SPIDER_XA_FORMAT_ID_POS                               0
-#define SPIDER_XA_GTRID_LENGTH_POS                            1
-#define SPIDER_XA_BQUAL_LENGTH_POS                            2
-#define SPIDER_XA_DATA_POS                                    3
-#define SPIDER_XA_STATUS_POS                                  4
-
-#define SPIDER_XA_MEMBER_FORMAT_ID_POS                        0
-#define SPIDER_XA_MEMBER_GTRID_LENGTH_POS                     1
-#define SPIDER_XA_MEMBER_BQUAL_LENGTH_POS                     2
-#define SPIDER_XA_MEMBER_DATA_POS                             3
-#define SPIDER_XA_MEMBER_SCHEME_POS                           4
-#define SPIDER_XA_MEMBER_HOST_POS                             5
-#define SPIDER_XA_MEMBER_PORT_POS                             6
-#define SPIDER_XA_MEMBER_SOCKET_POS                           7
-#define SPIDER_XA_MEMBER_USERNAME_POS                         8
-#define SPIDER_XA_MEMBER_PASSWORD_POS                         9
-#define SPIDER_XA_MEMBER_SSL_CA_POS                          10
-#define SPIDER_XA_MEMBER_SSL_CAPATH_POS                      11
-#define SPIDER_XA_MEMBER_SSL_CERT_POS                        12
-#define SPIDER_XA_MEMBER_SSL_CIPHER_POS                      13
-#define SPIDER_XA_MEMBER_SSL_KEY_POS                         14
-#define SPIDER_XA_MEMBER_SSL_VERIFY_SERVER_CERT_POS          15
-#define SPIDER_XA_MEMBER_DEFAULT_FILE_POS                    16
-#define SPIDER_XA_MEMBER_DEFAULT_GROUP_POS                   17
-#define SPIDER_XA_MEMBER_DSN_POS                             18
-#define SPIDER_XA_FAILED_LOG_THREAD_ID_POS                   19
-#define SPIDER_XA_FAILED_LOG_STATUS_POS                      20
-#define SPIDER_XA_FAILED_LOG_FAILED_TIME_POS                 21
-
-#define SPIDER_TABLES_DB_NAME_POS                             0
-#define SPIDER_TABLES_TABLE_NAME_POS                          1
-#define SPIDER_TABLES_LINK_ID_POS                             2
-#define SPIDER_TABLES_PRIORITY_POS                            3
-#define SPIDER_TABLES_SERVER_POS                              4
-#define SPIDER_TABLES_SCHEME_POS                              5
-#define SPIDER_TABLES_HOST_POS                                6
-#define SPIDER_TABLES_PORT_POS                                7
-#define SPIDER_TABLES_SOCKET_POS                              8
-#define SPIDER_TABLES_USERNAME_POS                            9
-#define SPIDER_TABLES_PASSWORD_POS                           10
-#define SPIDER_TABLES_SSL_CA_POS                             11
-#define SPIDER_TABLES_SSL_CAPATH_POS                         12
-#define SPIDER_TABLES_SSL_CERT_POS                           13
-#define SPIDER_TABLES_SSL_CIPHER_POS                         14
-#define SPIDER_TABLES_SSL_KEY_POS                            15
-#define SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS             16
-#define SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS   17
-#define SPIDER_TABLES_DEFAULT_FILE_POS                       18
-#define SPIDER_TABLES_DEFAULT_GROUP_POS                      19
-#define SPIDER_TABLES_DSN_POS                                20
-#define SPIDER_TABLES_TGT_DB_NAME_POS                        21
-#define SPIDER_TABLES_TGT_TABLE_NAME_POS                     22
-#define SPIDER_TABLES_LINK_STATUS_POS                        23
-#define SPIDER_TABLES_BLOCK_STATUS_POS                       24
-#define SPIDER_TABLES_STATIC_LINK_ID_POS                     25
-
-#define SPIDER_LINK_MON_SERVERS_DB_NAME_POS                   0
-#define SPIDER_LINK_MON_SERVERS_TABLE_NAME_POS                1
-#define SPIDER_LINK_MON_SERVERS_LINK_ID_POS                   2
-#define SPIDER_LINK_MON_SERVERS_SID_POS                       3
-#define SPIDER_LINK_MON_SERVERS_SERVER_POS                    4
-#define SPIDER_LINK_MON_SERVERS_SCHEME_POS                    5
-#define SPIDER_LINK_MON_SERVERS_HOST_POS                      6
-#define SPIDER_LINK_MON_SERVERS_PORT_POS                      7
-#define SPIDER_LINK_MON_SERVERS_SOCKET_POS                    8
-#define SPIDER_LINK_MON_SERVERS_USERNAME_POS                  9
-#define SPIDER_LINK_MON_SERVERS_PASSWORD_POS                 10
-#define SPIDER_LINK_MON_SERVERS_SSL_CA_POS                   11
-#define SPIDER_LINK_MON_SERVERS_SSL_CAPATH_POS               12
-#define SPIDER_LINK_MON_SERVERS_SSL_CERT_POS                 13
-#define SPIDER_LINK_MON_SERVERS_SSL_CIPHER_POS               14
-#define SPIDER_LINK_MON_SERVERS_SSL_KEY_POS                  15
-#define SPIDER_LINK_MON_SERVERS_SSL_VERIFY_SERVER_CERT_POS   16
-#define SPIDER_LINK_MON_SERVERS_DEFAULT_FILE_POS             17
-#define SPIDER_LINK_MON_SERVERS_DEFAULT_GROUP_POS            18
-#define SPIDER_LINK_MON_SERVERS_DSN_POS                      19
-
-#define SPIDER_LINK_FAILED_LOG_DB_NAME_POS                    0
-#define SPIDER_LINK_FAILED_LOG_TABLE_NAME_POS                 1
-#define SPIDER_LINK_FAILED_LOG_LINK_ID_POS                    2
-#define SPIDER_LINK_FAILED_LOG_FAILED_TIME_POS                3
-
-#define SPIDER_TABLE_POSITION_FOR_RECOVERY_DB_NAME_POS        0
-#define SPIDER_TABLE_POSITION_FOR_RECOVERY_TABLE_NAME_POS     1
-#define SPIDER_TABLE_POSITION_FOR_RECOVERY_FAILED_LINK_ID_POS 2
-#define SPIDER_TABLE_POSITION_FOR_RECOVERY_SOURCE_LINK_ID_POS 3
-#define SPIDER_TABLE_POSITION_FOR_RECOVERY_FILE_POS           4
-#define SPIDER_TABLE_POSITION_FOR_RECOVERY_POSITION_POS       5
-#define SPIDER_TABLE_POSITION_FOR_RECOVERY_GTID_POS           6
-
-#define SPIDER_TABLE_STS_DB_NAME_POS                          0
-#define SPIDER_TABLE_STS_TABLE_NAME_POS                       1
-#define SPIDER_TABLE_STS_DATA_FILE_LENGTH_POS                 2
-#define SPIDER_TABLE_STS_MAX_DATA_FILE_LENGTH_POS             3
-#define SPIDER_TABLE_STS_INDEX_FILE_LENGTH_POS                4
-#define SPIDER_TABLE_STS_RECORDS_POS                          5
-#define SPIDER_TABLE_STS_MEAN_REC_LENGTH_POS                  6
-#define SPIDER_TABLE_STS_CHECK_TIME_POS                       7
-#define SPIDER_TABLE_STS_CREATE_TIME_POS                      8
-#define SPIDER_TABLE_STS_UPDATE_TIME_POS                      9
-#define SPIDER_TABLE_STS_CHECKSUM_POS                        10
-
-#define SPIDER_TABLE_CRD_DB_NAME_POS                          0
-#define SPIDER_TABLE_CRD_TABLE_NAME_POS                       1
-#define SPIDER_TABLE_CRD_KEY_SEQ_POS                          2
-#define SPIDER_TABLE_CRD_CARDINALITY_POS                      3
-
 /**
   Insert a Spider system table row.
 
@@ -228,15 +121,28 @@ inline int spider_delete_sys_table_row(TABLE *table, int record_number = 0,
   return error_num;
 }
 
+#if MYSQL_VERSION_ID < 50500
 TABLE *spider_open_sys_table(
   THD *thd,
   const char *table_name,
   int table_name_length,
   bool write,
-  SPIDER_Open_tables_backup *open_tables_backup,
+  Open_tables_state *open_tables_backup,
   bool need_lock,
   int *error_num
-) {
+)
+#else
+TABLE *spider_open_sys_table(
+  THD *thd,
+  const char *table_name,
+  int table_name_length,
+  bool write,
+  Open_tables_backup *open_tables_backup,
+  bool need_lock,
+  int *error_num
+)
+#endif
+{
   TABLE *table;
   TABLE_LIST tables;
 #if MYSQL_VERSION_ID < 50500
@@ -293,7 +199,7 @@ TABLE *spider_open_sys_table(
     }
 #if MYSQL_VERSION_ID < 50500
   } else {
-    SPIDER_reset_n_backup_open_tables_state(thd, open_tables_backup, NULL);
+    thd->reset_n_backup_open_tables_state(open_tables_backup);
 
     if (!(table = (TABLE*) spider_malloc(spider_current_trx, 12,
       sizeof(*table), MYF(MY_WME))))
@@ -588,18 +494,28 @@ TABLE *spider_open_sys_table(
 error:
   spider_free(spider_current_trx, table, MYF(0));
 error_malloc:
-  SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
+  thd->restore_backup_open_tables_state(open_tables_backup);
 #endif
 error_col_num_chk:
   DBUG_RETURN(NULL);
 }
 
+#if MYSQL_VERSION_ID < 50500
 void spider_close_sys_table(
   THD *thd,
   TABLE *table,
-  SPIDER_Open_tables_backup *open_tables_backup,
+  Open_tables_state *open_tables_backup,
   bool need_lock
-) {
+)
+#else
+void spider_close_sys_table(
+  THD *thd,
+  TABLE *table,
+  Open_tables_backup *open_tables_backup,
+  bool need_lock
+)
+#endif
+{
   DBUG_ENTER("spider_close_sys_table");
 #if MYSQL_VERSION_ID < 50500
   if (need_lock)
@@ -609,7 +525,7 @@ void spider_close_sys_table(
     table->file->ha_reset();
     closefrm(table, TRUE);
     spider_free(spider_current_trx, table, MYF(0));
-    SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
+    thd->restore_backup_open_tables_state(open_tables_backup);
   }
 #else
   spider_sys_close_table(thd, open_tables_backup);
@@ -619,28 +535,20 @@ void spider_close_sys_table(
 
 #if MYSQL_VERSION_ID < 50500
 #else
-bool spider_sys_open_and_lock_tables(
+bool spider_sys_open_tables(
   THD *thd,
   TABLE_LIST **tables,
-  SPIDER_Open_tables_backup *open_tables_backup
+  Open_tables_backup *open_tables_backup
 ) {
   uint counter;
-  uint flags = MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
-    MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY | MYSQL_OPEN_IGNORE_FLUSH |
-    MYSQL_LOCK_IGNORE_TIMEOUT | MYSQL_LOCK_LOG_TABLE;
   ulonglong utime_after_lock_backup = thd->utime_after_lock;
-  DBUG_ENTER("spider_sys_open_and_lock_tables");
-  SPIDER_reset_n_backup_open_tables_state(thd, open_tables_backup, TRUE);
-  if (open_tables(thd, tables, &counter, flags))
-  {
-    SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
-    thd->utime_after_lock = utime_after_lock_backup;
-    DBUG_RETURN(TRUE);
-  }
-  if (lock_tables(thd, *tables, counter, flags))
-  {
-    SPIDER_sys_close_thread_tables(thd);
-    SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
+  DBUG_ENTER("spider_sys_open_tables");
+  thd->reset_n_backup_open_tables_state(open_tables_backup);
+  if (open_tables(thd, tables, &counter,
+    MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK | MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
+    MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT | MYSQL_LOCK_LOG_TABLE
+  )) {
+    thd->restore_backup_open_tables_state(open_tables_backup);
     thd->utime_after_lock = utime_after_lock_backup;
     DBUG_RETURN(TRUE);
   }
@@ -651,15 +559,13 @@ bool spider_sys_open_and_lock_tables(
 TABLE *spider_sys_open_table(
   THD *thd,
   TABLE_LIST *tables,
-  SPIDER_Open_tables_backup *open_tables_backup
+  Open_tables_backup *open_tables_backup
 ) {
   TABLE *table;
   ulonglong utime_after_lock_backup = thd->utime_after_lock;
   DBUG_ENTER("spider_sys_open_table");
   if (open_tables_backup)
-  {
-    SPIDER_reset_n_backup_open_tables_state(thd, open_tables_backup, NULL);
-  }
+    thd->reset_n_backup_open_tables_state(open_tables_backup);
   if ((table = open_ltable(thd, tables, tables->lock_type,
     MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK | MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
     MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT | MYSQL_LOCK_LOG_TABLE
@@ -667,23 +573,18 @@ TABLE *spider_sys_open_table(
     table->use_all_columns();
     table->s->no_replicate = 1;
   } else if (open_tables_backup)
-  {
-    SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
-  }
+    thd->restore_backup_open_tables_state(open_tables_backup);
   thd->utime_after_lock = utime_after_lock_backup;
   DBUG_RETURN(table);
 }
 
 void spider_sys_close_table(
   THD *thd,
-  SPIDER_Open_tables_backup *open_tables_backup
+  Open_tables_backup *open_tables_backup
 ) {
   DBUG_ENTER("spider_sys_close_table");
-  if (open_tables_backup)
-  {
-    SPIDER_sys_close_thread_tables(thd);
-    SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
-  }
+  close_thread_tables(thd);
+  thd->restore_backup_open_tables_state(open_tables_backup);
   DBUG_VOID_RETURN;
 }
 #endif
@@ -926,9 +827,9 @@ void spider_store_xa_pk(
   XID *xid
 ) {
   DBUG_ENTER("spider_store_xa_pk");
-  table->field[SPIDER_XA_FORMAT_ID_POS]->store(xid->formatID);
-  table->field[SPIDER_XA_GTRID_LENGTH_POS]->store(xid->gtrid_length);
-  table->field[SPIDER_XA_DATA_POS]->store(
+  table->field[0]->store(xid->formatID);
+  table->field[1]->store(xid->gtrid_length);
+  table->field[3]->store(
     xid->data,
     (uint) xid->gtrid_length + xid->bqual_length,
     system_charset_info);
@@ -940,7 +841,7 @@ void spider_store_xa_bqual_length(
   XID *xid
 ) {
   DBUG_ENTER("spider_store_xa_bqual_length");
-  table->field[SPIDER_XA_BQUAL_LENGTH_POS]->store(xid->bqual_length);
+  table->field[2]->store(xid->bqual_length);
   DBUG_VOID_RETURN;
 }
 
@@ -949,7 +850,7 @@ void spider_store_xa_status(
   const char *status
 ) {
   DBUG_ENTER("spider_store_xa_status");
-  table->field[SPIDER_XA_STATUS_POS]->store(
+  table->field[4]->store(
     status,
     (uint) strlen(status),
     system_charset_info);
@@ -962,19 +863,19 @@ void spider_store_xa_member_pk(
   SPIDER_CONN *conn
 ) {
   DBUG_ENTER("spider_store_xa_member_pk");
-  table->field[SPIDER_XA_MEMBER_FORMAT_ID_POS]->store(xid->formatID);
-  table->field[SPIDER_XA_MEMBER_GTRID_LENGTH_POS]->store(xid->gtrid_length);
-  table->field[SPIDER_XA_MEMBER_DATA_POS]->store(
+  table->field[0]->store(xid->formatID);
+  table->field[1]->store(xid->gtrid_length);
+  table->field[3]->store(
     xid->data,
     (uint) xid->gtrid_length + xid->bqual_length,
     system_charset_info);
-  table->field[SPIDER_XA_MEMBER_HOST_POS]->store(
+  table->field[5]->store(
     conn->tgt_host,
     (uint) conn->tgt_host_length,
     system_charset_info);
-  table->field[SPIDER_XA_MEMBER_PORT_POS]->store(
+  table->field[6]->store(
     conn->tgt_port);
-  table->field[SPIDER_XA_MEMBER_SOCKET_POS]->store(
+  table->field[7]->store(
     conn->tgt_socket,
     (uint) conn->tgt_socket_length,
     system_charset_info);
@@ -987,115 +888,104 @@ void spider_store_xa_member_info(
   SPIDER_CONN *conn
 ) {
   DBUG_ENTER("spider_store_xa_member_info");
-  table->field[SPIDER_XA_MEMBER_BQUAL_LENGTH_POS]->store(xid->bqual_length);
-  table->field[SPIDER_XA_MEMBER_SCHEME_POS]->store(
+  table->field[2]->store(xid->bqual_length);
+  table->field[4]->store(
     conn->tgt_wrapper,
     (uint) conn->tgt_wrapper_length,
     system_charset_info);
-  table->field[SPIDER_XA_MEMBER_USERNAME_POS]->store(
+  table->field[8]->store(
     conn->tgt_username,
     (uint) conn->tgt_username_length,
     system_charset_info);
-  table->field[SPIDER_XA_MEMBER_PASSWORD_POS]->store(
+  table->field[9]->store(
     conn->tgt_password,
     (uint) conn->tgt_password_length,
     system_charset_info);
   if (conn->tgt_ssl_ca)
   {
-    table->field[SPIDER_XA_MEMBER_SSL_CA_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_SSL_CA_POS]->store(
+    table->field[10]->set_notnull();
+    table->field[10]->store(
       conn->tgt_ssl_ca,
       (uint) conn->tgt_ssl_ca_length,
       system_charset_info);
   } else {
-    table->field[SPIDER_XA_MEMBER_SSL_CA_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_SSL_CA_POS]->reset();
+    table->field[10]->set_null();
+    table->field[10]->reset();
   }
   if (conn->tgt_ssl_capath)
   {
-    table->field[SPIDER_XA_MEMBER_SSL_CAPATH_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_SSL_CAPATH_POS]->store(
+    table->field[11]->set_notnull();
+    table->field[11]->store(
       conn->tgt_ssl_capath,
       (uint) conn->tgt_ssl_capath_length,
       system_charset_info);
   } else {
-    table->field[SPIDER_XA_MEMBER_SSL_CAPATH_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_SSL_CAPATH_POS]->reset();
+    table->field[11]->set_null();
+    table->field[11]->reset();
   }
   if (conn->tgt_ssl_cert)
   {
-    table->field[SPIDER_XA_MEMBER_SSL_CERT_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_SSL_CERT_POS]->store(
+    table->field[12]->set_notnull();
+    table->field[12]->store(
       conn->tgt_ssl_cert,
       (uint) conn->tgt_ssl_cert_length,
       system_charset_info);
   } else {
-    table->field[SPIDER_XA_MEMBER_SSL_CERT_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_SSL_CERT_POS]->reset();
+    table->field[12]->set_null();
+    table->field[12]->reset();
   }
   if (conn->tgt_ssl_cipher)
   {
-    table->field[SPIDER_XA_MEMBER_SSL_CIPHER_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_SSL_CIPHER_POS]->store(
+    table->field[13]->set_notnull();
+    table->field[13]->store(
       conn->tgt_ssl_cipher,
       (uint) conn->tgt_ssl_cipher_length,
       system_charset_info);
   } else {
-    table->field[SPIDER_XA_MEMBER_SSL_CIPHER_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_SSL_CIPHER_POS]->reset();
+    table->field[13]->set_null();
+    table->field[13]->reset();
   }
   if (conn->tgt_ssl_key)
   {
-    table->field[SPIDER_XA_MEMBER_SSL_KEY_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_SSL_KEY_POS]->store(
+    table->field[14]->set_notnull();
+    table->field[14]->store(
       conn->tgt_ssl_key,
       (uint) conn->tgt_ssl_key_length,
       system_charset_info);
   } else {
-    table->field[SPIDER_XA_MEMBER_SSL_KEY_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_SSL_KEY_POS]->reset();
+    table->field[14]->set_null();
+    table->field[14]->reset();
   }
   if (conn->tgt_ssl_vsc >= 0)
   {
-    table->field[SPIDER_XA_MEMBER_SSL_VERIFY_SERVER_CERT_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_SSL_VERIFY_SERVER_CERT_POS]->store(
+    table->field[15]->set_notnull();
+    table->field[15]->store(
       conn->tgt_ssl_vsc);
   } else {
-    table->field[SPIDER_XA_MEMBER_SSL_VERIFY_SERVER_CERT_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_SSL_VERIFY_SERVER_CERT_POS]->reset();
+    table->field[15]->set_null();
+    table->field[15]->reset();
   }
   if (conn->tgt_default_file)
   {
-    table->field[SPIDER_XA_MEMBER_DEFAULT_FILE_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_DEFAULT_FILE_POS]->store(
+    table->field[16]->set_notnull();
+    table->field[16]->store(
       conn->tgt_default_file,
       (uint) conn->tgt_default_file_length,
       system_charset_info);
   } else {
-    table->field[SPIDER_XA_MEMBER_DEFAULT_FILE_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_DEFAULT_FILE_POS]->reset();
+    table->field[16]->set_null();
+    table->field[16]->reset();
   }
   if (conn->tgt_default_group)
   {
-    table->field[SPIDER_XA_MEMBER_DEFAULT_GROUP_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_DEFAULT_GROUP_POS]->store(
+    table->field[17]->set_notnull();
+    table->field[17]->store(
       conn->tgt_default_group,
       (uint) conn->tgt_default_group_length,
       system_charset_info);
   } else {
-    table->field[SPIDER_XA_MEMBER_DEFAULT_GROUP_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_DEFAULT_GROUP_POS]->reset();
-  }
-  if (conn->tgt_dsn)
-  {
-    table->field[SPIDER_XA_MEMBER_DSN_POS]->set_notnull();
-    table->field[SPIDER_XA_MEMBER_DSN_POS]->store(
-      conn->tgt_dsn,
-      (uint) conn->tgt_dsn_length,
-      system_charset_info);
-  } else {
-    table->field[SPIDER_XA_MEMBER_DSN_POS]->set_null();
-    table->field[SPIDER_XA_MEMBER_DSN_POS]->reset();
+    table->field[17]->set_null();
+    table->field[17]->reset();
   }
   DBUG_VOID_RETURN;
 }
@@ -1126,20 +1016,18 @@ void spider_store_tables_name(
     ptr_table = "";
     ptr_diff_table = 1;
   }
-  table->field[SPIDER_TABLES_DB_NAME_POS]->store(
+  table->field[0]->store(
     ptr_db,
     (uint)(ptr_diff_table - 1),
     system_charset_info);
-  DBUG_PRINT("info",("spider field[%u]->null_bit = %d",
-    SPIDER_TABLES_DB_NAME_POS,
-    table->field[SPIDER_TABLES_DB_NAME_POS]->null_bit));
-  table->field[SPIDER_TABLES_TABLE_NAME_POS]->store(
+  DBUG_PRINT("info",("spider field[0]->null_bit = %d",
+    table->field[0]->null_bit));
+  table->field[1]->store(
     ptr_table,
     (uint) ((my_ptrdiff_t) name_length - ptr_diff_db - ptr_diff_table),
     system_charset_info);
-  DBUG_PRINT("info",("spider field[%u]->null_bit = %d",
-    SPIDER_TABLES_TABLE_NAME_POS,
-    table->field[SPIDER_TABLES_TABLE_NAME_POS]->null_bit));
+  DBUG_PRINT("info",("spider field[1]->null_bit = %d",
+    table->field[1]->null_bit));
   DBUG_VOID_RETURN;
 }
 
@@ -1151,20 +1039,18 @@ void spider_store_db_and_table_name(
   const uint table_name_length
 ) {
   DBUG_ENTER("spider_store_db_and_table_name");
-  table->field[SPIDER_TABLES_DB_NAME_POS]->store(
+  table->field[0]->store(
     db_name,
     db_name_length,
     system_charset_info);
-  DBUG_PRINT("info",("spider field[%u]->null_bit = %d",
-    SPIDER_TABLES_DB_NAME_POS,
-    table->field[SPIDER_TABLES_DB_NAME_POS]->null_bit));
-  table->field[SPIDER_TABLES_TABLE_NAME_POS]->store(
+  DBUG_PRINT("info",("spider field[0]->null_bit = %d",
+    table->field[0]->null_bit));
+  table->field[1]->store(
     table_name,
     table_name_length,
     system_charset_info);
-  DBUG_PRINT("info",("spider field[%u]->null_bit = %d",
-    SPIDER_TABLES_TABLE_NAME_POS,
-    table->field[SPIDER_TABLES_TABLE_NAME_POS]->null_bit));
+  DBUG_PRINT("info",("spider field[1]->null_bit = %d",
+    table->field[1]->null_bit));
   DBUG_VOID_RETURN;
 }
 
@@ -1173,8 +1059,8 @@ void spider_store_tables_link_idx(
   int link_idx
 ) {
   DBUG_ENTER("spider_store_tables_link_idx");
-  table->field[SPIDER_TABLES_LINK_ID_POS]->set_notnull();
-  table->field[SPIDER_TABLES_LINK_ID_POS]->store(link_idx);
+  table->field[2]->set_notnull();
+  table->field[2]->store(link_idx);
   DBUG_VOID_RETURN;
 }
 
@@ -1184,13 +1070,12 @@ void spider_store_tables_link_idx_str(
   const uint link_idx_length
 ) {
   DBUG_ENTER("spider_store_tables_link_idx_str");
-  table->field[SPIDER_TABLES_LINK_ID_POS]->store(
+  table->field[2]->store(
     link_idx,
     link_idx_length,
     system_charset_info);
-  DBUG_PRINT("info",("spider field[%u]->null_bit = %d",
-    SPIDER_TABLES_LINK_ID_POS,
-    table->field[SPIDER_TABLES_LINK_ID_POS]->null_bit));
+  DBUG_PRINT("info",("spider field[2]->null_bit = %d",
+    table->field[2]->null_bit));
   DBUG_VOID_RETURN;
 }
 
@@ -1202,14 +1087,14 @@ void spider_store_tables_static_link_id(
   DBUG_ENTER("spider_store_tables_static_link_id");
   if (static_link_id)
   {
-    table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->set_notnull();
-    table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->store(
+    table->field[24]->set_notnull();
+    table->field[24]->store(
       static_link_id,
       static_link_id_length,
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->set_null();
-    table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->reset();
+    table->field[24]->set_null();
+    table->field[24]->reset();
   }
   DBUG_VOID_RETURN;
 }
@@ -1220,7 +1105,7 @@ void spider_store_tables_priority(
 ) {
   DBUG_ENTER("spider_store_tables_priority");
   DBUG_PRINT("info",("spider priority = %lld", priority));
-  table->field[SPIDER_TABLES_PRIORITY_POS]->store(priority, FALSE);
+  table->field[3]->store(priority, FALSE);
   DBUG_VOID_RETURN;
 }
 
@@ -1232,221 +1117,209 @@ void spider_store_tables_connect_info(
   DBUG_ENTER("spider_store_tables_connect_info");
   if (alter_table->tmp_server_names[link_idx])
   {
-    table->field[SPIDER_TABLES_SERVER_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SERVER_POS]->store(
+    table->field[4]->set_notnull();
+    table->field[4]->store(
       alter_table->tmp_server_names[link_idx],
       (uint) alter_table->tmp_server_names_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_SERVER_POS]->set_null();
-    table->field[SPIDER_TABLES_SERVER_POS]->reset();
+    table->field[4]->set_null();
+    table->field[4]->reset();
   }
   if (alter_table->tmp_tgt_wrappers[link_idx])
   {
-    table->field[SPIDER_TABLES_SCHEME_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SCHEME_POS]->store(
+    table->field[5]->set_notnull();
+    table->field[5]->store(
       alter_table->tmp_tgt_wrappers[link_idx],
       (uint) alter_table->tmp_tgt_wrappers_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_SCHEME_POS]->set_null();
-    table->field[SPIDER_TABLES_SCHEME_POS]->reset();
+    table->field[5]->set_null();
+    table->field[5]->reset();
   }
   if (alter_table->tmp_tgt_hosts[link_idx])
   {
-    table->field[SPIDER_TABLES_HOST_POS]->set_notnull();
-    table->field[SPIDER_TABLES_HOST_POS]->store(
+    table->field[6]->set_notnull();
+    table->field[6]->store(
       alter_table->tmp_tgt_hosts[link_idx],
       (uint) alter_table->tmp_tgt_hosts_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_HOST_POS]->set_null();
-    table->field[SPIDER_TABLES_HOST_POS]->reset();
+    table->field[6]->set_null();
+    table->field[6]->reset();
   }
   if (alter_table->tmp_tgt_ports[link_idx] >= 0)
   {
-    table->field[SPIDER_TABLES_PORT_POS]->set_notnull();
-    table->field[SPIDER_TABLES_PORT_POS]->store(
+    table->field[7]->set_notnull();
+    table->field[7]->store(
       alter_table->tmp_tgt_ports[link_idx]);
   } else {
-    table->field[SPIDER_TABLES_PORT_POS]->set_null();
-    table->field[SPIDER_TABLES_PORT_POS]->reset();
+    table->field[7]->set_null();
+    table->field[7]->reset();
   }
   if (alter_table->tmp_tgt_sockets[link_idx])
   {
-    table->field[SPIDER_TABLES_SOCKET_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SOCKET_POS]->store(
+    table->field[8]->set_notnull();
+    table->field[8]->store(
       alter_table->tmp_tgt_sockets[link_idx],
       (uint) alter_table->tmp_tgt_sockets_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_SOCKET_POS]->set_null();
-    table->field[SPIDER_TABLES_SOCKET_POS]->reset();
+    table->field[8]->set_null();
+    table->field[8]->reset();
   }
   if (alter_table->tmp_tgt_usernames[link_idx])
   {
-    table->field[SPIDER_TABLES_USERNAME_POS]->set_notnull();
-    table->field[SPIDER_TABLES_USERNAME_POS]->store(
+    table->field[9]->set_notnull();
+    table->field[9]->store(
       alter_table->tmp_tgt_usernames[link_idx],
       (uint) alter_table->tmp_tgt_usernames_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_USERNAME_POS]->set_null();
-    table->field[SPIDER_TABLES_USERNAME_POS]->reset();
+    table->field[9]->set_null();
+    table->field[9]->reset();
   }
   if (alter_table->tmp_tgt_passwords[link_idx])
   {
-    table->field[SPIDER_TABLES_PASSWORD_POS]->set_notnull();
-    table->field[SPIDER_TABLES_PASSWORD_POS]->store(
+    table->field[10]->set_notnull();
+    table->field[10]->store(
       alter_table->tmp_tgt_passwords[link_idx],
       (uint) alter_table->tmp_tgt_passwords_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_PASSWORD_POS]->set_null();
-    table->field[SPIDER_TABLES_PASSWORD_POS]->reset();
+    table->field[10]->set_null();
+    table->field[10]->reset();
   }
   if (alter_table->tmp_tgt_ssl_cas[link_idx])
   {
-    table->field[SPIDER_TABLES_SSL_CA_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SSL_CA_POS]->store(
+    table->field[11]->set_notnull();
+    table->field[11]->store(
       alter_table->tmp_tgt_ssl_cas[link_idx],
       (uint) alter_table->tmp_tgt_ssl_cas_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_SSL_CA_POS]->set_null();
-    table->field[SPIDER_TABLES_SSL_CA_POS]->reset();
+    table->field[11]->set_null();
+    table->field[11]->reset();
   }
   if (alter_table->tmp_tgt_ssl_capaths[link_idx])
   {
-    table->field[SPIDER_TABLES_SSL_CAPATH_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SSL_CAPATH_POS]->store(
+    table->field[12]->set_notnull();
+    table->field[12]->store(
       alter_table->tmp_tgt_ssl_capaths[link_idx],
       (uint) alter_table->tmp_tgt_ssl_capaths_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_SSL_CAPATH_POS]->set_null();
-    table->field[SPIDER_TABLES_SSL_CAPATH_POS]->reset();
+    table->field[12]->set_null();
+    table->field[12]->reset();
   }
   if (alter_table->tmp_tgt_ssl_certs[link_idx])
   {
-    table->field[SPIDER_TABLES_SSL_CERT_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SSL_CERT_POS]->store(
+    table->field[13]->set_notnull();
+    table->field[13]->store(
       alter_table->tmp_tgt_ssl_certs[link_idx],
       (uint) alter_table->tmp_tgt_ssl_certs_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_SSL_CERT_POS]->set_null();
-    table->field[SPIDER_TABLES_SSL_CERT_POS]->reset();
+    table->field[13]->set_null();
+    table->field[13]->reset();
   }
   if (alter_table->tmp_tgt_ssl_ciphers[link_idx])
   {
-    table->field[SPIDER_TABLES_SSL_CIPHER_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SSL_CIPHER_POS]->store(
+    table->field[14]->set_notnull();
+    table->field[14]->store(
       alter_table->tmp_tgt_ssl_ciphers[link_idx],
       (uint) alter_table->tmp_tgt_ssl_ciphers_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_SSL_CIPHER_POS]->set_null();
-    table->field[SPIDER_TABLES_SSL_CIPHER_POS]->reset();
+    table->field[14]->set_null();
+    table->field[14]->reset();
   }
   if (alter_table->tmp_tgt_ssl_keys[link_idx])
   {
-    table->field[SPIDER_TABLES_SSL_KEY_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SSL_KEY_POS]->store(
+    table->field[15]->set_notnull();
+    table->field[15]->store(
       alter_table->tmp_tgt_ssl_keys[link_idx],
       (uint) alter_table->tmp_tgt_ssl_keys_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_SSL_KEY_POS]->set_null();
-    table->field[SPIDER_TABLES_SSL_KEY_POS]->reset();
+    table->field[15]->set_null();
+    table->field[15]->reset();
   }
   if (alter_table->tmp_tgt_ssl_vscs[link_idx] >= 0)
   {
-    table->field[SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS]->set_notnull();
-    table->field[SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS]->store(
+    table->field[16]->set_notnull();
+    table->field[16]->store(
       alter_table->tmp_tgt_ssl_vscs[link_idx]);
   } else {
-    table->field[SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS]->set_null();
-    table->field[SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS]->reset();
+    table->field[16]->set_null();
+    table->field[16]->reset();
   }
-  table->field[SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS]->
-    set_notnull();
+  table->field[17]->set_notnull();
   if (alter_table->tmp_monitoring_binlog_pos_at_failing[link_idx] >= 0)
   {
-    table->field[SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS]->store(
+    table->field[17]->store(
       alter_table->tmp_monitoring_binlog_pos_at_failing[link_idx]);
   } else {
-    table->field[SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS]->store(0);
+    table->field[17]->store(0);
   }
   if (alter_table->tmp_tgt_default_files[link_idx])
   {
-    table->field[SPIDER_TABLES_DEFAULT_FILE_POS]->set_notnull();
-    table->field[SPIDER_TABLES_DEFAULT_FILE_POS]->store(
+    table->field[18]->set_notnull();
+    table->field[18]->store(
       alter_table->tmp_tgt_default_files[link_idx],
       (uint) alter_table->tmp_tgt_default_files_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_DEFAULT_FILE_POS]->set_null();
-    table->field[SPIDER_TABLES_DEFAULT_FILE_POS]->reset();
+    table->field[18]->set_null();
+    table->field[18]->reset();
   }
   if (alter_table->tmp_tgt_default_groups[link_idx])
   {
-    table->field[SPIDER_TABLES_DEFAULT_GROUP_POS]->set_notnull();
-    table->field[SPIDER_TABLES_DEFAULT_GROUP_POS]->store(
+    table->field[19]->set_notnull();
+    table->field[19]->store(
       alter_table->tmp_tgt_default_groups[link_idx],
       (uint) alter_table->tmp_tgt_default_groups_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_DEFAULT_GROUP_POS]->set_null();
-    table->field[SPIDER_TABLES_DEFAULT_GROUP_POS]->reset();
-  }
-  if (alter_table->tmp_tgt_dsns[link_idx])
-  {
-    table->field[SPIDER_TABLES_DSN_POS]->set_notnull();
-    table->field[SPIDER_TABLES_DSN_POS]->store(
-      alter_table->tmp_tgt_dsns[link_idx],
-      (uint) alter_table->tmp_tgt_dsns_lengths[link_idx],
-      system_charset_info);
-  } else {
-    table->field[SPIDER_TABLES_DSN_POS]->set_null();
-    table->field[SPIDER_TABLES_DSN_POS]->reset();
+    table->field[19]->set_null();
+    table->field[19]->reset();
   }
   if (alter_table->tmp_tgt_dbs[link_idx])
   {
-    table->field[SPIDER_TABLES_TGT_DB_NAME_POS]->set_notnull();
-    table->field[SPIDER_TABLES_TGT_DB_NAME_POS]->store(
+    table->field[20]->set_notnull();
+    table->field[20]->store(
       alter_table->tmp_tgt_dbs[link_idx],
       (uint) alter_table->tmp_tgt_dbs_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_TGT_DB_NAME_POS]->set_null();
-    table->field[SPIDER_TABLES_TGT_DB_NAME_POS]->reset();
+    table->field[20]->set_null();
+    table->field[20]->reset();
   }
   if (alter_table->tmp_tgt_table_names[link_idx])
   {
-    table->field[SPIDER_TABLES_TGT_TABLE_NAME_POS]->set_notnull();
-    table->field[SPIDER_TABLES_TGT_TABLE_NAME_POS]->store(
+    table->field[21]->set_notnull();
+    table->field[21]->store(
       alter_table->tmp_tgt_table_names[link_idx],
       (uint) alter_table->tmp_tgt_table_names_lengths[link_idx],
       system_charset_info);
   } else {
-    table->field[SPIDER_TABLES_TGT_TABLE_NAME_POS]->set_null();
-    table->field[SPIDER_TABLES_TGT_TABLE_NAME_POS]->reset();
+    table->field[21]->set_null();
+    table->field[21]->reset();
   }
-  table->field[SPIDER_TABLES_BLOCK_STATUS_POS]->store((longlong) 0, FALSE);
+  table->field[23]->store((longlong) 0, FALSE);
   if (alter_table->tmp_static_link_ids[link_idx])
   {
     DBUG_PRINT("info",("spider static_link_id[%d] = %s",
       link_idx, alter_table->tmp_static_link_ids[link_idx]));
-    table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->set_notnull();
-    table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->store(
+    table->field[24]->set_notnull();
+    table->field[24]->store(
       alter_table->tmp_static_link_ids[link_idx],
       (uint) alter_table->tmp_static_link_ids_lengths[link_idx],
       system_charset_info);
   } else {
     DBUG_PRINT("info",("spider static_link_id[%d] = NULL", link_idx));
-    table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->set_null();
-    table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->reset();
+    table->field[24]->set_null();
+    table->field[24]->reset();
   }
   DBUG_VOID_RETURN;
 }
@@ -1458,7 +1331,17 @@ void spider_store_tables_link_status(
   DBUG_ENTER("spider_store_tables_link_status");
   DBUG_PRINT("info",("spider link_status = %ld", link_status));
   if (link_status > SPIDER_LINK_STATUS_NO_CHANGE)
-    table->field[SPIDER_TABLES_LINK_STATUS_POS]->store(link_status, FALSE);
+    table->field[22]->store(link_status, FALSE);
+  DBUG_VOID_RETURN;
+}
+
+void spider_store_link_chk_server_id(
+  TABLE *table,
+  uint32 server_id
+) {
+  DBUG_ENTER("spider_store_link_chk_server_id");
+  table->field[3]->set_notnull();
+  table->field[3]->store(server_id);
   DBUG_VOID_RETURN;
 }
 
@@ -1467,10 +1350,8 @@ void spider_store_binlog_pos_failed_link_idx(
   int failed_link_idx
 ) {
   DBUG_ENTER("spider_store_binlog_pos_failed_link_idx");
-  table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_FAILED_LINK_ID_POS]->
-    set_notnull();
-  table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_FAILED_LINK_ID_POS]->
-    store(failed_link_idx);
+  table->field[2]->set_notnull();
+  table->field[2]->store(failed_link_idx);
   DBUG_VOID_RETURN;
 }
 
@@ -1479,10 +1360,8 @@ void spider_store_binlog_pos_source_link_idx(
   int source_link_idx
 ) {
   DBUG_ENTER("spider_store_binlog_pos_source_link_idx");
-  table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_SOURCE_LINK_ID_POS]->
-    set_notnull();
-  table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_SOURCE_LINK_ID_POS]->
-    store(source_link_idx);
+  table->field[3]->set_notnull();
+  table->field[3]->store(source_link_idx);
   DBUG_VOID_RETURN;
 }
 
@@ -1498,25 +1377,22 @@ void spider_store_binlog_pos_binlog_file(
   if (!file_name)
   {
     DBUG_PRINT("info",("spider file_name is NULL"));
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_FILE_POS]->set_null();
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_FILE_POS]->reset();
+    table->field[4]->set_null();
+    table->field[4]->reset();
   } else {
     DBUG_PRINT("info",("spider file_name = %s", file_name));
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_FILE_POS]->set_notnull();
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_FILE_POS]->store(
-      file_name, file_name_length, binlog_pos_cs);
+    table->field[4]->set_notnull();
+    table->field[4]->store(file_name, file_name_length, binlog_pos_cs);
   }
   if (!position)
   {
     DBUG_PRINT("info",("spider position is NULL"));
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_POSITION_POS]->set_null();
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_POSITION_POS]->reset();
+    table->field[5]->set_null();
+    table->field[5]->reset();
   } else {
     DBUG_PRINT("info",("spider position = %s", position));
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_POSITION_POS]->
-      set_notnull();
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_POSITION_POS]->store(
-      position, position_length, binlog_pos_cs);
+    table->field[5]->set_notnull();
+    table->field[5]->store(position, position_length, binlog_pos_cs);
   }
   DBUG_VOID_RETURN;
 }
@@ -1531,13 +1407,12 @@ void spider_store_binlog_pos_gtid(
   if (!gtid)
   {
     DBUG_PRINT("info",("spider gtid is NULL"));
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_GTID_POS]->set_null();
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_GTID_POS]->reset();
+    table->field[6]->set_null();
+    table->field[6]->reset();
   } else {
     DBUG_PRINT("info",("spider gtid = %s", gtid));
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_GTID_POS]->set_notnull();
-    table->field[SPIDER_TABLE_POSITION_FOR_RECOVERY_GTID_POS]->store(
-      gtid, gtid_length, binlog_pos_cs);
+    table->field[6]->set_notnull();
+    table->field[6]->store(gtid, gtid_length, binlog_pos_cs);
   }
   DBUG_VOID_RETURN;
 }
@@ -1548,30 +1423,24 @@ void spider_store_table_sts_info(
 ) {
   MYSQL_TIME mysql_time;
   DBUG_ENTER("spider_store_table_sts_info");
-  table->field[SPIDER_TABLE_STS_DATA_FILE_LENGTH_POS]->store(
-    (longlong) stat->data_file_length, TRUE);
-  table->field[SPIDER_TABLE_STS_MAX_DATA_FILE_LENGTH_POS]->store(
-    (longlong) stat->max_data_file_length, TRUE);
-  table->field[SPIDER_TABLE_STS_INDEX_FILE_LENGTH_POS]->store(
-    (longlong) stat->index_file_length, TRUE);
-  table->field[SPIDER_TABLE_STS_RECORDS_POS]->store(
-    (longlong) stat->records, TRUE);
-  table->field[SPIDER_TABLE_STS_MEAN_REC_LENGTH_POS]->store(
-    (longlong) stat->mean_rec_length, TRUE);
+  table->field[2]->store((longlong) stat->data_file_length, TRUE);
+  table->field[3]->store((longlong) stat->max_data_file_length, TRUE);
+  table->field[4]->store((longlong) stat->index_file_length, TRUE);
+  table->field[5]->store((longlong) stat->records, TRUE);
+  table->field[6]->store((longlong) stat->mean_rec_length, TRUE);
   spd_tz_system->gmt_sec_to_TIME(&mysql_time, (my_time_t) stat->check_time);
-  table->field[SPIDER_TABLE_STS_CHECK_TIME_POS]->store_time(&mysql_time);
+  table->field[7]->store_time(&mysql_time);
   spd_tz_system->gmt_sec_to_TIME(&mysql_time, (my_time_t) stat->create_time);
-  table->field[SPIDER_TABLE_STS_CREATE_TIME_POS]->store_time(&mysql_time);
+  table->field[8]->store_time(&mysql_time);
   spd_tz_system->gmt_sec_to_TIME(&mysql_time, (my_time_t) stat->update_time);
-  table->field[SPIDER_TABLE_STS_UPDATE_TIME_POS]->store_time(&mysql_time);
+  table->field[9]->store_time(&mysql_time);
   if (stat->checksum_null)
   {
-    table->field[SPIDER_TABLE_STS_CHECKSUM_POS]->set_null();
-    table->field[SPIDER_TABLE_STS_CHECKSUM_POS]->reset();
+    table->field[10]->set_null();
+    table->field[10]->reset();
   } else {
-    table->field[SPIDER_TABLE_STS_CHECKSUM_POS]->set_notnull();
-    table->field[SPIDER_TABLE_STS_CHECKSUM_POS]->store(
-      (longlong) stat->checksum, TRUE);
+    table->field[10]->set_notnull();
+    table->field[10]->store((longlong) stat->checksum, TRUE);
   }
   DBUG_VOID_RETURN;
 }
@@ -1582,9 +1451,8 @@ void spider_store_table_crd_info(
   longlong *cardinality
 ) {
   DBUG_ENTER("spider_store_table_crd_info");
-  table->field[SPIDER_TABLE_CRD_KEY_SEQ_POS]->store((longlong) *seq, TRUE);
-  table->field[SPIDER_TABLE_CRD_CARDINALITY_POS]->store(
-    (longlong) *cardinality, FALSE);
+  table->field[2]->store((longlong) *seq, TRUE);
+  table->field[3]->store((longlong) *cardinality, FALSE);
   DBUG_VOID_RETURN;
 }
 
@@ -1784,8 +1652,7 @@ int spider_log_tables_link_failed(
   spider_store_tables_link_idx(table, link_idx);
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 #else
-  if (table->field[SPIDER_LINK_FAILED_LOG_FAILED_TIME_POS] ==
-    table->timestamp_field)
+  if (table->field[3] == table->timestamp_field)
     table->timestamp_field->set_time();
 #endif
   if ((error_num = spider_write_sys_table_row(table)))
@@ -1809,22 +1676,20 @@ int spider_log_xa_failed(
   spider_store_xa_member_info(table, xid, conn);
   if (thd)
   {
-    table->field[SPIDER_XA_FAILED_LOG_THREAD_ID_POS]->set_notnull();
-    table->field[SPIDER_XA_FAILED_LOG_THREAD_ID_POS]->store(
-      thd->thread_id, TRUE);
+    table->field[18]->set_notnull();
+    table->field[18]->store(thd->thread_id, TRUE);
   } else {
-    table->field[SPIDER_XA_FAILED_LOG_THREAD_ID_POS]->set_null();
-    table->field[SPIDER_XA_FAILED_LOG_THREAD_ID_POS]->reset();
+    table->field[18]->set_null();
+    table->field[18]->reset();
   }
-  table->field[SPIDER_XA_FAILED_LOG_STATUS_POS]->store(
+  table->field[19]->store(
     status,
     (uint) strlen(status),
     system_charset_info);
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 #else
-  if (table->field[SPIDER_XA_FAILED_LOG_FAILED_TIME_POS] ==
-    table->timestamp_field)
+  if (table->field[20] == table->timestamp_field)
     table->timestamp_field->set_time();
 #endif
   if ((error_num = spider_write_sys_table_row(table)))
@@ -2214,25 +2079,25 @@ int spider_get_sys_xid(
 ) {
   char *ptr;
   DBUG_ENTER("spider_get_sys_xid");
-  ptr = get_field(mem_root, table->field[SPIDER_XA_FORMAT_ID_POS]);
+  ptr = get_field(mem_root, table->field[0]);
   if (ptr)
   {
     xid->formatID = atoi(ptr);
   } else
     xid->formatID = 0;
-  ptr = get_field(mem_root, table->field[SPIDER_XA_GTRID_LENGTH_POS]);
+  ptr = get_field(mem_root, table->field[1]);
   if (ptr)
   {
     xid->gtrid_length = atoi(ptr);
   } else
     xid->gtrid_length = 0;
-  ptr = get_field(mem_root, table->field[SPIDER_XA_BQUAL_LENGTH_POS]);
+  ptr = get_field(mem_root, table->field[2]);
   if (ptr)
   {
     xid->bqual_length = atoi(ptr);
   } else
     xid->bqual_length = 0;
-  ptr = get_field(mem_root, table->field[SPIDER_XA_DATA_POS]);
+  ptr = get_field(mem_root, table->field[3]);
   if (ptr)
   {
     strmov(xid->data, ptr);
@@ -2248,7 +2113,7 @@ int spider_get_sys_server_info(
 ) {
   char *ptr;
   DBUG_ENTER("spider_get_sys_server_info");
-  if ((ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_SCHEME_POS])))
+  if ((ptr = get_field(mem_root, table->field[4])))
   {
     share->tgt_wrappers_lengths[link_idx] = strlen(ptr);
     share->tgt_wrappers[link_idx] = spider_create_string(ptr,
@@ -2257,7 +2122,7 @@ int spider_get_sys_server_info(
     share->tgt_wrappers_lengths[link_idx] = 0;
     share->tgt_wrappers[link_idx] = NULL;
   }
-  if ((ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_HOST_POS])))
+  if ((ptr = get_field(mem_root, table->field[5])))
   {
     share->tgt_hosts_lengths[link_idx] = strlen(ptr);
     share->tgt_hosts[link_idx] = spider_create_string(ptr,
@@ -2266,12 +2131,12 @@ int spider_get_sys_server_info(
     share->tgt_hosts_lengths[link_idx] = 0;
     share->tgt_hosts[link_idx] = NULL;
   }
-  if ((ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_PORT_POS])))
+  if ((ptr = get_field(mem_root, table->field[6])))
   {
     share->tgt_ports[link_idx] = atol(ptr);
   } else
     share->tgt_ports[link_idx] = MYSQL_PORT;
-  if ((ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_SOCKET_POS])))
+  if ((ptr = get_field(mem_root, table->field[7])))
   {
     share->tgt_sockets_lengths[link_idx] = strlen(ptr);
     share->tgt_sockets[link_idx] = spider_create_string(ptr,
@@ -2280,7 +2145,7 @@ int spider_get_sys_server_info(
     share->tgt_sockets_lengths[link_idx] = 0;
     share->tgt_sockets[link_idx] = NULL;
   }
-  if ((ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_USERNAME_POS])))
+  if ((ptr = get_field(mem_root, table->field[8])))
   {
     share->tgt_usernames_lengths[link_idx] = strlen(ptr);
     share->tgt_usernames[link_idx] =
@@ -2289,7 +2154,7 @@ int spider_get_sys_server_info(
     share->tgt_usernames_lengths[link_idx] = 0;
     share->tgt_usernames[link_idx] = NULL;
   }
-  if ((ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_PASSWORD_POS])))
+  if ((ptr = get_field(mem_root, table->field[9])))
   {
     share->tgt_passwords_lengths[link_idx] = strlen(ptr);
     share->tgt_passwords[link_idx] =
@@ -2299,8 +2164,8 @@ int spider_get_sys_server_info(
     share->tgt_passwords[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_XA_MEMBER_SSL_CA_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_SSL_CA_POS]))
+    !table->field[10]->is_null() &&
+    (ptr = get_field(mem_root, table->field[10]))
   ) {
     share->tgt_ssl_cas_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_cas[link_idx] =
@@ -2310,8 +2175,8 @@ int spider_get_sys_server_info(
     share->tgt_ssl_cas[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_XA_MEMBER_SSL_CAPATH_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_SSL_CAPATH_POS]))
+    !table->field[11]->is_null() &&
+    (ptr = get_field(mem_root, table->field[11]))
   ) {
     share->tgt_ssl_capaths_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_capaths[link_idx] =
@@ -2321,8 +2186,8 @@ int spider_get_sys_server_info(
     share->tgt_ssl_capaths[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_XA_MEMBER_SSL_CERT_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_SSL_CERT_POS]))
+    !table->field[12]->is_null() &&
+    (ptr = get_field(mem_root, table->field[12]))
   ) {
     share->tgt_ssl_certs_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_certs[link_idx] =
@@ -2332,8 +2197,8 @@ int spider_get_sys_server_info(
     share->tgt_ssl_certs[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_XA_MEMBER_SSL_CIPHER_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_SSL_CIPHER_POS]))
+    !table->field[13]->is_null() &&
+    (ptr = get_field(mem_root, table->field[13]))
   ) {
     share->tgt_ssl_ciphers_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_ciphers[link_idx] =
@@ -2343,8 +2208,8 @@ int spider_get_sys_server_info(
     share->tgt_ssl_ciphers[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_XA_MEMBER_SSL_KEY_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_SSL_KEY_POS]))
+    !table->field[14]->is_null() &&
+    (ptr = get_field(mem_root, table->field[14]))
   ) {
     share->tgt_ssl_keys_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_keys[link_idx] =
@@ -2354,17 +2219,15 @@ int spider_get_sys_server_info(
     share->tgt_ssl_keys[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_XA_MEMBER_SSL_VERIFY_SERVER_CERT_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->
-      field[SPIDER_XA_MEMBER_SSL_VERIFY_SERVER_CERT_POS]))
+    !table->field[15]->is_null() &&
+    (ptr = get_field(mem_root, table->field[15]))
   ) {
     share->tgt_ssl_vscs[link_idx] = atol(ptr);
   } else
     share->tgt_ssl_vscs[link_idx] = 0;
   if (
-    !table->field[SPIDER_XA_MEMBER_DEFAULT_FILE_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->
-      field[SPIDER_XA_MEMBER_DEFAULT_FILE_POS]))
+    !table->field[16]->is_null() &&
+    (ptr = get_field(mem_root, table->field[16]))
   ) {
     share->tgt_default_files_lengths[link_idx] = strlen(ptr);
     share->tgt_default_files[link_idx] =
@@ -2374,9 +2237,8 @@ int spider_get_sys_server_info(
     share->tgt_default_files[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_XA_MEMBER_DEFAULT_GROUP_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->
-      field[SPIDER_XA_MEMBER_DEFAULT_GROUP_POS]))
+    !table->field[17]->is_null() &&
+    (ptr = get_field(mem_root, table->field[17]))
   ) {
     share->tgt_default_groups_lengths[link_idx] = strlen(ptr);
     share->tgt_default_groups[link_idx] =
@@ -2384,17 +2246,6 @@ int spider_get_sys_server_info(
   } else {
     share->tgt_default_groups_lengths[link_idx] = 0;
     share->tgt_default_groups[link_idx] = NULL;
-  }
-  if (
-    !table->field[SPIDER_XA_MEMBER_DSN_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_XA_MEMBER_DSN_POS]))
-  ) {
-    share->tgt_dsns_lengths[link_idx] = strlen(ptr);
-    share->tgt_dsns[link_idx] =
-      spider_create_string(ptr, share->tgt_dsns_lengths[link_idx]);
-  } else {
-    share->tgt_dsns_lengths[link_idx] = 0;
-    share->tgt_dsns[link_idx] = NULL;
   }
   DBUG_RETURN(0);
 }
@@ -2410,7 +2261,7 @@ int spider_check_sys_xa_status(
   char *ptr;
   int error_num;
   DBUG_ENTER("spider_check_sys_xa_status");
-  ptr = get_field(mem_root, table->field[SPIDER_XA_STATUS_POS]);
+  ptr = get_field(mem_root, table->field[4]);
   if (ptr)
   {
     if (
@@ -2434,13 +2285,13 @@ int spider_get_sys_tables(
 ) {
   char *ptr;
   DBUG_ENTER("spider_get_sys_tables");
-  if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_DB_NAME_POS])))
+  if ((ptr = get_field(mem_root, table->field[0])))
   {
     *db_name = spider_create_string(ptr, strlen(ptr));
   } else {
     *db_name = NULL;
   }
-  if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_TABLE_NAME_POS])))
+  if ((ptr = get_field(mem_root, table->field[1])))
   {
     *table_name = spider_create_string(ptr, strlen(ptr));
   } else {
@@ -2458,67 +2309,55 @@ int spider_get_sys_tables_connect_info(
   char *ptr;
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_tables_connect_info");
-  DBUG_PRINT("info",("spider link_idx:%d", link_idx));
-  if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_PRIORITY_POS])))
+  if ((ptr = get_field(mem_root, table->field[3])))
   {
     share->priority = my_strtoll10(ptr, (char**) NULL, &error_num);
   } else
     share->priority = 1000000;
-  DBUG_PRINT("info",("spider priority:%lld", share->priority));
   if (
-    !table->field[SPIDER_TABLES_SERVER_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SERVER_POS]))
+    !table->field[4]->is_null() &&
+    (ptr = get_field(mem_root, table->field[4]))
   ) {
     share->server_names_lengths[link_idx] = strlen(ptr);
     share->server_names[link_idx] =
       spider_create_string(ptr, share->server_names_lengths[link_idx]);
-    DBUG_PRINT("info",("spider server_name:%s",
-      share->server_names[link_idx]));
   } else {
     share->server_names_lengths[link_idx] = 0;
     share->server_names[link_idx] = NULL;
-    DBUG_PRINT("info",("spider server_name is NULL"));
   }
   if (
-    !table->field[SPIDER_TABLES_SCHEME_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SCHEME_POS]))
+    !table->field[5]->is_null() &&
+    (ptr = get_field(mem_root, table->field[5]))
   ) {
     share->tgt_wrappers_lengths[link_idx] = strlen(ptr);
     share->tgt_wrappers[link_idx] =
       spider_create_string(ptr, share->tgt_wrappers_lengths[link_idx]);
-    DBUG_PRINT("info",("spider tgt_wrapper:%s",
-      share->tgt_wrappers[link_idx]));
   } else {
     share->tgt_wrappers_lengths[link_idx] = 0;
     share->tgt_wrappers[link_idx] = NULL;
-    DBUG_PRINT("info",("spider tgt_wrapper is NULL"));
   }
   if (
-    !table->field[SPIDER_TABLES_HOST_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_HOST_POS]))
+    !table->field[6]->is_null() &&
+    (ptr = get_field(mem_root, table->field[6]))
   ) {
     share->tgt_hosts_lengths[link_idx] = strlen(ptr);
     share->tgt_hosts[link_idx] =
       spider_create_string(ptr, share->tgt_hosts_lengths[link_idx]);
-    DBUG_PRINT("info",("spider tgt_host:%s",
-      share->tgt_hosts[link_idx]));
   } else {
     share->tgt_hosts_lengths[link_idx] = 0;
     share->tgt_hosts[link_idx] = NULL;
-    DBUG_PRINT("info",("spider tgt_host is NULL"));
   }
   if (
-    !table->field[SPIDER_TABLES_PORT_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_PORT_POS]))
+    !table->field[7]->is_null() &&
+    (ptr = get_field(mem_root, table->field[7]))
   ) {
     share->tgt_ports[link_idx] = atol(ptr);
   } else {
     share->tgt_ports[link_idx] = -1;
   }
-  DBUG_PRINT("info",("spider port:%ld", share->tgt_ports[link_idx]));
   if (
-    !table->field[SPIDER_TABLES_SOCKET_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SOCKET_POS]))
+    !table->field[8]->is_null() &&
+    (ptr = get_field(mem_root, table->field[8]))
   ) {
     share->tgt_sockets_lengths[link_idx] = strlen(ptr);
     share->tgt_sockets[link_idx] =
@@ -2528,8 +2367,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_sockets[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_USERNAME_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_USERNAME_POS]))
+    !table->field[9]->is_null() &&
+    (ptr = get_field(mem_root, table->field[9]))
   ) {
     share->tgt_usernames_lengths[link_idx] = strlen(ptr);
     share->tgt_usernames[link_idx] =
@@ -2539,8 +2378,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_usernames[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_PASSWORD_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_PASSWORD_POS]))
+    !table->field[10]->is_null() &&
+    (ptr = get_field(mem_root, table->field[10]))
   ) {
     share->tgt_passwords_lengths[link_idx] = strlen(ptr);
     share->tgt_passwords[link_idx] =
@@ -2550,8 +2389,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_passwords[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_SSL_CA_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_CA_POS]))
+    !table->field[11]->is_null() &&
+    (ptr = get_field(mem_root, table->field[11]))
   ) {
     share->tgt_ssl_cas_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_cas[link_idx] =
@@ -2561,8 +2400,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_ssl_cas[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_SSL_CAPATH_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_CAPATH_POS]))
+    !table->field[12]->is_null() &&
+    (ptr = get_field(mem_root, table->field[12]))
   ) {
     share->tgt_ssl_capaths_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_capaths[link_idx] =
@@ -2572,8 +2411,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_ssl_capaths[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_SSL_CERT_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_CERT_POS]))
+    !table->field[13]->is_null() &&
+    (ptr = get_field(mem_root, table->field[13]))
   ) {
     share->tgt_ssl_certs_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_certs[link_idx] =
@@ -2583,8 +2422,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_ssl_certs[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_SSL_CIPHER_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_CIPHER_POS]))
+    !table->field[14]->is_null() &&
+    (ptr = get_field(mem_root, table->field[14]))
   ) {
     share->tgt_ssl_ciphers_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_ciphers[link_idx] =
@@ -2594,8 +2433,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_ssl_ciphers[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_SSL_KEY_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_SSL_KEY_POS]))
+    !table->field[15]->is_null() &&
+    (ptr = get_field(mem_root, table->field[15]))
   ) {
     share->tgt_ssl_keys_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_keys[link_idx] =
@@ -2605,25 +2444,22 @@ int spider_get_sys_tables_connect_info(
     share->tgt_ssl_keys[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_TABLES_SSL_VERIFY_SERVER_CERT_POS]))
+    !table->field[16]->is_null() &&
+    (ptr = get_field(mem_root, table->field[16]))
   ) {
     share->tgt_ssl_vscs[link_idx] = atol(ptr);
   } else
     share->tgt_ssl_vscs[link_idx] = -1;
   if (
-    !table->field[SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS]->
-      is_null() &&
-    (ptr = get_field(mem_root, table->
-      field[SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS]))
+    !table->field[17]->is_null() &&
+    (ptr = get_field(mem_root, table->field[17]))
   ) {
     share->monitoring_binlog_pos_at_failing[link_idx] = atol(ptr);
   } else
     share->monitoring_binlog_pos_at_failing[link_idx] = 0;
   if (
-    !table->field[SPIDER_TABLES_DEFAULT_FILE_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_DEFAULT_FILE_POS]))
+    !table->field[18]->is_null() &&
+    (ptr = get_field(mem_root, table->field[18]))
   ) {
     share->tgt_default_files_lengths[link_idx] = strlen(ptr);
     share->tgt_default_files[link_idx] =
@@ -2633,8 +2469,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_default_files[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_DEFAULT_GROUP_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_DEFAULT_GROUP_POS]))
+    !table->field[19]->is_null() &&
+    (ptr = get_field(mem_root, table->field[19]))
   ) {
     share->tgt_default_groups_lengths[link_idx] = strlen(ptr);
     share->tgt_default_groups[link_idx] =
@@ -2644,19 +2480,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_default_groups[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_DSN_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_DSN_POS]))
-  ) {
-    share->tgt_dsns_lengths[link_idx] = strlen(ptr);
-    share->tgt_dsns[link_idx] =
-      spider_create_string(ptr, share->tgt_dsns_lengths[link_idx]);
-  } else {
-    share->tgt_dsns_lengths[link_idx] = 0;
-    share->tgt_dsns[link_idx] = NULL;
-  }
-  if (
-    !table->field[SPIDER_TABLES_TGT_DB_NAME_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_TGT_DB_NAME_POS]))
+    !table->field[20]->is_null() &&
+    (ptr = get_field(mem_root, table->field[20]))
   ) {
     share->tgt_dbs_lengths[link_idx] = strlen(ptr);
     share->tgt_dbs[link_idx] =
@@ -2666,8 +2491,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_dbs[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_TGT_TABLE_NAME_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_TGT_TABLE_NAME_POS]))
+    !table->field[21]->is_null() &&
+    (ptr = get_field(mem_root, table->field[21]))
   ) {
     share->tgt_table_names_lengths[link_idx] = strlen(ptr);
     share->tgt_table_names[link_idx] =
@@ -2677,8 +2502,8 @@ int spider_get_sys_tables_connect_info(
     share->tgt_table_names[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]))
+    !table->field[24]->is_null() &&
+    (ptr = get_field(mem_root, table->field[24]))
   ) {
     share->static_link_ids_lengths[link_idx] = strlen(ptr);
     share->static_link_ids[link_idx] =
@@ -2698,8 +2523,7 @@ int spider_get_sys_tables_monitoring_binlog_pos_at_failing(
   char *ptr;
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_tables_monitoring_binlog_pos_at_failing");
-  if ((ptr = get_field(mem_root, table->
-    field[SPIDER_TABLES_MONITORING_BINLOG_POS_AT_FAILING_POS])))
+  if ((ptr = get_field(mem_root, table->field[17])))
     *monitoring_binlog_pos_at_failing = (long) my_strtoll10(ptr, (char**) NULL,
       &error_num);
   else
@@ -2718,7 +2542,7 @@ int spider_get_sys_tables_link_status(
   char *ptr;
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_tables_link_status");
-  if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_LINK_STATUS_POS])))
+  if ((ptr = get_field(mem_root, table->field[22])))
   {
     share->link_statuses[link_idx] =
       (long) my_strtoll10(ptr, (char**) NULL, &error_num);
@@ -2737,7 +2561,7 @@ int spider_get_sys_tables_link_status(
   char *ptr;
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_tables_link_status");
-  if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_LINK_STATUS_POS])))
+  if ((ptr = get_field(mem_root, table->field[22])))
     *link_status = (long) my_strtoll10(ptr, (char**) NULL, &error_num);
   else
     *link_status = 1;
@@ -2753,7 +2577,7 @@ int spider_get_sys_tables_link_idx(
   char *ptr;
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_tables_link_idx");
-  if ((ptr = get_field(mem_root, table->field[SPIDER_TABLES_LINK_ID_POS])))
+  if ((ptr = get_field(mem_root, table->field[2])))
     *link_idx = (int) my_strtoll10(ptr, (char**) NULL, &error_num);
   else
     *link_idx = 1;
@@ -2771,9 +2595,8 @@ int spider_get_sys_tables_static_link_id(
   DBUG_ENTER("spider_get_sys_tables_static_link_id");
   *static_link_id = NULL;
   if (
-    !table->field[SPIDER_TABLES_STATIC_LINK_ID_POS]->is_null() &&
-    (*static_link_id = get_field(mem_root, table->
-      field[SPIDER_TABLES_STATIC_LINK_ID_POS]))
+    !table->field[24]->is_null() &&
+    (*static_link_id = get_field(mem_root, table->field[24]))
   ) {
     *static_link_id_length = strlen(*static_link_id);
   } else {
@@ -2795,18 +2618,12 @@ void spider_get_sys_table_sts_info(
 #endif
   long not_used_long;
   DBUG_ENTER("spider_get_sys_table_sts_info");
-  stat->data_file_length = (ulonglong) table->
-    field[SPIDER_TABLE_STS_DATA_FILE_LENGTH_POS]->val_int();
-  stat->max_data_file_length = (ulonglong) table->
-    field[SPIDER_TABLE_STS_MAX_DATA_FILE_LENGTH_POS]->val_int();
-  stat->index_file_length = (ulonglong) table->
-    field[SPIDER_TABLE_STS_INDEX_FILE_LENGTH_POS]->val_int();
-  stat->records = (ha_rows) table->
-    field[SPIDER_TABLE_STS_RECORDS_POS]->val_int();
-  stat->mean_rec_length = (ulong) table->
-    field[SPIDER_TABLE_STS_MEAN_REC_LENGTH_POS]->val_int();
-  table->field[SPIDER_TABLE_STS_CHECK_TIME_POS]->get_date(&mysql_time,
-    SPIDER_date_mode_t(0));
+  stat->data_file_length = (ulonglong) table->field[2]->val_int();
+  stat->max_data_file_length = (ulonglong) table->field[3]->val_int();
+  stat->index_file_length = (ulonglong) table->field[4]->val_int();
+  stat->records = (ha_rows) table->field[5]->val_int();
+  stat->mean_rec_length = (ulong) table->field[6]->val_int();
+  table->field[7]->get_date(&mysql_time, SPIDER_date_mode_t(0));
 #ifdef MARIADB_BASE_VERSION
   stat->check_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);
@@ -2814,8 +2631,7 @@ void spider_get_sys_table_sts_info(
   stat->check_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_my_bool);
 #endif
-  table->field[SPIDER_TABLE_STS_CREATE_TIME_POS]->get_date(&mysql_time,
-    SPIDER_date_mode_t(0));
+  table->field[8]->get_date(&mysql_time, SPIDER_date_mode_t(0));
 #ifdef MARIADB_BASE_VERSION
   stat->create_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);
@@ -2823,8 +2639,7 @@ void spider_get_sys_table_sts_info(
   stat->create_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_my_bool);
 #endif
-  table->field[SPIDER_TABLE_STS_UPDATE_TIME_POS]->get_date(&mysql_time,
-    SPIDER_date_mode_t(0));
+  table->field[9]->get_date(&mysql_time, SPIDER_date_mode_t(0));
 #ifdef MARIADB_BASE_VERSION
   stat->update_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);
@@ -2832,14 +2647,13 @@ void spider_get_sys_table_sts_info(
   stat->update_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_my_bool);
 #endif
-  if (table->field[SPIDER_TABLE_STS_CHECKSUM_POS]->is_null())
+  if (table->field[10]->is_null())
   {
     stat->checksum_null = TRUE;
     stat->checksum = 0;
   } else {
     stat->checksum_null = FALSE;
-    stat->checksum = (ha_checksum) table->
-      field[SPIDER_TABLE_STS_CHECKSUM_POS]->val_int();
+    stat->checksum = (ha_checksum) table->field[10]->val_int();
   }
   DBUG_VOID_RETURN;
 }
@@ -2851,11 +2665,10 @@ void spider_get_sys_table_crd_info(
 ) {
   uint seq;
   DBUG_ENTER("spider_get_sys_table_crd_info");
-  seq = (uint) table->field[SPIDER_TABLE_CRD_KEY_SEQ_POS]->val_int();
+  seq = (uint) table->field[2]->val_int();
   if (seq < number_of_keys)
   {
-    cardinality[seq] = (longlong) table->
-      field[SPIDER_TABLE_CRD_CARDINALITY_POS]->val_int();
+    cardinality[seq] = (longlong) table->field[3]->val_int();
   }
   DBUG_VOID_RETURN;
 }
@@ -2870,7 +2683,11 @@ int spider_sys_update_tables_link_status(
 ) {
   int error_num;
   TABLE *table_tables = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_update_tables_link_status");
   if (
     !(table_tables = spider_open_sys_table(
@@ -2904,7 +2721,11 @@ int spider_sys_log_tables_link_failed(
 ) {
   int error_num;
   TABLE *table_tables = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_log_tables_link_failed");
   if (
     !(table_tables = spider_open_sys_table(
@@ -2939,7 +2760,11 @@ int spider_sys_log_xa_failed(
 ) {
   int error_num;
   TABLE *table_tables = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_log_xa_failed");
   if (
     !(table_tables = spider_open_sys_table(
@@ -2972,9 +2797,9 @@ int spider_get_sys_link_mon_key(
   uint db_name_length, table_name_length, link_id_length;
   DBUG_ENTER("spider_get_sys_link_mon_key");
   if (
-    table->field[SPIDER_LINK_MON_SERVERS_DB_NAME_POS]->is_null() ||
-    table->field[SPIDER_LINK_MON_SERVERS_TABLE_NAME_POS]->is_null() ||
-    table->field[SPIDER_LINK_MON_SERVERS_LINK_ID_POS]->is_null()
+    table->field[0]->is_null() ||
+    table->field[1]->is_null() ||
+    table->field[2]->is_null()
   ) {
     my_printf_error(ER_SPIDER_SYS_TABLE_VERSION_NUM,
       ER_SPIDER_SYS_TABLE_VERSION_STR, MYF(0),
@@ -2982,17 +2807,11 @@ int spider_get_sys_link_mon_key(
     DBUG_RETURN(ER_SPIDER_SYS_TABLE_VERSION_NUM);
   }
 
-  if (!(db_name=
-        get_field(mem_root,
-                  table->field[SPIDER_LINK_MON_SERVERS_DB_NAME_POS])))
+  if (!(db_name = get_field(mem_root, table->field[0])))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  if (!(table_name=
-        get_field(mem_root,
-                  table->field[SPIDER_LINK_MON_SERVERS_TABLE_NAME_POS])))
+  if (!(table_name = get_field(mem_root, table->field[1])))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  if (!(link_id=
-        get_field(mem_root,
-                  table->field[SPIDER_LINK_MON_SERVERS_LINK_ID_POS])))
+  if (!(link_id = get_field(mem_root, table->field[2])))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   db_name_length = strlen(db_name);
@@ -3041,8 +2860,7 @@ int spider_get_sys_link_mon_server_id(
   char *ptr;
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_link_mon_server_id");
-  if ((ptr = get_field(mem_root,
-    table->field[SPIDER_LINK_MON_SERVERS_SID_POS])))
+  if ((ptr = get_field(mem_root, table->field[3])))
     *server_id = (uint32) my_strtoll10(ptr, (char**) NULL, &error_num);
   else
     *server_id = ~(uint32) 0;
@@ -3059,9 +2877,8 @@ int spider_get_sys_link_mon_connect_info(
   int error_num = 0;
   DBUG_ENTER("spider_get_sys_link_mon_connect_info");
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SERVER_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SERVER_POS]))
+    !table->field[4]->is_null() &&
+    (ptr = get_field(mem_root, table->field[4]))
   ) {
     share->server_names_lengths[link_idx] = strlen(ptr);
     share->server_names[link_idx] =
@@ -3071,9 +2888,8 @@ int spider_get_sys_link_mon_connect_info(
     share->server_names[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SCHEME_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SCHEME_POS]))
+    !table->field[5]->is_null() &&
+    (ptr = get_field(mem_root, table->field[5]))
   ) {
     share->tgt_wrappers_lengths[link_idx] = strlen(ptr);
     share->tgt_wrappers[link_idx] =
@@ -3083,8 +2899,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_wrappers[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_HOST_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_LINK_MON_SERVERS_HOST_POS]))
+    !table->field[6]->is_null() &&
+    (ptr = get_field(mem_root, table->field[6]))
   ) {
     share->tgt_hosts_lengths[link_idx] = strlen(ptr);
     share->tgt_hosts[link_idx] =
@@ -3094,17 +2910,16 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_hosts[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_PORT_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_LINK_MON_SERVERS_PORT_POS]))
+    !table->field[7]->is_null() &&
+    (ptr = get_field(mem_root, table->field[7]))
   ) {
     share->tgt_ports[link_idx] = atol(ptr);
   } else {
     share->tgt_ports[link_idx] = -1;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SOCKET_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SOCKET_POS]))
+    !table->field[8]->is_null() &&
+    (ptr = get_field(mem_root, table->field[8]))
   ) {
     share->tgt_sockets_lengths[link_idx] = strlen(ptr);
     share->tgt_sockets[link_idx] =
@@ -3114,9 +2929,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_sockets[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_USERNAME_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_USERNAME_POS]))
+    !table->field[9]->is_null() &&
+    (ptr = get_field(mem_root, table->field[9]))
   ) {
     share->tgt_usernames_lengths[link_idx] = strlen(ptr);
     share->tgt_usernames[link_idx] =
@@ -3126,9 +2940,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_usernames[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_PASSWORD_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_PASSWORD_POS]))
+    !table->field[10]->is_null() &&
+    (ptr = get_field(mem_root, table->field[10]))
   ) {
     share->tgt_passwords_lengths[link_idx] = strlen(ptr);
     share->tgt_passwords[link_idx] =
@@ -3138,9 +2951,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_passwords[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SSL_CA_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SSL_CA_POS]))
+    !table->field[11]->is_null() &&
+    (ptr = get_field(mem_root, table->field[11]))
   ) {
     share->tgt_ssl_cas_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_cas[link_idx] =
@@ -3150,9 +2962,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_ssl_cas[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SSL_CAPATH_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SSL_CAPATH_POS]))
+    !table->field[12]->is_null() &&
+    (ptr = get_field(mem_root, table->field[12]))
   ) {
     share->tgt_ssl_capaths_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_capaths[link_idx] =
@@ -3162,9 +2973,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_ssl_capaths[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SSL_CERT_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SSL_CERT_POS]))
+    !table->field[13]->is_null() &&
+    (ptr = get_field(mem_root, table->field[13]))
   ) {
     share->tgt_ssl_certs_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_certs[link_idx] =
@@ -3174,9 +2984,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_ssl_certs[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SSL_CIPHER_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SSL_CIPHER_POS]))
+    !table->field[14]->is_null() &&
+    (ptr = get_field(mem_root, table->field[14]))
   ) {
     share->tgt_ssl_ciphers_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_ciphers[link_idx] =
@@ -3186,9 +2995,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_ssl_ciphers[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SSL_KEY_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SSL_KEY_POS]))
+    !table->field[15]->is_null() &&
+    (ptr = get_field(mem_root, table->field[15]))
   ) {
     share->tgt_ssl_keys_lengths[link_idx] = strlen(ptr);
     share->tgt_ssl_keys[link_idx] =
@@ -3198,18 +3006,15 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_ssl_keys[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_SSL_VERIFY_SERVER_CERT_POS]->
-      is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_SSL_VERIFY_SERVER_CERT_POS]))
+    !table->field[16]->is_null() &&
+    (ptr = get_field(mem_root, table->field[16]))
   ) {
     share->tgt_ssl_vscs[link_idx] = atol(ptr);
   } else
     share->tgt_ssl_vscs[link_idx] = -1;
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_DEFAULT_FILE_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_DEFAULT_FILE_POS]))
+    !table->field[17]->is_null() &&
+    (ptr = get_field(mem_root, table->field[17]))
   ) {
     share->tgt_default_files_lengths[link_idx] = strlen(ptr);
     share->tgt_default_files[link_idx] =
@@ -3219,9 +3024,8 @@ int spider_get_sys_link_mon_connect_info(
     share->tgt_default_files[link_idx] = NULL;
   }
   if (
-    !table->field[SPIDER_LINK_MON_SERVERS_DEFAULT_GROUP_POS]->is_null() &&
-    (ptr = get_field(mem_root,
-      table->field[SPIDER_LINK_MON_SERVERS_DEFAULT_GROUP_POS]))
+    !table->field[18]->is_null() &&
+    (ptr = get_field(mem_root, table->field[18]))
   ) {
     share->tgt_default_groups_lengths[link_idx] = strlen(ptr);
     share->tgt_default_groups[link_idx] =
@@ -3229,17 +3033,6 @@ int spider_get_sys_link_mon_connect_info(
   } else {
     share->tgt_default_groups_lengths[link_idx] = 0;
     share->tgt_default_groups[link_idx] = NULL;
-  }
-  if (
-    !table->field[SPIDER_LINK_MON_SERVERS_DSN_POS]->is_null() &&
-    (ptr = get_field(mem_root, table->field[SPIDER_LINK_MON_SERVERS_DSN_POS]))
-  ) {
-    share->tgt_dsns_lengths[link_idx] = strlen(ptr);
-    share->tgt_dsns[link_idx] =
-      spider_create_string(ptr, share->tgt_dsns_lengths[link_idx]);
-  } else {
-    share->tgt_dsns_lengths[link_idx] = 0;
-    share->tgt_dsns[link_idx] = NULL;
   }
   DBUG_RETURN(error_num);
 }
@@ -3287,7 +3080,11 @@ int spider_sys_insert_or_update_table_sts(
 ) {
   int error_num;
   TABLE *table_sts = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_insert_or_update_table_sts");
   if (
     !(table_sts = spider_open_sys_table(
@@ -3324,7 +3121,11 @@ int spider_sys_insert_or_update_table_crd(
 ) {
   int error_num;
   TABLE *table_crd = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_insert_or_update_table_crd");
   if (
     !(table_crd = spider_open_sys_table(
@@ -3360,7 +3161,11 @@ int spider_sys_delete_table_sts(
 ) {
   int error_num;
   TABLE *table_sts = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_delete_table_sts");
   if (
     !(table_sts = spider_open_sys_table(
@@ -3394,7 +3199,11 @@ int spider_sys_delete_table_crd(
 ) {
   int error_num;
   TABLE *table_crd = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_delete_table_crd");
   if (
     !(table_crd = spider_open_sys_table(
@@ -3430,7 +3239,11 @@ int spider_sys_get_table_sts(
   int error_num;
   char table_key[MAX_KEY_LENGTH];
   TABLE *table_sts = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_get_table_sts");
   if (
     !(table_sts = spider_open_sys_table(
@@ -3479,9 +3292,12 @@ int spider_sys_get_table_crd(
   char table_key[MAX_KEY_LENGTH];
   bool index_inited = FALSE;
   TABLE *table_crd = NULL;
-  SPIDER_Open_tables_backup open_tables_backup;
+#if MYSQL_VERSION_ID < 50500
+  Open_tables_state open_tables_backup;
+#else
+  Open_tables_backup open_tables_backup;
+#endif
   DBUG_ENTER("spider_sys_get_table_crd");
-
   if (
     !(table_crd = spider_open_sys_table(
       thd, SPIDER_SYS_TABLE_CRD_TABLE_NAME_STR,
@@ -3526,7 +3342,6 @@ int spider_sys_get_table_crd(
 error:
   if (index_inited)
     spider_sys_index_end(table_crd);
-
   if (table_crd)
     spider_close_sys_table(thd, table_crd, &open_tables_backup, need_lock);
   DBUG_RETURN(error_num);
@@ -3821,10 +3636,6 @@ TABLE *spider_find_temporary_table(
 ) {
   DBUG_ENTER("spider_find_temporary_table");
 #ifdef SPIDER_open_temporary_table
-  if (!thd->has_temporary_tables())
-  {
-    DBUG_RETURN(NULL);
-  }
   if (thd->open_temporary_table(table_list))
   {
     DBUG_RETURN(NULL);

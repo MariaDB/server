@@ -151,6 +151,7 @@ rtr_rec_cal_increase(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	double*		area);	/*!< out: increased area */
 
 /****************************************************************//**
@@ -169,10 +170,10 @@ void
 rtr_non_leaf_stack_push(
 /*====================*/
 	rtr_node_path_t*	path,		/*!< in/out: search path */
-	uint32_t		pageno,		/*!< in: pageno to insert */
+	ulint			pageno,		/*!< in: pageno to insert */
 	node_seq_t		seq_no,		/*!< in: Node sequence num */
 	ulint			level,		/*!< in: index level */
-	uint32_t		child_no,	/*!< in: child page no */
+	ulint			child_no,	/*!< in: child page no */
 	btr_pcur_t*		cursor,		/*!< in: position cursor */
 	double			mbr_inc);	/*!< in: MBR needs to be
 						enlarged */
@@ -379,7 +380,7 @@ rtr_page_copy_rec_list_start_no_locks(
 
 /****************************************************************//**
 Merge 2 mbrs and update the the mbr that cursor is on. */
-void
+dberr_t
 rtr_merge_and_update_mbr(
 /*=====================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
@@ -411,8 +412,9 @@ rtr_merge_mbr_changed(
 
 
 /**************************************************************//**
-Update the mbr field of a spatial index row. */
-void
+Update the mbr field of a spatial index row.
+@return true if successful */
+bool
 rtr_update_mbr_field(
 /*=================*/
 	btr_cur_t*	cursor,		/*!< in: cursor pointed to rec.*/

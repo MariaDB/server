@@ -1083,7 +1083,7 @@ select left('aaa','1');
 left('aaa','1')
 a
 #
-# Testing strtoll10()
+# Testing cs->cset->strtoll10()
 #
 SELECT @@character_set_connection;
 @@character_set_connection
@@ -2315,7 +2315,7 @@ Warning	1292	Truncated incorrect INTEGER value: '1Ĳ3'
 # MDEV-9711 NO PAD Collatons
 #
 SET character_set_connection=utf32;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2453,7 +2453,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2591,8 +2591,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2730,7 +2730,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2868,7 +2868,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=Default;
 #
 # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
 # 10.2 tests

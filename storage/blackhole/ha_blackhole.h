@@ -37,7 +37,7 @@ struct st_blackhole_share {
   Class definition for the blackhole storage engine
   "Dumbest named feature ever"
 */
-class ha_blackhole final : public handler
+class ha_blackhole: public handler
 {
   THR_LOCK_DATA lock;      /* MySQL lock */
   st_blackhole_share *share;
@@ -96,10 +96,6 @@ public:
   THR_LOCK_DATA **store_lock(THD *thd,
                              THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type);
-  int delete_table(const char *name)
-  {
-    return 0;
-  }
 private:
   virtual int write_row(const uchar *buf);
   virtual int update_row(const uchar *old_data, const uchar *new_data);

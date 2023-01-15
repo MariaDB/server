@@ -170,7 +170,7 @@ static pid_t pid;
 static char addr2line_binary[1024];
 static char output[1024];
 static struct pollfd poll_fds;
-static void *addr_offset;
+static Dl_info info;
 
 int start_addr2line_fork(const char *binary_path)
 {
@@ -211,9 +211,7 @@ int start_addr2line_fork(const char *binary_path)
   return 0;
 }
 
-static int first_error= 0;
-
-static int addr_resolve(void *ptr, my_addr_loc *loc)
+int my_addr_resolve(void *ptr, my_addr_loc *loc)
 {
   char input[32];
   size_t len;
@@ -227,16 +225,31 @@ static int addr_resolve(void *ptr, my_addr_loc *loc)
   int filename_start = -1;
   int line_number_start = -1;
 
+  void *offset;
+
   poll_fds.fd = out[0];
   poll_fds.events = POLLIN | POLLRDBAND;
 
-  len= my_snprintf(input, sizeof(input), "%p\n", ptr);
-  if (write(in[1], input, len) <= 0)
+  if (!dladdr(ptr, &info))
+    return 1;
+
+  if (strcmp(addr2line_binary, info.dli_fname))
   {
-    if (!first_error++)
-      fputs("Printing to addr2line failed\n", stderr);
-    return 3;
+    /* We use dli_fname in case the path is longer than the length of our static
+       string. We don't want to allocate anything dynamicaly here as we are in
+       a "crashed" state. */
+    if (start_addr2line_fork(info.dli_fname))
+    {
+      addr2line_binary[0] = '\0';
+      return 2;
+    }
+    /* Save result for future comparisons. */
+    strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
   }
+  offset = info.dli_fbase;
+  len= my_snprintf(input, sizeof(input), "%08x\n", (ulonglong)(ptr - offset));
+  if (write(in[1], input, len) <= 0)
+    return 3;
 
 
   /* 500 ms should be plenty of time for addr2line to issue a response. */
@@ -286,56 +299,13 @@ static int addr_resolve(void *ptr, my_addr_loc *loc)
   loc->line= atoi(output + line_number_start);
 
   /* Addr2line was unable to extract any meaningful information. */
-  if (strcmp(loc->file, "??") == 0 && loc->func[0] == '?')
+  if (strcmp(loc->file, "??") == 0)
     return 6;
 
   loc->file= strip_path(loc->file);
 
   return 0;
 }
-
-
-int my_addr_resolve(void *ptr, my_addr_loc *loc)
-{
-  Dl_info info;
-
-  if (!dladdr(ptr, &info))
-    return 1;
-
-  if (strcmp(addr2line_binary, info.dli_fname))
-  {
-    /*
-      We use dli_fname in case the path is longer than the length of
-      our static string. We don't want to allocate anything
-      dynamically here as we are in a "crashed" state.
-    */
-    if (start_addr2line_fork(info.dli_fname))
-    {
-      if (!first_error++)
-        fputs("Can't start addr2line\n", stderr);
-      addr2line_binary[0] = '\0';
-      return 2;
-    }
-    /* Save result for future comparisons. */
-    strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
-
-    /*
-      Check if we should use info.dli_fbase as an offset or not
-      for the base program. This is depending on if the compilation is
-      done with PIE or not.
-    */
-    addr_offset= (void*) info.dli_fbase;
-#ifndef __PIE__
-    if (strcmp(info.dli_fname, my_progname) == 0 &&
-        addr_resolve((void*) my_addr_resolve, loc) == 0 &&
-	strcmp(loc->func, "my_addr_resolve") == 0)
-      addr_offset= 0;
-#endif
-  }
-
-  return addr_resolve((void*) (ptr - addr_offset), loc);
-}
-
 
 const char *my_addr_resolve_init()
 {

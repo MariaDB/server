@@ -58,14 +58,3 @@ disconnect con1;
 connection default;
 
 --echo End of 5.5 tests
-
---echo #
---echo # MDEV-22130 SHOW WARNINGS will SIGSEGV 10.5 optimized build after setting CHARACTER_SET_RESULTS to NULL and running any invalid SQL | Binary_string::copy_printable_hhhh
---echo #
-
-SET NAMES latin1;
-SET @@CHARACTER_SET_RESULTS=NULL;
---error ER_PARSE_ERROR
-a;
-SHOW WARNINGS;
-SET NAMES latin1;

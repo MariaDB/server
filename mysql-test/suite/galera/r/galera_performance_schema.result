@@ -17,7 +17,6 @@ name	wait/synch/mutex/sql/LOCK_wsrep_config_state
 name	wait/synch/mutex/sql/LOCK_wsrep_desync
 name	wait/synch/mutex/sql/LOCK_wsrep_donor_monitor
 name	wait/synch/mutex/sql/LOCK_wsrep_group_commit
-name	wait/synch/mutex/sql/LOCK_wsrep_gtid_wait_upto
 name	wait/synch/mutex/sql/LOCK_wsrep_joiner_monitor
 name	wait/synch/mutex/sql/LOCK_wsrep_ready
 name	wait/synch/mutex/sql/LOCK_wsrep_replaying

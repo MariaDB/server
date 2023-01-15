@@ -81,12 +81,13 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
 
   if (tdbp) {
     // Attach the new column to the table block
-    if (!tdbp->GetColumns()) {
+    if (!tdbp->GetColumns())
       tdbp->SetColumns(this);
-    } else {
+    else {
       for (colp = tdbp->GetColumns(); colp->Next; colp = colp->Next) ;
+
       colp->Next = this;
-    } // endelse
+      } // endelse
   }
 
   } // end of COLBLK copy constructor

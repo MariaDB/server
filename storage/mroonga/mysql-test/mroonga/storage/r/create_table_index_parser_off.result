@@ -9,7 +9,7 @@ Warning	1287	'parser' is deprecated and will be removed in a future release. Ple
 INSERT INTO variables (name) VALUES ("mroonga_database_path_prefix");
 Warnings:
 Warning	1287	'parser' is deprecated and will be removed in a future release. Please use tokenizer instead
-INSERT INTO variables (name) VALUES ("mroonga_default_tokenizer");
+INSERT INTO variables (name) VALUES ("mroonga_default_parser");
 INSERT INTO variables (name) VALUES ("mroonga_default_wrapper_engine");
 INSERT INTO variables (name) VALUES ("mroonga_dry_write");
 INSERT INTO variables (name) VALUES ("mroonga_enable_optimization");
@@ -21,7 +21,7 @@ INSERT INTO variables (name) VALUES ("mroonga_version");
 SELECT * FROM variables;
 id	name
 1	mroonga_database_path_prefix
-2	mroonga_default_tokenizer
+2	mroonga_default_parser
 3	mroonga_default_wrapper_engine
 4	mroonga_dry_write
 5	mroonga_enable_optimization
@@ -34,7 +34,7 @@ SELECT * FROM variables
 WHERE MATCH (name) AGAINST ("mroonga_default*" IN BOOLEAN MODE);
 id	name
 3	mroonga_default_wrapper_engine
-2	mroonga_default_tokenizer
+2	mroonga_default_parser
 DROP TABLE variables;
 Warnings:
 Warning	1287	'parser' is deprecated and will be removed in a future release. Please use tokenizer instead

@@ -1723,7 +1723,7 @@ a
 2
 3
 Warnings:
-Note	1105	bin_eq=0 a=(int)-1 b=(bigint unsigned)18446744073709551615
+Note	1105	bin_eq=0 a=(int)-1 b=(bigint)18446744073709551615
 SELECT * FROM t1 WHERE a BETWEEN -1 AND 18446744073709551616;
 a
 1
@@ -1746,7 +1746,7 @@ a
 2
 3
 Warnings:
-Note	1105	bin_eq=0 a=(int)-1 b=(bigint unsigned)18446744073709551615
+Note	1105	bin_eq=0 a=(int)-1 b=(bigint)18446744073709551615
 EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN -1 AND ?' USING 18446744073709551616;
 a
 1
@@ -1863,8 +1863,8 @@ Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (row)
 Note	1105	DBUG: [1] arg=2 handler=0 (row)
 Note	1105	DBUG: ROW(3 args) level=0
-Note	1105	DBUG:  [0,0] handler=bigint unsigned
-Note	1105	DBUG:  [0,1] handler=bigint unsigned
+Note	1105	DBUG:  [0,0] handler=bigint
+Note	1105	DBUG:  [0,1] handler=bigint
 Note	1105	DBUG:  [0,2] handler=int
 Note	1105	DBUG:  => handler=decimal
 Note	1105	DBUG:  [1,0] handler=int

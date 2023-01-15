@@ -576,11 +576,11 @@ int simple_delete_flush_test()
 
 int simple_big_test()
 {
-  unsigned char *buffw= (unsigned char *) my_malloc(PSI_NOT_INSTRUMENTED, TEST_PAGE_SIZE, MYF(MY_WME));
-  unsigned char *buffr= (unsigned char *) my_malloc(PSI_NOT_INSTRUMENTED, TEST_PAGE_SIZE, MYF(MY_WME));
+  unsigned char *buffw= (unsigned char *) my_malloc(TEST_PAGE_SIZE, MYF(MY_WME));
+  unsigned char *buffr= (unsigned char *) my_malloc(TEST_PAGE_SIZE, MYF(MY_WME));
   struct file_desc *desc= ((struct file_desc *)
-                           my_malloc(PSI_NOT_INSTRUMENTED,
-              (PCACHE_SIZE/(TEST_PAGE_SIZE/2) + 1) * sizeof(struct file_desc), MYF(MY_WME)));
+                           my_malloc((PCACHE_SIZE/(TEST_PAGE_SIZE/2) + 1) *
+                                     sizeof(struct file_desc), MYF(MY_WME)));
   int res, i;
   DBUG_ENTER("simple_big_test");
 

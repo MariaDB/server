@@ -175,7 +175,7 @@ static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
       last[index]= start;
       index= (index + 1) % 3;
     }
-    char_len= my_ci_charlen_fix(cs, (const uchar *) par, (const uchar *) par_end);
+    char_len= my_charlen_fix(cs, par, par_end);
     if (char_len == 1 && c == (uchar) quote_char )
     {
       if (start + 1 >= end)
@@ -704,11 +704,10 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     }
     else if (*fmt == 'f' || *fmt == 'g')
     {
-      double d;
 #if __has_feature(memory_sanitizer)         /* QQ: MSAN has double trouble? */
       __msan_check_mem_is_initialized(ap, sizeof(double));
 #endif
-      d= va_arg(ap, double);
+      double d= va_arg(ap, double);
 #if __has_feature(memory_sanitizer)        /* QQ: MSAN has double trouble? */
       __msan_unpoison(&d, sizeof(double));
 #endif
@@ -837,7 +836,7 @@ int my_vfprintf(FILE *stream, const char* format, va_list args)
     if (new_len < cur_len)
       return 0;                                 /* Overflow */
     cur_len= new_len;
-    p= my_malloc(PSI_INSTRUMENT_ME, cur_len, MYF(MY_FAE));
+    p= my_malloc(cur_len, MYF(MY_FAE));
     if (!p)
       return 0;
   }

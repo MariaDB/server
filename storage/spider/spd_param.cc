@@ -35,10 +35,8 @@
 #include "spd_trx.h"
 
 extern struct st_mysql_plugin spider_i_s_alloc_mem;
-extern struct st_mysql_plugin spider_i_s_wrapper_protocols;
 #ifdef MARIADB_BASE_VERSION
 extern struct st_maria_plugin spider_i_s_alloc_mem_maria;
-extern struct st_maria_plugin spider_i_s_wrapper_protocols_maria;
 #endif
 
 extern volatile ulonglong spider_mon_table_cache_version;
@@ -1051,31 +1049,6 @@ int spider_param_bulk_update_size(
   DBUG_ENTER("spider_param_bulk_update_size");
   DBUG_RETURN(THDVAR(thd, bulk_update_size) == -1 ?
     bulk_update_size : THDVAR(thd, bulk_update_size));
-}
-
-/*
- -1 :use table parameter
-  0-:buffer size
- */
-static MYSQL_THDVAR_INT(
-  buffer_size, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Buffer size", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
-  -1, /* min */
-  2147483647, /* max */
-  0 /* blk */
-);
-
-int spider_param_buffer_size(
-  THD *thd,
-  int buffer_size
-) {
-  DBUG_ENTER("spider_param_buffer_size");
-  DBUG_RETURN(THDVAR(thd, buffer_size) == -1 ?
-    buffer_size : THDVAR(thd, buffer_size));
 }
 
 /*
@@ -3452,32 +3425,6 @@ bool spider_param_sync_sql_mode(
   DBUG_RETURN(THDVAR(thd, sync_sql_mode));
 }
 
-/*
- -1 : use table parameter
-  0 : do not strict
-  1 : do strict
- */
-static MYSQL_THDVAR_INT(
-  strict_group_by, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Use columns in select clause strictly for group by clause",
-  NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
-  -1, /* min */
-  1, /* max */
-  0 /* blk */
-);
-
-int spider_param_strict_group_by(
-  THD *thd,
-  int strict_group_by
-) {
-  DBUG_ENTER("spider_param_strict_group_by");
-  DBUG_RETURN(THDVAR(thd, strict_group_by) == -1 ?
-    strict_group_by : THDVAR(thd, strict_group_by));
-}
-
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3516,7 +3463,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(bulk_size),
   MYSQL_SYSVAR(bulk_update_mode),
   MYSQL_SYSVAR(bulk_update_size),
-  MYSQL_SYSVAR(buffer_size),
   MYSQL_SYSVAR(internal_optimize),
   MYSQL_SYSVAR(internal_optimize_local),
   MYSQL_SYSVAR(use_flash_logs),
@@ -3632,7 +3578,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(remote_wait_timeout),
   MYSQL_SYSVAR(wait_timeout),
   MYSQL_SYSVAR(sync_sql_mode),
-  MYSQL_SYSVAR(strict_group_by),
   NULL
 };
 
@@ -3654,8 +3599,7 @@ mysql_declare_plugin(spider)
   0,
 #endif
 },
-spider_i_s_alloc_mem,
-spider_i_s_wrapper_protocols
+spider_i_s_alloc_mem
 mysql_declare_plugin_end;
 
 #ifdef MARIADB_BASE_VERSION
@@ -3675,7 +3619,6 @@ maria_declare_plugin(spider)
   SPIDER_DETAIL_VERSION,
   MariaDB_PLUGIN_MATURITY_STABLE
 },
-spider_i_s_alloc_mem_maria,
-spider_i_s_wrapper_protocols_maria
+spider_i_s_alloc_mem_maria
 maria_declare_plugin_end;
 #endif

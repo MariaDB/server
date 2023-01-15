@@ -29,10 +29,6 @@ int my_msync(int fd, void *addr, size_t len, int flags)
 
 #elif defined(_WIN32)
 
-#ifndef FILE_DAX_VOLUME
-#define FILE_DAX_VOLUME 0x20000000
-#endif
-
 static SECURITY_ATTRIBUTES mmap_security_attributes=
   {sizeof(SECURITY_ATTRIBUTES), 0, TRUE};
 
@@ -65,18 +61,6 @@ void *my_mmap(void *addr, size_t len, int prot,
    */
   CloseHandle(hFileMap);
 
-  if (flags & MAP_SYNC)
-  {
-    DWORD filesystemFlags;
-    if (!GetVolumeInformationByHandleW(hFile, NULL, 0, NULL, NULL,
-                                       &filesystemFlags, NULL, 0) ||
-        !(filesystemFlags & FILE_DAX_VOLUME))
-    {
-      UnmapViewOfFile(ptr);
-      ptr= NULL;
-    }
-  }
-
   if (ptr)
   {
     DBUG_PRINT("mysys", ("mapped addr: %p", ptr));
@@ -95,8 +79,7 @@ int my_munmap(void *addr, size_t len)
 
 int my_msync(int fd, void *addr, size_t len, int flags)
 {
-  return FlushViewOfFile(addr, len) &&
-         FlushFileBuffers(my_get_osfhandle(fd)) ? 0 : -1;
+  return FlushViewOfFile(addr, len) ? 0 : -1;
 }
 
 #else

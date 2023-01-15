@@ -159,7 +159,9 @@ public:
   }
   bool is_in_predicate()
   {
-    return get_IN_subquery() != NULL;
+    return (substype() == Item_subselect::IN_SUBS ||
+            substype() == Item_subselect::ALL_SUBS ||
+            substype() == Item_subselect::ANY_SUBS);
   }
 
   /*
@@ -171,7 +173,7 @@ public:
 		     select_result_interceptor *result);
 
   ~Item_subselect();
-  void cleanup() override;
+  void cleanup();
   virtual void reset()
   {
     eliminated= FALSE;
@@ -181,23 +183,22 @@ public:
     Set the subquery result to a default value consistent with the semantics of
     the result row produced for queries with implicit grouping.
   */
-  void no_rows_in_result() override= 0;
+  void no_rows_in_result()= 0;
   virtual bool select_transformer(JOIN *join);
   bool assigned() { return value_assigned; }
   void assigned(bool a) { value_assigned= a; }
-  enum Type type() const override;
-  bool is_null() override
+  enum Type type() const;
+  bool is_null()
   {
     update_null_value();
     return null_value;
   }
-  bool fix_fields(THD *thd, Item **ref) override;
-  bool with_subquery() const override { DBUG_ASSERT(fixed); return true; }
-  bool with_sum_func() const override { return m_with_sum_func; }
-  With_sum_func_cache* get_with_sum_func_cache() override { return this; }
+  bool fix_fields(THD *thd, Item **ref);
+  bool with_subquery() const { DBUG_ASSERT(fixed); return true; }
+  bool with_sum_func() const { return m_with_sum_func; }
+  With_sum_func_cache* get_with_sum_func_cache() { return this; }
   bool mark_as_dependent(THD *thd, st_select_lex *select, Item *item);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref,
-                         bool merge) override;
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void recalc_used_tables(st_select_lex *new_parent, bool after_pullout);
   virtual bool exec();
   /*
@@ -211,13 +212,13 @@ public:
     forced_const= TRUE; 
   }
   virtual bool fix_length_and_dec();
-  table_map used_tables() const override;
-  table_map not_null_tables() const override { return 0; }
-  bool const_item() const override;
+  table_map used_tables() const;
+  table_map not_null_tables() const { return 0; }
+  bool const_item() const;
   inline table_map get_used_tables_cache() { return used_tables_cache; }
-  Item *get_tmp_table_item(THD *thd) override;
-  void update_used_tables() override;
-  void print(String *str, enum_query_type query_type) override;
+  Item *get_tmp_table_item(THD *thd);
+  void update_used_tables();
+  virtual void print(String *str, enum_query_type query_type);
   virtual bool have_guarded_conds() { return FALSE; }
   bool change_engine(subselect_engine *eng)
   {
@@ -232,7 +233,7 @@ public:
   */
   bool is_evaluated() const;
   bool is_uncacheable() const;
-  bool is_expensive() override;
+  bool is_expensive();
 
   /*
     Used by max/min subquery to initialize value presence registration
@@ -240,12 +241,11 @@ public:
   */
   virtual void reset_value_registration() {}
   enum_parsing_place place() { return parsing_place; }
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
-  bool unknown_splocal_processor(void *arg) override;
-  bool mark_as_eliminated_processor(void *arg) override;
-  bool eliminate_subselect_processor(void *arg) override;
-  bool enumerate_field_refs_processor(void *arg) override;
-  bool check_vcol_func_processor(void *arg) override
+  bool walk(Item_processor processor, bool walk_subquery, void *arg);
+  bool mark_as_eliminated_processor(void *arg);
+  bool eliminate_subselect_processor(void *arg);
+  bool enumerate_field_refs_processor(void *arg);
+  bool check_vcol_func_processor(void *arg) 
   {
     return mark_unsupported_function("select ...", arg, VCOL_IMPOSSIBLE);
   }
@@ -258,28 +258,28 @@ public:
     @retval TRUE  if the predicate is expensive
     @retval FALSE otherwise
   */
-  bool is_expensive_processor(void *arg) override { return is_expensive(); }
-  bool update_table_bitmaps_processor(void *arg) override;
+  bool is_expensive_processor(void *arg) { return is_expensive(); }
+  bool update_table_bitmaps_processor(void *arg);
 
   /**
     Get the SELECT_LEX structure associated with this Item.
     @return the SELECT_LEX structure associated with this Item
   */
   st_select_lex* get_select_lex();
-  bool expr_cache_is_needed(THD *) override;
-  void get_cache_parameters(List<Item> &parameters) override;
-  bool is_subquery_processor (void *opt_arg) override { return 1; }
-  bool exists2in_processor(void *opt_arg) override { return 0; }
-  bool limit_index_condition_pushdown_processor(void *opt_arg) override
+  virtual bool expr_cache_is_needed(THD *);
+  virtual void get_cache_parameters(List<Item> &parameters);
+  virtual bool is_subquery_processor (void *opt_arg) { return 1; }
+  bool exists2in_processor(void *opt_arg) { return 0; }
+  bool limit_index_condition_pushdown_processor(void *opt_arg) 
   {
     return TRUE;
   }
 
   void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
-
-  Item* build_clone(THD *thd) override { return 0; }
-  Item* get_copy(THD *thd) override { return 0; }
+  
+  Item* build_clone(THD *thd) { return 0; }
+  Item* get_copy(THD *thd) { return 0; }
 
   st_select_lex *wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
 
@@ -403,40 +403,37 @@ public:
     emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
   {}
 
-  subs_type substype() override { return EXISTS_SUBS; }
-  void reset() override
+  subs_type substype() { return EXISTS_SUBS; }
+  void reset() 
   {
     eliminated= FALSE;
     value= 0;
   }
-  void no_rows_in_result() override;
+  void no_rows_in_result();
 
-  const Type_handler *type_handler() const override
-  {
-    return &type_handler_bool;
-  }
-  longlong val_int() override;
-  double val_real() override;
-  String *val_str(String*) override;
-  my_decimal *val_decimal(my_decimal *) override;
-  bool val_bool() override;
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  const Type_handler *type_handler() const { return &type_handler_bool; }
+  longlong val_int();
+  double val_real();
+  String *val_str(String*);
+  my_decimal *val_decimal(my_decimal *);
+  bool val_bool();
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return get_date_from_int(thd, ltime, fuzzydate); }
-  bool fix_fields(THD *thd, Item **ref) override;
-  bool fix_length_and_dec() override;
-  void print(String *str, enum_query_type query_type) override;
-  bool select_transformer(JOIN *join) override;
-  void top_level_item() override { abort_on_null=1; }
-  bool is_top_level_item() const override { return abort_on_null; }
-  bool exists2in_processor(void *opt_arg) override;
+  bool fix_fields(THD *thd, Item **ref);
+  bool fix_length_and_dec();
+  void print(String *str, enum_query_type query_type);
+  bool select_transformer(JOIN *join);
+  void top_level_item() { abort_on_null=1; }
+  inline bool is_top_level_item() { return abort_on_null; }
+  bool exists2in_processor(void *opt_arg);
 
-  Item* expr_cache_insert_transformer(THD *thd, uchar *unused) override;
+  Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
 
-  void mark_as_condition_AND_part(TABLE_LIST *embedding) override
+  void mark_as_condition_AND_part(TABLE_LIST *embedding)
   {
     emb_on_expr_nest= embedding;
   }
-  void under_not(Item_func_not *upper) override { upper_not= upper; };
+  virtual void under_not(Item_func_not *upper) { upper_not= upper; };
 
   void set_exists_transformed() { exists_transformed= TRUE; }
 
@@ -518,6 +515,7 @@ protected:
   bool create_row_in_to_exists_cond(JOIN * join,
                                     Item **where_item,
                                     Item **having_item);
+public:
   Item *left_expr;
   /*
     Important for PS/SP: left_expr_orig is the item that left_expr originally
@@ -525,7 +523,6 @@ protected:
     left_expr could later be changed to something on the execution arena.
   */
   Item *left_expr_orig;
-public:
   /* Priority of this predicate in the convert-to-semi-join-nest process. */
   int sj_convert_priority;
   /* May be TRUE only for the candidates to semi-join conversion */
@@ -614,7 +611,7 @@ public:
     if ( pushed_cond_guards)
       pushed_cond_guards[i]= v;
   }
-  bool have_guarded_conds() override { return MY_TEST(pushed_cond_guards); }
+  bool have_guarded_conds() { return MY_TEST(pushed_cond_guards); }
 
   Item_func_not_all *upper_item; // point on NOT/NOP before ALL/SOME subquery
 
@@ -630,42 +627,41 @@ public:
     pushed_cond_guards(NULL), func(NULL), do_not_convert_to_sj(FALSE),
     is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), upper_item(0),
     converted_from_in_predicate(FALSE) {}
-  void cleanup() override;
-  subs_type substype() override { return IN_SUBS; }
-  void reset() override
+  void cleanup();
+  subs_type substype() { return IN_SUBS; }
+  void reset() 
   {
     eliminated= FALSE;
     value= 0;
     null_value= 0;
     was_null= 0;
   }
-  bool select_transformer(JOIN *join) override;
+  bool select_transformer(JOIN *join);
   bool create_in_to_exists_cond(JOIN *join_arg);
   bool inject_in_to_exists_cond(JOIN *join_arg);
 
-  bool exec() override;
-  longlong val_int() override;
-  double val_real() override;
-  String *val_str(String*) override;
-  my_decimal *val_decimal(my_decimal *) override;
-  bool val_bool() override;
+  virtual bool exec();
+  longlong val_int();
+  double val_real();
+  String *val_str(String*);
+  my_decimal *val_decimal(my_decimal *);
+  bool val_bool();
   bool test_limit(st_select_lex_unit *unit);
-  void print(String *str, enum_query_type query_type) override;
-  enum precedence precedence() const override { return IN_PRECEDENCE; }
-  bool fix_fields(THD *thd, Item **ref) override;
-  bool fix_length_and_dec() override;
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref,
-                         bool merge) override;
-  bool const_item() const override
+  void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const { return IN_PRECEDENCE; }
+  bool fix_fields(THD *thd, Item **ref);
+  bool fix_length_and_dec();
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
+  bool const_item() const
   {
     return Item_subselect::const_item() && left_expr->const_item();
   }
-  void update_used_tables() override;
+  void update_used_tables();
   bool setup_mat_engine();
   bool init_left_expr_cache();
   /* Inform 'this' that it was computed, and contains a valid result. */
   void set_first_execution() { if (first_execution) first_execution= FALSE; }
-  bool expr_cache_is_needed(THD *thd) override;
+  bool expr_cache_is_needed(THD *thd);
   inline bool left_expr_has_null();
 
   void disable_cond_guard_for_const_null_left_expr(int i)
@@ -757,27 +753,18 @@ public:
     DBUG_VOID_RETURN;
   }
 
-  bool walk(Item_processor processor, bool walk_subquery, void *arg) override
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
   {
     return left_expr->walk(processor, walk_subquery, arg) ||
            Item_subselect::walk(processor, walk_subquery, arg);
   }
 
-  bool exists2in_processor(void *opt_arg __attribute__((unused))) override
+  bool exists2in_processor(void *opt_arg __attribute__((unused)))
   {
     return 0;
   };
 
   bool pushdown_cond_for_in_subquery(THD *thd, Item *cond);
-
-  Item_in_subselect *get_IN_subquery() override
-  { return this; }
-  inline Item** left_exp_ptr()
-  { return &left_expr; }
-  inline Item* left_exp() const
-  { return left_expr; }
-  inline Item* left_exp_orig() const
-  { return left_expr_orig; }
 
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
@@ -992,9 +979,9 @@ public:
 
   // constructor can assign THD because it will be called after JOIN::prepare
   subselect_uniquesubquery_engine(THD *thd_arg, st_join_table *tab_arg,
-				  Item_in_subselect *subs, Item *where)
+				  Item_subselect *subs, Item *where)
     :subselect_engine(subs, 0), tab(tab_arg), cond(where)
-  { DBUG_ASSERT(subs); }
+  {}
   ~subselect_uniquesubquery_engine();
   void cleanup();
   int prepare(THD *);
@@ -1055,12 +1042,12 @@ public:
 
   // constructor can assign THD because it will be called after JOIN::prepare
   subselect_indexsubquery_engine(THD *thd_arg, st_join_table *tab_arg,
-				 Item_in_subselect *subs, Item *where,
+				 Item_subselect *subs, Item *where,
                                  Item *having_arg, bool chk_null)
     :subselect_uniquesubquery_engine(thd_arg, tab_arg, subs, where),
      check_null(chk_null),
      having(having_arg)
-  { DBUG_ASSERT(subs); }
+  {}
   int exec();
   void print (String *str, enum_query_type query_type);
   virtual enum_engine_type engine_type() { return INDEXSUBQUERY_ENGINE; }
@@ -1123,14 +1110,14 @@ public:
   Name_resolution_context *semi_join_conds_context;
 
 
-  subselect_hash_sj_engine(THD *thd_arg, Item_in_subselect *in_predicate,
+  subselect_hash_sj_engine(THD *thd_arg, Item_subselect *in_predicate,
                            subselect_single_select_engine *old_engine)
     : subselect_engine(in_predicate, NULL),
       tmp_table(NULL), is_materialized(FALSE), materialize_engine(old_engine),
       materialize_join(NULL),  semi_join_conds(NULL), lookup_engine(NULL),
       count_partial_match_columns(0), count_null_only_columns(0),
       count_columns_with_nulls(0), strategy(UNDEFINED)
-  { DBUG_ASSERT(in_predicate); }
+  {}
   ~subselect_hash_sj_engine();
 
   bool init(List<Item> *tmp_columns, uint subquery_id);
@@ -1438,7 +1425,7 @@ public:
       from Item_in_optimizer::val_int() sets Item_in_optimizer::null_value
       correctly.
     */
-    return !(item->get_IN_subquery()->null_value);
+    return !(((Item_in_subselect *) item)->null_value);
   }
   void print(String*, enum_query_type);
 

@@ -606,7 +606,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1 where r1.c=4;
 show create view v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS with t(`c`) as (select `t1`.`a` AS `c` from `t1` where `t1`.`b` >= 'c')select `r1`.`c` AS `c` from `t` `r1` where `r1`.`c` = 4	latin1	latin1_swedish_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS with t(c) as (select `t1`.`a` AS `c` from `t1` where `t1`.`b` >= 'c')select `r1`.`c` AS `c` from `t` `r1` where `r1`.`c` = 4	latin1	latin1_swedish_ci
 select * from v3;
 c
 4
@@ -618,7 +618,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1, t r2 where r1.c=r2.c and r2.c=4;
 show create view v4;
 View	Create View	character_set_client	collation_connection
-v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t(`c`) as (select `t1`.`a` AS `c` from `t1` where `t1`.`b` >= 'c')select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join `t` `r2`) where `r1`.`c` = `r2`.`c` and `r2`.`c` = 4	latin1	latin1_swedish_ci
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t(c) as (select `t1`.`a` AS `c` from `t1` where `t1`.`b` >= 'c')select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join `t` `r2`) where `r1`.`c` = `r2`.`c` and `r2`.`c` = 4	latin1	latin1_swedish_ci
 select * from v4;
 c	d
 4	4
@@ -1159,10 +1159,10 @@ with cte as
 union
 (select a from t1 where a < 2);
 a
-1
 4
 5
 7
+1
 prepare stmt from "with cte as
 (select a from t1 where a between 4 and 7 group by a)
 (select a from cte where exists( select a from t1 where cte.a=t1.a ))
@@ -1170,16 +1170,16 @@ union
 (select a from t1 where a < 2)";
 execute stmt;
 a
-1
 4
 5
 7
+1
 execute stmt;
 a
-1
 4
 5
 7
+1
 deallocate prepare stmt;
 with cte as
 (select a from t1 where a between 4 and 7 group by a)
@@ -1216,9 +1216,9 @@ union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ));
 a
 1
-4
-5
 7
+5
+4
 prepare stmt from "with cte as
 (select a from t1 where a between 4 and 7)
 (select a from t1 where a < 2)
@@ -1227,15 +1227,15 @@ union
 execute stmt;
 a
 1
-4
-5
 7
+5
+4
 execute stmt;
 a
 1
-4
-5
 7
+5
+4
 deallocate prepare stmt;
 with cte as
 (select a from t1 where a between 4 and 7)
@@ -1244,9 +1244,9 @@ where exists( select a from t1 where t1.a < 2 and cte.a=t1.a ))
 union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ));
 a
-4
-5
 7
+5
+4
 prepare stmt from "with cte as
 (select a from t1 where a between 4 and 7)
 (select a from cte
@@ -1255,14 +1255,14 @@ union
 (select a from cte where exists( select a from t1 where cte.a=t1.a ))";
 execute stmt;
 a
-4
-5
 7
+5
+4
 execute stmt;
 a
-4
-5
 7
+5
+4
 deallocate prepare stmt;
 drop table t1;
 #

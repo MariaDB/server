@@ -37,15 +37,15 @@ Created 2013/03/27 Jimmy Yang
 #include <vector>
 #include <forward_list>
 
-/** Node Sequence Number. Only updated when page splits */
-typedef uint32_t     node_seq_t;
+/* Node Sequence Number. Only updated when page splits */
+typedef ib_uint32_t     node_seq_t;
 
 /* RTree internal non-leaf Nodes to be searched, from root to leaf */
-struct node_visit_t {
-	uint32_t	page_no;	/*!< the page number */
+typedef	struct node_visit {
+	ulint		page_no;	/*!< the page number */
 	node_seq_t	seq_no;		/*!< the SSN (split sequence number */
 	ulint		level;		/*!< the page's index level */
-	uint32_t	child_no;	/*!< child page num if for parent
+	ulint		child_no;	/*!< child page num if for parent
 					recording */
 	btr_pcur_t*	cursor;		/*!< cursor structure if we positioned
 					FIXME: there is no need to use whole
@@ -53,7 +53,7 @@ struct node_visit_t {
 					members */
 	double		mbr_inc;	/*!< whether this node needs to be
 					enlarged for insertion */
-};
+} node_visit_t;
 
 typedef std::vector<node_visit_t, ut_allocator<node_visit_t> >	rtr_node_path_t;
 

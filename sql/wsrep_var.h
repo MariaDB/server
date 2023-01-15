@@ -20,10 +20,9 @@
 
 #ifdef WITH_WSREP
 
-#define WSREP_CLUSTER_NAME              "my_wsrep_cluster"
-#define WSREP_NODE_INCOMING_AUTO        "AUTO"
-#define WSREP_START_POSITION_ZERO       "00000000-0000-0000-0000-000000000000:-1"
-#define WSREP_START_POSITION_ZERO_GTID  "00000000-0000-0000-0000-000000000000:-1,0-0-0"
+#define WSREP_CLUSTER_NAME        "my_wsrep_cluster"
+#define WSREP_NODE_INCOMING_AUTO  "AUTO"
+#define WSREP_START_POSITION_ZERO "00000000-0000-0000-0000-000000000000:-1"
 
 // MySQL variables funcs
 
@@ -104,9 +103,6 @@ extern bool wsrep_reject_queries_update      UPDATE_ARGS;
 
 extern bool wsrep_debug_update               UPDATE_ARGS;
 
-extern bool wsrep_gtid_seq_no_check          CHECK_ARGS;
-
-extern bool wsrep_gtid_domain_id_update      UPDATE_ARGS;
 #else  /* WITH_WSREP */
 
 #define wsrep_provider_init(X)

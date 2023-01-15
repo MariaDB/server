@@ -157,7 +157,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
   for (; ptr != end && val != val_end; ptr++)
   {
     /* Skip pre-space between each argument */
-    if ((val+= cs->scan(val, val_end, MY_SEQ_SPACES)) >= val_end)
+    if ((val+= cs->cset->scan(cs, val, val_end, MY_SEQ_SPACES)) >= val_end)
       break;
 
     if (*ptr == '%' && ptr+1 != end)
@@ -259,9 +259,13 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
       case 'p':
 	if (val_len < 2 || ! usa_time)
 	  goto err;
-	if (!my_charset_latin1.strnncoll(val, 2, "PM", 2))
+	if (!my_strnncoll(&my_charset_latin1,
+			  (const uchar *) val, 2, 
+			  (const uchar *) "PM", 2))
 	  daypart= 12;
-	else if (my_charset_latin1.strnncoll(val, 2, "AM", 2))
+	else if (my_strnncoll(&my_charset_latin1,
+			      (const uchar *) val, 2, 
+			      (const uchar *) "AM", 2))
 	  goto err;
 	val+= 2;
 	break;
@@ -474,7 +478,7 @@ err:
   Create a formatted date/time value in a string.
 */
 
-static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
+static bool make_date_time(const LEX_CSTRING &format, MYSQL_TIME *l_time,
                            timestamp_type type, const MY_LOCALE *locale,
                            String *str)
 {
@@ -489,7 +493,7 @@ static bool make_date_time(const String *format, const MYSQL_TIME *l_time,
   if (l_time->neg)
     str->append('-');
   
-  end= (ptr= format->ptr()) + format->length();
+  end= (ptr= format.str) + format.length;
   for (; ptr != end ; ptr++)
   {
     if (*ptr != '%' || ptr+1 == end)
@@ -996,7 +1000,7 @@ String* Item_func_monthname::val_str(String* str)
     return (String *) 0;
 
   month_name= locale->month_names->type_names[d.get_mysql_time()->month - 1];
-  str->copy(month_name, (uint) strlen(month_name), &my_charset_utf8mb3_bin,
+  str->copy(month_name, (uint) strlen(month_name), &my_charset_utf8_bin,
 	    collation.collation, &err);
   return str;
 }
@@ -1142,7 +1146,7 @@ String* Item_func_dayname::val_str(String* str)
     return (String*) 0;
 
   day_name= locale->day_names->type_names[dt.weekday(false)];
-  str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8mb3_bin,
+  str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8_bin,
 	    collation.collation, &err);
   return str;
 }
@@ -1224,7 +1228,7 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
     {
       if ((null_value= field->is_null()))
         return 1;
-      *seconds= field->get_timestamp(second_part);
+      *seconds= ((Field_timestamp*)field)->get_timestamp(second_part);
       return 0;
     }
   }
@@ -1280,7 +1284,7 @@ longlong Item_func_unix_timestamp::val_int_endpoint(bool left_endp, bool *incl_e
   DBUG_ASSERT(arg_count == 1 &&
               args[0]->type() == Item::FIELD_ITEM &&
               args[0]->field_type() == MYSQL_TYPE_TIMESTAMP);
-  Field *field= ((Item_field*)args[0])->field;
+  Field_timestamp *field=(Field_timestamp *)(((Item_field*)args[0])->field);
   /* Leave the incl_endp intact */
   ulong unused;
   my_time_t ts= field->get_timestamp(&unused);
@@ -1654,7 +1658,7 @@ int Item_func_now_local::save_in_field(Field *field, bool no_conversions)
     ulong sec_part= decimals ? thd->query_start_sec_part() : 0;
     sec_part-= my_time_fraction_remainder(sec_part, decimals);
     field->set_notnull();
-    field->store_timestamp(ts, sec_part);
+    ((Field_timestamp*)field)->store_TIME(ts, sec_part);
     return 0;
   }
   else
@@ -1756,7 +1760,7 @@ bool Item_func_date_format::fix_length_and_dec()
 
   decimals=0;
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  my_repertoire_t repertoire= arg1->collation.repertoire;
+  uint32 repertoire= arg1->collation.repertoire;
   if (!thd->variables.lc_time_names->is_ascii)
     repertoire|= MY_REPERTOIRE_EXTENDED;
   collation.set(cs, arg1->collation.derivation, repertoire);
@@ -1891,7 +1895,6 @@ String *Item_func_date_format::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   date_conv_mode_t mode= is_time_format ? TIME_TIME_ONLY : TIME_CONV_NONE;
   THD *thd= current_thd;
-
   if ((null_value= args[0]->get_date(thd, &l_time,
                                      Temporal::Options(mode, thd))))
     return 0;
@@ -1916,7 +1919,7 @@ String *Item_func_date_format::val_str(String *str)
 
   /* Create the result string */
   str->set_charset(collation.collation);
-  if (!make_date_time(format, &l_time,
+  if (!make_date_time(format->lex_cstring(), &l_time,
                       is_time_format ? MYSQL_TIMESTAMP_TIME :
                                        MYSQL_TIMESTAMP_DATE,
                       lc, str))
@@ -1933,10 +1936,7 @@ bool Item_func_from_unixtime::fix_length_and_dec()
   THD *thd= current_thd;
   thd->time_zone_used= 1;
   tz= thd->variables.time_zone;
-  Type_std_attributes::set(
-    Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH,
-                                           args[0]->decimals, false),
-    DTCollation_numeric());
+  fix_attributes_datetime_not_fixed_dec(args[0]->decimals);
   maybe_null= true;
   return FALSE;
 }
@@ -2017,7 +2017,7 @@ bool Item_date_add_interval::fix_length_and_dec()
 {
   enum_field_types arg0_field_type;
 
-  if (!args[0]->type_handler()->is_traditional_scalar_type())
+  if (!args[0]->type_handler()->is_traditional_type())
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
              args[0]->type_handler()->name().ptr(),
@@ -2123,21 +2123,6 @@ void Item_extract::print(String *str, enum_query_type query_type)
   args[0]->print(str, query_type);
   str->append(')');
 }
-
-
-bool Item_extract::check_arguments() const
-{
-  if (!args[0]->type_handler()->can_return_extract_source(int_type))
-  {
-    char tmp[64];
-    my_snprintf(tmp, sizeof(tmp), "extract(%s)", interval_names[int_type]);
-    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-             args[0]->type_handler()->name().ptr(), tmp);
-    return true;
-  }
-  return false;
-}
-
 
 bool Item_extract::fix_length_and_dec()
 {
@@ -2354,7 +2339,7 @@ uint Item_char_typecast::adjusted_length_with_warn(uint length)
 }
 
 
-String *Item_char_typecast::val_str_generic(String *str)
+String *Item_char_typecast::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
@@ -2410,75 +2395,11 @@ end:
 }
 
 
-String *Item_char_typecast::val_str_binary_from_native(String *str)
-{
-  DBUG_ASSERT(fixed == 1);
-  DBUG_ASSERT(cast_cs == &my_charset_bin);
-  NativeBuffer<STRING_BUFFER_USUAL_SIZE> native;
-
-  if (args[0]->val_native(current_thd, &native))
-  {
-    null_value= 1;
-    return 0;
-  }
-
-  if (has_explicit_length())
-  {
-    cast_length= adjusted_length_with_warn(cast_length);
-    if (cast_length > native.length())
-    {
-      // add trailing 0x00s
-      DBUG_ASSERT(cast_length <= current_thd->variables.max_allowed_packet);
-      str->alloc(cast_length);
-      str->copy(native.ptr(), native.length(), &my_charset_bin);
-      bzero((char*) str->end(), cast_length - str->length());
-      str->length(cast_length);
-    }
-    else
-      str->copy(native.ptr(), cast_length, &my_charset_bin);
-  }
-  else
-    str->copy(native.ptr(), native.length(), &my_charset_bin);
-
-  return ((null_value= (str->length() >
-                        adjusted_length_with_warn(str->length())))) ? 0 : str;
-}
-
-
-class Item_char_typecast_func_handler: public Item_handled_func::Handler_str
-{
-public:
-  const Type_handler *return_type_handler(const Item_handled_func *item) const
-  {
-    return Type_handler::string_type_handler(item->max_length);
-  }
-  const Type_handler *
-    type_handler_for_create_select(const Item_handled_func *item) const
-  {
-    return return_type_handler(item)->type_handler_for_tmp_table(item);
-  }
-
-  bool fix_length_and_dec(Item_handled_func *item) const
-  {
-    return false;
-  }
-  String *val_str(Item_handled_func *item, String *to) const
-  {
-    DBUG_ASSERT(dynamic_cast<const Item_char_typecast*>(item));
-    return static_cast<Item_char_typecast*>(item)->val_str_generic(to);
-  }
-};
-
-
-static Item_char_typecast_func_handler item_char_typecast_func_handler;
-
-
 void Item_char_typecast::fix_length_and_dec_numeric()
 {
   fix_length_and_dec_internal(from_cs= cast_cs->mbminlen == 1 ?
                                        cast_cs :
                                        &my_charset_latin1);
-  set_func_handler(&item_char_typecast_func_handler);
 }
 
 
@@ -2487,24 +2408,6 @@ void Item_char_typecast::fix_length_and_dec_generic()
   fix_length_and_dec_internal(from_cs= args[0]->dynamic_result() ?
                                        0 :
                                        args[0]->collation.collation);
-  set_func_handler(&item_char_typecast_func_handler);
-}
-
-
-void Item_char_typecast::fix_length_and_dec_str()
-{
-  fix_length_and_dec_generic();
-  m_suppress_warning_to_error_escalation= true;
-  set_func_handler(&item_char_typecast_func_handler);
-}
-
-
-void
-Item_char_typecast::fix_length_and_dec_native_to_binary(uint32 octet_length)
-{
-  collation.set(&my_charset_bin, DERIVATION_IMPLICIT);
-  max_length= has_explicit_length() ? (uint32) cast_length : octet_length;
-  maybe_null|= current_thd->is_strict_mode();
 }
 
 
@@ -2548,8 +2451,6 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
                 (cast_cs == &my_charset_bin ? 1 :
                  args[0]->collation.collation->mbmaxlen));
   max_length= char_length * cast_cs->mbmaxlen;
-  // Add NULL-ability in strict mode. See Item_str_func::fix_fields()
-  maybe_null= maybe_null || current_thd->is_strict_mode();
 }
 
 
@@ -2636,8 +2537,8 @@ bool Item_func_add_time::fix_length_and_dec()
 {
   enum_field_types arg0_field_type;
 
-  if (!args[0]->type_handler()->is_traditional_scalar_type() ||
-      !args[1]->type_handler()->is_traditional_scalar_type())
+  if (!args[0]->type_handler()->is_traditional_type() ||
+      !args[1]->type_handler()->is_traditional_type())
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
              args[0]->type_handler()->name().ptr(),
@@ -2942,8 +2843,9 @@ String *Item_func_get_format::val_str_ascii(String *str)
     uint format_name_len;
     format_name_len= (uint) strlen(format_name);
     if (val_len == format_name_len &&
-	!my_charset_latin1.strnncoll(val->ptr(), val_len, 
-		                     format_name, val_len))
+	!my_strnncoll(&my_charset_latin1, 
+		      (const uchar *) val->ptr(), val_len, 
+		      (const uchar *) format_name, val_len))
     {
       const char *format_str= get_date_time_format_str(format, type);
       str->set(format_str, (uint) strlen(format_str), &my_charset_numeric);
@@ -3045,8 +2947,8 @@ get_date_time_result_type(const char *format, uint length)
 
 bool Item_func_str_to_date::fix_length_and_dec()
 {
-  if (!args[0]->type_handler()->is_traditional_scalar_type() ||
-      !args[1]->type_handler()->is_traditional_scalar_type())
+  if (!args[0]->type_handler()->is_traditional_type() ||
+      !args[1]->type_handler()->is_traditional_type())
   {
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
              args[0]->type_handler()->name().ptr(),

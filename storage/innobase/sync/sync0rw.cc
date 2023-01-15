@@ -141,7 +141,7 @@ wait_ex_event:	A thread may only wait on the wait_ex_event after it has
 rw_lock_stats_t		rw_lock_stats;
 
 /* The global list of rw-locks */
-ilist<rw_lock_t> rw_lock_list;
+rw_lock_list_t		rw_lock_list;
 ib_mutex_t		rw_lock_list_mutex;
 
 #ifdef UNIV_DEBUG
@@ -224,8 +224,8 @@ rw_lock_create_func(
 	/* This should hold in practice. If it doesn't then we need to
 	split the source file anyway. Or create the locks on lines
 	less than 8192. cline is unsigned:13. */
-	ut_ad(cline <= ((1U << 13) - 1));
-	lock->cline = cline & ((1U << 13) - 1);
+	ut_ad(cline <= 8192);
+	lock->cline = cline;
 	lock->count_os_wait = 0;
 	lock->last_x_file_name = "not yet reserved";
 	lock->last_x_line = 0;
@@ -234,10 +234,8 @@ rw_lock_create_func(
 
 	lock->is_block_lock = 0;
 
-	ut_d(lock->created = true);
-
 	mutex_enter(&rw_lock_list_mutex);
-	rw_lock_list.push_front(*lock);
+	UT_LIST_ADD_FIRST(rw_lock_list, lock);
 	mutex_exit(&rw_lock_list_mutex);
 }
 
@@ -253,15 +251,13 @@ rw_lock_free_func(
 	ut_ad(rw_lock_validate(lock));
 	ut_a(lock->lock_word == X_LOCK_DECR);
 
-	ut_d(lock->created = false);
-
 	mutex_enter(&rw_lock_list_mutex);
 
 	os_event_destroy(lock->event);
 
 	os_event_destroy(lock->wait_ex_event);
 
-	rw_lock_list.remove(*lock);
+	UT_LIST_REMOVE(rw_lock_list, lock);
 
 	mutex_exit(&rw_lock_list_mutex);
 }
@@ -548,7 +544,7 @@ rw_lock_x_lock_low(
 	ut_d(rw_lock_add_debug_info(lock, pass, RW_LOCK_X, file_name, line));
 
 	lock->last_x_file_name = file_name;
-	lock->last_x_line = line & ((1U << 14) - 1);
+	lock->last_x_line = line;
 
 	return(TRUE);
 }
@@ -627,7 +623,7 @@ rw_lock_sx_lock_low(
 	ut_d(rw_lock_add_debug_info(lock, pass, RW_LOCK_SX, file_name, line));
 
 	lock->last_x_file_name = file_name;
-	lock->last_x_line = line & ((1U << 14) - 1);
+	lock->last_x_line = line;
 
 	return(TRUE);
 }
@@ -853,8 +849,6 @@ rw_lock_validate(
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
 	ut_ad(lock);
-
-	ut_ad(lock->created);
 
 	int32_t lock_word = lock->lock_word;
 
@@ -1101,15 +1095,17 @@ rw_lock_list_print_info(
 	      "RW-LATCH INFO\n"
 	      "-------------\n", file);
 
-	for (const rw_lock_t& lock : rw_lock_list) {
+	for (const rw_lock_t* lock = UT_LIST_GET_FIRST(rw_lock_list);
+	     lock != NULL;
+	     lock = UT_LIST_GET_NEXT(list, lock)) {
 
 		count++;
 
-		if (lock.lock_word != X_LOCK_DECR) {
+		if (lock->lock_word != X_LOCK_DECR) {
 
-			fprintf(file, "RW-LOCK: %p ", (void*) &lock);
+			fprintf(file, "RW-LOCK: %p ", (void*) lock);
 
-			if (int32_t waiters= lock.waiters) {
+			if (int32_t waiters= lock->waiters) {
 				fprintf(file, " (%d waiters)\n", waiters);
 			} else {
 				putc('\n', file);
@@ -1119,7 +1115,7 @@ rw_lock_list_print_info(
 
 			rw_lock_debug_mutex_enter();
 
-			for (info = UT_LIST_GET_FIRST(lock.debug_list);
+			for (info = UT_LIST_GET_FIRST(lock->debug_list);
 			     info != NULL;
 			     info = UT_LIST_GET_NEXT(list, info)) {
 
@@ -1144,10 +1140,10 @@ rw_lock_debug_print(
 {
 	ulint	rwt = info->lock_type;
 
-	fprintf(f, "Locked: thread " ULINTPF " file %s line %u  ",
-		ulint(info->thread_id),
+	fprintf(f, "Locked: thread %lu file %s line %lu  ",
+		static_cast<ulong>(os_thread_pf(info->thread_id)),
 		sync_basename(info->file_name),
-		info->line);
+		static_cast<ulong>(info->line));
 
 	switch (rwt) {
 	case RW_LOCK_S:
@@ -1187,7 +1183,7 @@ rw_lock_t::to_string() const
 	ut_ad(rw_lock_validate(this));
 
 	msg << "RW-LATCH: "
-	    << "thread id " << os_thread_get_curr_id()
+	    << "thread id " << os_thread_pf(os_thread_get_curr_id())
 	    << " addr: " << this
 	    << " Locked from: ";
 

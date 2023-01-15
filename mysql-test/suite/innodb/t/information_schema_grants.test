@@ -103,6 +103,9 @@ create sql security definer view d_sys_virtual as select * from information_sche
 create sql security invoker view i_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
 create sql security definer view d_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
 
+create sql security invoker view i_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
+create sql security definer view d_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
+
 create sql security invoker view i_trx as select * from information_schema.innodb_trx;
 create sql security definer view d_trx as select * from information_schema.innodb_trx;
 
@@ -289,6 +292,12 @@ select count(*) > -1 from information_schema.innodb_tablespaces_encryption;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 select count(*) > -1 from i_tablespaces_encryption;
 select count(*) > -1 from d_tablespaces_encryption;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_tablespaces_scrubbing;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_tablespaces_scrubbing;
+select count(*) > -1 from d_tablespaces_scrubbing;
 
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 select count(*) > -1 from information_schema.innodb_trx;

@@ -185,7 +185,7 @@ DROP FUNCTION delay_on_slave;
 connection slave;
 SELECT @@GLOBAL.slave_parallel_mode;
 @@GLOBAL.slave_parallel_mode
-optimistic
+conservative
 SELECT @@GLOBAL.slave_parallel_threads;
 @@GLOBAL.slave_parallel_threads
 0

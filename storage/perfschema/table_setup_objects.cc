@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,7 +26,7 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -34,14 +34,8 @@
 #include "table_setup_objects.h"
 #include "table_helper.h"
 #include "pfs_global.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_setup_objects::m_table_lock;
-PFS_engine_table_share_state
-table_setup_objects::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_setup_objects::m_share=
@@ -52,17 +46,15 @@ table_setup_objects::m_share=
   table_setup_objects::write_row,
   table_setup_objects::delete_all_rows,
   table_setup_objects::get_row_count,
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_objects("
-                      "OBJECT_TYPE ENUM ('EVENT','FUNCTION','PROCEDURE','TABLE','TRIGGER') not null default 'TABLE' comment 'Type of object to instrument.',"
+                      "OBJECT_TYPE ENUM ('TABLE') not null default 'TABLE' comment 'Type of object to instrument. Currently, only TABLE, for base table.',"
                       "OBJECT_SCHEMA VARCHAR(64) default '%' comment 'Schema containing the object, either the literal or % for any schema.',"
                       "OBJECT_NAME VARCHAR(64) not null default '%' comment 'Name of the instrumented object, either the literal or % for any object.',"
                       "ENABLED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are instrumented or not. Can be disabled, in which case monitoring is not enabled for those objects.',"
-                      "TIMED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are timed or not. Can be modified.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "TIMED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are timed or not. Can be modified.')") }
 };
 
 int update_derived_flags()
@@ -72,7 +64,6 @@ int update_derived_flags()
     return HA_ERR_OUT_OF_MEM;
 
   update_table_share_derived_flags(thread);
-  update_program_share_derived_flags(thread);
   update_table_derived_flags();
   return 0;
 }
@@ -88,8 +79,8 @@ int table_setup_objects::write_row(TABLE *table, const unsigned char *buf,
   int result;
   Field *f;
   enum_object_type object_type= OBJECT_TYPE_TABLE;
-  String object_schema_data("%", 1, &my_charset_utf8mb3_bin);
-  String object_name_data("%", 1, &my_charset_utf8mb3_bin);
+  String object_schema_data("%", 1, &my_charset_utf8_bin);
+  String object_name_data("%", 1, &my_charset_utf8_bin);
   String *object_schema= &object_schema_data;
   String *object_name= &object_name_data;
   enum_yes_no enabled_value= ENUM_YES;
@@ -119,15 +110,13 @@ int table_setup_objects::write_row(TABLE *table, const unsigned char *buf,
         timed_value= (enum_yes_no) get_field_enum(f);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
 
   /* Reject illegal enum values in OBJECT_TYPE */
-  if (object_type < FIRST_OBJECT_TYPE ||
-      object_type > LAST_OBJECT_TYPE  ||
-      object_type == OBJECT_TYPE_TEMPORARY_TABLE)
+  if (object_type != OBJECT_TYPE_TABLE)
     return HA_ERR_NO_REFERENCED_ROW;
 
   /* Reject illegal enum values in ENABLED */
@@ -158,7 +147,7 @@ int table_setup_objects::delete_all_rows(void)
 
 ha_rows table_setup_objects::get_row_count(void)
 {
-  return global_setup_object_container.get_row_count();
+  return setup_object_count();
 }
 
 table_setup_objects::table_setup_objects()
@@ -176,14 +165,17 @@ int table_setup_objects::rnd_next(void)
 {
   PFS_setup_object *pfs;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_setup_object_iterator it= global_setup_object_container.iterate(m_pos.m_index);
-  pfs= it.scan_next(& m_pos.m_index);
-  if (pfs != NULL)
+  for (m_pos.set_at(&m_next_pos);
+       m_pos.m_index < setup_object_max;
+       m_pos.next())
   {
-    make_row(pfs);
-    m_next_pos.set_after(&m_pos);
-    return 0;
+    pfs= &setup_object_array[m_pos.m_index];
+    if (pfs->m_lock.is_populated())
+    {
+      make_row(pfs);
+      m_next_pos.set_after(&m_pos);
+      return 0;
+    }
   }
 
   return HA_ERR_END_OF_FILE;
@@ -195,8 +187,9 @@ int table_setup_objects::rnd_pos(const void *pos)
 
   set_position(pos);
 
-  pfs= global_setup_object_container.get(m_pos.m_index);
-  if (pfs != NULL)
+  DBUG_ASSERT(m_pos.m_index < setup_object_max);
+  pfs= &setup_object_array[m_pos.m_index];
+  if (pfs->m_lock.is_populated())
   {
     make_row(pfs);
     return 0;
@@ -207,7 +200,7 @@ int table_setup_objects::rnd_pos(const void *pos)
 
 void table_setup_objects::make_row(PFS_setup_object *pfs)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
 
   m_row_exists= false;
 
@@ -236,7 +229,7 @@ int table_setup_objects::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -269,7 +262,7 @@ int table_setup_objects::read_row_values(TABLE *table,
         set_field_enum(f, (*m_row.m_timed_ptr) ? ENUM_YES : ENUM_NO);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
@@ -311,7 +304,7 @@ int table_setup_objects::update_row_values(TABLE *table,
         *m_row.m_timed_ptr= (value == ENUM_YES) ? true : false;
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
@@ -324,9 +317,9 @@ int table_setup_objects::delete_row_values(TABLE *table,
                                            const unsigned char *buf,
                                            Field **fields)
 {
-  assert(m_row_exists);
+  DBUG_ASSERT(m_row_exists);
 
-  CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
+  CHARSET_INFO *cs= &my_charset_utf8_bin;
   enum_object_type object_type= OBJECT_TYPE_TABLE;
   String object_schema(m_row.m_schema_name, m_row.m_schema_name_length, cs);
   String object_name(m_row.m_object_name, m_row.m_object_name_length, cs);

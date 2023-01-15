@@ -1,5 +1,5 @@
-/* Copyright (C) 2010-2020 Kentoku Shiba
-   Copyright (C) 2019-2020 MariaDB corp
+/* Copyright (C) 2010-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -51,7 +51,6 @@ static LEX_STRING spider_init_queries[] = {
     "  ssl_verify_server_cert tinyint not null default 0,"
     "  default_file text,"
     "  default_group char(64) default null,"
-    "  dsn char(64) default null,"
     "  key idx1 (data, format_id, gtrid_length, host)"
     ") engine=MyISAM default charset=utf8 collate=utf8_bin"
   )},
@@ -75,7 +74,6 @@ static LEX_STRING spider_init_queries[] = {
     "  ssl_verify_server_cert tinyint not null default 0,"
     "  default_file text,"
     "  default_group char(64) default null,"
-    "  dsn char(64) default null,"
     "  thread_id int default null,"
     "  status char(8) not null default '',"
     "  failed_time timestamp not null default current_timestamp,"
@@ -104,7 +102,6 @@ static LEX_STRING spider_init_queries[] = {
     "  monitoring_binlog_pos_at_failing tinyint not null default 0,"
     "  default_file text,"
     "  default_group char(64) default null,"
-    "  dsn char(64) default null,"
     "  tgt_db_name char(64) default null,"
     "  tgt_table_name char(64) default null,"
     "  link_status tinyint not null default 1,"
@@ -136,7 +133,6 @@ static LEX_STRING spider_init_queries[] = {
     "  ssl_verify_server_cert tinyint not null default 0,"
     "  default_file text,"
     "  default_group char(64) default null,"
-    "  dsn char(64) default null,"
     "  primary key (db_name, table_name, link_id, sid)"
     ") engine=MyISAM default charset=utf8 collate=utf8_bin"
   )},
@@ -218,10 +214,6 @@ static LEX_STRING spider_init_queries[] = {
     "begin"
     "  select substring_index(substring_index(version(), '-', 2), '-', -1)"
     "    into @server_name;"
-    "  if @server_name regexp '^[0-9]+$' then"
-    "    select substring_index(substring_index(version(), '-', 3), '-', -1)"
-    "      into @server_name;"
-    "  end if;"
     "  select substring_index(version(), '.', 1)"
     "    into @server_major_version;"
     "  select substring_index(substring_index(version(), '.', 2), '.', -1)"
@@ -599,21 +591,6 @@ static LEX_STRING spider_init_queries[] = {
     "      primary key (db_name, table_name, table_id, partition_id)"
     "    ) engine=Aria transactional=1 default charset=utf8 collate=utf8_bin;"
     "  end if;"
-/*
-  Fix for version 3.4
-*/
-    "  call mysql.spider_fix_one_table('spider_link_mon_servers', 'dsn',"
-    "   'alter table mysql.spider_link_mon_servers"
-    "    add column dsn char(64) default null after default_group');"
-    "  call mysql.spider_fix_one_table('spider_tables', 'dsn',"
-    "   'alter table mysql.spider_tables"
-    "    add column dsn char(64) default null after default_group');"
-    "  call mysql.spider_fix_one_table('spider_xa_failed_log', 'dsn',"
-    "   'alter table mysql.spider_xa_failed_log"
-    "    add column dsn char(64) default null after default_group');"
-    "  call mysql.spider_fix_one_table('spider_xa_member', 'dsn',"
-    "   'alter table mysql.spider_xa_member"
-    "    add column dsn char(64) default null after default_group');"
     "end;"
   )},
   {C_STRING_WITH_LEN(
@@ -684,31 +661,6 @@ static LEX_STRING spider_init_queries[] = {
     "      install plugin spider_alloc_mem soname 'ha_spider.so';"
     "    else"
     "      install plugin spider_alloc_mem soname 'ha_spider.dll';"
-    "    end if;"
-    "  end if;"
-/*
-  Install spider_wrapper_protocols plugin
-*/
-    "  set @have_spider_i_s_wrapper_protocols_plugin := 0;"
-    "  select @have_spider_i_s_wrapper_protocols_plugin := 1"
-    "    from INFORMATION_SCHEMA.plugins"
-    "    where PLUGIN_NAME = 'SPIDER_WRAPPER_PROTOCOLS';"
-    "  set @have_spider_wrapper_protocols_plugin := 0;"
-    "  select @have_spider_wrapper_protocols_plugin := 1 from mysql.plugin"
-    "    where name = 'spider_wrapper_protocols';"
-    "  if @have_spider_i_s_wrapper_protocols_plugin = 0 then"
-    "    if @have_spider_wrapper_protocols_plugin = 1 then"
-    "      /*"
-    "        spider_wrapper_protocols plugin is present in mysql.plugin but not in"
-    "        information_schema.plugins. Remove spider_wrapper_protocols plugin entry"
-    "        in mysql.plugin first."
-    "      */"
-    "      delete from mysql.plugin where name = 'spider_wrapper_protocols';"
-    "    end if;"
-    "    if @win_plugin = 0 then "
-    "      install plugin spider_wrapper_protocols soname 'ha_spider.so';"
-    "    else"
-    "      install plugin spider_wrapper_protocols soname 'ha_spider.dll';"
     "    end if;"
     "  end if;"
     "  set @have_spider_direct_sql_udf := 0;"

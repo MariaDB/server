@@ -130,7 +130,6 @@ select "--- reading stdin --" as "";
 # postion is constant to correspond to an event in pre-recorded binlog
 --let $binlog_start_pos=79
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start_pos - < $MYSQL_TEST_DIR/std_data/trunc_binlog.000001
-
 drop table t1,t2;
 
 #
@@ -521,32 +520,18 @@ remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn.empty;
 remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn;
 
 #
-# MDEV-25222: Remove mysqlbinlog options --base64-output=always and --base64-output
+# WL#5625: Deprecate mysqlbinlog options --base64-output=always and --base64-output
 #
---echo #
---echo # Expect error for invalid --base64-output argument value.
---echo # MYSQL_BINLOG std_data/master-bin.000001 --base64-output=always 2>&1
---error 1
---exec $MYSQL_BINLOG std_data/master-bin.000001 --base64-output=always 2>&1
+--echo # Expect deprecation warning.
+--exec $MYSQL_BINLOG --base64-output=always std_data/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--cat_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
 
---echo #
---echo # Expect error for incomplete --base64-output argument.
---echo # MYSQL_BINLOG  std_data/master-bin.000001 --base64-output 2>&1
-# The error produces the absolute path of the mysqlbinlog executable, remove it.
---replace_regex /.*mariadb-binlog.*:/mariadb-binlog:/i
---error 1
---exec $MYSQL_BINLOG std_data/master-bin.000001 --base64-output 2>&1
+--echo # Expect deprecation warning again.
+--exec $MYSQL_BINLOG --base64-output std_data/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--cat_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
 
---echo #
---echo # Ensure --base64-output=auto outputs the same result as unspecified
---echo # MYSQL_BINLOG -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
---exec  $MYSQL_BINLOG -v $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
---echo # MYSQL_BINLOG --base64-output=auto -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
---exec  $MYSQL_BINLOG --base64-output=auto -v $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
---diff_files $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
---remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
---remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
-
+# Clean up this part of the test.
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
 
 # BUG#50914
 # This test verifies if the approach of the mysqlbinlog prints
@@ -608,32 +593,5 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 #
 # MDEV-12372 mysqlbinlog --version output is the same on 10.x as on 5.5.x, and contains not only version
 #
-replace_regex /.*mariadb-binlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mariadb-binlog Ver VER for OS at ARCH/;
+replace_regex /.*mysqlbinlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mysqlbinlog Ver VER for OS at ARCH/;
 exec $MYSQL_BINLOG --version;
-
---echo #
---echo # Test --rewrite-db
---echo #
-
-RESET MASTER;
-CREATE TABLE t1 (a int);
-INSERT INTO t1 values(1);
-DROP TABLE t1;
-FLUSH LOGS;
-
---error 1
---exec $MYSQL_BINLOG --rewrite-db=a --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
-
---error 1
---exec $MYSQL_BINLOG --rewrite-db="a->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
-
---error 1
---exec $MYSQL_BINLOG --rewrite-db="a-> " --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
-
---error 1
---exec $MYSQL_BINLOG --rewrite-db="->b" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
-
---error 1
---exec $MYSQL_BINLOG --rewrite-db=" ->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
-
---exec $MYSQL_BINLOG --rewrite-db=" test -> foo " --short-form $MYSQLD_DATADIR/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn

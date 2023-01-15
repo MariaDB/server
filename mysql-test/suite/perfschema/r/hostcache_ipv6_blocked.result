@@ -29,7 +29,7 @@ SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6,native_password_bad_reply";
 ERROR 08S01: Bad handshake
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -59,7 +59,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -89,7 +89,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -117,9 +117,9 @@ COUNT_LOCAL_ERRORS	0
 COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
-ERROR HY000: Host '2001:db8::6:6' is blocked because of many connection errors; unblock with 'mariadb-admin flush-hosts'
+ERROR HY000: Host '2001:db8::6:6' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -147,9 +147,9 @@ COUNT_LOCAL_ERRORS	0
 COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
-ERROR HY000: Host '2001:db8::6:6' is blocked because of many connection errors; unblock with 'mariadb-admin flush-hosts'
+ERROR HY000: Host '2001:db8::6:6' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -180,7 +180,7 @@ LAST_ERROR_SEEN	set
 flush hosts;
 ERROR 08S01: Bad handshake
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -210,7 +210,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -245,7 +245,7 @@ Valid connection should reset SUM_CONNECT_ERROR counter
 connection default;
 set global debug_dbug= "+d,native_password_bad_reply";
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -275,7 +275,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -305,7 +305,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -335,7 +335,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 08S01: Bad handshake
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -363,9 +363,9 @@ COUNT_LOCAL_ERRORS	0
 COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
-ERROR HY000: Host '2001:db8::6:6' is blocked because of many connection errors; unblock with 'mariadb-admin flush-hosts'
+ERROR HY000: Host '2001:db8::6:6' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -393,9 +393,9 @@ COUNT_LOCAL_ERRORS	0
 COUNT_UNKNOWN_ERRORS	0
 FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
-ERROR HY000: Host '2001:db8::6:6' is blocked because of many connection errors; unblock with 'mariadb-admin flush-hosts'
+ERROR HY000: Host '2001:db8::6:6' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES

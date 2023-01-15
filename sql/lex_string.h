@@ -18,49 +18,7 @@
 #ifndef LEX_STRING_INCLUDED
 #define LEX_STRING_INCLUDED
 
-
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
-
-
-class Lex_cstring : public LEX_CSTRING
-{
-  public:
-  Lex_cstring()
-  {
-    str= NULL;
-    length= 0;
-  }
-  Lex_cstring(const LEX_CSTRING &str)
-  {
-    LEX_CSTRING::operator=(str);
-  }
-  Lex_cstring(const char *_str, size_t _len)
-  {
-    str= _str;
-    length= _len;
-  }
-  Lex_cstring(const char *start, const char *end)
-  {
-    DBUG_ASSERT(start <= end);
-    str= start;
-    length= end - start;
-  }
-  void set(const char *_str, size_t _len)
-  {
-    str= _str;
-    length= _len;
-  }
-};
-
-
-class Lex_cstring_strlen: public Lex_cstring
-{
-public:
-  Lex_cstring_strlen(const char *from)
-   :Lex_cstring(from, from ? strlen(from) : 0)
-  { }
-};
-
 
 /* Functions to compare if two lex strings are equal */
 

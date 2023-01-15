@@ -34,7 +34,7 @@
 ##### Storage engine to be tested
 # Set the session storage engine
 --source include/have_innodb.inc
-SET @@session.default_storage_engine = 'InnoDB';
+SET @@session.storage_engine = 'InnoDB';
 
 ##### Workarounds for known open engine specific bugs
 #     none
@@ -80,7 +80,7 @@ create table t1 (
  col_enum enum('','a','b','c','d','e','f','foo','bar') not null default '',
  col_date date not null default '1900-01-01',
  col_timestamp timestamp(3) not null default '1971-01-01 00:00:00',
- vcol_datetime datetime as (truncate(col_datetime,0)) virtual,
+ vcol_datetime datetime as (col_datetime) virtual,
  vcol_dec decimal(18,9) zerofill as (col_dec) virtual,
  vcol_bit bit(63) as (col_bit) virtual,
  vcol_char binary(51) as (col_char) virtual,

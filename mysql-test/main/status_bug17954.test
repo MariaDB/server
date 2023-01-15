@@ -4,6 +4,9 @@
 # embedded server causes different stat
 -- source include/not_embedded.inc
 
+# thread pool causes different results
+-- source include/not_threadpool.inc
+
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 

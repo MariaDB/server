@@ -8,13 +8,13 @@ EXPLAIN
 SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id 
 WHERE t1.name LIKE 'A%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,name	name	23	NULL	2	Using where; Using index
+1	SIMPLE	t1	index	PRIMARY,name	name	23	NULL	3	Using where; Using index
 1	SIMPLE	t2	ref	fkey	fkey	5	test.t1.id	1	Using index
 EXPLAIN
 SELECT COUNT(*) FROM t2 LEFT JOIN t1 ON t2.fkey = t1.id 
 WHERE t1.name LIKE 'A%' OR FALSE;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,name	name	23	NULL	2	Using where; Using index
+1	SIMPLE	t1	index	PRIMARY,name	name	23	NULL	3	Using where; Using index
 1	SIMPLE	t2	ref	fkey	fkey	5	test.t1.id	1	Using index
 DROP TABLE t1,t2;
 #
@@ -433,47 +433,47 @@ left join t16 on t15.o1 = t16.p1
 where t1.a10 = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	a4,a6,a5,a7	NULL	NULL	NULL	3	Using where
-1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	Using index
-1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.b2	1	Using where; Using index
-1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	4	test.t1.a2	1	Using index
-1	SIMPLE	t5	eq_ref	PRIMARY	PRIMARY	4	test.t4.d1	1	Using where
-1	SIMPLE	t6	eq_ref	PRIMARY	PRIMARY	4	test.t1.a3	1	Using where; Using index
 1	SIMPLE	t8	eq_ref	PRIMARY	PRIMARY	1	test.t1.a4	1	Using index
 1	SIMPLE	t7	eq_ref	PRIMARY	PRIMARY	1	test.t1.a7	1	
-1	SIMPLE	t9	ref	PRIMARY	PRIMARY	1	test.t1.a4	1	
 1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t1.a5	1	
 1	SIMPLE	t12	eq_ref	PRIMARY	PRIMARY	4	test.t11.k3	1	Using where
 1	SIMPLE	l2	eq_ref	PRIMARY	PRIMARY	4	test.t11.k4	1	Using where
-1	SIMPLE	t13	ref	PRIMARY,m3	m3	8	const,test.t1.a1	1	Using index
+1	SIMPLE	t13	ref	PRIMARY,m3	PRIMARY	4	test.t1.a1	1	Using where; Using index
+1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	Using index
 1	SIMPLE	l4	eq_ref	PRIMARY	PRIMARY	4	test.t13.m2	1	Using where; Using index
-1	SIMPLE	m2	ref	PRIMARY,m3	m3	8	const,test.t1.a1	1	Using index
+1	SIMPLE	m2	ref	PRIMARY,m3	PRIMARY	4	test.t1.a1	1	Using where; Using index
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.b2	1	Using where; Using index
+1	SIMPLE	t9	ref	PRIMARY	PRIMARY	1	test.t1.a4	1	
 1	SIMPLE	l3	eq_ref	PRIMARY	PRIMARY	4	test.m2.m2	1	Using where
-1	SIMPLE	t14	eq_ref	PRIMARY	PRIMARY	2	test.t1.a8	1	Using where
+1	SIMPLE	t14	ALL	PRIMARY	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	4	test.t1.a2	1	Using index
 1	SIMPLE	t15	eq_ref	PRIMARY	PRIMARY	2	test.t1.a9	1	Using where; Using index
 1	SIMPLE	t16	ref	PRIMARY	PRIMARY	2	test.t15.o1	1	Using where
 1	SIMPLE	t10	ALL	PRIMARY	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t5	eq_ref	PRIMARY	PRIMARY	4	test.t4.d1	1	Using where
+1	SIMPLE	t6	eq_ref	PRIMARY	PRIMARY	4	test.t1.a3	1	Using where; Using index
 explain select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	a4,a6,a5,a7	NULL	NULL	NULL	3	Using where
-1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	Using index
-1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.b2	1	Using where; Using index
-1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	4	test.t1.a2	1	Using index
-1	SIMPLE	t5	eq_ref	PRIMARY	PRIMARY	4	test.t4.d1	1	Using where
-1	SIMPLE	t6	eq_ref	PRIMARY	PRIMARY	4	test.t1.a3	1	Using where; Using index
 1	SIMPLE	t8	eq_ref	PRIMARY	PRIMARY	1	test.t1.a4	1	Using index
 1	SIMPLE	t7	eq_ref	PRIMARY	PRIMARY	1	test.t1.a7	1	
-1	SIMPLE	t9	ref	PRIMARY	PRIMARY	1	test.t1.a4	1	
 1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t1.a5	1	
 1	SIMPLE	t12	eq_ref	PRIMARY	PRIMARY	4	test.t11.k3	1	Using where
 1	SIMPLE	l2	eq_ref	PRIMARY	PRIMARY	4	test.t11.k4	1	Using where
-1	SIMPLE	t13	ref	PRIMARY,m3	m3	8	const,test.t1.a1	1	Using index
+1	SIMPLE	t13	ref	PRIMARY,m3	PRIMARY	4	test.t1.a1	1	Using where; Using index
+1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	Using index
 1	SIMPLE	l4	eq_ref	PRIMARY	PRIMARY	4	test.t13.m2	1	Using where; Using index
-1	SIMPLE	m2	ref	PRIMARY,m3	m3	8	const,test.t1.a1	1	Using index
+1	SIMPLE	m2	ref	PRIMARY,m3	PRIMARY	4	test.t1.a1	1	Using where; Using index
+1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.b2	1	Using where; Using index
+1	SIMPLE	t9	ref	PRIMARY	PRIMARY	1	test.t1.a4	1	
 1	SIMPLE	l3	eq_ref	PRIMARY	PRIMARY	4	test.m2.m2	1	Using where
-1	SIMPLE	t14	eq_ref	PRIMARY	PRIMARY	2	test.t1.a8	1	Using where
+1	SIMPLE	t14	ALL	PRIMARY	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t4	eq_ref	PRIMARY	PRIMARY	4	test.t1.a2	1	Using index
 1	SIMPLE	t15	eq_ref	PRIMARY	PRIMARY	2	test.t1.a9	1	Using where; Using index
 1	SIMPLE	t16	ref	PRIMARY	PRIMARY	2	test.t15.o1	1	Using where
 1	SIMPLE	t10	ALL	PRIMARY	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t5	eq_ref	PRIMARY	PRIMARY	4	test.t4.d1	1	Using where
+1	SIMPLE	t6	eq_ref	PRIMARY	PRIMARY	4	test.t1.a3	1	Using where; Using index
 drop view v1;
 drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,t16;
 #
@@ -481,7 +481,9 @@ drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,t16;
 #
 drop table if exists t1,t2,t3;
 Warnings:
-Note	1051	Unknown table 'test.t1,test.t2,test.t3'
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t3'
 create table t2(a int,unique key (a)) engine=innodb;
 create table t3(b int) engine=innodb;
 create table t1(c int,b int)engine=innodb;
@@ -496,22 +498,3 @@ natural right outer join t3;
 drop table t1,t2,t3;
 set optimizer_prune_level=@mdev4270_opl;
 set optimizer_search_depth=@mdev4270_osd;
-#
-# Bug #20939184:INNODB: UNLOCK ROW COULD NOT FIND A 2 MODE LOCK ON THE
-#               RECORD
-#
-CREATE  TABLE t1 (c1 INT, c2 INT, c3 INT, PRIMARY KEY (c1,c2) ) engine=innodb;
-CREATE  TABLE t2 (c1 INT, c2 INT, c3 INT, PRIMARY KEY (c1), KEY (c2)) engine=innodb;
-INSERT INTO t1 VALUES (1,2,3),(2,3,4),(3,4,5);
-INSERT INTO t2 SELECT * FROM t1;
-SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
-START TRANSACTION;
-SELECT * FROM t1 LEFT JOIN t2 ON t1.c2=t2.c2 AND t2.c1=1 FOR UPDATE;
-c1	c2	c3	c1	c2	c3
-1	2	3	1	2	3
-2	3	4	NULL	NULL	NULL
-3	4	5	NULL	NULL	NULL
-UPDATE t1 LEFT JOIN t2 ON t1.c1 = t2.c2 AND t2.c1 = 3 SET t1.c3 = RAND()*10;
-COMMIT;
-SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-DROP TABLE t1,t2;

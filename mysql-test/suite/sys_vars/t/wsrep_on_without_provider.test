@@ -1,5 +1,4 @@
 --source include/not_embedded.inc
---source include/have_wsrep.inc
 
 #
 # @@global.wsrep_on is not allowed if there

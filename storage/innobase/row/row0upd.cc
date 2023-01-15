@@ -465,6 +465,36 @@ upd_node_create(
 	return(node);
 }
 
+/*********************************************************************//**
+Updates the trx id and roll ptr field in a clustered index record in database
+recovery. */
+void
+row_upd_rec_sys_fields_in_recovery(
+/*===============================*/
+	rec_t*		rec,	/*!< in/out: record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
+	ulint		pos,	/*!< in: TRX_ID position in rec */
+	trx_id_t	trx_id,	/*!< in: transaction id */
+	roll_ptr_t	roll_ptr)/*!< in: roll ptr of the undo log record */
+{
+	ut_ad(rec_offs_validate(rec, NULL, offsets));
+
+	if (page_zip) {
+		page_zip_write_trx_id_and_roll_ptr(
+			page_zip, rec, offsets, pos, trx_id, roll_ptr);
+	} else {
+		byte*	field;
+		ulint	len;
+
+		field = rec_get_nth_field(rec, offsets, pos, &len);
+		ut_ad(len == DATA_TRX_ID_LEN);
+		compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
+		trx_write_trx_id(field, trx_id);
+		trx_write_roll_ptr(field + DATA_TRX_ID_LEN, roll_ptr);
+	}
+}
+
 /***********************************************************//**
 Returns TRUE if row update changes size of some field in index or if some
 field to be updated is stored externally in rec or update.
@@ -506,6 +536,11 @@ row_upd_changes_field_size_or_external(
 		ut_ad(new_len != UNIV_SQL_DEFAULT);
 
 		if (dfield_is_null(new_val) && !rec_offs_comp(offsets)) {
+			/* A bug fixed on Dec 31st, 2004: we looked at the
+			SQL NULL size from the wrong field! We may backport
+			this fix also to 4.0. The merge to 5.0 will be made
+			manually immediately after we commit this to 4.1. */
+
 			new_len = dict_col_get_sql_null_size(
 				dict_index_get_nth_col(index,
 						       upd_field->field_no),
@@ -583,6 +618,277 @@ row_upd_changes_disowned_external(
 	return(false);
 }
 
+/***********************************************************//**
+Replaces the new column values stored in the update vector to the
+record given. No field size changes are allowed. This function is
+usually invoked on a clustered index. The only use case for a
+secondary index is row_ins_sec_index_entry_by_modify() or its
+counterpart in ibuf_insert_to_index_page(). */
+void
+row_upd_rec_in_place(
+/*=================*/
+	rec_t*		rec,	/*!< in/out: record where replaced */
+	dict_index_t*	index,	/*!< in: the index the record belongs to */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const upd_t*	update,	/*!< in: update vector */
+	page_zip_des_t*	page_zip)/*!< in: compressed page with enough space
+				available, or NULL */
+{
+	const upd_field_t*	upd_field;
+	const dfield_t*		new_val;
+	ulint			n_fields;
+	ulint			i;
+
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!index->table->skip_alter_undo);
+
+	if (rec_offs_comp(offsets)) {
+#ifdef UNIV_DEBUG
+		switch (rec_get_status(rec)) {
+		case REC_STATUS_ORDINARY:
+			break;
+		case REC_STATUS_INSTANT:
+			ut_ad(index->is_instant());
+			break;
+		case REC_STATUS_NODE_PTR:
+			if (index->is_dummy
+			    && fil_page_get_type(page_align(rec))
+			    == FIL_PAGE_RTREE) {
+				/* The function rtr_update_mbr_field_in_place()
+				is generating MLOG_COMP_REC_UPDATE_IN_PLACE
+				and MLOG_REC_UPDATE_IN_PLACE records for
+				node pointer pages. */
+				break;
+			}
+			/* fall through */
+		case REC_STATUS_INFIMUM:
+		case REC_STATUS_SUPREMUM:
+			ut_ad(!"wrong record status in update");
+		}
+#endif /* UNIV_DEBUG */
+
+		rec_set_info_bits_new(rec, update->info_bits);
+	} else {
+		rec_set_info_bits_old(rec, update->info_bits);
+	}
+
+	n_fields = upd_get_n_fields(update);
+
+	for (i = 0; i < n_fields; i++) {
+		upd_field = upd_get_nth_field(update, i);
+
+		/* No need to update virtual columns for non-virtual index */
+		if (upd_fld_is_virtual_col(upd_field)
+		    && !dict_index_has_virtual(index)) {
+			continue;
+		}
+
+		new_val = &(upd_field->new_val);
+		ut_ad(!dfield_is_ext(new_val) ==
+		      !rec_offs_nth_extern(offsets, upd_field->field_no));
+
+		rec_set_nth_field(rec, offsets, upd_field->field_no,
+				  dfield_get_data(new_val),
+				  dfield_get_len(new_val));
+	}
+
+	if (page_zip) {
+		page_zip_write_rec(page_zip, rec, index, offsets, 0);
+	}
+}
+
+/*********************************************************************//**
+Parses the log data of system field values.
+@return log data end or NULL */
+byte*
+row_upd_parse_sys_vals(
+/*===================*/
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
+	ulint*		pos,	/*!< out: TRX_ID position in record */
+	trx_id_t*	trx_id,	/*!< out: trx id */
+	roll_ptr_t*	roll_ptr)/*!< out: roll ptr */
+{
+	*pos = mach_parse_compressed(&ptr, end_ptr);
+
+	if (ptr == NULL) {
+
+		return(NULL);
+	}
+
+	if (end_ptr < ptr + DATA_ROLL_PTR_LEN) {
+
+		return(NULL);
+	}
+
+	*roll_ptr = trx_read_roll_ptr(ptr);
+	ptr += DATA_ROLL_PTR_LEN;
+
+	*trx_id = mach_u64_parse_compressed(&ptr, end_ptr);
+
+	return(const_cast<byte*>(ptr));
+}
+
+/***********************************************************//**
+Writes to the redo log the new values of the fields occurring in the index. */
+void
+row_upd_index_write_log(
+/*====================*/
+	const upd_t*	update,	/*!< in: update vector */
+	byte*		log_ptr,/*!< in: pointer to mlog buffer: must
+				contain at least MLOG_BUF_MARGIN bytes
+				of free space; the buffer is closed
+				within this function */
+	mtr_t*		mtr)	/*!< in: mtr into whose log to write */
+{
+	const upd_field_t*	upd_field;
+	const dfield_t*		new_val;
+	ulint			len;
+	ulint			n_fields;
+	byte*			buf_end;
+	ulint			i;
+
+	n_fields = upd_get_n_fields(update);
+
+	buf_end = log_ptr + MLOG_BUF_MARGIN;
+
+	mach_write_to_1(log_ptr, update->info_bits);
+	log_ptr++;
+	log_ptr += mach_write_compressed(log_ptr, n_fields);
+
+	for (i = 0; i < n_fields; i++) {
+		compile_time_assert(MLOG_BUF_MARGIN > 30);
+
+		if (log_ptr + 30 > buf_end) {
+			mlog_close(mtr, log_ptr);
+
+			log_ptr = mlog_open(mtr, MLOG_BUF_MARGIN);
+			buf_end = log_ptr + MLOG_BUF_MARGIN;
+		}
+
+		upd_field = upd_get_nth_field(update, i);
+
+		new_val = &(upd_field->new_val);
+
+		len = dfield_get_len(new_val);
+
+		/* If this is a virtual column, mark it using special
+		field_no */
+		ulint	field_no = upd_fld_is_virtual_col(upd_field)
+			? REC_MAX_N_FIELDS + unsigned(upd_field->field_no)
+			: unsigned(upd_field->field_no);
+
+		log_ptr += mach_write_compressed(log_ptr, field_no);
+		log_ptr += mach_write_compressed(log_ptr, len);
+
+		if (len != UNIV_SQL_NULL) {
+			if (log_ptr + len < buf_end) {
+				memcpy(log_ptr, dfield_get_data(new_val), len);
+
+				log_ptr += len;
+			} else {
+				mlog_close(mtr, log_ptr);
+
+				mlog_catenate_string(
+					mtr,
+					static_cast<const byte*>(
+						dfield_get_data(new_val)),
+					len);
+
+				log_ptr = mlog_open(mtr, MLOG_BUF_MARGIN);
+				buf_end = log_ptr + MLOG_BUF_MARGIN;
+			}
+		}
+	}
+
+	mlog_close(mtr, log_ptr);
+}
+
+/*********************************************************************//**
+Parses the log data written by row_upd_index_write_log.
+@return log data end or NULL */
+byte*
+row_upd_index_parse(
+/*================*/
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
+	mem_heap_t*	heap,	/*!< in: memory heap where update vector is
+				built */
+	upd_t**		update_out)/*!< out: update vector */
+{
+	upd_t*		update;
+	upd_field_t*	upd_field;
+	dfield_t*	new_val;
+	ulint		len;
+	ulint		n_fields;
+	ulint		info_bits;
+	ulint		i;
+
+	if (end_ptr < ptr + 1) {
+
+		return(NULL);
+	}
+
+	info_bits = mach_read_from_1(ptr);
+	ptr++;
+	n_fields = mach_parse_compressed(&ptr, end_ptr);
+
+	if (ptr == NULL) {
+
+		return(NULL);
+	}
+
+	update = upd_create(n_fields, heap);
+	update->info_bits = info_bits;
+
+	for (i = 0; i < n_fields; i++) {
+		ulint	field_no;
+		upd_field = upd_get_nth_field(update, i);
+		new_val = &(upd_field->new_val);
+
+		field_no = mach_parse_compressed(&ptr, end_ptr);
+
+		if (ptr == NULL) {
+
+			return(NULL);
+		}
+
+		/* Check if this is a virtual column, mark the prtype
+		if that is the case */
+		if (field_no >= REC_MAX_N_FIELDS) {
+			new_val->type.prtype |= DATA_VIRTUAL;
+			field_no -= REC_MAX_N_FIELDS;
+		}
+
+		upd_field->field_no = field_no;
+
+		len = mach_parse_compressed(&ptr, end_ptr);
+
+		if (ptr == NULL) {
+
+			return(NULL);
+		}
+
+		if (len != UNIV_SQL_NULL) {
+
+			if (end_ptr < ptr + len) {
+
+				return(NULL);
+			}
+
+			dfield_set_data(new_val,
+					mem_heap_dup(heap, ptr, len), len);
+			ptr += len;
+		} else {
+			dfield_set_null(new_val);
+		}
+	}
+
+	*update_out = update;
+
+	return(const_cast<byte*>(ptr));
+}
+
 /***************************************************************//**
 Builds an update vector from those fields which in a secondary index entry
 differ from a record that has the equal ordering fields. NOTE: we compare
@@ -603,6 +909,7 @@ row_upd_build_sec_rec_difference_binary(
 	ulint		len;
 	upd_t*		update;
 	ulint		n_diff;
+	ulint		i;
 
 	/* This function is used only for a secondary index */
 	ut_a(!dict_index_is_clust(index));
@@ -616,7 +923,7 @@ row_upd_build_sec_rec_difference_binary(
 
 	n_diff = 0;
 
-	for (uint16_t i = 0; i < dtuple_get_n_fields(entry); i++) {
+	for (i = 0; i < dtuple_get_n_fields(entry); i++) {
 
 		data = rec_get_nth_field(rec, offsets, i, &len);
 
@@ -706,7 +1013,7 @@ row_upd_build_difference_binary(
 		ut_ad(rec_offs_validate(rec, index, offsets));
 	}
 
-	for (uint16_t i = 0; i < entry->n_fields; i++) {
+	for (ulint i = 0; i < entry->n_fields; i++) {
 		const byte* data = rec_get_nth_cfield(rec, index, offsets, i,
 						      &len);
 		const dfield_t* dfield = dtuple_get_nth_field(entry, i);
@@ -727,8 +1034,7 @@ row_upd_build_difference_binary(
 		}
 	}
 
-	for (uint16_t i = static_cast<uint16_t>(entry->n_fields);
-	     i < index->n_fields; i++) {
+	for (ulint i = entry->n_fields; i < index->n_fields; i++) {
 		upd_field_t* uf = upd_get_nth_field(update, n_diff++);
 		const dict_col_t* col = dict_index_get_nth_col(index, i);
 		/* upd_create() zero-initialized uf */
@@ -757,7 +1063,7 @@ row_upd_build_difference_binary(
 		ib_vcol_row vc(NULL);
 		uchar *record = vc.record(thd, index, &mysql_table);
 
-		for (uint16_t i = 0; i < n_v_fld; i++) {
+		for (ulint i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
                                 = dict_table_get_nth_v_col(index->table, i);
 
@@ -1018,7 +1324,7 @@ row_upd_index_replace_new_col_vals_index_pos(
 
 	dtuple_set_info_bits(entry, update->info_bits);
 
-	for (uint16_t i = index->n_fields; i--; ) {
+	for (unsigned i = index->n_fields; i--; ) {
 		const dict_field_t*	field;
 		const dict_col_t*	col;
 		const upd_field_t*	uf;
@@ -1076,8 +1382,7 @@ row_upd_index_replace_new_col_vals(dtuple_t *entry, const dict_index_t &index,
      uf= upd_get_field_by_field_no(update, vcol->v_pos, true);
    }
    else
-     uf= upd_get_field_by_field_no(update, static_cast<uint16_t>
-                                   (dict_col_get_clust_pos(col, &index)),
+     uf= upd_get_field_by_field_no(update, dict_col_get_clust_pos(col, &index),
                                    false);
 
    if (!uf)
@@ -1190,12 +1495,15 @@ row_upd_replace_vcol(
 		ptr += 2;
 
 		while (ptr != end_ptr) {
-			const byte* field;
-			uint32_t field_no, len, orig_len;
+			const byte*             field;
+			ulint                   field_no;
+			ulint                   len;
+			ulint                   orig_len;
+			bool			is_v;
 
 			field_no = mach_read_next_compressed(&ptr);
 
-			const bool is_v = (field_no >= REC_MAX_N_FIELDS);
+			is_v = (field_no >= REC_MAX_N_FIELDS);
 
 			if (is_v) {
 				ptr = trx_undo_read_v_idx(
@@ -1207,7 +1515,7 @@ row_upd_replace_vcol(
 			ptr = trx_undo_rec_get_col_val(
 				ptr, &field, &len, &orig_len);
 
-			if (field_no == FIL_NULL) {
+			if (field_no == ULINT_UNDEFINED) {
 				ut_ad(is_v);
 				continue;
 			}
@@ -1379,9 +1687,8 @@ row_upd_changes_ord_field_binary_func(
 				update, vcol->v_pos, true);
 		} else {
 			upd_field = upd_get_field_by_field_no(
-				update, static_cast<uint16_t>(
-					dict_col_get_clust_pos(
-						col, clust_index)),
+				update,
+				dict_col_get_clust_pos(col, clust_index),
 				false);
 		}
 
@@ -1544,7 +1851,7 @@ row_upd_changes_ord_field_binary_func(
 					/* The externally stored field
 					was not written yet. This
 					record should only be seen by
-					trx_rollback_recovered()
+					recv_recovery_rollback_active(),
 					when the server had crashed before
 					storing the field. */
 					ut_ad(thr->graph->trx->is_recovered);
@@ -2123,17 +2430,11 @@ row_upd_sec_index_entry(
 		row_ins_sec_index_entry() below */
 		if (!rec_get_deleted_flag(
 			    rec, dict_table_is_comp(index->table))) {
-			err = lock_sec_rec_modify_check_and_lock(
-				flags,
-				btr_cur_get_block(btr_cur),
-				btr_cur_get_rec(btr_cur), index, thr, &mtr);
+			err = btr_cur_del_mark_set_sec_rec(
+				flags, btr_cur, TRUE, thr, &mtr);
 			if (err != DB_SUCCESS) {
 				break;
 			}
-
-			btr_rec_set_deleted<true>(btr_cur_get_block(btr_cur),
-						  btr_cur_get_rec(btr_cur),
-						  &mtr);
 #ifdef WITH_WSREP
 			if (!referenced && foreign
 			    && wsrep_must_process_fk(node, trx)
@@ -2294,13 +2595,14 @@ row_upd_clust_rec_by_insert_inherit_func(
 	const upd_t*	update)	/*!< in: update vector */
 {
 	bool	inherit	= false;
+	ulint	i;
 
 	ut_ad(!rec == !offsets);
 	ut_ad(!rec == !index);
 	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec || rec_offs_any_extern(offsets));
 
-	for (uint16_t i = 0; i < dtuple_get_n_fields(entry); i++) {
+	for (i = 0; i < dtuple_get_n_fields(entry); i++) {
 		dfield_t*	dfield	= dtuple_get_nth_field(entry, i);
 		byte*		data;
 		ulint		len;
@@ -2351,7 +2653,7 @@ row_upd_clust_rec_by_insert_inherit_func(
 		a lock wait and we already had disowned the BLOB. */
 		ut_a(rec == NULL
 		     || !(data[BTR_EXTERN_LEN] & BTR_EXTERN_OWNER_FLAG));
-		data[BTR_EXTERN_LEN] &= byte(~BTR_EXTERN_OWNER_FLAG);
+		data[BTR_EXTERN_LEN] &= ~BTR_EXTERN_OWNER_FLAG;
 		data[BTR_EXTERN_LEN] |= BTR_EXTERN_INHERITED_FLAG;
 		/* The BTR_EXTERN_INHERITED_FLAG only matters in
 		rollback of a fresh insert. Purge will always free
@@ -2471,7 +2773,7 @@ row_upd_clust_rec_by_insert(
 				insert fails, then this disown will be undone
 				when the operation is rolled back. */
 				btr_cur_disown_inherited_fields(
-					btr_cur_get_block(btr_cur),
+					btr_cur_get_page_zip(btr_cur),
 					rec, index, offsets, node->update,
 					mtr);
 			}
@@ -2592,7 +2894,7 @@ row_upd_clust_rec(
 		goto success;
 	}
 
-	if (buf_pool.running_out()) {
+	if (buf_LRU_buf_pool_running_out()) {
 		err = DB_LOCK_TABLE_FULL;
 		goto func_exit;
 	}
@@ -2837,7 +3139,8 @@ row_upd_clust_step(
 
 		ut_ad(!dict_index_is_online_ddl(index));
 
-		dict_drop_index_tree(pcur, trx, &mtr);
+		dict_drop_index_tree(
+			btr_pcur_get_rec(pcur), pcur, trx, &mtr);
 
 		mtr.commit();
 
@@ -2847,10 +3150,7 @@ row_upd_clust_step(
 		if (btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, &mtr) !=
 		    btr_pcur_t::SAME_ALL) {
 			err = DB_ERROR;
-
-			mtr.commit();
-
-			return(err);
+			goto exit_func;
 		}
 	}
 
@@ -2972,7 +3272,7 @@ row_upd(
 	ut_ad(!thr_get_trx(thr)->in_rollback);
 
 	DBUG_PRINT("row_upd", ("table: %s", node->table->name.m_name));
-	DBUG_PRINT("row_upd", ("info bits in update vector: 0x%x",
+	DBUG_PRINT("row_upd", ("info bits in update vector: 0x" ULINTPFx,
 			       node->update ? node->update->info_bits: 0));
 	DBUG_PRINT("row_upd", ("foreign_id: %s",
 			       node->foreign ? node->foreign->id: "NULL"));
@@ -3179,42 +3479,48 @@ make_versioned_delete().
 @param[in]	vers_sys_idx	table->row_start or table->row_end */
 void upd_node_t::vers_update_fields(const trx_t *trx, ulint idx)
 {
-  ut_ad(in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
-  ut_ad(idx == table->vers_start || idx == table->vers_end);
+	ut_ad(in_mysql_interface); // otherwise needs to recalculate
+				   // node->cmpl_info
+	ut_ad(idx == table->vers_start || idx == table->vers_end);
 
-  dict_index_t *clust_index= dict_table_get_first_index(table);
-  const dict_col_t *col= dict_table_get_nth_col(table, idx);
-  ulint field_no= dict_col_get_clust_pos(col, clust_index);
-  upd_field_t *ufield;
+	dict_index_t* clust_index = dict_table_get_first_index(table);
+        const dict_col_t *col= dict_table_get_nth_col(table, idx);
+        ulint field_no= dict_col_get_clust_pos(col, clust_index);
+        upd_field_t *ufield;
 
-  for (ulint i= 0; i < update->n_fields; ++i)
-  {
-    if (update->fields[i].field_no == field_no)
-    {
-      ufield= &update->fields[i];
-      goto skip_append;
-    }
-  }
+        for (ulint i= 0; i < update->n_fields; ++i)
+        {
+          if (update->fields[i].field_no == field_no)
+          {
+            ufield= &update->fields[i];
+            goto skip_append;
+          }
+        }
 
-  /* row_create_update_node_for_mysql() pre-allocated this much.
-  At least one PK column always remains unchanged. */
-  ut_ad(update->n_fields < ulint(table->n_cols + table->n_v_cols));
+        /* row_create_update_node_for_mysql() pre-allocated this much.
+	   At least one PK column always remains unchanged. */
+	ut_ad(update->n_fields < ulint(table->n_cols + table->n_v_cols));
 
-  update->n_fields++;
-  ufield= upd_get_nth_field(update, update->n_fields - 1);
-  upd_field_set_field_no(ufield, static_cast<uint16_t>(field_no), clust_index);
+	update->n_fields++;
+        ufield= upd_get_nth_field(update, update->n_fields - 1);
+        upd_field_set_field_no(ufield, field_no, clust_index);
 
 skip_append:
   char *where= reinterpret_cast<char *>(update->vers_sys_value);
   if (col->vers_native())
+  {
     mach_write_to_8(where, trx->id);
+  }
   else
+  {
     thd_get_query_start_data(trx->mysql_thd, where);
+  }
 
   dfield_set_data(&ufield->new_val, update->vers_sys_value, col->len);
 
   for (ulint col_no= 0; col_no < dict_table_get_n_v_cols(table); col_no++)
   {
+
     const dict_v_col_t *v_col= dict_table_get_nth_v_col(table, col_no);
     if (!v_col->m_col.ord_part)
       continue;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -23,7 +23,7 @@
 #ifndef PFS_COLUMN_VALUES_H
 #define PFS_COLUMN_VALUES_H
 
-#include "m_string.h"                           /* LEX_CSTRING */
+#include "m_string.h"                           /* LEX_STRING */
 
 /**
   @file storage/perfschema/pfs_column_values.h
@@ -38,8 +38,6 @@ extern LEX_CSTRING PERFORMANCE_SCHEMA_str;
 extern LEX_CSTRING mutex_instrument_prefix;
 /** String prefix for all rwlock instruments. */
 extern LEX_CSTRING rwlock_instrument_prefix;
-/** String prefix for all sxlock instruments. */
-extern LEX_CSTRING sxlock_instrument_prefix;
 /** String prefix for all cond instruments. */
 extern LEX_CSTRING cond_instrument_prefix;
 /** String prefix for all thread instruments. */
@@ -50,12 +48,7 @@ extern LEX_CSTRING file_instrument_prefix;
 extern LEX_CSTRING stage_instrument_prefix;
 /** String prefix for all statement instruments. */
 extern LEX_CSTRING statement_instrument_prefix;
-/** String prefix for all transaction instruments. */
-extern LEX_CSTRING transaction_instrument_prefix;
-/** String prefix for all socket instruments. */
 extern LEX_CSTRING socket_instrument_prefix;
-/** String prefix for all memory instruments. */
-extern LEX_CSTRING memory_instrument_prefix;
 
 #endif
 

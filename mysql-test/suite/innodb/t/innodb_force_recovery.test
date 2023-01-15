@@ -17,33 +17,47 @@ insert into t2 values(1, 2);
 
 SET GLOBAL innodb_fast_shutdown = 0;
 
+--echo # Restart the server with innodb_force_recovery as 4.
 --let $restart_parameters= --innodb-force-recovery=4
 --source include/restart_mysqld.inc
 let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t1;
 
-begin;
+--error ER_READ_ONLY_MODE
 insert into t1 values(2, 3);
-rollback;
 
+--error ER_CANT_CREATE_TABLE
 alter table t1 add f3 int not null, algorithm=copy;
 
-alter table t1 add f4 int not null, algorithm=inplace;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 add f3 int not null, algorithm=inplace;
 
+--error ER_CANT_CREATE_TABLE
 drop index idx on t1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t1 drop index idx, algorithm=inplace;
 
+--error ER_READ_ONLY_MODE
 update t1 set f1=3 where f2=2;
 
+--error ER_CANT_CREATE_TABLE
 create table t3(f1 int not null)engine=innodb;
+
+--error ER_BAD_TABLE_ERROR
 drop table t3;
 
+--error ER_ERROR_ON_RENAME
 rename table t1 to t3;
-rename table t3 to t1;
+
+--error ER_OPEN_AS_READONLY
 truncate table t1;
 
+--error ER_OPEN_AS_READONLY
+drop table t1;
 show tables;
 
+--echo # Restart the server with innodb_force_recovery as 5.
 --let $restart_parameters= --innodb-force-recovery=5
 --source include/restart_mysqld.inc
 let $status=`SHOW ENGINE INNODB STATUS`;
@@ -68,7 +82,7 @@ update t2 set f1=3 where f2=2;
 --error ER_CANT_CREATE_TABLE
 create table t3(f1 int not null)engine=innodb;
 
---error ER_OPEN_AS_READONLY
+--error ER_BAD_TABLE_ERROR
 drop table t3;
 
 --error ER_ERROR_ON_RENAME
@@ -84,6 +98,7 @@ create schema db;
 drop schema db;
 show tables;
 
+--echo # Restart the server with innodb_force_recovery as 6.
 --let $restart_parameters= --innodb-force-recovery=6
 --source include/restart_mysqld.inc
 let $status=`SHOW ENGINE INNODB STATUS`;
@@ -121,6 +136,7 @@ truncate table t2;
 drop table t2;
 show tables;
 
+--echo # Restart the server with innodb_force_recovery=2
 --let $restart_parameters= --innodb-force-recovery=2
 --source include/restart_mysqld.inc
 let $status=`SHOW ENGINE INNODB STATUS`;
@@ -138,6 +154,7 @@ disconnect con1;
 connection default;
 --source include/kill_mysqld.inc
 
+--echo # Restart the server with innodb_force_recovery=3
 --let $restart_parameters= --innodb-force-recovery=3
 --source include/start_mysqld.inc
 let $status=`SHOW ENGINE INNODB STATUS`;

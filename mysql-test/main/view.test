@@ -130,7 +130,7 @@ select * from v2;
 drop view v100;
 
 # try to drop table with DROP VIEW
--- error ER_UNKNOWN_VIEW
+-- error ER_WRONG_OBJECT
 drop view t1;
 
 # try to drop VIEW with DROP TABLE
@@ -510,7 +510,7 @@ drop table t1;
 #
 create table t1 (a int, b int);
 create view v1 as select a, sum(b) from t1 group by a;
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 select b from v1 use index (some_index) where b=1;
 drop view v1;
 drop table t1;
@@ -1718,6 +1718,18 @@ drop view v1;
 drop table t1;
 
 #
+# using encrypt & substring_index in view (Bug#7024)
+#
+CREATE VIEW v1 AS SELECT ENCRYPT("dhgdhgd");
+disable_result_log;
+SELECT * FROM v1;
+enable_result_log;
+drop view v1;
+CREATE VIEW v1 AS SELECT SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1);
+SELECT * FROM v1;
+drop view v1;
+
+#
 # hide underlying tables names in case of imposibility to update (Bug#10773)
 #
 create table t1 (f59 int, f60 int, f61 int);
@@ -2720,9 +2732,8 @@ DROP VIEW v2,v1;
 SHOW TABLES;
 
 CREATE VIEW v1 AS SELECT id FROM t1;
---error ER_UNKNOWN_VIEW
+--error ER_WRONG_OBJECT
 DROP VIEW t1,v1;
-show warnings;
 SHOW TABLES;
 
 DROP TABLE t1;
@@ -3461,11 +3472,11 @@ drop table t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2);
 CREATE VIEW v1 AS SELECT * FROM t1;
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 USE KEY(non_existant);
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 FORCE KEY(non_existant);
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 IGNORE KEY(non_existant);
 
 DROP VIEW v1;
@@ -3620,17 +3631,17 @@ SELECT * FROM t1 USE INDEX (c2) WHERE c2=2;
 
 CREATE VIEW v1 AS SELECT c1, c2 FROM t1;
 SHOW INDEX FROM v1;
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 USE INDEX (PRIMARY) WHERE c1=2;
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 FORCE INDEX (PRIMARY) WHERE c1=2;
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 IGNORE INDEX (PRIMARY) WHERE c1=2;
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 USE INDEX (c2) WHERE c2=2;
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 FORCE INDEX (c2) WHERE c2=2;
---error ER_KEY_DOES_NOT_EXISTS
+--error ER_KEY_DOES_NOT_EXITS
 SELECT * FROM v1 IGNORE INDEX (c2) WHERE c2=2;
 
 DROP VIEW v1;
@@ -5619,7 +5630,8 @@ drop view v60;
 --echo # MDEV-15572: view.test, server crash with --big-tables=1
 --echo #
 
-set tmp_memory_table_size=0; # force on-disk tmp table
+set @save_big_tables=@@big_tables;
+set big_tables=ON;
 CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
 CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
 
@@ -5632,7 +5644,7 @@ REPLACE INTO v1 (f1, f2, f3, f4)
 
 drop view v1;
 drop table t1, t2;
-set tmp_memory_table_size=default;
+set big_tables=@save_big_tables;
 
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.

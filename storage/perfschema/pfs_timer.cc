@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -33,7 +33,6 @@ enum_timer_name idle_timer= TIMER_NAME_MICROSEC;
 enum_timer_name wait_timer= TIMER_NAME_CYCLE;
 enum_timer_name stage_timer= TIMER_NAME_NANOSEC;
 enum_timer_name statement_timer= TIMER_NAME_NANOSEC;
-enum_timer_name transaction_timer= TIMER_NAME_NANOSEC;
 
 static ulonglong cycle_v0;
 static ulonglong nanosec_v0;
@@ -175,35 +174,30 @@ void init_timers(void)
     /* Normal case. */
     stage_timer= TIMER_NAME_NANOSEC;
     statement_timer= TIMER_NAME_NANOSEC;
-    transaction_timer= TIMER_NAME_NANOSEC;
   }
   else if (microsec_to_pico != 0)
   {
     /* Windows. */
     stage_timer= TIMER_NAME_MICROSEC;
     statement_timer= TIMER_NAME_MICROSEC;
-    transaction_timer= TIMER_NAME_MICROSEC;
   }
   else if (millisec_to_pico != 0)
   {
     /* Robustness, no known cases. */
     stage_timer= TIMER_NAME_MILLISEC;
     statement_timer= TIMER_NAME_MILLISEC;
-    transaction_timer= TIMER_NAME_MILLISEC;
   }
   else if (tick_to_pico != 0)
   {
     /* Robustness, no known cases. */
     stage_timer= TIMER_NAME_TICK;
     statement_timer= TIMER_NAME_TICK;
-    transaction_timer= TIMER_NAME_TICK;
   }
   else
   {
     /* Robustness, no known cases. */
     stage_timer= TIMER_NAME_CYCLE;
     statement_timer= TIMER_NAME_CYCLE;
-    transaction_timer= TIMER_NAME_CYCLE;
   }
 
   /*
@@ -249,7 +243,7 @@ ulonglong get_timer_raw_value(enum_timer_name timer_name)
   case TIMER_NAME_TICK:
     return my_timer_ticks();
   default:
-    assert(false);
+    DBUG_ASSERT(false);
   }
   return 0;
 }
@@ -275,7 +269,7 @@ ulonglong get_timer_raw_value_and_function(enum_timer_name timer_name, timer_fct
     return my_timer_ticks();
   default:
     *fct= NULL;
-    assert(false);
+    DBUG_ASSERT(false);
   }
   return 0;
 }
@@ -303,7 +297,7 @@ ulonglong get_timer_pico_value(enum_timer_name timer_name)
     break;
   default:
     result= 0;
-    assert(false);
+    DBUG_ASSERT(false);
   }
   return result;
 }
@@ -312,8 +306,8 @@ time_normalizer* time_normalizer::get(enum_timer_name timer_name)
 {
   uint index= static_cast<uint> (timer_name);
 
-  assert(index >= FIRST_TIMER_NAME);
-  assert(index <= LAST_TIMER_NAME);
+  DBUG_ASSERT(index >= FIRST_TIMER_NAME);
+  DBUG_ASSERT(index <= LAST_TIMER_NAME);
 
   return & to_pico_data[index];
 }

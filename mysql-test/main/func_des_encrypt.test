@@ -37,24 +37,3 @@ SELECT
 DROP TABLE t1;
 
 --Echo End of 5.0 tests
-
---echo #
---echo # MDEV-23330 Server crash or ASAN negative-size-param in
---echo # my_strnncollsp_binary / SORT_FIELD_ATTR::compare_packed_varstrings
---echo #
-
-CREATE TABLE t1 (a CHAR(240), b BIT(48));
-INSERT INTO t1 VALUES ('a',b'0001'),('b',b'0010'),('c',b'0011'),('d',b'0100'),('e',b'0001'),('f',b'0101'),('g',b'0110'),('h',b'0111'),('i',b'1000'),('j',b'1001');
-SELECT DES_DECRYPT(a, 'x'), HEX(BINARY b) FROM t1 GROUP BY 1, 2 WITH ROLLUP;
-DROP TABLE t1;
-
-#
-# don't change the charset of a literal Item_string
-#
-
-CREATE TABLE t1 (a INT);
-INSERT t1 VALUES (1),(2);
-SELECT CHAR_LENGTH(a), DES_DECRYPT(a) FROM (SELECT _utf8 0xC2A2 AS a FROM t1) AS t2;
-DROP TABLE t1;
-
---Echo End of 10.5 tests

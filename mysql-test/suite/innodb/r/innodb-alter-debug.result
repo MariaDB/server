@@ -98,12 +98,3 @@ disconnect con1;
 connection default;
 UNLOCK TABLES;
 DROP TABLE t1;
-#
-# MDEV-7318 RENAME INDEX
-#
-CREATE TABLE t (c1 INT, c2 INT, KEY i2 (c2)) ENGINE=INNODB;
-SET DEBUG_DBUG= '+d,ib_rename_index_fail1';
-ALTER TABLE t RENAME INDEX i2 to x, ALGORITHM=INPLACE;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-SET DEBUG_DBUG = @saved_debug_dbug;
-DROP TABLE t;

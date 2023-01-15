@@ -15,10 +15,9 @@
 
 #ifndef JSON_WRITER_INCLUDED
 #define JSON_WRITER_INCLUDED
-
 #include "my_base.h"
 
-#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST) || defined ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+#if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
 #include <set>
 #include <stack>
 #include <string>
@@ -365,9 +364,6 @@ class Json_writer_struct
   Json_writer_struct(const Json_writer_struct&)= delete;
   Json_writer_struct& operator=(const Json_writer_struct&)= delete;
 
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-  static thread_local std::vector<bool> named_items_expectation;
-#endif
 protected:
   Json_writer* my_writer;
   Json_value_helper context;
@@ -381,9 +377,6 @@ protected:
   {
     context.init(my_writer);
     closed= false;
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    named_items_expectation.push_back(expect_named_children);
-#endif
   }
   explicit Json_writer_struct(THD *thd)
   : Json_writer_struct(thd->opt_trace.get_current_json())
@@ -394,23 +387,12 @@ public:
 
   virtual ~Json_writer_struct()
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    named_items_expectation.pop_back();
-#endif
   }
 
   bool trace_started() const
   {
     return my_writer != 0;
   }
-
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-  bool named_item_expected() const
-  {
-    return named_items_expectation.size() > 1
-        && *(named_items_expectation.rbegin() + 1);
-  }
-#endif
 };
 
 
@@ -433,9 +415,6 @@ public:
   explicit Json_writer_object(Json_writer* writer, const char *str= nullptr)
   : Json_writer_struct(writer)
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    DBUG_ASSERT(named_item_expected());
-#endif
     if (unlikely(my_writer))
     {
       if (str)
@@ -606,9 +585,6 @@ public:
   explicit Json_writer_array(Json_writer *writer, const char *str= nullptr)
     : Json_writer_struct(writer)
   {
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-    DBUG_ASSERT(!named_item_expected());
-#endif
     if (unlikely(my_writer))
     {
       if (str)

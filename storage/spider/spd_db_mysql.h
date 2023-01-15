@@ -87,10 +87,6 @@ public:
     spider_string *str,
     Time_zone *time_zone
   ) override;
-  int append_loop_check(
-    spider_string *str,
-    SPIDER_CONN *conn
-  ) override;
   int append_start_transaction(
     spider_string *str
   ) override;
@@ -195,7 +191,6 @@ public:
     spider_string *str
   ) override;
 #endif
-  bool append_charset_name_before_string() override;
 };
 
 class spider_db_mysql_util: public spider_db_mbase_util
@@ -442,7 +437,7 @@ public:
   bool is_xa_nota_error(
     int error_num
   );
-  int print_warnings(
+  void print_warnings(
     struct tm *l_time
   );
   spider_db_result *store_result(
@@ -451,7 +446,6 @@ public:
     int *error_num
   );
   spider_db_result *use_result(
-    ha_spider *spider,
     st_spider_db_request_key *request_key,
     int *error_num
   );
@@ -533,11 +527,6 @@ public:
     Time_zone *time_zone,
     int *need_mon
   );
-  bool set_loop_check_in_bulk_sql();
-  int set_loop_check(
-    int *need_mon
-  );
-  int fin_loop_check();
   int exec_simple_sql_with_result(
     SPIDER_TRX *trx,
     SPIDER_SHARE *share,
@@ -1390,15 +1379,15 @@ public:
     int link_idx
   );
   int append_explain_select_part(
-    const key_range *start_key,
-    const key_range *end_key,
+    key_range *start_key,
+    key_range *end_key,
     ulong sql_type,
     int link_idx
   );
   int append_explain_select(
     spider_string *str,
-    const key_range *start_key,
-    const key_range *end_key,
+    key_range *start_key,
+    key_range *end_key,
     ulong sql_type,
     int link_idx
   );
@@ -1527,8 +1516,8 @@ public:
     ulonglong &last_insert_id
   );
   ha_rows explain_select(
-    const key_range *start_key,
-    const key_range *end_key,
+    key_range *start_key,
+    key_range *end_key,
     int link_idx
   );
   int lock_tables(
@@ -1670,18 +1659,6 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields
-  );
-#endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  bool check_direct_update(
-    st_select_lex *select_lex,
-    longlong select_limit,
-    longlong offset_limit
-  );
-  bool check_direct_delete(
-    st_select_lex *select_lex,
-    longlong select_limit,
-    longlong offset_limit
   );
 #endif
 };

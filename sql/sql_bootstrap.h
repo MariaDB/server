@@ -23,7 +23,7 @@
   The longest query in use depends on the documentation content,
   see the file fill_help_tables.sql
 */
-#define MAX_BOOTSTRAP_QUERY_SIZE 60000
+#define MAX_BOOTSTRAP_QUERY_SIZE 20000
 /**
   The maximum size of a bootstrap query, expressed in a single line.
   Do not increase this size, use the multiline syntax instead.

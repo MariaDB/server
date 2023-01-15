@@ -1,72 +1,64 @@
-# Translation of mariadb-10.5 debconf templates to French
-# Copyright (C) 2004-2016 Debian French l10n team <debian-l10n-french@lists.debian.org>
-# This file is distributed under the same license as the mariadb-10.5 packages.
+# Translation of mysql-dfsg-* debconf templates to French
+# Copyright (C) 2004-2009 Debian French l10n team <debian-l10n-french@lists.debian.org>
+# This file is distributed under the same license as the mysql-dfsg-* packages.
 #
 # Translators:
-# Christian Perrier <bubulle@debian.org>, 2004, 2006, 2007, 2009, 2013.
-# Baptiste Jammet <baptiste@mailoo.org>, 2016.
+# Christian Perrier <bubulle@debian.org>, 2004, 2006, 2007, 2009.
 msgid ""
 msgstr ""
 "Project-Id-Version: fr\n"
-"Report-Msgid-Bugs-To: mariadb-10.5@packages.debian.org\n"
-"POT-Creation-Date: 2019-07-23 19:16-0300\n"
-"PO-Revision-Date: 2016-12-31 18:35+0100\n"
-"Last-Translator: Baptiste Jammet <baptiste@mailoo.org>\n"
+"Report-Msgid-Bugs-To: mariadb-10.4@packages.debian.org\n"
+"POT-Creation-Date: 2016-10-08 01:26+0300\n"
+"PO-Revision-Date: 2009-08-08 14:56+0200\n"
+"Last-Translator: Christian Perrier <bubulle@debian.org>\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "debian.org>\n"
-"X-Generator: Lokalize 1.5\n"
+"X-Generator: Lokalize 0.3\n"
 "Plural-Forms: Plural-Forms: nplurals=2; plural=n>1;\n"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:2001
+#: ../mariadb-server-10.4.templates:2001
 msgid "The old data directory will be saved at new location"
-msgstr "L'ancien répertoire de données sera sauvegardé à un nouvel emplacement"
+msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:2001
+#: ../mariadb-server-10.4.templates:2001
 msgid ""
 "A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
 "indicates a database binary format version that cannot automatically be "
 "upgraded (or downgraded)."
 msgstr ""
-"Un fichier nommé /var/lib/mysql/debian-*.flag existe déjà sur ce système. Le "
-"numéro indique une version de base de données au format binaire qui ne peut "
-"pas être mise à niveau (ou rétrogradée) automatiquement."
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:2001
+#: ../mariadb-server-10.4.templates:2001
 msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
 msgstr ""
-"L'ancien répertoire sera renommé en /var/lib/mysql-* et un nouveau "
-"répertoire de données sera initialisé à l'emplacement /var/lib/mysql."
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:2001
+#: ../mariadb-server-10.4.templates:2001
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
-"Veuillez exporter puis importer vos données manuellement si besoin (par "
-"exemple avec mysqldump)."
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:3001
+#: ../mariadb-server-10.4.templates:3001
 msgid "Important note for NIS/YP users"
 msgstr "Note importante pour les utilisateurs NIS/YP"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:3001
+#: ../mariadb-server-10.4.templates:3001
 msgid ""
 "Using MariaDB under NIS/YP requires a mysql user account to be added on the "
 "local system with:"
@@ -76,7 +68,7 @@ msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:3001
+#: ../mariadb-server-10.4.templates:3001
 msgid ""
 "You should also check the permissions and ownership of the /var/lib/mysql "
 "directory:"
@@ -86,13 +78,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.5.templates:4001
+#: ../mariadb-server-10.4.templates:4001
 msgid "Remove all MariaDB databases?"
 msgstr "Faut-il supprimer toutes les bases de données MariaDB ?"
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.5.templates:4001
+#: ../mariadb-server-10.4.templates:4001
 msgid ""
 "The /var/lib/mysql directory which contains the MariaDB databases is about "
 "to be removed."
@@ -102,12 +94,94 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.5.templates:4001
+#: ../mariadb-server-10.4.templates:4001
 msgid ""
 "If you're removing the MariaDB package in order to later install a more "
 "recent version or if a different mariadb-server package is already using it, "
 "the data should be kept."
 msgstr ""
-"Si vous retirez le paquet MariaDB en vue d'en installer une version plus "
-"récente ou si un autre paquet mariadb-server les utilise déjà, vous devriez "
-"les conserver."
+"Si vous prévoyez d'installer une version plus récente de MariaDB ou si un "
+"autre paquet mariadb-server les utilise déjà, vous devriez les conserver."
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+msgid "New password for the MariaDB \"root\" user:"
+msgstr "Nouveau mot de passe du superutilisateur de MariaDB :"
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+msgid ""
+"While not mandatory, it is highly recommended that you set a password for "
+"the MariaDB administrative \"root\" user."
+msgstr ""
+"Il est très fortement recommandé d'établir un mot de passe pour le compte "
+"d'administration de MariaDB (« root »)."
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+msgid "If this field is left blank, the password will not be changed."
+msgstr "Si ce champ est laissé vide, le mot de passe ne sera pas changé."
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:6001
+msgid "Repeat password for the MariaDB \"root\" user:"
+msgstr "Confirmation du mot de passe du superutilisateur de MariaDB :"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+msgid "Unable to set password for the MariaDB \"root\" user"
+msgstr ""
+"Impossible de changer le mot de passe de l'utilisateur « root » de MariaDB"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+msgid ""
+"An error occurred while setting the password for the MariaDB administrative "
+"user. This may have happened because the account already has a password, or "
+"because of a communication problem with the MariaDB server."
+msgstr ""
+"Une erreur s'est produite lors du changement de mot de passe du compte "
+"d'administration. Un mot de passe existait peut-être déjà ou il n'a pas été "
+"possible de communiquer avec le serveur MariaDB."
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+msgid "You should check the account's password after the package installation."
+msgstr ""
+"Vous devriez vérifier le mot de passe de ce compte après l'installation du "
+"paquet."
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+#, fuzzy
+#| msgid ""
+#| "Please read the /usr/share/doc/mariadb-server-10.4/README.Debian file for "
+#| "more information."
+msgid ""
+"Please read the /usr/share/doc/mariadb-server-10.4/README.Debian file for "
+"more information."
+msgstr ""
+"Veuillez consulter le fichier /usr/share/doc/mysql-server-10.4/README.Debian "
+"pour plus d'informations."
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:8001
+msgid "Password input error"
+msgstr "Erreur de saisie du mot de passe"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:8001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""
+"Le mot de passe et sa confirmation ne sont pas identiques. Veuillez "
+"recommencer."

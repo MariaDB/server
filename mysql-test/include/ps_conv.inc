@@ -159,7 +159,7 @@ select @arg01:=  c1, @arg02:=  c2, @arg03:=  c3, @arg04:=  c4,
        @arg25:= c25, @arg26:= c26, @arg27:= c27, @arg28:= c28,
        @arg29:= c29, @arg30:= c30, @arg31:= c31, @arg32:= c32
 from t9 where c1= 1 ;
-# get as much information about the parameters as possible
+# get as much informations about the parameters as possible
 --enable_metadata
 execute full_info ;
 --disable_metadata
@@ -173,7 +173,7 @@ select @arg01:=  c1, @arg02:=  c2, @arg03:=  c3, @arg04:=  c4,
        @arg25:= c25, @arg26:= c26, @arg27:= c27, @arg28:= c28,
        @arg29:= c29, @arg30:= c30, @arg31:= c31, @arg32:= c32
 from t9 where c1= 0 ;
-# get as much information about the parameters as possible
+# get as much informations about the parameters as possible
 --enable_metadata
 execute full_info ;
 --disable_metadata
@@ -190,14 +190,14 @@ prepare stmt1 from "select
 from t9 where c1= ?" ;
 set @my_key= 1 ;
 execute stmt1 using @my_key ;
-# get as much information about the parameters as possible
+# get as much informations about the parameters as possible
 --enable_metadata
 execute full_info ;
 --disable_metadata
 # now the same procedure with the record containing so many NULLs
 set @my_key= 0 ;
 execute stmt1 using @my_key ;
-# get as much information about the parameters as possible
+# get as much informations about the parameters as possible
 --enable_metadata
 execute full_info ;
 --disable_metadata
@@ -217,7 +217,7 @@ into @arg01, @arg02, @arg03, @arg04, @arg05, @arg06, @arg07, @arg08,
      @arg17, @arg18, @arg19, @arg20, @arg21, @arg22, @arg23, @arg24,
      @arg25, @arg26, @arg27, @arg28, @arg29, @arg30, @arg31, @arg32
 from t9 where c1= 1 ;
-# get as much information about the parameters as possible
+# get as much informations about the parameters as possible
 --enable_metadata
 execute full_info ;
 --disable_metadata
@@ -230,7 +230,7 @@ into @arg01, @arg02, @arg03, @arg04, @arg05, @arg06, @arg07, @arg08,
      @arg17, @arg18, @arg19, @arg20, @arg21, @arg22, @arg23, @arg24,
      @arg25, @arg26, @arg27, @arg28, @arg29, @arg30, @arg31, @arg32
 from t9 where c1= 0 ;
-# get as much information about the parameters as possible
+# get as much informations about the parameters as possible
 --enable_metadata
 execute full_info ;
 --disable_metadata
@@ -245,7 +245,7 @@ into @arg01, @arg02, @arg03, @arg04, @arg05, @arg06, @arg07, @arg08,
 from t9 where c1= ?" ;
 set @my_key= 1 ;
 execute stmt1 using @my_key ;
-# get as much information about the parameters as possible
+# get as much informations about the parameters as possible
 --enable_metadata
 execute full_info ;
 --disable_metadata
@@ -253,7 +253,7 @@ execute full_info ;
 # Bug#5034: prepared "select 1 into @arg15", second execute crashes server
 set @my_key= 0 ;
 execute stmt1 using @my_key ;
-# get as much information about the parameters as possible
+# get as much informations about the parameters as possible
 --enable_metadata
 execute full_info ;
 --disable_metadata

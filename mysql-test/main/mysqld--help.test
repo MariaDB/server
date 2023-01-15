@@ -30,14 +30,13 @@ perl;
                tls-version version.*/;
 
   # Plugins which may or may not be there:
-  @plugins=qw/innodb archive blackhole federated partition s3
+  @plugins=qw/innodb archive blackhole federated partition
               feedback debug temp-pool ssl des-key-file xtradb sequence
               thread-concurrency super-large-pages mutex-deadlock-detector
               connect null-audit aria oqgraph sphinx thread-handling
               test-sql-discovery query-cache-info
               query-response-time metadata-lock-info locales unix-socket
-              wsrep file-key-management cracklib-password-check user-variables
-              thread-pool-groups thread-pool-queues thread-pool-stats thread-pool-waits/;
+              wsrep file-key-management cracklib-password-check user-variables/;
 
   # And substitute the content some environment variables with their
   # names:

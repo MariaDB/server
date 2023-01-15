@@ -1,14 +1,3 @@
-FLUSH TABLES;
-#
-# MDEV-21892 Assertion 'index != clust_index || row_get_rec_trx_id()'
-#
-connect  con1,localhost,root;
-CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
-INSERT INTO t1 VALUES (1),(2);
-BEGIN;
-UPDATE t1 SET pk=1;
-ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
-connection default;
 #
 # MDEV-12720 recovery fails with "Generic error"
 # for ROW_FORMAT=compressed
@@ -23,12 +12,6 @@ insert into a select null, uuid() from a a, a b, a c;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 COMMIT;
 # restart
-disconnect con1;
-SELECT * FROM t1;
-pk
-1
-2
-DROP TABLE t1;
 SELECT COUNT(*) from a;
 COUNT(*)
 1010

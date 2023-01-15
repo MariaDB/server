@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -150,12 +150,12 @@ protected:
   {}
 
   void clear_object_columns();
-  int make_table_object_columns(PFS_events_waits *wait);
-  int make_file_object_columns(PFS_events_waits *wait);
-  int make_socket_object_columns(PFS_events_waits *wait);
-  int make_metadata_lock_object_columns(PFS_events_waits *wait);
+  int make_table_object_columns(volatile PFS_events_waits *wait);
+  int make_file_object_columns(volatile PFS_events_waits *wait);
+  int make_socket_object_columns(volatile PFS_events_waits *wait);
 
-  void make_row(PFS_events_waits *wait);
+  void make_row(bool thread_own_wait, PFS_thread *pfs_thread,
+                volatile PFS_events_waits *wait);
 
   /** Current row. */
   row_events_waits m_row;
@@ -167,12 +167,10 @@ protected:
 class table_events_waits_current : public table_events_waits_common
 {
 public:
-  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
-  static ha_rows get_row_count();
 
   virtual int rnd_next();
   virtual int rnd_pos(const void *pos);
@@ -192,8 +190,6 @@ private:
   /** Table share lock. */
   static THR_LOCK m_table_lock;
 
-  void make_row(PFS_thread *thread, PFS_events_waits *wait);
-
   /** Current position. */
   pos_events_waits_current m_pos;
   /** Next position. */
@@ -204,12 +200,10 @@ private:
 class table_events_waits_history : public table_events_waits_common
 {
 public:
-  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
-  static ha_rows get_row_count();
 
   virtual int rnd_next();
   virtual int rnd_pos(const void *pos);
@@ -226,8 +220,6 @@ private:
   /** Table share lock. */
   static THR_LOCK m_table_lock;
 
-  void make_row(PFS_thread *thread, PFS_events_waits *wait);
-
   /** Current position. */
   pos_events_waits_history m_pos;
   /** Next position. */
@@ -238,12 +230,10 @@ private:
 class table_events_waits_history_long : public table_events_waits_common
 {
 public:
-  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
-  static ha_rows get_row_count();
 
   virtual int rnd_next();
   virtual int rnd_pos(const void *pos);

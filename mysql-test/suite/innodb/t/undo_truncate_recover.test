@@ -3,7 +3,6 @@
 #
 
 --source include/big_test.inc
---source include/not_valgrind.inc
 # With larger innodb_page_size, the undo log tablespaces do not grow enough.
 --source include/innodb_page_size_small.inc
 --source include/have_innodb.inc
@@ -12,6 +11,7 @@
 # Tests with embedded server do not support restarting
 --source include/not_embedded.inc
 
+SET GLOBAL innodb_undo_logs = 4;
 SET GLOBAL innodb_undo_log_truncate = 1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 

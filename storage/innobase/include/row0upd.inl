@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -93,11 +93,11 @@ void
 upd_field_set_field_no(
 /*===================*/
 	upd_field_t*	upd_field,	/*!< in: update vector field */
-	uint16_t	field_no,	/*!< in: field number in a clustered
+	ulint		field_no,	/*!< in: field number in a clustered
 					index */
 	dict_index_t*	index)		/*!< in: index */
 {
-	upd_field->field_no = field_no;
+	upd_field->field_no = unsigned(field_no);
 	upd_field->orig_len = 0;
 	dict_col_copy_type(dict_index_get_nth_col(index, field_no),
 			   dfield_get_type(&upd_field->new_val));
@@ -111,11 +111,11 @@ UNIV_INLINE
 void
 upd_field_set_v_field_no(
 	upd_field_t*	upd_field,
-	uint16_t	field_no,
+	ulint		field_no,
 	dict_index_t*	index)
 {
 	ut_a(field_no < dict_table_get_n_v_cols(index->table));
-	upd_field->field_no = field_no;
+	upd_field->field_no = unsigned(field_no);
 	upd_field->orig_len = 0;
 
 	dict_col_copy_type(&dict_table_get_nth_v_col(
@@ -131,7 +131,7 @@ const upd_field_t*
 upd_get_field_by_field_no(
 /*======================*/
 	const upd_t*	update,	/*!< in: update vector */
-	uint16_t	no,	/*!< in: field_no */
+	ulint		no,	/*!< in: field_no */
 	bool		is_virtual) /*!< in: if it is virtual column */
 {
 	ulint	i;
@@ -150,4 +150,48 @@ upd_get_field_by_field_no(
 	}
 
 	return(NULL);
+}
+
+/*********************************************************************//**
+Updates the trx id and roll ptr field in a clustered index record when
+a row is updated or marked deleted. */
+UNIV_INLINE
+void
+row_upd_rec_sys_fields(
+/*===================*/
+	rec_t*		rec,	/*!< in/out: record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
+				uncompressed part will be updated, or NULL */
+	dict_index_t*	index,	/*!< in: clustered index */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const trx_t*	trx,	/*!< in: transaction */
+	roll_ptr_t	roll_ptr)/*!< in: DB_ROLL_PTR to the undo log */
+{
+	ut_ad(index->is_primary());
+	ut_ad(rec_offs_validate(rec, index, offsets));
+
+	if (UNIV_LIKELY_NULL(page_zip)) {
+		page_zip_write_trx_id_and_roll_ptr(page_zip, rec, offsets,
+						   index->db_trx_id(),
+						   trx->id, roll_ptr);
+	} else {
+		ulint	offset = index->trx_id_offset;
+
+		if (!offset) {
+			offset = row_get_trx_id_offset(index, offsets);
+		}
+
+		compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
+
+		/* During IMPORT the trx id in the record can be in the
+		future, if the .ibd file is being imported from another
+		instance. During IMPORT roll_ptr will be 0. */
+		ut_ad(roll_ptr == 0
+		      || lock_check_trx_id_sanity(
+			      trx_read_trx_id(rec + offset),
+			      rec, index, offsets));
+
+		trx_write_trx_id(rec + offset, trx->id);
+		trx_write_roll_ptr(rec + offset + DATA_TRX_ID_LEN, roll_ptr);
+	}
 }

@@ -356,7 +356,7 @@ fts_load_default_stopword(
 		new_word.nodes = ib_vector_create(
 			allocator, sizeof(fts_node_t), 4);
 
-		str.f_len = strlen(word);
+		str.f_len = ut_strlen(word);
 		str.f_str = reinterpret_cast<byte*>(word);
 
 		fts_string_dup(&new_word.text, &str, heap);
@@ -860,7 +860,16 @@ fts_drop_index(
 		doc_id_t	current_doc_id;
 		doc_id_t	first_doc_id;
 
+		/* If we are dropping the only FTS index of the table,
+		remove it from optimize thread */
+		fts_optimize_remove_table(table);
+
 		DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
+
+		while (index->index_fts_syncing
+		       && !trx_is_interrupted(trx)) {
+			DICT_BG_YIELD(trx);
+		}
 
 		current_doc_id = table->fts->cache->next_doc_id;
 		first_doc_id = table->fts->cache->first_doc_id;
@@ -878,6 +887,10 @@ fts_drop_index(
 		index_cache = fts_find_index_cache(cache, index);
 
 		if (index_cache != NULL) {
+			while (index->index_fts_syncing
+			       && !trx_is_interrupted(trx)) {
+				DICT_BG_YIELD(trx);
+			}
 			if (index_cache->words) {
 				fts_words_free(index_cache->words);
 				rbt_free(index_cache->words);
@@ -1291,7 +1304,7 @@ fts_cache_node_add_positions(
 		} else if (new_size < 48) {
 			new_size = 48;
 		} else {
-			new_size = new_size * 6 / 5;
+			new_size = (ulint)(1.2 * new_size);
 		}
 
 		ilist = static_cast<byte*>(ut_malloc_nokey(new_size));
@@ -1449,7 +1462,7 @@ fts_drop_table(
 
 		dict_table_close(table, TRUE, FALSE);
 
-		/* Pass nonatomic=false (don't allow data dict unlock),
+		/* Pass nonatomic=false (dont allow data dict unlock),
 		because the transaction may hold locks on SYS_* tables from
 		previous calls to fts_drop_table(). */
 		error = row_drop_table_for_mysql(table_name, trx,
@@ -3569,7 +3582,7 @@ fts_add_doc_by_id(
 				mtr_start(&mtr);
 
 				if (i < num_idx - 1) {
-					ut_d(auto status=)
+					ut_d(btr_pcur_t::restore_status status=)
 					  btr_pcur_restore_position(
 					      BTR_SEARCH_LEAF, doc_pcur, &mtr);
 					ut_ad(status == btr_pcur_t::SAME_ALL);
@@ -4197,8 +4210,7 @@ fts_sync_commit(
 			<< ": SYNC time: "
 			<< (time(NULL) - sync->start_time)
 			<< " secs: elapsed "
-			<< static_cast<double>(n_nodes)
-			/ static_cast<double>(elapsed_time)
+			<< (double) n_nodes / elapsed_time
 			<< " ins/sec";
 	}
 
@@ -4332,6 +4344,8 @@ begin_sync:
 
 		DBUG_EXECUTE_IF("fts_instrument_sync_before_syncing",
 				os_thread_sleep(300000););
+		index_cache->index->index_fts_syncing = true;
+
 		error = fts_sync_index(sync, index_cache);
 
 		if (error != DB_SUCCESS) {
@@ -4376,6 +4390,13 @@ end_sync:
 	}
 
 	rw_lock_x_lock(&cache->lock);
+	/* Clear fts syncing flags of any indexes in case sync is
+	interrupted */
+	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
+		static_cast<fts_index_cache_t*>(
+			ib_vector_get(cache->indexes, i))
+			->index->index_fts_syncing = false;
+	}
 
 	sync->interrupted = false;
 	sync->in_progress = false;
@@ -4568,8 +4589,8 @@ fts_get_token_size(
 		int	ctype;
 		int	mbl;
 
-		mbl = cs->ctype(
-			&ctype,
+		mbl = cs->cset->ctype(
+			cs, &ctype,
 			reinterpret_cast<uchar*>(start),
 			reinterpret_cast<uchar*>(end));
 
@@ -5304,9 +5325,7 @@ fts_update_doc_id(
 
 		clust_index = dict_table_get_first_index(table);
 
-		ufield->field_no = static_cast<unsigned>(
-			dict_col_get_clust_pos(col, clust_index))
-			& dict_index_t::MAX_N_FIELDS;
+		ufield->field_no = dict_col_get_clust_pos(col, clust_index);
 		dict_col_copy_type(col, dfield_get_type(&ufield->new_val));
 
 		/* It is possible we update record that has
@@ -5333,7 +5352,7 @@ fts_t::fts_t(
 	added_synced(0), dict_locked(0),
 	add_wq(NULL),
 	cache(NULL),
-	doc_col(ULINT_UNDEFINED), in_queue(false), sync_message(false),
+	doc_col(ULINT_UNDEFINED), in_queue(false),
 	fts_heap(heap)
 {
 	ut_a(table->fts == NULL);
@@ -5979,7 +5998,11 @@ fts_valid_stopword_table(
 
 		return(NULL);
 	} else {
-		if (strcmp(dict_table_get_col_name(table, 0), "value")) {
+		const char*     col_name;
+
+		col_name = dict_table_get_col_name(table, 0);
+
+		if (ut_strcmp(col_name, "value")) {
 			ib::error() << "Invalid column name for stopword"
 				" table " << stopword_table_name << ". Its"
 				" first column must be named as 'value'.";
@@ -6109,7 +6132,7 @@ fts_load_stopword(
 		if (!reload) {
 			str.f_n_char = 0;
 			str.f_str = (byte*) stopword_to_use;
-			str.f_len = strlen(stopword_to_use);
+			str.f_len = ut_strlen(stopword_to_use);
 
 			error = fts_config_set_value(
 				trx, &fts_table, FTS_STOPWORD_TABLE_NAME, &str);

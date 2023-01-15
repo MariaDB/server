@@ -29,7 +29,11 @@
 #include <ssl_compat.h>
 #include <cstdint>
 
+#ifdef HAVE_WOLFSSL
 #define CTX_ALIGN 16
+#else
+#define CTX_ALIGN 0
+#endif
 
 class MyCTX
 {
@@ -96,9 +100,8 @@ class MyCTX_nopad : public MyCTX
 {
 public:
   const uchar *key;
-  uint klen, source_tail_len;
+  uint klen, buf_len;
   uchar oiv[MY_AES_BLOCK_SIZE];
-  uchar source_tail[MY_AES_BLOCK_SIZE];
 
   MyCTX_nopad() : MyCTX() { }
   ~MyCTX_nopad() { }
@@ -109,7 +112,7 @@ public:
     compile_time_assert(MY_AES_CTX_SIZE >= sizeof(MyCTX_nopad));
     this->key= key;
     this->klen= klen;
-    this->source_tail_len= 0;
+    this->buf_len= 0;
     if (ivlen)
       memcpy(oiv, iv, ivlen);
     DBUG_ASSERT(ivlen == 0 || ivlen == sizeof(oiv));
@@ -120,41 +123,26 @@ public:
     return res;
   }
 
-  /** Update last partial source block, stored in source_tail array. */
-  void update_source_tail(const uchar* src, uint slen)
-  {
-    if (!slen)
-      return;
-    uint new_tail_len= (source_tail_len + slen) % MY_AES_BLOCK_SIZE;
-    if (new_tail_len)
-    {
-      if (slen + source_tail_len < MY_AES_BLOCK_SIZE)
-      {
-        memcpy(source_tail + source_tail_len, src, slen);
-      }
-      else
-      {
-        DBUG_ASSERT(slen > new_tail_len);
-        memcpy(source_tail, src + slen - new_tail_len, new_tail_len);
-      }
-    }
-    source_tail_len= new_tail_len;
-  }
-
   int update(const uchar *src, uint slen, uchar *dst, uint *dlen)
   {
-    update_source_tail(src, slen);
+    buf_len+= slen;
     return MyCTX::update(src, slen, dst, dlen);
   }
 
   int finish(uchar *dst, uint *dlen)
   {
-    if (source_tail_len)
+    buf_len %= MY_AES_BLOCK_SIZE;
+    if (buf_len)
     {
+      uchar *buf= EVP_CIPHER_CTX_buf_noconst(ctx);
       /*
         Not much we can do, block ciphers cannot encrypt data that aren't
         a multiple of the block length. At least not without padding.
         Let's do something CTR-like for the last partial block.
+
+        NOTE this assumes that there are only buf_len bytes in the buf.
+        If OpenSSL will change that, we'll need to change the implementation
+        of this class too.
       */
       uchar mask[MY_AES_BLOCK_SIZE];
       uint mlen;
@@ -166,10 +154,10 @@ public:
         return rc;
       DBUG_ASSERT(mlen == sizeof(mask));
 
-      for (uint i=0; i < source_tail_len; i++)
-        dst[i]= source_tail[i] ^ mask[i];
+      for (uint i=0; i < buf_len; i++)
+        dst[i]= buf[i] ^ mask[i];
     }
-    *dlen= source_tail_len;
+    *dlen= buf_len;
     return MY_AES_OK;
   }
 };

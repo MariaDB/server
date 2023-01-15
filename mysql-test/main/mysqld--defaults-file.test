@@ -4,15 +4,12 @@
 
 source include/not_embedded.inc;
 source include/not_windows.inc;
-source include/not_aix.inc;
 
 # All these tests refer to configuration files that do not exist
 
---replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 --error 1
 exec $MYSQLD --defaults-file=/path/with/no/extension --print-defaults 2>&1;
 
---replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 --error 1
 exec $MYSQLD --defaults-file=/path/with.ext --print-defaults 2>&1;
 
@@ -38,7 +35,7 @@ exec $MYSQLD --defaults-file=no_extension --print-defaults 2>&1;
 --echo #
 
 --echo # Test on `defaults-file`
---replace_result $MYSQLTEST_REAL_VARDIR MYSQLTEST_VARDIR
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 exec $MYSQLD --defaults-file=$MYSQLTEST_VARDIR/my.cnf --help --verbose | grep -A 1 'Default options are read';
 
 --echo # Test on `defaults-extra-file`

@@ -37,8 +37,7 @@ injector::transaction::transaction(MYSQL_BIN_LOG *log, THD *thd)
   LOG_INFO log_info;
   log->get_current_log(&log_info);
   /* !!! binlog_pos does not follow RAII !!! */
-  m_start_pos.m_file_name= my_strdup(key_memory_binlog_pos,
-                                     log_info.log_file_name, MYF(0));
+  m_start_pos.m_file_name= my_strdup(log_info.log_file_name, MYF(0));
   m_start_pos.m_file_pos= log_info.pos;
 
   m_thd->lex->start_transaction_opt= 0; /* for begin_trans() */
@@ -100,7 +99,6 @@ int injector::transaction::commit()
 }
 
 
-#ifdef TO_BE_DELETED
 int injector::transaction::use_table(server_id_type sid, table tbl)
 {
   DBUG_ENTER("injector::transaction::use_table");
@@ -112,12 +110,12 @@ int injector::transaction::use_table(server_id_type sid, table tbl)
 
   server_id_type save_id= m_thd->variables.server_id;
   m_thd->set_server_id(sid);
-  DBUG_ASSERT(tbl.is_transactional() == tbl.get_table()->file->row_logging_has_trans);
-  error= m_thd->binlog_write_table_map(tbl.get_table(), 0);
+  error= m_thd->binlog_write_table_map(tbl.get_table(),
+                                       tbl.is_transactional());
   m_thd->set_server_id(save_id);
   DBUG_RETURN(error);
 }
-#endif
+
 
 
 injector::transaction::binlog_pos injector::transaction::start_pos() const

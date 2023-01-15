@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -21,36 +21,30 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
-  @file storage/perfschema/table_file_summary_by_instance.cc
+  @file storage/perfschema/table_file_summary.cc
   Table FILE_SUMMARY_BY_INSTANCE (implementation).
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_file_summary_by_instance.h"
 #include "pfs_global.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_file_summary_by_instance::m_table_lock;
-
-PFS_engine_table_share_state
-table_file_summary_by_instance::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_file_summary_by_instance::m_share=
 {
   { C_STRING_WITH_LEN("file_summary_by_instance") },
   &pfs_truncatable_acl,
-  table_file_summary_by_instance::create,
+  &table_file_summary_by_instance::create,
   NULL, /* write_row */
   table_file_summary_by_instance::delete_all_rows,
-  table_file_summary_by_instance::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE file_summary_by_instance("
@@ -78,10 +72,7 @@ table_file_summary_by_instance::m_share=
                       "SUM_TIMER_MISC BIGINT unsigned not null comment 'Total wait time of all miscellaneous operations that are timed.',"
                       "MIN_TIMER_MISC BIGINT unsigned not null comment 'Minimum wait time of all miscellaneous operations that are timed.',"
                       "AVG_TIMER_MISC BIGINT unsigned not null comment 'Average wait time of all miscellaneous operations that are timed.',"
-                      "MAX_TIMER_MISC BIGINT unsigned not null comment 'Maximum wait time of all miscellaneous operations that are timed.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "MAX_TIMER_MISC BIGINT unsigned not null comment 'Maximum wait time of all miscellaneous operations that are timed.')") }
 };
 
 PFS_engine_table* table_file_summary_by_instance::create(void)
@@ -93,12 +84,6 @@ int table_file_summary_by_instance::delete_all_rows(void)
 {
   reset_file_instance_io();
   return 0;
-}
-
-ha_rows
-table_file_summary_by_instance::get_row_count(void)
-{
-  return global_file_container.get_row_count();
 }
 
 table_file_summary_by_instance::table_file_summary_by_instance()
@@ -116,14 +101,17 @@ int table_file_summary_by_instance::rnd_next(void)
 {
   PFS_file *pfs;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_file_iterator it= global_file_container.iterate(m_pos.m_index);
-  pfs= it.scan_next(& m_pos.m_index);
-  if (pfs != NULL)
+  for (m_pos.set_at(&m_next_pos);
+       m_pos.m_index < file_max;
+       m_pos.next())
   {
-    make_row(pfs);
-    m_next_pos.set_after(&m_pos);
-    return 0;
+    pfs= &file_array[m_pos.m_index];
+    if (pfs->m_lock.is_populated())
+    {
+      make_row(pfs);
+      m_next_pos.set_after(&m_pos);
+      return 0;
+    }
   }
 
   return HA_ERR_END_OF_FILE;
@@ -134,15 +122,14 @@ int table_file_summary_by_instance::rnd_pos(const void *pos)
   PFS_file *pfs;
 
   set_position(pos);
+  DBUG_ASSERT(m_pos.m_index < file_max);
+  pfs= &file_array[m_pos.m_index];
 
-  pfs= global_file_container.get(m_pos.m_index);
-  if (pfs != NULL)
-  {
-    make_row(pfs);
-    return 0;
-  }
+  if (! pfs->m_lock.is_populated())
+    return HA_ERR_RECORD_DELETED;
 
-  return HA_ERR_RECORD_DELETED;
+  make_row(pfs);
+  return 0;
 }
 
 /**
@@ -151,7 +138,7 @@ int table_file_summary_by_instance::rnd_pos(const void *pos)
 */
 void table_file_summary_by_instance::make_row(PFS_file *pfs)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   PFS_file_class *safe_class;
 
   m_row_exists= false;
@@ -188,7 +175,7 @@ int table_file_summary_by_instance::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 0);
+  DBUG_ASSERT(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {
@@ -276,7 +263,7 @@ int table_file_summary_by_instance::read_row_values(TABLE *table,
         set_field_ulonglong(f, m_row.m_io_stat.m_misc.m_waits.m_max);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }

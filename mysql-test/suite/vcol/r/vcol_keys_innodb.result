@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'InnoDB';
+SET @@session.storage_engine = 'InnoDB';
 #            - UNIQUE KEY
 #            - INDEX
 #            - FULLTEXT INDEX
@@ -239,7 +239,7 @@ col_dec decimal(18,9) not null default 0,
 col_enum enum('','a','b','c','d','e','f','foo','bar') not null default '',
 col_date date not null default '1900-01-01',
 col_timestamp timestamp(3) not null default '1971-01-01 00:00:00',
-vcol_datetime datetime as (truncate(col_datetime,0)) virtual,
+vcol_datetime datetime as (col_datetime) virtual,
 vcol_dec decimal(18,9) zerofill as (col_dec) virtual,
 vcol_bit bit(63) as (col_bit) virtual,
 vcol_char binary(51) as (col_char) virtual,
@@ -257,6 +257,11 @@ insert into t1 (col_varchar,col_int,col_datetime,col_time,col_blob,col_bit,col_y
 ('foo',1,'2010-05-08 13:08:12.034783','18:32:14','foo',b'0111110101001001',1992,'f',0.2,'','1994-12-26','2019-01-11 00:00:00'),
 ('bar',6,'1900-01-01 00:00:00','00:00:00','bar',b'10011000001101011000101',1985,'b',0.7,'','2028-04-06','1971-01-01 00:00:00');
 alter table t1 add index(vcol_datetime);
+Warnings:
+Warning	1901	Function or expression '`col_datetime`' cannot be used in the GENERATED ALWAYS AS clause of `vcol_datetime`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+Warning	1901	Function or expression '`col_datetime`' cannot be used in the GENERATED ALWAYS AS clause of `vcol_datetime`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
 drop table t1;
 create table t1 (
 pk int,

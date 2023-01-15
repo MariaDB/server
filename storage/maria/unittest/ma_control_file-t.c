@@ -114,7 +114,7 @@ static CONTROL_FILE_ERROR local_ma_control_file_open(void)
 {
   CONTROL_FILE_ERROR error;
   error_handler_hook= my_ignore_message;
-  error= ma_control_file_open(TRUE, TRUE, TRUE);
+  error= ma_control_file_open(TRUE, TRUE);
   error_handler_hook= default_error_handler_hook;
   return error;
 }
@@ -579,11 +579,10 @@ static void version(void)
 }
 
 static my_bool
-get_one_option(const struct my_option *opt,
-	       const char *argument __attribute__((unused)),
-	       const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument __attribute__((unused)))
 {
-  switch(opt->id) {
+  switch(optid) {
   case 'V':
     version();
     exit(0);

@@ -71,9 +71,10 @@ int maria_init(void)
     trnman_end_trans_hook= _ma_trnman_end_trans_hook;
     maria_create_trn_hook= dummy_maria_create_trn_hook;
   }
-  my_hash_init(PSI_INSTRUMENT_ME, &maria_stored_state, &my_charset_bin, 32, 0,
-               sizeof(LSN), 0, (my_hash_free_key) history_state_free, 0);
-  DBUG_PRINT("info",("dummy_transaction_object: %p", &dummy_transaction_object));
+  my_hash_init(&maria_stored_state, &my_charset_bin, 32,
+            0, sizeof(LSN), 0, (my_hash_free_key) history_state_free, 0);
+  DBUG_PRINT("info",("dummy_transaction_object: %p",
+                     &dummy_transaction_object));
   return 0;
 }
 
@@ -87,13 +88,12 @@ void maria_end(void)
     maria_inited= maria_multi_threaded= FALSE;
     ft_free_stopwords();
     ma_checkpoint_end();
-    if (translog_status == TRANSLOG_OK && !aria_readonly)
+    if (translog_status == TRANSLOG_OK)
     {
       translog_soft_sync_end();
       translog_sync();
     }
-    if ((trid= trnman_get_max_trid()) > max_trid_in_control_file &&
-        !aria_readonly)
+    if ((trid= trnman_get_max_trid()) > max_trid_in_control_file)
     {
       /*
         Store max transaction id into control file, in case logs are removed

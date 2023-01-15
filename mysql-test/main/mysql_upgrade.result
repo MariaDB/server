@@ -778,18 +778,18 @@ FLUSH PRIVILEGES;
 #
 This installation of MariaDB is already upgraded to MariaDB .
 There is no need to run mysql_upgrade again for MariaDB .
-Looking for 'mariadb' as: mariadb
+Looking for 'mysql' as: mysql
 This installation of MariaDB is already upgraded to MariaDB .
 There is no need to run mysql_upgrade again for MariaDB .
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
 #
-Looking for 'mariadb' as: mariadb
+Looking for 'mysql' as: mysql
 Empty or non existent ...mysql_upgrade_info. Assuming mysql_upgrade has to be run!
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
 #
-Looking for 'mariadb' as: mariadb
+Looking for 'mysql' as: mysql
 This installation of MariaDB is already upgraded to MariaDB .
 There is no need to run mysql_upgrade again for MariaDB .
 This installation of MariaDB is already upgraded to MariaDB .
@@ -1007,62 +1007,3 @@ connection default;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.4 tests
-#
-# Check that mysql_upgrade can be run on mysqldump
-# of mysql schema from previous versions
-#
-call mtr.add_suppression("innodb_table_stats has length mismatch in the column name table_name");
-#
-# Upgrade from version 5.5
-#
-# Loading dump of 5.5 mysql schema
-# Running mysql_upgrade
-# Checking that mysql.user is accessible and returns some data
-SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
-mysql.user has data
-1
-#
-# Upgrade from version 10.0
-#
-# Loading dump of 10.0 mysql schema
-# Running mysql_upgrade
-# Checking that mysql.user is accessible and returns some data
-SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
-mysql.user has data
-1
-#
-# Upgrade from version 10.1
-#
-# Loading dump of 10.1 mysql schema
-# Running mysql_upgrade
-# Checking that mysql.user is accessible and returns some data
-SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
-mysql.user has data
-1
-#
-# Upgrade from version 10.2
-#
-# Loading dump of 10.2 mysql schema
-# Running mysql_upgrade
-# Checking that mysql.user is accessible and returns some data
-SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
-mysql.user has data
-1
-#
-# Upgrade from version 10.3
-#
-# Loading dump of 10.3 mysql schema
-# Running mysql_upgrade
-# Checking that mysql.user is accessible and returns some data
-SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
-mysql.user has data
-1
-#
-# Upgrade from version 10.4
-#
-# Loading dump of 10.4 mysql schema
-# Running mysql_upgrade
-# Checking that mysql.user is accessible and returns some data
-SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
-mysql.user has data
-1

@@ -185,16 +185,3 @@ OPTIMIZE TABLE t1;
 --disconnect con1
 --connection default
 DROP TABLE t1, t2;
-
---echo #
---echo # MDEV-22829 SIGSEGV in _ma_reset_history on LOCK
---echo #
-
-CREATE TABLE t1 (f1 INT) ENGINE=Aria;
-CREATE TABLE t2 (f2 INT) ENGINE=Aria;
-LOCK TABLES t2 WRITE, t1 WRITE;
-INSERT INTO t1 VALUES (1);
---error ER_BAD_FIELD_ERROR
-CREATE TRIGGER ai AFTER INSERT ON t1 FOR EACH ROW UPDATE t1 SET v=1 WHERE b=new.a;
-UNLOCK TABLES;
-DROP TABLE t1, t2;

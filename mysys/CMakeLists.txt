@@ -16,7 +16,7 @@
 
 INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/mysys)
 
-SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
+SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
                 get_password.c
 				errors.c hash.c list.c
                                 mf_cache.c mf_dirname.c mf_fn_ext.c
@@ -39,116 +39,23 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
                                 tree.c typelib.c base64.c my_memmem.c
                                 my_getpagesize.c
                                 guess_malloc_library.c
-				lf_alloc-pin.c lf_dynarray.c lf_hash.cc
+				lf_alloc-pin.c lf_dynarray.c lf_hash.c
                                 safemalloc.c my_new.cc
 				my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c my_context.c psi_noop.c
-                                my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
-                                file_logger.c my_dlerror.c   crc32/crc32c.cc)
+                                my_atomic_writes.c my_cpu.c my_likely.c
+                                file_logger.c my_dlerror.c)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
     my_winthread.c
-    my_wintoken.c
     my_wincond.c
     my_winerr.c
     my_winfile.c
     my_conio.c
     my_minidump.cc
     my_win_popen.cc)
-ENDIF()
-
-IF(MSVC)
-  SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_x86.c)
-  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    SET (MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32c_amd64.cc)
-  ENDIF()
-  ADD_DEFINITIONS(-DHAVE_SSE42 -DHAVE_PCLMUL)
-  IF(CLANG_CL)
-    SET_SOURCE_FILES_PROPERTIES(crc32/crc32_x86.c PROPERTIES COMPILE_FLAGS "-msse4.2 -mpclmul")
-  ENDIF()
-ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|i386|i686")
-  MY_CHECK_CXX_COMPILER_FLAG(-msse4.2)
-  MY_CHECK_CXX_COMPILER_FLAG(-mpclmul)
-  CHECK_INCLUDE_FILE(cpuid.h HAVE_CPUID_H)
-  CHECK_INCLUDE_FILE(x86intrin.h HAVE_X86INTRIN_H)
-  IF(have_CXX__msse4.2 AND HAVE_CPUID_H)
-    ADD_DEFINITIONS(-DHAVE_SSE42)
-    IF (have_CXX__mpclmul AND HAVE_X86INTRIN_H)
-      ADD_DEFINITIONS(-DHAVE_PCLMUL)
-      SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_x86.c)
-      SET_SOURCE_FILES_PROPERTIES(crc32/crc32_x86.c PROPERTIES COMPILE_FLAGS "-msse4.2 -mpclmul")
-      IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-	SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32c_amd64.cc)
-	SET_SOURCE_FILES_PROPERTIES(crc32/crc32c_amd64.cc PROPERTIES COMPILE_FLAGS "-msse4.2 -mpclmul")
-      ENDIF()
-    ENDIF()
-  ENDIF()
-ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
-  IF(CMAKE_COMPILER_IS_GNUCC)
-    include(CheckCXXSourceCompiles)
-
-    CHECK_CXX_SOURCE_COMPILES("
-    #define CRC32CX(crc, value) __asm__(\"crc32cx %w[c], %w[c], %x[v]\":[c]\"+r\"(crc):[v]\"r\"(value))
-    asm(\".arch_extension crc\");
-    unsigned int foo(unsigned int ret) {
-      CRC32CX(ret, 0);
-      return ret;
-    }
-    #include <sys/auxv.h>
-    int main() { foo(0);
-    #ifdef __linux__
-    getauxval(AT_HWCAP);
-    #else
-    unsigned long v;
-    elf_aux_info(AT_HWCAP, &v, sizeof(v));
-    #endif
-    }" HAVE_ARMV8_CRC)
-
-    CHECK_CXX_SOURCE_COMPILES("
-    asm(\".arch_extension crypto\");
-    unsigned int foo(unsigned int ret) {
-      __asm__(\"pmull  v2.1q,          v2.1d,  v1.1d\");
-      return ret;
-    }
-    #include <sys/auxv.h>
-    int main() { foo(0);
-    #ifdef __linux__
-    getauxval(AT_HWCAP);
-    #else
-    unsigned long v;
-    elf_aux_info(AT_HWCAP, &v, sizeof(v));
-    #endif
-    }" HAVE_ARMV8_CRYPTO)
-
-    CHECK_C_COMPILER_FLAG(-march=armv8-a+crc+crypto HAVE_ARMV8_CRC_CRYPTO_MARCH)
-
-    IF(HAVE_ARMV8_CRC_CRYPTO_MARCH)
-      CHECK_INCLUDE_FILE(arm_acle.h HAVE_ARM_ACLE_H -march=armv8-a+crc+crypto)
-      IF(HAVE_ARM_ACLE_H)
-       ADD_DEFINITIONS(-DHAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
-      ENDIF()
-      IF(HAVE_ARMV8_CRC)
-        ADD_DEFINITIONS(-DHAVE_ARMV8_CRC)
-      ENDIF()
-      IF(HAVE_ARMV8_CRYPTO)
-        ADD_DEFINITIONS(-DHAVE_ARMV8_CRYPTO)
-      ENDIF()
-      SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_arm64.c)
-      SET_SOURCE_FILES_PROPERTIES(crc32/crc32_arm64.c PROPERTIES
-        COMPILE_FLAGS "-march=armv8-a+crc+crypto")
-    ENDIF()
-  ENDIF()
-ENDIF()
-
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64" OR CMAKE_SYSTEM_NAME MATCHES AIX)
-  SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_ppc64.c crc32/crc32c_ppc.c)
-  SET_SOURCE_FILES_PROPERTIES(crc32/crc32_ppc64.c crc32/crc32c_ppc.c PROPERTIES
-        COMPILE_FLAGS "${COMPILE_FLAGS} -maltivec -mvsx -mpower8-vector -mcrypto -mpower8-vector")
-  ADD_DEFINITIONS(-DHAVE_POWER8 -DHAS_ALTIVEC)
-ELSE()
-  SET (MYSYS_SOURCES ${MYSYS_SOURCES} crc32ieee.cc)
 ENDIF()
 
 IF(UNIX)
@@ -159,14 +66,17 @@ IF(HAVE_ALARM)
  SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_alarm.c)
 ENDIF()
 
+IF(HAVE_LINUX_LARGE_PAGES)
+ SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_largepage.c)
+ENDIF()
+
 IF(HAVE_MLOCK)
  SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_lockmem.c)
 ENDIF()
 
 ADD_CONVENIENCE_LIBRARY(mysys ${MYSYS_SOURCES})
-MAYBE_DISABLE_IPO(mysys)
 TARGET_LINK_LIBRARIES(mysys dbug strings ${ZLIB_LIBRARY}
- ${LIBNSL} ${LIBM} ${LIBRT} ${CMAKE_DL_LIBS} ${LIBSOCKET} ${LIBEXECINFO})
+ ${LIBNSL} ${LIBM} ${LIBRT} ${CMAKE_DL_LIBS} ${LIBSOCKET} ${LIBEXECINFO} ${CRC32_LIBRARY})
 DTRACE_INSTRUMENT(mysys)
 
 IF (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)

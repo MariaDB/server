@@ -329,9 +329,12 @@ flush tables t1 with read lock;
 handler t1 read a next;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 unlock tables;
+#
+# Sic: lost handler position.
+#
 handler t1 read a next;
 a
-3
+1
 handler t1 close;
 drop table t1;
 #
@@ -555,10 +558,3 @@ ERROR HY000: Table 'v1' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1;
-#
-# Test FLUSH THREADS
-#
-flush threads;
-show status like "Threads_cached";
-Variable_name	Value
-Threads_cached	0

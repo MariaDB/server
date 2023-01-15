@@ -25,7 +25,7 @@ exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
 exec ln -s $datadir/mysql $MYSQLTEST_VARDIR/tmp/foo;
 set debug_sync='now SIGNAL go';
 connection default;
-replace_regex / '.*\/tmp\// 'MYSQLTEST_VARDIR\/tmp\// /31/20/ /40/20/ /85/20/ /20.*/20 <errmsg>)/;
+replace_regex / '.*\/tmp\// 'MYSQLTEST_VARDIR\/tmp\// /31/20/ /40/20/ /20.*/20 <errmsg>)/;
 error 29;
 reap;
 flush tables;
@@ -49,15 +49,12 @@ exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
 exec ln -s $datadir/mysql $MYSQLTEST_VARDIR/tmp/foo;
 set debug_sync='now SIGNAL run';
 connection default;
-replace_regex / '.*\/test\// '.\/test\// /31/20/ /40/20/ /85/20/ /20.*/20 <errmsg>)/;
+replace_regex / '.*\/test\// '.\/test\// /31/20/ /40/20/ /20.*/20 <errmsg>)/;
 error ER_FILE_NOT_FOUND;
 reap;
 flush tables;
 drop table if exists t1;
 exec rm -r $MYSQLTEST_VARDIR/tmp/foo;
 
-# Under Valgrind, this could display a warning ER_FILE_NOT_FOUND
---disable_warnings
 drop table mysql.t1;
---enable_warnings
 set debug_sync='RESET';

@@ -8,7 +8,7 @@ set global innodb_stats_persistent_sample_pages=100;
 --source include/have_innodb.inc
 --source include/no_valgrind_without_big.inc
 
-SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+SET SESSION STORAGE_ENGINE='InnoDB';
 
 select @@global.use_stat_tables;
 select @@session.use_stat_tables;
@@ -84,7 +84,7 @@ use test;
 set use_stat_tables=@save_use_stat_tables;
 
 
-SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
+SET SESSION STORAGE_ENGINE=DEFAULT;
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=

@@ -1454,161 +1454,23 @@ void set_zero_time(MYSQL_TIME *tm, enum enum_mysql_timestamp_type time_type)
 
 
 /*
-  A formatting routine to print a 2 digit zero padded number.
-  It prints 2 digits at a time, which gives a performance improvement.
-  The idea is taken from "class TwoDigitWriter" in MySQL.
+  Helper function for datetime formatting.
+  Format number as string, left-padded with 0.
 
-  The old implementation printed one digit at a time, using the division
-  and the remainder operators, which appeared to be slow.
-  It's cheaper to have a cached array of 2-digit numbers
-  in their string representation.
-
-  Benchmark results showed a 10% to 23% time reduce for these queries:
-    SELECT BENCHMARK(10*1000*1000,CONCAT(TIME'10:20:30'));
-    SELECT BENCHMARK(10*1000*1000,CONCAT(DATE'2001-01-01'));
-    SELECT BENCHMARK(10*1000*1000,CONCAT(TIMESTAMP'2001-01-01 10:20:30'));
-    SELECT BENCHMARK(10*1000*1000,CONCAT(TIME'10:20:30.123456'));
-    SELECT BENCHMARK(10*1000*1000,CONCAT(TIMESTAMP'2001-01-01 10:20:30.123456'));
-  (depending on the exact data type and fractional precision).
-
-  The array has extra elements for values 100..255.
-  This is done for safety. If the caller passes a value
-  outside of the expected range 0..99, the value will be printed as "XX".
-
-  Part2:
-
-  As an additional improvement over "class TwoDigitWriter", we store
-  the string representations of the numbers in an array uint16[256]
-  instead of char[512]. This allows to copy data using int2store(),
-  which copies two bytes at a time on x86 and gives an additional
-  7% to 26% time reduce over copying the two bytes separately.
-
-  The total time reduce is 15% to 38% on the above queries.
-
-  The bytes in the following array are swapped:
-  e.g.  0x3130 in two_digit_numbers[1] means the following:
-  - 0x31 is '1' (the left byte, the right digit)
-  - 0x30 is '0' (the right byte, the left digit)
-  int2store() puts the lower byte first, so the output string becomes '01'.
-*/
-static const uint16 two_digit_numbers[256]=
-{
-  /* 0..99 */
-  0x3030,0x3130,0x3230,0x3330,0x3430,0x3530,0x3630,0x3730,0x3830,0x3930,
-  0x3031,0x3131,0x3231,0x3331,0x3431,0x3531,0x3631,0x3731,0x3831,0x3931,
-  0x3032,0x3132,0x3232,0x3332,0x3432,0x3532,0x3632,0x3732,0x3832,0x3932,
-  0x3033,0x3133,0x3233,0x3333,0x3433,0x3533,0x3633,0x3733,0x3833,0x3933,
-  0x3034,0x3134,0x3234,0x3334,0x3434,0x3534,0x3634,0x3734,0x3834,0x3934,
-  0x3035,0x3135,0x3235,0x3335,0x3435,0x3535,0x3635,0x3735,0x3835,0x3935,
-  0x3036,0x3136,0x3236,0x3336,0x3436,0x3536,0x3636,0x3736,0x3836,0x3936,
-  0x3037,0x3137,0x3237,0x3337,0x3437,0x3537,0x3637,0x3737,0x3837,0x3937,
-  0x3038,0x3138,0x3238,0x3338,0x3438,0x3538,0x3638,0x3738,0x3838,0x3938,
-  0x3039,0x3139,0x3239,0x3339,0x3439,0x3539,0x3639,0x3739,0x3839,0x3939,
-  /* 100..199 - safety */
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  /* 200..255 - safety */
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-  0x5858,0x5858,0x5858,0x5858,0x5858,0x5858,
-};
-
-static inline char* fmt_number2(uint8 val, char *out)
-{
-  int2store(out, two_digit_numbers[val]);
-  return out + 2;
-}
-
-
-/*
-  We tried the same trick with a char array of 16384 zerofill 4-digit numbers,
-  with 10000 elements with numbers 0000..9999, and a tail filled with "XXXX".
-
-  Benchmark results for a RelWithDebInfo build:
-
-  SELECT BENCHMARK(10*1000*1000,CONCAT(TIMESTAMP'2001-01-01 10:20:30.123456'));
-  - 0.379 sec (current)
-  - 0.369 sec (array)
-
-  SELECT BENCHMARK(10*1000*1000,CONCAT(DATE'2001-01-01'));
-  - 0.225 sec (current)
-  - 0.219 sec (array)
-
-  It demonstrated an additional 3% performance imrovement one these queries.
-  However, as the array size is too huge, we afraid that it will flush data
-  from the CPU memory cache, which under real load may affect negatively.
-
-  Let's keep using the fmt_number4() version with division and remainder
-  for now. This can be revised later. We could try some smaller array,
-  e.g. for YEARs in the range 1970..2098 (fitting into a 256 element array).
-*/
-/*
-static inline char* fmt_number4(uint16 val, char *out)
-{
-  const char *src= four_digit_numbers + (val & 0x3FFF) * 4;
-  memcpy(out, src, 4);
-  return out + 4;
-}
+  The reason to use own formatting rather than sprintf() is performance - in a
+  datetime benchmark it helped to reduced the datetime formatting overhead 
+  from ~30% down to ~4%.
 */
 
-
-/*
-  A formatting routine to print a 4 digit zero padded number.
-*/
-static inline char* fmt_number4(uint16 val, char *out)
+static char* fmt_number(uint val, char *out, uint digits)
 {
-  out= fmt_number2((uint8) (val / 100), out);
-  out= fmt_number2((uint8) (val % 100), out);
-  return out;
-}
-
-
-/*
-  A formatting routine to print a 6 digit zero padded number.
-*/
-static inline char* fmt_number6(uint val, char *out)
-{
-  out= fmt_number2((uint8) (val / 10000), out);
-  val%= 10000;
-  out= fmt_number2((uint8) (val / 100),   out);
-  out= fmt_number2((uint8) (val % 100),   out);
-  return out;
-}
-
-
-static char* fmt_usec(uint val, char *out, uint digits)
-{
-  switch (digits)
+  uint i;
+  for(i= 0; i < digits; i++)
   {
-  case 1:
-    *out++= '0' + (val % 10);
-    return out;
-  case 2:
-    return fmt_number2((uint8) val, out);
-  case 3:
-    *out++= '0' + (val / 100) % 10;
-    return fmt_number2((uint8) (val % 100), out);
-  case 4:
-    return fmt_number4((uint16) val, out);
-  case 5:
-    *out++= '0' + (val / 10000) % 10;
-    return fmt_number4((uint16) (val % 10000), out);
-  case 6:
-    return fmt_number6(val, out);
+    out[digits-i-1]= '0' + val%10;
+    val/=10;
   }
-  DBUG_ASSERT(0);
-  return out;
+  return out + digits;
 }
 
 
@@ -1618,13 +1480,13 @@ static int my_mmssff_to_str(const MYSQL_TIME *ltime, char *to, uint fsp)
   if (fsp == AUTO_SEC_PART_DIGITS)
     fsp= ltime->second_part ? TIME_SECOND_PART_DIGITS : 0;
   DBUG_ASSERT(fsp <= TIME_SECOND_PART_DIGITS);
-  pos= fmt_number2((uint8) ltime->minute, pos);
+  pos= fmt_number(ltime->minute, pos, 2);
   *pos++= ':';
-  pos= fmt_number2((uint8) ltime->second, pos);
+  pos= fmt_number(ltime->second, pos, 2);
   if (fsp)
   {
     *pos++= '.';
-    pos= fmt_usec((uint)sec_part_shift(ltime->second_part, fsp), pos, fsp);
+    pos= fmt_number((uint)sec_part_shift(ltime->second_part, fsp), pos, fsp);
   }
   return (int) (pos - to);
 }
@@ -1644,7 +1506,7 @@ int my_interval_DDhhmmssff_to_str(const MYSQL_TIME *ltime, char *to, uint fsp)
     pos= longlong10_to_str((longlong) hour / 24, pos, 10);
     *pos++= ' ';
   }
-  pos= fmt_number2((uint8) (hour % 24), pos);
+  pos= fmt_number(hour % 24, pos, 2);
   *pos++= ':';
   pos+= my_mmssff_to_str(ltime, pos, fsp);
   *pos= 0;
@@ -1676,7 +1538,7 @@ int my_time_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
     /* Need more than 2 digits for hours in string representation. */
     pos= longlong10_to_str((longlong)hour, pos, 10);
   else
-    pos= fmt_number2((uint8) hour, pos);
+    pos= fmt_number(hour, pos, 2);
 
   *pos++= ':';
   pos+= my_mmssff_to_str(l_time, pos, digits);
@@ -1688,11 +1550,11 @@ int my_time_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
 int my_date_to_str(const MYSQL_TIME *l_time, char *to)
 {
   char *pos=to;
-  pos= fmt_number4((uint16) l_time->year, pos);
+  pos= fmt_number(l_time->year, pos, 4);
   *pos++='-';
-  pos= fmt_number2((uint8) l_time->month, pos);
+  pos= fmt_number(l_time->month, pos, 2);
   *pos++='-';
-  pos= fmt_number2((uint8) l_time->day, pos);
+  pos= fmt_number(l_time->day, pos, 2);
   *pos= 0;
   return (int)(pos - to);
 }
@@ -1701,13 +1563,13 @@ int my_date_to_str(const MYSQL_TIME *l_time, char *to)
 int my_datetime_to_str(const MYSQL_TIME *l_time, char *to, uint digits)
 {
   char *pos= to;
-  pos= fmt_number4((uint16) l_time->year, pos);
+  pos= fmt_number(l_time->year, pos, 4);
   *pos++='-';
-  pos= fmt_number2((uint8) l_time->month, pos);
+  pos= fmt_number(l_time->month, pos, 2);
   *pos++='-';
-  pos= fmt_number2((uint8) l_time->day, pos);
+  pos= fmt_number(l_time->day, pos, 2);
   *pos++=' ';
-  pos= fmt_number2((uint8) l_time->hour, pos);
+  pos= fmt_number(l_time->hour, pos, 2);
   *pos++= ':';
   pos+= my_mmssff_to_str(l_time, pos, digits);
   *pos= 0;
@@ -1763,7 +1625,7 @@ int my_timeval_to_str(const struct timeval *tm, char *to, uint dec)
   if (dec)
   {
     *pos++= '.';
-    pos= fmt_usec((uint) sec_part_shift(tm->tv_usec, dec), pos, dec);
+    pos= fmt_number((uint) sec_part_shift(tm->tv_usec, dec), pos, dec);
   }
   *pos= '\0';
   return (int) (pos - to);

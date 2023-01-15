@@ -70,7 +70,6 @@ int run_test(const char *filename)
   uchar read_record[MAX_REC_LENGTH];
   int upd=10;
   ha_rows hrows;
-  page_range pages;
   
   /* Define a column for NULLs and DEL markers*/
   
@@ -257,7 +256,7 @@ int run_test(const char *filename)
   max_range.key= record+1;
   max_range.length= 1000;                       /* Big enough */
   max_range.flag= HA_READ_KEY_EXACT;
-  hrows= mi_records_in_range(file, 0, &min_range, &max_range, &pages);
+  hrows= mi_records_in_range(file, 0, &min_range, &max_range);
   printf("     %ld rows\n", (long) hrows);
 
   if (mi_close(file)) goto err;

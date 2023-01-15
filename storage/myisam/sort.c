@@ -190,12 +190,11 @@ int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages,
     }
 
     if ((sort_keys= ((uchar **)
-                     my_malloc(PSI_INSTRUMENT_ME,
-                               (size_t) (keys*(sort_length+sizeof(char*))+
+                     my_malloc((size_t) (keys*(sort_length+sizeof(char*))+
                                          HA_FT_MAXBYTELEN), MYF(0)))))
     {
-      if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &buffpek, sizeof(BUFFPEK),
-                                maxbuffer, MY_MIN(maxbuffer/2, 1000), MYF(0)))
+      if (my_init_dynamic_array(&buffpek, sizeof(BUFFPEK), maxbuffer,
+                                MY_MIN(maxbuffer/2, 1000), MYF(0)))
       {
 	my_free(sort_keys);
         sort_keys= 0;
@@ -407,14 +406,12 @@ static my_bool thr_find_all_keys_exec(MI_SORT_PARAM *sort_param)
       }
       while ((maxbuffer= (uint) (idx/(keys-1)+1)) != maxbuffer_org);
     }
-    if ((sort_keys= (uchar**) my_malloc(PSI_INSTRUMENT_ME,
-                    (size_t)(keys * (sort_length + sizeof(char*)) +
+    if ((sort_keys= (uchar**) my_malloc((size_t)(keys * (sort_length + sizeof(char*)) +
                    ((sort_param->keyinfo->flag & HA_FULLTEXT) ?
                     HA_FT_MAXBYTELEN : 0)), MYF(0))))
     {
-      if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &sort_param->buffpek,
-                                sizeof(BUFFPEK), maxbuffer,
-                                MY_MIN(maxbuffer / 2, 1000), MYF(0)))
+      if (my_init_dynamic_array(&sort_param->buffpek, sizeof(BUFFPEK),
+                                maxbuffer, MY_MIN(maxbuffer / 2, 1000), MYF(0)))
       {
         my_free(sort_keys);
         sort_keys= NULL;          /* Safety against double free on error. */
@@ -610,8 +607,7 @@ int thr_write_keys(MI_SORT_PARAM *sort_param)
         length=param->sort_buffer_length;
         while (length >= MIN_SORT_BUFFER)
         {
-          if ((mergebuf= my_malloc(PSI_INSTRUMENT_ME,
-                                   (size_t) length, MYF(0))))
+          if ((mergebuf= my_malloc((size_t) length, MYF(0))))
               break;
           length=length*3/4;
         }

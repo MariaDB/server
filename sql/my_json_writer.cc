@@ -1,4 +1,4 @@
-/* Copyright (C) 2014, 2020, MariaDB Corporation.
+/* Copyright (C) 2014 SkySQL Ab, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -217,7 +217,7 @@ void Json_writer::add_size(longlong val)
 void Json_writer::add_double(double val)
 {
   char buf[64];
-  size_t len= my_snprintf(buf, sizeof(buf), "%-.11lg", val);
+  size_t len= my_snprintf(buf, sizeof(buf), "%lg", val);
   add_unquoted_str(buf, len);
 }
 
@@ -293,10 +293,6 @@ void Json_writer::add_str(const String &str)
 {
   add_str(str.ptr(), str.length());
 }
-
-#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
-thread_local std::vector<bool> Json_writer_struct::named_items_expectation;
-#endif
 
 Json_writer_temp_disable::Json_writer_temp_disable(THD *thd_arg)
 {

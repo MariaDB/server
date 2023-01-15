@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -106,17 +106,45 @@ split_rtree_node(
 	int			n_dim,		/*!< in: dimensions. */
 	uchar*			first_rec);	/*!< in: the first rec. */
 
-/** Compare two minimum bounding rectangles.
-@param mode   comparison operator
+/*************************************************************//**
+Compares two keys a and b depending on nextflag
+nextflag can contain these flags:
    MBR_INTERSECT(a,b)  a overlaps b
    MBR_CONTAIN(a,b)    a contains b
    MBR_DISJOINT(a,b)   a disjoint b
    MBR_WITHIN(a,b)     a within   b
    MBR_EQUAL(a,b)      All coordinates of MBRs are equal
    MBR_DATA(a,b)       Data reference is the same
-@param b first MBR
-@param a second MBR
-@retval 0 if the predicate holds
-@retval 1 if the precidate does not hold */
-int rtree_key_cmp(page_cur_mode_t mode, const void *b, const void *a);
+Returns 0 on success.  */
+int
+rtree_key_cmp(
+/*==========*/
+	page_cur_mode_t	mode,	/*!< in: compare method. */
+	const uchar*	b,	/*!< in: first key. */
+	int		b_len,	/*!< in: first key len. */
+	const uchar*	a,	/*!< in: second key. */
+	int		a_len);	/*!< in: second key len. */
+
+/*************************************************************//**
+Calculates MBR_AREA(a+b) - MBR_AREA(a)
+Note: when 'a' and 'b' objects are far from each other,
+the area increase can be really big, so this function
+can return 'inf' as a result.  */
+double
+rtree_area_increase(
+	const uchar*	a,		/*!< in: first mbr. */
+	const uchar*	b,		/*!< in: second mbr. */
+	int		a_len,		/*!< in: mbr length. */
+	double*		ab_area);	/*!< out: increased area. */
+
+/** Calculates overlapping area
+@param[in]	a	mbr a
+@param[in]	b	mbr b
+@param[in]	mbr_len	mbr length
+@return overlapping area */
+double
+rtree_area_overlapping(
+	const uchar*	a,
+	const uchar*	b,
+	int		mbr_len);
 #endif

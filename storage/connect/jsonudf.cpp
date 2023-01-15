@@ -5313,7 +5313,7 @@ char *jbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		PCSZ  key;
 		PJOB  jobp;
 		PJVAL jvp = MakeValue(g, args, 0, &top);
-		(void) jvp->GetJson();          // XXX Should be removed?
+		PJSON jsp __attribute__((unused)) = jvp->GetJson();
 
 		if (CheckPath(g, args, top, jvp, 2))
 			PUSH_WARNING(g->Message);
@@ -5954,7 +5954,7 @@ char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(g->Message[0] != '\0' ? g->Message : "Unexpected error");
+		PUSH_WARNING(*g->Message ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -6082,7 +6082,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (g->Message[0] != '\0')
+		if (*g->Message)
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");

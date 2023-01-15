@@ -30,7 +30,7 @@
 #define HAVE_GETMNTENT
 #endif
 #include <sql_class.h>
-#include <sql_i_s.h>
+#include <table.h>
 #include <sql_acl.h>                            /* check_global_access() */
 
 /*
@@ -58,22 +58,20 @@ typedef struct statfs st_info;
 
 bool schema_table_store_record(THD *thd, TABLE *table);
 
+namespace
+{
 
 struct st_mysql_information_schema disks_table_info = { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
 
-
-namespace Show {
-
 ST_FIELD_INFO disks_table_fields[]=
 {
-  Column("Disk",      Varchar(PATH_MAX), NOT_NULL),
-  Column("Path",      Varchar(PATH_MAX), NOT_NULL),
-  Column("Total",     SLonglong(32),     NOT_NULL), // Total amount available
-  Column("Used",      SLonglong(32),     NOT_NULL), // Amount of space used
-  Column("Available", SLonglong(32),     NOT_NULL), // Amount available to users other than root.
-  CEnd()
+    { "Disk",      PATH_MAX, MYSQL_TYPE_STRING, 0, 0 ,0, 0 },
+    { "Path",      PATH_MAX, MYSQL_TYPE_STRING, 0, 0 ,0, 0 },
+    { "Total",           32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Total amount available
+    { "Used",            32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Amount of space used
+    { "Available",       32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Amount available to users other than root.
+    { 0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0 }
 };
-
 
 static int disks_table_add_row_stat(
                                     THD* pThd,
@@ -264,7 +262,7 @@ static int disks_table_deinit(void *ptr __attribute__((unused)))
     return 0;
 }
 
-} // namespace Show
+}
 
 extern "C"
 {
@@ -277,8 +275,8 @@ maria_declare_plugin(disks)
     "Johan Wikman, Daniel Black",      /* author */
     "Disk space information",          /* description */
     PLUGIN_LICENSE_GPL,                /* license type */
-    Show::disks_table_init,            /* init function */
-    Show::disks_table_deinit,          /* deinit function */
+    disks_table_init,                  /* init function */
+    disks_table_deinit,                /* deinit function */
     0x0102,                            /* version = 1.2 */
     NULL,                              /* no status variables */
     NULL,                              /* no system variables */

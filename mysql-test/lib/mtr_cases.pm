@@ -64,8 +64,8 @@ my $plugin_suitedir_regex;
 my $overlay_regex;
 
 if (-d '../sql') {
-  @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test', 'storage/*/*/mysql-test', );
-  $overlay_regex= '\b(?:storage|plugin|storage[/][^/]*)/(\w+)/mysql-test\b';
+  @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test');
+  $overlay_regex= '\b(?:storage|plugin)/(\w+)/mysql-test\b';
 } else {
   @plugin_suitedirs= ('mysql-test/plugin/*');
   $overlay_regex= '\bmysql-test/plugin/(\w+)\b';
@@ -747,7 +747,7 @@ sub collect_one_test_case {
     if ( $enable_disabled )
     {
       # User has selected to run all disabled tests
-      mtr_report(" - $tinfo->{name} will be run although it's been disabled\n",
+      mtr_report(" - $tinfo->{name} wil be run although it's been disabled\n",
 		 "  due to '$disable'");
     }
     else

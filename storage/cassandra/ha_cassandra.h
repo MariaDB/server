@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2012, 2020, MariaDB Corporation.
+   Copyright (c) 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -129,13 +129,13 @@ public:
     The name of the index type that will be used for display.
     Don't implement this method unless you really have indexes.
    */
-  const char *index_type(uint) override { return "HASH"; }
+  const char *index_type(uint inx) { return "HASH"; }
 
   /** @brief
     This is a list of flags that indicate what functionality the storage engine
     implements. The current table flags are documented in handler.h
   */
-  ulonglong table_flags() const override
+  ulonglong table_flags() const
   {
     return HA_BINLOG_STMT_CAPABLE |
            HA_REC_NOT_IN_SEQ |
@@ -157,7 +157,7 @@ public:
     If all_parts is set, MySQL wants to know the flags for the combined
     index, up to and including 'part'.
   */
-  ulong index_flags(uint, uint, bool) const override
+  ulong index_flags(uint inx, uint part, bool all_parts) const
   {
     return 0;
   }
@@ -169,11 +169,11 @@ public:
     send. Return *real* limits of your storage engine here; MySQL will do
     min(your_limits, MySQL_limits) automatically.
    */
-  uint max_supported_record_length() const override {return HA_MAX_REC_LENGTH;}
+  uint max_supported_record_length() const { return HA_MAX_REC_LENGTH; }
 
   /* Support only one Primary Key, for now */
-  uint max_supported_keys()          const override { return 1; }
-  uint max_supported_key_parts()     const override { return 1; }
+  uint max_supported_keys()          const { return 1; }
+  uint max_supported_key_parts()     const { return 1; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -184,48 +184,42 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_key_length() const override
-  { return 16*1024; /* just to return something*/ }
+  uint max_supported_key_length()    const { return 16*1024; /* just to return something*/ }
 
-  int index_init(uint idx, bool sorted) override;
+  int index_init(uint idx, bool sorted);
 
   int index_read_map(uchar * buf, const uchar * key,
                      key_part_map keypart_map,
-                     enum ha_rkey_function find_flag) override;
+                     enum ha_rkey_function find_flag);
 
   /** @brief
     Called in test_quick_select to determine if indexes should be used.
   */
-  double scan_time() override
-  { return (double) (stats.records+stats.deleted) / 20.0+10; }
+  virtual double scan_time() { return (double) (stats.records+stats.deleted) / 20.0+10; }
 
   /** @brief
     This method will never be called if you do not implement indexes.
   */
-  double read_time(uint, uint, ha_rows rows) override
+  virtual double read_time(uint, uint, ha_rows rows)
   { return (double) rows /  20.0+1; }
 
-  void start_bulk_insert(ha_rows rows, uint flags) override;
-  int end_bulk_insert() override;
+  virtual void start_bulk_insert(ha_rows rows, uint flags);
+  virtual int end_bulk_insert();
 
-  int reset() override;
+  virtual int reset();
 
 
   int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                            uint n_ranges, uint mode, HANDLER_BUFFER *buf)
-    override;
-  int multi_range_read_next(range_id_t *range_info) override;
+                            uint n_ranges, uint mode, HANDLER_BUFFER *buf);
+  int multi_range_read_next(range_id_t *range_info);
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost)
-    override;
+                                      uint *flags, Cost_estimate *cost);
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz,
-                                uint *flags, Cost_estimate *cost)
-    override;
-  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size)
-    override;
+                                uint *flags, Cost_estimate *cost);
+  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
 
 private:
   bool source_exhausted;
@@ -242,12 +236,12 @@ private:
   CASSANDRA_TYPE_DEF * get_cassandra_field_def(char *cass_name,
                                                int cass_name_length);
 public:
-  int open(const char *name, int mode, uint test_if_locked) override;
-  int close() override;
+  int open(const char *name, int mode, uint test_if_locked);
+  int close(void);
 
-  int write_row(const uchar *buf) override;
-  int update_row(const uchar *old_data, const uchar *new_data) override;
-  int delete_row(const uchar *buf) override;
+  int write_row(const uchar *buf);
+  int update_row(const uchar *old_data, const uchar *new_data);
+  int delete_row(const uchar *buf);
 
   /** @brief
     Unlike index_init(), rnd_init() can be called two consecutive times
@@ -257,31 +251,28 @@ public:
     cursor to the start of the table; no need to deallocate and allocate
     it again. This is a required method.
   */
-  int rnd_init(bool scan) override;
-  int rnd_end() override;
-  int rnd_next(uchar *buf) override;
-  int rnd_pos(uchar *buf, uchar *pos) override;
-  void position(const uchar *record) override;
-  int info(uint) override;
-  int delete_all_rows() override;
-  ha_rows records_in_range(uint, const key_range *min_key,
-                           const key_range *max_key,
-                           page_range *res) override
-  { return HA_POS_ERROR; /* Range scans are not supported */ }
-
+  int rnd_init(bool scan);                                      //required
+  int rnd_end();
+  int rnd_next(uchar *buf);                                     ///< required
+  int rnd_pos(uchar *buf, uchar *pos);                          ///< required
+  void position(const uchar *record);                           ///< required
+  int info(uint);                                               ///< required
+  int delete_all_rows(void);
+  ha_rows records_in_range(uint inx, key_range *min_key,
+                           key_range *max_key);
   int create(const char *name, TABLE *form,
-             HA_CREATE_INFO *create_info) override;
+             HA_CREATE_INFO *create_info);                      ///< required
   bool check_if_incompatible_data(HA_CREATE_INFO *info,
-                                  uint table_changes) override;
+                                  uint table_changes);
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-                             enum thr_lock_type lock_type) override;
+                             enum thr_lock_type lock_type);     ///< required
 
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
                                      qc_engine_callback
                                      *engine_callback,
-                                     ulonglong *engine_data) override
+                                     ulonglong *engine_data)
   {
     /* 
       Do not put data from Cassandra tables into query cache (because there 

@@ -6,7 +6,6 @@ This file is part of TokuDB
 
 
 Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
-Copyright (c) 2020, MariaDB Corporation.
 
     TokuDBis is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License, version 2,
@@ -728,7 +727,8 @@ static inline uchar* pack_toku_blob(
                        max_num_bytes/charset->mbmaxlen : max_num_bytes);
     if (length > local_char_length)
     {
-      local_char_length= charset->charpos(
+      local_char_length= my_charpos(
+        charset, 
         blob_buf, 
         blob_buf+length,
         local_char_length
@@ -817,7 +817,8 @@ static uchar* pack_toku_varstring_from_desc(
                        key_part_length/charset->mbmaxlen : key_part_length);
     if (length > local_char_length)
     {
-      local_char_length= charset->charpos(
+      local_char_length= my_charpos(
+        charset, 
         from_desc, 
         from_desc+length,
         local_char_length
@@ -879,7 +880,8 @@ static inline uchar* pack_toku_varstring(
                        max_num_bytes/charset->mbmaxlen : max_num_bytes);
     if (length > local_char_length)
     {
-      local_char_length= charset->charpos(
+      local_char_length= my_charpos(
+        charset, 
         from_mysql+length_bytes_in_mysql, 
         from_mysql+length_bytes_in_mysql+length,
         local_char_length
@@ -915,7 +917,8 @@ static inline int cmp_toku_string(
 
     charset = get_charset_from_num(charset_number);
 
-    ret_val = charset->strnncollsp(
+    ret_val = charset->coll->strnncollsp(
+        charset,
         a_buf, 
         a_num_bytes,
         b_buf, 

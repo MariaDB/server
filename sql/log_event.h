@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -35,11 +35,6 @@
 
 #include <my_bitmap.h>
 #include "rpl_constants.h"
-#include <vector>
-#include <string>
-#include <functional>
-#include <memory>
-#include <map>
 
 #ifdef MYSQL_CLIENT
 #include "sql_const.h"
@@ -222,7 +217,6 @@ class String;
 #define GTID_HEADER_LEN       19
 #define GTID_LIST_HEADER_LEN   4
 #define START_ENCRYPTION_HEADER_LEN 0
-#define XA_PREPARE_HEADER_LEN 0
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -508,15 +502,32 @@ class String;
   be written to the binlog. OPTIONS_WRITTEN_TO_BIN_LOG could be
   written into the Format_description_log_event, so that if later we
   don't want to replicate a variable we did replicate, or the
-  contrary, it's doable. But it should not be too hard to deduct
-  the value of OPTIONS_WRITTEN_TO_BIN_LOG from the master's version.
+  contrary, it's doable. But it should not be too hard to decide once
+  for all of what we replicate and what we don't, among the fixed 32
+  bits of thd->options.
 
-  This is done in deduct_options_written_to_bin_log().
-  You *must* update it, when changing the definition below.
+  I (Guilhem) have read through every option's usage, and it looks
+  like OPTION_AUTO_IS_NULL and OPTION_NO_FOREIGN_KEYS are the only
+  ones which alter how the query modifies the table. It's good to
+  replicate OPTION_RELAXED_UNIQUE_CHECKS too because otherwise, the
+  slave may insert data slower than the master, in InnoDB.
+  OPTION_BIG_SELECTS is not needed (the slave thread runs with
+  max_join_size=HA_POS_ERROR) and OPTION_BIG_TABLES is not needed
+  either, as the manual says (because a too big in-memory temp table
+  is automatically written to disk).
 */
-#define OPTIONS_WRITTEN_TO_BIN_LOG (OPTION_EXPLICIT_DEF_TIMESTAMP |\
-   OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
-   OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT | OPTION_IF_EXISTS)
+#define OPTIONS_WRITTEN_TO_BIN_LOG \
+  (OPTION_AUTO_IS_NULL | OPTION_NO_FOREIGN_KEY_CHECKS |  \
+   OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT)
+
+/* Shouldn't be defined before */
+#define EXPECTED_OPTIONS \
+  ((1ULL << 14) | (1ULL << 26) | (1ULL << 27) | (1ULL << 19))
+
+#if OPTIONS_WRITTEN_TO_BIN_LOG != EXPECTED_OPTIONS
+#error OPTIONS_WRITTEN_TO_BIN_LOG must NOT change their values!
+#endif
+#undef EXPECTED_OPTIONS         /* You shouldn't use this one */
 
 #define CHECKSUM_CRC32_SIGNATURE_LEN 4
 /**
@@ -656,7 +667,6 @@ enum Log_event_type
   /* MySQL 5.7 events, ignored by MariaDB */
   TRANSACTION_CONTEXT_EVENT= 36,
   VIEW_CHANGE_EVENT= 37,
-  /* not ignored */
   XA_PREPARE_LOG_EVENT= 38,
 
   /*
@@ -789,6 +799,7 @@ enum Int_event_type
   INVALID_INT_EVENT = 0, LAST_INSERT_ID_EVENT = 1, INSERT_ID_EVENT = 2
 };
 
+
 #ifdef MYSQL_SERVER
 class String;
 class MYSQL_BIN_LOG;
@@ -805,8 +816,9 @@ bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache, FILE *file);
 enum enum_base64_output_mode {
   BASE64_OUTPUT_NEVER= 0,
   BASE64_OUTPUT_AUTO= 1,
-  BASE64_OUTPUT_UNSPEC= 2,
-  BASE64_OUTPUT_DECODE_ROWS= 3,
+  BASE64_OUTPUT_ALWAYS= 2,
+  BASE64_OUTPUT_UNSPEC= 3,
+  BASE64_OUTPUT_DECODE_ROWS= 4,
   /* insert new output modes here */
   BASE64_OUTPUT_MODE_COUNT
 };
@@ -877,7 +889,6 @@ typedef struct st_print_event_info
     statement for it.
   */
   bool skip_replication;
-  bool print_table_metadata;
 
   /*
      These two caches are used by the row-based replication events to
@@ -924,8 +935,6 @@ typedef struct st_print_event_info
 
 class Log_event_writer
 {
-  /* Log_event_writer is updated when ctx is set */
-  int (Log_event_writer::*encrypt_or_write)(const uchar *pos, size_t len);
 public:
   ulonglong bytes_written;
   void *ctx;         ///< Encryption context or 0 if no encryption is needed
@@ -936,14 +945,10 @@ public:
   int write_footer();
   my_off_t pos() { return my_b_safe_tell(file); }
   void add_status(enum_logged_status status);
-  void set_incident();
-  void set_encrypted_writer()
-  { encrypt_or_write= &Log_event_writer::encrypt_and_write; }
 
   Log_event_writer(IO_CACHE *file_arg, binlog_cache_data *cache_data_arg,
                    Binlog_crypt_data *cr= 0)
-    :encrypt_or_write(&Log_event_writer::write_internal),
-    bytes_written(0), ctx(0),
+  : bytes_written(0), ctx(0),
     file(file_arg), cache_data(cache_data_arg), crypto(cr) { }
 
 private:
@@ -1224,7 +1229,7 @@ public:
   */
   uint16 flags;
 
-  enum_event_cache_type cache_type;
+  uint16 cache_type;
 
   /**
     A storage to cache the global system variable's value.
@@ -1357,8 +1362,7 @@ public:
 
   static void *operator new(size_t size)
   {
-    extern PSI_memory_key key_memory_log_event;
-    return my_malloc(key_memory_log_event, size, MYF(MY_WME|MY_FAE));
+    return (void*) my_malloc((uint)size, MYF(MY_WME|MY_FAE));
   }
 
   static void operator delete(void *ptr, size_t)
@@ -1815,7 +1819,10 @@ protected:
     <td>The flags in @c thd->options, binary AND-ed with @c
     OPTIONS_WRITTEN_TO_BIN_LOG.  The @c thd->options bitfield contains
     options for "SELECT".  @c OPTIONS_WRITTEN identifies those options
-    that need to be written to the binlog (not all do).
+    that need to be written to the binlog (not all do).  Specifically,
+    @c OPTIONS_WRITTEN_TO_BIN_LOG equals (@c OPTION_AUTO_IS_NULL | @c
+    OPTION_NO_FOREIGN_KEY_CHECKS | @c OPTION_RELAXED_UNIQUE_CHECKS |
+    @c OPTION_NOT_AUTOCOMMIT), or 0x0c084000 in hex.
 
     These flags correspond to the SQL variables SQL_AUTO_IS_NULL,
     FOREIGN_KEY_CHECKS, UNIQUE_CHECKS, and AUTOCOMMIT, documented in
@@ -2088,7 +2095,7 @@ public:
     flags2==0 (5.0 master, we know this has a meaning of flags all down which
     must influence the query).
   */
-  uint32 flags2_inited;
+  bool flags2_inited;
   bool sql_mode_inited;
   bool charset_inited;
 
@@ -2214,10 +2221,8 @@ public:
   virtual bool is_commit()   { return false; }
   virtual bool is_rollback() { return false; }
 #ifdef MYSQL_SERVER
-  Query_compressed_log_event(THD* thd_arg, const char* query_arg,
-                             ulong query_length,
-                             bool using_trans, bool direct, bool suppress_use,
-                             int error);
+  Query_compressed_log_event(THD* thd_arg, const char* query_arg, ulong query_length,
+    bool using_trans, bool direct, bool suppress_use, int error);
   virtual bool write();
 #endif
 };
@@ -2228,16 +2233,24 @@ public:
  ****************************************************************************/
 struct sql_ex_info
 {
+  sql_ex_info():
+    cached_new_format(-1),
+    field_term_len(0),
+    enclosed_len(0),
+    line_term_len(0),
+    line_start_len(0),
+    escaped_len(0),
+    empty_flags(0)
+  {}                            /* Remove gcc warning */
   const char* field_term;
   const char* enclosed;
   const char* line_term;
   const char* line_start;
   const char* escaped;
-  int cached_new_format= -1;
-  uint8 field_term_len= 0, enclosed_len= 0, line_term_len= 0,
-    line_start_len= 0, escaped_len= 0;
+  int cached_new_format;
+  uint8 field_term_len,enclosed_len,line_term_len,line_start_len, escaped_len;
   char opt_flags;
-  char empty_flags= 0;
+  char empty_flags;
 
   // store in new format even if old is possible
   void force_new_format() { cached_new_format = 1;}
@@ -2806,7 +2819,6 @@ public:
   };
   master_version_split server_version_split;
   const uint8 *event_type_permutation;
-  uint32 options_written_to_bin_log;
 
   Format_description_log_event(uint8 binlog_ver, const char* server_ver=0);
   Format_description_log_event(const char* buf, uint event_len,
@@ -2854,7 +2866,6 @@ public:
   }
 
   void calc_server_version_split();
-  void deduct_options_written_to_bin_log();
   static bool is_version_before_checksum(const master_version_split *version_split);
 protected:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -3024,32 +3035,6 @@ private:
 #endif
 };
 
-
-class Xid_apply_log_event: public Log_event
-{
-public:
-#ifdef MYSQL_SERVER
-  Xid_apply_log_event(THD* thd_arg):
-   Log_event(thd_arg, 0, TRUE) {}
-#endif
-  Xid_apply_log_event(const char* buf,
-                const Format_description_log_event *description_event):
-    Log_event(buf, description_event) {}
-
-  ~Xid_apply_log_event() {}
-  bool is_valid() const { return 1; }
-private:
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual int do_commit()= 0;
-  virtual int do_apply_event(rpl_group_info *rgi);
-  int do_record_gtid(THD *thd, rpl_group_info *rgi, bool in_trans,
-                     void **out_hton);
-  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
-  virtual const char* get_query()= 0;
-#endif
-};
-
-
 /**
   @class Xid_log_event
 
@@ -3062,22 +3047,18 @@ private:
 typedef ulonglong my_xid; // this line is the same as in handler.h
 #endif
 
-class Xid_log_event: public Xid_apply_log_event
+class Xid_log_event: public Log_event
 {
-public:
-  my_xid xid;
+ public:
+   my_xid xid;
 
 #ifdef MYSQL_SERVER
   Xid_log_event(THD* thd_arg, my_xid x, bool direct):
-   Xid_apply_log_event(thd_arg), xid(x)
+   Log_event(thd_arg, 0, TRUE), xid(x)
    {
      if (direct)
        cache_type= Log_event::EVENT_NO_CACHE;
    }
-  const char* get_query()
-  {
-    return "COMMIT /* implicit, from Xid_log_event */";
-  }
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol* protocol);
 #endif /* HAVE_REPLICATION */
@@ -3093,171 +3074,14 @@ public:
 #ifdef MYSQL_SERVER
   bool write();
 #endif
+  bool is_valid() const { return 1; }
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  int do_commit();
+  virtual int do_apply_event(rpl_group_info *rgi);
+  enum_skip_reason do_shall_skip(rpl_group_info *rgi);
 #endif
 };
-
-
-/**
-  @class XA_prepare_log_event
-
-  Similar to Xid_log_event except that
-  - it is specific to XA transaction
-  - it carries out the prepare logics rather than the final committing
-    when @c one_phase member is off. The latter option is only for
-    compatibility with the upstream.
-
-  From the groupping perspective the event finalizes the current
-  "prepare" group that is started with Gtid_log_event similarly to the
-  regular replicated transaction.
-*/
-
-/**
-  Function serializes XID which is characterized by by four last arguments
-  of the function.
-  Serialized XID is presented in valid hex format and is returned to
-  the caller in a buffer pointed by the first argument.
-  The buffer size provived by the caller must be not less than
-  8 + 2 * XIDDATASIZE +  4 * sizeof(XID::formatID) + 1, see
-  {MYSQL_,}XID definitions.
-
-  @param buf  pointer to a buffer allocated for storing serialized data
-  @param fmt  formatID value
-  @param gln  gtrid_length value
-  @param bln  bqual_length value
-  @param dat  data value
-
-  @return  the value of the buffer pointer
-*/
-
-inline char *serialize_xid(char *buf, long fmt, long gln, long bln,
-                           const char *dat)
-{
-  int i;
-  char *c= buf;
-  /*
-    Build a string consisting of the hex format representation of XID
-    as passed through fmt,gln,bln,dat argument:
-      X'hex11hex12...hex1m',X'hex21hex22...hex2n',11
-    and store it into buf.
-  */
-  c[0]= 'X';
-  c[1]= '\'';
-  c+= 2;
-  for (i= 0; i < gln; i++)
-  {
-    c[0]=_dig_vec_lower[((uchar*) dat)[i] >> 4];
-    c[1]=_dig_vec_lower[((uchar*) dat)[i] & 0x0f];
-    c+= 2;
-  }
-  c[0]= '\'';
-  c[1]= ',';
-  c[2]= 'X';
-  c[3]= '\'';
-  c+= 4;
-
-  for (; i < gln + bln; i++)
-  {
-    c[0]=_dig_vec_lower[((uchar*) dat)[i] >> 4];
-    c[1]=_dig_vec_lower[((uchar*) dat)[i] & 0x0f];
-    c+= 2;
-  }
-  c[0]= '\'';
-  sprintf(c+1, ",%lu", fmt);
-
- return buf;
-}
-
-/*
-  The size of the string containing serialized Xid representation
-  is computed as a sum of
-  eight as the number of formatting symbols (X'',X'',)
-  plus 2 x XIDDATASIZE (2 due to hex format),
-  plus space for decimal digits of XID::formatID,
-  plus one for 0x0.
-*/
-static const uint ser_buf_size=
-  8 + 2 * MYSQL_XIDDATASIZE + 4 * sizeof(long) + 1;
-
-struct event_mysql_xid_t :  MYSQL_XID
-{
-  char buf[ser_buf_size];
-  char *serialize()
-  {
-    return serialize_xid(buf, formatID, gtrid_length, bqual_length, data);
-  }
-};
-
-#ifndef MYSQL_CLIENT
-struct event_xid_t : XID
-{
-  char buf[ser_buf_size];
-
-  char *serialize(char *buf_arg)
-  {
-    return serialize_xid(buf_arg, formatID, gtrid_length, bqual_length, data);
-  }
-  char *serialize()
-  {
-    return serialize(buf);
-  }
-};
-#endif
-
-class XA_prepare_log_event: public Xid_apply_log_event
-{
-protected:
-
-  /* Constant contributor to subheader in write() by members of XID struct. */
-  static const int xid_subheader_no_data= 12;
-  event_mysql_xid_t m_xid;
-  void *xid;
-  bool one_phase;
-
-public:
-#ifdef MYSQL_SERVER
-  XA_prepare_log_event(THD* thd_arg, XID *xid_arg, bool one_phase_arg):
-    Xid_apply_log_event(thd_arg), xid(xid_arg), one_phase(one_phase_arg)
-  {
-    cache_type= Log_event::EVENT_NO_CACHE;
-  }
-#ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
-#endif /* HAVE_REPLICATION */
-#else
-  bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
-#endif
-  XA_prepare_log_event(const char* buf,
-                       const Format_description_log_event *description_event);
-  ~XA_prepare_log_event() {}
-  Log_event_type get_type_code() { return XA_PREPARE_LOG_EVENT; }
-  bool is_valid() const { return m_xid.formatID != -1; }
-  int get_data_size()
-  {
-    return xid_subheader_no_data + m_xid.gtrid_length + m_xid.bqual_length;
-  }
-
-#ifdef MYSQL_SERVER
-  bool write();
-#endif
-
-private:
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  char query[sizeof("XA COMMIT ONE PHASE") + 1 + ser_buf_size];
-  int do_commit();
-  const char* get_query()
-  {
-    sprintf(query,
-            (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
-            m_xid.serialize());
-    return query;
-  }
-#endif
-};
-
 
 /**
   @class User_var_log_event
@@ -3571,12 +3395,8 @@ public:
   uint64 seq_no;
   uint64 commit_id;
   uint32 domain_id;
-#ifdef MYSQL_SERVER
-  event_xid_t xid;
-#else
-  event_mysql_xid_t xid;
-#endif
   uchar flags2;
+
   /* Flags2. */
 
   /* FL_STANDALONE is set when there is no terminating COMMIT event. */
@@ -3603,10 +3423,6 @@ public:
   static const uchar FL_WAITED= 16;
   /* FL_DDL is set for event group containing DDL. */
   static const uchar FL_DDL= 32;
-  /* FL_PREPARED_XA is set for XA transaction. */
-  static const uchar FL_PREPARED_XA= 64;
-  /* FL_"COMMITTED or ROLLED-BACK"_XA is set for XA transaction. */
-  static const uchar FL_COMPLETED_XA= 128;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
@@ -4265,18 +4081,6 @@ private:
     ninth is in the least significant bit of the second byte, and so
     on.  </td>
   </tr>
-  <tr>
-    <td>optional metadata fields</td>
-    <td>optional metadata fields are stored in Type, Length, Value(TLV) format.
-    Type takes 1 byte. Length is a packed integer value. Values takes
-    Length bytes.
-    </td>
-    <td>There are some optional metadata defined. They are listed in the table
-    @ref Table_table_map_event_optional_metadata. Optional metadata fields
-    follow null_bits. Whether binlogging an optional metadata is decided by the
-    server. The order is not defined, so they can be binlogged in any order.
-    </td>
-  </tr>
 
   </table>
 
@@ -4482,123 +4286,6 @@ private:
   </tr>
 
   </table>
-  The table below lists all optional metadata types, along with the numerical
-  identifier for it and the size and interpretation of meta-data used
-  to describe the type.
-
-  @anchor Table_table_map_event_optional_metadata
-  <table>
-  <caption>Table_map_event optional metadata types: numerical identifier and
-  metadata. Optional metadata fields are stored in TLV fields.
-  Format of values are described in this table. </caption>
-  <tr>
-    <th>Type</th>
-    <th>Description</th>
-    <th>Format</th>
-  </tr>
-  <tr>
-    <td>SIGNEDNESS</td>
-    <td>signedness of numeric colums. This is included for all values of
-    binlog_row_metadata.</td>
-    <td>For each numeric column, a bit indicates whether the numeric
-    colunm has unsigned flag. 1 means it is unsigned. The number of
-    bytes needed for this is int((column_count + 7) / 8). The order is
-    the same as the order of column_type field.</td>
-  </tr>
-  <tr>
-    <td>DEFAULT_CHARSET</td>
-    <td>Charsets of character columns. It has a default charset for
-    the case that most of character columns have same charset and the
-    most used charset is binlogged as default charset.Collation
-    numbers are binlogged for identifying charsets. They are stored in
-    packed length format.  Either DEFAULT_CHARSET or COLUMN_CHARSET is
-    included for all values of binlog_row_metadata.</td>
-    <td>Default charset's collation is logged first. The charsets which are not
-    same to default charset are logged following default charset. They are
-    logged as column index and charset collation number pair sequence. The
-    column index is counted only in all character columns. The order is same to
-    the order of column_type
-    field. </td>
-  </tr>
-  <tr>
-    <td>COLUMN_CHARSET</td>
-    <td>Charsets of character columns. For the case that most of columns have
-    different charsets, this field is logged. It is never logged with
-    DEFAULT_CHARSET together.  Either DEFAULT_CHARSET or COLUMN_CHARSET is
-    included for all values of binlog_row_metadata.</td>
-    <td>It is a collation number sequence for all character columns.</td>
-  </tr>
-  <tr>
-    <td>COLUMN_NAME</td>
-    <td>Names of columns. This is only included if
-    binlog_row_metadata=FULL.</td>
-    <td>A sequence of column names. For each column name, 1 byte for
-    the string length in bytes is followed by a string without null
-    terminator.</td>
-  </tr>
-  <tr>
-    <td>SET_STR_VALUE</td>
-    <td>The string values of SET columns. This is only included if
-    binlog_row_metadata=FULL.</td>
-    <td>For each SET column, a pack_length representing the value
-    count is followed by a sequence of length and string pairs. length
-    is the byte count in pack_length format. The string has no null
-    terminator.</td>
-  </tr>
-  <tr>
-    <td>ENUM_STR_VALUE</td>
-    <td>The string values is ENUM columns. This is only included
-    if binlog_row_metadata=FULL.</td>
-    <td>The format is the same as SET_STR_VALUE.</td>
-  </tr>
-  <tr>
-    <td>GEOMETRY_TYPE</td>
-    <td>The real type of geometry columns. This is only included
-    if binlog_row_metadata=FULL.</td>
-    <td>A sequence of real type of geometry columns are stored in pack_length
-    format. </td>
-  </tr>
-  <tr>
-    <td>SIMPLE_PRIMARY_KEY</td>
-    <td>The primary key without any prefix. This is only included
-    if binlog_row_metadata=FULL and there is a primary key where every
-    key part covers an entire column.</td>
-    <td>A sequence of column indexes. The indexes are stored in pack_length
-    format.</td>
-  </tr>
-  <tr>
-    <td>PRIMARY_KEY_WITH_PREFIX</td>
-    <td>The primary key with some prefix. It doesn't appear together with
-    SIMPLE_PRIMARY_KEY. This is only included if
-    binlog_row_metadata=FULL and there is a primary key where some key
-    part covers a prefix of the column.</td>
-    <td>A sequence of column index and prefix length pairs. Both
-    column index and prefix length are in pack_length format. Prefix length
-    0 means that the whole column value is used.</td>
-  </tr>
-  <tr>
-    <td>ENUM_AND_SET_DEFAULT_CHARSET</td>
-    <td>Charsets of ENUM and SET columns. It has the same layout as
-    DEFAULT_CHARSET.  If there are SET or ENUM columns and
-    binlog_row_metadata=FULL, exactly one of
-    ENUM_AND_SET_DEFAULT_CHARSET and ENUM_AND_SET_COLUMN_CHARSET
-    appears (the encoder chooses the representation that uses the
-    least amount of space).  Otherwise, none of them appears.</td>
-    <td>The same format as for DEFAULT_CHARSET, except it counts ENUM
-    and SET columns rather than character columns.</td>
-  </tr>
-  <tr>
-    <td>ENUM_AND_SET_COLUMN_CHARSET</td>
-    <td>Charsets of ENUM and SET columns. It has the same layout as
-    COLUMN_CHARSET.  If there are SET or ENUM columns and
-    binlog_row_metadata=FULL, exactly one of
-    ENUM_AND_SET_DEFAULT_CHARSET and ENUM_AND_SET_COLUMN_CHARSET
-    appears (the encoder chooses the representation that uses the
-    least amount of space).  Otherwise, none of them appears.</td>
-    <td>The same format as for COLUMN_CHARSET, except it counts ENUM
-    and SET columns rather than character columns.</td>
-  </tr>
-  </table>
 */
 class Table_map_log_event : public Log_event
 {
@@ -4634,124 +4321,6 @@ public:
   };
 
   typedef uint16 flag_set;
-  /**
-    DEFAULT_CHARSET and COLUMN_CHARSET don't appear together, and
-    ENUM_AND_SET_DEFAULT_CHARSET and ENUM_AND_SET_COLUMN_CHARSET don't
-    appear together. They are just alternative ways to pack character
-    set information. When binlogging, it logs character sets in the
-    way that occupies least storage.
-
-    SIMPLE_PRIMARY_KEY and PRIMARY_KEY_WITH_PREFIX don't appear together.
-    SIMPLE_PRIMARY_KEY is for the primary keys which only use whole values of
-    pk columns. PRIMARY_KEY_WITH_PREFIX is
-    for the primary keys which just use part value of pk columns.
-   */
-  enum Optional_metadata_field_type
-  {
-    SIGNEDNESS = 1,  // UNSIGNED flag of numeric columns
-    DEFAULT_CHARSET, /* Character set of string columns, optimized to
-                        minimize space when many columns have the
-                        same charset. */
-    COLUMN_CHARSET,  /* Character set of string columns, optimized to
-                        minimize space when columns have many
-                        different charsets. */
-    COLUMN_NAME,
-    SET_STR_VALUE,                // String value of SET columns
-    ENUM_STR_VALUE,               // String value of ENUM columns
-    GEOMETRY_TYPE,                // Real type of geometry columns
-    SIMPLE_PRIMARY_KEY,           // Primary key without prefix
-    PRIMARY_KEY_WITH_PREFIX,      // Primary key with prefix
-    ENUM_AND_SET_DEFAULT_CHARSET, /* Character set of enum and set
-                                     columns, optimized to minimize
-                                     space when many columns have the
-                                     same charset. */
-    ENUM_AND_SET_COLUMN_CHARSET,  /* Character set of enum and set
-                                     columns, optimized to minimize
-                                     space when many columns have the
-                                     same charset. */
-  };
-  /**
-    Metadata_fields organizes m_optional_metadata into a structured format which
-    is easy to access.
-  */
-  // Values for binlog_row_metadata sysvar
-  enum enum_binlog_row_metadata
-  {
-    BINLOG_ROW_METADATA_NO_LOG= 0,
-    BINLOG_ROW_METADATA_MINIMAL= 1,
-    BINLOG_ROW_METADATA_FULL= 2
-  };
-  struct Optional_metadata_fields
-  {
-    typedef std::pair<unsigned int, unsigned int> uint_pair;
-    typedef std::vector<std::string> str_vector;
-
-    struct Default_charset
-    {
-      Default_charset() : default_charset(0) {}
-      bool empty() const { return default_charset == 0; }
-
-      // Default charset for the columns which are not in charset_pairs.
-      unsigned int default_charset;
-
-      /* The uint_pair means <column index, column charset number>. */
-      std::vector<uint_pair> charset_pairs;
-    };
-
-    // Contents of DEFAULT_CHARSET field is converted into Default_charset.
-    Default_charset m_default_charset;
-    // Contents of ENUM_AND_SET_DEFAULT_CHARSET are converted into
-    // Default_charset.
-    Default_charset m_enum_and_set_default_charset;
-    std::vector<bool> m_signedness;
-    // Character set number of every string column
-    std::vector<unsigned int> m_column_charset;
-    // Character set number of every ENUM or SET column.
-    std::vector<unsigned int> m_enum_and_set_column_charset;
-    std::vector<std::string> m_column_name;
-    // each str_vector stores values of one enum/set column
-    std::vector<str_vector> m_enum_str_value;
-    std::vector<str_vector> m_set_str_value;
-    std::vector<unsigned int> m_geometry_type;
-    /*
-      The uint_pair means <column index, prefix length>.  Prefix length is 0 if
-      whole column value is used.
-    */
-    std::vector<uint_pair> m_primary_key;
-
-    /*
-      It parses m_optional_metadata and populates into above variables.
-
-      @param[in] optional_metadata points to the begin of optional metadata
-                                   fields in table_map_event.
-      @param[in] optional_metadata_len length of optional_metadata field.
-     */
-    Optional_metadata_fields(unsigned char* optional_metadata,
-                             unsigned int optional_metadata_len);
-  };
-
-  /**
-    Print column metadata. Its format looks like:
-    # Columns(colume_name type, colume_name type, ...)
-    if colume_name field is not logged into table_map_log_event, then
-    only type is printed.
-
-    @@param[out] file the place where colume metadata is printed
-    @@param[in]  The metadata extracted from optional metadata fields
- */
-  void print_columns(IO_CACHE *file,
-                     const Optional_metadata_fields &fields);
-  /**
-    Print primary information. Its format looks like:
-    # Primary Key(colume_name, column_name(prifix), ...)
-    if colume_name field is not logged into table_map_log_event, then
-    colume index is printed.
-
-    @@param[out] file the place where primary key is printed
-    @@param[in]  The metadata extracted from optional metadata fields
- */
-  void print_primary_key(IO_CACHE *file,
-                         const Optional_metadata_fields &fields);
 
   /* Special constants representing sets of flags */
   enum 
@@ -4818,51 +4387,6 @@ private:
 
 #ifdef MYSQL_SERVER
   TABLE         *m_table;
-  Binlog_type_info *binlog_type_info_array;
-
-
-  // Metadata fields buffer
-  StringBuffer<1024> m_metadata_buf;
-
-  /**
-    Capture the optional metadata fields which should be logged into
-    table_map_log_event and serialize them into m_metadata_buf.
-  */
-  void init_metadata_fields();
-  bool init_signedness_field();
-  /**
-    Capture and serialize character sets.  Character sets for
-    character columns (TEXT etc) and character sets for ENUM and SET
-    columns are stored in different metadata fields. The reason is
-    that TEXT character sets are included even when
-    binlog_row_metadata=MINIMAL, whereas ENUM and SET character sets
-    are included only when binlog_row_metadata=FULL.
-
-    @param include_type Predicate to determine if a given Field object
-    is to be included in the metadata field.
-
-    @param default_charset_type Type code when storing in "default
-    charset" format.  (See comment above Table_maps_log_event in
-    libbinlogevents/include/rows_event.h)
-
-    @param column_charset_type Type code when storing in "column
-    charset" format.  (See comment above Table_maps_log_event in
-    libbinlogevents/include/rows_event.h)
-  */
-  bool init_charset_field(bool(* include_type)(Binlog_type_info *, Field *),
-                          Optional_metadata_field_type default_charset_type,
-                          Optional_metadata_field_type column_charset_type);
-  bool init_column_name_field();
-  bool init_set_str_value_field();
-  bool init_enum_str_value_field();
-  bool init_geometry_type_field();
-  bool init_primary_key_field();
-#endif
-
-#ifdef MYSQL_CLIENT
-  class Charset_iterator;
-  class Default_charset_iterator;
-  class Column_charset_iterator;
 #endif
   char const    *m_dbnam;
   size_t         m_dblen;
@@ -4884,8 +4408,6 @@ private:
   ulong          m_field_metadata_size;   
   uchar         *m_null_bits;
   uchar         *m_meta_memory;
-  unsigned int   m_optional_metadata_len;
-  unsigned char *m_optional_metadata;
 };
 
 
@@ -5077,12 +4599,6 @@ public:
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual uint8 get_trg_event_map()= 0;
-
-  inline bool do_invoke_trigger()
-  {
-    return (slave_run_triggers_for_rbr && !master_had_triggers) ||
-            slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_ENFORCE;
-  }
 #endif
 
 protected:
@@ -5565,12 +5081,11 @@ public:
   Incident_log_event(THD *thd_arg, Incident incident, const LEX_CSTRING *msg)
     : Log_event(thd_arg, 0, FALSE), m_incident(incident)
   {
-    extern PSI_memory_key key_memory_Incident_log_event_message;
     DBUG_ENTER("Incident_log_event::Incident_log_event");
     DBUG_PRINT("enter", ("m_incident: %d", m_incident));
     m_message.length= 0;
-    if (!(m_message.str= (char*) my_malloc(key_memory_Incident_log_event_message,
-                                           msg->length + 1, MYF(MY_WME))))
+    if (unlikely(!(m_message.str= (char*) my_malloc(msg->length+1,
+                                                    MYF(MY_WME)))))
     {
       /* Mark this event invalid */
       m_incident= INCIDENT_NONE;
@@ -5767,5 +5282,6 @@ int query_event_uncompress(const Format_description_log_event *description_event
 int row_log_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
                              const char *src, ulong src_len, char* buf, ulong buf_size, bool* is_malloc,
                              char **dst, ulong *newlen);
+
 
 #endif /* _log_event_h */

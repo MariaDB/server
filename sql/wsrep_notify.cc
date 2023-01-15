@@ -28,7 +28,7 @@ void wsrep_notify_status(enum wsrep::server_state::state status,
   }
 
   const long  cmd_len = (1 << 16) - 1;
-  char* cmd_ptr = (char*) my_malloc(PSI_NOT_INSTRUMENTED, cmd_len + 1, MYF(MY_WME));
+  char* cmd_ptr = (char*) my_malloc(cmd_len + 1, MYF(MY_WME));
   long  cmd_off = 0;
 
   if (!cmd_ptr)

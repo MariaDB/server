@@ -64,7 +64,7 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
                      wsrep_max_ws_size, total_length);
           goto error;
       }
-      uchar* tmp= (uchar *)my_realloc(PSI_INSTRUMENT_ME, *buf, total_length,
+      uchar* tmp= (uchar *)my_realloc(*buf, total_length,
                                        MYF(MY_ALLOW_ZERO_PTR));
       if (!tmp)
       {

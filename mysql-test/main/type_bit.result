@@ -766,7 +766,7 @@ CREATE TABLE t1 (a BIT(7), b BIT(9), KEY(a, b));
 INSERT INTO t1 VALUES(0, 0), (5, 3), (5, 6), (6, 4), (7, 0);
 EXPLAIN SELECT a+0, b+0 FROM t1 WHERE a > 4 and b < 7 ORDER BY 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	2	NULL	4	Using where; Using index; Using filesort
+1	SIMPLE	t1	index	a	a	5	NULL	5	Using where; Using index; Using filesort
 DROP TABLE t1;
 End of 5.0 tests
 create table t1(a bit(7));
@@ -1860,27 +1860,4 @@ cr	18446744073709551615
 ct	18446744073709551615
 #
 # End of 10.4 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-20496 Assertion `field.is_sane()' failed in Protocol_text::store_field_metadata
-#
-CREATE TABLE t1 (b BIT(1));
-SELECT MIN(CASE WHEN 0 THEN b END) FROM t1;
-Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					MIN(CASE WHEN 0 THEN b END)	8	1	0	Y	32928	0	63
-MIN(CASE WHEN 0 THEN b END)
-NULL
-CREATE TABLE t2 AS SELECT MIN(CASE WHEN 0 THEN b END) FROM t1;
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `MIN(CASE WHEN 0 THEN b END)` bigint(1) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-DROP TABLE t2;
-DROP TABLE t1;
-#
-# End of 10.5 tests
 #

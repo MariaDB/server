@@ -2316,10 +2316,8 @@ set names 'utf8';
 --echo # The character set on the inner side is a proper subset of the outer side
 --echo #
 
---echo # this test in 10.5 has only 2 rows in the IN predicate
-
 EXPLAIN
-SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abc',1), ('def', 2));
+SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abx',1),('def',2), ('abc', 3));
 
 set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;

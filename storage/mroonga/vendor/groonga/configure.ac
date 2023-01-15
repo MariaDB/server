@@ -1613,6 +1613,30 @@ AC_SUBST(ONIGMO_CFLAGS)
 AC_SUBST(ONIGMO_LIBS)
 AM_CONDITIONAL(WITH_BUNDLED_ONIGMO, test "$with_onigmo" != "no" -a "x$have_onigmo" != "xyes")
 
+# PCRE
+GRN_WITH_PCRE=no
+AC_ARG_WITH(pcre,
+  [AS_HELP_STRING([--without-pcre],
+    [Don't use PCRE for groonga-httpd. [default=auto-detect]])],
+  [with_pcre="$withval"],
+  [with_pcre="auto"])
+if test "x$with_pcre" != "xno"; then
+  m4_ifdef([PKG_CHECK_MODULES], [
+    PKG_CHECK_MODULES([PCRE], [libpcre],
+      [_PKG_CONFIG(PCRE_LIBS_ONLY_L, [libs-only-L], [libpcre])
+       PCRE_LIBS_ONLY_L="$pkg_cv_PCRE_LIBS_ONLY_L"
+       GRN_WITH_PCRE=yes],
+      [GRN_WITH_PCRE=no])
+    ],
+    [GRN_WITH_PCRE=no])
+  if test "x$with_pcre" = "xyes" -a "$GRN_WITH_PCRE" != "yes"; then
+    AC_MSG_ERROR("No PCRE found")
+  fi
+fi
+AC_SUBST(GRN_WITH_PCRE)
+AC_SUBST(PCRE_CFLAGS)
+AC_SUBST(PCRE_LIBS_ONLY_L)
+
 # SSL
 GRN_WITH_SSL=no
 AC_ARG_WITH(ssl,
@@ -1764,6 +1788,11 @@ echo "groonga-httpd:"
 echo "  enable:                $enable_groonga_httpd"
 if test "$enable_groonga_httpd" = "yes"; then
   echo "  default database path: $GROONGA_HTTPD_DEFAULT_DATABASE_PATH"
+  echo "  PCRE:                  $GRN_WITH_PCRE"
+  if test "$GRN_WITH_PCRE" = "yes"; then
+    echo "    CFLAGS:              $PCRE_CFLAGS"
+    echo "    LIBS only -L:        $PCRE_LIBS_ONLY_L"
+  fi
   echo "   SSL:                  $GRN_WITH_SSL"
   if test "$GRN_WITH_SSL" = "yes"; then
     echo "    CFLAGS:              $SSL_CFLAGS"

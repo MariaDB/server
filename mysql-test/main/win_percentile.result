@@ -99,14 +99,7 @@ Tatiana
 select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) from t1;
 ERROR HY000: Numeric datatype is required for percentile_cont function
 select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) from t1;
-score	percentile_disc(0.5)  within group(order by name) over (partition by score)
-3.0000	Chun
-3.0000	Chun
-4.0000	Tata
-4.0000	Tata
-4.0000	Tata
-7.0000	Chun
-7.0000	Chun
+ERROR HY000: Numeric datatype is required for percentile_disc function
 #parameter value should be in the range of [0,1]
 select percentile_disc(1.5) within group(order by score) over (partition by name) from t1;
 ERROR HY000: Argument to the percentile_disc function does not belong to the range [0,1]
@@ -459,7 +452,7 @@ Lord of the Ladybirds	30000000000.00
 Lord of the Ladybirds	30000000000.00
 DROP TABLE t2, t1;
 #
-# MDEV-20280 PERCENTILE_DISC() rejects temporal and string input
+# MDEV-20272 PERCENTILE_DISC() crashes on a temporal type input
 #
 CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating TIME);
 INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
@@ -470,28 +463,5 @@ INSERT INTO t1 VALUES ('Lady of the Flies', 5);
 SELECT name, PERCENTILE_DISC(0.5)
 WITHIN GROUP (ORDER BY star_rating)
 OVER (PARTITION BY name) AS pc FROM t1;
-name	pc
-Lady of the Flies	00:00:02
-Lady of the Flies	00:00:02
-Lady of the Flies	00:00:02
-Lord of the Ladybirds	00:00:03
-Lord of the Ladybirds	00:00:03
-SELECT name, PERCENTILE_DISC(0)
-WITHIN GROUP (ORDER BY star_rating)
-OVER (PARTITION BY name) AS pc FROM t1;
-name	pc
-Lady of the Flies	00:00:01
-Lady of the Flies	00:00:01
-Lady of the Flies	00:00:01
-Lord of the Ladybirds	00:00:03
-Lord of the Ladybirds	00:00:03
-SELECT name, PERCENTILE_DISC(1)
-WITHIN GROUP (ORDER BY star_rating)
-OVER (PARTITION BY name) AS pc FROM t1;
-name	pc
-Lady of the Flies	00:00:05
-Lady of the Flies	00:00:05
-Lady of the Flies	00:00:05
-Lord of the Ladybirds	00:00:05
-Lord of the Ladybirds	00:00:05
+ERROR HY000: Numeric datatype is required for percentile_disc function
 DROP TABLE t1;

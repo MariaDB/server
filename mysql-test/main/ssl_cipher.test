@@ -98,6 +98,6 @@ let $restart_parameters=--ssl-cipher=AES128-SHA;
 source include/restart_mysqld.inc;
 connect (ssl_con,localhost,root,,,,,SSL);
 SHOW STATUS LIKE 'Ssl_cipher';
-SELECT VARIABLE_VALUE like '%AES128-SHA%' FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher_list';
+SHOW STATUS LIKE 'Ssl_cipher_list';
 disconnect ssl_con;
 connection default;

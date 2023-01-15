@@ -33,4 +33,3 @@ disable-force-if-open
 [ENV]
 MASTER_MYPORT=           @mysqld.1.port
 MASTER_MYSOCK=           @mysqld.1.socket
-OPENSSL_ENABLE_SHA1_SIGNATURES= 1

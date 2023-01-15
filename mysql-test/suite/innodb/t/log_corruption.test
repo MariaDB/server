@@ -17,9 +17,7 @@ call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 call mtr.add_suppression("InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42\\r?$");
 call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 failed");
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
-call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfile0 to start up the database\\? Log sequence number in the ib_logfile0 is 1213964,");
-call mtr.add_suppression("InnoDB: Log file .*ib_logfile1 is of different size 1048576 bytes than other log files 2097152 bytes!");
-call mtr.add_suppression("InnoDB: The change buffer is corrupted");
+call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfiles to start up the database\\? Log sequence number in the ib_logfiles is 1213964,");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
@@ -93,6 +91,12 @@ print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
 print OUT chr(0) x (759 * 16384);
 close OUT or die;
 
+# Create a dummy second redo log file
+die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
+binmode OUT;
+print OUT chr(0) x 1048576;
+close OUT or die;
+
 # Create a redo log from before MariaDB 10.2.2/MySQL 5.7.9
 die unless open OUT, ">", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
@@ -101,7 +105,7 @@ print OUT pack("x[13]nCNnxxNNx[256]", 0x1286, 12, 0x80c, 0xf0, ~0, ~0);
 print OUT pack("H*x[1240]", "590DBAACFE922582");
 print OUT pack("H*x[5]", "800009440022000c0000000138");
 print OUT pack("H*x[475]H*", "12860cb7809781e80006626f677573", "089C0ADA");
-print OUT chr(0) x 2094592;
+print OUT chr(0) x 1046016;
 close OUT or die;
 EOF
 
@@ -116,13 +120,7 @@ let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log
 
 --echo # redo log from before MariaDB 10.2.2, with corrupted log checkpoint
 --move_file $bugdir/ib_logfile0 $bugdir/ib_logfile
-perl;
-# Create a dummy second redo log file
-die unless open OUT, ">", "$ENV{bugdir}/ib_logfile0";
-binmode OUT;
-print OUT chr(0) x 1048576;
-close OUT or die;
-EOF
+--copy_file $bugdir/ib_logfile1 $bugdir/ib_logfile0
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
@@ -135,9 +133,6 @@ let SEARCH_PATTERN=Plugin 'InnoDB' registration as a STORAGE ENGINE failed;
 --echo # redo log from before MariaDB 10.2.2, with corrupted log block
 --remove_file $bugdir/ib_logfile0
 --move_file $bugdir/ib_logfile $bugdir/ib_logfile0
-# Create a dummy second redo log file that does not contain payload.
---copy_file $bugdir/ib_logfile0 $bugdir/ib_logfile1
-
 perl;
 die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
@@ -160,7 +155,7 @@ die unless seek(OUT, 0x800, 0);
 print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 0, 0xb2a);
 close OUT or die;
 EOF
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=1m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -169,130 +164,6 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --let SEARCH_PATTERN= InnoDB: Upgrading redo log:
 --source include/search_pattern_in_file.inc
 --let $restart_parameters= $dirs
-
---echo # Corrupted multi-file redo log from before MariaDB 10.2.2
---move_file $bugdir/ib_logfile0 $bugdir/ib_logfile
-perl;
-die unless open OUT, ">", "$ENV{bugdir}/ib_logfile0";
-binmode OUT;
-print OUT pack("x[9]nx[5]", 0x1286), "    ", chr(0) x 492;
-print OUT pack("x[13]nCNnxxNNx[256]", 0x1286, 12, 0x20000c, 0xf0, ~0, ~0);
-print OUT pack("H*x[1240]", "B41DCAC4525D1217");
-print OUT pack("H*x[5]", "800009440022000c0000000138");
-print OUT pack("H*x[475]H*", "12860cb7809781e80006626f677573", "089C0ADA");
-print OUT chr(0) x 1046016;
-close OUT or die;
-
-die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
-binmode OUT;
-die unless seek(OUT, 0xFF800, 0);
-print OUT chr(0) x 2048;
-close OUT or die;
-EOF
-
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
---source include/start_mysqld.inc
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
---source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\\.2\\.2, and it appears corrupted;
---source include/search_pattern_in_file.inc
-
---echo # Empty multi-file redo log from before MariaDB 10.2.2
-perl;
-die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile1";
-binmode OUT;
-die unless seek(OUT, 0xFF800, 0);
-print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 0, 0xb2a);
-print OUT chr(0) x 1536;
-close OUT or die;
-EOF
-
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
---source include/start_mysqld.inc
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
---source include/shutdown_mysqld.inc
---let SEARCH_PATTERN= InnoDB: Upgrading redo log:
---source include/search_pattern_in_file.inc
-
---echo # Multi-file redo log with size mismatch from after MariaDB 10.2.2
-perl;
-do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
-my $polynomial = 0x82f63b78; # CRC-32C
-
-die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
-binmode OUT;
-$_= pack("Nx[5]nx[5]", 1, 0x1286) . "BogoDB 1.2.3.4" . chr(0) x 478;
-print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
-# checkpoint page 1 and all-zero checkpoint 2
-$_= pack("x[13]nCNNx[484]", 0x1286, 12, 0, 0x20080c);
-print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
-print OUT chr(0) x 1024;
-close OUT or die;
-die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
-binmode OUT;
-die unless seek(OUT, 0xFF800, 0);
-print OUT chr(0) x 2048;
-close OUT or die;
-EOF
-
---echo # Corrupted multi-file redo log from after MariaDB 10.2.2
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
---source include/start_mysqld.inc
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
---source include/shutdown_mysqld.inc
---let SEARCH_PATTERN=InnoDB: Log file .*ib_logfile1 is of different size 1048576 bytes than other log files 2097152 bytes!
---source include/search_pattern_in_file.inc
---let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported\\. The redo log was created with BogoDB 1\\.2\\.3\\.4, and it appears corrupted\\.
---source include/search_pattern_in_file.inc
-
-perl;
-die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
-binmode OUT;
-die unless seek(OUT, 0x1FFFFF, 0);
-print OUT chr(0);
-close OUT or die;
-EOF
-
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
---source include/start_mysqld.inc
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
---source include/shutdown_mysqld.inc
---let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported\\. The redo log was created with BogoDB 1\\.2\\.3\\.4, and it appears corrupted\\.
---source include/search_pattern_in_file.inc
-
---echo # Empty multi-file redo log from after MariaDB 10.2.2
-perl;
-do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
-my $polynomial = 0x82f63b78; # CRC-32C
-
-die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile1";
-binmode OUT;
-die unless seek(OUT, 0x800, 0); # the first 2048 bytes are unused!
-$_= pack("Nnnx[500]", 0x80000944, 12, 12);
-print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
-close OUT or die;
-EOF
-
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
---source include/start_mysqld.inc
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
---source include/shutdown_mysqld.inc
---let SEARCH_PATTERN= InnoDB: Upgrading redo log:
---source include/search_pattern_in_file.inc
---let $restart_parameters= $dirs
-
---remove_file $bugdir/ib_logfile0
---move_file $bugdir/ib_logfile $bugdir/ib_logfile0
 
 --echo # redo log from "after" MariaDB 10.2.2, but with invalid header checksum
 perl;
@@ -360,7 +231,7 @@ eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported\. The redo log was created with malicious intentions, or perhaps, and it appears corrupted\.;
+let SEARCH_PATTERN=InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
 --source include/search_pattern_in_file.inc
 
 --echo # same, but with current-version header
@@ -376,6 +247,8 @@ eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
 --source include/search_pattern_in_file.inc
 --echo # --innodb-force-recovery=6 (skip the entire redo log)
 --let $restart_parameters= $dirs --innodb-force-recovery=6
@@ -430,7 +303,17 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\.;
+let SEARCH_PATTERN=InnoDB: Starting crash recovery from checkpoint LSN=1213964;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bogus;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Log record type 55, page 151:488\. Log parsing proceeded successfully up to 1213973\. Previous log record type 56, is multi 0 Recv offset 9, prev 0;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= len 22. hex 38000000000012860cb7809781e80006626f67757300. asc 8               bogus ;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Set innodb_force_recovery to ignore this error;
 --source include/search_pattern_in_file.inc
 
 --echo # Test a corrupted MLOG_FILE_NAME record.
@@ -461,8 +344,6 @@ eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
 let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 2454333373 found: 150151;
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1, and it appears corrupted\.;
---source include/search_pattern_in_file.inc
 --echo # valid header, invalid checkpoint 1, valid checkpoint 2, invalid log record
 perl;
 die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
@@ -475,7 +356,9 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\.;
+let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bigot;
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;
 --source include/search_pattern_in_file.inc
 
 --echo # 10.2 missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
@@ -506,7 +389,7 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with ibbackup was here!!!1!\.;
+--let SEARCH_PATTERN= InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42
 --source include/search_pattern_in_file.inc
 
 --echo # 10.3 missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
@@ -521,7 +404,7 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=\\[ERROR\\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\.;
+--let SEARCH_PATTERN= InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42
 --source include/search_pattern_in_file.inc
 
 --echo # Empty 10.3 redo log
@@ -533,13 +416,17 @@ print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 1, 0x46c8a2a2);
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=1m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --source include/shutdown_mysqld.inc
---let SEARCH_PATTERN= InnoDB: .* started; log sequence number 1213964; transaction id 0
+# In encryption.innodb_encrypt_log_corruption, we would convert the
+# log to encrypted format. Writing an extra log checkpoint before the
+# redo log conversion would advance the LSN by the size of a
+# MLOG_CHECKPOINT record (9 bytes).
+--let SEARCH_PATTERN= InnoDB: .* started; log sequence number 121397[09]
 --source include/search_pattern_in_file.inc
 
 --echo # Empty 10.2 redo log

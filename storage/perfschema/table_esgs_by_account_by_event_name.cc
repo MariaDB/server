@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,23 +26,15 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_esgs_by_account_by_event_name.h"
 #include "pfs_global.h"
 #include "pfs_visitor.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_esgs_by_account_by_event_name::m_table_lock;
-
-
-PFS_engine_table_share_state
-table_esgs_by_account_by_event_name::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_esgs_by_account_by_event_name::m_share=
@@ -52,21 +44,19 @@ table_esgs_by_account_by_event_name::m_share=
   table_esgs_by_account_by_event_name::create,
   NULL, /* write_row */
   table_esgs_by_account_by_event_name::delete_all_rows,
-  table_esgs_by_account_by_event_name::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(pos_esgs_by_account_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_summary_by_account_by_event_name("
-                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null comment 'User. Used together with HOST and EVENT_NAME for grouping events.',"
-                      "HOST CHAR(" HOSTNAME_LENGTH_STR ") collate utf8_bin default null comment 'Host. Used together with USER and EVENT_NAME for grouping events.',"
+                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default null comment 'User. Used together with HOST and EVENT_NAME for grouping events.',"
+                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null comment 'Host. Used together with USER and EVENT_NAME for grouping events.',"
                       "EVENT_NAME VARCHAR(128) not null comment 'Event name. Used together with USER and HOST for grouping events.',"
                       "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events, which includes all timed and untimed events.',"
                       "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the timed summarized events.',"
                       "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the timed summarized events.',"
                       "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the timed summarized events.',"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the timed summarized events.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the timed summarized events.')") }
 };
 
 PFS_engine_table*
@@ -81,12 +71,6 @@ table_esgs_by_account_by_event_name::delete_all_rows(void)
   reset_events_stages_by_thread();
   reset_events_stages_by_account();
   return 0;
-}
-
-ha_rows
-table_esgs_by_account_by_event_name::get_row_count(void)
-{
-  return global_account_container.get_row_count() * stage_class_max;
 }
 
 table_esgs_by_account_by_event_name::table_esgs_by_account_by_event_name()
@@ -110,14 +94,13 @@ int table_esgs_by_account_by_event_name::rnd_next(void)
 {
   PFS_account *account;
   PFS_stage_class *stage_class;
-  bool has_more_account= true;
 
   for (m_pos.set_at(&m_next_pos);
-       has_more_account;
+       m_pos.has_more_account();
        m_pos.next_account())
   {
-    account= global_account_container.get(m_pos.m_index_1, & has_more_account);
-    if (account != NULL)
+    account= &account_array[m_pos.m_index_1];
+    if (account->m_lock.is_populated())
     {
       stage_class= find_stage_class(m_pos.m_index_2);
       if (stage_class)
@@ -139,16 +122,17 @@ table_esgs_by_account_by_event_name::rnd_pos(const void *pos)
   PFS_stage_class *stage_class;
 
   set_position(pos);
+  DBUG_ASSERT(m_pos.m_index_1 < account_max);
 
-  account= global_account_container.get(m_pos.m_index_1);
-  if (account != NULL)
+  account= &account_array[m_pos.m_index_1];
+  if (! account->m_lock.is_populated())
+    return HA_ERR_RECORD_DELETED;
+
+  stage_class= find_stage_class(m_pos.m_index_2);
+  if (stage_class)
   {
-    stage_class= find_stage_class(m_pos.m_index_2);
-    if (stage_class)
-    {
-      make_row(account, stage_class);
-      return 0;
-    }
+    make_row(account, stage_class);
+    return 0;
   }
 
   return HA_ERR_RECORD_DELETED;
@@ -157,7 +141,7 @@ table_esgs_by_account_by_event_name::rnd_pos(const void *pos)
 void table_esgs_by_account_by_event_name
 ::make_row(PFS_account *account, PFS_stage_class *klass)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   m_row_exists= false;
 
   account->m_lock.begin_optimistic_lock(&lock);
@@ -168,10 +152,7 @@ void table_esgs_by_account_by_event_name
   m_row.m_event_name.make_row(klass);
 
   PFS_connection_stage_visitor visitor(klass);
-  PFS_connection_iterator::visit_account(account,
-                                         true,  /* threads */
-                                         false, /* THDs */
-                                         & visitor);
+  PFS_connection_iterator::visit_account(account, true, & visitor);
 
   if (! account->m_lock.end_optimistic_lock(&lock))
     return;
@@ -190,7 +171,7 @@ int table_esgs_by_account_by_event_name
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)

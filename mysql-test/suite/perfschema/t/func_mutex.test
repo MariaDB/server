@@ -21,7 +21,7 @@ flush status;
 select NAME from performance_schema.mutex_instances
   where NAME = 'wait/synch/mutex/mysys/THR_LOCK::mutex' GROUP BY NAME;
 select NAME from performance_schema.rwlock_instances
-  where NAME = 'wait/synch/rwlock/sql/LOCK_grant' limit 1;
+  where NAME = 'wait/synch/rwlock/sql/LOCK_grant';
 
 --disable_warnings
 DROP TABLE IF EXISTS t1;
@@ -130,5 +130,5 @@ DROP TABLE t1;
 UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';
 
 # In case of failure, will indicate the root cause
-show global status like "performance_schema%";
+show status like "performance_schema%";
 

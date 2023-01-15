@@ -356,16 +356,22 @@ SET SESSION debug_dbug="-d,Item_func_in";
 # MDEV-12238 Add Type_handler::Item_func_{plus|minus|mul|div|mod}_fix_length_and_dec()
 #
 SET debug_dbug='+d,num_op';
-SELECT POINT(0,0)+POINT(0,0);
-ERROR HY000: Illegal parameter data types point and point for operation '+'
-SELECT POINT(0,0)-POINT(0,0);
-ERROR HY000: Illegal parameter data types point and point for operation '-'
-SELECT POINT(0,0)*POINT(0,0);
-ERROR HY000: Illegal parameter data types point and point for operation '*'
-SELECT POINT(0,0)/POINT(0,0);
-ERROR HY000: Illegal parameter data types point and point for operation '/'
-SELECT POINT(0,0) MOD POINT(0,0);
-ERROR HY000: Illegal parameter data types point and point for operation 'MOD'
+CREATE TABLE t1 AS SELECT
+POINT(0,0)+POINT(0,0),
+POINT(0,0)-POINT(0,0),
+POINT(0,0)*POINT(0,0),
+POINT(0,0)/POINT(0,0),
+POINT(0,0) MOD POINT(0,0) LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `POINT(0,0)+POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)-POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)*POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0)/POINT(0,0)` geometry DEFAULT NULL,
+  `POINT(0,0) MOD POINT(0,0)` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 POINT(0,0)+'0',
 POINT(0,0)-'0',
@@ -393,11 +399,11 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT '0'-POINT(0,0) LIMIT 0;
-ERROR HY000: Illegal parameter data types varchar and point for operation '-'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation '-'
 CREATE TABLE t1 AS SELECT '0'/POINT(0,0) LIMIT 0;
-ERROR HY000: Illegal parameter data types varchar and point for operation '/'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation '/'
 CREATE TABLE t1 AS SELECT '0' MOD POINT(0,0) LIMIT 0;
-ERROR HY000: Illegal parameter data types varchar and point for operation 'MOD'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'MOD'
 SET debug_dbug='-d,num_op';
 #
 # End of 10.3 tests
@@ -418,9 +424,9 @@ Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (row)
 Note	1105	DBUG: [1] arg=2 handler=0 (row)
 Note	1105	DBUG: ROW(3 args) level=0
-Note	1105	DBUG:  [0,0] handler=point
-Note	1105	DBUG:  [0,1] handler=point
-Note	1105	DBUG:  [0,2] handler=point
+Note	1105	DBUG:  [0,0] handler=geometry
+Note	1105	DBUG:  [0,1] handler=geometry
+Note	1105	DBUG:  [0,2] handler=geometry
 Note	1105	DBUG:  => handler=geometry
 Note	1105	DBUG:  [1,0] handler=int
 Note	1105	DBUG:  [1,1] handler=int
@@ -443,9 +449,9 @@ Note	1105	DBUG:  [1,1] handler=row
 Note	1105	DBUG:  [1,2] handler=row
 Note	1105	DBUG:  => handler=row
 Note	1105	DBUG:  ROW(3 args) level=1
-Note	1105	DBUG:   [0,0] handler=point
-Note	1105	DBUG:   [0,1] handler=point
-Note	1105	DBUG:   [0,2] handler=point
+Note	1105	DBUG:   [0,0] handler=geometry
+Note	1105	DBUG:   [0,1] handler=geometry
+Note	1105	DBUG:   [0,2] handler=geometry
 Note	1105	DBUG:   => handler=geometry
 Note	1105	DBUG:   [1,0] handler=int
 Note	1105	DBUG:   [1,1] handler=int
@@ -453,18 +459,18 @@ Note	1105	DBUG:   [1,2] handler=int
 Note	1105	DBUG:   => handler=bigint
 Note	1105	DBUG: types_compatible=yes bisect=no
 SELECT (1,0) IN ((POINT(1,1),0),(0,0));
-ERROR HY000: Illegal parameter data types int and point for operation 'in'
+ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 SHOW WARNINGS;
 Level	Code	Message
 Note	1105	DBUG: [0] arg=1 handler=0 (row)
 Note	1105	DBUG: [1] arg=2 handler=0 (row)
 Note	1105	DBUG: ROW(3 args) level=0
 Note	1105	DBUG:  [0,0] handler=int
-Note	1105	DBUG:  [0,1] handler=point
+Note	1105	DBUG:  [0,1] handler=geometry
 Note	1105	DBUG:  [0,2] handler=int
-Error	4078	Illegal parameter data types int and point for operation 'in'
+Error	4078	Illegal parameter data types int and geometry for operation 'in'
 SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
-ERROR HY000: Illegal parameter data types int and point for operation 'in'
+ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 SHOW WARNINGS;
 Level	Code	Message
 Note	1105	DBUG: [0] arg=1 handler=0 (row)
@@ -480,35 +486,12 @@ Note	1105	DBUG:  [1,2] handler=row
 Note	1105	DBUG:  => handler=row
 Note	1105	DBUG:  ROW(3 args) level=1
 Note	1105	DBUG:   [0,0] handler=int
-Note	1105	DBUG:   [0,1] handler=point
+Note	1105	DBUG:   [0,1] handler=geometry
 Note	1105	DBUG:   [0,2] handler=int
-Error	4078	Illegal parameter data types int and point for operation 'in'
+Error	4078	Illegal parameter data types int and geometry for operation 'in'
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
 SET SESSION debug_dbug="-d,cmp_item";
 #
 # End of 10.4 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-19994 Add class Function_collection
-#
-SET SESSION debug_dbug="+d,make_item_func_call_native_simulate_not_found";
-SELECT CONTAINS(POINT(1,1),POINT(1,1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(POINT(1,1),POINT(1,1))' at line 1
-SELECT WITHIN(POINT(1,1),POINT(1,1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(POINT(1,1),POINT(1,1))' at line 1
-SET SESSION debug_dbug="-d,make_item_func_call_native_simulate_not_found";
-#
-# MDEV-20009 Add CAST(expr AS pluggable_type)
-#
-SET SESSION debug_dbug="+d,emulate_geometry_create_typecast_item";
-SELECT AsText(CAST('POINT(0 0)' AS GEOMETRY));
-AsText(CAST('POINT(0 0)' AS GEOMETRY))
-POINT(0 0)
-SET SESSION debug_dbug="-d,emulate_geometry_create_typecast_item";
-#
-# End of 10.5 tests
 #

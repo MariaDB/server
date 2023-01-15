@@ -413,6 +413,8 @@ select * from t1;
 # After this, only data based on old t1 records should have been added.
 INSERT INTO t1 (x) select (SELECT SUM(x)+2 FROM t1) FROM t2;
 select * from t1;
+-- error ER_BAD_FIELD_ERROR
+INSERT DELAYED INTO t1 (x) VALUES ((SELECT SUM(x) FROM t2));
 let $row_count_before= `SELECT COUNT(*) FROM t1`;
 INSERT DELAYED INTO t1 (x) VALUES ((SELECT SUM(a) FROM t2));
 let $wait_condition= SELECT COUNT(*) <> $row_count_before FROM t1;
@@ -6030,12 +6032,12 @@ drop table t1,t2,t3,t4;
 --echo # MDEV-7122
 --echo # Assertion `0' failed in subselect_hash_sj_engine::init
 --echo #
-set tmp_memory_table_size=0; # force on-disk tmp table
+SET SESSION big_tables=1;
 CREATE TABLE t1(a char(255) DEFAULT '', KEY(a(10))) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 INSERT INTO t1 VALUES(0),(0),(0);
 SELECT * FROM t1 WHERE a IN(SELECT MIN(a) FROM t1);
 DROP TABLE t1;
-set tmp_memory_table_size=default;
+SET SESSION big_tables=0;
 
 --echo #
 --echo # MDEV-10776: Server crash on query

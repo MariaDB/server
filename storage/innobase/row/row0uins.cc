@@ -100,12 +100,13 @@ row_undo_ins_remove_clust_rec(
 	We must log the removal, so that the row will be correctly
 	purged. However, we can log the removal out of sync with the
 	B-tree modification. */
+
 	ut_a(btr_pcur_restore_position(
-	      online ? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-	      : (node->rec_type == TRX_UNDO_INSERT_METADATA)
-		  ? BTR_MODIFY_TREE
-		  : BTR_MODIFY_LEAF,
-	      &node->pcur, &mtr) == btr_pcur_t::SAME_ALL);
+		online
+		? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
+		: (node->rec_type == TRX_UNDO_INSERT_METADATA)
+		? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &node->pcur, &mtr)
+	    == btr_pcur_t::SAME_ALL);
 
 	rec_t* rec = btr_pcur_get_rec(&node->pcur);
 
@@ -131,12 +132,14 @@ row_undo_ins_remove_clust_rec(
 			      == RW_X_LATCH);
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 
-			dict_drop_index_tree(&node->pcur, node->trx, &mtr);
+			dict_drop_index_tree(rec, &node->pcur, node->trx,
+					     &mtr);
 			mtr.commit();
 
 			mtr.start();
-			ut_a(btr_pcur_restore_position(BTR_MODIFY_LEAF,
-			      &node->pcur, &mtr)== btr_pcur_t::SAME_ALL);
+			ut_a(btr_pcur_restore_position(
+				BTR_MODIFY_LEAF, &node->pcur, &mtr)
+			    == btr_pcur_t::SAME_ALL);
 			break;
 		case DICT_COLUMNS_ID:
 			/* This is rolling back an INSERT into SYS_COLUMNS.
@@ -203,7 +206,28 @@ func_exit:
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_METADATA) {
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
-		btr_reset_instant(*index, true, &mtr);
+		ut_ad(!index->table->is_temporary());
+		if (page_t* root = btr_root_get(index, &mtr)) {
+			byte* page_type = root + FIL_PAGE_TYPE;
+			ut_ad(mach_read_from_2(page_type)
+			      == FIL_PAGE_TYPE_INSTANT
+			      || mach_read_from_2(page_type)
+			      == FIL_PAGE_INDEX);
+			mlog_write_ulint(page_type, FIL_PAGE_INDEX,
+					 MLOG_2BYTES, &mtr);
+			byte* instant = PAGE_INSTANT + PAGE_HEADER + root;
+			mlog_write_ulint(instant,
+					 page_ptr_get_direction(instant + 1),
+					 MLOG_2BYTES, &mtr);
+			rec_t* infimum = page_get_infimum_rec(root);
+			rec_t* supremum = page_get_supremum_rec(root);
+			static const byte str[8 + 8] = "supremuminfimum";
+			if (memcmp(infimum, str + 8, 8)
+			    || memcmp(supremum, str, 8)) {
+				mlog_write_string(infimum, str + 8, 8, &mtr);
+				mlog_write_string(supremum, str, 8, &mtr);
+			}
+		}
 	}
 
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
@@ -376,7 +400,7 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 
 	switch (node->rec_type) {
 	default:
-		ut_ad("wrong undo record type" == 0);
+		ut_ad(!"wrong undo record type");
 		goto close_table;
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
@@ -397,7 +421,7 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		goto close_table;
 	}
 
-	if (UNIV_UNLIKELY(!node->table->is_accessible())) {
+	if (UNIV_UNLIKELY(!fil_table_accessible(node->table))) {
 close_table:
 		/* Normally, tables should not disappear or become
 		unaccessible during ROLLBACK, because they should be
@@ -540,7 +564,7 @@ row_undo_ins(
 
 	switch (node->rec_type) {
 	default:
-		ut_ad("wrong undo record type" == 0);
+		ut_ad(!"wrong undo record type");
 		/* fall through */
 	case TRX_UNDO_INSERT_REC:
 		/* Skip the clustered index (the first index) */

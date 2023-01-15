@@ -22,13 +22,14 @@
 #include <m_ctype.h>
 #include <signal.h>
 #include <mysql/psi/mysql_stage.h>
-#ifdef _WIN32
+#ifdef __WIN__
 #ifdef _MSC_VER
 #include <locale.h>
 #include <crtdbg.h>
 /* WSAStartup needs winsock library*/
 #pragma comment(lib, "ws2_32")
 #endif
+my_bool have_tcpip=0;
 static void my_win_init(void);
 static my_bool win32_init_tcp_ip();
 #else
@@ -58,6 +59,7 @@ static ulong atoi_octal(const char *str)
 
 MYSQL_FILE *mysql_stdin= NULL;
 static MYSQL_FILE instrumented_stdin;
+
 
 /**
   Initialize my_sys functions, resources and variables
@@ -117,9 +119,8 @@ my_bool my_init(void)
     my_time_init();
     my_win_init();
     DBUG_PRINT("exit", ("home: '%s'", home_dir));
-#ifdef _WIN32
-    if (win32_init_tcp_ip())
-      DBUG_RETURN(1);
+#ifdef __WIN__
+    win32_init_tcp_ip();
 #endif
 #ifdef CHECK_UNLIKELY
     init_my_likely();
@@ -217,7 +218,7 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
 	      rus.ru_msgsnd, rus.ru_msgrcv, rus.ru_nsignals,
 	      rus.ru_nvcsw, rus.ru_nivcsw);
 #endif
-#if defined(_MSC_VER)
+#if defined(__WIN__) && defined(_MSC_VER)
    _CrtSetReportMode( _CRT_WARN, _CRTDBG_MODE_FILE );
    _CrtSetReportFile( _CRT_WARN, _CRTDBG_FILE_STDERR );
    _CrtSetReportMode( _CRT_ERROR, _CRTDBG_MODE_FILE );
@@ -244,9 +245,10 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
                  (FILE *) 0);
 #endif /* defined(SAFE_MUTEX) */
 
-#ifdef _WIN32
-   WSACleanup();
-#endif
+#ifdef __WIN__
+  if (have_tcpip)
+    WSACleanup();
+#endif /* __WIN__ */
  
   /* At very last, delete mysys key, it is used everywhere including DBUG */
   pthread_key_delete(THR_KEY_mysys);
@@ -261,14 +263,16 @@ void my_debug_put_break_here(void)
 }
 #endif
 
-#ifdef _WIN32
+#ifdef __WIN__
 
 
 /*
   my_parameter_handler
   
   Invalid parameter handler we will use instead of the one "baked"
-  into the CRT.
+  into the CRT for MSC v8.  This one just prints out what invalid
+  parameter was encountered.  By providing this routine, routines like
+  lseek will return -1 when we expect them to instead of crash.
 */
 
 void my_parameter_handler(const wchar_t * expression, const wchar_t * function,
@@ -307,13 +311,77 @@ int handle_rtc_failure(int err_type, const char *file, int line,
 #pragma runtime_checks("", restore)
 #endif
 
+/*
+  Open HKEY_LOCAL_MACHINE\SOFTWARE\MySQL and set any strings found
+  there as environment variables
+*/
+static void win_init_registry(void)
+{
+  HKEY key_handle;
+
+  if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, (LPCTSTR)"SOFTWARE\\MySQL",
+                    0, KEY_READ, &key_handle) == ERROR_SUCCESS)
+  {
+    LONG ret;
+    DWORD index= 0;
+    DWORD type;
+    char key_name[256], key_data[1024];
+    DWORD key_name_len= sizeof(key_name) - 1;
+    DWORD key_data_len= sizeof(key_data) - 1;
+
+    while ((ret= RegEnumValue(key_handle, index++,
+                              key_name, &key_name_len,
+                              NULL, &type, (LPBYTE)&key_data,
+                              &key_data_len)) != ERROR_NO_MORE_ITEMS)
+    {
+      char env_string[sizeof(key_name) + sizeof(key_data) + 2];
+
+      if (ret == ERROR_MORE_DATA)
+      {
+        /* Registry value larger than 'key_data', skip it */
+        DBUG_PRINT("error", ("Skipped registry value that was too large"));
+      }
+      else if (ret == ERROR_SUCCESS)
+      {
+        if (type == REG_SZ)
+        {
+          strxmov(env_string, key_name, "=", key_data, NullS);
+
+          /* variable for putenv must be allocated ! */
+          putenv(strdup(env_string)) ;
+        }
+      }
+      else
+      {
+        /* Unhandled error, break out of loop */
+        break;
+      }
+
+      key_name_len= sizeof(key_name) - 1;
+      key_data_len= sizeof(key_data) - 1;
+    }
+
+    RegCloseKey(key_handle);
+  }
+}
+
 
 static void my_win_init(void)
 {
   DBUG_ENTER("my_win_init");
 
 #if defined(_MSC_VER)
+#if _MSC_VER < 1300
+  /*
+    Clear the OS system variable TZ and avoid the 100% CPU usage
+    Only for old versions of Visual C++
+  */
+  _putenv("TZ=");
+#endif
+#if _MSC_VER >= 1400
+  /* this is required to make crt functions return -1 appropriately */
   _set_invalid_parameter_handler(my_parameter_handler);
+#endif
 #endif
 
 #ifdef __MSVC_RUNTIME_CHECKS
@@ -326,22 +394,75 @@ static void my_win_init(void)
 
   _tzset();
 
+  win_init_registry();
+
   DBUG_VOID_RETURN;
+}
+
+
+/*------------------------------------------------------------------
+  Name: CheckForTcpip| Desc: checks if tcpip has been installed on system
+  According to Microsoft Developers documentation the first registry
+  entry should be enough to check if TCP/IP is installed, but as expected
+  this doesn't work on all Win32 machines :(
+------------------------------------------------------------------*/
+
+#define TCPIPKEY  "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters"
+#define WINSOCK2KEY "SYSTEM\\CurrentControlSet\\Services\\Winsock2\\Parameters"
+#define WINSOCKKEY  "SYSTEM\\CurrentControlSet\\Services\\Winsock\\Parameters"
+
+static my_bool win32_have_tcpip(void)
+{
+  HKEY hTcpipRegKey;
+  if (RegOpenKeyEx ( HKEY_LOCAL_MACHINE, TCPIPKEY, 0, KEY_READ,
+		      &hTcpipRegKey) != ERROR_SUCCESS)
+  {
+    if (RegOpenKeyEx ( HKEY_LOCAL_MACHINE, WINSOCK2KEY, 0, KEY_READ,
+		      &hTcpipRegKey) != ERROR_SUCCESS)
+    {
+      if (RegOpenKeyEx ( HKEY_LOCAL_MACHINE, WINSOCKKEY, 0, KEY_READ,
+			 &hTcpipRegKey) != ERROR_SUCCESS)
+	if (!getenv("HAVE_TCPIP") || have_tcpip)	/* Provide a workaround */
+	  return (FALSE);
+    }
+  }
+  RegCloseKey ( hTcpipRegKey);
+  return (TRUE);
 }
 
 
 static my_bool win32_init_tcp_ip()
 {
-  WORD wVersionRequested = MAKEWORD( 2, 2 );
-  WSADATA wsaData;
-  if (WSAStartup(wVersionRequested, &wsaData))
+  if (win32_have_tcpip())
   {
-    fprintf(stderr, "WSAStartup() failed with error: %d\n", WSAGetLastError());
-    return 1;
+    WORD wVersionRequested = MAKEWORD( 2, 2 );
+    WSADATA wsaData;
+ 	/* Be a good citizen: maybe another lib has already initialised
+ 		sockets, so don't clobber them unless necessary */
+    if (WSAStartup( wVersionRequested, &wsaData ))
+    {
+      /* Load failed, maybe because of previously loaded
+	 incompatible version; try again */
+      WSACleanup( );
+      if (!WSAStartup( wVersionRequested, &wsaData ))
+	have_tcpip=1;
+    }
+    else
+    {
+      if (wsaData.wVersion != wVersionRequested)
+      {
+	/* Version is no good, try again */
+	WSACleanup( );
+	if (!WSAStartup( wVersionRequested, &wsaData ))
+	  have_tcpip=1;
+      }
+      else
+	have_tcpip=1;
+    }
   }
   return(0);
 }
-#endif /* _WIN32 */
+#endif /* __WIN__ */
 
 PSI_stage_info stage_waiting_for_table_level_lock=
 {0, "Waiting for table level lock", 0};
@@ -429,10 +550,16 @@ static PSI_thread_info all_mysys_threads[]=
 };
 
 
+#ifdef HUGETLB_USE_PROC_MEMINFO
+PSI_file_key key_file_proc_meminfo;
+#endif /* HUGETLB_USE_PROC_MEMINFO */
 PSI_file_key key_file_charset, key_file_cnf;
 
 static PSI_file_info all_mysys_files[]=
 {
+#ifdef HUGETLB_USE_PROC_MEMINFO
+  { &key_file_proc_meminfo, "proc_meminfo", 0},
+#endif /* HUGETLB_USE_PROC_MEMINFO */
   { &key_file_charset, "charset", 0},
   { &key_file_cnf, "cnf", 0}
 };

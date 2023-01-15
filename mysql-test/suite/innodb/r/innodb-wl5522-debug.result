@@ -8,7 +8,6 @@ call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .*");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
 call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
-call mtr.add_suppression("InnoDB: Unknown index id .* on page");
 FLUSH TABLES;
 SET GLOBAL innodb_file_per_table = 1;
 CREATE TABLE t1 (c1 INT) ENGINE = InnoDB;
@@ -489,6 +488,9 @@ INDEX idx3(c4(512))) Engine=InnoDB;
 connect  purge_control,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
+SET GLOBAL innodb_disable_background_merge=ON;
+SET GLOBAL innodb_monitor_reset = ibuf_merges;
+SET GLOBAL innodb_monitor_reset = ibuf_merges_insert;
 INSERT INTO t1
 SELECT 1 + seq, 1 + (seq MOD 4),
 REPEAT(SUBSTR('abcd', 1 + (seq MOD 4), 1), 2048),
@@ -659,9 +661,23 @@ COUNT(*)
 SELECT SUM(c2) FROM t1;
 SUM(c2)
 124160
+SELECT name
+FROM information_schema.innodb_metrics
+WHERE name = 'ibuf_merges_insert' AND count = 0;
+name
 FLUSH TABLES t1 FOR EXPORT;
 backup: t1
 UNLOCK TABLES;
+SELECT name
+FROM information_schema.innodb_metrics
+WHERE name = 'ibuf_merges' AND count > 0;
+name
+ibuf_merges
+SELECT name
+FROM information_schema.innodb_metrics
+WHERE name = 'ibuf_merges_inserts' AND count > 0;
+name
+SET GLOBAL innodb_disable_background_merge=OFF;
 connection purge_control;
 COMMIT;
 disconnect purge_control;
@@ -893,16 +909,14 @@ DROP TABLE t1;
 unlink: t1.ibd
 unlink: t1.cfg
 CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
-SET SESSION debug_dbug="+d,ib_import_create_index_failure_1";
-ALTER TABLE t1 ADD INDEX idx(c1);
-ERROR HY000: The table 't1' is full
-SET SESSION debug_dbug=@saved_debug_dbug;
 ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT COUNT(*) FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_create_index_failure_1";
 ALTER TABLE t1 ADD INDEX idx(c1);
 Warnings:
 Warning	1814	Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 unlink: t1.ibd
 unlink: t1.cfg
@@ -942,4 +956,10 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 unlink: t1.ibd
 unlink: t1.cfg
+set global innodb_monitor_disable = all;
+set global innodb_monitor_reset_all = all;
+set global innodb_monitor_enable = default;
+set global innodb_monitor_disable = default;
+set global innodb_monitor_reset = default;
+set global innodb_monitor_reset_all = default;
 SET GLOBAL INNODB_FILE_PER_TABLE=@file_per_table;

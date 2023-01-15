@@ -2017,7 +2017,6 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
     } // endif
 
     for (p1 = p2 = mgopath; *p1; p1++)
-    {
       if (i) {                 // Inside []
         if (isdigit(*p1)) {
           if (!proj)
@@ -2056,18 +2055,17 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
           Sgfy = true;
           break;
         } // endif p2
-        /* fall through */
+
       default:
         *p2++ = *p1;
         break;
       } // endswitch p1;
-    }
 
-    if (*(p2 - 1) == '.')
-      p2--;
+      if (*(p2 - 1) == '.')
+        p2--;
 
-    *p2 = 0;
-    return mgopath;
+      *p2 = 0;
+      return mgopath;
   } else
     return NULL;
 

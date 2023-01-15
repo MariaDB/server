@@ -428,7 +428,7 @@ thd::thd (my_bool won, bool system_thread) : init(), ptr(new THD(0))
     ptr->variables.wsrep_on= won;
     if (system_thread)
       ptr->system_thread= SYSTEM_THREAD_GENERIC;
-    ptr->security_ctx->master_access= ALL_KNOWN_ACL;
+    ptr->security_ctx->master_access= ~(ulong)0;
     lex_start(ptr);
   }
 }
@@ -438,7 +438,7 @@ thd::~thd ()
   if (ptr)
   {
     delete ptr;
-    set_current_thd(nullptr);
+    my_pthread_setspecific_ptr (THR_THD, 0);
   }
 }
 

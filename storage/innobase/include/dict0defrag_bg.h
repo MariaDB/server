@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,6 +27,8 @@ Created 25/08/2016 Jan Lindström
 #ifndef dict0defrag_bg_h
 #define dict0defrag_bg_h
 
+#include "os0event.h"
+#include "os0thread.h"
 #include "dict0types.h"
 
 /** Indices whose defrag stats need to be saved to persistent storage.*/

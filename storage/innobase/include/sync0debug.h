@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -44,6 +44,10 @@ void
 sync_check_close();
 
 #ifdef UNIV_DEBUG
+/** Enable sync order checking. */
+void
+sync_check_enable();
+
 /** Check if it is OK to acquire the latch.
 @param[in]	latch	latch type */
 void

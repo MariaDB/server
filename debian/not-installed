@@ -1,26 +1,21 @@
-etc/columnstore/storagemanager.cnf.example # Copy of etc/columnstore/storagemanager.cnf that is installed
 lib/systemd/system/mariadb.service # Installed by rules file
 lib/systemd/system/mariadb@.service # Installed by rules file
 usr/bin/mysql_config # We already have the MariaDB variant
+usr/bin/mysql_embedded # Huge 500 MB file. Not intended for distribution via any disto package.
 usr/bin/mytop # Mytop is distributed from a separate source package
-usr/bin/sst_dump # Use the one from rocksdb-tools package
-usr/lib/mysql/plugin/JavaWrappers.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
-usr/lib/mysql/plugin/JdbcInterface.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
 usr/lib/sysusers.d/sysusers.conf
 usr/lib/tmpfiles.d/tmpfiles.conf
-usr/lib/*/libdbbc.a # ColumnStore header file
-usr/lib/*/libidbboot.a # ColumnStore header file
-usr/lib/*/libprocessor.a # ColumnStore header file
-usr/lib/*/libwe_xml.a # ColumnStore header file
-usr/share/doc/mariadb-server-10.5/COPYING
-usr/share/doc/mariadb-server-10.5/COPYING.AGPLv3
-usr/share/doc/mariadb-server-10.5/COPYING.GPLv2
-usr/share/doc/mariadb-server-10.5/COPYING.thirdparty
-usr/share/doc/mariadb-server-10.5/CREDITS
-usr/share/doc/mariadb-server-10.5/EXCEPTIONS-CLIENT
-usr/share/doc/mariadb-server-10.5/INSTALL-BINARY
-usr/share/doc/mariadb-server-10.5/PATENTS
-usr/share/doc/mariadb-server-10.5/README-wsrep
+usr/lib/mysql/plugin/JavaWrappers.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
+usr/lib/mysql/plugin/JdbcInterface.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
+usr/share/doc/mariadb-server-10.4/COPYING
+usr/share/doc/mariadb-server-10.4/COPYING.AGPLv3
+usr/share/doc/mariadb-server-10.4/COPYING.GPLv2
+usr/share/doc/mariadb-server-10.4/COPYING.thirdparty
+usr/share/doc/mariadb-server-10.4/CREDITS
+usr/share/doc/mariadb-server-10.4/EXCEPTIONS-CLIENT
+usr/share/doc/mariadb-server-10.4/INSTALL-BINARY
+usr/share/doc/mariadb-server-10.4/PATENTS
+usr/share/doc/mariadb-server-10.4/README-wsrep
 usr/share/groonga/COPYING
 usr/share/groonga-normalizer-mysql/lgpl-2.0.txt
 usr/share/groonga-normalizer-mysql/README.md
@@ -47,3 +42,86 @@ usr/share/mysql/systemd/mariadb.service # Installed by rules file
 usr/share/mysql/systemd/mariadb@.service # Installed by rules file
 usr/share/mysql/systemd/use_galera_new_cluster.conf
 usr/share/mysql/wsrep.cnf
+usr/sql-bench/bench-count-distinct
+usr/sql-bench/bench-init.pl # SQL-bench is distributed from a separate source package
+usr/sql-bench/compare-results
+usr/sql-bench/copy-db
+usr/sql-bench/crash-me
+usr/sql-bench/Data/ATIS/aircraft.txt
+usr/sql-bench/Data/ATIS/airline.txt
+usr/sql-bench/Data/ATIS/airport_service.txt
+usr/sql-bench/Data/ATIS/airport.txt
+usr/sql-bench/Data/ATIS/city.txt
+usr/sql-bench/Data/ATIS/class_of_service.txt
+usr/sql-bench/Data/ATIS/code_description.txt
+usr/sql-bench/Data/ATIS/compound_class.txt
+usr/sql-bench/Data/ATIS/connect_leg.txt
+usr/sql-bench/Data/ATIS/date_day.txt
+usr/sql-bench/Data/ATIS/day_name.txt
+usr/sql-bench/Data/ATIS/dual_carrier.txt
+usr/sql-bench/Data/ATIS/fare.txt
+usr/sql-bench/Data/ATIS/fconnection.txt
+usr/sql-bench/Data/ATIS/flight_class.txt
+usr/sql-bench/Data/ATIS/flight_day.txt
+usr/sql-bench/Data/ATIS/flight_fare.txt
+usr/sql-bench/Data/ATIS/flight.txt
+usr/sql-bench/Data/ATIS/food_service.txt
+usr/sql-bench/Data/ATIS/ground_service.txt
+usr/sql-bench/Data/ATIS/month_name.txt
+usr/sql-bench/Data/ATIS/restrict_carrier.txt
+usr/sql-bench/Data/ATIS/restrict_class.txt
+usr/sql-bench/Data/ATIS/restriction.txt
+usr/sql-bench/Data/ATIS/state.txt
+usr/sql-bench/Data/ATIS/stop1.txt
+usr/sql-bench/Data/ATIS/stop.txt
+usr/sql-bench/Data/ATIS/time_interval.txt
+usr/sql-bench/Data/ATIS/time_zone.txt
+usr/sql-bench/Data/ATIS/transport.txt
+usr/sql-bench/Data/Wisconsin/onek.data
+usr/sql-bench/Data/Wisconsin/tenk.data
+usr/sql-bench/graph-compare-results
+usr/sql-bench/innotest1
+usr/sql-bench/innotest1a
+usr/sql-bench/innotest1b
+usr/sql-bench/innotest2
+usr/sql-bench/innotest2a
+usr/sql-bench/innotest2b
+usr/sql-bench/limits/access.cfg
+usr/sql-bench/limits/access_odbc.cfg
+usr/sql-bench/limits/Adabas.cfg
+usr/sql-bench/limits/db2.cfg
+usr/sql-bench/limits/empress.cfg
+usr/sql-bench/limits/frontbase.cfg
+usr/sql-bench/limits/Informix.cfg
+usr/sql-bench/limits/interbase.cfg
+usr/sql-bench/limits/interbase-dialect1.cfg
+usr/sql-bench/limits/interbase-dialect3.cfg
+usr/sql-bench/limits/interbase-superserver.cfg
+usr/sql-bench/limits/mimer.cfg
+usr/sql-bench/limits/msql.cfg
+usr/sql-bench/limits/ms-sql65.cfg
+usr/sql-bench/limits/ms-sql.cfg
+usr/sql-bench/limits/mysql-3.22.cfg
+usr/sql-bench/limits/mysql-3.23.cfg
+usr/sql-bench/limits/mysql-4.0.cfg
+usr/sql-bench/limits/mysql-4.1.cfg
+usr/sql-bench/limits/mysql.cfg
+usr/sql-bench/limits/oracle.cfg
+usr/sql-bench/limits/pg.cfg
+usr/sql-bench/limits/solid.cfg
+usr/sql-bench/limits/solid-nt4.cfg
+usr/sql-bench/limits/sybase.cfg
+usr/sql-bench/myisam.cnf
+usr/sql-bench/README
+usr/sql-bench/run-all-tests
+usr/sql-bench/server-cfg
+usr/sql-bench/test-alter-table
+usr/sql-bench/test-ATIS
+usr/sql-bench/test-big-tables
+usr/sql-bench/test-connect
+usr/sql-bench/test-create
+usr/sql-bench/test-insert
+usr/sql-bench/test-select
+usr/sql-bench/test-table-elimination
+usr/sql-bench/test-transactions
+usr/sql-bench/test-wisconsin

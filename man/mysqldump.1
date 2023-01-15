@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-DUMP\FR" "1" "24 October 2020" "MariaDB 10\&.5" "MariaDB Database System"
+.TH "\FBMYSQLDUMP\FR" "1" "24 October 2020" "MariaDB 10\&.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -17,7 +17,7 @@
 .\" databases: dumping
 .\" tables: dumping
 .SH "NAME"
-mariadb-dump \- a database backup program (mysqldump is now a symlink to mariadb-dump)
+mysqldump \- a database backup program
 .SH "SYNOPSIS"
 .HP \w'\fBmysqldump\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIdb_name\fR\fR\fB\ [\fR\fB\fItbl_name\fR\fR\fB\ \&.\&.\&.]]\fR\ 'u
 \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fItbl_name\fR\fR\fB \&.\&.\&.]]\fR
@@ -490,22 +490,6 @@ statements that include column names\&.
 \fB\-C\fR
 .sp
 Compress all information sent between the client and the server if both support compression\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysqldump: copy-s3-tables option
-.\" copy-s3-tables option: mysqldump
-\fB\-\-copy\-s3\-tables\fR
-.sp
-By default S3 tables are ignored\&. With this option set, the result file will contain a CREATE statement 
-for a similar Aria table, followed by the table data and ending with an ALTER TABLE xxx ENGINE=S3\&.
 .RE
 .sp
 .RS 4

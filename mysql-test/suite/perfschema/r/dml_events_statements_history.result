@@ -47,9 +47,9 @@ SQL_TEXT	The SQL statement, or NULL if the command is not associated with an SQL
 DIGEST	Statement digest.
 DIGEST_TEXT	Statement digest text.
 CURRENT_SCHEMA	Statement's default database for the statement, or NULL if there was none.
-OBJECT_TYPE	NULL for top level statements. The parent statement object type for nested statements (stored programs).
-OBJECT_SCHEMA	NULL for top level statements. The parent statement object schema for nested statements (stored programs).
-OBJECT_NAME	NULL for top level statements. The parent statement object name for nested statements (stored programs).
+OBJECT_TYPE	Reserved, currently NULL
+OBJECT_SCHEMA	Reserved, currently NULL
+OBJECT_NAME	Reserved, currently NULL
 OBJECT_INSTANCE_BEGIN	Address in memory of the statement object.
 MYSQL_ERRNO	Error code. See MariaDB Error Codes for a full list.
 RETURNED_SQLSTATE	The SQLSTATE value.
@@ -72,6 +72,5 @@ SORT_ROWS	Number of rows sorted by the statement.
 SORT_SCAN	Number of sorts performed by the statement which used a full table scan.
 NO_INDEX_USED	0 if the statement performed a table scan with an index, 1 if without an index.
 NO_GOOD_INDEX_USED	0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.
-NESTING_EVENT_ID	NULL for top level statements. The parent statement event id for nested statements (stored programs).
-NESTING_EVENT_TYPE	NULL for top level statements. The parent statement event type for nested statements (stored programs).
-NESTING_EVENT_LEVEL	0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).
+NESTING_EVENT_ID	Reserved, currently NULL.
+NESTING_EVENT_TYPE	Reserved, currently NULL.

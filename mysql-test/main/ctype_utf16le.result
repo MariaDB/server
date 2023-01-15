@@ -1027,17 +1027,17 @@ text	65535	32767
 DROP TABLE t1;
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 #
-# Testing instr()
+# Testing cs->coll->instr()
 #
 SELECT POSITION('bb' IN 'abba');
 POSITION('bb' IN 'abba')
 2
 #
-# Testing hash_sort()
+# Testing cs->coll->hash_sort()
 #
 SET NAMES utf8, collation_connection=utf16le_bin;
 #
-# Test that hash_sort() ignores trailing spaces
+# Test that cs->coll->hash_sort() ignores trailing spaces
 #
 SELECT @@collation_connection;
 @@collation_connection
@@ -1056,7 +1056,7 @@ a 	61002000
 DROP TABLE t1;
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 #
-# Test that hash_sort() ignores trailing spaces
+# Test that cs->coll->hash_sort() ignores trailing spaces
 #
 SELECT @@collation_connection;
 @@collation_connection
@@ -1074,7 +1074,7 @@ a	HEX(a)
 a 	61002000
 DROP TABLE t1;
 #
-# Testing numchars()
+# Testing cs->cset->numchars()
 #
 SELECT CHAR_LENGTH('abcd'), OCTET_LENGTH('abcd');
 CHAR_LENGTH('abcd')	OCTET_LENGTH('abcd')
@@ -1086,7 +1086,7 @@ SELECT CHAR_LENGTH(_utf16le 0x7DD8FFDF), OCTET_LENGTH(_utf16le 0x7FD8DDDF);
 CHAR_LENGTH(_utf16le 0x7DD8FFDF)	OCTET_LENGTH(_utf16le 0x7FD8DDDF)
 1	4
 #
-# Testing charpos()
+# Testing cs->cset->charpos()
 #
 SELECT LEFT('abcd',2);
 LEFT('abcd',2)
@@ -1098,7 +1098,7 @@ SELECT HEX(RIGHT(_utf16le 0x00D800DC7FD8FFDF, 1));
 HEX(RIGHT(_utf16le 0x00D800DC7FD8FFDF, 1))
 7FD8FFDF
 #
-# Testing well_formed_length()
+# Testing cs->cset->well_formed_length()
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);
 # Bad sequences
@@ -1127,7 +1127,7 @@ DROP TABLE t1;
 #
 # Bug#32393 Character sets: illegal characters in utf16le columns
 #
-# Tests that my_ci_wc_mb() doesn't accept surrogate parts
+# Tests that cs->cset->wc_mb() doesn't accept surrogate parts
 #
 # via ALTER
 #
@@ -1154,7 +1154,7 @@ HEX(s2)
 3F00
 DROP TABLE t1;
 #
-# Testing lengthsp()
+# Testing cs->cset->lengthsp()
 #
 CREATE TABLE t1 (a CHAR(10)) CHARACTER SET utf16le;
 INSERT INTO t1 VALUES ('a   ');
@@ -1163,7 +1163,7 @@ HEX(a)
 6100
 DROP TABLE t1;
 #
-# Testing caseup() and casedn()
+# Testing cs->cset->caseup() and cs->cset->casedn()
 #
 SELECT UPPER('abcd'), LOWER('ABCD');
 UPPER('abcd')	LOWER('ABCD')
@@ -1181,7 +1181,7 @@ a
 2007-09-16
 DROP TABLE t1;
 #
-# Testing ll10tostr
+# Testing cs->cset->ll10tostr
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);
 INSERT INTO t1 VALUES (123456);
@@ -1190,14 +1190,14 @@ a	HEX(a)
 123456	310032003300340035003600
 DROP TABLE t1;
 #
-# Testing fill
+# Testing cs->cset->fill
 # SOUNDEX fills strings with DIGIT ZERO up to four characters
 #
 SELECT SOUNDEX('a'), HEX(SOUNDEX('a'));
 SOUNDEX('a')	HEX(SOUNDEX('a'))
 A000	4100300030003000
 #
-# Testing strntoul
+# Testing cs->cset->strntoul
 #
 CREATE TABLE t1 (a enum ('a','b','c')) CHARACTER SET utf16le;
 INSERT INTO t1 VALUES ('1');
@@ -1206,7 +1206,7 @@ a
 a
 DROP TABLE t1;
 #
-# Testing strntoll and strntoull
+# Testing cs->cset->strntoll and cs->cset->strntoull
 #
 SET NAMES latin1;
 SELECT HEX(CONV(CONVERT('123' USING utf16le), -10, 16));
@@ -1217,7 +1217,7 @@ HEX(CONV(CONVERT('123' USING utf16le), 10, 16))
 3742
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 #
-# Testing strntod
+# Testing cs->cset->strntod
 #
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 SELECT 1.1 + '1.2';
@@ -1229,7 +1229,7 @@ SELECT 1.1 + '1.2xxx';
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: '1.2xxx'
 #
-# Testing strtoll10
+# Testing cs->cset->strtoll10
 #
 SELECT LEFT('aaa','1');
 LEFT('aaa','1')
@@ -1303,7 +1303,7 @@ Warning	1292	Truncated incorrect INTEGER value: '-18446744073709551614'
 Warning	1292	Truncated incorrect INTEGER value: '-18446744073709551615'
 DROP TABLE t1;
 #
-# Testing strtoll10()
+# Testing cs->cset->strtoll10()
 #
 SELECT @@character_set_connection;
 @@character_set_connection
@@ -1479,7 +1479,7 @@ CAST('123456789123456789123x' AS UNSIGNED)
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '123456789123456789123x'
 #
-# Testing strntoull10rnd
+# Testing cs->cset->strntoull10rnd
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES ('-1234.1e2');
@@ -1531,7 +1531,7 @@ a
 18446744073709551615
 DROP TABLE t1;
 #
-# Testing scan
+# Testing cs->cset->scan
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES ('1 ');
@@ -2445,7 +2445,7 @@ Warning	1292	Truncated incorrect INTEGER value: '1Ĳ3'
 # MDEV-9711 NO PAD Collatons
 #
 SET character_set_connection=utf16le;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2583,7 +2583,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2721,8 +2721,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2860,7 +2860,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2998,7 +2998,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=Default;
 #
 # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
 #

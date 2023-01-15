@@ -32,7 +32,6 @@ Usage: $0 [-h|-n] [configure-options]
   -n, --just-print        Don't actually run any commands; just print them.
   -c, --just-configure    Stop after running configure.
                           Combined with --just-print shows configure options.
-  --just-clean            Clean up compilation files and update sub modules
   --extra-configs=xxx     Add this to configure options
   --extra-flags=xxx       Add this C and CXX flags
   --extra-cflags=xxx      Add this to C flags
@@ -72,8 +71,6 @@ parse_options()
       just_configure=1;;
     -n | --just-print | --print)
       just_print=1;;
-    --just-clean)
-    just_clean=1;;
     --verbose)
       verbose_make=1;;
     -h | --help)
@@ -97,7 +94,6 @@ fi
 
 prefix="/usr/local/mysql"
 just_print=
-just_clean=
 just_configure=
 warning_mode=
 maintainer_mode=
@@ -201,7 +197,7 @@ base_configs="--prefix=$prefix --enable-assembler "
 base_configs="$base_configs --with-extra-charsets=complex "
 base_configs="$base_configs --enable-thread-safe-client "
 base_configs="$base_configs --with-big-tables $maintainer_mode"
-base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables --with-plugin-s3=STATIC"
+base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables"
 # Following is to get tokudb to work
 base_configs="$base_configs --with-jemalloc=NO"
 
@@ -213,11 +209,10 @@ then
     base_configs="$base_configs --with-libedit"
 fi
 
-max_plugins="--with-plugins=max"
-max_no_embedded_configs="$SSL_LIBRARY $max_plugins"
-max_no_qc_configs="$SSL_LIBRARY $max_plugins --without-query-cache"
-max_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC"
-all_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-innodb_plugin --with-libevent"
+max_no_embedded_configs="$SSL_LIBRARY --with-plugins=max"
+max_no_qc_configs="$SSL_LIBRARY --with-plugins=max --without-query-cache"
+max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --without-plugin-tokudb --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC"
+all_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-innodb_plugin --with-libevent"
 
 #
 # CPU and platform specific compilation flags.
@@ -319,11 +314,10 @@ gcov_configs="--with-gcov"
 
 # gprof
 
-gprof_compile_flags="-O2"
+gprof_compile_flags="-O2 -pg -g"
 
-# Rest of the flags are set in CmakeFile.txt
 gprof_link_flags="--disable-shared $static_link"
 
-disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga --with-gprof"
+disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga"
 
 disable_asan_plugins="--without-plugin-rocksdb"

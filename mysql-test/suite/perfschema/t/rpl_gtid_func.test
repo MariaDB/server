@@ -32,7 +32,7 @@ update performance_schema.setup_instruments
 connection master;
 
 select * from performance_schema.setup_instruments
-  where timed='NO' and name not like "memory/%";
+  where timed='NO';
 
 select "This better be in the master" as in_master_digest;
 

@@ -31,7 +31,7 @@ ROLLBACK/*!*/;
 use `test`/*!*/;
 SET TIMESTAMP=X/*!*/;
 SET @@session.pseudo_thread_id=5/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
 SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
@@ -397,7 +397,7 @@ START TRANSACTION
 #<date> server id 1  end_log_pos END_LOG_POS CRC32 XXX 	Query	thread_id=TID	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 SET @@session.pseudo_thread_id=TID/*!*/;
-SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0, @@session.explicit_defaults_for_timestamp=0/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
 SET @@session.sql_mode=#/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;

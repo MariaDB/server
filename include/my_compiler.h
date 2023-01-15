@@ -29,14 +29,6 @@
   Compiler-dependent internal convenience macros.
 */
 
-/* C vs C++ */
-#ifdef __cplusplus
-#define CONSTEXPR constexpr
-#else
-#define CONSTEXPR
-#endif /* __cplusplus */
-
-
 /* GNU C/C++ */
 #if defined __GNUC__
 /* Convenience macro to test the minimum required GCC version. */

@@ -1,1 +1,1 @@
-usr/bin/mariadb-backup usr/bin/mariabackup
+usr/bin/mariabackup usr/bin/mariadb-backup

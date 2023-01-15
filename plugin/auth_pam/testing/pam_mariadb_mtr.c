@@ -22,9 +22,9 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags __attribute__((unused)),
   struct pam_response *resp = 0;
   int pam_err, retval = PAM_SYSTEM_ERR;
   struct pam_message msg[N] = {
-    { PAM_TEXT_INFO, (char*)"Challenge input first." },
-    { PAM_PROMPT_ECHO_OFF, (char*)"Enter:" },
-    { PAM_ERROR_MSG, (char*)"Now, the magic number!" }
+    { PAM_TEXT_INFO, "Challenge input first." },
+    { PAM_PROMPT_ECHO_OFF, "Enter:" },
+    { PAM_ERROR_MSG, "Now, the magic number!" }
   };
   const struct pam_message *msgp[N] = { msg, msg+1, msg+2 };
   char *r1 = 0, *r2 = 0;
@@ -46,7 +46,7 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags __attribute__((unused)),
   {
     free(resp);
     msg[0].msg_style = PAM_PROMPT_ECHO_ON;
-    msg[0].msg = (char*)"PIN:";
+    msg[0].msg = "PIN:";
     pam_err = (*conv->conv)(1, msgp, &resp, conv->appdata_ptr);
 
     if (pam_err != PAM_SUCCESS || !resp || !((r2= resp[0].resp)))

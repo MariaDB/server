@@ -9,7 +9,7 @@
 
 set global innodb_file_per_table=OFF;
 
-call mtr.add_suppression("(mysqld|mariadbd).*: file-key-management-filename is not set");
+call mtr.add_suppression("mysqld: file-key-management-filename is not set");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error.");
 call mtr.add_suppression("Plugin 'file_key_management' registration as a ENCRYPTION failed.");
 flush tables;
@@ -29,7 +29,6 @@ create table t1(a int not null primary key, b char(200)) engine=innodb;
 --source include/wait_condition.inc
 
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
---sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 
 --echo # Success!
@@ -42,7 +41,6 @@ SET GLOBAL innodb_encrypt_tables = off;
 --let $wait_condition=SELECT COUNT(*) = $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING = 0;
 --source include/wait_condition.inc
 
---sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 
@@ -53,7 +51,6 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 --let $restart_parameters=--skip-file-key-management --innodb-encrypt-tables=OFF --innodb-encryption-threads=0 --innodb-tablespaces-encryption
 -- source include/restart_mysqld.inc
 
---sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 

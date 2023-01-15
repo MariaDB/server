@@ -59,7 +59,7 @@ ALTER TABLE t1 ADD COLUMN d INT, ALGORITHM=COPY;
 #
 SET GLOBAL innodb_file_per_table=ON;
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
-ERROR HY000: Tablespace for table 'test/#sql-ib' exists. Please DISCARD the tablespace before IMPORT
+ERROR HY000: Tablespace for table 'test/t1' exists. Please DISCARD the tablespace before IMPORT
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 ERROR HY000: Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME' (errno: 184 "Tablespace already exists")
 #

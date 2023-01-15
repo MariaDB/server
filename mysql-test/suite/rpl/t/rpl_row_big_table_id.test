@@ -4,8 +4,6 @@
 # MDEV-17803 Row-based event is not applied when
 # table map id is greater 32 bit int
 #
-# This test is depending on that the server was restarted before test was run
-#
 # Verify row-based events applying when table map id value is about and greater
 # than 1 << 32.
 ##################################################################
@@ -15,8 +13,13 @@
 --source include/have_binlog_format_row.inc
 --source include/master-slave.inc
 
-SET @old_debug_dbug= @@debug_dbug;
-SET @@debug_dbug="+d,simulate_big_table_id";
+--connection master
+# To reset last table id
+--let $rpl_server_number= 1
+--source include/rpl_restart_server.inc
+
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET @@debug_dbug="d,simulate_big_table_id";
 CREATE TABLE t (a int);
 
 --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
@@ -49,10 +52,8 @@ if (`SELECT sum(a) != 6 FROM t`)
 # Cleanup
 
 --connection master
-SET debug_dbug=@old_debug_dbug;
-
 DROP TABLE t;
-
+SET debug_dbug= @saved_dbug;
 --sync_slave_with_master
 
 --source include/rpl_end.inc

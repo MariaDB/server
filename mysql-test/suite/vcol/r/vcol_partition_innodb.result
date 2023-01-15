@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'InnoDB';
+SET @@session.storage_engine = 'InnoDB';
 drop table if exists t1;
 # Case 1. Partitioning by RANGE based on a non-stored virtual column.
 CREATE TABLE t1 (

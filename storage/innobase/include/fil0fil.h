@@ -28,71 +28,22 @@ Created 10/25/1995 Heikki Tuuri
 #define fil0fil_h
 
 #include "fsp0types.h"
-#include "mach0data.h"
-#include "assume_aligned.h"
 
 #ifndef UNIV_INNOCHECKSUM
 
-#include "buf0dblwr.h"
-#include "hash0hash.h"
 #include "log0recv.h"
 #include "dict0types.h"
 #include "ilist.h"
-#include <set>
-#include <mutex>
+#ifdef __linux__
+# include <set>
+#endif
 
 struct unflushed_spaces_tag_t;
 struct rotation_list_tag_t;
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
-
-/** Possible values of innodb_flush_method */
-enum srv_flush_t
-{
-  /** fsync, the default */
-  SRV_FSYNC= 0,
-  /** open log files in O_DSYNC mode */
-  SRV_O_DSYNC,
-  /** do not call os_file_flush() when writing data files, but do flush
-  after writing to log files */
-  SRV_LITTLESYNC,
-  /** do not flush after writing */
-  SRV_NOSYNC,
-  /** invoke os_file_set_nocache() on data files. This implies using
-  non-buffered IO but still using fsync, the reason for which is that
-  some FS do not flush meta-data when unbuffered IO happens */
-  SRV_O_DIRECT,
-  /** do not use fsync() when using direct IO i.e.: it can be set to
-  avoid the fsync() call that we make when using SRV_UNIX_O_DIRECT.
-  However, in this case user/DBA should be sure about the integrity of
-  the meta-data */
-  SRV_O_DIRECT_NO_FSYNC
-#ifdef _WIN32
-  /** Traditional Windows appoach to open all files without caching,
-  and do FileFlushBuffers() */
-  ,SRV_ALL_O_DIRECT_FSYNC
-#endif
-};
-
-/** innodb_flush_method */
-extern ulong srv_file_flush_method;
-
-/** Undo tablespaces starts with space_id. */
-extern	ulint	srv_undo_space_id_start;
-/** The number of UNDO tablespaces that are open and ready to use. */
-extern ulint	srv_undo_tablespaces_open;
-
-/** Check whether given space id is undo tablespace id
-@param[in]	space_id	space id to check
-@return true if it is undo tablespace else false. */
-inline bool srv_is_undo_tablespace(ulint space_id)
-{
-  return srv_undo_space_id_start > 0 &&
-    space_id >= srv_undo_space_id_start &&
-    space_id < srv_undo_space_id_start + srv_undo_tablespaces_open;
-}
-
+extern struct buf_dblwr_t* buf_dblwr;
 class page_id_t;
 
 /** Structure containing encryption specification */
@@ -106,240 +57,38 @@ enum fil_type_t {
 	FIL_TYPE_IMPORT,
 	/** persistent tablespace (for system, undo log or tables) */
 	FIL_TYPE_TABLESPACE,
+	/** redo log covering changes to files of FIL_TYPE_TABLESPACE */
+	FIL_TYPE_LOG
 };
+
+/** Check if fil_type is any of FIL_TYPE_TEMPORARY, FIL_TYPE_IMPORT
+or FIL_TYPE_TABLESPACE.
+@param[in]	type	variable of type fil_type_t
+@return true if any of FIL_TYPE_TEMPORARY, FIL_TYPE_IMPORT
+or FIL_TYPE_TABLESPACE */
+inline
+bool
+fil_type_is_data(
+	fil_type_t	type)
+{
+	return(type == FIL_TYPE_TEMPORARY
+	       || type == FIL_TYPE_IMPORT
+	       || type == FIL_TYPE_TABLESPACE);
+}
 
 struct fil_node_t;
 
-/** Structure to store first and last value of range */
-struct range_t
-{
-  uint32_t first;
-  uint32_t last;
-};
-
-/** Sort the range based on first value of the range */
-struct range_compare
-{
-  bool operator() (const range_t lhs, const range_t rhs) const
-  {
-    return lhs.first < rhs.first;
-  }
-};
-
-using range_set_t= std::set<range_t, range_compare>;
-/** Range to store the set of ranges of integers */
-class range_set
-{
-private:
-  range_set_t ranges;
-
-  range_set_t::iterator find(uint32_t value) const
-  {
-    auto r_offset= ranges.lower_bound({value, value});
-    const auto r_end= ranges.end();
-    if (r_offset != r_end);
-    else if (empty())
-      return r_end;
-    else
-      r_offset= std::prev(r_end);
-    if (r_offset->first <= value && r_offset->last >= value)
-      return r_offset;
-    return r_end;
-  }
-public:
-  /** Merge the current range with previous range.
-  @param[in] range      range to be merged
-  @param[in] prev_range range to be merged with next */
-  void merge_range(range_set_t::iterator range,
-		   range_set_t::iterator prev_range)
-  {
-    if (range->first != prev_range->last + 1)
-      return;
-
-    /* Merge the current range with previous range */
-    range_t new_range {prev_range->first, range->last};
-    ranges.erase(prev_range);
-    ranges.erase(range);
-    ranges.emplace(new_range);
-  }
-
-  /** Split the range and add two more ranges
-  @param[in] range	range to be split
-  @param[in] value	Value to be removed from range */
-  void split_range(range_set_t::iterator range, uint32_t value)
-  {
-    range_t split1{range->first, value - 1};
-    range_t split2{value + 1, range->last};
-
-    /* Remove the existing element */
-    ranges.erase(range);
-
-    /* Insert the two elements */
-    ranges.emplace(split1);
-    ranges.emplace(split2);
-  }
-
-  /** Remove the value with the given range
-  @param[in,out] range  range to be changed
-  @param[in]	 value	value to be removed */
-  void remove_within_range(range_set_t::iterator range, uint32_t value)
-  {
-    range_t new_range{range->first, range->last};
-    if (value == range->first)
-    {
-      if (range->first == range->last)
-      {
-        ranges.erase(range);
-        return;
-      }
-      else
-        new_range.first++;
-    }
-    else if (value == range->last)
-      new_range.last--;
-    else if (range->first < value && range->last > value)
-      return split_range(range, value);
-
-    ranges.erase(range);
-    ranges.emplace(new_range);
-  }
-
-  /** Remove the value from the ranges.
-  @param[in]	value	Value to be removed. */
-  void remove_value(uint32_t value)
-  {
-    if (empty())
-      return;
-    range_t new_range {value, value};
-    range_set_t::iterator range= ranges.lower_bound(new_range);
-    if (range == ranges.end())
-      return remove_within_range(std::prev(range), value);
-
-    if (range->first > value && range != ranges.begin())
-      /* Iterate the previous ranges to delete */
-      return remove_within_range(std::prev(range), value);
-    return remove_within_range(range, value);
-  }
-  /** Add the value within the existing range
-  @param[in]	range	range to be modified
-  @param[in]	value	value to be added */
-  range_set_t::iterator add_within_range(range_set_t::iterator range,
-                                         uint32_t value)
-  {
-    if (range->first <= value && range->last >= value)
-      return range;
-
-    range_t new_range{range->first, range->last};
-    if (range->last + 1 == value)
-      new_range.last++;
-    else if (range->first - 1 == value)
-      new_range.first--;
-    else return ranges.end();
-    ranges.erase(range);
-    return ranges.emplace(new_range).first;
-  }
-  /** Add the range in the ranges set
-  @param[in]	new_range	range to be added */
-  void add_range(range_t new_range)
-  {
-    auto r_offset= ranges.lower_bound(new_range);
-    auto r_begin= ranges.begin();
-    auto r_end= ranges.end();
-    if (!ranges.size())
-    {
-new_range:
-      ranges.emplace(new_range);
-      return;
-    }
-
-    if (r_offset == r_end)
-    {
-      /* last range */
-      if (add_within_range(std::prev(r_offset), new_range.first) == r_end)
-        goto new_range;
-    }
-    else if (r_offset == r_begin)
-    {
-      /* First range */
-      if (add_within_range(r_offset, new_range.first) == r_end)
-        goto new_range;
-    }
-    else if (r_offset->first - 1 == new_range.first)
-    {
-      /* Change starting of the existing range */
-      auto r_value= add_within_range(r_offset, new_range.first);
-      if (r_value != ranges.begin())
-        merge_range(r_value, std::prev(r_value));
-    }
-    else
-    {
-      /* previous range last_value alone */
-      if (add_within_range(std::prev(r_offset), new_range.first) == r_end)
-        goto new_range;
-    }
-  }
-
- /** Add the value in the ranges
- @param[in] value  value to be added */
-  void add_value(uint32_t value)
-  {
-    range_t new_range{value, value};
-    add_range(new_range);
-  }
-
-  bool remove_if_exists(uint32_t value)
-  {
-    auto r_offset= find(value);
-    if (r_offset != ranges.end())
-    {
-      remove_within_range(r_offset, value);
-      return true;
-    }
-    return false;
-  }
-
-  bool contains(uint32_t value) const
-  {
-    return find(value) != ranges.end();
-  }
-
-  ulint size() { return ranges.size(); }
-  void clear() { ranges.clear(); }
-  bool empty() const { return ranges.empty(); }
-  typename range_set_t::iterator begin() { return ranges.begin(); }
-  typename range_set_t::iterator end() { return ranges.end(); }
-};
 #endif
 
 /** Tablespace or log data space */
 #ifndef UNIV_INNOCHECKSUM
-struct fil_io_t
-{
-  /** error code */
-  dberr_t err;
-  /** file; node->space->release() must follow IORequestRead call */
-  fil_node_t *node;
-};
-
-/** Tablespace encryption mode */
-enum fil_encryption_t
-{
-  /** Encrypted if innodb_encrypt_tables=ON (srv_encrypt_tables) */
-  FIL_ENCRYPTION_DEFAULT,
-  /** Encrypted */
-  FIL_ENCRYPTION_ON,
-  /** Not encrypted */
-  FIL_ENCRYPTION_OFF
-};
-
-struct fil_space_t final :
-  ilist_node<unflushed_spaces_tag_t>, ilist_node<rotation_list_tag_t>
+struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
+                     ilist_node<rotation_list_tag_t>
 #else
-struct fil_space_t final
+struct fil_space_t
 #endif
 {
 #ifndef UNIV_INNOCHECKSUM
-  friend fil_node_t;
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */
 	char*		name;	/*!< Tablespace name */
@@ -350,50 +99,67 @@ struct fil_space_t final
 				Protected by log_sys.mutex.
 				If and only if this is nonzero, the
 				tablespace will be in named_spaces. */
+	/** Log sequence number of the latest MLOG_INDEX_LOAD record
+	that was found while parsing the redo log */
+	lsn_t		enable_lsn;
 	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
+#ifdef UNIV_DEBUG
+	/** reference count for operations who want to skip redo log in the
+	file space in order to make modify_check() pass. */
+	Atomic_counter<ulint> redo_skipped_count;
+#endif
 	fil_type_t	purpose;/*!< purpose */
 	UT_LIST_BASE_NODE_T(fil_node_t) chain;
 				/*!< base node for the file chain */
-	uint32_t	size;	/*!< tablespace file size in pages;
+	ulint		size;	/*!< tablespace file size in pages;
 				0 if not known yet */
-	uint32_t	size_in_header;
+	ulint		size_in_header;
 				/* FSP_SIZE in the tablespace header;
 				0 if not known yet */
-	uint32_t	free_len;
+	ulint		free_len;
 				/*!< length of the FSP_FREE list */
-	uint32_t	free_limit;
+	ulint		free_limit;
 				/*!< contents of FSP_FREE_LIMIT */
-	uint32_t	recv_size;
+	ulint		recv_size;
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
-	uint32_t	n_reserved_extents;
+  /** the committed size of the tablespace in pages */
+  Atomic_relaxed<ulint> committed_size;
+	ulint		n_reserved_extents;
 				/*!< number of reserved free extents for
 				ongoing operations like B-tree page split */
+	ulint		n_pending_flushes; /*!< this is positive when flushing
+				the tablespace to disk; dropping of the
+				tablespace is forbidden if this is positive */
 private:
-  /** the committed size of the tablespace in pages */
-  Atomic_relaxed<uint32_t> committed_size;
-  /** Number of pending operations on the file.
-  The tablespace cannot be freed while (n_pending & PENDING) != 0. */
-  std::atomic<uint32_t> n_pending;
-  /** Flag in n_pending that indicates that the tablespace is being
+  /** Number of pending buffer pool operations accessing the
+  tablespace without holding a table lock or dict_operation_lock
+  S-latch that would prevent the table (and tablespace) from being
+  dropped. An example is change buffer merge.
+
+  The tablespace cannot be dropped while this is nonzero, or while
+  fil_node_t::n_pending is nonzero.
+
+  The most significant bit contains the STOP_NEW_OPS flag. */
+  Atomic_relaxed<size_t> n_pending_ops;
+
+  /** Flag in n_pending_ops that indicates that the tablespace is being
   deleted, and no further operations should be performed */
-  static constexpr uint32_t STOPPING= 1U << 31;
-  /** Flag in n_pending that indicates that the tablespace is a candidate
-  for being closed, and fil_node_t::is_open() can only be trusted after
-  acquiring fil_system.mutex and resetting the flag */
-  static constexpr uint32_t CLOSING= 1U << 30;
-  /** Flag in n_pending that indicates that the tablespace needs fsync().
-  This must be the least significant flag bit; @see release_flush() */
-  static constexpr uint32_t NEEDS_FSYNC= 1U << 29;
-  /** The reference count */
-  static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
+  static const size_t STOP_NEW_OPS= ~(~size_t(0) >> 1);
 public:
+	/** Number of pending block read or write operations
+	(when a write is imminent or a read has recently completed).
+	The tablespace object cannot be freed while this is nonzero,
+	but it can be detached from fil_system.
+	Note that fil_node_t::n_pending tracks actual pending I/O requests.
+	Protected by fil_system.mutex and std::atomic. */
+	std::atomic<ulint>		n_pending_ios;
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
-				/*!< list of spaces for which FILE_MODIFY
+				/*!< list of spaces for which MLOG_FILE_NAME
 				records have been issued */
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
@@ -414,24 +180,23 @@ public:
 	punch hole */
 	bool		punch_hole;
 
-	/** mutex to protect freed ranges */
-	std::mutex	freed_range_mutex;
-
-	/** Variables to store freed ranges. This can be used to write
-	zeroes/punch the hole in files. Protected by freed_mutex */
-	range_set	freed_ranges;
-
-	/** Stores last page freed lsn. Protected by freed_mutex */
-	lsn_t		last_freed_lsn;
-
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
-  /** @return whether doublewrite buffering is needed */
-  bool use_doublewrite() const
+  /** Clamp a page number for batched I/O, such as read-ahead.
+  @param offset   page number limit
+  @return offset clamped to the tablespace size */
+  ulint max_page_number_for_io(ulint offset) const
   {
-    return !atomic_write_supported && srv_use_doublewrite_buf &&
-      buf_dblwr.is_initialised();
+    const ulint limit= committed_size;
+    return limit > offset ? offset : limit;
   }
+
+	/** @return whether doublewrite buffering is needed */
+	bool use_doublewrite() const
+	{
+		return !atomic_write_supported
+			&& srv_use_doublewrite_buf && buf_dblwr;
+	}
 
 	/** Append a file to the chain of files of a space.
 	@param[in]	name		file name of a file that is not open
@@ -440,11 +205,11 @@ public:
 	@param[in]	is_raw		whether this is a raw device
 	@param[in]	atomic_write	true if atomic write could be enabled
 	@param[in]	max_pages	maximum number of pages in file,
-	or UINT32_MAX for unlimited
+	or ULINT_MAX for unlimited
 	@return file object */
 	fil_node_t* add(const char* name, pfs_os_file_t handle,
-			uint32_t size, bool is_raw, bool atomic_write,
-			uint32_t max_pages = UINT32_MAX);
+			ulint size, bool is_raw, bool atomic_write,
+			ulint max_pages = ULINT_MAX);
 #ifdef UNIV_DEBUG
 	/** Assert that the mini-transaction is compatible with
 	updating an allocation bitmap page.
@@ -456,7 +221,7 @@ public:
 	@param[in]	n_free_now	current number of free extents
 	@param[in]	n_to_reserve	number of extents to reserve
 	@return	whether the reservation succeeded */
-	bool reserve_free_extents(uint32_t n_free_now, uint32_t n_to_reserve)
+	bool reserve_free_extents(ulint n_free_now, ulint n_to_reserve)
 	{
 		ut_ad(rw_lock_own(&latch, RW_LOCK_X));
 		if (n_reserved_extents + n_to_reserve > n_free_now) {
@@ -469,7 +234,7 @@ public:
 
 	/** Release the reserved free extents.
 	@param[in]	n_reserved	number of reserved extents */
-	void release_free_extents(uint32_t n_reserved)
+	void release_free_extents(ulint n_reserved)
 	{
 		if (!n_reserved) return;
 		ut_ad(rw_lock_own(&latch, RW_LOCK_X));
@@ -487,140 +252,59 @@ public:
 	dberr_t rename(const char* name, const char* path, bool log,
 		       bool replace = false);
 
-  /** Note that the tablespace has been imported.
-  Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
-  written while the space ID is being updated in each page. */
-  inline void set_imported();
+	/** Note that the tablespace has been imported.
+	Initially, purpose=FIL_TYPE_IMPORT so that no redo log is
+	written while the space ID is being updated in each page. */
+	inline void set_imported();
 
-  /** @return whether the storage device is rotational (HDD, not SSD) */
-  inline bool is_rotational() const;
+	/** @return whether the storage device is rotational (HDD, not SSD) */
+	inline bool is_rotational() const;
 
-  /** Open each file. Never invoked on .ibd files.
-  @param create_new_db    whether to skip the call to fil_node_t::read_page0()
-  @return whether all files were opened */
-  bool open(bool create_new_db);
-  /** Close each file. Only invoked on fil_system.temp_space. */
-  void close();
+	/** Open each file. Only invoked on fil_system.temp_space.
+	@return whether all files were opened */
+	bool open();
+	/** Close each file. Only invoked on fil_system.temp_space. */
+	void close();
+
+  /** @return whether the tablespace is about to be dropped */
+  bool is_stopping() const { return n_pending_ops & STOP_NEW_OPS; }
+
+  /** @return number of references being held */
+  size_t referenced() const { return n_pending_ops & ~STOP_NEW_OPS; }
 
   /** Note that operations on the tablespace must stop or can resume */
-  inline void set_stopping(bool stopping);
-
-private:
-  MY_ATTRIBUTE((warn_unused_result))
-  /** Try to acquire a tablespace reference (increment referenced()).
-  @param avoid   when these flags are set, nothing will be acquired
-  @return the old reference count */
-  uint32_t acquire_low(uint32_t avoid= STOPPING)
+  void set_stopping(bool stopping)
   {
-    uint32_t n= 0;
-    while (!n_pending.compare_exchange_strong(n, n + 1,
-                                              std::memory_order_acquire,
-                                              std::memory_order_relaxed) &&
-           !(n & avoid));
-    return n;
+    ut_d(auto n=) n_pending_ops.fetch_xor(STOP_NEW_OPS);
+    ut_ad(!(n & STOP_NEW_OPS) == stopping);
   }
-public:
-  MY_ATTRIBUTE((warn_unused_result))
-  /** Acquire a tablespace reference.
-  @return whether a tablespace reference was successfully acquired */
-  inline bool acquire_if_not_stopped();
 
   MY_ATTRIBUTE((warn_unused_result))
-  /** Acquire a tablespace reference for I/O.
-  @return whether the file is usable */
+  /** @return whether a tablespace reference was successfully acquired */
   bool acquire()
   {
-    const auto flags= acquire_low(STOPPING | CLOSING) & (STOPPING | CLOSING);
-    return UNIV_LIKELY(!flags) || (flags == CLOSING && acquire_and_prepare());
+    size_t n= 0;
+    while (!n_pending_ops.compare_exchange_strong(n, n + 1,
+                                                  std::memory_order_acquire,
+                                                  std::memory_order_relaxed))
+      if (UNIV_UNLIKELY(n & STOP_NEW_OPS))
+        return false;
+    return true;
   }
-
-  /** Acquire another tablespace reference for I/O. */
-  inline void reacquire();
-
   /** Release a tablespace reference.
   @return whether this was the last reference */
   bool release()
   {
-    uint32_t n= n_pending.fetch_sub(1, std::memory_order_release);
-    ut_ad(n & PENDING);
-    return (n & PENDING) == 1;
+    auto n= n_pending_ops.fetch_sub(1);
+    ut_ad(n & ~STOP_NEW_OPS);
+    return (n & ~STOP_NEW_OPS) == 1;
   }
-
-  /** Clear the NEEDS_FSYNC flag */
-  void clear_flush()
-  { n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release); }
-
-private:
-  /** @return pending operations (and flags) */
-  uint32_t pending()const { return n_pending.load(std::memory_order_acquire); }
-public:
-  /** @return whether close() of the file handle has been requested */
-  bool is_closing() const { return pending() & CLOSING; }
-  /** @return whether the tablespace is going to be dropped */
-  bool is_stopping() const { return pending() & STOPPING; }
-  /** @return number of pending operations */
-  bool is_ready_to_close() const
-  { return (pending() & (PENDING | CLOSING)) == CLOSING; }
-  /** @return whether fsync() or similar is needed */
-  bool needs_flush() const { return pending() & NEEDS_FSYNC; }
-  /** @return whether fsync() or similar is needed, and the tablespace is
-  not being dropped  */
-  bool needs_flush_not_stopping() const
-  { return (pending() & (NEEDS_FSYNC | STOPPING)) == NEEDS_FSYNC; }
-
-  uint32_t referenced() const { return pending() & PENDING; }
-private:
-  MY_ATTRIBUTE((warn_unused_result))
-  /** Prepare to close the file handle.
-  @return number of pending operations, possibly with NEEDS_FSYNC flag */
-  uint32_t set_closing()
-  {
-    return n_pending.fetch_or(CLOSING, std::memory_order_acquire) &
-      (PENDING | NEEDS_FSYNC);
-  }
-
-public:
-  /** Try to close a file to adhere to the innodb_open_files limit.
-  @param print_info   whether to diagnose why a file cannot be closed
-  @return whether a file was closed */
-  static bool try_to_close(bool print_info);
-
-  /** Close all tablespace files at shutdown */
-  static void close_all();
-
-  /** @return last_freed_lsn */
-  lsn_t get_last_freed_lsn() { return last_freed_lsn; }
-  /** Update last_freed_lsn */
-  void update_last_freed_lsn(lsn_t lsn)
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    last_freed_lsn= lsn;
-  }
-
-  /** Note that the file will need fsync().
-  @return whether this needs to be added to fil_system.unflushed_spaces */
-  bool set_needs_flush()
-  {
-    uint32_t n= 1;
-    while (!n_pending.compare_exchange_strong(n, n | NEEDS_FSYNC,
-                                              std::memory_order_acquire,
-                                              std::memory_order_relaxed))
-    {
-      ut_ad(n & PENDING);
-      if (n & (NEEDS_FSYNC | STOPPING))
-        return false;
-    }
-
-    return true;
-  }
-
-  /** Clear all freed ranges for undo tablespace when InnoDB
-  encounters TRIM redo log record */
-  void clear_freed_ranges()
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    freed_ranges.clear();
-  }
+  /** Acquire a tablespace reference for I/O. */
+  void acquire_for_io() { n_pending_ios++; }
+  /** Release a tablespace reference for I/O. */
+  void release_for_io() { ut_d(auto n=) n_pending_ios--; ut_ad(n); }
+  /** @return whether I/O is pending */
+  bool pending_io() const { return n_pending_ios; }
 #endif /* !UNIV_INNOCHECKSUM */
 	/** FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 	check fsp0types.h to more info about flags. */
@@ -709,11 +393,11 @@ public:
   @param[in]	flags	tablespace flags */
   static bool is_compressed(ulint flags)
   {
-    return is_full_crc32_compressed(flags) ||
-      FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+    return is_full_crc32_compressed(flags)
+        || FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
   }
-  /** @return whether the compression enabled for the tablespace. */
-  bool is_compressed() const { return is_compressed(flags); }
+	/** @return whether the compression enabled for the tablespace. */
+	bool is_compressed() const { return is_compressed(flags); }
 
 	/** Get the compression algorithm for full crc32 format.
 	@param[in]	flags	tablespace flags
@@ -896,112 +580,6 @@ public:
 		return(ssize == 0 || !is_ibd
 		       || srv_page_size != UNIV_PAGE_SIZE_ORIG);
 	}
-
-#ifndef UNIV_INNOCHECKSUM
-  MY_ATTRIBUTE((warn_unused_result))
-  /** Create a tablespace in fil_system.
-  @param name       tablespace name
-  @param id         tablespace identifier
-  @param flags      tablespace flags
-  @param purpose    tablespace purpose
-  @param crypt_data encryption information
-  @param mode       encryption mode
-  @return pointer to created tablespace, to be filled in with add()
-  @retval nullptr on failure (such as when the same tablespace exists) */
-  static fil_space_t *create(const char *name, ulint id, ulint flags,
-                             fil_type_t purpose, fil_space_crypt_t *crypt_data,
-                             fil_encryption_t mode= FIL_ENCRYPTION_DEFAULT);
-
-  MY_ATTRIBUTE((warn_unused_result))
-  /** Acquire a tablespace reference.
-  @param id      tablespace identifier
-  @return tablespace
-  @retval nullptr if the tablespace is missing or inaccessible */
-  static fil_space_t *get(ulint id);
-
-  /** Add/remove the free page in the freed ranges list.
-  @param[in] offset     page number to be added
-  @param[in] free       true if page to be freed */
-  void free_page(uint32_t offset, bool add=true)
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    if (add)
-      return freed_ranges.add_value(offset);
-
-    if (freed_ranges.empty())
-      return;
-
-    return freed_ranges.remove_value(offset);
-  }
-
-  /** Add the range of freed pages */
-  void add_free_ranges(range_set ranges)
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    freed_ranges= std::move(ranges);
-  }
-
-  /** Add the set of freed page ranges */
-  void add_free_range(const range_t range)
-  {
-    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
-    freed_ranges.add_range(range);
-  }
-
-  /** Set the tablespace size in pages */
-  void set_sizes(uint32_t s)
-  {
-    ut_ad(id ? !size : (size >= s));
-    size= s; committed_size= s;
-  }
-
-  /** Update committed_size in mtr_t::commit() */
-  void set_committed_size()
-  {
-    ut_ad(rw_lock_own(&latch, RW_LOCK_X));
-    committed_size= size;
-  }
-
-  /** @return the last persisted page number */
-  uint32_t last_page_number() const { return committed_size - 1; }
-
-  /** @return the size in pages (0 if unreadable) */
-  inline uint32_t get_size();
-
-  /** Read or write data.
-  @param type     I/O context
-  @param offset   offset in bytes
-  @param len      number of bytes
-  @param buf      the data to be read or written
-  @param bpage    buffer block (for type.is_async() completion callback)
-  @return status and file descriptor */
-  fil_io_t io(const IORequest &type, os_offset_t offset, size_t len,
-              void *buf, buf_page_t *bpage= nullptr);
-  /** Flush pending writes from the file system cache to the file. */
-  template<bool have_reference> inline void flush();
-  /** Flush pending writes from the file system cache to the file. */
-  void flush_low();
-
-  /** Read the first page of a data file.
-  @return whether the page was found valid */
-  bool read_page0();
-
-  /** Determine the next tablespace for encryption key rotation.
-  @param space    current tablespace (nullptr to start from the beginning)
-  @param recheck  whether the removal condition needs to be rechecked after
-                  encryption parameters were changed
-  @param encrypt  expected state of innodb_encrypt_tables
-  @return the next tablespace
-  @retval nullptr upon reaching the end of the iteration */
-  static inline fil_space_t *next(fil_space_t *space, bool recheck,
-                                  bool encrypt);
-
-private:
-  /** @return whether the file is usable for io() */
-  ATTRIBUTE_COLD bool prepare_acquired();
-  /** @return whether the file is usable for io() */
-  ATTRIBUTE_COLD bool acquire_and_prepare();
-#endif /*!UNIV_INNOCHECKSUM */
 };
 
 #ifndef UNIV_INNOCHECKSUM
@@ -1009,8 +587,7 @@ private:
 #define	FIL_SPACE_MAGIC_N	89472
 
 /** File node of a tablespace or the log data space */
-struct fil_node_t final
-{
+struct fil_node_t {
 	/** tablespace containing this file */
 	fil_space_t*	space;
 	/** file name; protected by fil_system.mutex and log_sys.mutex. */
@@ -1024,16 +601,24 @@ struct fil_node_t final
 	/** size of the file in database pages (0 if not known yet);
 	the possible last incomplete megabyte may be ignored
 	if space->id == 0 */
-	uint32_t	size;
+	ulint		size;
 	/** initial size of the file in database pages;
 	FIL_IBD_FILE_INITIAL_SIZE by default */
-	uint32_t	init_size;
+	ulint		init_size;
 	/** maximum size of the file in database pages (0 if unlimited) */
-	uint32_t	max_size;
+	ulint		max_size;
+	/** count of pending i/o's; is_open must be true if nonzero */
+	ulint		n_pending;
+	/** count of pending flushes; is_open must be true if nonzero */
+	ulint		n_pending_flushes;
 	/** whether the file is currently being extended */
-	Atomic_relaxed<bool> being_extended;
+	bool		being_extended;
+	/** whether this file had writes after lasy fsync() */
+	bool		needs_flush;
 	/** link to other files in this tablespace */
 	UT_LIST_NODE_T(fil_node_t) chain;
+	/** link to the fil_system.LRU list (keeping track of open files) */
+	UT_LIST_NODE_T(fil_node_t) LRU;
 
 	/** whether this file could use atomic write (data file) */
 	bool		atomic_write;
@@ -1051,8 +636,9 @@ struct fil_node_t final
 	}
 
 	/** Read the first page of a data file.
+	@param[in]	first	whether this is the very first read
 	@return	whether the page was found valid */
-	bool read_page0();
+	bool read_page0(bool first);
 
 	/** Determine some file metadata when creating or reading the file.
 	@param	file	the file that is being created, or OS_FILE_CLOSED */
@@ -1062,21 +648,8 @@ struct fil_node_t final
 #endif
 			   );
 
-  /** Close the file handle. */
-  void close();
-  /** Same as close() but returns file handle instead of closing it. */
-  pfs_os_file_t detach() MY_ATTRIBUTE((warn_unused_result));
-  /** Prepare to free a file from fil_system.
-  @param detach_handle whether to detach instead of closing a handle
-  @return detached handle or OS_FILE_CLOSED */
-  inline pfs_os_file_t close_to_free(bool detach_handle= false);
-
-  /** Update the data structures on write completion */
-  inline void complete_write();
-
-private:
-  /** Does stuff common for close() and detach() */
-  void prepare_to_close_or_detach();
+	/** Close the file handle. */
+	void close();
 };
 
 /** Value of fil_node_t::magic_n */
@@ -1084,18 +657,20 @@ private:
 
 inline void fil_space_t::set_imported()
 {
-  ut_ad(purpose == FIL_TYPE_IMPORT);
-  purpose= FIL_TYPE_TABLESPACE;
-  UT_LIST_GET_FIRST(chain)->find_metadata();
+	ut_ad(purpose == FIL_TYPE_IMPORT);
+	purpose = FIL_TYPE_TABLESPACE;
+	UT_LIST_GET_FIRST(chain)->find_metadata();
 }
 
 inline bool fil_space_t::is_rotational() const
 {
-  for (const fil_node_t *node= UT_LIST_GET_FIRST(chain); node;
-       node= UT_LIST_GET_NEXT(chain, node))
-    if (!node->on_ssd)
-      return true;
-  return false;
+	for (const fil_node_t* node = UT_LIST_GET_FIRST(chain);
+	     node != NULL; node = UT_LIST_GET_NEXT(chain, node)) {
+		if (!node->on_ssd) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /** Common InnoDB file extensions */
@@ -1114,6 +689,13 @@ extern const char* dot_ext[];
 but in the MySQL Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 extern const char*	fil_path_to_mysql_datadir;
+
+/* Space address data type; this is intended to be used when
+addresses accurate to a byte are stored in file pages. If the page part
+of the address is FIL_NULL, the address is considered undefined. */
+
+typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
+				stored in a file page is a string of bytes */
 #else
 # include "univ.i"
 #endif /* !UNIV_INNOCHECKSUM */
@@ -1131,10 +713,8 @@ extern const char*	fil_path_to_mysql_datadir;
 
 /** File space address */
 struct fil_addr_t {
-  /** page number within a tablespace */
-  uint32_t page;
-  /** byte offset within the page */
-  uint16_t boffset;
+	ulint	page;		/*!< page number within a space */
+	ulint	boffset;	/*!< byte offset within the page */
 };
 
 /** The byte offsets on a file page for various variables @{ */
@@ -1234,63 +814,50 @@ not using full_crc32 */
 
 /** File page types (values of FIL_PAGE_TYPE) @{ */
 /** page_compressed, encrypted=YES (not used for full_crc32) */
-constexpr uint16_t FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED= 37401;
+#define FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED 37401
 /** page_compressed (not used for full_crc32) */
-constexpr uint16_t FIL_PAGE_PAGE_COMPRESSED= 34354;
-/** B-tree index page */
-constexpr uint16_t FIL_PAGE_INDEX= 17855;
-/** R-tree index page (SPATIAL INDEX) */
-constexpr uint16_t FIL_PAGE_RTREE= 17854;
-/** Undo log page */
-constexpr uint16_t FIL_PAGE_UNDO_LOG= 2;
-/** Index node (of file-in-file metadata) */
-constexpr uint16_t FIL_PAGE_INODE= 3;
-/** Insert buffer free list */
-constexpr uint16_t FIL_PAGE_IBUF_FREE_LIST= 4;
-/** Freshly allocated page */
-constexpr uint16_t FIL_PAGE_TYPE_ALLOCATED= 0;
-/** Change buffer bitmap (pages n*innodb_page_size+1) */
-constexpr uint16_t FIL_PAGE_IBUF_BITMAP= 5;
-/** System page */
-constexpr uint16_t FIL_PAGE_TYPE_SYS= 6;
-/** Transaction system data */
-constexpr uint16_t FIL_PAGE_TYPE_TRX_SYS= 7;
-/** Tablespace header (page 0) */
-constexpr uint16_t FIL_PAGE_TYPE_FSP_HDR= 8;
-/** Extent descriptor page (pages n*innodb_page_size, except 0) */
-constexpr uint16_t FIL_PAGE_TYPE_XDES= 9;
-/** Uncompressed BLOB page */
-constexpr uint16_t FIL_PAGE_TYPE_BLOB= 10;
-/** First ROW_FORMAT=COMPRESSED BLOB page */
-constexpr uint16_t FIL_PAGE_TYPE_ZBLOB= 11;
-/** Subsequent ROW_FORMAT=COMPRESSED BLOB page */
-constexpr uint16_t FIL_PAGE_TYPE_ZBLOB2= 12;
-/** In old tablespaces, garbage in FIL_PAGE_TYPE is replaced with this
-value when flushing pages. */
-constexpr uint16_t FIL_PAGE_TYPE_UNKNOWN= 13;
+#define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< page compressed page */
+#define FIL_PAGE_INDEX		17855	/*!< B-tree node */
+#define FIL_PAGE_RTREE		17854	/*!< R-tree node (SPATIAL INDEX) */
+#define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
+#define FIL_PAGE_INODE		3	/*!< Index node */
+#define FIL_PAGE_IBUF_FREE_LIST	4	/*!< Insert buffer free list */
+/* File page types introduced in MySQL/InnoDB 5.1.7 */
+#define FIL_PAGE_TYPE_ALLOCATED	0	/*!< Freshly allocated page */
+#define FIL_PAGE_IBUF_BITMAP	5	/*!< Insert buffer bitmap */
+#define FIL_PAGE_TYPE_SYS	6	/*!< System page */
+#define FIL_PAGE_TYPE_TRX_SYS	7	/*!< Transaction system data */
+#define FIL_PAGE_TYPE_FSP_HDR	8	/*!< File space header */
+#define FIL_PAGE_TYPE_XDES	9	/*!< Extent descriptor page */
+#define FIL_PAGE_TYPE_BLOB	10	/*!< Uncompressed BLOB page */
+#define FIL_PAGE_TYPE_ZBLOB	11	/*!< First compressed BLOB page */
+#define FIL_PAGE_TYPE_ZBLOB2	12	/*!< Subsequent compressed BLOB page */
+#define FIL_PAGE_TYPE_UNKNOWN	13	/*!< In old tablespaces, garbage
+					in FIL_PAGE_TYPE is replaced with this
+					value when flushing pages. */
 
 /* File page types introduced in MySQL 5.7, not supported in MariaDB */
-//constexpr uint16_t FIL_PAGE_COMPRESSED = 14;
-//constexpr uint16_t FIL_PAGE_ENCRYPTED = 15;
-//constexpr uint16_t FIL_PAGE_COMPRESSED_AND_ENCRYPTED = 16;
-//constexpr FIL_PAGE_ENCRYPTED_RTREE = 17;
+//#define FIL_PAGE_COMPRESSED	14
+//#define FIL_PAGE_ENCRYPTED	15
+//#define FIL_PAGE_COMPRESSED_AND_ENCRYPTED 16
+//#define FIL_PAGE_ENCRYPTED_RTREE 17
 /** Clustered index root page after instant ADD COLUMN */
-constexpr uint16_t FIL_PAGE_TYPE_INSTANT= 18;
+#define FIL_PAGE_TYPE_INSTANT	18
 
 /** Used by i_s.cc to index into the text description.
 Note: FIL_PAGE_TYPE_INSTANT maps to the same as FIL_PAGE_INDEX. */
-constexpr uint16_t FIL_PAGE_TYPE_LAST= FIL_PAGE_TYPE_UNKNOWN;
-
-/** Set in FIL_PAGE_TYPE for full_crc32 pages in page_compressed format.
+#define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_UNKNOWN
+					/*!< Last page type */
+/** Set in FIL_PAGE_TYPE if for full_crc32 pages in page_compressed format.
 If the flag is set, then the following holds for the remaining bits
 of FIL_PAGE_TYPE:
 Bits 0..7 will contain the compressed page size in bytes.
 Bits 8..14 are reserved and must be 0. */
-constexpr uint16_t FIL_PAGE_COMPRESS_FCRC32_MARKER= 15;
+#define FIL_PAGE_COMPRESS_FCRC32_MARKER	15
 /* @} */
 
 /** @return whether the page type is B-tree or R-tree index */
-inline bool fil_page_type_is_index(uint16_t page_type)
+inline bool fil_page_type_is_index(ulint page_type)
 {
 	switch (page_type) {
 	case FIL_PAGE_TYPE_INSTANT:
@@ -1306,25 +873,33 @@ index */
 #define fil_page_index_page_check(page)                         \
         fil_page_type_is_index(fil_page_get_type(page))
 
-/** Get the file page type.
-@param[in]	page	file page
-@return page type */
-inline uint16_t fil_page_get_type(const byte *page)
-{
-  return mach_read_from_2(my_assume_aligned<2>(page + FIL_PAGE_TYPE));
-}
+/** Enum values for encryption table option */
+enum fil_encryption_t {
+	/** Encrypted if innodb_encrypt_tables=ON (srv_encrypt_tables) */
+	FIL_ENCRYPTION_DEFAULT,
+	/** Encrypted */
+	FIL_ENCRYPTION_ON,
+	/** Not encrypted */
+	FIL_ENCRYPTION_OFF
+};
 
 #ifndef UNIV_INNOCHECKSUM
 
+/** The number of fsyncs done to the log */
+extern ulint	fil_n_log_flushes;
+
+/** Number of pending redo log flushes */
+extern ulint	fil_n_pending_log_flushes;
 /** Number of pending tablespace flushes */
-extern Atomic_counter<ulint> fil_n_pending_tablespace_flushes;
+extern ulint	fil_n_pending_tablespace_flushes;
 
 /** Look up a tablespace.
 The caller should hold an InnoDB table lock or a MDL that prevents
 the tablespace from being dropped during the operation,
 or the caller should be in single-threaded crash recovery mode
 (no user connections that could drop tablespaces).
-Normally, fil_space_t::get() should be used instead.
+If this is not the case, fil_space_acquire() and fil_space_t::release()
+should be used instead.
 @param[in]	id	tablespace ID
 @return tablespace, or NULL if not found */
 fil_space_t*
@@ -1333,7 +908,8 @@ fil_space_get(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** The tablespace memory cache; also the totality of logs (the log
-data space) is stored here; below we talk about tablespaces */
+data space) is stored here; below we talk about tablespaces, but also
+the ib_logfiles form a 'space' and it is handled here */
 struct fil_system_t {
   /**
     Constructor.
@@ -1343,6 +919,7 @@ struct fil_system_t {
   */
   fil_system_t(): m_initialised(false)
   {
+    UT_LIST_INIT(LRU, &fil_node_t::LRU);
     UT_LIST_INIT(space_list, &fil_space_t::space_list);
     UT_LIST_INIT(named_spaces, &fil_space_t::named_spaces);
   }
@@ -1378,38 +955,41 @@ public:
   }
 #endif
 public:
-  /** Detach a tablespace from the cache and close the files.
-  @param space tablespace
-  @param detach_handle whether to detach or close handles
-  @return detached handles or empty vector */
-  std::vector<pfs_os_file_t> detach(fil_space_t *space,
-                                    bool detach_handle= false);
-
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
-  /** Map of fil_space_t::id to fil_space_t* */
-  hash_table_t spaces;
-  /** tablespaces for which fil_space_t::needs_flush() holds */
-  sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
-  /** number of currently open files; protected by mutex */
-  ulint n_open;
-  /** last time we noted n_open exceeding the limit; protected by mutex */
-  time_t n_open_exceeded_time;
+	hash_table_t*	spaces;		/*!< The hash table of spaces in the
+					system; they are hashed on the space
+					id */
+	UT_LIST_BASE_NODE_T(fil_node_t) LRU;
+					/*!< base node for the LRU list of the
+					most recently used open files with no
+					pending i/o's; if we start an i/o on
+					the file, we first remove it from this
+					list, and return it to the start of
+					the list when the i/o ends;
+					log files and the system tablespace are
+					not put to this list: they are opened
+					after the startup, and kept open until
+					shutdown */
+	sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
+					/*!< list of those
+					tablespaces whose files contain
+					unflushed writes; those spaces have
+					at least one file node where
+					needs_flush == true */
+	ulint		n_open;		/*!< number of files currently open */
 	ulint		max_assigned_id;/*!< maximum space id in the existing
 					tables, or assigned during the time
 					mysqld has been up; at an InnoDB
 					startup we scan the data dictionary
 					and set here the maximum of the
 					space id's of the tables there */
-  /** nonzero if fil_node_open_file_low() should avoid moving the tablespace
-  to the end of space_list, for FIFO policy of try_to_close() */
-  ulint freeze_space_list;
 	UT_LIST_BASE_NODE_T(fil_space_t) space_list;
 					/*!< list of all file spaces */
 	UT_LIST_BASE_NODE_T(fil_space_t) named_spaces;
 					/*!< list of all file spaces
-					for which a FILE_MODIFY
+					for which a MLOG_FILE_NAME
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
@@ -1418,78 +998,51 @@ public:
 	ilist<fil_space_t, rotation_list_tag_t> default_encrypt_tables;
 
 	bool		space_id_reuse_warned;
-					/*!< whether fil_space_t::create()
+					/*!< whether fil_space_create()
 					has issued a warning about
 					potential space_id reuse */
 
+	/** Trigger a call to fil_node_t::read_page0()
+	@param[in]	id	tablespace identifier
+	@return	tablespace
+	@retval	NULL	if the tablespace does not exist or cannot be read */
+	fil_space_t* read_page0(ulint id);
+
   /** Return the next tablespace from default_encrypt_tables list.
-  @param space   previous tablespace (nullptr to start from the start)
+  @param space   previous tablespace (NULL to start from the start)
   @param recheck whether the removal condition needs to be rechecked after
   the encryption parameters were changed
   @param encrypt expected state of innodb_encrypt_tables
   @return the next tablespace to process (n_pending_ops incremented)
-  @retval fil_system.temp_space if there is no work to do
-  @retval nullptr upon reaching the end of the iteration */
-  inline fil_space_t* default_encrypt_next(fil_space_t *space, bool recheck,
-                                           bool encrypt);
-
-  /** Extend all open data files to the recovered size */
-  ATTRIBUTE_COLD void extend_to_recv_size();
+  @retval NULL if this was the last */
+  inline fil_space_t* default_encrypt_next(
+    fil_space_t *space, bool recheck, bool encrypt);
 };
 
 /** The tablespace memory cache. */
 extern fil_system_t	fil_system;
 
-inline void fil_space_t::reacquire()
-{
-  ut_d(uint32_t n=) n_pending.fetch_add(1, std::memory_order_relaxed);
-  ut_d(if (mutex_own(&fil_system.mutex)) return);
-  ut_ad(n & PENDING);
-  ut_ad(UT_LIST_GET_FIRST(chain)->is_open());
-}
-
-/** Note that operations on the tablespace must stop or can resume */
-inline void fil_space_t::set_stopping(bool stopping)
-{
-  ut_ad(mutex_own(&fil_system.mutex));
-  ut_d(auto n=) n_pending.fetch_xor(STOPPING, std::memory_order_relaxed);
-  ut_ad(!(n & STOPPING) == stopping);
-}
-
-/** Flush pending writes from the file system cache to the file. */
-template<bool have_reference> inline void fil_space_t::flush()
-{
-  ut_ad(!mutex_own(&fil_system.mutex));
-  ut_ad(!have_reference || (pending() & PENDING));
-  ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT);
-  if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
-  {
-    ut_ad(!is_in_unflushed_spaces);
-    ut_ad(!needs_flush());
-  }
-  else if (have_reference)
-    flush_low();
-  else
-  {
-    if (!(acquire_low() & (STOPPING | CLOSING)))
-      flush_low();
-    release();
-  }
-}
-
-/** @return the size in pages (0 if unreadable) */
-inline uint32_t fil_space_t::get_size()
-{
-  if (!size)
-  {
-    mutex_enter(&fil_system.mutex);
-    read_page0();
-    mutex_exit(&fil_system.mutex);
-  }
-  return size;
-}
-
 #include "fil0crypt.h"
+
+/** Create a space memory object and put it to the fil_system hash table.
+Error messages are issued to the server log.
+@param[in]	name		tablespace name
+@param[in]	id		tablespace identifier
+@param[in]	flags		tablespace flags
+@param[in]	purpose		tablespace purpose
+@param[in,out]	crypt_data	encryption information
+@param[in]	mode		encryption mode
+@return pointer to created tablespace, to be filled in with fil_space_t::add()
+@retval NULL on failure (such as when the same tablespace exists) */
+fil_space_t*
+fil_space_create(
+	const char*		name,
+	ulint			id,
+	ulint			flags,
+	fil_type_t		purpose,
+	fil_space_crypt_t*	crypt_data,
+	fil_encryption_t	mode = FIL_ENCRYPTION_DEFAULT)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*******************************************************************//**
 Assigns a new space id for a new single-table tablespace. This works simply by
@@ -1516,9 +1069,47 @@ fil_space_free(
 @param	id	tablespace ID
 @param	size	recovered size in pages
 @param	flags	tablespace flags */
-void fil_space_set_recv_size_and_flags(ulint id, uint32_t size,
-                                       uint32_t flags);
+UNIV_INTERN
+void fil_space_set_recv_size_and_flags(ulint id, ulint size, uint32_t flags);
 
+/*******************************************************************//**
+Returns the size of the space in pages. The tablespace must be cached in the
+memory cache.
+@return space size, 0 if space not found */
+ulint
+fil_space_get_size(
+/*===============*/
+	ulint	id);	/*!< in: space id */
+/*******************************************************************//**
+Returns the flags of the space. The tablespace must be cached
+in the memory cache.
+@return flags, ULINT_UNDEFINED if space not found */
+ulint
+fil_space_get_flags(
+/*================*/
+	ulint	id);	/*!< in: space id */
+
+/*******************************************************************//**
+Opens all log files and system tablespace data files. They stay open until the
+database server shutdown. This should be called at a server startup after the
+space objects for the log and the system tablespace have been created. The
+purpose of this operation is to make sure we never run out of file descriptors
+if we need to read from the insert buffer or to write to the log. */
+dberr_t fil_open_log_and_system_tablespace_files()
+	MY_ATTRIBUTE((warn_unused_result));
+/*******************************************************************//**
+Closes all open files. There must not be any pending i/o's or not flushed
+modifications in the files. */
+void
+fil_close_all_files(void);
+/*=====================*/
+/*******************************************************************//**
+Closes the redo log files. There must not be any pending i/o's or not
+flushed modifications in the files. */
+void
+fil_close_log_files(
+/*================*/
+	bool	free);	/*!< in: whether to free the memory object */
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
@@ -1536,14 +1127,82 @@ fil_write_flushed_lsn(
 	lsn_t	lsn)
 MY_ATTRIBUTE((warn_unused_result));
 
+/** Acquire a tablespace when it could be dropped concurrently.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@param[in]	silent	whether to silently ignore missing tablespaces
+@return	the tablespace
+@retval	NULL if missing or being deleted */
+fil_space_t* fil_space_acquire_low(ulint id, bool silent)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Acquire a tablespace when it could be dropped concurrently.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@return	the tablespace
+@retval	NULL if missing or being deleted or truncated */
+inline
+fil_space_t*
+fil_space_acquire(ulint id)
+{
+	return (fil_space_acquire_low(id, false));
+}
+
+/** Acquire a tablespace that may not exist.
+Used by background threads that do not necessarily hold proper locks
+for concurrency control.
+@param[in]	id	tablespace ID
+@return	the tablespace
+@retval	NULL if missing or being deleted */
+inline
+fil_space_t*
+fil_space_acquire_silent(ulint id)
+{
+	return (fil_space_acquire_low(id, true));
+}
+
+/** Acquire a tablespace for reading or writing a block,
+when it could be dropped concurrently.
+@param[in]	id	tablespace ID
+@return	the tablespace
+@retval	NULL if missing */
+fil_space_t*
+fil_space_acquire_for_io(ulint id);
+
+/** Replay a file rename operation if possible.
+@param[in]	space_id	tablespace identifier
+@param[in]	first_page_no	first page number in the file
+@param[in]	name		old file name
+@param[in]	new_name	new file name
+@return	whether the operation was successfully applied
+(the name did not exist, or new_name did not exist and
+name was successfully renamed to new_name)  */
+bool
+fil_op_replay_rename(
+	ulint		space_id,
+	ulint		first_page_no,
+	const char*	name,
+	const char*	new_name)
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+bool fil_table_accessible(const dict_table_t* table)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	if_exists	whether to ignore missing tablespace
-@param[out]	leaked_handles	return detached handles here
 @return	DB_SUCCESS or error */
-dberr_t
-fil_delete_tablespace(ulint id, bool if_exists= false,
-                      std::vector<pfs_os_file_t> *detached_handles= nullptr);
+dberr_t fil_delete_tablespace(ulint id, bool if_exists= false);
 
 /** Prepare to truncate an undo tablespace.
 @param[in]	space_id	undo tablespace id
@@ -1551,15 +1210,24 @@ fil_delete_tablespace(ulint id, bool if_exists= false,
 @retval	NULL if the tablespace does not exist */
 fil_space_t* fil_truncate_prepare(ulint space_id);
 
-/** Close a single-table tablespace on failed IMPORT TABLESPACE.
-The tablespace must be cached in the memory cache.
-Free all pages used by the tablespace. */
-void fil_close_tablespace(ulint id);
+/** Write log about an undo tablespace truncate operation. */
+void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
+
+/*******************************************************************//**
+Closes a single-table tablespace. The tablespace must be cached in the
+memory cache. Free all pages used by the tablespace.
+@return DB_SUCCESS or error */
+dberr_t
+fil_close_tablespace(
+/*=================*/
+	trx_t*	trx,	/*!< in/out: Transaction covering the close */
+	ulint	id);	/*!< in: space id */
 
 /*******************************************************************//**
 Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
-@param[in] path NULL or the directory path or the full path and filename.
+@param[in] path NULL or the direcory path or the full path and filename.
 @param[in] name NULL if path is full, or Table/Tablespace name
 @param[in] suffix NULL or the file extention to use.
 @return own: file name */
@@ -1588,7 +1256,7 @@ fil_ibd_create(
 	const char*	name,
 	const char*	path,
 	ulint		flags,
-	uint32_t	size,
+	ulint		size,
 	fil_encryption_t mode,
 	uint32_t	key_id,
 	dberr_t*	err)
@@ -1671,7 +1339,7 @@ fil_ibd_load(
 memory cache. Note that if we have not done a crash recovery at the database
 startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	id		Tablespace ID
-@param[in]	name		Tablespace name used in fil_space_t::create().
+@param[in]	name		Tablespace name used in fil_space_create().
 @param[in]	table_flags	table flags
 @return the tablespace
 @retval	NULL	if no matching tablespace exists in the memory cache */
@@ -1685,15 +1353,98 @@ fil_space_for_table_exists_in_mem(
 @param[in,out]	space	tablespace
 @param[in]	size	desired size in pages
 @return whether the tablespace is at least as big as requested */
-bool fil_space_extend(fil_space_t *space, uint32_t size);
+bool
+fil_space_extend(
+	fil_space_t*	space,
+	ulint		size);
+
+/** Reads or writes data. This operation could be asynchronous (aio).
+
+@param[in]	type		IO context
+@param[in]	sync		true if synchronous aio is desired
+@param[in]	page_id		page id
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	byte_offset	remainder of offset in bytes; in aio this
+				must be divisible by the OS block size
+@param[in]	len		how many bytes to read or write; this must
+				not cross a file boundary; in aio this must
+				be a block size multiple
+@param[in,out]	buf		buffer where to store read data or from where
+				to write; in aio this must be appropriately
+				aligned
+@param[in]	message		message for aio handler if non-sync aio
+				used, else ignored
+@param[in]	ignore_missing_space true=ignore missing space during read
+@return DB_SUCCESS, or DB_TABLESPACE_DELETED
+if we are trying to do i/o on a tablespace which does not exist */
+dberr_t
+fil_io(
+	const IORequest&	type,
+	bool			sync,
+	const page_id_t		page_id,
+	ulint			zip_size,
+	ulint			byte_offset,
+	ulint			len,
+	void*			buf,
+	void*			message,
+	bool			ignore_missing_space = false);
+
+/**********************************************************************//**
+Waits for an aio operation to complete. This function is used to write the
+handler for completed requests. The aio array of pending requests is divided
+into segments (see os0file.cc for more info). The thread specifies which
+segment it wants to wait for. */
+void
+fil_aio_wait(
+/*=========*/
+	ulint	segment);	/*!< in: the number of the segment in the aio
+				array to wait for */
+/**********************************************************************//**
+Flushes to disk possible writes cached by the OS. If the space does not exist
+or is being dropped, does not do anything. */
+void
+fil_flush(
+/*======*/
+	ulint	space_id);	/*!< in: file space id (this can be a group of
+				log files or a tablespace of the database) */
+/** Flush a tablespace.
+@param[in,out]	space	tablespace to flush */
+void
+fil_flush(fil_space_t* space);
 
 /** Flush to disk the writes in file spaces of the given type
-possibly cached by the OS. */
-void fil_flush_file_spaces();
+possibly cached by the OS.
+@param[in]	purpose	FIL_TYPE_TABLESPACE or FIL_TYPE_LOG */
+void
+fil_flush_file_spaces(
+	fil_type_t	purpose);
 /******************************************************************//**
 Checks the consistency of the tablespace cache.
 @return true if ok */
-bool fil_validate();
+bool
+fil_validate(void);
+/*==============*/
+/********************************************************************//**
+Returns true if file address is undefined.
+@return true if undefined */
+bool
+fil_addr_is_null(
+/*=============*/
+	fil_addr_t	addr);	/*!< in: address */
+/********************************************************************//**
+Get the predecessor of a file page.
+@return FIL_PAGE_PREV */
+ulint
+fil_page_get_prev(
+/*==============*/
+	const byte*	page);	/*!< in: file page */
+/********************************************************************//**
+Get the successor of a file page.
+@return FIL_PAGE_NEXT */
+ulint
+fil_page_get_next(
+/*==============*/
+	const byte*	page);	/*!< in: file page */
 /*********************************************************************//**
 Sets the file page type. */
 void
@@ -1730,6 +1481,20 @@ char*
 fil_path_to_space_name(
 	const char*	filename);
 
+/** Generate redo log for swapping two .ibd files
+@param[in]	old_table	old table
+@param[in]	new_table	new table
+@param[in]	tmp_name	temporary table name
+@param[in,out]	mtr		mini-transaction
+@return innodb error code */
+dberr_t
+fil_mtr_rename_log(
+	const dict_table_t*	old_table,
+	const dict_table_t*	new_table,
+	const char*		tmp_name,
+	mtr_t*			mtr)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /** Acquire the fil_system mutex. */
 #define fil_system_enter()	mutex_enter(&fil_system.mutex)
 /** Release the fil_system mutex. */
@@ -1749,40 +1514,66 @@ void
 fil_names_dirty(
 	fil_space_t*	space);
 
-/** Write FILE_MODIFY records when a non-predefined persistent
+/** Write MLOG_FILE_NAME records when a non-predefined persistent
 tablespace was modified for the first time since the latest
 fil_names_clear().
-@param[in,out]	space	tablespace */
-void fil_names_dirty_and_write(fil_space_t* space);
+@param[in,out]	space	tablespace
+@param[in,out]	mtr	mini-transaction */
+void
+fil_names_dirty_and_write(
+	fil_space_t*	space,
+	mtr_t*		mtr);
 
-/** Write FILE_MODIFY records if a persistent tablespace was modified
+/** Write MLOG_FILE_NAME records if a persistent tablespace was modified
 for the first time since the latest fil_names_clear().
 @param[in,out]	space	tablespace
 @param[in,out]	mtr	mini-transaction
-@return whether any FILE_MODIFY record was written */
-inline bool fil_names_write_if_was_clean(fil_space_t* space)
+@return whether any MLOG_FILE_NAME record was written */
+inline MY_ATTRIBUTE((warn_unused_result))
+bool
+fil_names_write_if_was_clean(
+	fil_space_t*	space,
+	mtr_t*		mtr)
 {
-	mysql_mutex_assert_owner(&log_sys.mutex);
+	ut_ad(log_mutex_own());
 
 	if (space == NULL) {
 		return(false);
 	}
 
 	const bool	was_clean = space->max_lsn == 0;
-	ut_ad(space->max_lsn <= log_sys.get_lsn());
-	space->max_lsn = log_sys.get_lsn();
+	ut_ad(space->max_lsn <= log_sys.lsn);
+	space->max_lsn = log_sys.lsn;
 
 	if (was_clean) {
-		fil_names_dirty_and_write(space);
+		fil_names_dirty_and_write(space, mtr);
 	}
 
 	return(was_clean);
 }
 
+/** During crash recovery, open a tablespace if it had not been opened
+yet, to get valid size and flags.
+@param[in,out]	space	tablespace */
+inline void fil_space_open_if_needed(fil_space_t* space)
+{
+	ut_d(extern volatile bool recv_recovery_on);
+	ut_ad(recv_recovery_on);
+
+	if (space->size == 0) {
+		/* Initially, size and flags will be set to 0,
+		until the files are opened for the first time.
+		fil_space_get_size() will open the file
+		and adjust the size and flags. */
+		ut_d(ulint size	=) fil_space_get_size(space->id);
+		ut_ad(size == space->size);
+	}
+}
+
 /** On a log checkpoint, reset fil_names_dirty_and_write() flags
-and write out FILE_MODIFY and FILE_CHECKPOINT if needed.
+and write out MLOG_FILE_NAME and MLOG_CHECKPOINT if needed.
 @param[in]	lsn		checkpoint LSN
-@param[in]	do_write	whether to always write FILE_CHECKPOINT
+@param[in]	do_write	whether to always write MLOG_CHECKPOINT
 @return whether anything was written to the redo log
 @retval false	if no flags were set and nothing written
 @retval true	if anything was written to the redo log */

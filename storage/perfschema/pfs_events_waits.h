@@ -1,5 +1,5 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates..
-   Copyright (c) 2017, 2019, MariaDB Corporation.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -45,7 +45,6 @@ struct PFS_table_share;
 struct PFS_account;
 struct PFS_user;
 struct PFS_host;
-struct PFS_metadata_lock;
 
 /** Class of a wait event. */
 enum events_waits_class
@@ -57,13 +56,29 @@ enum events_waits_class
   WAIT_CLASS_TABLE,
   WAIT_CLASS_FILE,
   WAIT_CLASS_SOCKET,
-  WAIT_CLASS_IDLE,
-  WAIT_CLASS_METADATA
+  WAIT_CLASS_IDLE
 };
 
 /** A wait event record. */
 struct PFS_events_waits : public PFS_events
 {
+  /** Executing thread. */
+  PFS_thread *m_thread;
+  /** Table share, for table operations only. */
+  PFS_table_share *m_weak_table_share;
+  /** File, for file operations only. */
+  PFS_file *m_weak_file;
+  /** Address in memory of the object instance waited on. */
+  const void *m_object_instance_addr;
+  /** Socket, for socket operations only. */
+  PFS_socket *m_weak_socket;
+  /**
+    Number of bytes read/written.
+    This member is populated for file READ/WRITE operations only.
+  */
+  size_t m_number_of_bytes;
+  /** Flags */
+  ulong m_flags;
   /**
     The type of wait.
     Readers:
@@ -78,33 +93,15 @@ struct PFS_events_waits : public PFS_events
   events_waits_class m_wait_class;
   /** Object type */
   enum_object_type m_object_type;
-  /** Table share, for table operations only. */
-  PFS_table_share *m_weak_table_share;
-  /** File, for file operations only. */
-  PFS_file *m_weak_file;
-  /** Socket, for socket operations only. */
-  PFS_socket *m_weak_socket;
-  /** Metadata lock, for mdl operations only. */
-  PFS_metadata_lock *m_weak_metadata_lock;
   /** For weak pointers, target object version. */
   uint32 m_weak_version;
-  /** Address in memory of the object instance waited on. */
-  const void *m_object_instance_addr;
   /** Operation performed. */
   enum_operation_type m_operation;
-  /**
-    Number of bytes/rows read/written.
-    This member is populated for FILE READ/WRITE operations, with a number of bytes.
-    This member is populated for TABLE IO operations, with a number of rows.
-  */
-  size_t m_number_of_bytes;
   /**
     Index used.
     This member is populated for TABLE IO operations only.
   */
   uint m_index;
-  /** Flags */
-  ulong m_flags;
 };
 
 /** TIMED bit in the state flags bitfield. */
@@ -127,7 +124,7 @@ extern bool flag_global_instrumentation;
 extern bool flag_thread_instrumentation;
 
 extern bool events_waits_history_long_full;
-extern PFS_ALIGNED PFS_cacheline_uint32 events_waits_history_long_index;
+extern volatile uint32 events_waits_history_long_index;
 extern PFS_events_waits *events_waits_history_long_array;
 extern ulong events_waits_history_long_size;
 

@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'InnoDB';
+SET @@session.storage_engine = 'InnoDB';
 include/master-slave.inc
 [connection master]
 connection master;

@@ -28,11 +28,11 @@ typedef struct st_mysql_lock MYSQL_LOCK;
 
 MYSQL_LOCK *mysql_lock_tables(THD *thd, TABLE **table, uint count, uint flags);
 bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags);
-int mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock);
-int mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock);
-int mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock);
-int mysql_unlock_some_tables(THD *thd, TABLE **table,uint count, uint flag);
-int mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table);
+void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock);
+void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock);
+void mysql_unlock_read_tables(THD *thd, MYSQL_LOCK *sql_lock);
+void mysql_unlock_some_tables(THD *thd, TABLE **table,uint count, uint flag);
+void mysql_lock_remove(THD *thd, MYSQL_LOCK *locked,TABLE *table);
 bool mysql_lock_abort_for_thread(THD *thd, TABLE *table);
 MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a,MYSQL_LOCK *b);
 /* Lock based on name */

@@ -1,5 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (c) 2009, 2022, MariaDB Corporation Ab
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,7 +24,6 @@
 #include "ma_trnman.h"
 #include <m_ctype.h>
 #include "ma_crypt.h"
-#include "s3_func.h"
 
 #if defined(MSDOS) || defined(__WIN__)
 #ifdef __WIN__
@@ -39,6 +38,7 @@ static my_bool maria_scan_init_dummy(MARIA_HA *info);
 static void maria_scan_end_dummy(MARIA_HA *info);
 static my_bool maria_once_init_dummy(MARIA_SHARE *, File);
 static my_bool maria_once_end_dummy(MARIA_SHARE *);
+static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base);
 static uchar *_ma_state_info_read(uchar *, MARIA_STATE_INFO *, myf);
 
 #define get_next_element(to,pos,size) { memcpy((char*) to,pos,(size_t) size); \
@@ -89,10 +89,10 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
     0   Error
 */
 
+
 static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
                                       int mode, File data_file,
-                                      uint internal_table,
-                                      struct ms3_st *s3)
+                                      uint internal_table)
 {
   int save_errno;
   uint errpos;
@@ -116,7 +116,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   errpos= 5;
 
   /* alloc and set up private structure parts */
-  if (!my_multi_malloc(PSI_INSTRUMENT_ME, flag,
+  if (!my_multi_malloc(flag,
 		       &m_info,sizeof(MARIA_HA),
 		       &info.blobs,sizeof(MARIA_BLOB)*share->base.blobs,
 		       &info.buff,(share->base.max_key_block_length*2+
@@ -131,7 +131,6 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
     goto err;
   errpos= 6;
 
-  info.s3= s3;
   memcpy(info.blobs,share->blobs,sizeof(MARIA_BLOB)*share->base.blobs);
   info.lastkey_buff2= info.lastkey_buff + share->base.max_key_length;
   info.last_key.data= info.lastkey_buff;
@@ -151,8 +150,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   info.last_loop=   share->state.update_count;
 #endif
   info.errkey= -1;
-  info.page_changed= 1;
-  info.autocommit= 1;
+  info.page_changed=1;
   info.keyread_buff= info.buff + share->base.max_key_block_length;
 
   info.lock_type= F_UNLCK;
@@ -166,8 +164,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
     goto err;
 
   /* The following should be big enough for all pinning purposes */
-  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &info.pinned_pages,
-                            sizeof(MARIA_PINNED_PAGE),
+  if (my_init_dynamic_array(&info.pinned_pages, sizeof(MARIA_PINNED_PAGE),
                             MY_MAX(share->base.blobs*2 + 4,
                             MARIA_MAX_TREE_LEVELS*3), 16, flag))
     goto err;
@@ -187,9 +184,9 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
       maria_delay_key_write)
     share->delay_key_write=1;
 
-  if (!share->now_transactional)       /* If not transctional table */
+  if (!share->base.born_transactional)   /* For transactional ones ... */
   {
-    /* Pagecache requires access to info->trn->rec_lsn */
+    /* ... force crash if no trn given */
     _ma_set_tmp_trn_for_table(&info, &dummy_transaction_object);
     info.state= &share->state.state;	/* Change global values by default */
   }
@@ -241,7 +238,6 @@ err:
   case 6:
     (*share->end)(&info);
     delete_dynamic(&info.pinned_pages);
-    my_free(m_info->s3);
     my_free(m_info);
     /* fall through */
   case 5:
@@ -263,10 +259,9 @@ err:
   have an open count of 0.
 ******************************************************************************/
 
-MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
-                     S3_INFO *s3)
+MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
 {
-  int open_mode= 0,save_errno;
+  int kfile,open_mode,save_errno;
   uint i,j,len,errpos,head_length,base_pos,keys, realpath_err,
     key_parts,base_key_parts,unique_key_parts,fulltext_keys,uniques;
   uint internal_table= MY_TEST(open_flags & HA_OPEN_INTERNAL_TABLE);
@@ -276,57 +271,37 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
   uchar *UNINIT_VAR(disk_cache), *disk_pos, *end_pos;
-  MARIA_HA info, *UNINIT_VAR(m_info), *old_info= NULL;
+  MARIA_HA info, *UNINIT_VAR(m_info), *old_info;
   MARIA_SHARE share_buff,*share;
   double *rec_per_key_part;
   ulong  *nulls_per_key_part;
   my_off_t key_root[HA_MAX_POSSIBLE_KEY];
   ulonglong max_key_file_length, max_data_file_length;
-  my_bool versioning= 1, born_transactional;
-  File data_file= -1, kfile= -1;
-  struct ms3_st *s3_client= 0;
-  S3_INFO *share_s3= 0;
-  S3_BLOCK index_header;
+  my_bool versioning= 1;
+  File data_file= -1;
   DBUG_ENTER("maria_open");
 
+  kfile= -1;
   errpos= 0;
   head_length=sizeof(share_buff.state.header);
   bzero((uchar*) &info,sizeof(info));
-  bzero((uchar*) &index_header, sizeof(index_header));
 
-#ifndef WITH_S3_STORAGE_ENGINE
-  DBUG_ASSERT(!s3);
-#else
-  if (!s3)
-#endif /* WITH_S3_STORAGE_ENGINE */
+  realpath_err= my_realpath(name_buff, fn_format(org_name, name, "",
+                                                 MARIA_NAME_IEXT,
+                                                 MY_UNPACK_FILENAME),MYF(0));
+  if (realpath_err > 0) /* File not found, no point in looking further. */
   {
-    realpath_err= my_realpath(name_buff, fn_format(org_name, name, "",
-                                                   MARIA_NAME_IEXT,
-                                                   MY_UNPACK_FILENAME),MYF(0));
-    if (realpath_err > 0) /* File not found, no point in looking further. */
-    {
-      DBUG_RETURN(NULL);
-    }
-
-    if (my_is_symlink(org_name) &&
-        (realpath_err || mysys_test_invalid_symlink(name_buff)))
-    {
-      my_errno= HA_WRONG_CREATE_OPTION;
-      DBUG_RETURN(0);
-    }
+    DBUG_RETURN(NULL);
   }
-#ifdef WITH_S3_STORAGE_ENGINE
-  else
+
+  if (my_is_symlink(org_name) &&
+      (realpath_err || mysys_test_invalid_symlink(name_buff)))
   {
-    strmake(name_buff, name, sizeof(name_buff)-1); /* test_if_reopen() */
-    if (!(s3_client= s3f.open_connection(s3)))
-    {
-      internal_table= 1;                        /* Avoid unlock on error */
-      goto err;
-    }
+    my_errno= HA_WRONG_CREATE_OPTION;
+    DBUG_RETURN(0);
   }
-#endif /* WITH_S3_STORAGE_ENGINE */
 
+  old_info= 0;
   if (!internal_table)
     mysql_mutex_lock(&THR_LOCK_maria);
   if ((open_flags & HA_OPEN_COPY) ||
@@ -339,71 +314,32 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 						 (uint) strlen(name_buff),
                                                  maria_pagecache);
 
-    if (!s3)
+    DBUG_EXECUTE_IF("maria_pretend_crashed_table_on_open",
+                    if (strstr(name, "/t1"))
+                    {
+                      my_errno= HA_ERR_CRASHED;
+                      goto err;
+                    });
+    DEBUG_SYNC_C("mi_open_kfile");
+    if ((kfile=mysql_file_open(key_file_kfile, name_buff,
+                               (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+                               MYF(common_flag | MY_NOSYMLINKS))) < 0)
     {
-      DBUG_EXECUTE_IF("maria_pretend_crashed_table_on_open",
-                      if (strstr(name, "/t1"))
-                      {
-                        my_errno= HA_ERR_CRASHED;
-                        goto err;
-                      });
-      DEBUG_SYNC_C("mi_open_kfile");
-      if ((kfile=mysql_file_open(key_file_kfile, name_buff,
-                                 (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
+      if ((errno != EROFS && errno != EACCES) ||
+	  mode != O_RDONLY ||
+	  (kfile=mysql_file_open(key_file_kfile, name_buff,
+                                 (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                                  MYF(common_flag | MY_NOSYMLINKS))) < 0)
-      {
-        if ((errno != EROFS && errno != EACCES) ||
-            mode != O_RDONLY ||
-            (kfile=mysql_file_open(key_file_kfile, name_buff,
-                                   (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
-                                   MYF(common_flag | MY_NOSYMLINKS))) < 0)
-          goto err;
-      }
-      errpos= 1;
-      if (mysql_file_pread(kfile,share->state.header.file_version, head_length,
-                           0, MYF(MY_NABP)))
-      {
-        my_errno= HA_ERR_NOT_A_TABLE;
-        goto err;
-      }
+	goto err;
     }
-#ifdef WITH_S3_STORAGE_ENGINE
-    else
-    {
-      open_mode= mode;
-      errpos= 1;
-      if (s3f.set_database_and_table_from_path(s3, name_buff))
-      {
-        my_printf_error(HA_ERR_NO_SUCH_TABLE,
-                        "Can't find database and path from %s",  MYF(0),
-                        name_buff);
-        my_errno= HA_ERR_NO_SUCH_TABLE;
-        goto err;
-      }
-      if (!(share_s3= share->s3_path= s3f.info_copy(s3)))
-        goto err;                             /* EiOM */
-
-      /* Check if table has changed in S3 */
-      if (s3f.check_frm_version(s3_client, share_s3) == 1)
-      {
-        my_errno= HA_ERR_TABLE_DEF_CHANGED;
-        goto err;
-      }
-
-      if (s3f.read_index_header(s3_client, share_s3, &index_header))
-        goto err;
-      if (index_header.length < head_length)
-      {
-        my_errno=HA_ERR_NOT_A_TABLE;
-        goto err;
-      }
-      memcpy(share->state.header.file_version, index_header.str,
-             head_length);
-      kfile= s3f.unique_file_number();
-    }
-#endif /* WITH_S3_STORAGE_ENGINE */
-
     share->mode=open_mode;
+    errpos= 1;
+    if (mysql_file_pread(kfile,share->state.header.file_version, head_length,
+                         0, MYF(MY_NABP)))
+    {
+      my_errno= HA_ERR_NOT_A_TABLE;
+      goto err;
+    }
     if (memcmp(share->state.header.file_version, maria_file_magic, 4))
     {
       DBUG_PRINT("error",("Wrong header in %s",name_buff));
@@ -432,31 +368,23 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       my_errno= HA_ERR_UNSUPPORTED;
       goto err;
     }
-    if (!s3)
+    /* Don't call realpath() if the name can't be a link */
+    if (!strcmp(name_buff, org_name) ||
+        my_readlink(index_name, org_name, MYF(0)) == -1)
+      (void) strmov(index_name, org_name);
+    *strrchr(org_name, FN_EXTCHAR)= '\0';
+    (void) fn_format(data_name,org_name,"",MARIA_NAME_DEXT,
+                     MY_APPEND_EXT|MY_UNPACK_FILENAME);
+    if (my_is_symlink(data_name))
     {
-      /* Don't call realpath() if the name can't be a link */
-      if (!strcmp(name_buff, org_name) ||
-          my_readlink(index_name, org_name, MYF(0)) == -1)
-        (void) strmov(index_name, org_name);
-      *strrchr(org_name, FN_EXTCHAR)= '\0';
-      (void) fn_format(data_name,org_name,"",MARIA_NAME_DEXT,
-                       MY_APPEND_EXT|MY_UNPACK_FILENAME);
-      if (my_is_symlink(data_name))
+      if (my_realpath(data_name, data_name, MYF(0)))
+        goto err;
+      if (mysys_test_invalid_symlink(data_name))
       {
-        if (my_realpath(data_name, data_name, MYF(0)))
-          goto err;
-        if (mysys_test_invalid_symlink(data_name))
-        {
-          my_errno= HA_WRONG_CREATE_OPTION;
-          goto err;
-        }
-        share->mode|= O_NOFOLLOW; /* all symlinks are resolved by realpath() */
+        my_errno= HA_WRONG_CREATE_OPTION;
+        goto err;
       }
-    }
-    else
-    {
-      /* Don't show DIRECTORY in show create table */
-      index_name[0]= data_name[0]= 0;
+      share->mode|= O_NOFOLLOW; /* all symlinks are resolved by realpath() */
     }
 
     info_length=mi_uint2korr(share->state.header.header_length);
@@ -466,8 +394,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       Allocate space for header information and for data that is too
       big to keep on stack
     */
-    if (!(disk_cache= my_malloc(PSI_INSTRUMENT_ME, info_length+128,
-                                MYF(MY_WME | common_flag))))
+    if (!(disk_cache= my_malloc(info_length+128, MYF(MY_WME | common_flag))))
     {
       my_errno=ENOMEM;
       goto err;
@@ -475,26 +402,11 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
     end_pos=disk_cache+info_length;
     errpos= 3;
-    if (!s3)
+    if (mysql_file_pread(kfile, disk_cache, info_length, 0L, MYF(MY_NABP)))
     {
-      if (mysql_file_pread(kfile, disk_cache, info_length, 0L, MYF(MY_NABP)))
-      {
-        _ma_set_fatal_error(share, HA_ERR_CRASHED);
-        goto err;
-      }
+      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      goto err;
     }
-#ifdef WITH_S3_STORAGE_ENGINE
-    else
-    {
-      if (index_header.length < info_length)
-      {
-        my_errno=HA_ERR_NOT_A_TABLE;
-        goto err;
-      }
-      memcpy(disk_cache, index_header.str, info_length);
-    }
-#endif /* WITH_S3_STORAGE_ENGINE */
-
     len=mi_uint2korr(share->state.header.state_info_length);
     keys=    (uint) share->state.header.keys;
     uniques= (uint) share->state.header.uniques;
@@ -525,8 +437,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     file_version= (share->state.header.not_used == 0);
     if (file_version == 0)
       share->base.language= share->state.header.not_used;
-    born_transactional= share->base.born_transactional;
-
+    
     share->state.state_length=base_pos;
     /* For newly opened tables we reset the error-has-been-printed flag */
     share->state.changed&= ~STATE_CRASHED_PRINTED;
@@ -553,28 +464,25 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       - share->state.create_trid > trnman_get_max_trid()
         - Critical as trid as stored releative to create_trid.
       - uuid is different
-
+      
         STATE_NOT_MOVABLE is reset when a table is zerofilled
         (has no LSN's and no trids)
 
       We can ignore testing uuid if STATE_NOT_MOVABLE is not set, as in this
       case the uuid will be set in _ma_mark_file_changed().
     */
-    if (born_transactional &&
+    if (share->base.born_transactional &&
         ((share->state.create_trid > trnman_get_max_trid() &&
          !maria_in_recovery) ||
          ((share->state.changed & STATE_NOT_MOVABLE) &&
           ((!(open_flags & HA_OPEN_IGNORE_MOVED_STATE) &&
-            memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE)))) ||
-         ((share->state.changed & (STATE_MOVED | STATE_NOT_ZEROFILLED)) ==
-          (STATE_MOVED | STATE_NOT_ZEROFILLED))))
+            memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE))))))
     {
-      DBUG_PRINT("warning", ("table is moved from another system.  uuid_diff: %d  create_trid: %lu  max_trid: %lu  moved: %d",
+      DBUG_PRINT("warning", ("table is moved from another system.  uuid_diff: %d  create_trid: %lu  max_trid: %lu",
                             memcmp(share->base.uuid, maria_uuid,
                                    MY_UUID_SIZE) != 0,
                              (ulong) share->state.create_trid,
-                             (ulong) trnman_get_max_trid(),
-                             MY_TEST((share->state.changed & STATE_MOVED))));
+                             (ulong) trnman_get_max_trid()));
       if (open_flags & HA_OPEN_FOR_REPAIR)
         share->state.changed|= STATE_MOVED;
       else
@@ -601,7 +509,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     }
 
     /* Ensure we have space in the key buffer for transaction id's */
-    if (born_transactional)
+    if (share->base.born_transactional)
       share->base.max_key_length= ALIGN_SIZE(share->base.max_key_length +
                                              MARIA_MAX_PACK_TRANSID_SIZE);
 
@@ -620,7 +528,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       my_errno=HA_ERR_UNSUPPORTED;
       my_printf_error(my_errno, "Wrong block size %u; Expected %u",
                       MYF(0),
-                      (uint) share->base.block_size,
+                      (uint) share->base.block_size, 
                       (uint) maria_block_size);
       goto err;
     }
@@ -654,7 +562,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     share->index_file_name.length=  strlen(index_name);
     share->data_file_name.length=   strlen(data_name);
     share->open_file_name.length=   strlen(name);
-    if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME | common_flag),
+    if (!my_multi_malloc(MYF(MY_WME | common_flag),
 			 &share,sizeof(*share),
 			 &rec_per_key_part, sizeof(double) * key_parts,
                          &nulls_per_key_part, sizeof(long)* key_parts,
@@ -700,7 +608,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
     share->block_size= share->base.block_size;   /* Convenience */
     share->max_index_block_size= share->block_size - KEYPAGE_CHECKSUM_SIZE;
-    share->keypage_header= ((born_transactional ?
+    share->keypage_header= ((share->base.born_transactional ?
                              LSN_STORE_SIZE + TRANSID_SIZE :
                              0) + KEYPAGE_KEYID_SIZE + KEYPAGE_FLAG_SIZE +
                             KEYPAGE_USED_SIZE);
@@ -719,12 +627,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
         keyinfo->share= share;
 	disk_pos=_ma_keydef_read(disk_pos, keyinfo);
         keyinfo->key_nr= i;
-
-        /* Calculate length to store a key + nod flag and transaction info */
-        keyinfo->max_store_length= (keyinfo->maxlength +
-                                    share->base.key_reflength);
-        if (born_transactional)
-          keyinfo->max_store_length+= MARIA_INDEX_OVERHEAD_SIZE;
 
         /* See ma_delete.cc::underflow() */
         if (!(keyinfo->flag & (HA_BINARY_PACK_KEY | HA_PACK_KEY)))
@@ -862,9 +764,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
         file for REPAIR. Don't do logging. This base information will not go
         to disk.
       */
-      born_transactional= FALSE;
+      share->base.born_transactional= FALSE;
     }
-    if (born_transactional)
+    if (share->base.born_transactional)
     {
       share->page_type= PAGECACHE_LSN_PAGE;
       if (share->state.create_rename_lsn == LSN_NEEDS_NEW_STATE_LSNS)
@@ -915,7 +817,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     }
     else
       share->page_type= PAGECACHE_PLAIN_PAGE;
-    share->now_transactional= born_transactional;
+    share->now_transactional= share->base.born_transactional;
 
     /* Use pack_reclength as we don't want to modify base.pack_recklength */
     if (share->state.header.org_data_file_type == DYNAMIC_RECORD)
@@ -968,16 +870,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     if ((share->data_file_type == BLOCK_RECORD ||
          share->data_file_type == COMPRESSED_RECORD))
     {
-      if (!s3)
-      {
-        if (_ma_open_datafile(&info, share))
-          goto err;
-        data_file= info.dfile.file;
-      }
-#ifdef WITH_S3_STORAGE_ENGINE
-      else
-        data_file= info.dfile.file= s3f.unique_file_number();
-#endif /* WITH_S3_STORAGE_ENGINE */
+      if (_ma_open_datafile(&info, share))
+        goto err;
+      data_file= info.dfile.file;
     }
     errpos= 5;
 
@@ -1019,7 +914,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     max_data_file_length= share->base.max_data_file_length;
     if ((*share->once_init)(share, info.dfile.file))
       goto err;
-    errpos= 6;
     if (internal_table)
       set_if_smaller(share->base.max_data_file_length,
                      max_data_file_length);
@@ -1047,15 +941,13 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       {
         /* Table is not part of any active transaction; Create new history */
         if (!(share->state_history= (MARIA_STATE_HISTORY *)
-              my_malloc(PSI_INSTRUMENT_ME, sizeof(*share->state_history),
-                        MYF(MY_WME))))
+              my_malloc(sizeof(*share->state_history), MYF(MY_WME))))
           goto err;
         share->state_history->trid= 0;          /* Visible by all */
         share->state_history->state= share->state.state;
         share->state_history->next= 0;
       }
     }
-    errpos= 7;
     thr_lock_init(&share->lock);
     mysql_mutex_init(key_SHARE_intern_lock,
                      &share->intern_lock, MY_MUTEX_INIT_FAST);
@@ -1150,13 +1042,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       info.s= share;
       maria_extra(&info, HA_EXTRA_MMAP, 0);
     }
-#ifdef WITH_S3_STORAGE_ENGINE
-    if (s3_client)
-    {
-      size_t block_size= share->base.s3_block_size;
-      s3f.set_option(s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
-    }
-#endif /* WITH_S3_STORAGE_ENGINE */
   }
   else
   {
@@ -1165,13 +1050,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       data_file= share->bitmap.file.file;       /* Only opened once */
   }
 
-#ifdef WITH_S3_STORAGE_ENGINE
-  if (index_header.alloc_ptr)
-    s3f.free(&index_header);
-#endif /* WITH_S3_STORAGE_ENGINE */
-
   if (!(m_info= maria_clone_internal(share, mode, data_file,
-                                     internal_table, s3_client)))
+                                     internal_table)))
     goto err;
 
   if (maria_is_crashed(m_info))
@@ -1182,7 +1062,6 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     mysql_mutex_unlock(&THR_LOCK_maria);
 
   m_info->open_flags= open_flags;
-  m_info->stack_end_ptr= &my_thread_var->stack_ends_here;
   DBUG_PRINT("exit", ("table: %p  name: %s",m_info, name));
   DBUG_RETURN(m_info);
 
@@ -1199,19 +1078,12 @@ err:
     _ma_report_error(save_errno, &tmp_name);
   }
   switch (errpos) {
-  case 7:
-    thr_lock_delete(&share->lock);
-    /* fall through */
-  case 6:
-    /* Avoid mutex test in _ma_bitmap_end() */
-    share->internal_table= 1;
-    (*share->once_end)(share);
-    /* fall through */
   case 5:
-    if (data_file >= 0 && !s3_client)
+    if (data_file >= 0)
       mysql_file_close(data_file, MYF(0));
     if (old_info)
       break;					/* Don't remove open table */
+    (*share->once_end)(share);
     /* fall through */
   case 4:
     ma_crypt_free(share);
@@ -1222,20 +1094,12 @@ err:
     my_free(share_buff.state.rec_per_key_part);
     /* fall through */
   case 1:
-    if (!s3)
-      mysql_file_close(kfile,MYF(0));
-    my_free(share_s3);
+    mysql_file_close(kfile,MYF(0));
     /* fall through */
   case 0:
   default:
     break;
   }
-#ifdef WITH_S3_STORAGE_ENGINE
-  if (s3_client)
-    s3f.deinit(s3_client);
-  if (index_header.alloc_ptr)
-    s3f.free(&index_header);
-#endif /* WITH_S3_STORAGE_ENGINE */
   if (!internal_table)
     mysql_mutex_unlock(&THR_LOCK_maria);
   my_errno= save_errno;
@@ -1253,7 +1117,7 @@ my_bool _ma_alloc_buffer(uchar **old_addr, size_t *old_size,
   if (*old_size < new_size)
   {
     uchar *addr;
-    if (!(addr= (uchar*) my_realloc(PSI_INSTRUMENT_ME, *old_addr, new_size,
+    if (!(addr= (uchar*) my_realloc(*old_addr, new_size,
                                     MYF(MY_ALLOW_ZERO_PTR | flag))))
       return 1;
     *old_addr= addr;
@@ -1645,7 +1509,7 @@ static uchar *_ma_state_info_read(uchar *ptr, MARIA_STATE_INFO *state, myf flag)
 
   /* Allocate memory for key parts if not already done */
   if (!state->rec_per_key_part &&
-      !my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME | flag),
+      !my_multi_malloc(MYF(MY_WME | flag),
                        &state->rec_per_key_part,
                        sizeof(*state->rec_per_key_part) * key_parts,
                        &state->nulls_per_key_part,
@@ -1733,7 +1597,7 @@ uint _ma_state_info_read_dsk(File file __attribute__((unused)),
 
 
 /****************************************************************************
-**  store MARIA_BASE_INFO
+**  store and read of MARIA_BASE_INFO
 ****************************************************************************/
 
 uint _ma_base_info_write(File file, MARIA_BASE_INFO *base)
@@ -1769,19 +1633,60 @@ uint _ma_base_info_write(File file, MARIA_BASE_INFO *base)
   *ptr++= base->keys;
   *ptr++= base->auto_key;
   *ptr++= base->born_transactional;
-  *ptr++= base->compression_algorithm;
+  *ptr++= 0;                                    /* Reserved */
   mi_int2store(ptr,base->pack_bytes);			ptr+= 2;
   mi_int2store(ptr,base->blobs);			ptr+= 2;
   mi_int2store(ptr,base->max_key_block_length);		ptr+= 2;
   mi_int2store(ptr,base->max_key_length);		ptr+= 2;
   mi_int2store(ptr,base->extra_alloc_bytes);		ptr+= 2;
   *ptr++= base->extra_alloc_procent;
-  mi_int3store(ptr, base->s3_block_size);               ptr+= 3;
-  bzero(ptr,13);					ptr+= 13; /* extra */
+  bzero(ptr,16);					ptr+= 16; /* extra */
   DBUG_ASSERT((ptr - buff) == MARIA_BASE_INFO_SIZE);
   return mysql_file_write(file, buff, (size_t) (ptr-buff), MYF(MY_NABP)) != 0;
 }
 
+
+static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
+{
+  bmove(base->uuid, ptr, MY_UUID_SIZE);                 ptr+= MY_UUID_SIZE;
+  base->keystart= mi_sizekorr(ptr);			ptr+= 8;
+  base->max_data_file_length= mi_sizekorr(ptr); 	ptr+= 8;
+  base->max_key_file_length= mi_sizekorr(ptr);		ptr+= 8;
+  base->records=  (ha_rows) mi_sizekorr(ptr);		ptr+= 8;
+  base->reloc= (ha_rows) mi_sizekorr(ptr);		ptr+= 8;
+  base->mean_row_length= mi_uint4korr(ptr);		ptr+= 4;
+  base->reclength= mi_uint4korr(ptr);			ptr+= 4;
+  base->pack_reclength= mi_uint4korr(ptr);		ptr+= 4;
+  base->min_pack_length= mi_uint4korr(ptr);		ptr+= 4;
+  base->max_pack_length= mi_uint4korr(ptr);		ptr+= 4;
+  base->min_block_length= mi_uint4korr(ptr);		ptr+= 4;
+  base->fields= mi_uint2korr(ptr);			ptr+= 2;
+  base->fixed_not_null_fields= mi_uint2korr(ptr);       ptr+= 2;
+  base->fixed_not_null_fields_length= mi_uint2korr(ptr);ptr+= 2;
+  base->max_field_lengths= mi_uint2korr(ptr);	        ptr+= 2;
+  base->pack_fields= mi_uint2korr(ptr);			ptr+= 2;
+  base->extra_options= mi_uint2korr(ptr);		ptr+= 2;
+  base->null_bytes= mi_uint2korr(ptr);			ptr+= 2;
+  base->original_null_bytes= mi_uint2korr(ptr);		ptr+= 2;
+  base->field_offsets= mi_uint2korr(ptr);		ptr+= 2;
+  base->language= mi_uint2korr(ptr);		        ptr+= 2;
+  base->block_size= mi_uint2korr(ptr);			ptr+= 2;
+
+  base->rec_reflength= *ptr++;
+  base->key_reflength= *ptr++;
+  base->keys=	       *ptr++;
+  base->auto_key=      *ptr++;
+  base->born_transactional= *ptr++;
+  ptr++;
+  base->pack_bytes= mi_uint2korr(ptr);			ptr+= 2;
+  base->blobs= mi_uint2korr(ptr);			ptr+= 2;
+  base->max_key_block_length= mi_uint2korr(ptr);	ptr+= 2;
+  base->max_key_length= mi_uint2korr(ptr);		ptr+= 2;
+  base->extra_alloc_bytes= mi_uint2korr(ptr);		ptr+= 2;
+  base->extra_alloc_procent= *ptr++;
+  ptr+= 16;
+  return ptr;
+}
 
 /*--------------------------------------------------------------------------
   maria_keydef
@@ -1930,7 +1835,7 @@ uchar *_ma_columndef_read(uchar *ptr, MARIA_COLUMNDEF *columndef)
   columndef->empty_pos= mi_uint2korr(ptr);	ptr+= 2;
   columndef->null_bit=  (uint8) *ptr++;
   columndef->empty_bit= (uint8) *ptr++;
-  high_offset=       mi_uint2korr(ptr);         ptr+= 2;
+  high_offset=       mi_uint2korr(ptr);         ptr+= 2;  
   columndef->offset|= ((ulong) high_offset << 16);
   ptr+= 2;
   return ptr;
@@ -2048,13 +1953,13 @@ void _ma_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
 
 int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share)
 {
-  myf flags= (share->mode & O_NOFOLLOW) ? MY_NOSYMLINKS | MY_WME : MY_WME;
+  myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS : 0);
   if (share->temporary)
     flags|= MY_THREAD_SPECIFIC;
   DEBUG_SYNC_C("mi_open_datafile");
   info->dfile.file= share->bitmap.file.file=
     mysql_file_open(key_file_dfile, share->data_file_name.str,
-                    share->mode | O_SHARE | O_CLOEXEC, flags);
+                    share->mode | O_SHARE | O_CLOEXEC, MYF(flags));
   return info->dfile.file >= 0 ? 0 : 1;
 }
 

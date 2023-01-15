@@ -177,9 +177,8 @@ public:
           >0        Failure
 
        */
-#ifdef TO_BE_DELETED
       int use_table(server_id_type sid, table tbl);
-#endif
+
       /*
         Commit a transaction.
 

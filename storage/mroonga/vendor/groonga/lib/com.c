@@ -343,7 +343,7 @@ grn_com_event_add(grn_ctx *ctx, grn_com_event *ev, grn_sock fd, int events, grn_
 {
   grn_com *c;
   /* todo : expand events */
-  if (!ev || *ev->hash->n_entries == (uint32_t) ev->max_nevents) {
+  if (!ev || *ev->hash->n_entries == ev->max_nevents) {
     if (ev) { GRN_LOG(ctx, GRN_LOG_ERROR, "too many connections (%d)", ev->max_nevents); }
     return GRN_INVALID_ARGUMENT;
   }
@@ -757,7 +757,7 @@ grn_com_send(grn_ctx *ctx, grn_com *cs,
       rc = ctx->rc;
     }
   }
-  if ((size_t) ret != whole_size) {
+  if (ret != whole_size) {
     GRN_LOG(ctx, GRN_LOG_ERROR,
             "sendmsg(%" GRN_FMT_SOCKET "): %" GRN_FMT_LLD " < %" GRN_FMT_LLU,
             cs->fd, (long long int)ret, (unsigned long long int)whole_size);

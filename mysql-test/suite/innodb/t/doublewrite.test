@@ -19,9 +19,8 @@ call mtr.add_suppression("InnoDB: New log files created");
 call mtr.add_suppression("InnoDB: Cannot create doublewrite buffer: the first file in innodb_data_file_path must be at least (3|6|12)M\\.");
 call mtr.add_suppression("InnoDB: Database creation was aborted");
 call mtr.add_suppression("Plugin 'InnoDB' (init function returned error|registration as a STORAGE ENGINE failed)");
-call mtr.add_suppression("InnoDB: A bad Space ID was found in datafile");
-call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: ");
-call mtr.add_suppression("InnoDB: Inconsistent tablespace ID in .*t1\\.ibd");
+call mtr.add_suppression("InnoDB: A bad Space ID was found in datafile.*");
+call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: .*");
 --enable_query_log
 --source include/restart_mysqld.inc
 
@@ -33,10 +32,6 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 show variables like 'innodb_doublewrite';
 show variables like 'innodb_fil_make_page_dirty_debug';
 show variables like 'innodb_saved_page_number_debug';
-
-connect (stop_purge,localhost,root,,);
-START TRANSACTION WITH CONSISTENT SNAPSHOT;
-connection default;
 
 create table t1 (f1 int primary key, f2 blob) engine=innodb;
 
@@ -55,10 +50,12 @@ commit work;
 select space from information_schema.innodb_sys_tables
 where name = 'test/t1' into @space_id;
 
+--echo # Ensure that dirty pages of table t1 is flushed.
+flush tables t1 for export;
+unlock tables;
+
 begin;
 insert into t1 values (6, repeat('%', 12));
---echo # Ensure that dirty pages of table t1 are flushed.
-set global innodb_buf_flush_list_now = 1;
 
 --source ../include/no_checkpoint_start.inc
 
@@ -71,7 +68,6 @@ set global innodb_buf_flush_list_now = 1;
 
 --let CLEANUP_IF_CHECKPOINT=drop table t1;
 --source ../include/no_checkpoint_end.inc
-disconnect stop_purge;
 
 --echo # Make the first page (page_no=0) of the user tablespace
 --echo # full of zeroes.
@@ -448,7 +444,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 --let $ibp=--innodb-log-group-home-dir=$bugdir --innodb-data-home-dir=$bugdir
---let $ibd=$ibp --innodb-undo-tablespaces=0
+--let $ibd=$ibp --innodb-undo-tablespaces=0 --innodb-log-files-in-group=2
 --let $ibp=$ibp --innodb-data-file-path=ibdata1:1M;ibdata2:1M:autoextend
 
 --let $restart_parameters= $ibp
@@ -462,4 +458,5 @@ eval $check_no_innodb;
 --remove_file $bugdir/ibdata1
 --remove_file $bugdir/ibdata2
 --remove_file $bugdir/ib_logfile0
+--remove_file $bugdir/ib_logfile1
 --rmdir $bugdir

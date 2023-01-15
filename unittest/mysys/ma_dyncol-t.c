@@ -197,12 +197,12 @@ static CHARSET_INFO *charset_list[]=
   &my_charset_ujis_japanese_ci,
   &my_charset_ujis_bin,
 #endif
-#ifdef HAVE_CHARSET_utf8mb3
-  &my_charset_utf8mb3_general_ci,
+#ifdef HAVE_CHARSET_utf8
+  &my_charset_utf8_general_ci,
 #ifdef HAVE_UCA_COLLATIONS
-  &my_charset_utf8mb3_unicode_ci,
+  &my_charset_utf8_unicode_ci,
 #endif
-  &my_charset_utf8mb3_bin,
+  &my_charset_utf8_bin,
 #endif
 };
 

@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'MyISAM';
+SET @@session.storage_engine = 'MyISAM';
 create table t1 (a int not null,
 b int as (-a), 
 c int as (-a) persistent);

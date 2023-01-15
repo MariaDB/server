@@ -1,5 +1,4 @@
-/* Copyright (C) 2012-2020 Kentoku Shiba
-   Copyright (C) 2020 MariaDB corp
+/* Copyright (C) 2012-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -45,21 +44,6 @@ extern ulonglong  spider_free_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 static struct st_mysql_storage_engine spider_i_s_info =
 { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
 
-namespace Show {
-#ifdef SPIDER_I_S_USE_SHOW_FOR_COLUMN
-static ST_FIELD_INFO spider_i_s_alloc_mem_fields_info[] =
-{
-  Column("ID",                ULong(10),     NOT_NULL, "id"),
-  Column("FUNC_NAME",         Varchar(64),   NULLABLE, "func_name"),
-  Column("FILE_NAME",         Varchar(64),   NULLABLE, "file_name"),
-  Column("LINE_NO",           ULong(10),     NULLABLE, "line_no"),
-  Column("TOTAL_ALLOC_MEM",   ULonglong(20), NULLABLE, "total_alloc_mem"),
-  Column("CURRENT_ALLOC_MEM", SLonglong(20), NULLABLE, "current_alloc_mem"),
-  Column("ALLOC_MEM_COUNT",   ULonglong(20), NULLABLE, "alloc_mem_count"),
-  Column("FREE_MEM_COUNT",    ULonglong(20), NULLABLE, "free_mem_count"),
-  CEnd()
-};
-#else
 static ST_FIELD_INFO spider_i_s_alloc_mem_fields_info[] =
 {
   {"ID", 10, MYSQL_TYPE_LONG, 0, MY_I_S_UNSIGNED, "id", SKIP_OPEN_TABLE},
@@ -79,8 +63,6 @@ static ST_FIELD_INFO spider_i_s_alloc_mem_fields_info[] =
     MY_I_S_UNSIGNED | MY_I_S_MAYBE_NULL, "free_mem_count", SKIP_OPEN_TABLE},
   {NULL, 0,  MYSQL_TYPE_STRING, 0, 0, NULL, 0}
 };
-#endif
-} // namespace Show
 
 static int spider_i_s_alloc_mem_fill_table(
   THD *thd,
@@ -135,7 +117,7 @@ static int spider_i_s_alloc_mem_init(
 ) {
   ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
   DBUG_ENTER("spider_i_s_alloc_mem_init");
-  schema->fields_info = Show::spider_i_s_alloc_mem_fields_info;
+  schema->fields_info = spider_i_s_alloc_mem_fields_info;
   schema->fill_table = spider_i_s_alloc_mem_fill_table;
   schema->idx_field1 = 0;
   DBUG_RETURN(0);
@@ -178,130 +160,6 @@ struct st_maria_plugin spider_i_s_alloc_mem_maria =
   PLUGIN_LICENSE_GPL,
   spider_i_s_alloc_mem_init,
   spider_i_s_alloc_mem_deinit,
-  0x0100,
-  NULL,
-  NULL,
-  "1.0",
-  MariaDB_PLUGIN_MATURITY_STABLE,
-};
-#endif
-
-extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
-
-namespace Show {
-#ifdef SPIDER_I_S_USE_SHOW_FOR_COLUMN
-static ST_FIELD_INFO spider_i_s_wrapper_protocols_fields_info[] =
-{
-  Column("WRAPPER_NAME",        Varchar(NAME_CHAR_LEN), NOT_NULL, ""),
-  Column("WRAPPER_VERSION",     Varchar(20),            NOT_NULL, ""),
-  Column("WRAPPER_DESCRIPTION", Longtext(65535),        NULLABLE, ""),
-  Column("WRAPPER_MATURITY",    Varchar(12),            NOT_NULL, ""),
-  CEnd()
-};
-#else
-static ST_FIELD_INFO spider_i_s_wrapper_protocols_fields_info[] =
-{
-  {"WRAPPER_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"WRAPPER_VERSION", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"WRAPPER_DESCRIPTION", 65535, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
-  {"WRAPPER_MATURITY", 12, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {0, 0,  MYSQL_TYPE_STRING, 0, 0, 0, 0}
-};
-#endif
-} // namespace Show
-
-static int spider_i_s_wrapper_protocols_fill_table(
-  THD *thd,
-  TABLE_LIST *tables,
-  COND *cond
-) {
-  uint roop_count;
-  SPIDER_DBTON *dbton;
-  TABLE *table = tables->table;
-  DBUG_ENTER("spider_i_s_wrapper_protocols_fill_table");
-  for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; roop_count++)
-  {
-    dbton = &spider_dbton[roop_count];
-    if (!dbton->wrapper)
-    {
-      continue;
-    }
-    table->field[0]->store(dbton->wrapper,
-      strlen(dbton->wrapper), system_charset_info);
-    table->field[1]->store(dbton->version_info,
-      strlen(dbton->version_info), system_charset_info);
-    if (dbton->descr)
-    {
-      table->field[2]->set_notnull();
-      table->field[2]->store(dbton->descr,
-        strlen(dbton->descr), system_charset_info);
-    } else {
-      table->field[2]->set_null();
-    }
-    if (dbton->maturity <= SPIDER_MATURITY_STABLE)
-    {
-      table->field[3]->store(maturity_name[dbton->maturity].str,
-        maturity_name[dbton->maturity].length, system_charset_info);
-    } else {
-      table->field[3]->store(maturity_name[0].str,
-        maturity_name[0].length, system_charset_info);
-    }
-    if (schema_table_store_record(thd, table))
-    {
-      DBUG_RETURN(1);
-    }
-  }
-  DBUG_RETURN(0);
-}
-
-static int spider_i_s_wrapper_protocols_init(
-  void *p
-) {
-  ST_SCHEMA_TABLE *schema = (ST_SCHEMA_TABLE *) p;
-  DBUG_ENTER("spider_i_s_wrapper_protocols_init");
-  schema->fields_info = Show::spider_i_s_wrapper_protocols_fields_info;
-  schema->fill_table = spider_i_s_wrapper_protocols_fill_table;
-  schema->idx_field1 = 0;
-  DBUG_RETURN(0);
-}
-
-static int spider_i_s_wrapper_protocols_deinit(
-  void *p
-) {
-  DBUG_ENTER("spider_i_s_wrapper_protocols_deinit");
-  DBUG_RETURN(0);
-}
-
-struct st_mysql_plugin spider_i_s_wrapper_protocols =
-{
-  MYSQL_INFORMATION_SCHEMA_PLUGIN,
-  &spider_i_s_info,
-  "SPIDER_WRAPPER_PROTOCOLS",
-  "Kentoku Shiba, MariaDB Corp",
-  "Available wrapper protocols of Spider",
-  PLUGIN_LICENSE_GPL,
-  spider_i_s_wrapper_protocols_init,
-  spider_i_s_wrapper_protocols_deinit,
-  0x0001,
-  NULL,
-  NULL,
-  NULL,
-#if MYSQL_VERSION_ID >= 50600
-  0,
-#endif
-};
-
-#ifdef MARIADB_BASE_VERSION
-struct st_maria_plugin spider_i_s_wrapper_protocols_maria =
-{
-  MYSQL_INFORMATION_SCHEMA_PLUGIN,
-  &spider_i_s_info,
-  "SPIDER_WRAPPER_PROTOCOLS",
-  "Kentoku Shiba, MariaDB Corp",
-  "Available wrapper protocols of Spider",
-  PLUGIN_LICENSE_GPL,
-  spider_i_s_wrapper_protocols_init,
-  spider_i_s_wrapper_protocols_deinit,
   0x0100,
   NULL,
   NULL,

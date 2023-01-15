@@ -346,9 +346,9 @@ to_ascii(CHARSET_INFO *cs,
   const char *srcend= src + src_length;
   char *dst0= dst, *dstend= dst + dst_length - 1;
   while (dst < dstend &&
-         (cnvres= cs->mb_wc(&wc,
-                            (const uchar*) src,
-                            (const uchar*) srcend)) > 0 &&
+         (cnvres= (cs->cset->mb_wc)(cs, &wc,
+                                    (const uchar*) src,
+                                    (const uchar*) srcend)) > 0 &&
          wc < 128)
   {
     src+= cnvres;
@@ -748,7 +748,9 @@ bool parse_date_time_format(timestamp_type format_type,
       this.  If separators are used, they must be between each part
     */
     if (format_length == 6 && !need_p &&
-	!my_charset_bin.strnncoll(format, 6, format_str, 6))
+	!my_strnncoll(&my_charset_bin,
+		      (const uchar *) format, 6, 
+		      (const uchar *) format_str, 6))
       return 0;
     if (separator_map == (1 | 2))
     {
@@ -769,9 +771,9 @@ bool parse_date_time_format(timestamp_type format_type,
       Between DATE and TIME we also allow space as separator
     */
     if ((format_length == 12 && !need_p &&
-	 !my_charset_bin.strnncoll(
-		       format, 12,
-		       known_date_time_formats[INTERNAL_FORMAT].datetime_format,
+	 !my_strnncoll(&my_charset_bin, 
+		       (const uchar *) format, 12,
+		       (const uchar*) known_date_time_formats[INTERNAL_FORMAT].datetime_format,
 		       12)) ||
 	(separators == 5 && separator_map == (1 | 2 | 8 | 16)))
       return 0;
@@ -844,8 +846,7 @@ DATE_TIME_FORMAT *date_time_format_copy(THD *thd, DATE_TIME_FORMAT *format)
   if (thd)
     new_format= (DATE_TIME_FORMAT *) thd->alloc(length);
   else
-    new_format=  (DATE_TIME_FORMAT *) my_malloc(key_memory_DATE_TIME_FORMAT,
-                                                length, MYF(MY_WME));
+    new_format=  (DATE_TIME_FORMAT *) my_malloc(length, MYF(MY_WME));
   if (new_format)
   {
     /* Put format string after current pos */

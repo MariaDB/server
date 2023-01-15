@@ -1,8 +1,0 @@
-install plugin test_sql_service soname 'test_sql_service';
-set global test_sql_service_run_test= 1;
-show status like 'test_sql_service%';
-Variable_name	Value
-Test_sql_service_passed	0
-uninstall plugin test_sql_service;
-Warnings:
-Warning	1620	Plugin is busy and will be uninstalled on shutdown

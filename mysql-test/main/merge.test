@@ -6,7 +6,7 @@
 --source include/count_sessions.inc
 
 # MERGE tables require MyISAM tables
-set @save_default_storage_engine=@@global.default_storage_engine;
+set @save_default_storage_engine=@@global.storage_engine;
 set global default_storage_engine=myisam;
 set session default_storage_engine=myisam;
 

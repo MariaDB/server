@@ -12,11 +12,11 @@ set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 
 set @mrr_buffer_size_save= @@mrr_buffer_size;
 
-set @save_storage_engine= @@default_storage_engine;
-set default_storage_engine=aria;
+set @save_storage_engine= @@storage_engine;
+set storage_engine=aria;
 
 --source include/mrr_tests.inc 
-set default_storage_engine= @save_storage_engine;
+set storage_engine= @save_storage_engine;
 
 set @@mrr_buffer_size= @mrr_buffer_size_save;
 
@@ -144,8 +144,8 @@ set join_buffer_size=10240;
 CREATE TABLE t1 (
   f2 varchar(32) COLLATE latin1_swedish_ci, 
   f3 int(11), 
-  f4 varchar(2048) COLLATE utf8_bin, 
-  f5 varchar(2048) COLLATE latin1_bin, 
+  f4 varchar(1024) COLLATE utf8_bin, 
+  f5 varchar(1024) COLLATE latin1_bin, 
   KEY (f5)
 ) ENGINE=Aria TRANSACTIONAL=0 ;
 

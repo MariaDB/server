@@ -4,40 +4,11 @@ connection slave;
 select @@secure_timestamp;
 @@secure_timestamp
 YES
-### ALL PRIVILEGES
-set timestamp=1234567890.101112;
-ERROR HY000: The MariaDB server is running with the --secure-timestamp=YES option so it cannot execute this statement
-select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'ALL PRIVILEGES';
-ALL PRIVILEGES
-READONLY
-set timestamp=default;
-### SUPER
-create user foo@127.0.0.1;
-grant super on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
 ERROR HY000: The MariaDB server is running with the --secure-timestamp=YES option so it cannot execute this statement
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'SUPER';
 SUPER
 READONLY
-disconnect con2;
-connection slave;
-drop user foo@127.0.0.1;
-set timestamp=default;
-### BINLOG REPLAY
-create user foo@127.0.0.1;
-grant binlog replay on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
-set timestamp=1234567890.101112;
-ERROR HY000: The MariaDB server is running with the --secure-timestamp=YES option so it cannot execute this statement
-select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'BINLOG REPLAY';
-BINLOG REPLAY
-READONLY
-disconnect con2;
-connection slave;
-drop user foo@127.0.0.1;
-set timestamp=default;
-### non-privileged user
 create user foo@127.0.0.1;
 connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
 set timestamp=1234567890.101112;
@@ -48,7 +19,6 @@ READONLY
 disconnect con2;
 connection slave;
 drop user foo@127.0.0.1;
-set timestamp=default;
 connection master;
 set time_zone='+00:00';
 set timestamp=1234567890.101112;

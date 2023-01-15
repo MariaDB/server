@@ -3,9 +3,6 @@
 #
 
 --source include/big_test.inc
-# Test will take more than one hour with valgrind
---source include/not_valgrind.inc
---source include/not_msan.inc
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
@@ -17,7 +14,7 @@ set @save_max_heap_table_size=@@max_heap_table_size;
 # filesort is used (see uniques.cc:merge_walk)
 #
 
-set default_storage_engine=MYISAM;
+set storage_engine=MYISAM;
 
 CREATE TABLE t1 (id INTEGER);
 CREATE TABLE t2 (id INTEGER);

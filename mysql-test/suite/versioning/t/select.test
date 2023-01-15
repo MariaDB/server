@@ -55,8 +55,8 @@ select x as ALL_x, y from t1 for system_time all;
 --disable_query_log
 if ($MTR_COMBINATION_TRX_ID)
 {
-  select x as ASOF2_x, y from t1 for system_time as of transaction @x0;
-  select x as FROMTO2_x, y from t1 for system_time from transaction @x0 to transaction @x1;
+  select x as ASOF2_x, y from t1 for system_time as of @x0;
+  select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
   select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
 }
 if ($MTR_COMBINATION_TIMESTAMP)
@@ -269,8 +269,9 @@ select x from t1 for system_time as of timestamp @ts;
 --echo ## TRANSACTION specifier
 select x from t1 for system_time as of transaction @trx_start;
 
---echo ## no specifier (defaults to timestamp)
+--echo ## no specifier (auto-detection)
 select x from t1 for system_time as of @ts;
+select x from t1 for system_time as of @trx_start;
 
 --echo ### Issue #365, bug 4 (related to #226, optimized fields)
 create or replace table t1 (i int, b int) with system versioning;
@@ -384,12 +385,6 @@ insert into t1 values (1);
 delete from t1;
 select row_start from t1 for system_time all into @t1;
 select row_end from t1 for system_time all into @t2;
---disable_query_log
-if($MTR_COMBINATION_TRX_ID) {
-  set @t1= trt_begin_ts(@t1);
-  set @t2= trt_commit_ts(@t2);
-}
---enable_query_log
 select * from t1 for system_time between @t1 and @t2;
 select * from t1 for system_time between @t2 and @t1;
 select * from t1 for system_time from @t1 to @t2;

@@ -1,111 +1,192 @@
-# Dutch mariadb-10 po-debconf translation,
+# Dutch mysql-dfsg-5.1 po-debconf translation,
 # Copyright (C) 2006 THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the mariadb-10.5 package.
+# This file is distributed under the same license as the mysql-dfsg-5.1 package.
 # Vincent Zweije <zweije@xs4all.nl>, 2006.
-# Frans Spiesschaert <Frans.Spiesschaert@yucom.be>, 2014, 2016, 2018.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: mariadb-10.2.7-1\n"
-"Report-Msgid-Bugs-To: mariadb-10.5@packages.debian.org\n"
-"POT-Creation-Date: 2019-07-23 19:16-0300\n"
-"PO-Revision-Date: 2018-03-29 21:25+0200\n"
-"Last-Translator: Frans Spiesschaert <Frans.Spiesschaert@yucom.be>\n"
-"Language-Team: Debian Dutch l10n Team <debian-l10n-dutch@lists.debian.org>\n"
-"Language: nl\n"
+"Project-Id-Version: mysql-dfsg-5.1 5.0.30-1\n"
+"Report-Msgid-Bugs-To: mariadb-10.4@packages.debian.org\n"
+"POT-Creation-Date: 2016-10-08 01:26+0300\n"
+"PO-Revision-Date: 2006-02-19 10.40+0100\n"
+"Last-Translator: Thijs Kinkhorst <thijs@debian.org>\n"
+"Language-Team: Debian-Dutch <debian-l10n-dutch@lists.debian.org>\n"
+"Language: \n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Generator: Gtranslator 2.91.7\n"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:2001
+#: ../mariadb-server-10.4.templates:2001
 msgid "The old data directory will be saved at new location"
-msgstr "De oude data-map zal op een nieuwe locatie bewaard worden"
+msgstr ""
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:2001
+#: ../mariadb-server-10.4.templates:2001
 msgid ""
 "A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
 "indicates a database binary format version that cannot automatically be "
 "upgraded (or downgraded)."
 msgstr ""
-"Er bestaat op dit systeem een bestand met als naam /var/lib/mysql/debian-*."
-"flag. Het nummer duidt op een versie van het binair database-bestandsformaat "
-"dat niet automatisch opgewaardeerd (of gedegradeerd) kan worden."
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:2001
+#: ../mariadb-server-10.4.templates:2001
 msgid ""
 "Therefore the previous data directory will be renamed to /var/lib/mysql-* "
 "and a new data directory will be initialized at /var/lib/mysql."
 msgstr ""
-"Daarom zal de vroegere data-map hernoemd worden naar /var/lib/mysql-* en zal "
-"er een nieuwe data-map geïnitialiseerd worden op /var/lib/mysql."
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:2001
+#: ../mariadb-server-10.4.templates:2001
 msgid ""
 "Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
-"Gelieve uw data zo nodig handmatig te exporteren/importeren (bijv. met "
-"mysqldump)."
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:3001
+#: ../mariadb-server-10.4.templates:3001
+#, fuzzy
+#| msgid "Important note for NIS/YP users!"
 msgid "Important note for NIS/YP users"
-msgstr "Belangrijke opmerking voor gebruikers van NIS/YP"
+msgstr "Belangrijke opmerking voor gebruikers van NIS/YP!"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:3001
+#: ../mariadb-server-10.4.templates:3001
 msgid ""
 "Using MariaDB under NIS/YP requires a mysql user account to be added on the "
 "local system with:"
 msgstr ""
-"Het gebruik van MariaDB onder NIS/YP vereist dat een mysql gebruikersaccount "
-"wordt toegevoegd aan het lokale systeem met:"
 
 #. Type: note
 #. Description
-#: ../mariadb-server-10.5.templates:3001
+#: ../mariadb-server-10.4.templates:3001
 msgid ""
 "You should also check the permissions and ownership of the /var/lib/mysql "
 "directory:"
 msgstr ""
-"U moet ook controleren wie eigenaar is en wat de gebruikersrechten zijn van "
-"de map /var/lib/mysql:"
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.5.templates:4001
+#: ../mariadb-server-10.4.templates:4001
 msgid "Remove all MariaDB databases?"
-msgstr "Wilt u alle MariaDB-databases verwijderen?"
+msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.5.templates:4001
+#: ../mariadb-server-10.4.templates:4001
 msgid ""
 "The /var/lib/mysql directory which contains the MariaDB databases is about "
 "to be removed."
 msgstr ""
-"De map /var/lib/mysql die de MariaDB-databases bevat staat op het punt om "
-"verwijderd te worden."
 
 #. Type: boolean
 #. Description
-#: ../mariadb-server-10.5.templates:4001
+#: ../mariadb-server-10.4.templates:4001
+#, fuzzy
+#| msgid ""
+#| "The script is about to remove the data directory /var/lib/mysql. If it is "
+#| "planned to just install a higher MySQL version or if a different mysql-"
+#| "server package is already using it, the data should be kept."
 msgid ""
 "If you're removing the MariaDB package in order to later install a more "
 "recent version or if a different mariadb-server package is already using it, "
 "the data should be kept."
 msgstr ""
-"Als u het MariaDB-pakket verwijdert om later een meer recente versie te "
-"installeren of als een ander mariadb-serverpakket het al gebruikt, zou de "
-"data behouden moeten worden."
+"Het script staat op het punt de datamap /var/lib/mysql te verwijderen. Als "
+"het plan alleen maar is om een hogere MariaDB versie te installeren, of als "
+"een ander mariadb-serverpakket de datamap al gebruikt, dan zou de data "
+"moeten worden behouden."
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+#, fuzzy
+#| msgid "New password for MySQL \"root\" user:"
+msgid "New password for the MariaDB \"root\" user:"
+msgstr "Nieuw wachtwoord voor de MariaDB \"root\"-gebruiker:"
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+#, fuzzy
+#| msgid ""
+#| "It is highly recommended that you set a password for the MySQL "
+#| "administrative \"root\" user."
+msgid ""
+"While not mandatory, it is highly recommended that you set a password for "
+"the MariaDB administrative \"root\" user."
+msgstr ""
+"Het wordt sterk aangeraden een wachtwoord in te stellen voor de "
+"administratieve MariaDB \"root\"-gebruiker."
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+msgid "If this field is left blank, the password will not be changed."
+msgstr ""
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:6001
+#, fuzzy
+#| msgid "New password for MySQL \"root\" user:"
+msgid "Repeat password for the MariaDB \"root\" user:"
+msgstr "Nieuw wachtwoord voor de MariaDB \"root\"-gebruiker:"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+#, fuzzy
+#| msgid "Unable to set password for MySQL \"root\" user"
+msgid "Unable to set password for the MariaDB \"root\" user"
+msgstr "Kan het wachtwoord voor de MariaDB \"root\"-gebruiker niet instellen"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+#, fuzzy
+#| msgid ""
+#| "It seems an error occurred while setting the password for the MySQL "
+#| "administrative user.  This may have happened because the user already has "
+#| "a password, or because there was a problem communicating with the MySQL "
+#| "server."
+msgid ""
+"An error occurred while setting the password for the MariaDB administrative "
+"user. This may have happened because the account already has a password, or "
+"because of a communication problem with the MariaDB server."
+msgstr ""
+"Er lijkt een fout te zijn opgetreden bij het instellen van het wachtwoord "
+"van de MariaDB administratieve gebruiker. Dat kan komen doordat de gebruiker "
+"al een wachtwoord heeft, of omdat er een probleem was bij het communiceren "
+"met de MariaDB server."
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+msgid "You should check the account's password after the package installation."
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+msgid ""
+"Please read the /usr/share/doc/mariadb-server-10.4/README.Debian file for "
+"more information."
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:8001
+msgid "Password input error"
+msgstr ""
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:8001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr ""

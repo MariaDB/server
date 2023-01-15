@@ -73,8 +73,7 @@ int mi_preload(MI_INFO *info, ulonglong key_map, my_bool ignore_leaves)
   length= info->preload_buff_size/block_length * block_length;
   set_if_bigger(length, block_length);
 
-  if (!(buff= (uchar *) my_malloc(mi_key_memory_preload_buffer, length,
-                                  MYF(MY_WME))))
+  if (!(buff= (uchar *) my_malloc(length, MYF(MY_WME))))
     DBUG_RETURN(my_errno= HA_ERR_OUT_OF_MEM);
 
   if (flush_key_blocks(share->key_cache, share->kfile, &share->dirty_part_map,

@@ -54,7 +54,6 @@ static const char *removed_variables[] =
 "innodb_buffer_pool_shm_checksum",
 "innodb_buffer_pool_shm_key",
 "innodb_checkpoint_age_target",
-"innodb_checksums",
 "innodb_cleaner_eviction_factor",
 "innodb_cleaner_flush_chunk_size",
 "innodb_cleaner_free_list_lwm",
@@ -83,13 +82,11 @@ static const char *removed_variables[] =
 "innodb_large_prefix",
 "innodb_lazy_drop_table",
 "innodb_locking_fake_changes",
-"innodb_locks_unsafe_for_binlog",
 "innodb_log_arch_dir",
 "innodb_log_arch_expire_sec",
 "innodb_log_archive",
 "innodb_log_block_size",
 "innodb_log_checksum_algorithm",
-"innodb_rollback_segments",
 "innodb_max_bitmap_file_size",
 "innodb_max_changed_pages",
 "innodb_merge_sort_block_size",
@@ -105,7 +102,6 @@ static const char *removed_variables[] =
 "innodb_show_locks_held",
 "innodb_show_verbose_locks",
 "innodb_stats_auto_update",
-"innodb_stats_sample_pages",
 "innodb_stats_update_need_lock",
 "innodb_support_xa",
 "innodb_thread_concurrency_timer_based",
@@ -120,15 +116,10 @@ static const char *removed_variables[] =
 "innodb_use_trim",
 "log",
 "log_slow_queries",
-"max_long_data_size",
-"multi_range_count",
 "rpl_recovery_rank",
-"skip_bdb",
 "sql_big_tables",
 "sql_low_priority_updates",
-"sql_max_join_size",
-"thread_concurrency",
-"timed_mutexes"
+"sql_max_join_size"
 };
 
 

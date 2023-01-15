@@ -36,8 +36,8 @@ Created 3/26/1996 Heikki Tuuri
 @param[in,out]	mtr		mini-transaction
 @return rollback segment header, page x-latched */
 UNIV_INLINE
-buf_block_t*
-trx_rsegf_get(fil_space_t* space, uint32_t page_no, mtr_t* mtr);
+trx_rsegf_t*
+trx_rsegf_get(fil_space_t* space, ulint page_no, mtr_t* mtr);
 
 /** Gets a newly created rollback segment header.
 @param[in]	space		space where placed
@@ -45,11 +45,28 @@ trx_rsegf_get(fil_space_t* space, uint32_t page_no, mtr_t* mtr);
 @param[in,out]	mtr		mini-transaction
 @return rollback segment header, page x-latched */
 UNIV_INLINE
-buf_block_t*
+trx_rsegf_t*
 trx_rsegf_get_new(
 	ulint			space,
-	uint32_t		page_no,
+	ulint			page_no,
 	mtr_t*			mtr);
+
+/***************************************************************//**
+Sets the file page number of the nth undo log slot. */
+UNIV_INLINE
+void
+trx_rsegf_set_nth_undo(
+/*===================*/
+	trx_rsegf_t*	rsegf,	/*!< in: rollback segment header */
+	ulint		n,	/*!< in: index of slot */
+	ulint		page_no,/*!< in: page number of the undo log segment */
+	mtr_t*		mtr);	/*!< in: mtr */
+/****************************************************************//**
+Looks for a free slot for an undo log segment.
+@return slot index or ULINT_UNDEFINED if not found */
+UNIV_INLINE
+ulint
+trx_rsegf_undo_find_free(const trx_rsegf_t* rsegf);
 
 /** Create a rollback segment header.
 @param[in,out]	space		system, undo, or temporary tablespace
@@ -86,6 +103,17 @@ trx_rseg_create(ulint space_id)
 void
 trx_temp_rseg_create();
 
+/********************************************************************
+Get the number of unique rollback tablespaces in use except space id 0.
+The last space id will be the sentinel value ULINT_UNDEFINED. The array
+will be sorted on space id. Note: space_ids should have have space for
+TRX_SYS_N_RSEGS + 1 elements.
+@return number of unique rollback tablespaces in use. */
+ulint
+trx_rseg_get_n_undo_tablespaces(
+/*============================*/
+	ulint*		space_ids);	/*!< out: array of space ids of
+					UNDO tablespaces */
 /* Number of undo log slots in a rollback segment file copy */
 #define TRX_RSEG_N_SLOTS	(srv_page_size / 16)
 
@@ -107,10 +135,10 @@ struct trx_rseg_t {
 	fil_space_t*			space;
 
 	/** page number of the rollback segment header */
-	uint32_t			page_no;
+	ulint				page_no;
 
 	/** current size in pages */
-	uint32_t			curr_size;
+	ulint				curr_size;
 
 	/*--------------------------------------------------------*/
 	/* Fields for undo logs */
@@ -145,7 +173,7 @@ struct trx_rseg_t {
   uint16_t last_offset() const
   { return static_cast<uint16_t>(last_commit_and_offset >> 48); }
 
-  void set_last_commit(uint16_t last_offset, trx_id_t trx_no)
+  void set_last_commit(ulint last_offset, trx_id_t trx_no)
   {
     last_commit_and_offset= static_cast<uint64_t>(last_offset) << 48 | trx_no;
   }
@@ -224,13 +252,15 @@ If no binlog information is present, the first byte is NUL. */
 /*-------------------------------------------------------------*/
 
 /** Read the page number of an undo log slot.
-@param[in]      rseg_header     rollback segment header
-@param[in]      n               slot number */
-inline uint32_t trx_rsegf_get_nth_undo(const buf_block_t *rseg_header, ulint n)
+@param[in]	rsegf	rollback segment header
+@param[in]	n	slot number */
+inline
+uint32_t
+trx_rsegf_get_nth_undo(const trx_rsegf_t* rsegf, ulint n)
 {
-  ut_ad(n < TRX_RSEG_N_SLOTS);
-  return mach_read_from_4(TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                          n * TRX_RSEG_SLOT_SIZE + rseg_header->frame);
+	ut_ad(n < TRX_RSEG_N_SLOTS);
+	return mach_read_from_4(rsegf + TRX_RSEG_UNDO_SLOTS
+				+ n * TRX_RSEG_SLOT_SIZE);
 }
 
 #ifdef WITH_WSREP
@@ -240,7 +270,7 @@ inline uint32_t trx_rsegf_get_nth_undo(const buf_block_t *rseg_header, ulint n)
 @param[in,out]	mtr		mini-transaction */
 void
 trx_rseg_update_wsrep_checkpoint(
-	buf_block_t*	rseg_header,
+	trx_rsegf_t*	rseg_header,
 	const XID*	xid,
 	mtr_t*		mtr);
 
@@ -262,7 +292,7 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid);
 /** Upgrade a rollback segment header page to MariaDB 10.3 format.
 @param[in,out]	rseg_header	rollback segment header page
 @param[in,out]	mtr		mini-transaction */
-void trx_rseg_format_upgrade(buf_block_t *rseg_header, mtr_t *mtr);
+void trx_rseg_format_upgrade(trx_rsegf_t* rseg_header, mtr_t* mtr);
 
 /** Update the offset information about the end of the binlog entry
 which corresponds to the transaction just being committed.
@@ -271,8 +301,8 @@ up to which replication has proceeded.
 @param[in,out]	rseg_header	rollback segment header
 @param[in]	trx		committing transaction
 @param[in,out]	mtr		mini-transaction */
-void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
-                                   mtr_t *mtr);
+void
+trx_rseg_update_binlog_offset(byte* rseg_header, const trx_t* trx, mtr_t* mtr);
 
 #include "trx0rseg.inl"
 

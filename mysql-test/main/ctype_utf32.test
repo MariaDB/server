@@ -564,12 +564,12 @@ drop table t1;
 set names latin1;
 set collation_connection=utf32_general_ci;
 #
-# Testing instr()
+# Testing cs->coll->instr()
 #
 select position('bb' in 'abba');
 
 #
-# Testing hash_sort()
+# Testing cs->coll->hash_sort()
 #
 create table t1 (a varchar(10) character set utf32) engine=heap;
 insert into t1 values ('a'),('A'),('b'),('B');
@@ -578,17 +578,17 @@ select hex(min(binary a)),count(*) from t1 group by a;
 drop table t1;
 
 #
-# Testing numchars()
+# Testing cs->cset->numchars()
 #
 select char_length('abcd'), octet_length('abcd');
 
 #
-# Testing charpos()
+# Testing cs->cset->charpos()
 #
 select left('abcd',2);
 
 #
-# Testing well_formed_length()
+# Testing cs->cset->well_formed_length()
 #
 create table t1 (a varchar(10) character set utf32);
 insert into t1 values (_utf32 0x0010FFFF);
@@ -635,7 +635,7 @@ select hex(s1) from t1 where s1 = 0xfffd;
 drop table t1;
 
 #
-# Testing lengthsp()
+# Testing cs->cset->lengthsp()
 #
 create table t1 (a char(10)) character set utf32;
 insert into t1 values ('a   ');
@@ -643,13 +643,13 @@ select hex(a) from t1;
 drop table t1;
 
 #
-# Testing caseup() and casedn()
+# Testing cs->cset->caseup() and cs->cset->casedn()
 #
 select upper('abcd'), lower('ABCD');
 
 #
 # TODO: str_to_datetime() is broken and doesn't work with ucs2 and utf32
-# Testing snprintf()
+# Testing cs->cset->snprintf()
 #
 #create table t1 (a date);
 #insert into t1 values ('2007-09-16');
@@ -657,11 +657,11 @@ select upper('abcd'), lower('ABCD');
 #drop table t1;
 
 #
-# Testing l10tostr
+# Testing cs->cset->l10tostr
 # !!! Not used in the code
 
 #
-# Testing ll10tostr
+# Testing cs->cset->ll10tostr
 #
 create table t1 (a varchar(10) character set utf32);
 insert into t1 values (123456);
@@ -669,16 +669,16 @@ select a, hex(a) from t1;
 drop table t1;
 
 #
-# Testing fill
+# Testing cs->cset->fill
 # SOUNDEX fills strings with DIGIT ZERO up to four characters
 select hex(soundex('a'));
 
 #
-# Testing strntol
+# Testing cs->cset->strntol
 # !!! Not used in the code
 
 #
-# Testing strntoul
+# Testing cs->cset->strntoul
 #
 create table t1 (a enum ('a','b','c')) character set utf32;
 insert into t1 values ('1');
@@ -686,14 +686,14 @@ select * from t1;
 drop table t1;
 
 #
-# Testing strntoll and strntoull
+# Testing cs->cset->strntoll and cs->cset->strntoull
 #
 set names latin1;
 select hex(conv(convert('123' using utf32), -10, 16));
 select hex(conv(convert('123' using utf32), 10, 16));
 
 #
-# Testing strntod
+# Testing cs->cset->strntod
 #
 set names latin1;
 set character_set_connection=utf32;
@@ -701,12 +701,12 @@ select 1.1 + '1.2';
 select 1.1 + '1.2xxx';
 
 # Testing strntoll10_utf32
-# Testing strtoll10
+# Testing cs->cset->strtoll10
 select left('aaa','1');
 --source include/ctype_strtoll10.inc
 
 #
-# Testing strntoull10rnd
+# Testing cs->cset->strntoull10rnd
 #
 create table t1 (a int);
 insert into t1 values ('-1234.1e2');
@@ -716,7 +716,7 @@ select * from t1;
 drop table t1;
 
 #
-# Testing scan
+# Testing cs->cset->scan
 #
 create table t1 (a int);
 insert into t1 values ('1 ');

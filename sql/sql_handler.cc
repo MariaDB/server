@@ -289,11 +289,10 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /*
       HASH entries are of type SQL_HANDLER
     */
-    if (my_hash_init(key_memory_THD_handler_tables_hash,
-                     &thd->handler_tables_hash, &my_charset_latin1,
-                     HANDLER_TABLES_HASH_SIZE, 0, 0, (my_hash_get_key)
-                     mysql_ha_hash_get_key, (my_hash_free_key)
-                     mysql_ha_hash_free, 0))
+    if (my_hash_init(&thd->handler_tables_hash, &my_charset_latin1,
+                     HANDLER_TABLES_HASH_SIZE, 0, 0,
+                     (my_hash_get_key) mysql_ha_hash_get_key,
+                     (my_hash_free_key) mysql_ha_hash_free, 0))
     {
       DBUG_PRINT("exit",("ERROR"));
       DBUG_RETURN(TRUE);
@@ -333,8 +332,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     right from the start as open_tables() can't handle properly
     back-off for such locks.
   */
-  MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE, tables->db.str,
-                   tables->table_name.str, MDL_SHARED_READ, MDL_TRANSACTION);
+  tables->mdl_request.init(MDL_key::TABLE, tables->db.str, tables->table_name.str,
+                           MDL_SHARED_READ, MDL_TRANSACTION);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* for now HANDLER can be used only for real TABLES */
@@ -385,14 +384,14 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /* copy data to sql_handler */
     if (!(sql_handler= new SQL_HANDLER(thd)))
       goto err;
-    init_alloc_root(PSI_INSTRUMENT_ME, &sql_handler->mem_root, 1024, 0,
+    init_alloc_root(&sql_handler->mem_root, "sql_handler", 1024, 0,
                     MYF(MY_THREAD_SPECIFIC));
 
     sql_handler->db.length= tables->db.length;
     sql_handler->table_name.length= tables->table_name.length;
     sql_handler->handler_name.length= tables->alias.length;
 
-    if (!(my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
+    if (!(my_multi_malloc(MY_WME,
                           &sql_handler->base_data,
                           (uint) sql_handler->db.length + 1,
                           &sql_handler->table_name.str,
@@ -480,7 +479,7 @@ err:
     If called with reopen flag, no need to rollback either,
     it will be done at statement end.
   */
-  DBUG_ASSERT(thd->transaction->stmt.is_empty());
+  DBUG_ASSERT(thd->transaction.stmt.is_empty());
   close_thread_tables(thd);
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
   thd->set_open_tables(backup_open_tables);
@@ -641,7 +640,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       if ((handler->keyno= find_type(keyname, &table->s->keynames,
                                      FIND_TYPE_NO_PREFIX) - 1) < 0)
       {
-        my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), keyname,
+        my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), keyname,
                  handler->handler_name.str);
         return 1;
       }
@@ -786,7 +785,7 @@ retry:
   if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     goto err0;
 
-  if (thd->transaction->xid_state.check_has_uncommitted_xa())
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
     goto err0;
 
   table= handler->table;

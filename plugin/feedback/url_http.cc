@@ -143,9 +143,9 @@ Url* http_create(const char *url, size_t url_length)
   if (!host.length || !port.length || path.str[0] != '/')
     return NULL;
 
-  host.str= my_strndup(PSI_INSTRUMENT_ME, host.str, host.length, MYF(MY_WME));
-  port.str= my_strndup(PSI_INSTRUMENT_ME, port.str, port.length, MYF(MY_WME));
-  path.str= my_strndup(PSI_INSTRUMENT_ME, path.str, path.length, MYF(MY_WME));
+  host.str= my_strndup(host.str, host.length, MYF(MY_WME));
+  port.str= my_strndup(port.str, port.length, MYF(MY_WME));
+  path.str= my_strndup(path.str, path.length, MYF(MY_WME));
 
   if (!host.str || !port.str || !path.str)
   {

@@ -557,7 +557,7 @@ FT_INFO * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
   FTB_EXPR  *ftbe;
   FTB_WORD  *ftbw;
 
-  if (!(ftb=(FTB *)my_malloc(PSI_INSTRUMENT_ME, sizeof(FTB), MYF(MY_WME))))
+  if (!(ftb=(FTB *)my_malloc(sizeof(FTB), MYF(MY_WME))))
     return 0;
   ftb->please= (struct _ft_vft *) & _ma_ft_vft_boolean;
   ftb->state=UNINITIALIZED;
@@ -570,7 +570,7 @@ FT_INFO * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
   bzero(& ftb->no_dupes, sizeof(TREE));
   ftb->last_word= 0;
 
-  init_alloc_root(PSI_INSTRUMENT_ME, &ftb->mem_root, 1024, 1024, 0);
+  init_alloc_root(&ftb->mem_root, "fulltext", 1024, 1024, 0);
   ftb->queue.max_elements= 0;
   if (!(ftbe=(FTB_EXPR *)alloc_root(&ftb->mem_root, sizeof(FTB_EXPR))))
     goto err;

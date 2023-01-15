@@ -1,5 +1,5 @@
 --echo #
---echo # Test that hash_sort() ignores trailing spaces
+--echo # Test that cs->coll->hash_sort() ignores trailing spaces
 --echo #
 SELECT @@collation_connection;
 CREATE TABLE t1 ENGINE=HEAP AS SELECT REPEAT (' ', 10) AS a LIMIT 0;

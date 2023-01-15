@@ -9,7 +9,7 @@ DROP TABLE t1;
 --echo #
 
 SET sql_mode=DEFAULT;
---error ER_UNKNOWN_DATA_TYPE
+--error ER_UNKNOWN_ERROR
 CREATE TABLE t1 (a unknown.DATE);
 
 
@@ -79,7 +79,9 @@ DROP TABLE t1;
 
 SET sql_mode=ORACLE;
 DELIMITER $$;
---error ER_UNKNOWN_DATA_TYPE
+# Change to this when merging to 10.5:
+#--error ER_UNKNOWN_DATA_TYPE
+--error ER_PARSE_ERROR
 CREATE FUNCTION f1() RETURN mariadb_schema.DATE AS
 BEGIN
   RETURN CURRENT_DATE;

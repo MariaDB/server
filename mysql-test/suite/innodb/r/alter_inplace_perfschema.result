@@ -12,7 +12,7 @@ SET DEBUG_SYNC = 'now WAIT_FOR go';
 select count_star into @final_count from performance_schema.events_waits_summary_global_by_event_name WHERE event_name LIKE '%wait%io%file%innodb%innodb_temp_file%';
 SELECT @final_count - @init_count;
 @final_count - @init_count
-10
+11
 SET DEBUG_SYNC = 'now SIGNAL gone';
 connection ddl;
 disconnect ddl;

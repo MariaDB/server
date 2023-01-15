@@ -67,7 +67,7 @@ static int MDL_and_TDC(THD *thd,
                          table);
         return error;
     }
-    tdc_remove_table(thd, db, table);
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, db, table, false);
     return error;
 }
 

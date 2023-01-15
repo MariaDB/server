@@ -27,20 +27,29 @@
 #include <my_bitmap.h>
 #include <my_bit.h>
 
-
-/* An iterator to quickly walk over bits in ulonglong bitmap. */
+/* An iterator to quickly walk over bits in unlonglong bitmap. */
 class Table_map_iterator
 {
   ulonglong bmp;
+  uint no;
 public:
-  Table_map_iterator(ulonglong t): bmp(t){}
-  uint next_bit()
+  Table_map_iterator(ulonglong t) : bmp(t), no(0) {}
+  int next_bit()
   {
-    if (!bmp)
-      return BITMAP_END;
-    uint bit= my_find_first_bit(bmp);
-    bmp &= ~(1ULL << bit);
-    return bit;
+    static const char last_bit[16] = { 32, 0, 1, 0,
+                                      2, 0, 1, 0,
+                                      3, 0, 1, 0,
+                                      2, 0, 1, 0 };
+    uint bit;
+    while ((bit= last_bit[bmp & 0xF]) == 32)
+    {
+      no += 4;
+      bmp= bmp >> 4;
+      if (!bmp)
+        return BITMAP_END;
+    }
+    bmp &= ~(1LL << bit);
+    return no + bit;
   }
   int operator++(int) { return next_bit(); }
   enum { BITMAP_END= 64 };

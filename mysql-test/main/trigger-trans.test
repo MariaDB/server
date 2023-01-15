@@ -233,25 +233,3 @@ DROP TABLE t3, t2, t1;
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
-
---echo #
---echo # MDEV-25738 Assertion `ticket->m_duration == MDL_EXPLICIT' failed in
---echo # void MDL_context::release_lock(MDL_ticket*)
---echo #
-
-CREATE TABLE t1 (id int(11)) ENGINE=InnoDB;
-LOCK TABLES t1 WRITE;
-SET max_statement_time= 0.001;
---error 0,1969,2013
---disable_warnings
-CREATE TRIGGER tr16 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t1 VALUES (1);
---enable_warnings
-SET max_statement_time= default;
---disable_warnings
-DROP TRIGGER IF EXISTS trg16;
---enable_warnings
-DROP TABLE t1;
-
---echo #
---echo # End of 10.5 tests
---echo #

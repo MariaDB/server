@@ -254,35 +254,34 @@ void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
 }
 
 static inline
-void mysql_audit_notify_connection_change_user(THD *thd,
-                                               const Security_context *old_ctx)
+void mysql_audit_notify_connection_change_user(THD *thd)
 {
   if (mysql_audit_connection_enabled())
   {
+    const Security_context *sctx= thd->security_ctx;
     mysql_event_connection event;
 
     event.event_subclass= MYSQL_AUDIT_CONNECTION_CHANGE_USER;
     event.status= thd->get_stmt_da()->is_error() ?
                   thd->get_stmt_da()->sql_errno() : 0;
     event.thread_id= (unsigned long)thd->thread_id;
-    event.user= old_ctx->user;
-    event.user_length= safe_strlen_uint(old_ctx->user);
-    event.priv_user= old_ctx->priv_user;
-    event.priv_user_length= strlen_uint(old_ctx->priv_user);
-    event.external_user= old_ctx->external_user;
-    event.external_user_length= safe_strlen_uint(old_ctx->external_user);
-    event.proxy_user= old_ctx->proxy_user;
-    event.proxy_user_length= strlen_uint(old_ctx->proxy_user);
-    event.host= old_ctx->host;
-    event.host_length= safe_strlen_uint(old_ctx->host);
-    event.ip= old_ctx->ip;
-    event.ip_length= safe_strlen_uint(old_ctx->ip);
+    event.user= sctx->user;
+    event.user_length= safe_strlen_uint(sctx->user);
+    event.priv_user= sctx->priv_user;
+    event.priv_user_length= strlen_uint(sctx->priv_user);
+    event.external_user= sctx->external_user;
+    event.external_user_length= safe_strlen_uint(sctx->external_user);
+    event.proxy_user= sctx->proxy_user;
+    event.proxy_user_length= strlen_uint(sctx->proxy_user);
+    event.host= sctx->host;
+    event.host_length= safe_strlen_uint(sctx->host);
+    event.ip= sctx->ip;
+    event.ip_length= safe_strlen_uint(sctx->ip);
     event.database= thd->db;
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
 }
-
 
 static inline
 void mysql_audit_external_lock_ex(THD *thd, my_thread_id thread_id,

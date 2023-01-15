@@ -164,22 +164,14 @@ SELECT count(*) FROM t7_restart;
 --echo #
 --source include/shutdown_mysqld.inc
 
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
-
 --echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_DATA_DIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir
 --list_files $MYSQL_TMP_DIR/alt_dir
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/alt_dir/test
 
 --echo #
 --echo # Start the server and show that tables are still visible and accessible.
@@ -264,17 +256,11 @@ SHOW CREATE TABLE t7_restart;
 --copy_file $MYSQL_DATA_DIR/test/t5_restart.frm $MYSQL_DATA_DIR/test/t5_restart.frm.bak
 
 --echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_DATA_DIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/alt_dir/test
 
 --echo #
 --echo # Start the server and show the tablespaces.
@@ -321,17 +307,11 @@ RENAME TABLE t5_restart TO t55_restart;
 --remove_file $MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd.bak
 
 --echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_DATA_DIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/alt_dir/test
 
 --echo #
 --echo # Rename file table and tablespace
@@ -359,17 +339,11 @@ SELECT count(*) FROM t77_restart;
 SHOW CREATE TABLE t77_restart;
 
 --echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_DATA_DIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/alt_dir/test
 
 --echo #
 --echo # Restart the server
@@ -405,23 +379,14 @@ SHOW CREATE TABLE t77_restart;
 --mkdir $MYSQL_TMP_DIR/new_dir
 --mkdir $MYSQL_TMP_DIR/new_dir/test
 --echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_DATA_DIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/alt_dir/test
 --echo ---- MYSQL_TMP_DIR/new_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/new_dir/test
 
 --echo # Moving tablespace 't4_restart' from MYSQL_DATA_DIR to MYSQL_TMP_DIR/new_dir
 --copy_file $MYSQL_DATA_DIR/test/t4_restart.ibd $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
@@ -467,23 +432,14 @@ SHOW CREATE TABLE t77_restart;
 --exec echo $MYSQL_TMP_DIR/new_dir/test/t77_restart#P#p1#SP#s3.ibd > $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.isl
 
 --echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_DATA_DIR/test
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/alt_dir/test
 --echo ---- MYSQL_TMP_DIR/new_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/new_dir/test
 
 --echo #
 --echo # Start the server and check tablespaces.
@@ -523,17 +479,11 @@ SHOW CREATE TABLE t77_restart;
 --echo #
 
 --echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_DATA_DIR/test
 --echo ---- MYSQL_TMP_DIR/new_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/new_dir/test
 
 --echo # Moving 't4_restart' from MYSQL_TMP_DIR/new_dir to MYSQL_DATA_DIR
 --copy_file $MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd $MYSQL_DATA_DIR/test/t4_restart.ibd
@@ -571,17 +521,11 @@ SHOW CREATE TABLE t77_restart;
 --remove_file $MYSQL_DATA_DIR/test/t77_restart#P#p1#SP#s3.isl
 
 --echo ---- MYSQL_DATA_DIR/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_DATA_DIR/test
 --echo ---- MYSQL_TMP_DIR/new_dir/test
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQL_TMP_DIR/new_dir/test
 
 --echo #
 --echo # Start the server and check tablespaces.

@@ -80,11 +80,6 @@ if ($binlog_limit != '')
   --let $statement= $statement limit $binlog_limit
 }
 
-if (!$binlog_database)
-{
-  --let $binlog_database="database"
-}
-
 # Execute the statement and write to $output_file
 --let $output_file= GENERATE
 --source include/write_result_to_file.inc
@@ -107,7 +102,6 @@ let $script=
   s{((?:master|slave|slave-relay)-bin\.[0-9]{6};pos=)[0-9]+DOLLAR}{DOLLAR1POS};
   s{SONAME ".*"}{SONAME "LIB"};
   s{DOLLARmysqltest_vardir}{MYSQLTEST_VARDIR}g;
-  s{$binlog_database}{database};
 ||
 --let $pre_script= my DOLLARmysqltest_vardir = DOLLARENV{'MYSQLTEST_VARDIR'};
 

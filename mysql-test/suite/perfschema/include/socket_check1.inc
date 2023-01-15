@@ -63,7 +63,7 @@
 --echo # $title_prefix.$check_num Compare impact of statements
 --echo #       $stmt2
 --echo #       $stmt1
---echo # $msg
+--echo $msg
 
 # Enable this when extending the checks for SQL statements.
 if(0)

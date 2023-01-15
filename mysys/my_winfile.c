@@ -536,12 +536,13 @@ static File my_get_stdfile_descriptor(FILE *stream)
 }
 
 
-File my_win_handle2File(HANDLE hFile)
+File my_win_fileno(FILE *file)
 {
+  HANDLE hFile= (HANDLE)_get_osfhandle(fileno(file));
   int retval= -1;
   uint i;
 
-  DBUG_ENTER("my_win_handle2File");
+  DBUG_ENTER("my_win_fileno");
 
   for(i= MY_FILE_MIN; i < my_file_limit; i++)
   {
@@ -551,14 +552,6 @@ File my_win_handle2File(HANDLE hFile)
       break;
     }
   }
-  DBUG_RETURN(retval);
-}
-
-
-File my_win_fileno(FILE *file)
-{
-  DBUG_ENTER("my_win_fileno");
-  int retval= my_win_handle2File((HANDLE) _get_osfhandle(fileno(file)));
   if(retval == -1)
     /* try std stream */
     DBUG_RETURN(my_get_stdfile_descriptor(file));

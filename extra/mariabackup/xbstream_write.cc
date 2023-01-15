@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include <zlib.h>
 #include "common.h"
 #include "xbstream.h"
+#include "crc_glue.h"
 
 /* Group writes smaller than this into a single chunk */
 #define XB_STREAM_MIN_CHUNK_SIZE (10 * 1024 * 1024)
@@ -64,7 +65,7 @@ xb_stream_write_new(void)
 {
 	xb_wstream_t	*stream;
 
-	stream = (xb_wstream_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(xb_wstream_t), MYF(MY_FAE));
+	stream = (xb_wstream_t *) my_malloc(sizeof(xb_wstream_t), MYF(MY_FAE));
 	pthread_mutex_init(&stream->mutex, NULL);
 
 	return stream;;
@@ -86,7 +87,7 @@ xb_stream_write_open(xb_wstream_t *stream, const char *path,
 		return NULL;
 	}
 
-	file = (xb_wstream_file_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(xb_wstream_file_t) +
+	file = (xb_wstream_file_t *) my_malloc(sizeof(xb_wstream_file_t) +
 					       path_len + 1, MYF(MY_FAE));
 
 	file->path = (char *) (file + 1);
@@ -215,7 +216,7 @@ xb_stream_write_chunk(xb_wstream_file_t *file, const void *buf, size_t len)
 	int8store(ptr, len);                     /* Payload length */
 	ptr += 8;
 
-	checksum = my_checksum(0, buf, len);
+	checksum = crc32_iso3309(0, (const uchar *)buf, (uint)len);   /* checksum */
 
 	pthread_mutex_lock(&stream->mutex);
 

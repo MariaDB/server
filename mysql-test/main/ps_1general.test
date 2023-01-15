@@ -60,7 +60,7 @@ select * from t1 where a = @var ;
 
 # 3. DEALLOCATE PREPARE stmt_name;
 #
-#    Send the server the order to drop the parse information.
+#    Send the server the order to drop the parse informations.
 #    The server will reply with "Query Ok" or an error message.
 DEALLOCATE PREPARE stmt ;
 
@@ -579,12 +579,10 @@ drop table if exists new_t2;
 --enable_warnings
 prepare stmt3 from ' rename table t2 to new_t2 ';
 execute stmt3;
---error ER_NO_SUCH_TABLE
-execute stmt3;
-create table t2 like new_t2;
 --error ER_TABLE_EXISTS_ERROR
 execute stmt3;
-drop table new_t2,t2;
+rename table new_t2 to t2;
+drop table t2;
 ## RENAME more than on TABLE within one statement
 # cases derived from client_test.c: test_rename()
 prepare stmt1 from ' rename table t5 to t6, t7 to t8 ' ;
@@ -595,7 +593,7 @@ create table t7 (a int) ;
 # rename, t5 -> t6 and t7 -> t8
 execute stmt1 ;
 # rename must fail, t5 and t7 does not exist t6 and t8 already exist
---error ER_NO_SUCH_TABLE
+--error ER_TABLE_EXISTS_ERROR
 execute stmt1 ;
 rename table t6 to t5, t8 to t7 ;
 # rename, t5 -> t6 and t7 -> t8

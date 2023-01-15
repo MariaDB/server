@@ -1,5 +1,5 @@
 /* Copyright (c) 2009, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB
+   Copyright (c) 2013, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -122,25 +122,6 @@ static void init_debug_sync_psi_keys(void)
 
 
 /**
-  Set the THD::proc_info without instrumentation.
-  This method is private to DEBUG_SYNC,
-  and on purpose avoid any use of:
-  - the SHOW PROFILE instrumentation
-  - the PERFORMANCE_SCHEMA instrumentation
-  so that using DEBUG_SYNC() in the server code
-  does not cause the instrumentations to record
-  spurious data.
-*/
-static const char*
-debug_sync_thd_proc_info(THD *thd, const char* info)
-{
-  const char* old_proc_info= thd->proc_info;
-  thd->proc_info= info;
-  return old_proc_info;
-}
-
-
-/**
   Initialize the debug sync facility at server start.
 
   @return status
@@ -255,8 +236,7 @@ void debug_sync_init_thread(THD *thd)
   if (opt_debug_sync_timeout)
   {
     thd->debug_sync_control= (st_debug_sync_control*)
-      my_malloc(PSI_NOT_INSTRUMENTED,
-                sizeof(st_debug_sync_control),
+      my_malloc(sizeof(st_debug_sync_control),
                 MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
     if (!thd->debug_sync_control)
     {
@@ -287,6 +267,12 @@ void debug_sync_end_thread(THD *thd)
   {
     st_debug_sync_control *ds_control= thd->debug_sync_control;
 
+    /*
+      This synchronization point can be used to synchronize on thread end.
+      This is the latest point in a THD's life, where this can be done.
+    */
+    DEBUG_SYNC(thd, "thread_end");
+
     if (ds_control->ds_action)
     {
       st_debug_sync_action *action= ds_control->ds_action;
@@ -313,20 +299,6 @@ void debug_sync_end_thread(THD *thd)
   }
 
   DBUG_VOID_RETURN;
-}
-
-
-void debug_sync_reset_thread(THD *thd)
-{
-  if (thd->debug_sync_control)
-  {
-    /*
-      This synchronization point can be used to synchronize on thread end.
-      This is the latest point in a THD's life, where this can be done.
-    */
-    DEBUG_SYNC(thd, "thread_end");
-    thd->debug_sync_control->ds_active= 0;
-  }
 }
 
 
@@ -685,7 +657,7 @@ static st_debug_sync_action *debug_sync_get_action(THD *thd,
     if (ds_control->ds_active > ds_control->ds_allocated)
     {
       uint new_alloc= ds_control->ds_active + 3;
-      void *new_action= my_realloc(PSI_NOT_INSTRUMENTED, ds_control->ds_action,
+      void *new_action= my_realloc(ds_control->ds_action,
                                    new_alloc * sizeof(st_debug_sync_action),
                                    MYF(MY_WME | MY_ALLOW_ZERO_PTR));
       if (!new_action)
@@ -888,7 +860,8 @@ static char *debug_sync_token(char **token_p, uint *token_length_p,
   DBUG_ASSERT(ptr);
 
   /* Skip leading space */
-  ptr+= system_charset_info->scan(ptr, ptrend, MY_SEQ_SPACES);
+  ptr+= system_charset_info->cset->scan(system_charset_info,
+                                        ptr, ptrend, MY_SEQ_SPACES);
   if (!*ptr)
   {
     ptr= NULL;
@@ -899,7 +872,8 @@ static char *debug_sync_token(char **token_p, uint *token_length_p,
   *token_p= ptr;
 
   /* Find token end. */
-  ptr+= system_charset_info->scan(ptr, ptrend, MY_SEQ_NONSPACES);
+  ptr+= system_charset_info->cset->scan(system_charset_info,
+                                        ptr, ptrend, MY_SEQ_NONSPACES);
 
   /* Get token length. */
   *token_length_p= (uint)(ptr - *token_p);
@@ -909,7 +883,7 @@ static char *debug_sync_token(char **token_p, uint *token_length_p,
   {
     DBUG_ASSERT(ptr < ptrend);
     /* Get terminator character length. */
-    uint mbspacelen= system_charset_info->charlen_fix(ptr, ptrend);
+    uint mbspacelen= my_charlen_fix(system_charset_info, ptr, ptrend);
 
     /* Terminate token. */
     *ptr= '\0';
@@ -918,7 +892,8 @@ static char *debug_sync_token(char **token_p, uint *token_length_p,
     ptr+= mbspacelen;
 
     /* Skip trailing space */
-    ptr+= system_charset_info->scan(ptr, ptrend, MY_SEQ_SPACES);
+    ptr+= system_charset_info->cset->scan(system_charset_info,
+                                          ptr, ptrend, MY_SEQ_SPACES);
   }
 
  end:
@@ -1396,7 +1371,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       strxnmov(ds_control->ds_proc_info, sizeof(ds_control->ds_proc_info)-1,
                "debug sync point: ", action->sync_point.c_ptr(), NullS);
       old_proc_info= thd->proc_info;
-      debug_sync_thd_proc_info(thd, ds_control->ds_proc_info);
+      thd_proc_info(thd, ds_control->ds_proc_info);
     }
 
     /*
@@ -1467,7 +1442,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         the required dynamic memory allocated.
       */
       while (stringcmp(&debug_sync_global.ds_signal, &action->wait_for) &&
-             !(thd->killed & KILL_HARD_BIT) && opt_debug_sync_timeout)
+             !thd->killed && opt_debug_sync_timeout)
       {
         error= mysql_cond_timedwait(&debug_sync_global.ds_cond,
                                     &debug_sync_global.ds_mutex,
@@ -1481,10 +1456,12 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         if (unlikely(error == ETIMEDOUT || error == ETIME))
         {
           // We should not make the statement fail, even if in strict mode.
-          Abort_on_warning_instant_set aws(thd, false);
+          const bool save_abort_on_warning= thd->abort_on_warning;
+          thd->abort_on_warning= false;
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                        ER_DEBUG_SYNC_TIMEOUT,
                        ER_THD(thd, ER_DEBUG_SYNC_TIMEOUT));
+          thd->abort_on_warning= save_abort_on_warning;
           DBUG_EXECUTE_IF("debug_sync_abort_on_timeout", DBUG_ASSERT(0););
           break;
         }
@@ -1514,11 +1491,11 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         mysql_mutex_lock(&thd->mysys_var->mutex);
         thd->mysys_var->current_mutex= old_mutex;
         thd->mysys_var->current_cond= old_cond;
-        debug_sync_thd_proc_info(thd, old_proc_info);
+        thd_proc_info(thd, old_proc_info);
         mysql_mutex_unlock(&thd->mysys_var->mutex);
       }
       else
-        debug_sync_thd_proc_info(thd, old_proc_info);
+        thd_proc_info(thd, old_proc_info);
     }
     else
     {

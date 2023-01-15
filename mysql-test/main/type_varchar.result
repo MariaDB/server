@@ -738,32 +738,3 @@ SET sql_mode=DEFAULT;
 #
 # End of 10.4 tests
 #
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-15592 Column COMPRESSED should select a 'high order' datatype
-#
-TRUNCATE TABLE vchar;
-SHOW CREATE TABLE vchar;
-Table	Create Table
-vchar	CREATE TABLE `vchar` (
-  `v` varchar(30)/*old*/ DEFAULT NULL,
-  `c` char(3) DEFAULT NULL,
-  `e` enum('abc','def','ghi') DEFAULT NULL,
-  `t` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-ALTER TABLE vchar ADD FULLTEXT INDEX(v);
-SHOW CREATE TABLE vchar;
-Table	Create Table
-vchar	CREATE TABLE `vchar` (
-  `v` varchar(30) DEFAULT NULL,
-  `c` char(3) DEFAULT NULL,
-  `e` enum('abc','def','ghi') DEFAULT NULL,
-  `t` text DEFAULT NULL,
-  FULLTEXT KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-DROP TABLE vchar;
-#
-# End of 10.5 tests
-#

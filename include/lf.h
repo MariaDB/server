@@ -125,7 +125,7 @@ void *lf_alloc_new(LF_PINS *pins);
 C_MODE_END
 
 /*
-  extendible hash, lf_hash.cc
+  extendible hash, lf_hash.c
 */
 #include <hash.h>
 

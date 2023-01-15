@@ -37,7 +37,7 @@ unlock tables;
 #
 backup stage start;
 unlock tables;
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 lock_mode
 MDL_BACKUP_START
 lock table t1 write;
@@ -98,11 +98,11 @@ drop table t1;
 create table t1(a int) engine=InnoDB;
 begin;
 insert into t1 values(1);
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 lock_mode
 MDL_SHARED_WRITE
 backup stage start;
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 lock_mode
 MDL_BACKUP_START
 backup stage block_commit;
@@ -205,12 +205,12 @@ begin;
 select * from t1;
 col1
 1
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 lock_mode
 MDL_BACKUP_WAIT_COMMIT
 MDL_SHARED_READ
 backup stage end;
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 lock_mode
 drop table t1;
 #

@@ -519,7 +519,7 @@ row_start bigint as row start,
 row_end bigint as row end,
 period for system_time (row_start, row_end)
 ) engine=myisam with system versioning;
-ERROR HY000: `row_start` must be of type BIGINT(20) UNSIGNED for system-versioned table `t1`
+ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
 create table t (
 a int,
 row_start datetime(6) generated always as row start,

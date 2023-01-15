@@ -43,7 +43,6 @@ SET(TOKUDB_SOURCES
     tokudb_thread.cc
     tokudb_dir_cmd.cc)
 MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY
-                 DISABLED
                  COMPONENT tokudb-engine CONFIG ${CMAKE_CURRENT_BINARY_DIR}/tokudb.cnf)
 
 IF(NOT TARGET tokudb)

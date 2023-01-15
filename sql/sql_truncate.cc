@@ -246,7 +246,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       inspite of errors.
      */
     if (error == HA_ERR_WRONG_COMMAND ||
-        table_ref->table->file->has_transactions_and_rollback())
+        table_ref->table->file->has_transactions())
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
     else
       DBUG_RETURN(TRUNCATE_FAILED_BUT_BINLOG);
@@ -303,12 +303,6 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
 
     versioned= table->versioned();
     hton= table->file->ht;
-#ifdef WITH_WSREP
-    if (WSREP(thd) &&
-	!wsrep_should_replicate_ddl(thd, hton->db_type))
-      DBUG_RETURN(TRUE);
-#endif
-
     table_ref->mdl_request.ticket= table->mdl_ticket;
   }
   else
@@ -326,20 +320,8 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     versioned= share->versioned;
     sequence= share->table_type == TABLE_TYPE_SEQUENCE;
     hton= share->db_type();
-#ifdef WITH_WSREP
-    if (WSREP(thd) &&
-	hton != view_pseudo_hton &&
-	!wsrep_should_replicate_ddl(thd, hton->db_type))
-    {
-      tdc_release_share(share);
-      DBUG_RETURN(TRUE);
-    }
-#endif
 
-    if (!versioned)
-      tdc_remove_referenced_share(thd, share);
-    else
-      tdc_release_share(share);
+    tdc_release_share(share);
 
     if (hton == view_pseudo_hton)
     {
@@ -375,6 +357,13 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     if (*hton_can_recreate)
       close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   }
+  else
+  {
+    /* Table is already locked exclusively. Remove cached instances. */
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table_ref->db.str,
+                     table_ref->table_name.str, FALSE);
+  }
+
   DBUG_RETURN(FALSE);
 }
 
@@ -446,7 +435,6 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       }
     }
 #endif /* WITH_WSREP */
-
     if (lock_table(thd, table_ref, &hton_can_recreate))
       DBUG_RETURN(TRUE);
 

@@ -120,9 +120,8 @@ bool init_errmessage(void)
       all_errors+= errors_per_range[i];
 
     if (!(original_error_messages= (const char***)
-          my_malloc(PSI_NOT_INSTRUMENTED,
-                    (all_errors + MAX_ERROR_RANGES)*sizeof(void*),
-                    MYF(MY_ZEROFILL))))
+          my_malloc((all_errors + MAX_ERROR_RANGES)* sizeof(void*),
+                     MYF(MY_ZEROFILL))))
       DBUG_RETURN(TRUE);
 
     errmsgs= (const char**)(original_error_messages + MAX_ERROR_RANGES);
@@ -316,8 +315,7 @@ bool read_texts(const char *file_name, const char *language,
     DBUG_RETURN(1);
 
   if (!(*data= (const char***)
-	my_malloc(key_memory_errmsgs,
-                  (size_t) ((MAX_ERROR_RANGES+1) * sizeof(char**) +
+	my_malloc((size_t) ((MAX_ERROR_RANGES+1) * sizeof(char**) +
                             MY_MAX(msg_file.text_length, msg_file.errors * 2)+
                             msg_file.errors * sizeof(char*)),
                   MYF(MY_WME))))

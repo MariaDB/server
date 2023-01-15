@@ -97,10 +97,10 @@ void
 rtr_non_leaf_stack_push(
 /*====================*/
 	rtr_node_path_t*	path,		/*!< in/out: search path */
-	uint32_t		pageno,		/*!< in: pageno to insert */
+	ulint			pageno,		/*!< in: pageno to insert */
 	node_seq_t		seq_no,		/*!< in: Node sequence num */
 	ulint			level,		/*!< in: index page level */
-	uint32_t		child_no,	/*!< in: child page no */
+	ulint			child_no,	/*!< in: child page no */
 	btr_pcur_t*		cursor,		/*!< in: position cursor */
 	double			mbr_inc)	/*!< in: MBR needs to be
 						enlarged */

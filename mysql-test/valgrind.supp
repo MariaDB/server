@@ -1,5 +1,5 @@
 # Copyright (c) 2005, 2015, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2022, MariaDB
+# Copyright (c) 2008, 2019, MariaDB
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -98,6 +98,137 @@
    fun:dl_main
    fun:_dl_sysdep_start
    fun:_dl_start
+}
+
+#
+# Warnings in libz becasue it works with aligned memory(?)
+#
+
+{
+   libz tr_flush_block
+   Memcheck:Cond
+   fun:_tr_flush_block
+   fun:deflate_slow
+   fun:deflate
+   fun:do_flush
+   fun:gzclose
+}
+
+{
+   libz tr_flush_block2
+   Memcheck:Cond
+   fun:_tr_flush_block
+   fun:deflate_slow
+   fun:deflate
+   fun:compress2
+}
+
+{
+   libz longest_match
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:do_flush
+}
+
+{
+   libz longest_match called from btr_store_big_rec_extern_fields
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:btr_store_big_rec_extern_fields
+}
+
+{
+   libz longest_match called from page_zip_compress
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:page_zip_compress
+}
+
+{
+   libz longest_match2
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:compress2
+}
+
+{
+   libz longest_match 3
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:gzclose
+}
+
+{
+   libz longest_match 4 
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:gzflush
+}
+
+{
+   libz longest_match3
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:azflush
+}
+
+{
+   libz longest_match3
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:azclose
+}
+
+{
+   libz deflate
+   Memcheck:Cond
+   obj:*/libz.so.*
+   obj:*/libz.so.*
+   fun:deflate
+   fun:compress2
+}
+
+{
+   libz deflate2
+   Memcheck:Cond
+   obj:*/libz.so.*
+   obj:*/libz.so.*
+   fun:deflate
+   obj:*/libz.so.*
+   fun:gzflush
+}
+
+{
+   libz deflate3
+   Memcheck:Cond
+   obj:*/libz.so.*
+   obj:*/libz.so.*
+   fun:deflate
+   fun:do_flush
+}
+
+{
+   libz inflatereset2
+   Memcheck:Cond
+   fun:inflateReset2
+   fun:inflateInit2_
+   fun:uncompress
 }
 
 
@@ -526,6 +657,182 @@
 
 
 #
+# Some problem inside glibc on Ubuntu 9.04, x86 (but not amd64):
+# 
+# ==5985== 19 bytes in 1 blocks are still reachable in loss record 1 of 6
+# ==5985==    at 0x7AF3FDE: malloc (vg_replace_malloc.c:207) 
+#               ... 11,12, or 13 functions w/o symbols ...
+# ==5985==    by 0x8717185: nptl_pthread_exit_hack_handler (my_thr_init.c:55)
+#
+# Since valgrind 3.3.0 doesn't support '...' multi-function pattern, using
+# multiple suppressions:
+#
+{
+   Mem loss inside nptl_pthread_exit_hack_handler
+   Memcheck:Leak
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:nptl_pthread_exit_hack_handler 
+}
+
+{
+   Mem loss inside nptl_pthread_exit_hack_handler
+   Memcheck:Leak
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:nptl_pthread_exit_hack_handler 
+}
+
+{
+   Mem loss inside nptl_pthread_exit_hack_handler
+   Memcheck:Leak
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:nptl_pthread_exit_hack_handler 
+}
+
+#
+# BUG#45630
+# Suppress valgrind failures within nptl_pthread_exit_hack_handler on Ubuntu 9.04, x86 (but not amd64)
+#
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 1
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 2
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 3
+   Memcheck:Leak
+   fun:calloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 4
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 5
+   Memcheck:Leak
+   fun:calloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+}
+
+#
 # Problem with glibc and gethostbyaddr_r
 #
 
@@ -537,6 +844,113 @@
    obj: /lib64/libnss_dns-*so)
    obj: /lib64/libnss_dns-*so)
    fun: gethostbyaddr_r
+}
+
+# suppressions for glibc 2.6.1 64 bit
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 6
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 7
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 8
+   Memcheck:Leak
+   fun:calloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 8
+   Memcheck:Leak
+   fun:calloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+}
+
+{
+   Invalid read within nptl_pthread_exit_hack_handler
+   Memcheck:Addr8
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
 }
 
 {
@@ -575,6 +989,39 @@
 }
 
 {
+   Bug 59874 Valgrind warning in InnoDB compression code
+   Memcheck:Cond
+   fun:*
+   fun:*
+   fun:deflate
+   fun:btr_store_big_rec_extern_fields_func
+   fun:row_ins_index_entry_low
+   fun:row_ins_index_entry
+   fun:row_ins_index_entry_step
+   fun:row_ins
+   fun:row_ins_step
+   fun:row_insert_for_mysql
+}
+
+{
+   In page0zip.c we have already checked that the memory is initialized before calling deflate()
+   Memcheck:Cond
+   fun:*
+   fun:*
+   fun:deflate
+   fun:page_zip_compress
+}
+
+{
+   In page0zip.c we have already checked that the memory is initialized before calling deflate()
+   Memcheck:Cond
+   fun:*
+   fun:*
+   fun:deflate
+   fun:page_zip_compress_deflate
+}
+
+{
    Bug 59875 Valgrind warning in buf0buddy.c
    Memcheck:Addr1
    fun:mach_read_from_4
@@ -586,6 +1033,45 @@
 # Note the wildcard in the (mangled) function signatures of
 # write_keys() and find_all_keys().
 # They both return ha_rows, which is platform dependent.
+#
+# The '...' wildcards are for 'fun:inline_mysql_file_write' and
+# 'fun:find_all_keys' which *may* be inlined.
+{
+   Bug#12856915 VALGRIND FAILURE IN FILESORT/CREATE_SORT_INDEX / one
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread*.so
+   fun:my_write
+   ...
+   fun:my_b_flush_io_cache
+   fun:_my_b_write
+   fun:_Z*10write_keysP13st_sort_paramPPhjP11st_io_cacheS4_
+   ...
+   fun:_Z8filesortP3THDP5TABLEP13st_sort_fieldjP10SQL_SELECTybPy
+}
+
+{
+   Bug#12856915 VALGRIND FAILURE IN FILESORT/CREATE_SORT_INDEX / two
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread*.so
+   fun:my_write
+   ...
+   fun:my_b_flush_io_cache
+   fun:_Z15merge_many_buffP13st_sort_paramPhP10st_buffpekPjP11st_io_cache
+   fun:_Z8filesortP3THDP5TABLEP13st_sort_fieldjP10SQL_SELECTybPy
+}
+
+{
+   Bug#12856915 VALGRIND FAILURE IN FILESORT/CREATE_SORT_INDEX / three
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread*.so
+   fun:my_write
+   ...
+   fun:my_b_flush_io_cache
+   fun:_Z8filesortP3THDP5TABLEP13st_sort_fieldjP10SQL_SELECTybPy
+}
 
 {
    OpenSSL still reachable.
@@ -1152,81 +1638,6 @@
    fun:clone
 }
 
-{
-   codership test wsrep_info.plugin
-   Memcheck:Leak
-   match-leak-kinds: possible
-   fun:malloc
-   fun:tls_get_addr_tail
-}
-
-{
-   codership/galera
-   Memcheck:Addr4
-   fun:_ZN14Wsrep_thd_args11thread_typeEv
-   fun:_Z15start_wsrep_THDPv
-   fun:start_thread
-   fun:clone
-}
-
-{
-   codership/galera
-   Memcheck:Leak
-   match-leak-kinds: indirect
-   fun:malloc
-   fun:strdup
-   fun:dummy_init
-   fun:_ZN5wsrep18wsrep_provider_v26C1ERNS_12server_stateERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESA_
-   fun:_ZN5wsrep8provider13make_providerERNS_12server_stateERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESA_
-   fun:_ZN5wsrep12server_state13load_providerERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES8_
-   fun:_Z10wsrep_initv
-}
-
-{
-   codership/galera
-   Memcheck:Leak
-   match-leak-kinds: indirect
-   fun:malloc
-   fun:wsrep_dummy_loader
-   fun:wsrep_load
-   fun:_ZN5wsrep18wsrep_provider_v26C1ERNS_12server_stateERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESA_
-   fun:_ZN5wsrep8provider13make_providerERNS_12server_stateERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESA_
-   fun:_ZN5wsrep12server_state13load_providerERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES8_
-   fun:_Z10wsrep_initv
-}
-
-{
-   codership/galera
-   Memcheck:Leak
-   match-leak-kinds: indirect
-   fun:malloc
-   fun:wsrep_load
-   fun:_ZN5wsrep18wsrep_provider_v26C1ERNS_12server_stateERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESA_
-   fun:_ZN5wsrep8provider13make_providerERNS_12server_stateERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESA_
-   fun:_ZN5wsrep12server_state13load_providerERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES8_
-   fun:_Z10wsrep_initv
-}
-
-{
-   codership/galera
-   Memcheck:Leak
-   match-leak-kinds: definite
-   fun:_Znwm
-   fun:_ZN5wsrep8provider13make_providerERNS_12server_stateERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESA_
-   fun:_ZN5wsrep12server_state13load_providerERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES8_
-   fun:_Z10wsrep_initv
-}
-
-{
-   MDEV-20378 wsrep_info.plugin
-   Memcheck:Addr4
-   fun:_ZN14Wsrep_thd_args11thread_typeEv
-   fun:_Z15start_wsrep_THDPv
-   fun:pfs_spawn_thread
-   fun:start_thread
-   fun:clone
-}
-
 # 
 # MDEV-11061: OpenSSL 0.9.8 problems
 #
@@ -1389,48 +1800,7 @@
    obj:/usr/lib64/libcrypto.so*
 }
 
-#
-# libmarias3 problems
-#
-{
-   libmarias3 crypto
-   Memcheck:Leak
-   match-leak-kinds: reachable
-   fun:malloc
-   ...
-   obj:/usr/lib64/libcrypto.so*
-}
 
-{
-   OpenSSL 1.1.0i wrong jump
-   Memcheck:Cond
-   fun:bcmp
-   fun:fips_rsa_encrypt_test
-   ...   
-   fun:OPENSSL_init_library
-}
-
-#
-# libmarias3 problems
-#
-{
-   libmarias3 curl
-   Memcheck:Leak
-   match-leak-kinds: reachable
-   fun:malloc
-   ...
-   obj:/usr/lib64/libcrypto.so*
-}
-
-{
-   libmarias3 libxml2
-   Memcheck:Leak
-   match-leak-kinds: reachable
-   fun:calloc
-   fun:xmlGetGlobalState
-   ...
-   fun:s3_deinit_library
-}
 
 ##
 ## The following is a copy of facebook/mysql-5.6 suppressions:
@@ -1543,108 +1913,7 @@
    ...
 }
 
-{
-   From rocksdb.mariadb_plugin.test
-   Memcheck:Leak
-   match-leak-kinds: reachable
-   fun:calloc
-   fun:__cxa_thread_atexit_impl
-   fun:__tls_init
-   fun:_ZTWN7rocksdb12perf_contextE
-   fun:_ZN7rocksdb17InstrumentedMutex4LockEv
-   ...
-   fun:_ZNSt10unique_ptrIN7rocksdb9DBOptionsESt14default_deleteIS1_EED1Ev
-   fun:__run_exit_handlers
-}
-
 ##
 ## RocksDB Storage Engine suppressions end
 ##
 
-#
-# wolfSSL problems, to be removed after fixed by wolfSSL team
-#
-
-{
-   WolfSSL_accept
-   Memcheck:Cond
-   ...
-   fun:wolfSSL_accept
-}
-
-{
-   WolfSSL_connect
-   Memcheck:Cond
-   ...
-   fun:wolfSSL_connect
-}
-
-{
-   WolfSSL send param
-   Memcheck:Param
-   socketcall.sendto(msg)
-   fun:send
-   ...
-   fun:wolfSSL_connect
-}
-
-#
-# Temporary suppressions to be able to run all tests in 10.5 with --valgrind
-#
-
-#
-# InnoDB errors
-#
-
-{
-   InnoDB encryption
-   Memcheck:Addr2
-   fun:memmove
-   fun:wolfSSL_EVP_CipherUpdate
-}
-
-{
-   InnoDB row_in_step
-   Memcheck:Cond
-   fun:_Z12row_ins_stepP9que_thr_t
-   ...
-   fun:_ZN11ha_innobase10update_rowEPKhS1_
-}
-
-{
-  InnoDB leak
-  Memcheck:Leak
-  match-leak-kinds: indirect,definite
-  fun:malloc
-  fun:_Z26mem_heap_create_block_funcP16mem_block_info_tmPKcjm
-  ...
-  fun:_ZN11ha_innobase10delete_rowEPKh
-}
-
-{
-  InnoDB leak
-  Memcheck:Leak
-  match-leak-kinds: indirect,definite
-  fun:malloc
-  fun:_Z26mem_heap_create_block_funcP16mem_block_info_tmPKcjm
-  ...
-  fun:_ZN7handler13ha_update_rowEPKhS1_
-}
-
-#
-# Optimizer
-#
-
-{
-   innodb_fts.fulltext_misc
-   Memcheck:Param
-   write(buf)
-   fun:write
-   fun:my_write
-   fun:inline_mysql_file_write
-   fun:_my_b_cache_write
-   fun:my_b_flush_io_cache
-   fun:end_io_cache
-   ...
-   fun:_Z11mysql_unionP3THDP3LEXP13select_resultP18st_select_lex_unitm
-}

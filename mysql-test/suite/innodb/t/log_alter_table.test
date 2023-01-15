@@ -1,0 +1,32 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+# Embedded server does not support crashing
+--source include/not_embedded.inc
+
+# start afresh
+--source include/restart_mysqld.inc
+
+--echo #
+--echo # Bug#21801423 INNODB REDO LOG DOES NOT INDICATE WHEN
+--echo # FILES ARE CREATED
+--echo #
+--echo # Bug#21796691 INNODB REDO LOG DOES NOT INDICATE WHEN
+--echo # REDO LOGGING IS SKIPPED
+--echo #
+--source include/no_checkpoint_start.inc
+CREATE TABLE t1 (a INT NOT NULL, b INT UNIQUE) ENGINE=InnoDB;
+# MLOG_INDEX_LOAD will not be emitted for empty tables. Insert a row.
+INSERT INTO t1 VALUES (1,2);
+# We should get two MLOG_INDEX_LOAD for this.
+ALTER TABLE t1 ADD PRIMARY KEY(a), LOCK=SHARED, ALGORITHM=INPLACE;
+# And one MLOG_INDEX_LOAD for this.
+ALTER TABLE t1 DROP INDEX b, ADD INDEX (b), LOCK=SHARED;
+
+--let CLEANUP_IF_CHECKPOINT=DROP TABLE t1;
+--source include/no_checkpoint_end.inc
+
+--source include/start_mysqld.inc
+
+CHECK TABLE t1;
+DROP TABLE t1;

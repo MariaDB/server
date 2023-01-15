@@ -126,10 +126,6 @@ int spider_param_bulk_update_size(
   THD *thd,
   int bulk_update_size
 );
-int spider_param_buffer_size(
-  THD *thd,
-  int buffer_size
-);
 int spider_param_internal_optimize(
   THD *thd,
   int internal_optimize
@@ -388,7 +384,6 @@ my_bool spider_param_index_hint_pushdown(
 );
 uint spider_param_max_connections();
 uint spider_param_conn_wait_timeout();
-uint spider_param_internal_lock_wait_timeout();
 uint spider_param_log_result_errors();
 uint spider_param_log_result_error_with_sql();
 uint spider_param_internal_xa_id_type(
@@ -435,8 +430,4 @@ int spider_param_wait_timeout(
 );
 bool spider_param_sync_sql_mode(
   THD *thd
-);
-int spider_param_strict_group_by(
-  THD *thd,
-  int strict_group_by
 );

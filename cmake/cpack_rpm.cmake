@@ -33,14 +33,13 @@ SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
 )
 
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
-SET(CPACK_RPM_PACKAGE_VERSION ${CPACK_PACKAGE_VERSION})
 IF(CMAKE_VERSION VERSION_LESS "3.6.0")
-  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${SERVER_VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
+  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
 ELSE()
   SET(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
   OPTION(CPACK_RPM_DEBUGINFO_PACKAGE "" ON)
   MARK_AS_ADVANCED(CPACK_RPM_DEBUGINFO_PACKAGE)
-  SET(CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX "/usr/src/debug/${CPACK_RPM_PACKAGE_NAME}-${CPACK_RPM_PACKAGE_VERSION}")
+  SET(CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX "/usr/src/debug/${CPACK_RPM_PACKAGE_NAME}-${VERSION}")
 ENDIF()
 
 SET(CPACK_RPM_PACKAGE_RELEASE "1%{?dist}")
@@ -179,14 +178,11 @@ ENDMACRO(SETA)
 
 SETA(CPACK_RPM_client_PACKAGE_OBSOLETES
   "mysql-client"
-  "MySQL-client"
-  "mytop <= 1.7")
+  "MySQL-client")
 SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "MySQL-client"
-  "mysql-client"
-  "mytop")
-SET(CPACK_RPM_client_PACKAGE_CONFLICTS
-  "MariaDB-server <= 10.5.10")
+  "mysql-client")
+
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
 SETA(CPACK_RPM_devel_PACKAGE_PROVIDES
@@ -214,7 +210,7 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
 
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "${CPACK_RPM_PACKAGE_REQUIRES}"
-  "MariaDB-client >= 10.5.11")
+  "MariaDB-client")
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
@@ -257,14 +253,14 @@ ALTERNATIVE_NAME("test"   "mysql-test")
 IF(RPM MATCHES "(rhel|centos)6")
   ALTERNATIVE_NAME("client" "mysql")
 ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
-  SET(epoch 1:)
+  SET(epoch 1:) # this is fedora
   ALTERNATIVE_NAME("client" "mariadb")
   ALTERNATIVE_NAME("client" "mysql")
   ALTERNATIVE_NAME("devel"  "mariadb-devel")
   ALTERNATIVE_NAME("server" "mariadb-server")
   ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("test"   "mariadb-test")
-ELSEIF(RPM MATCHES "(rhel|centos|rocky)[89]")
+ELSEIF(RPM MATCHES "(rhel|centos)8")
   SET(epoch 3:)
   ALTERNATIVE_NAME("backup" "mariadb-backup")
   ALTERNATIVE_NAME("client" "mariadb")
@@ -287,13 +283,9 @@ ELSEIF(RPM MATCHES "sles")
     "mariadb-server = %{version}-%{release}"
   )
 ENDIF()
-
-# MDEV-24629, we need it outside of ELSIFs
-IF(RPM MATCHES "fedora3[234]")
-  ALTERNATIVE_NAME("common" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+IF(RPM MATCHES "fedora" OR RPM MATCHES "(rocky|alma|rhel|centos)8")
+  SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 ENDIF()
-
-SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 
 # If we want to build build MariaDB-shared-compat,
 # extract compat libraries from MariaDB-shared-5.3 rpm
@@ -346,7 +338,9 @@ ENDIF()
 IF(CMAKE_VERSION VERSION_GREATER "3.9.99")
 
 SET(CPACK_SOURCE_GENERATOR "RPM")
-SETA(CPACK_RPM_SOURCE_PKG_BUILD_PARAMS "-DRPM=${RPM}")
+SETA(CPACK_RPM_SOURCE_PKG_BUILD_PARAMS
+  "-DRPM=${RPM}"
+  )
 
 MACRO(ADDIF var)
   IF(DEFINED ${var})
@@ -354,7 +348,6 @@ MACRO(ADDIF var)
   ENDIF()
 ENDMACRO()
 
-ADDIF(MYSQL_MAINTAINER_MODE)
 ADDIF(CMAKE_BUILD_TYPE)
 ADDIF(BUILD_CONFIG)
 ADDIF(WITH_SSL)

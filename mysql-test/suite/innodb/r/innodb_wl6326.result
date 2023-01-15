@@ -30,7 +30,6 @@ SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME
 CLUST_INDEX_SIZE
 1
 SET GLOBAL innodb_limit_optimistic_insert_debug = 7;
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('aa');
 INSERT INTO t1 (a00) VALUES ('ab');
 INSERT INTO t1 (a00) VALUES ('ac');
@@ -39,7 +38,6 @@ INSERT INTO t1 (a00) VALUES ('ae');
 INSERT INTO t1 (a00) VALUES ('af');
 INSERT INTO t1 (a00) VALUES ('ag');
 INSERT INTO t1 (a00) VALUES ('ah');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -47,11 +45,9 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 3
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('ai');
 INSERT INTO t1 (a00) VALUES ('aj');
 INSERT INTO t1 (a00) VALUES ('ak');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -59,7 +55,6 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 4
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('al');
 INSERT INTO t1 (a00) VALUES ('am');
 INSERT INTO t1 (a00) VALUES ('an');
@@ -67,7 +62,6 @@ INSERT INTO t1 (a00) VALUES ('ao');
 INSERT INTO t1 (a00) VALUES ('ap');
 INSERT INTO t1 (a00) VALUES ('aq');
 INSERT INTO t1 (a00) VALUES ('ar');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -75,7 +69,6 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 5
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('as');
 INSERT INTO t1 (a00) VALUES ('at');
 INSERT INTO t1 (a00) VALUES ('au');
@@ -83,7 +76,6 @@ INSERT INTO t1 (a00) VALUES ('av');
 INSERT INTO t1 (a00) VALUES ('aw');
 INSERT INTO t1 (a00) VALUES ('ax');
 INSERT INTO t1 (a00) VALUES ('ay');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -91,7 +83,6 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 6
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('az');
 INSERT INTO t1 (a00) VALUES ('ba');
 INSERT INTO t1 (a00) VALUES ('bb');
@@ -99,7 +90,6 @@ INSERT INTO t1 (a00) VALUES ('bc');
 INSERT INTO t1 (a00) VALUES ('bd');
 INSERT INTO t1 (a00) VALUES ('be');
 INSERT INTO t1 (a00) VALUES ('bf');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -107,7 +97,6 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 7
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('bg');
 INSERT INTO t1 (a00) VALUES ('bh');
 INSERT INTO t1 (a00) VALUES ('bi');
@@ -115,7 +104,6 @@ INSERT INTO t1 (a00) VALUES ('bj');
 INSERT INTO t1 (a00) VALUES ('bk');
 INSERT INTO t1 (a00) VALUES ('bl');
 INSERT INTO t1 (a00) VALUES ('bm');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -123,7 +111,6 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 8
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('bn');
 INSERT INTO t1 (a00) VALUES ('bo');
 INSERT INTO t1 (a00) VALUES ('bp');
@@ -131,7 +118,6 @@ INSERT INTO t1 (a00) VALUES ('bq');
 INSERT INTO t1 (a00) VALUES ('br');
 INSERT INTO t1 (a00) VALUES ('bs');
 INSERT INTO t1 (a00) VALUES ('bt');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -139,7 +125,6 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 11
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('bu');
 INSERT INTO t1 (a00) VALUES ('bv');
 INSERT INTO t1 (a00) VALUES ('bw');
@@ -161,7 +146,6 @@ INSERT INTO t1 (a00) VALUES ('cl');
 INSERT INTO t1 (a00) VALUES ('cm');
 INSERT INTO t1 (a00) VALUES ('cn');
 INSERT INTO t1 (a00) VALUES ('co');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -169,7 +153,6 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 15
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('cp');
 INSERT INTO t1 (a00) VALUES ('cq');
 INSERT INTO t1 (a00) VALUES ('cr');
@@ -219,7 +202,6 @@ INSERT INTO t1 (a00) VALUES ('ei');
 INSERT INTO t1 (a00) VALUES ('ej');
 INSERT INTO t1 (a00) VALUES ('ek');
 INSERT INTO t1 (a00) VALUES ('el');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -227,7 +209,6 @@ test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
 23
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('em');
 INSERT INTO t1 (a00) VALUES ('en');
 INSERT INTO t1 (a00) VALUES ('eo');
@@ -276,7 +257,6 @@ INSERT INTO t1 (a00) VALUES ('ge');
 INSERT INTO t1 (a00) VALUES ('gf');
 INSERT INTO t1 (a00) VALUES ('gg');
 INSERT INTO t1 (a00) VALUES ('gh');
-COMMIT;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected

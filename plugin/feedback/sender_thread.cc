@@ -92,7 +92,8 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->variables.pseudo_thread_id= thd->thread_id;
   server_threads.insert(thd);
   thd->thread_stack= (char*) &tables;
-  thd->store_globals();
+  if (thd->store_globals())
+    return 1;
 
   thd->mysys_var->current_cond= &sleep_condition;
   thd->mysys_var->current_mutex= &sleep_mutex;
@@ -105,7 +106,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->db= null_clex_str;
   thd->security_ctx->host_or_ip= "";
   thd->security_ctx->db_access= DB_ACLS;
-  thd->security_ctx->master_access= ALL_KNOWN_ACL;
+  thd->security_ctx->master_access= ~NO_ACCESS;
   bzero((char*) &thd->net, sizeof(thd->net));
   lex_start(thd);
   mysql_init_select(thd->lex);

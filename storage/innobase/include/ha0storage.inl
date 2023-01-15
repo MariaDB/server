@@ -32,7 +32,7 @@ Created September 24, 2007 Vasil Dimov
 struct ha_storage_t {
 	mem_heap_t*	heap;	/*!< memory heap from which memory is
 				allocated */
-	hash_table_t	hash;	/*!< hash table used to avoid
+	hash_table_t*	hash;	/*!< hash table used to avoid
 				duplicates */
 };
 
@@ -77,7 +77,7 @@ ha_storage_create(
 						 sizeof(ha_storage_t));
 
 	storage->heap = heap;
-	storage->hash.create(initial_hash_cells);
+	storage->hash = hash_create(initial_hash_cells);
 
 	return(storage);
 }
@@ -97,7 +97,7 @@ ha_storage_empty(
 	temp_storage.heap = (*storage)->heap;
 	temp_storage.hash = (*storage)->hash;
 
-	temp_storage.hash.clear();
+	hash_table_clear(temp_storage.hash);
 	mem_heap_empty(temp_storage.heap);
 
 	*storage = (ha_storage_t*) mem_heap_alloc(temp_storage.heap,
@@ -117,7 +117,9 @@ ha_storage_free(
 /*============*/
 	ha_storage_t*	storage)	/*!< in, own: hash storage */
 {
-	storage->hash.free();
+	/* order is important because the pointer storage->hash is
+	within the heap */
+	hash_table_free(storage->hash);
 	mem_heap_free(storage->heap);
 }
 
@@ -136,7 +138,7 @@ ha_storage_get_size(
 
 	/* this assumes hash->heap and hash->heaps are NULL */
 	ret += sizeof(hash_table_t);
-	ret += sizeof(hash_cell_t) * storage->hash.n_cells;
+	ret += sizeof(hash_cell_t) * hash_get_n_cells(storage->hash);
 
 	return(ret);
 }

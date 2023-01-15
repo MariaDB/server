@@ -11,7 +11,7 @@ call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired
 DROP TABLE if exists t1,t2,t3,t4,t5,t6;
 --enable_warnings
 
-SET default_storage_engine=ARCHIVE;
+SET storage_engine=ARCHIVE;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 CREATE TABLE t1 (

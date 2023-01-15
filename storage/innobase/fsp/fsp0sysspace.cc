@@ -32,7 +32,6 @@ Refactored 2013-7-26 by Kevin Lewis
 #include "mem0mem.h"
 #include "os0file.h"
 #include "row0mysql.h"
-#include "buf0dblwr.h"
 
 /** The server header file is included to access opt_initialize global variable.
 If server passes the option for create/open DB to SE, we should remove such
@@ -47,7 +46,7 @@ SysTablespace srv_tmp_space;
 
 /** If the last data file is auto-extended, we add this many pages to it
 at a time. We have to make this public because it is a config variable. */
-uint sys_tablespace_auto_extend_increment;
+ulong sys_tablespace_auto_extend_increment;
 
 /** Convert a numeric string that optionally ends in G or M or K,
     to a number containing megabytes.
@@ -275,8 +274,7 @@ SysTablespace::parse_params(
 			}
 		}
 
-		m_files.push_back(Datafile(filepath, flags(), uint32_t(size),
-					   order));
+		m_files.push_back(Datafile(filepath, flags(), size, order));
 		Datafile* datafile = &m_files.back();
 		datafile->make_filepath(path(), filepath, NO_EXT);
 
@@ -352,7 +350,7 @@ SysTablespace::check_size(
 	also the data file could contain an incomplete extent.
 	So we need to round the size downward to a  megabyte.*/
 
-	const uint32_t	rounded_size_pages = static_cast<uint32_t>(
+	const ulint	rounded_size_pages = static_cast<ulint>(
 		size >> srv_page_size_shift);
 
 	/* If last file */
@@ -393,7 +391,7 @@ dberr_t
 SysTablespace::set_size(
 	Datafile&	file)
 {
-	ut_ad(!srv_read_only_mode || m_ignore_read_only);
+	ut_a(!srv_read_only_mode || m_ignore_read_only);
 
 	/* We created the data file and now write it full of zeros */
 	ib::info() << "Setting file '" << file.filepath() << "' size to "
@@ -428,7 +426,7 @@ SysTablespace::create_file(
 	dberr_t	err = DB_SUCCESS;
 
 	ut_a(!file.m_exists);
-	ut_ad(!srv_read_only_mode || m_ignore_read_only);
+	ut_a(!srv_read_only_mode || m_ignore_read_only);
 
 	switch (file.m_type) {
 	case SRV_NEW_RAW:
@@ -583,7 +581,7 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 	ut_a(it->order() == 0);
 
 	if (srv_operation == SRV_OPERATION_NORMAL) {
-		buf_dblwr.init_or_load_pages(it->handle(), it->filepath());
+		buf_dblwr_init_or_load_pages(it->handle(), it->filepath());
 	}
 
 	/* Check the contents of the first page of the
@@ -933,22 +931,28 @@ SysTablespace::open_or_create(
 
 		if (it != begin) {
 		} else if (is_temp) {
+			ut_ad(!fil_system.temp_space);
 			ut_ad(space_id() == SRV_TMP_SPACE_ID);
-			space = fil_space_t::create(
+			space = fil_space_create(
 				name(), SRV_TMP_SPACE_ID, flags(),
 				FIL_TYPE_TEMPORARY, NULL);
-			ut_ad(space == fil_system.temp_space);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.temp_space = space;
+			mutex_exit(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}
-			ut_ad(!space->is_compressed());
-			ut_ad(space->full_crc32());
 		} else {
+			ut_ad(!fil_system.sys_space);
 			ut_ad(space_id() == TRX_SYS_SPACE);
-			space = fil_space_t::create(
+			space = fil_space_create(
 				name(), TRX_SYS_SPACE, it->flags(),
 				FIL_TYPE_TABLESPACE, NULL);
-			ut_ad(space == fil_system.sys_space);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.sys_space = space;
+			mutex_exit(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}
@@ -956,10 +960,10 @@ SysTablespace::open_or_create(
 
 		ut_a(fil_validate());
 
-		uint32_t max_size = (++node_counter == m_files.size()
+		ulint	max_size = (++node_counter == m_files.size()
 				    ? (m_last_file_size_max == 0
-				       ? UINT32_MAX
-				       : uint32_t(m_last_file_size_max))
+				       ? ULINT_MAX
+				       : m_last_file_size_max)
 				    : it->m_size);
 
 		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
@@ -986,21 +990,30 @@ SysTablespace::normalize_size()
 
 /**
 @return next increment size */
-uint32_t SysTablespace::get_increment() const
+ulint
+SysTablespace::get_increment() const
 {
-  if (m_last_file_size_max == 0)
-    return get_autoextend_increment();
+	ulint	increment;
 
-  if (!is_valid_size())
-  {
-     ib::error() << "The last data file in " << name()
-                 << " has a size of " << last_file_size()
-                 << " but the max size allowed is "
-                 << m_last_file_size_max;
-  }
+	if (m_last_file_size_max == 0) {
+		increment = get_autoextend_increment();
+	} else {
 
-  return std::min(uint32_t(m_last_file_size_max) - last_file_size(),
-                  get_autoextend_increment());
+		if (!is_valid_size()) {
+			ib::error() << "The last data file in " << name()
+				<< " has a size of " << last_file_size()
+				<< " but the max size allowed is "
+				<< m_last_file_size_max;
+		}
+
+		increment = m_last_file_size_max - last_file_size();
+	}
+
+	if (increment > get_autoextend_increment()) {
+		increment = get_autoextend_increment();
+	}
+
+	return(increment);
 }
 
 

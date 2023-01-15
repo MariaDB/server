@@ -1,0 +1,170 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+-- source include/have_example_key_management_plugin.inc
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+let INNODB_PAGE_SIZE= `select @@innodb_page_size`;
+
+--echo #
+--echo # immediate scrubbing is off
+--echo # background scrubbing is on
+--echo #
+show variables like 'innodb_%scrub_data%';
+
+-- echo # make sure spaces are checked quickly
+SET GLOBAL innodb_background_scrub_data_check_interval=1;
+
+let $rowcount=500;
+let $maxformatno= 4;
+let $formatno= $maxformatno;
+
+let $tableformat= (
+  a int auto_increment primary key,
+  b varchar(256),
+  c text,
+  index(b)) engine = innodb row_format;
+
+while ($formatno)
+{
+dec $formatno;
+let $format = `select case $formatno
+               when 0 then 'dynamic'
+               when 1 then 'redundant'
+               when 2 then 'compact'
+               when 3 then 'compressed'
+               end`;
+
+let $t= delete_$formatno;
+eval create table $t $tableformat=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+--disable_query_log
+begin;
+while ($numinserts)
+{
+  dec $numinserts;
+  eval insert into $t(b,c) values ('unicycle', repeat('wonderwoman', 1000));
+}
+commit;
+--enable_query_log
+
+eval delete from $t;
+
+let $t= delete_rollback_delete_$formatno;
+
+eval create table $t $tableformat=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+--disable_query_log
+begin;
+while ($numinserts)
+{
+  dec $numinserts;
+  eval insert into $t(b,c) values ('bicycle', repeat('repairman', 1000));
+}
+commit;
+--enable_query_log
+
+begin;
+eval delete from $t;
+rollback;
+eval delete from $t;
+
+let $t= insert_rollback_$formatno;
+
+eval create table $t $tableformat=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+begin;
+--disable_query_log
+while ($numinserts)
+{
+  dec $numinserts;
+  eval insert into $t(b,c) values ('tricycle', repeat('superhuman', 1000));
+}
+--enable_query_log
+
+rollback;
+}
+
+-- echo # start scrubbing threads
+SET GLOBAL innodb_encryption_threads=5;
+-- echo # Wait max 10 min for scrubbing
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_SCRUBBING WHERE LAST_SCRUB_COMPLETED IS NULL AND (NAME LIKE 'test/%' OR SPACE = 0)`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_SCRUBBING;
+    SHOW STATUS LIKE 'innodb_%scrub%';
+    -- die Timeout waiting for background threads
+}
+
+SET GLOBAL innodb_fast_shutdown=0;
+-- source include/shutdown_mysqld.inc
+
+let SEARCH_ABORT= FOUND;
+let SEARCH_PATTERN= (un|b|tr)icycle|(repair|breakhu|wonderwo)man;
+let SEARCH_RANGE= 12582912;
+let SEARCH_FILE= $MYSQLD_DATADIR/ibdata1;
+
+# We may randomly find copies of unscrubbed pages in the doublewrite buffer.
+# Let us scrub the doublewrite buffer ourselves.
+perl;
+use Fcntl 'SEEK_SET';
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+open(FILE, "+<", "$ENV{SEARCH_FILE}") or die "cannot open: $!\n";
+seek(FILE, $page_size * 64, SEEK_SET) or die "cannot seek: $!\n";
+print(FILE chr(0) x ($page_size * 128)) or die "cannot write: $!\n";
+close FILE or die "cannot close: $!\n";;
+EOF
+
+-- source include/search_pattern_in_file.inc
+
+let $formatno= $maxformatno;
+while ($formatno)
+{
+dec $formatno;
+
+let $t= delete_$formatno.ibd;
+let SEARCH_FILE= $MYSQLD_DATADIR/test/$t;
+-- echo # $t
+-- source include/search_pattern_in_file.inc
+let $t= delete_rollback_delete_$formatno.ibd;
+let SEARCH_FILE= $MYSQLD_DATADIR/test/$t;
+-- echo # $t
+-- source include/search_pattern_in_file.inc
+let $t= insert_rollback_$formatno.ibd;
+let SEARCH_FILE= $MYSQLD_DATADIR/test/$t;
+-- echo # $t
+-- source include/search_pattern_in_file.inc
+}
+
+-- source include/start_mysqld.inc
+
+let $formatno= $maxformatno;
+while ($formatno)
+{
+dec $formatno;
+
+let $t= delete_$formatno, delete_rollback_delete_$formatno, insert_rollback_$formatno;
+
+eval check table $t;
+eval drop table $t;
+}
+
+show variables like 'innodb_%scrub_data%';

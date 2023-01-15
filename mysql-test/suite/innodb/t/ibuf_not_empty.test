@@ -1,11 +1,13 @@
 --source include/have_innodb.inc
---source include/no_valgrind_without_big.inc
 # innodb_change_buffering_debug option is debug only
 --source include/have_debug.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
---source include/have_sequence.inc
+# The test is not big enough to use change buffering with larger page size.
+--source include/have_innodb_max_16k.inc
+--source include/no_valgrind_without_big.inc
 
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 --disable_query_log
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table `test`\\.`t1` in the cache\\. Attempting to load the tablespace with space id");
 call mtr.add_suppression("InnoDB: Allocated tablespace ID \\d+ for test.t1, old maximum was");
@@ -25,14 +27,30 @@ ENGINE=InnoDB STATS_PERSISTENT=0;
 # change buffering is possible, so that the change buffer will be used
 # whenever possible.
 SET GLOBAL innodb_change_buffering_debug = 1;
-SET GLOBAL innodb_change_buffering=all;
 
 # Create enough rows for the table, so that the change buffer will be
 # used for modifying the secondary index page. There must be multiple
 # index pages, because changes to the root page are never buffered.
-INSERT INTO t1 SELECT 0,'x',1 FROM seq_1_to_1024;
+BEGIN;
+INSERT INTO t1 VALUES(0,'x',1);
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+INSERT INTO t1 SELECT 0,b,c FROM t1;
+COMMIT;
 let MYSQLD_DATADIR=`select @@datadir`;
 let PAGE_SIZE=`select @@innodb_page_size`;
+
+# Ensure that purge will not access the truncated .ibd file
+--source include/wait_all_purged.inc
 
 --source include/shutdown_mysqld.inc
 
@@ -70,7 +88,7 @@ EOF
 --let $restart_parameters= --innodb-force-recovery=6 --innodb-change-buffer-dump
 --source include/start_mysqld.inc
 
---replace_regex /contains \d+ entries/contains 990 entries/
+--replace_regex /contains \d+ entries/contains #### entries/
 check table t1;
 
 --source include/shutdown_mysqld.inc

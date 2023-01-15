@@ -4,44 +4,38 @@ SET @start_global_value = @@global.innodb_background_scrub_data_interval;
 #
 select @@global.innodb_background_scrub_data_interval;
 @@global.innodb_background_scrub_data_interval
-0
+604800
 select @@session.innodb_background_scrub_data_interval;
 ERROR HY000: Variable 'innodb_background_scrub_data_interval' is a GLOBAL variable
 show global variables like 'innodb_background_scrub_data_interval';
 Variable_name	Value
-innodb_background_scrub_data_interval	0
+innodb_background_scrub_data_interval	604800
 show session variables like 'innodb_background_scrub_data_interval';
 Variable_name	Value
-innodb_background_scrub_data_interval	0
+innodb_background_scrub_data_interval	604800
 select * from information_schema.global_variables
 where variable_name='innodb_background_scrub_data_interval';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_BACKGROUND_SCRUB_DATA_INTERVAL	0
+INNODB_BACKGROUND_SCRUB_DATA_INTERVAL	604800
 select * from information_schema.session_variables
 where variable_name='innodb_background_scrub_data_interval';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_BACKGROUND_SCRUB_DATA_INTERVAL	0
+INNODB_BACKGROUND_SCRUB_DATA_INTERVAL	604800
 #
 # show that it's writable
 #
 set global innodb_background_scrub_data_interval=100;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_interval;
 @@global.innodb_background_scrub_data_interval
-0
+100
 set global innodb_background_scrub_data_interval=200;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_interval;
 @@global.innodb_background_scrub_data_interval
-0
+200
 set global innodb_background_scrub_data_interval=300;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_interval is deprecated and has no effect.
 select @@global.innodb_background_scrub_data_interval;
 @@global.innodb_background_scrub_data_interval
-0
+300
 set session innodb_background_scrub_data_interval=400;
 ERROR HY000: Variable 'innodb_background_scrub_data_interval' is a GLOBAL variable and should be set with SET GLOBAL
 #
@@ -54,5 +48,3 @@ ERROR 42000: Incorrect argument type to variable 'innodb_background_scrub_data_i
 set global innodb_background_scrub_data_interval="foo";
 ERROR 42000: Incorrect argument type to variable 'innodb_background_scrub_data_interval'
 SET @@global.innodb_background_scrub_data_interval = @start_global_value;
-Warnings:
-Warning	138	The parameter innodb_background_scrub_data_interval is deprecated and has no effect.

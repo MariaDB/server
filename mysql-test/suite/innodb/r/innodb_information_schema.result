@@ -22,7 +22,7 @@ lock_table	COUNT(*)
 "test"."t_min"	2
 "test"."`t'\""_str"	10
 Field	Type	Null	Key	Default	Extra
-trx_id	bigint(21) unsigned	NO		NULL	
+trx_id	varchar(18)	NO		NULL	
 trx_state	varchar(13)	NO		NULL	
 trx_started	datetime	NO		NULL	
 trx_requested_lock_id	varchar(81)	YES		NULL	
@@ -38,7 +38,7 @@ trx_lock_memory_bytes	bigint(21) unsigned	NO		NULL
 trx_rows_locked	bigint(21) unsigned	NO		NULL	
 trx_rows_modified	bigint(21) unsigned	NO		NULL	
 trx_concurrency_tickets	bigint(21) unsigned	NO		NULL	
-trx_isolation_level	enum('READ UNCOMMITTED','READ COMMITTED','REPEATABLE READ','SERIALIZABLE')	NO		NULL	
+trx_isolation_level	varchar(16)	NO		NULL	
 trx_unique_checks	int(1)	NO		NULL	
 trx_foreign_key_checks	int(1)	NO		NULL	
 trx_last_foreign_key_error	varchar(256)	YES		NULL	

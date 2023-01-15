@@ -319,7 +319,7 @@ private:
   Cache_staus m_cache_status;
 
   void free_query_internal(Query_cache_block *point);
-  void invalidate_table_internal(uchar *key, size_t key_length);
+  void invalidate_table_internal(THD *thd, uchar *key, size_t key_length);
 
 protected:
   /*
@@ -375,7 +375,8 @@ protected:
   void invalidate_table(THD *thd, TABLE *table);
   void invalidate_table(THD *thd, uchar *key, size_t  key_length);
   void invalidate_table(THD *thd, Query_cache_block *table_block);
-  void invalidate_query_block_list(Query_cache_block_table *list_root);
+  void invalidate_query_block_list(THD *thd, 
+                                   Query_cache_block_table *list_root);
 
   TABLE_COUNTER_TYPE
     register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
@@ -548,7 +549,6 @@ struct Query_cache_query_flags
 {
   unsigned int client_long_flag:1;
   unsigned int client_protocol_41:1;
-  unsigned int client_extended_metadata:1;
   unsigned int client_depr_eof:1;
   unsigned int protocol_type:2;
   unsigned int more_results_exists:1;
@@ -608,5 +608,5 @@ struct Query_cache_query_flags
 #define query_cache_is_cacheable_query(L) 0
 #endif /*HAVE_QUERY_CACHE*/
 
-extern MYSQL_PLUGIN_IMPORT Query_cache query_cache;
+extern Query_cache query_cache;
 #endif

@@ -138,7 +138,7 @@ class TDBPIVOT : public TDBPRX {
   int     Mult;                   // Multiplication factor
   int     Ncol;                   // The number of generated columns
   int     N;                      // The current table index
-  int     M;                      // The occurrence rank
+  int     M;                      // The occurence rank
   int     Port;                   // MySQL port number 
   BYTE    FileStatus;             // 0: First 1: Rows 2: End-of-File
   BYTE    RowFlag;                // 0: Ok, 1: Same, 2: Skip

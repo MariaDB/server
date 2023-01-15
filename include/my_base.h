@@ -53,11 +53,7 @@
   Allow opening even if table is incompatible as this is for ALTER TABLE which
   will fix the table structure.
 */
-#define HA_OPEN_FOR_ALTER		8192U
-
-/* Open table for FLUSH */
-#define HA_OPEN_FOR_FLUSH               8192U
-
+#define HA_OPEN_FOR_ALTER		4096U
 
 /* The following is parameter to ha_rkey() how to use key */
 
@@ -619,6 +615,7 @@ enum data_file_type {
 #define EQ_RANGE	32U
 #define NULL_RANGE	64U
 #define GEOM_FLAG      128U
+#define SKIP_RANGE     256U
 
 typedef struct st_key_range
 {
@@ -644,17 +641,6 @@ typedef struct st_key_multi_range
   uint  range_flag;
 } KEY_MULTI_RANGE;
 
-
-/* Store first and last leaf page accessed by records_in_range */
-
-typedef struct st_page_range
-{
-  ulonglong first_page;
-  ulonglong last_page;
-} page_range;
-
-#define UNUSED_PAGE_NO ULONGLONG_MAX
-#define unused_page_range { UNUSED_PAGE_NO, UNUSED_PAGE_NO }
 
 /* For number of records */
 #ifdef BIG_TABLES

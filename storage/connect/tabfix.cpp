@@ -52,6 +52,8 @@
 /*  DB static variables.                                               */
 /***********************************************************************/
 extern int num_read, num_there, num_eq[2];               // Statistics
+static const longlong M2G = 0x80000000;
+static const longlong M4G = (longlong)2 * M2G;
 char BINCOL::Endian = 'H';
 
 /***********************************************************************/

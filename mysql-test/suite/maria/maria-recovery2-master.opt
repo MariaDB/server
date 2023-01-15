@@ -1,1 +1,1 @@
---loose-skip-stack-trace --skip-core-file --loose-aria-log-dir-path=$MYSQLTEST_VARDIR/tmp --myisam-recover-options=
+--skip-stack-trace --skip-core-file --loose-aria-log-dir-path=$MYSQLTEST_VARDIR/tmp --myisam-recover-options=

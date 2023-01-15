@@ -15,7 +15,7 @@
 #
 -- source include/not_embedded.inc
 
-eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
+eval SET SESSION STORAGE_ENGINE = $engine_type;
 let $other_handler_engine_type= MyISAM;
 
 --disable_warnings

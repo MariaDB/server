@@ -111,11 +111,10 @@ void local_exit(int error)
 
 
 static my_bool
-get_one_option(const struct my_option *opt,
-	       const char *argument __attribute__((unused)),
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument __attribute__((unused)))
 {
-  switch(opt->id) {
+  switch(optid) {
   case 'V':
     print_version();
     local_exit(0);
@@ -235,8 +234,8 @@ static int init_sym_entry(SYM_ENTRY* se, char* buf)
 static void init_sym_table()
 {
   char buf[512];
-  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &sym_table, sizeof(SYM_ENTRY),
-                            INIT_SYM_TABLE, INC_SYM_TABLE, MYF(0)))
+  if (my_init_dynamic_array(&sym_table, sizeof(SYM_ENTRY), INIT_SYM_TABLE,
+			    INC_SYM_TABLE, MYF(0)))
     die("Failed in my_init_dynamic_array() -- looks like out of memory problem");
 
   while (fgets(buf, sizeof(buf), fp_sym))

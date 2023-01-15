@@ -68,7 +68,7 @@ ERROR HY000: Operation CREATE USER failed for 'user\"s_12601974'@'localhost'
 DROP USER 'user\"s_12601974'@'localhost';
 CREATE USER 'user\bs_12601974'@'localhost';
 CREATE USER 'user\bs_12601974'@'localhost';
-ERROR HY000: Operation CREATE USER failed for 'user\0008s_12601974'@'localhost'
+ERROR HY000: Operation CREATE USER failed for 'users_12601974'@'localhost'
 DROP USER 'user\bs_12601974'@'localhost';
 CREATE USER 'user\ns_12601974'@'localhost';
 CREATE USER 'user\ns_12601974'@'localhost';

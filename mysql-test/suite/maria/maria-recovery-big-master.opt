@@ -1,1 +1,1 @@
---loose-skip-stack-trace --skip-core-file --max_allowed_packet=32000000
+--skip-stack-trace --skip-core-file --max_allowed_packet=32000000

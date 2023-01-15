@@ -1,7 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,7 +25,10 @@ Compressed page interface
 Created June 2005 by Marko Makela
 *******************************************************/
 
+#include "page0zip.h"
+#include "mtr0log.h"
 #include "page0page.h"
+#include "srv0srv.h"
 
 /* The format of compressed pages is as follows.
 
@@ -132,7 +136,7 @@ page_zip_set_size(
 		for (ssize = 1; size > (512U << ssize); ssize++) {
 		}
 
-		page_zip->ssize = ssize & ((1U << PAGE_ZIP_SSIZE_BITS) - 1);
+		page_zip->ssize = ssize;
 	} else {
 		page_zip->ssize = 0;
 	}
@@ -313,6 +317,101 @@ page_zip_des_init(
 					descriptor */
 {
 	memset(page_zip, 0, sizeof *page_zip);
+}
+
+/**********************************************************************//**
+Write a log record of writing to the uncompressed header portion of a page. */
+void
+page_zip_write_header_log(
+/*======================*/
+	const byte*	data,/*!< in: data on the uncompressed page */
+	ulint		length,	/*!< in: length of the data */
+	mtr_t*		mtr);	/*!< in: mini-transaction */
+
+/**********************************************************************//**
+Write data to the uncompressed header portion of a page.  The data must
+already have been written to the uncompressed page.
+However, the data portion of the uncompressed page may differ from
+the compressed page when a record is being inserted in
+page_cur_insert_rec_zip(). */
+UNIV_INLINE
+void
+page_zip_write_header(
+/*==================*/
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	const byte*	str,	/*!< in: address on the uncompressed page */
+	ulint		length,	/*!< in: length of the data */
+	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
+{
+	ulint	pos;
+
+	ut_ad(page_zip_simple_validate(page_zip));
+	MEM_CHECK_DEFINED(page_zip->data, page_zip_get_size(page_zip));
+
+	pos = page_offset(str);
+
+	ut_ad(pos < PAGE_DATA);
+
+	memcpy(page_zip->data + pos, str, length);
+
+	/* The following would fail in page_cur_insert_rec_zip(). */
+	/* ut_ad(page_zip_validate(page_zip, str - pos)); */
+
+	if (mtr) {
+		page_zip_write_header_log(str, length, mtr);
+	}
+}
+
+/**********************************************************************//**
+Write a log record of compressing an index page without the data on the page. */
+UNIV_INLINE
+void
+page_zip_compress_write_log_no_data(
+/*================================*/
+	ulint		level,	/*!< in: compression level */
+	const page_t*	page,	/*!< in: page that is compressed */
+	dict_index_t*	index,	/*!< in: index */
+	mtr_t*		mtr)	/*!< in: mtr */
+{
+	byte* log_ptr = mlog_open_and_write_index(
+		mtr, page, index, MLOG_ZIP_PAGE_COMPRESS_NO_DATA, 1);
+
+	if (log_ptr) {
+		mach_write_to_1(log_ptr, level);
+		mlog_close(mtr, log_ptr + 1);
+	}
+}
+
+/**********************************************************************//**
+Parses a log record of compressing an index page without the data.
+@return end of log record or NULL */
+UNIV_INLINE
+byte*
+page_zip_parse_compress_no_data(
+/*============================*/
+	byte*		ptr,		/*!< in: buffer */
+	byte*		end_ptr,	/*!< in: buffer end */
+	page_t*		page,		/*!< in: uncompressed page */
+	page_zip_des_t*	page_zip,	/*!< out: compressed page */
+	dict_index_t*	index)		/*!< in: index */
+{
+	ulint	level;
+	if (end_ptr == ptr) {
+		return(NULL);
+	}
+
+	level = mach_read_from_1(ptr);
+
+	/* If page compression fails then there must be something wrong
+	because a compress log record is logged only if the compression
+	was successful. Crash in this case. */
+
+	if (page
+	    && !page_zip_compress(page_zip, page, index, level, NULL)) {
+		ut_error;
+	}
+
+	return(ptr + 1);
 }
 
 /**********************************************************************//**

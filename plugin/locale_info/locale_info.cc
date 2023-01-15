@@ -28,31 +28,27 @@
 
 #include <my_global.h>
 #include <sql_class.h>          // THD
-#include <sql_i_s.h>              // ST_SCHEMA_TABLE
+#include <table.h>              // ST_SCHEMA_TABLE
 #include <mysql/plugin.h>
 #include <m_ctype.h>
 #include "sql_locale.h"
 
+bool schema_table_store_record(THD *thd, TABLE *table);
 static MY_LOCALE **locale_list;
-
-namespace Show {
 
 /* LOCALES */
 static ST_FIELD_INFO locale_info_locale_fields_info[]=
 {
-  Column("ID",                     SLonglong(4), NOT_NULL, "Id"),
-  Column("NAME",                   Varchar(255), NOT_NULL, "Name"),
-  Column("DESCRIPTION",            Varchar(255), NOT_NULL, "Description"),
-  Column("MAX_MONTH_NAME_LENGTH",  SLonglong(4), NOT_NULL),
-  Column("MAX_DAY_NAME_LENGTH",    SLonglong(4), NOT_NULL),
-  Column("DECIMAL_POINT",          Varchar(2),   NOT_NULL),
-  Column("THOUSAND_SEP",           Varchar(2),   NOT_NULL),
-  Column("ERROR_MESSAGE_LANGUAGE", Varchar(64),  NOT_NULL, "Error_Message_Language"),
-  CEnd()
+  {"ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, "Id", 0},
+  {"NAME", 255, MYSQL_TYPE_STRING, 0, 0, "Name", 0},
+  {"DESCRIPTION", 255,  MYSQL_TYPE_STRING, 0, 0, "Description", 0},
+  {"MAX_MONTH_NAME_LENGTH", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
+  {"MAX_DAY_NAME_LENGTH", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
+  {"DECIMAL_POINT", 2, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"THOUSAND_SEP", 2, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"ERROR_MESSAGE_LANGUAGE", 64, MYSQL_TYPE_STRING, 0, 0, "Error_Message_Language", 0},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
-
-} // namespace Show
-
 static int locale_info_fill_table_locale(THD* thd, TABLE_LIST* tables, COND* cond)
 {
   TABLE *table= tables->table;
@@ -88,10 +84,16 @@ static int locale_info_fill_table_locale(THD* thd, TABLE_LIST* tables, COND* con
 static int locale_info_plugin_init_locales(void *p)
 {
   ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
-  schema->fields_info= Show::locale_info_locale_fields_info;
+  schema->fields_info= locale_info_locale_fields_info;
   schema->fill_table= locale_info_fill_table_locale;
 
+#if defined(_WIN64)
+  locale_list = (MY_LOCALE **)GetProcAddress(GetModuleHandle(NULL), "?my_locales@@3PAPEAVMY_LOCALE@@A");
+#elif defined(_WIN32)
+  locale_list = (MY_LOCALE **)GetProcAddress(GetModuleHandle(NULL), "?my_locales@@3PAPAVMY_LOCALE@@A");
+#else
   locale_list = my_locales;
+#endif
 
   return 0;
 }
@@ -112,7 +114,7 @@ maria_declare_plugin(locales)
   PLUGIN_LICENSE_BSD,      	             	/* the plugin license (see include/mysql/plugin.h) */
   locale_info_plugin_init_locales,          	/* Pointer to plugin initialization function */
   0,            	                        /* Pointer to plugin deinitialization function */
-  0x0100, 	                             	/* Numeric version 0xAABB means AA.BB version */
+  0x0100, 	                             	/* Numeric version 0xAABB means AA.BB veriosn */
   NULL,                                 	/* Status variables */
   NULL,                                 	/* System variables */
   "1.0",                                	/* String version representation */

@@ -41,14 +41,16 @@ Created 3/26/1996 Heikki Tuuri
 #ifdef WITH_WSREP
 #include "trx0xa.h"
 #endif /* WITH_WSREP */
-#include "ilist.h"
+
+typedef UT_LIST_BASE_NODE_T(trx_t) trx_ut_list_t;
 
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-inline bool trx_sys_hdr_page(const page_id_t page_id)
+inline bool trx_sys_hdr_page(const page_id_t& page_id)
 {
-  return page_id == page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO);
+	return(page_id.space() == TRX_SYS_SPACE
+	       && page_id.page_no() == TRX_SYS_PAGE_NO);
 }
 
 /*****************************************************************//**
@@ -338,6 +340,9 @@ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID. */
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 /** Contents of TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED */
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
+
+/** Size of the doublewrite block in pages */
+#define TRX_SYS_DOUBLEWRITE_BLOCK_SIZE	FSP_EXTENT_SIZE
 /* @} */
 
 trx_t* current_trx();
@@ -357,13 +362,6 @@ struct rw_trx_hash_element_t
 
 
   trx_id_t id; /* lf_hash_init() relies on this to be first in the struct */
-
-  /**
-    Transaction serialization number.
-
-    Assigned shortly before the transaction is moved to COMMITTED_IN_MEMORY
-    state. Initially set to TRX_ID_MAX.
-  */
   Atomic_counter<trx_id_t> no;
   trx_t *trx;
   ib_mutex_t mutex;
@@ -377,10 +375,6 @@ struct rw_trx_hash_element_t
 class rw_trx_hash_t
 {
   LF_HASH hash;
-
-
-  template <typename T>
-  using walk_action= my_bool(rw_trx_hash_element_t *element, T *action);
 
 
   /**
@@ -485,19 +479,18 @@ class rw_trx_hash_t
   }
 
 
-  template <typename T> struct eliminate_duplicates_arg
+  struct eliminate_duplicates_arg
   {
     trx_ids_t ids;
-    walk_action<T> *action;
-    T *argument;
-    eliminate_duplicates_arg(size_t size, walk_action<T> *act, T *arg):
+    my_hash_walk_action action;
+    void *argument;
+    eliminate_duplicates_arg(size_t size, my_hash_walk_action act, void* arg):
       action(act), argument(arg) { ids.reserve(size); }
   };
 
 
-  template <typename T>
   static my_bool eliminate_duplicates(rw_trx_hash_element_t *element,
-                                      eliminate_duplicates_arg<T> *arg)
+                                      eliminate_duplicates_arg *arg)
   {
     for (trx_ids_t::iterator it= arg->ids.begin(); it != arg->ids.end(); it++)
     {
@@ -524,16 +517,15 @@ class rw_trx_hash_t
   }
 
 
-  template <typename T> struct debug_iterator_arg
+  struct debug_iterator_arg
   {
-    walk_action<T> *action;
-    T *argument;
+    my_hash_walk_action action;
+    void *argument;
   };
 
 
-  template <typename T>
   static my_bool debug_iterator(rw_trx_hash_element_t *element,
-                                debug_iterator_arg<T> *arg)
+                                debug_iterator_arg *arg)
   {
     mutex_enter(&element->mutex);
     if (element->trx)
@@ -748,28 +740,23 @@ public:
       @retval 1 iteration was interrupted (action returned 1)
   */
 
-  template <typename T>
-  int iterate(trx_t *caller_trx, walk_action<T> *action, T *argument= nullptr)
+  int iterate(trx_t *caller_trx, my_hash_walk_action action, void *argument)
   {
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
     ut_a(pins);
 #ifdef UNIV_DEBUG
-    debug_iterator_arg<T> debug_arg= { action, argument };
-    action= reinterpret_cast<decltype(action)>(debug_iterator<T>);
-    argument= reinterpret_cast<T*>(&debug_arg);
+    debug_iterator_arg debug_arg= { action, argument };
+    action= reinterpret_cast<my_hash_walk_action>(debug_iterator);
+    argument= &debug_arg;
 #endif
-    int res= lf_hash_iterate(&hash, pins,
-                             reinterpret_cast<my_hash_walk_action>(action),
-                             const_cast<void*>(static_cast<const void*>
-                             (argument)));
+    int res= lf_hash_iterate(&hash, pins, action, argument);
     if (!caller_trx)
       lf_hash_put_pins(pins);
     return res;
   }
 
 
-  template <typename T>
-  int iterate(walk_action<T> *action, T *argument= nullptr)
+  int iterate(my_hash_walk_action action, void *argument)
   {
     return iterate(current_trx(), action, argument);
   }
@@ -781,73 +768,21 @@ public:
     @sa iterate()
   */
 
-  template <typename T>
-  int iterate_no_dups(trx_t *caller_trx, walk_action<T> *action,
-                      T *argument= nullptr)
+  int iterate_no_dups(trx_t *caller_trx, my_hash_walk_action action,
+                      void *argument)
   {
-    eliminate_duplicates_arg<T> arg(size() + 32, action, argument);
-    return iterate(caller_trx, eliminate_duplicates<T>, &arg);
+    eliminate_duplicates_arg arg(size() + 32, action, argument);
+    return iterate(caller_trx, reinterpret_cast<my_hash_walk_action>
+                   (eliminate_duplicates), &arg);
   }
 
 
-  template <typename T>
-  int iterate_no_dups(walk_action<T> *action, T *argument= nullptr)
+  int iterate_no_dups(my_hash_walk_action action, void *argument)
   {
     return iterate_no_dups(current_trx(), action, argument);
   }
 };
 
-class thread_safe_trx_ilist_t
-{
-public:
-  void create() { mutex_create(LATCH_ID_TRX_SYS, &mutex); }
-  void close() { mutex_free(&mutex); }
-
-  bool empty() const
-  {
-    mutex_enter(&mutex);
-    auto result= trx_list.empty();
-    mutex_exit(&mutex);
-    return result;
-  }
-
-  void push_front(trx_t &trx)
-  {
-    mutex_enter(&mutex);
-    trx_list.push_front(trx);
-    mutex_exit(&mutex);
-  }
-
-  void remove(trx_t &trx)
-  {
-    mutex_enter(&mutex);
-    trx_list.remove(trx);
-    mutex_exit(&mutex);
-  }
-
-  template <typename Callable> void for_each(Callable &&callback) const
-  {
-    mutex_enter(&mutex);
-    for (const auto &trx : trx_list)
-      callback(trx);
-    mutex_exit(&mutex);
-  }
-
-  template <typename Callable> void for_each(Callable &&callback)
-  {
-    mutex_enter(&mutex);
-    for (auto &trx : trx_list)
-      callback(trx);
-    mutex_exit(&mutex);
-  }
-
-  void freeze() const { mutex_enter(&mutex); }
-  void unfreeze() const { mutex_exit(&mutex); }
-
-private:
-  alignas(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
-  alignas(CACHE_LINE_SIZE) ilist<trx_t> trx_list;
-};
 
 /** The transaction system central memory data structure. */
 class trx_sys_t
@@ -878,8 +813,11 @@ public:
   */
   MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<size_t> rseg_history_len;
 
+  /** Mutex protecting trx_list. */
+  MY_ALIGNED(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
+
   /** List of all transactions. */
-  thread_safe_trx_ilist_t trx_list;
+  MY_ALIGNED(CACHE_LINE_SIZE) trx_ut_list_t trx_list;
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	/** Temporary rollback segments */
@@ -937,7 +875,8 @@ public:
   trx_id_t get_min_trx_id()
   {
     trx_id_t id= get_max_trx_id();
-    rw_trx_hash.iterate(get_min_trx_id_callback, &id);
+    rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
+                        (get_min_trx_id_callback), &id);
     return id;
   }
 
@@ -992,7 +931,8 @@ public:
   */
   void assign_new_trx_no(trx_t *trx)
   {
-    trx->rw_trx_hash_element->no= get_new_trx_id_no_refresh();
+    trx->no= get_new_trx_id_no_refresh();
+    trx->rw_trx_hash_element->no= trx->no;
     refresh_rw_trx_hash_version();
   }
 
@@ -1016,12 +956,13 @@ public:
     @param[in,out] caller_trx used to get access to rw_trx_hash_pins
     @param[out]    ids        array to store registered transaction identifiers
     @param[out]    max_trx_id variable to store m_max_trx_id value
-    @param[out]    mix_trx_no variable to store min(no) value
+    @param[out]    mix_trx_no variable to store min(trx->no) value
   */
 
   void snapshot_ids(trx_t *caller_trx, trx_ids_t *ids, trx_id_t *max_trx_id,
                     trx_id_t *min_trx_no)
   {
+    ut_ad(!mutex_own(&mutex));
     snapshot_ids_arg arg(ids);
 
     while ((arg.m_id= get_rw_trx_hash_version()) != get_max_trx_id())
@@ -1030,7 +971,9 @@ public:
 
     ids->clear();
     ids->reserve(rw_trx_hash.size() + 32);
-    rw_trx_hash.iterate(caller_trx, copy_one_id, &arg);
+    rw_trx_hash.iterate(caller_trx,
+                        reinterpret_cast<my_hash_walk_action>(copy_one_id),
+                        &arg);
 
     *max_trx_id= arg.m_id;
     *min_trx_no= arg.m_no;
@@ -1118,7 +1061,9 @@ public:
   */
   void register_trx(trx_t *trx)
   {
-    trx_list.push_front(*trx);
+    mutex_enter(&mutex);
+    UT_LIST_ADD_FIRST(trx_list, trx);
+    mutex_exit(&mutex);
   }
 
 
@@ -1129,7 +1074,9 @@ public:
   */
   void deregister_trx(trx_t *trx)
   {
-    trx_list.remove(*trx);
+    mutex_enter(&mutex);
+    UT_LIST_REMOVE(trx_list, trx);
+    mutex_exit(&mutex);
   }
 
 
@@ -1140,7 +1087,7 @@ public:
     in. This function is called by purge thread to determine whether it should
     purge the delete marked record or not.
   */
-  void clone_oldest_view(ReadViewBase *view) const;
+  void clone_oldest_view();
 
 
   /** @return the number of active views */
@@ -1148,11 +1095,14 @@ public:
   {
     size_t count= 0;
 
-    trx_list.for_each([&count](const trx_t &trx) {
-      if (trx.read_view.is_open())
+    mutex_enter(&mutex);
+    for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
+         trx= UT_LIST_GET_NEXT(trx_list, trx))
+    {
+      if (trx->read_view.get_state() == READ_VIEW_STATE_OPEN)
         ++count;
-    });
-
+    }
+    mutex_exit(&mutex);
     return count;
   }
 

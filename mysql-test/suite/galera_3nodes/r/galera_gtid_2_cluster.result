@@ -92,7 +92,7 @@ select @@gtid_binlog_state;
 insert into t1 values (1, 12, 3);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-3,2-21-1
+1-11-2,1-12-3,2-21-1
 #wait for sync  cluster 1 and 2
 connection node_1;
 include/save_master_gtid.inc
@@ -102,11 +102,11 @@ cluster 1 node 3
 connection node_3;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-3,2-21-1
+1-11-2,1-12-3,2-21-1
 insert into t1 values (1, 13, 4);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-4,2-21-1
+1-12-3,1-11-2,1-13-4,2-21-1
 #wait for sync  cluster 1 and 2
 connection node_1;
 include/save_master_gtid.inc
@@ -116,11 +116,11 @@ cluster 2 node 2
 connection node_5;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-4,2-21-1
+1-12-3,1-11-2,1-13-4,2-21-1
 insert into t1 values (2, 22, 2);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-4,2-21-2
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
 #wait for sync  cluster 2 and 1
 connection node_4;
 include/save_master_gtid.inc
@@ -130,11 +130,11 @@ cluster 2 node 3
 connection node_6;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-4,2-21-2
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
 insert into t1 values (2, 23, 3);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-4,2-21-3
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
 #wait for sync  cluster 2 and 1
 connection node_4;
 include/save_master_gtid.inc
@@ -144,7 +144,7 @@ cluster 1 node 1
 connection node_1;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-4,2-21-3
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
 drop table t1;
 stop slave;
 reset slave;
@@ -208,7 +208,7 @@ create table t1 (cluster_domain_id int ,node_server_id int, seq_no int);
 insert into t1 values (1, 11, 2);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-7
+1-11-2
 #wait for sync  cluster 1 and 2
 connection node_1;
 include/save_master_gtid.inc
@@ -219,7 +219,7 @@ connection node_4;
 insert into t1 values (2, 21, 1);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-7,2-21-4
+1-11-2,2-21-1
 select * from t1;
 cluster_domain_id	node_server_id	seq_no
 1	11	2
@@ -233,11 +233,11 @@ cluster 1 node 2
 connection node_2;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-7,2-21-4
+1-11-2,2-21-1
 insert into t1 values (1, 12, 3);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-8,2-21-4
+1-11-2,1-12-3,2-21-1
 #wait for sync  cluster 1 and 2
 connection node_1;
 include/save_master_gtid.inc
@@ -247,11 +247,11 @@ cluster 1 node 3
 connection node_3;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-8,2-21-4
+1-11-2,1-12-3,2-21-1
 insert into t1 values (1, 13, 4);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-9,2-21-4
+1-12-3,1-11-2,1-13-4,2-21-1
 #wait for sync  cluster 1 and 2
 connection node_1;
 include/save_master_gtid.inc
@@ -261,11 +261,11 @@ cluster 2 node 2
 connection node_5;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-9,2-21-4
+1-12-3,1-11-2,1-13-4,2-21-1
 insert into t1 values (2, 22, 2);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-9,2-21-5
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
 #wait for sync  cluster 2 and 1
 connection node_4;
 include/save_master_gtid.inc
@@ -275,11 +275,11 @@ cluster 2 node 3
 connection node_6;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-9,2-21-5
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
 insert into t1 values (2, 23, 3);
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-9,2-21-6
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
 #wait for sync  cluster 2 and 1
 connection node_4;
 include/save_master_gtid.inc
@@ -289,7 +289,7 @@ cluster 1 node 1
 connection node_1;
 select @@gtid_binlog_state;
 @@gtid_binlog_state
-1-11-9,2-21-6
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
 drop table t1;
 stop slave;
 change master to master_use_gtid=no, ignore_server_ids=();

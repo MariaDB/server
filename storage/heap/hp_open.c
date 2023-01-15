@@ -30,8 +30,8 @@ HP_INFO *heap_open_from_share(HP_SHARE *share, int mode)
   HP_INFO *info;
   DBUG_ENTER("heap_open_from_share");
 
-  if (!(info= (HP_INFO*) my_malloc(hp_key_memory_HP_INFO,
-                                   sizeof(HP_INFO) + 2 * share->max_key_length,
+  if (!(info= (HP_INFO*) my_malloc(sizeof(HP_INFO) +
+				  2 * share->max_key_length,
                                    MYF(MY_ZEROFILL +
                                        (share->internal ?
                                         MY_THREAD_SPECIFIC : 0)))))

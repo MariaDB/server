@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -79,9 +79,10 @@ sync_array_free_cell(
 	sync_array_t*	arr,	/*!< in: wait array */
 	sync_cell_t*&	cell);	/*!< in: the reserved cell */
 
-/** count of how many times an object has been signalled */
-extern ulint sg_count;
-#define sync_array_object_signalled() ++sg_count
+/**********************************************************************//**
+Note that one of the wait objects was signalled. */
+void
+sync_array_object_signalled();
 
 /**********************************************************************//**
 Prints warnings of long semaphore waits to stderr.

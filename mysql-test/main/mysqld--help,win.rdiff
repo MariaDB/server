@@ -1,5 +1,13 @@
 --- a/mysql-test/r/mysqld--help.result
 +++ b/mysql-test/r/mysqld--help.result
+@@ -419,7 +419,6 @@
+  The number of segments in a key cache
+  -L, --language=name Client error messages in given language. May be given as
+  a full path. Deprecated. Use --lc-messages-dir instead.
+- --large-pages       Enable support for large pages
+  --lc-messages=name  Set the language used for the error messages.
+  -L, --lc-messages-dir=name 
+  Directory where error messages are
 @@ -647,6 +646,7 @@
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
   DATETIME, TIMESTAMP columns.
@@ -50,6 +58,14 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
+@@ -1513,7 +1523,6 @@
+ key-cache-division-limit 100
+ key-cache-file-hash-size 512
+ key-cache-segments 0
+-large-pages FALSE
+ lc-messages en_US
+ lc-messages-dir MYSQL_SHAREDIR/
+ lc-time-names en_US
 @@ -1587,6 +1596,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE

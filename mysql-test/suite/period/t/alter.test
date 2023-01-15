@@ -174,19 +174,3 @@ alter table t add period if not exists for ` ` (s,e);
 --error ER_WRONG_COLUMN_NAME
 create table t2 (period for `` (s,e)) select * from t;
 drop table t;
-
---echo #
---echo # MDEV-21941 RENAME doesn't work for system time or period fields
---echo #
-create or replace table t1 (
-  a int, s date, e date,
-  period for mytime(s, e));
-
-alter table t1 rename column s to x;
-alter table t1 rename column e to y;
-
-show create table t1;
-# cleanup
-drop table t1;
-
---echo # End of 10.5 tests

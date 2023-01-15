@@ -35,7 +35,7 @@ class OCCURDEF : public PRXDEF {          /* Logical table description */
  protected:
   // Members
 	char   *Colist;						 /* The source column list                 */
-  char   *Xcol;              /* The multiple occurrence column          */
+  char   *Xcol;              /* The multiple occurence column          */
   char   *Rcol;              /* The rank column                        */
   }; // end of OCCURDEF
 
@@ -76,12 +76,12 @@ class TDBOCCUR : public TDBPRX {
 	PCOL     *Col;									  // To source multiple columns
 	int       Mult;										// Multiplication factor
 	int       N;											// The current table index
-	int		    M;                      // The occurrence rank
+	int		    M;                      // The occurence rank
 	BYTE      RowFlag;								// 0: Ok, 1: Same, 2: Skip
   }; // end of class TDBOCCUR
 
 /***********************************************************************/
-/*  Class OCCURCOL: for the multiple occurrence column.                 */
+/*  Class OCCURCOL: for the multiple occurence column.                 */
 /***********************************************************************/
 class OCCURCOL : public COLBLK {
  public:
@@ -106,7 +106,7 @@ class OCCURCOL : public COLBLK {
   }; // end of class OCCURCOL
 
 /***********************************************************************/
-/*  Class RANKCOL: for the multiple occurrence column ranking.          */
+/*  Class RANKCOL: for the multiple occurence column ranking.          */
 /***********************************************************************/
 class RANKCOL : public COLBLK {
  public:

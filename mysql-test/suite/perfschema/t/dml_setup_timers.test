@@ -12,8 +12,6 @@ update performance_schema.setup_timers
 update performance_schema.setup_timers
   set timer_name='NANOSECOND' where name="statement";
 update performance_schema.setup_timers
-  set timer_name='MICROSECOND' where name="transaction";
-update performance_schema.setup_timers
   set timer_name='MICROSECOND' where name="idle";
 
 select * from performance_schema.setup_timers;
@@ -61,8 +59,6 @@ update performance_schema.setup_timers
  set timer_name='NANOSECOND' where name="stage";
 update performance_schema.setup_timers
  set timer_name='NANOSECOND' where name="statement";
-update performance_schema.setup_timers
-  set timer_name='MICROSECOND' where name="transaction";
 update performance_schema.setup_timers
   set timer_name='MICROSECOND' where name="idle";
 

@@ -1,4 +1,2 @@
-Warnings:
-Warning	1292	Truncated incorrect innodb_stats_transient_sample... value: '0'
 Variable_name	Value
-innodb_stats_transient_sample_pages	1
+innodb_stats_sample_pages	1

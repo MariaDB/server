@@ -117,7 +117,7 @@ when m is a power of two.  In other words, rounds n up to m * k.
 @return n rounded up to the smallest possible integer multiple of m */
 #define UT_CALC_ALIGN(n, m) ((n + m - 1) & ~(m - 1))
 template <typename T> inline T ut_calc_align(T n, T m)
-{ return static_cast<T>(UT_CALC_ALIGN(n, m)); }
+{ return UT_CALC_ALIGN(n, m); }
 
 /*************************************************************//**
 Calculates fast the 2-logarithm of a number, rounded upward to an
@@ -136,6 +136,14 @@ ulint
 ut_2_exp(
 /*=====*/
 	ulint	n);	/*!< in: number */
+/*************************************************************//**
+Calculates fast the number rounded up to the nearest power of 2.
+@return first power of 2 which is >= n */
+ulint
+ut_2_power_up(
+/*==========*/
+	ulint	n)	/*!< in: number != 0 */
+	MY_ATTRIBUTE((const));
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -156,7 +164,7 @@ store the given number of bits.
 /** Determines if a number is zero or a power of two.
 @param[in]	n	number
 @return nonzero if n is zero or a power of two; zero otherwise */
-#define ut_is_2pow(n) (!((n) & ((n) - 1)))
+#define ut_is_2pow(n) UNIV_LIKELY(!((n) & ((n) - 1)))
 
 /** Functor that compares two C strings. Can be used as a comparator for
 e.g. std::map that uses char* as keys. */

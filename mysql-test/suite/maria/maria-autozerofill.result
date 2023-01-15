@@ -38,15 +38,14 @@ create_rename_lsn has non-magic value
 #
 check table t2;
 Table	Op	Msg_type	Msg_text
-mysqltest.t2	check	error	Table is probably from another system and must be zerofilled or repaired ('REPAIR TABLE table_name') to be usable on this system
+mysqltest.t2	check	error	Table is from another system and must be zerofilled or repaired to be usable on this system
 mysqltest.t2	check	error	Corrupt
 check table t2;
 Table	Op	Msg_type	Msg_text
-mysqltest.t2	check	error	Table is probably from another system and must be zerofilled or repaired ('REPAIR TABLE table_name') to be usable on this system
+mysqltest.t2	check	error	Table is from another system and must be zerofilled or repaired to be usable on this system
 mysqltest.t2	check	error	Corrupt
 repair table t2;
 Table	Op	Msg_type	Msg_text
-mysqltest.t2	repair	info	Running zerofill on moved table
 mysqltest.t2	repair	status	OK
 check table t2;
 Table	Op	Msg_type	Msg_text
@@ -62,7 +61,6 @@ mysqltest.t4	analyze	Note	Zerofilling moved table ./mysqltest/t4
 mysqltest.t4	analyze	status	OK
 repair table t5;
 Table	Op	Msg_type	Msg_text
-mysqltest.t5	repair	info	Running zerofill on moved table
 mysqltest.t5	repair	status	OK
 check table t5;
 Table	Op	Msg_type	Msg_text

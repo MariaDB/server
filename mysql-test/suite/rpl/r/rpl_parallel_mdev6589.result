@@ -92,7 +92,6 @@ MASTER_GTID_WAIT('WAIT_POS')
 0
 connection con_temp1;
 COMMIT;
-CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 SET sql_log_bin=1;
 connection server_2;
 include/wait_for_slave_sql_error.inc [errno=1062]

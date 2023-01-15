@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,63 +28,60 @@ Created December 2006 by Marko Makela
 
 #include "buf0types.h"
 
-/**
-@param[in]	block size in bytes
-@return index of buf_pool.zip_free[], or BUF_BUDDY_SIZES */
-inline
-ulint
-buf_buddy_get_slot(ulint size)
-{
-	ulint	i;
-	ulint	s;
-
-	ut_ad(ut_is_2pow(size));
-	ut_ad(size >= UNIV_ZIP_SIZE_MIN);
-	ut_ad(size <= srv_page_size);
-
-	for (i = 0, s = BUF_BUDDY_LOW; s < size; i++, s <<= 1) {
-	}
-	ut_ad(i <= BUF_BUDDY_SIZES);
-	return i;
-}
-
-/** Allocate a ROW_FORMAT=COMPRESSED block.
-@param i      index of buf_pool.zip_free[] or BUF_BUDDY_SIZES
-@param lru    assigned to true if buf_pool.mutex was temporarily released
+/**********************************************************************//**
+Allocate a block.  The thread calling this function must hold
+buf_pool->mutex and must not hold buf_pool->zip_mutex or any
+block->mutex.  The buf_pool->mutex may be released and reacquired.
+This function should only be used for allocating compressed page frames.
 @return allocated block, never NULL */
-byte *buf_buddy_alloc_low(ulint i, bool *lru) MY_ATTRIBUTE((malloc));
+UNIV_INLINE
+byte*
+buf_buddy_alloc(
+/*============*/
+	buf_pool_t*	buf_pool,	/*!< in/out: buffer pool in which
+					the page resides */
+	ulint		size,		/*!< in: compressed page size
+					(between UNIV_ZIP_SIZE_MIN and
+					srv_page_size) */
+	bool*		lru)		/*!< in: pointer to a variable
+					that will be assigned true if
+				       	storage was allocated from the
+				       	LRU list and buf_pool->mutex was
+				       	temporarily released */
+	MY_ATTRIBUTE((malloc, nonnull));
 
-/** Allocate a ROW_FORMAT=COMPRESSED block.
-@param size   compressed page size in bytes
-@param lru    assigned to true if buf_pool.mutex was temporarily released
-@return allocated block, never NULL */
-inline byte *buf_buddy_alloc(ulint size, bool *lru= nullptr)
-{
-  return buf_buddy_alloc_low(buf_buddy_get_slot(size), lru);
-}
+/**********************************************************************//**
+Deallocate a block. */
+UNIV_INLINE
+void
+buf_buddy_free(
+/*===========*/
+	buf_pool_t*	buf_pool,	/*!< in/out: buffer pool in which
+					the block resides */
+	void*		buf,		/*!< in: block to be freed, must not
+					be pointed to by the buffer pool */
+	ulint		size)		/*!< in: block size,
+					up to srv_page_size */
+	MY_ATTRIBUTE((nonnull));
 
-/** Deallocate a block.
-@param[in]	buf	block to be freed, must not be pointed to
-			by the buffer pool
-@param[in]	i	index of buf_pool.zip_free[], or BUF_BUDDY_SIZES */
-void buf_buddy_free_low(void* buf, ulint i);
-
-/** Deallocate a block.
-@param[in]	buf	block to be freed, must not be pointed to
-			by the buffer pool
-@param[in]	size	block size in bytes */
-inline void buf_buddy_free(void* buf, ulint size)
-{
-	buf_buddy_free_low(buf, buf_buddy_get_slot(size));
-}
-
-/** Try to reallocate a block.
+/** Reallocate a block.
+@param[in]	buf_pool	buffer pool instance
 @param[in]	buf		block to be reallocated, must be pointed
 to by the buffer pool
 @param[in]	size		block size, up to srv_page_size
 @retval false	if failed because of no free blocks. */
-bool buf_buddy_realloc(void* buf, ulint size);
+bool
+buf_buddy_realloc(
+	buf_pool_t*	buf_pool,
+	void*		buf,
+	ulint		size);
 
-/** Combine all pairs of free buddies. */
-void buf_buddy_condense_free();
+/** Combine all pairs of free buddies.
+@param[in]	buf_pool	buffer pool instance */
+void
+buf_buddy_condense_free(
+	buf_pool_t*	buf_pool);
+
+#include "buf0buddy.inl"
+
 #endif /* buf0buddy_h */

@@ -52,6 +52,10 @@
     <!-- Disable advertised shortcuts weirdness -->
     <Property Id="DISABLEADVTSHORTCUTS" Secure="yes" Value="1"/>
 
+    <!-- Activate feedback plugin-->
+    <Property Id="FEEDBACK" Secure="yes"/>
+
+
     <!-- Quick configuration : set default storage engine to innodb, use strict sql_mode -->
     <Property Id="STDCONFIG" Secure="yes" Value="1"/>
 
@@ -160,6 +164,43 @@
         <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes">
           <Text>Create or upgrade database instance</Text>
+        </Control>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>{\WixUI_Font_Title}[ProductName] setup</Text>
+        </Control>
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+      </Dialog>
+ 
+       <!-- Feedback dialog -->
+       <Dialog Id="Feedback" Width="370" Height="270" Title="[ProductName] Setup" NoMinimize="yes">
+
+         <Control Id="CheckBoxFeedback" Type="CheckBox" X="8" Y="61" Width="360" Height="12" Property="FEEDBACK" CheckBoxValue="1" TabSkip="no">
+          <Text>{\Font1}Enable the Feedback plugin and submit anonymous usage information</Text>
+        </Control>
+
+        <Control Id="Text" Type="Text" X="23" Y="82" Width="290" Height="55">
+         <Text>Monty Program has created a Feedback plugin for MariaDB which, if enabled, collects basic anonymous statistical information. This information is used by the developers to improve MariaDB. Enabling this plugin is an easy way to help with MariaDB development. Collected statistics, and more information on the plugin, can be viewed at http://mariadb.org/feedback_plugin         </Text>
+        </Control>
+
+       <Control Id="MoreInfo" Type="PushButton" X="23" Y="140" Width="56" Height="17" Text="More Info" ToolTip="http://mariadb.org/feedback_plugin" >
+          <Publish Property="WixShellExecTarget" Value="http://mariadb.org/feedback_plugin"  Order="1">1</Publish>
+          <Publish Event="DoAction" Value="LaunchUrl" Order="2">1</Publish>
+        </Control>
+
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back">
+          <Publish Event="NewDialog" Value="ServicePortDlg">1</Publish>
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Text="&amp;Next">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes">
+          <Text>Submit usage information</Text>
         </Control>
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes">
@@ -317,7 +358,7 @@
           </Publish>
           <Publish Event="DoAction" Value="CheckDatabaseProperties">NOT WarningText</Publish>
           <Publish Event="SpawnDialog" Value="WarningDlg">WarningText</Publish>
-          <Publish Event="NewDialog" Value="VerifyReadyDlg">Not WarningText</Publish>
+          <Publish Event="NewDialog" Value="Feedback">Not WarningText</Publish>
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="no" Text="Cancel">
           <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
@@ -347,7 +388,7 @@
         NOT Installed AND UpgradableServiceFound
       </Publish>
 
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ServicePortDlg" Order="3" ><![CDATA[&DBInstance=3 AND NOT !DBInstance=3]]></Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="Feedback" Order="3" ><![CDATA[&DBInstance=3 AND NOT !DBInstance=3]]></Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="3"> <![CDATA[OLDERVERSIONBEINGUPGRADED <>""]]></Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ConfirmDataCleanupDlg" Order="1" ><![CDATA[(&DBInstance=2) AND (!DBInstance=3)]]></Publish>
 
@@ -448,6 +489,19 @@
             Name="my.ini"
             Key="innodb_buffer_pool_size"
             Value="[BUFFERPOOLSIZE]M" />
+      </Component>
+      <Component Id="C.feedback" Guid="*" Directory="DATADIR">
+        <Condition>FEEDBACK</Condition>
+        <RegistryValue Root='HKLM'
+           Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
+           Name='FEEDBACK' Value='1' Type='string' KeyPath='yes'/>
+        <IniFile Id="Ini5"
+            Action="createLine"
+            Directory="DATADIR"
+            Section="mysqld"
+            Name="my.ini"
+            Key="feedback"
+            Value="ON" />
       </Component>
 
       <Component Id="C.utf8" Guid="*" Directory="DATADIR">
@@ -597,6 +651,31 @@
    
    <?endif ?>
 
+   <?if "@VCRedist_MSM@" != "" ?>
+   <!-- VC runtime merge module -->
+   <DirectoryRef Id="TARGETDIR">
+    <Merge Id="VCRedist" SourceFile="@VCRedist_MSM@" DiskId="1" Language="0"/>
+   </DirectoryRef>
+   <Feature Id="VCRedist" Title="Visual C++ Runtime" AllowAdvertise="no" Display="hidden" Level="1">
+    <MergeRef Id="VCRedist"/>
+   </Feature>
+   <?endif?>
+   
+    <!-- Custom action, create symlinks -->
+    <CustomAction Id="Symlinks.SetProperty" Return="check" Property="Symlinks" Value="[INSTALLDIR]" />
+    <CustomAction Id="Symlinks" BinaryKey="wixca.dll" DllEntry="FixSymlinks" Execute="deferred" Impersonate="no" Return="ignore"/>
+    <CustomAction Id="SymlinksRollback.SetProperty" Return="check" Property="SymlinksRollback" Value="[INSTALLDIR]" />
+    <CustomAction Id="SymlinksRollback" BinaryKey="wixca.dll" DllEntry="FixSymlinksRollback" Execute="rollback" Impersonate="no" Return="ignore"/>
+    <CustomAction Id="SymlinksUninstall.SetProperty" Return="check" Property="SymlinksUninstall" Value="[INSTALLDIR]" />
+    <CustomAction Id="SymlinksUninstall" BinaryKey="wixca.dll" DllEntry="SymlinksUninstall" Execute="deferred" Impersonate="no" Return="ignore"/>
+    <InstallExecuteSequence>
+      <Custom Action="Symlinks.SetProperty" Before="Symlinks">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="Symlinks" After="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksRollback.SetProperty" Before="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksRollback" After="InstallFiles">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksUninstall.SetProperty" Before="SymlinksUninstall">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksUninstall" Before="RemoveFiles">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
 
     <!-- Custom action, call mysql_install_db -->
     <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="SKIPNETWORKING" Value="--skip-networking" >SKIPNETWORKING</SetProperty>
@@ -618,7 +697,7 @@
     <CustomAction Id="CreateDatabaseRollback" BinaryKey="wixca.dll" DllEntry="CreateDatabaseRollback"
         Execute="rollback" Return="check" Impersonate="no"/>
     <UI>
-      <ProgressText Action="CreateDatabase">Running mariadb-install-db.exe</ProgressText>
+      <ProgressText Action="CreateDatabase">Running mysql_install_db.exe</ProgressText>
     </UI>
 
     <!-- Error injection script activated by TEST_FAIL=1 passed to msiexec (to see how good custom action rollback works)  -->
@@ -806,12 +885,24 @@
           Name='MinorVersion' Value='@MINOR_VERSION@' Type='string'/>
       </Component>
     </Feature>
+
+    <!-- Extra condition to block the installer if NSIS based installation is detected-->
+    <Property Id="NSISINSTALLKEY">
+      <RegistrySearch Id='NSISKey' Type='raw'
+        Root='HKLM' Key='Software\Microsoft\Windows\CurrentVersion\Uninstall\MariaDB' Name='DisplayName' />
+    </Property>
+    <Condition
+      Message=
+      'Previous version of MariaDB was found, that used incompatible installer.&#xD;&#xA;Please remove &quot;[NSISINSTALLKEY]&quot; before you proceed with this installation.'
+      >
+      <![CDATA[ NOT(NSISINSTALLKEY << "MariaDB @MAJOR_VERSION@.@MINOR_VERSION@.") OR Installed]]>
+    </Condition>
     <Condition Message=
        'Setting the ALLUSERS property is not allowed because [ProductName] is a per-machine application. Setup will now exit.'>
       <![CDATA[ALLUSERS = "1"]]>
     </Condition>
-	<Condition Message='This application is only supported on Windows 10, Windows Server 2016, or higher.'>
-      <![CDATA[Installed OR (VersionNT >= 603)]]>
+	<Condition Message='This application is only supported on Windows Vista, Windows Server 2008, or higher.'>
+      <![CDATA[Installed OR (VersionNT >= 600)]]>
     </Condition>
   </Fragment>
 </Wix>

@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,6 +25,8 @@ Created 1/20/1994 Heikki Tuuri
 
 #ifndef ut0byte_h
 #define ut0byte_h
+
+
 
 #include "univ.i"
 
@@ -60,38 +61,37 @@ ut_uint64_align_up(
 	ib_uint64_t	 n,		/*!< in: number to be rounded */
 	ulint		 align_no);	/*!< in: align by this number
 					which must be a power of 2 */
-/** Round down a pointer to the nearest aligned address.
-@param ptr        pointer
-@param alignment  a power of 2
+/*********************************************************//**
+The following function rounds up a pointer to the nearest aligned address.
 @return aligned pointer */
-static inline void *ut_align_down(void *ptr, size_t alignment)
-{
-  ut_ad(alignment > 0);
-  ut_ad(ut_is_2pow(alignment));
-  ut_ad(ptr);
-  static_assert(sizeof ptr == sizeof(size_t), "compatibility");
-
-  return reinterpret_cast<void*>(reinterpret_cast<size_t>(ptr) &
-                                 ~(alignment - 1));
-}
-
-static inline const void *ut_align_down(const void *ptr, size_t alignment)
-{
-  return ut_align_down(const_cast<void*>(ptr), alignment);
-}
-
-/** Compute the offset of a pointer from the nearest aligned address.
-@param ptr        pointer
-@param alignment  a power of 2
+UNIV_INLINE
+void*
+ut_align(
+/*=====*/
+	const void*	ptr,		/*!< in: pointer */
+	ulint		align_no);	/*!< in: align by this number */
+/*********************************************************//**
+The following function rounds down a pointer to the nearest
+aligned address.
+@return aligned pointer */
+UNIV_INLINE
+void*
+ut_align_down(
+/*==========*/
+	const void*	ptr,		/*!< in: pointer */
+	ulint		align_no)	/*!< in: align by this number */
+		MY_ATTRIBUTE((const));
+/*********************************************************//**
+The following function computes the offset of a pointer from the nearest
+aligned address.
 @return distance from aligned pointer */
-inline size_t ut_align_offset(const void *ptr, size_t alignment)
-{
-  ut_ad(alignment > 0);
-  ut_ad(ut_is_2pow(alignment));
-  ut_ad(ptr);
-  return reinterpret_cast<size_t>(ptr) & (alignment - 1);
-}
-
+UNIV_INLINE
+ulint
+ut_align_offset(
+/*============*/
+	const void*	ptr,		/*!< in: pointer */
+	ulint		align_no)	/*!< in: align by this number */
+			MY_ATTRIBUTE((const));
 /*****************************************************************//**
 Gets the nth bit of a ulint.
 @return TRUE if nth bit is 1; 0th bit is defined to be the least significant */

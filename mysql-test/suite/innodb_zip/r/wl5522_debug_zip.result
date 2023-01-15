@@ -3,12 +3,6 @@ call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* becau
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
 call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=0x");
-call mtr.add_suppression("InnoDB: Unknown index id .* on page");
-call mtr.add_suppression("InnoDB: Operating system error number");
-call mtr.add_suppression("InnoDB: The error means");
-call mtr.add_suppression("InnoDB: If you are installing InnoDB");
-call mtr.add_suppression("InnoDB: Cannot open datafile .*t1\\.ibd");
-call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\\.`t1`");
 FLUSH TABLES;
 SET SESSION innodb_strict_mode=1;
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb
@@ -125,6 +119,9 @@ ROW_FORMAT=COMPRESSED;
 connect  purge_control,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
+SET GLOBAL innodb_disable_background_merge=ON;
+SET GLOBAL innodb_monitor_reset = ibuf_merges;
+SET GLOBAL innodb_monitor_reset = ibuf_merges_insert;
 INSERT INTO t1
 SELECT 1 + seq, 1 + (seq MOD 4),
 REPEAT(SUBSTR('abcd', 1 + (seq MOD 4), 1), 2048),
@@ -163,6 +160,12 @@ t1	CREATE TABLE `t1` (
 FLUSH TABLES t1 FOR EXPORT;
 backup: t1
 UNLOCK TABLES;
+SELECT name FROM information_schema.innodb_metrics
+WHERE name IN ('ibuf_merges','ibuf_merges_insert') AND count>0 ORDER BY name;
+name
+ibuf_merges
+ibuf_merges_insert
+SET GLOBAL innodb_disable_background_merge=OFF;
 connection purge_control;
 COMMIT;
 disconnect purge_control;
@@ -409,3 +412,9 @@ SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 unlink: t1.ibd
 unlink: t1.cfg
+set global innodb_monitor_disable = all;
+set global innodb_monitor_reset_all = all;
+set global innodb_monitor_enable = default;
+set global innodb_monitor_disable = default;
+set global innodb_monitor_reset = default;
+set global innodb_monitor_reset_all = default;

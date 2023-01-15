@@ -225,8 +225,8 @@ DROP TABLE t1;
 #
 # MDEV-4269: crash when grouping by values()
 #
-SELECT @@default_storage_engine INTO @old_engine;
-set default_storage_engine=innodb;
+SELECT @@storage_engine INTO @old_engine;
+set storage_engine=innodb;
 create table y select 1 b;
 select 1 from y group by b;
 1
@@ -235,7 +235,7 @@ select 1 from y group by value(b);
 1
 1
 drop table y;
-SET default_storage_engine=@old_engine;
+SET storage_engine=@old_engine;
 #
 # Bug#13723054 CRASH WITH MIN/MAX AFTER QUICK_GROUP_MIN_MAX_SELECT::NEXT_MIN
 #

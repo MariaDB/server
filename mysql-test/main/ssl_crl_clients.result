@@ -6,8 +6,8 @@ ERROR 2026 (HY000): TLS/SSL error: certificate revoked
 ERROR 2026 (HY000): TLS/SSL error: certificate revoked
 ############ Test mysqladmin ##############
 # Test mysqladmin connecting to a server with a certificate revoked by -crl
-mariadb-admin: connect to server at 'localhost' failed
+mysqladmin: connect to server at 'localhost' failed
 error: 'TLS/SSL error: certificate revoked'
 # Test mysqladmin connecting to a server with a certificate revoked by -crlpath
-mariadb-admin: connect to server at 'localhost' failed
+mysqladmin: connect to server at 'localhost' failed
 error: 'TLS/SSL error: certificate revoked'

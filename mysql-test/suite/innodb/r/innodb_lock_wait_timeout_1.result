@@ -35,6 +35,7 @@ DROP TABLE t2, t1;
 # Bug#46539 Various crashes on INSERT IGNORE SELECT + SELECT
 #           FOR UPDATE
 #
+drop table if exists t1;
 create table t1 (a int primary key auto_increment,
 b int, index(b)) engine=innodb;
 insert into t1 (b) values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
@@ -83,12 +84,19 @@ drop table t1, t2;
 #
 # Bug#41756 Strange error messages about locks from InnoDB
 #
-# In the default transaction isolation mode,
-# handler::unlock_row() in InnoDB does nothing.
+drop table if exists t1;
+# In the default transaction isolation mode, and/or with
+# innodb_locks_unsafe_for_binlog=OFF, handler::unlock_row()
+# in InnoDB does nothing.
 # Thus in order to reproduce the condition that led to the
 # warning, one needs to relax isolation by either
 # setting a weaker tx_isolation value, or by turning on
 # the unsafe replication switch.
+# For testing purposes, choose to tweak the isolation level,
+# since it's settable at runtime, unlike
+# innodb_locks_unsafe_for_binlog, which is
+# only a command-line switch.
+#
 set @@session.tx_isolation="read-committed";
 # Prepare data. We need a table with a unique index,
 # for join_read_key to be used. The other column

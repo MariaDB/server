@@ -1705,8 +1705,8 @@ NULL
 SELECT MONTHNAME(0), MONTHNAME(0) IS NULL, MONTHNAME(0) + 1;
 MONTHNAME(0)	MONTHNAME(0) IS NULL	MONTHNAME(0) + 1
 NULL	1	NULL
-SET default_storage_engine=NULL;
-ERROR 42000: Variable 'default_storage_engine' can't be set to the value of 'NULL'
+SET storage_engine=NULL;
+ERROR 42000: Variable 'storage_engine' can't be set to the value of 'NULL'
 #
 # BUG#13354387 - CRASH IN IN MY_DECIMAL::OPERATOR FOR VIEW AND FUNCTION UNIX_TIMESTAMP 
 # Part1 (5.5)
@@ -2801,7 +2801,7 @@ SET sql_mode=DEFAULT;
 DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
 Warning	1292	Truncated incorrect INTEGER value: ''
 Warning	1292	Truncated incorrect seconds value: '20000101'
 SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));
@@ -3707,15 +3707,15 @@ SET TIMESTAMP=DEFAULT;
 # MDEV-15702 Remove the use of STRING_ITEM from Item_func_date_format::fix_length_and_dec()
 #
 SELECT DATE_FORMAT('2001-01-01',POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'date_format'
+ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
 SELECT DATE_FORMAT(POINT(1,1),'10');
-ERROR HY000: Illegal parameter data type point for operation 'date_format'
+ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01',ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT(ROW(1,1),'10');
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',POINT(1,1));
-ERROR HY000: Illegal parameter data type point for operation 'date_format'
+ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',@unknown_user_variable);

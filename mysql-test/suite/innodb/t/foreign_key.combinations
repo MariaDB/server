@@ -1,5 +1,0 @@
-[read-ahead]
---innodb-random-read-ahead=ON
-
-[normal]
---innodb-random-read-ahead=OFF

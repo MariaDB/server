@@ -15,10 +15,8 @@
 
 let $engine_type= InnoDB;
 
-SET @save_timeout = @@GLOBAL.innodb_lock_wait_timeout;
-SET GLOBAL innodb_lock_wait_timeout = 1;
 SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+# innodb_locks_unsafe_for_binlog not set for this test
 --disable_service_connection
 --source include/concurrent.inc
 --enable_service_connection
-SET GLOBAL innodb_lock_wait_timeout = @save_timeout;

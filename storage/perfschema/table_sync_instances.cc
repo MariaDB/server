@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -27,51 +27,36 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_sync_instances.h"
 #include "pfs_global.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_mutex_instances::m_table_lock;
-
-PFS_engine_table_share_state
-table_mutex_instances::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_mutex_instances::m_share=
 {
   { C_STRING_WITH_LEN("mutex_instances") },
   &pfs_readonly_acl,
-  table_mutex_instances::create,
+  &table_mutex_instances::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  table_mutex_instances::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE mutex_instances("
                       "NAME VARCHAR(128) not null comment 'Instrument name associated with the mutex.',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Memory address of the instrumented mutex.',"
-                      "LOCKED_BY_THREAD_ID BIGINT unsigned comment 'The THREAD_ID of the locking thread if a thread has a mutex locked, otherwise NULL.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "LOCKED_BY_THREAD_ID BIGINT unsigned comment 'The THREAD_ID of the locking thread if a thread has a mutex locked, otherwise NULL.')") }
 };
 
 PFS_engine_table* table_mutex_instances::create(void)
 {
   return new table_mutex_instances();
-}
-
-ha_rows
-table_mutex_instances::get_row_count(void)
-{
-  return global_mutex_container.get_row_count();
 }
 
 table_mutex_instances::table_mutex_instances()
@@ -89,14 +74,15 @@ int table_mutex_instances::rnd_next(void)
 {
   PFS_mutex *pfs;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_mutex_iterator it= global_mutex_container.iterate(m_pos.m_index);
-  pfs= it.scan_next(& m_pos.m_index);
-  if (pfs != NULL)
+  for (m_pos.set_at(&m_next_pos); m_pos.m_index < mutex_max; m_pos.next())
   {
-    make_row(pfs);
-    m_next_pos.set_after(&m_pos);
-    return 0;
+    pfs= &mutex_array[m_pos.m_index];
+    if (pfs->m_lock.is_populated())
+    {
+      make_row(pfs);
+      m_next_pos.set_after(&m_pos);
+      return 0;
+    }
   }
 
   return HA_ERR_END_OF_FILE;
@@ -107,9 +93,9 @@ int table_mutex_instances::rnd_pos(const void *pos)
   PFS_mutex *pfs;
 
   set_position(pos);
-
-  pfs= global_mutex_container.get(m_pos.m_index);
-  if (pfs != NULL)
+  DBUG_ASSERT(m_pos.m_index < mutex_max);
+  pfs= &mutex_array[m_pos.m_index];
+  if (pfs->m_lock.is_populated())
   {
     make_row(pfs);
     return 0;
@@ -120,7 +106,7 @@ int table_mutex_instances::rnd_pos(const void *pos)
 
 void table_mutex_instances::make_row(PFS_mutex *pfs)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   PFS_mutex_class *safe_class;
 
   m_row_exists= false;
@@ -161,7 +147,7 @@ int table_mutex_instances::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -183,7 +169,7 @@ int table_mutex_instances::read_row_values(TABLE *table,
           f->set_null();
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
@@ -193,41 +179,28 @@ int table_mutex_instances::read_row_values(TABLE *table,
 
 THR_LOCK table_rwlock_instances::m_table_lock;
 
-PFS_engine_table_share_state
-table_rwlock_instances::m_share_state = {
-  false /* m_checked */
-};
-
 PFS_engine_table_share
 table_rwlock_instances::m_share=
 {
   { C_STRING_WITH_LEN("rwlock_instances") },
   &pfs_readonly_acl,
-  table_rwlock_instances::create,
+  &table_rwlock_instances::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  table_rwlock_instances::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE rwlock_instances("
                       "NAME VARCHAR(128) not null comment 'Instrument name associated with the read write lock',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented lock',"
                       "WRITE_LOCKED_BY_THREAD_ID BIGINT unsigned comment 'THREAD_ID of the locking thread if locked in write (exclusive) mode, otherwise NULL.',"
-                      "READ_LOCKED_BY_COUNT INTEGER unsigned not null comment 'Count of current read locks held')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "READ_LOCKED_BY_COUNT INTEGER unsigned not null comment 'Count of current read locks held')") }
 };
 
 PFS_engine_table* table_rwlock_instances::create(void)
 {
   return new table_rwlock_instances();
-}
-
-ha_rows
-table_rwlock_instances::get_row_count(void)
-{
-  return global_rwlock_container.get_row_count();
 }
 
 table_rwlock_instances::table_rwlock_instances()
@@ -245,14 +218,15 @@ int table_rwlock_instances::rnd_next(void)
 {
   PFS_rwlock *pfs;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_rwlock_iterator it= global_rwlock_container.iterate(m_pos.m_index);
-  pfs= it.scan_next(& m_pos.m_index);
-  if (pfs != NULL)
+  for (m_pos.set_at(&m_next_pos); m_pos.m_index < rwlock_max; m_pos.next())
   {
-    make_row(pfs);
-    m_next_pos.set_after(&m_pos);
-    return 0;
+    pfs= &rwlock_array[m_pos.m_index];
+    if (pfs->m_lock.is_populated())
+    {
+      make_row(pfs);
+      m_next_pos.set_after(&m_pos);
+      return 0;
+    }
   }
 
   return HA_ERR_END_OF_FILE;
@@ -263,9 +237,9 @@ int table_rwlock_instances::rnd_pos(const void *pos)
   PFS_rwlock *pfs;
 
   set_position(pos);
-
-  pfs= global_rwlock_container.get(m_pos.m_index);
-  if (pfs != NULL)
+  DBUG_ASSERT(m_pos.m_index < rwlock_max);
+  pfs= &rwlock_array[m_pos.m_index];
+  if (pfs->m_lock.is_populated())
   {
     make_row(pfs);
     return 0;
@@ -276,7 +250,7 @@ int table_rwlock_instances::rnd_pos(const void *pos)
 
 void table_rwlock_instances::make_row(PFS_rwlock *pfs)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   PFS_rwlock_class *safe_class;
 
   m_row_exists= false;
@@ -321,7 +295,7 @@ int table_rwlock_instances::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -346,7 +320,7 @@ int table_rwlock_instances::read_row_values(TABLE *table,
         set_field_ulong(f, m_row.m_readers);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
@@ -356,39 +330,26 @@ int table_rwlock_instances::read_row_values(TABLE *table,
 
 THR_LOCK table_cond_instances::m_table_lock;
 
-PFS_engine_table_share_state
-table_cond_instances::m_share_state = {
-  false /* m_checked */
-};
-
 PFS_engine_table_share
 table_cond_instances::m_share=
 {
   { C_STRING_WITH_LEN("cond_instances") },
   &pfs_readonly_acl,
-  table_cond_instances::create,
+  &table_cond_instances::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  table_cond_instances::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE cond_instances("
                       "NAME VARCHAR(128) not null comment 'Client user name for the connection, or NULL if an internal thread.',"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented condition.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented condition.')") }
 };
 
 PFS_engine_table* table_cond_instances::create(void)
 {
   return new table_cond_instances();
-}
-
-ha_rows
-table_cond_instances::get_row_count(void)
-{
-  return global_cond_container.get_row_count();
 }
 
 table_cond_instances::table_cond_instances()
@@ -406,14 +367,15 @@ int table_cond_instances::rnd_next(void)
 {
   PFS_cond *pfs;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_cond_iterator it= global_cond_container.iterate(m_pos.m_index);
-  pfs= it.scan_next(& m_pos.m_index);
-  if (pfs != NULL)
+  for (m_pos.set_at(&m_next_pos); m_pos.m_index < cond_max; m_pos.next())
   {
-    make_row(pfs);
-    m_next_pos.set_after(&m_pos);
-    return 0;
+    pfs= &cond_array[m_pos.m_index];
+    if (pfs->m_lock.is_populated())
+    {
+      make_row(pfs);
+      m_next_pos.set_after(&m_pos);
+      return 0;
+    }
   }
 
   return HA_ERR_END_OF_FILE;
@@ -424,9 +386,9 @@ int table_cond_instances::rnd_pos(const void *pos)
   PFS_cond *pfs;
 
   set_position(pos);
-
-  pfs= global_cond_container.get(m_pos.m_index);
-  if (pfs != NULL)
+  DBUG_ASSERT(m_pos.m_index < cond_max);
+  pfs= &cond_array[m_pos.m_index];
+  if (pfs->m_lock.is_populated())
   {
     make_row(pfs);
     return 0;
@@ -437,7 +399,7 @@ int table_cond_instances::rnd_pos(const void *pos)
 
 void table_cond_instances::make_row(PFS_cond *pfs)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   PFS_cond_class *safe_class;
 
   m_row_exists= false;
@@ -468,7 +430,7 @@ int table_cond_instances::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 0);
+  DBUG_ASSERT(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {
@@ -483,7 +445,7 @@ int table_cond_instances::read_row_values(TABLE *table,
         set_field_ulonglong(f, (intptr) m_row.m_identity);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }

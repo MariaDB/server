@@ -33,6 +33,6 @@ path=`dirname $0`
 . "$path/SETUP.sh"
 
 extra_flags="$pentium64_cflags $debug_cflags $valgrind_flags"
-extra_configs="$pentium_configs $debug_configs $valgrind_configs $max_configs"
+extra_configs="$pentium_configs $debug_configs $valgrind_configs $max_configs --without-plugin-tokudb"
 
 . "$path/FINISH.sh"

@@ -1,0 +1,41 @@
+# ==== Purpose ====
+#
+# Test verifies that replication shouldn't hang when number of active threads
+# on the slave server are less than the allowed innodb_thread_concurrency value.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Have master slave replication setup with engine being Innodb.
+#    1 - Configure innodb_thread_concurrency = 100.
+#    2 - Do some DML on master and sync the slave with master.
+#    3 - Ensure replication doesn't hang.
+#
+# ==== References ====
+#
+# MDEV-20247: Replication hangs with "preparing" and never starts
+#
+
+--source include/master-slave.inc
+--source include/have_innodb.inc
+
+--connection slave
+SET @old_innodb_thread_concurrency := @@innodb_thread_concurrency;
+SET @old_innodb_thread_sleep_delay := @@innodb_thread_sleep_delay;
+SET GLOBAL innodb_thread_concurrency = 100;
+
+--connection master
+CREATE TABLE t(f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+--sync_slave_with_master
+
+--let $diff_tables=master:t, slave:t
+--source include/diff_tables.inc
+
+--echo "===== Clean up======="
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+SET GLOBAL innodb_thread_concurrency = @old_innodb_thread_concurrency;
+SET GLOBAL innodb_thread_sleep_delay = @old_innodb_thread_sleep_delay;
+--source include/rpl_end.inc

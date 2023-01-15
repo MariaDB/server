@@ -10,7 +10,7 @@
 
 SET global query_cache_type=ON;
 SET local query_cache_type=ON;
-eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
+eval SET SESSION STORAGE_ENGINE = $engine_type;
 
 # Initialise
 --disable_warnings

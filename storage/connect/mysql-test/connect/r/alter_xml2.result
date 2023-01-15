@@ -1,3 +1,5 @@
+Warnings:
+Warning	1105	No file name. Table will use t1.xml
 #
 # Testing changing table type (not in-place)
 #

@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'InnoDB';
+SET @@session.storage_engine = 'InnoDB';
 # Case 1. All non-stored columns.
 # This scenario is currently impossible due to the fact that virtual columns
 # with a constant expression are not allowed.

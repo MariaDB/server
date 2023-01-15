@@ -8,7 +8,7 @@
 # works with innodb_file_per_table.
 #
 
-SET default_storage_engine=InnoDB;
+SET storage_engine=InnoDB;
 
 # we care only that the following SQL commands do not crash the server
 -- disable_query_log

@@ -62,6 +62,7 @@ spatial_status_t
 dfield_get_spatial_status(
 	const dfield_t*	field)
 {
+	ut_ad(field);
 	ut_ad(dfield_is_ext(field));
 
 	return(static_cast<spatial_status_t>(field->spatial_status));
@@ -76,8 +77,10 @@ dfield_set_spatial_status(
 	dfield_t*		field,
 	spatial_status_t	spatial_status)
 {
-	field->spatial_status = spatial_status & 3;
-	ut_ad(dfield_get_spatial_status(field) == spatial_status);
+	ut_ad(field);
+	ut_ad(dfield_is_ext(field));
+
+	field->spatial_status = spatial_status;
 }
 
 /*********************************************************************//**

@@ -53,7 +53,7 @@ unlock tables;
 --disable_service_connection
 backup stage start;
 unlock tables;
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 
 --error ER_BACKUP_LOCK_IS_ACTIVE
 lock table t1 write;
@@ -123,9 +123,9 @@ drop table t1;
 create table t1(a int) engine=InnoDB;
 begin;
 insert into t1 values(1);
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 backup stage start;
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 backup stage block_commit;
 commit;
 backup stage end;
@@ -227,9 +227,9 @@ backup stage start;
 backup stage block_commit;
 begin;
 select * from t1;
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 backup stage end;
-select lock_mode from information_schema.metadata_lock_info where thread_id>0;
+select lock_mode from information_schema.metadata_lock_info;
 drop table t1;
 --enable_view_protocol
 

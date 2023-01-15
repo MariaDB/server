@@ -8828,21 +8828,9 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t1",
-      "access_type": "ALL",
-      "rows": 4,
-      "filtered": 100,
-      "attached_condition": "t1.id2 is not null"
-    },
-    "table": {
       "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["id2"],
-      "ref": ["test.t1.id2"],
-      "rows": 2,
+      "access_type": "ALL",
+      "rows": 3,
       "filtered": 100,
       "attached_condition": "vc.ct > 0",
       "materialized": {
@@ -8862,6 +8850,18 @@ EXPLAIN
           }
         }
       }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 4,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "163",
+      "join_type": "BNL",
+      "attached_condition": "t1.id2 = vc.id2"
     }
   }
 }
@@ -9078,8 +9078,9 @@ WHERE d_tab.e>1
 )
 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	5	Using where
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
@@ -9102,33 +9103,44 @@ EXPLAIN
       "table_name": "t1",
       "access_type": "ALL",
       "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null"
+      "filtered": 100
     },
     "table": {
-      "table_name": "<derived3>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "10",
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
       "used_key_parts": ["e", "max_f"],
-      "ref": ["test.t1.a", "test.t1.b"],
-      "rows": 2,
+      "ref": ["func", "func"],
+      "rows": 1,
       "filtered": 100,
-      "first_match": "t1",
       "materialized": {
+        "unique": 1,
         "query_block": {
-          "select_id": 3,
-          "having_condition": "max_f > 18",
-          "filesort": {
-            "sort_key": "t2.e",
-            "temporary_table": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 5,
-                "filtered": 100,
-                "attached_condition": "t2.e > 1"
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "rows": 5,
+            "filtered": 100,
+            "attached_condition": "d_tab.e > 1",
+            "materialized": {
+              "query_block": {
+                "select_id": 3,
+                "having_condition": "max_f > 18",
+                "filesort": {
+                  "sort_key": "t2.e",
+                  "temporary_table": {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "rows": 5,
+                      "filtered": 100,
+                      "attached_condition": "t2.e > 1"
+                    }
+                  }
+                }
               }
             }
           }
@@ -9167,8 +9179,9 @@ WHERE d_tab.max_f<25
 )
 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	5	Using where
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
@@ -9191,32 +9204,43 @@ EXPLAIN
       "table_name": "t1",
       "access_type": "ALL",
       "rows": 5,
-      "filtered": 100,
-      "attached_condition": "t1.b < 25 and t1.a is not null and t1.b is not null"
+      "filtered": 100
     },
     "table": {
-      "table_name": "<derived3>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "10",
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
       "used_key_parts": ["e", "max_f"],
-      "ref": ["test.t1.a", "test.t1.b"],
-      "rows": 2,
+      "ref": ["func", "func"],
+      "rows": 1,
       "filtered": 100,
-      "first_match": "t1",
       "materialized": {
+        "unique": 1,
         "query_block": {
-          "select_id": 3,
-          "having_condition": "max_f > 18 and max_f < 25",
-          "filesort": {
-            "sort_key": "t2.e",
-            "temporary_table": {
-              "table": {
-                "table_name": "t2",
-                "access_type": "ALL",
-                "rows": 5,
-                "filtered": 100
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "rows": 5,
+            "filtered": 100,
+            "attached_condition": "d_tab.max_f < 25",
+            "materialized": {
+              "query_block": {
+                "select_id": 3,
+                "having_condition": "max_f > 18 and max_f < 25",
+                "filesort": {
+                  "sort_key": "t2.e",
+                  "temporary_table": {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "rows": 5,
+                      "filtered": 100
+                    }
+                  }
+                }
               }
             }
           }
@@ -14313,16 +14337,16 @@ a	b	max_c	a	b	c
 1	21	345	3	21	231
 select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 a	b	max_c	a	b	c
-4	33	123	5	33	207
 2	33	7	5	33	207
-4	33	123	8	33	117
+4	33	123	5	33	207
 2	33	7	8	33	117
-3	21	500	3	21	231
+4	33	123	8	33	117
 1	21	345	3	21	231
+3	21	500	3	21	231
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t3	range	i1	i1	5	NULL	5	Using index condition
 explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 EXPLAIN
@@ -14330,21 +14354,9 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t2",
-      "access_type": "ALL",
-      "rows": 9,
-      "filtered": 100,
-      "attached_condition": "t2.b is not null"
-    },
-    "table": {
       "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "5",
-      "used_key_parts": ["b"],
-      "ref": ["test.t2.b"],
-      "rows": 2,
+      "access_type": "ALL",
+      "rows": 5,
       "filtered": 100,
       "attached_condition": "v1.a < 5",
       "materialized": {
@@ -14363,6 +14375,18 @@ EXPLAIN
           }
         }
       }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 9,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "173",
+      "join_type": "BNL",
+      "attached_condition": "t2.b = v1.b"
     }
   }
 }
@@ -15442,7 +15466,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.33333588,
+      "filtered": 83.333,
       "attached_condition": "t1.b <= 5 and t1.a is not null"
     },
     "table": {
@@ -15717,7 +15741,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.33333588,
+      "filtered": 83.333,
       "attached_condition": "t3.b <= 15 and t3.a is not null and t3.c is not null"
     },
     "table": {
@@ -15870,7 +15894,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.33333588,
+      "filtered": 83.333,
       "attached_condition": "t3.b <= 15 and t3.a is not null and t3.c is not null"
     },
     "table": {
@@ -16102,7 +16126,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 63.28125,
+      "filtered": 63.281,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -16599,7 +16623,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 63.28125,
+      "filtered": 63.281,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -17288,8 +17312,7 @@ ANALYZE
       "r_loops": 1,
       "rows": 4,
       "r_rows": 2,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 50,
       "attached_condition": "v1.a = 3",
@@ -17312,8 +17335,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 2,
                     "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 50,
                     "attached_condition": "t1.a = 3"
@@ -17373,7 +17395,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
 3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	cp2	range	NULL	a	5	NULL	8	Using index for group-by
+2	DERIVED	cp2	index	NULL	a	5	NULL	7	Using index
 explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
 where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
 EXPLAIN
@@ -17436,13 +17458,13 @@ EXPLAIN
           "select_id": 2,
           "table": {
             "table_name": "cp2",
-            "access_type": "range",
+            "access_type": "index",
             "key": "a",
             "key_length": "5",
             "used_key_parts": ["a"],
-            "rows": 8,
+            "rows": 7,
             "filtered": 100,
-            "using_index_for_group_by": true
+            "using_index": true
           }
         }
       }
@@ -17648,7 +17670,7 @@ JOIN (SELECT t1_id FROM t2 WHERE reporting_person = 1 GROUP BY t1_id) tx
 ON tx.t1_id = t1.id
 WHERE t1.id BETWEEN 200 AND 100000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	range	t1_id	t1_id	5	NULL	47	Using where; Using index
+1	PRIMARY	t3	index	t1_id	t1_id	15	NULL	47	Using where; Using index
 1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.t1_id	1	Using index
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.t1_id	2	
 2	LATERAL DERIVED	t2	ref	t1_id	t1_id	5	test.t1.id	3	Using index condition; Using where
@@ -17665,11 +17687,11 @@ EXPLAIN
     "select_id": 1,
     "table": {
       "table_name": "t3",
-      "access_type": "range",
+      "access_type": "index",
       "possible_keys": ["t1_id"],
       "key": "t1_id",
-      "key_length": "5",
-      "used_key_parts": ["t1_id"],
+      "key_length": "15",
+      "used_key_parts": ["t1_id", "YEAR", "quarter"],
       "rows": 47,
       "filtered": 100,
       "attached_condition": "t3.t1_id between 200 and 100000 and t3.t1_id is not null",
@@ -17710,7 +17732,7 @@ EXPLAIN
             "used_key_parts": ["t1_id"],
             "ref": ["test.t1.id"],
             "rows": 3,
-            "filtered": 58.59375,
+            "filtered": 58.594,
             "index_condition": "t2.t1_id between 200 and 100000 and t2.t1_id = t3.t1_id",
             "attached_condition": "t2.reporting_person = 1"
           }
@@ -17850,7 +17872,7 @@ ON from_agg_items.charge_id = charges.id AND
 from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	charges	ALL	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
+1	PRIMARY	charges	ref	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	fk_charge_to_ledger	8	const	8	
 1	PRIMARY	<derived2>	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	2	
 2	LATERAL DERIVED	transaction_items	ref	fk_items_transaction,fk_items_charge	fk_items_charge	9	test.charges.id	2	
 2	LATERAL DERIVED	transactions	eq_ref	PRIMARY,fk_transactions_ledger	PRIMARY	8	test.transaction_items.transaction_id	1	Using where
@@ -17878,11 +17900,14 @@ EXPLAIN
     "select_id": 1,
     "table": {
       "table_name": "charges",
-      "access_type": "ALL",
+      "access_type": "ref",
       "possible_keys": ["PRIMARY", "fk_charge_from_ledger", "fk_charge_to_ledger"],
-      "rows": 20,
-      "filtered": 40,
-      "attached_condition": "charges.to_ledger_id = 2"
+      "key": "fk_charge_to_ledger",
+      "key_length": "8",
+      "used_key_parts": ["to_ledger_id"],
+      "ref": ["const"],
+      "rows": 8,
+      "filtered": 100
     },
     "table": {
       "table_name": "<derived2>",
@@ -17973,7 +17998,7 @@ ON from_agg_items.charge_id = charges.id AND
 from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	charges	ALL	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
+1	PRIMARY	charges	ref	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	fk_charge_to_ledger	8	const	8	
 1	PRIMARY	<derived2>	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	4	
 2	DERIVED	transaction_items	ALL	fk_items_transaction	NULL	NULL	NULL	40	Using temporary; Using filesort
 2	DERIVED	transactions	eq_ref	PRIMARY	PRIMARY	8	test.transaction_items.transaction_id	1	
@@ -18028,7 +18053,7 @@ ON from_agg_items.charge_id = charges.id AND
 from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	charges	ALL	fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
+1	PRIMARY	charges	ref	fk_charge_to_ledger	fk_charge_to_ledger	8	const	10	
 1	PRIMARY	<derived2>	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	2	
 2	LATERAL DERIVED	transaction_items	ref	fk_items_transaction,fk_items_charge	fk_items_charge	9	test.charges.id	2	
 2	LATERAL DERIVED	transactions	eq_ref	PRIMARY,fk_transactions_ledger	PRIMARY	8	test.transaction_items.transaction_id	1	Using where
@@ -18056,11 +18081,14 @@ EXPLAIN
     "select_id": 1,
     "table": {
       "table_name": "charges",
-      "access_type": "ALL",
+      "access_type": "ref",
       "possible_keys": ["fk_charge_to_ledger"],
-      "rows": 20,
-      "filtered": 50,
-      "attached_condition": "charges.to_ledger_id = 2"
+      "key": "fk_charge_to_ledger",
+      "key_length": "8",
+      "used_key_parts": ["to_ledger_id"],
+      "ref": ["const"],
+      "rows": 10,
+      "filtered": 100
     },
     "table": {
       "table_name": "<derived2>",
@@ -18153,7 +18181,7 @@ ON from_agg_items.charge_id = charges.id AND
 from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	charges	ALL	fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
+1	PRIMARY	charges	ref	fk_charge_to_ledger	fk_charge_to_ledger	8	const	10	
 1	PRIMARY	<derived2>	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	4	
 2	DERIVED	transaction_items	ALL	fk_items_transaction	NULL	NULL	NULL	40	Using temporary; Using filesort
 2	DERIVED	transactions	eq_ref	PRIMARY	PRIMARY	8	test.transaction_items.transaction_id	1	

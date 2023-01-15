@@ -3,7 +3,6 @@
 
 /* Copyright (c) 2003, 2005-2007 MySQL AB, 2009 Sun Microsystems, Inc.
    Use is subject to license terms.
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -35,7 +34,7 @@
 template <typename Element_type> class Bounds_checked_array
 {
 public:
-  Bounds_checked_array()= default;
+  Bounds_checked_array() : m_array(NULL), m_size(0) {}
 
   Bounds_checked_array(Element_type *el, size_t size_arg)
     : m_array(el), m_size(size_arg)
@@ -86,10 +85,6 @@ public:
 
   Element_type *array() const { return m_array; }
 
-  Element_type *begin() const { return array(); }
-  Element_type *end() const { return array() + m_size; }
-
-
   bool operator==(const Bounds_checked_array<Element_type>&rhs) const
   {
     return m_array == rhs.m_array && m_size == rhs.m_size;
@@ -100,8 +95,8 @@ public:
   }
 
 private:
-  Element_type *m_array= nullptr;
-  size_t        m_size= 0;
+  Element_type *m_array;
+  size_t        m_size;
 };
 
 /*
@@ -114,21 +109,21 @@ template <class Elem> class Dynamic_array
 {
   DYNAMIC_ARRAY  array;
 public:
-  Dynamic_array(PSI_memory_key psi_key, uint prealloc=16, uint increment=16)
+  Dynamic_array(uint prealloc=16, uint increment=16)
   {
-    init(psi_key, prealloc, increment);
+    init(prealloc, increment);
   }
 
   Dynamic_array(MEM_ROOT *root, uint prealloc=16, uint increment=16)
   {
     void *init_buffer= alloc_root(root, sizeof(Elem) * prealloc);
-    init_dynamic_array2(root->m_psi_key, &array, sizeof(Elem), init_buffer,
+    my_init_dynamic_array2(&array, sizeof(Elem), init_buffer, 
                            prealloc, increment, MYF(0));
   }
 
-  void init(PSI_memory_key psi_key, uint prealloc=16, uint increment=16)
+  void init(uint prealloc=16, uint increment=16)
   {
-    init_dynamic_array2(psi_key, &array, sizeof(Elem), 0, prealloc, increment, MYF(0));
+    init_dynamic_array2(&array, sizeof(Elem), 0, prealloc, increment, MYF(0));
   }
 
   /**
@@ -170,11 +165,6 @@ public:
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
 
-  const Elem *end() const
-  {
-    return back() + 1;
-  }
-
   /// @returns pointer to n-th element
   Elem *get_pos(size_t idx)
   {
@@ -186,6 +176,7 @@ public:
   {
     return ((const Elem*)array.buffer) + idx;
   }
+
 
   /**
      @retval false ok
@@ -244,16 +235,10 @@ public:
     freeze_size(&array);
   }
 
-  bool reserve(size_t new_size)
-  {
-    return allocate_dynamic(&array, (uint)new_size);
-  }
-
-
   bool resize(size_t new_size, Elem default_val)
   {
     size_t old_size= elements();
-    if (reserve(new_size))
+    if (unlikely(allocate_dynamic(&array, (uint)new_size)))
       return true;
     
     if (new_size > old_size)

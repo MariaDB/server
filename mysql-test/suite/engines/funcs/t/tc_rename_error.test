@@ -7,9 +7,9 @@ SHOW TABLES;
 let $ENGINE=`select variable_value from information_schema.global_variables where variable_name='STORAGE_ENGINE'`; 
 --replace_result $ENGINE ENGINE " PAGE_CHECKSUM=0" "" " PAGE_CHECKSUM=1" ""
  SHOW CREATE TABLE t1; 
---error ER_TABLE_EXISTS_ERROR
+--error 1050
 RENAME TABLE t2 TO t1;
---error ER_NO_SUCH_TABLE
+--error 1050
 RENAME TABLE t3 TO t1;
 --error 1146
 RENAME TABLE t3 TO doesnotexist.t1;

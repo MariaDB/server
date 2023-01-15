@@ -63,11 +63,8 @@ select name from t1 a where (select  percentile_disc(0.5) within group (order by
 --echo #disallowed fields in order by
 --error ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
 select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) from t1;
-
-#enable after fix MDEV-27871
---disable_view_protocol
+--error ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
 select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) from t1;
---enable_view_protocol
 
 --echo #parameter value should be in the range of [0,1]
 --error ER_ARGUMENT_OUT_OF_RANGE
@@ -217,7 +214,7 @@ DROP TABLE t2, t1;
 
 
 --echo #
---echo # MDEV-20280 PERCENTILE_DISC() rejects temporal and string input
+--echo # MDEV-20272 PERCENTILE_DISC() crashes on a temporal type input
 --echo #
 
 CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating TIME);
@@ -226,13 +223,8 @@ INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
 INSERT INTO t1 VALUES ('Lady of the Flies', 1);
 INSERT INTO t1 VALUES ('Lady of the Flies', 2);
 INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+--error ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
 SELECT name, PERCENTILE_DISC(0.5)
-  WITHIN GROUP (ORDER BY star_rating)
-  OVER (PARTITION BY name) AS pc FROM t1;
-SELECT name, PERCENTILE_DISC(0)
-  WITHIN GROUP (ORDER BY star_rating)
-  OVER (PARTITION BY name) AS pc FROM t1;
-SELECT name, PERCENTILE_DISC(1)
   WITHIN GROUP (ORDER BY star_rating)
   OVER (PARTITION BY name) AS pc FROM t1;
 DROP TABLE t1;

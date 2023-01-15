@@ -180,7 +180,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     if ((share->options & HA_OPTION_RELIES_ON_SQL_LAYER) &&
         ! (open_flags & HA_OPEN_FROM_SQL_LAYER))
     {
-      DBUG_PRINT("error", ("table cannot be opened from non-sql layer"));
+      DBUG_PRINT("error", ("table cannot be openned from non-sql layer"));
       my_errno= HA_ERR_UNSUPPORTED;
       goto err;
     }
@@ -310,7 +310,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     /* Add space for node pointer */
     share->base.max_key_length+= share->base.key_reflength;
 
-    if (!my_multi_malloc(mi_key_memory_MYISAM_SHARE, MYF(MY_WME),
+    if (!my_multi_malloc(MY_WME,
 			 &share,sizeof(*share),
 			 &share->state.rec_per_key_part,
                          sizeof(long)*base_key_parts,
@@ -599,7 +599,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
   }
 
   /* alloc and set up private structure parts */
-  if (!my_multi_malloc(mi_key_memory_MI_INFO, MYF(MY_WME),
+  if (!my_multi_malloc(MY_WME,
 		       &m_info,sizeof(MI_INFO),
 		       &info.blobs,sizeof(MI_BLOB)*share->base.blobs,
 		       &info.buff,(share->base.max_key_block_length*2+
@@ -759,8 +759,7 @@ uchar *mi_alloc_rec_buff(MI_INFO *info, ulong length, uchar **buf)
 	    MI_REC_BUFF_OFFSET : 0);
     if (extra && newptr)
       newptr-= MI_REC_BUFF_OFFSET;
-    if (!(newptr=(uchar*) my_realloc(mi_key_memory_record_buffer,
-                                     (uchar*)newptr, length + extra + 8,
+    if (!(newptr=(uchar*) my_realloc((uchar*)newptr, length+extra+8,
                                      MYF(MY_ALLOW_ZERO_PTR))))
       return NULL;
     *((uint32 *) newptr)= (uint32) length;
@@ -1005,7 +1004,7 @@ uchar *mi_state_info_read(uchar *ptr, MI_STATE_INFO *state)
 
   if (!state->rec_per_key_part)
   {
-    if (!my_multi_malloc(mi_key_memory_MYISAM_SHARE, MYF(MY_WME),
+    if (!my_multi_malloc(MY_WME,
 			 &state->rec_per_key_part,sizeof(long)*key_parts,
 			 &state->key_root, keys*sizeof(my_off_t),
 			 &state->key_del,  key_blocks*sizeof(my_off_t),

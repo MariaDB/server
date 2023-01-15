@@ -30,7 +30,7 @@ Created 2013-7-26 by Kevin Lewis
 
 /** If the last data file is auto-extended, we add this many pages to it
 at a time. We have to make this public because it is a config variable. */
-extern uint sys_tablespace_auto_extend_increment;
+extern ulong sys_tablespace_auto_extend_increment;
 
 /** Data structure that contains the information about shared tablespaces.
 Currently this can be the system tablespace or a temporary table tablespace */
@@ -120,7 +120,7 @@ public:
 
 	/** Set the last file size.
 	@param[in]	size	the size to set */
-	void set_last_file_size(uint32_t size)
+	void set_last_file_size(ulint size)
 	{
 		ut_ad(!m_files.empty());
 		m_files.back().m_size = size;
@@ -128,7 +128,7 @@ public:
 
 	/** Get the size of the last data file in the tablespace
 	@return the size of the last data file in the array */
-	uint32_t last_file_size() const
+	ulint last_file_size() const
 	{
 		ut_ad(!m_files.empty());
 		return(m_files.back().m_size);
@@ -136,7 +136,7 @@ public:
 
 	/**
 	@return the autoextend increment in pages. */
-	uint32_t get_autoextend_increment() const
+	ulint get_autoextend_increment() const
 	{
 		return sys_tablespace_auto_extend_increment
 			<< (20 - srv_page_size_shift);
@@ -144,7 +144,7 @@ public:
 
 	/**
 	@return next increment size */
-	uint32_t get_increment() const;
+	ulint get_increment() const;
 
 	/** Open or create the data files
 	@param[in]  is_temp		whether this is a temporary tablespace
@@ -240,7 +240,8 @@ private:
 	/** if true, then we auto-extend the last data file */
 	bool		m_auto_extend_last_file;
 
-	/** maximum size of the last data file (0=unlimited) */
+	/** if != 0, this tells the max size auto-extending may increase the
+	last data file size */
 	ulint		m_last_file_size_max;
 
 	/** If the following is true we do not allow

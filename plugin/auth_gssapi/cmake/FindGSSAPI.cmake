@@ -58,11 +58,7 @@ else(GSSAPI_LIBS AND GSSAPI_FLAVOR)
       message(STATUS "GSSAPI configure check failed.")
       set(HAVE_KRB5_GSSAPI FALSE)
     endif(_return_VALUE)
-    IF(CMAKE_SYSTEM_NAME MATCHES AIX)
-      string(REGEX REPLACE "-Wl[A-Za-z0-9_/,:-]*[ $]?" "" GSSAPI_LIBS "${GSSAPI_LIBS}")
-      string(REGEX REPLACE  "-L[A-Za-z0-9_/,:-]*[ $]?" "" GSSAPI_LIBS "${GSSAPI_LIBS}")
-    ENDIF()
-
+  
     exec_program(${KRB5_CONFIG} ARGS --cflags gssapi RETURN_VALUE _return_VALUE OUTPUT_VARIABLE GSSAPI_INCS)
     string(REGEX REPLACE "(\r?\n)+$" "" GSSAPI_INCS "${GSSAPI_INCS}")
     string(REGEX REPLACE " *-I" ";" GSSAPI_INCS "${GSSAPI_INCS}")

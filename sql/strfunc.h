@@ -18,8 +18,7 @@
 
 typedef struct st_typelib TYPELIB;
 
-ulonglong find_set(const TYPELIB *lib,
-                   const char *x, size_t length, CHARSET_INFO *cs,
+ulonglong find_set(TYPELIB *lib, const char *x, size_t length, CHARSET_INFO *cs,
 		   char **err_pos, uint *err_len, bool *set_warning);
 ulonglong find_set_from_flags(TYPELIB *lib, uint default_name,
                               ulonglong cur_set, ulonglong default_set,

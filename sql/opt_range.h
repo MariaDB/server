@@ -223,50 +223,6 @@ class RANGE_OPT_PARAM;
 
     We avoid consuming too much memory by setting a limit on the number of
     SEL_ARG object we can construct during one range analysis invocation.
-
-  5. SEL_ARG GRAPH WEIGHT
-
-    A SEL_ARG graph has a property we call weight, and we define it as follows:
-
-    <definition>
-    If the SEL_ARG graph does not have any node with multiple incoming
-    next_key_part edges, then its weight is the number of SEL_ARG objects used.
-
-    If there is a node with multiple incoming next_key_part edges, clone that
-    node, (and the nodes connected to it via prev/next links) and redirect one
-    of the incoming next_key_part edges to the clone.
-
-    Continue with cloning until we get a graph that has no nodes with multiple
-    incoming next_key_part edges. Then, the number of SEL_ARG objects in the
-    graph is the weight of the original graph.
-    </definition>
-
-    Example:
-
-            kp1     $     kp2      $       kp3
-                    $              $
-      |  +-------+  $              $
-      \->| kp1=2 |--$--------------$-+
-         +-------+  $              $ |   +--------+
-             |      $              $  ==>| kp3=11 |
-         +-------+  $              $ |   +--------+
-         | kp1>3 |--$--------------$-+       |
-         +-------+  $              $     +--------+
-                    $              $     | kp3=14 |
-                    $              $     +--------+
-                    $              $         |
-                    $              $     +--------+
-                    $              $     | kp3=14 |
-                    $              $     +--------+
-
-    Here, the weight is 2 + 2*3=8.
-
-    The rationale behind using this definition of weight is:
-    - it has the same order-of-magnitude as the number of ranges that the
-      SEL_ARG graph is describing,
-    - it is a lot easier to compute than computing the number of ranges,
-    - it can be updated incrementally when performing AND/OR operations on
-      parts of the graph.
 */
 
 class SEL_ARG :public Sql_alloc
@@ -280,9 +236,6 @@ public:
   /*
     The ordinal number the least significant component encountered in
     the ranges of the SEL_ARG tree (the first component has number 1)
-
-    Note: this number is currently not precise, it is an upper bound.
-    @seealso SEL_ARG::get_max_key_part()
   */
   uint16 max_part_no;
   /*
@@ -310,18 +263,6 @@ public:
   enum leaf_color { BLACK,RED } color;
   enum Type { IMPOSSIBLE, MAYBE, MAYBE_KEY, KEY_RANGE } type;
 
-  /*
-    For R-B root nodes only: the graph weight, as defined above in the
-    SEL_ARG GRAPH WEIGHT section.
-  */
-  uint weight;
-  enum { MAX_WEIGHT = 32000 };
-
-#ifndef DBUG_OFF
-  uint verify_weight();
-#endif
-
-  /* See RANGE_OPT_PARAM::alloced_sel_args */
   enum { MAX_SEL_ARGS = 16000 };
 
   SEL_ARG() {}
@@ -332,7 +273,7 @@ public:
   SEL_ARG(enum Type type_arg)
     :min_flag(0), max_part_no(0) /* first key part means 1. 0 mean 'no parts'*/,
      elements(1),use_count(1),left(0),right(0),
-     next_key_part(0), color(BLACK), type(type_arg), weight(1)
+     next_key_part(0), color(BLACK), type(type_arg)
   {}
   /**
     returns true if a range predicate is equal. Use all_same()
@@ -346,9 +287,6 @@ public:
       return true;
     return cmp_min_to_min(arg) == 0 && cmp_max_to_max(arg) == 0;
   }
-
-  uint get_max_key_part() const;
-
   /**
     returns true if all the predicates in the keypart tree are equal
   */
@@ -660,7 +598,6 @@ public:
   SEL_ARG *clone_tree(RANGE_OPT_PARAM *param);
 };
 
-extern MYSQL_PLUGIN_IMPORT SEL_ARG null_element;
 
 class SEL_ARG_IMPOSSIBLE: public SEL_ARG
 {

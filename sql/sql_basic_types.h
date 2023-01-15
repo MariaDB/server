@@ -23,8 +23,6 @@
 typedef ulonglong sql_mode_t;
 typedef int64 query_id_t;
 
-enum enum_nullability { NOT_NULL, NULLABLE };
-
 
 /*
   "fuzzydate" with strict data type control.

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2017, 2022, MariaDB Corporation.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -234,11 +234,11 @@ typedef struct st_mi_isam_share
 
 struct st_myisam_info
 {
-  MYISAM_SHARE *s;                      /* Shared between opens */
+  MYISAM_SHARE *s;                      /* Shared between open:s */
   MI_STATUS_INFO *state, save_state;
   MI_BLOB *blobs;                       /* Pointer to blobs */
   MI_BIT_BUFF bit_buff;
-  /* accumulate indexfile changes between writes */
+  /* accumulate indexfile changes between write's */
   TREE *bulk_insert;
   DYNAMIC_ARRAY *ft1_to_ft2;            /* used only in ft1->ft2 conversion */
   MEM_ROOT      ft_memroot;             /* used by the parser               */
@@ -256,7 +256,7 @@ struct st_myisam_info
   uint32 int_keytree_version;		/*  -""-  */
   int (*read_record)(struct st_myisam_info*, my_off_t, uchar*);
   invalidator_by_filename invalidator;  /* query cache invalidator */
-  ulong this_unique;                    /* unique filenumber or thread */
+  ulong this_unique;                    /* uniq filenumber or thread */
   ulong last_unique;                    /* last unique number */
   ulong this_loop;                      /* counter for this open */
   ulong last_loop;                      /* last used counter */
@@ -269,7 +269,7 @@ struct st_myisam_info
   my_off_t dupp_key_pos;
   ha_checksum checksum;                 /* Temp storage for row checksum */
   /*
-    QQ: the following two xxx_length fields should be removed,
+    QQ: the folloing two xxx_length fields should be removed,
      as they are not compatible with parallel repair
   */
   ulong packed_length, blob_length;     /* Length of found, packed record */
@@ -612,24 +612,7 @@ typedef struct st_mi_block_info         /* Parameter to _mi_get_block_info */
   uint offset;
 } MI_BLOCK_INFO;
 
-
-struct st_sort_key_blocks		/* Used when sorting */
-{
-  uchar *buff, *end_pos;
-  uchar lastkey[HA_MAX_POSSIBLE_KEY_BUFF];
-  uint last_length;
-  int inited;
-};
-
-
-struct st_sort_ftbuf
-{
-  uchar *buf, *end;
-  int count;
-  uchar lastkey[HA_MAX_KEY_BUFF];
-};
-
-/* bits in return from _mi_get_block_info */
+        /* bits in return from _mi_get_block_info */
 
 #define BLOCK_FIRST     1U
 #define BLOCK_LAST      2U
@@ -726,7 +709,7 @@ int _mi_cmp_dynamic_unique(MI_INFO *info, MI_UNIQUEDEF *def,
                            const uchar *record, my_off_t pos);
 int mi_unique_comp(MI_UNIQUEDEF *def, const uchar *a, const uchar *b,
                    my_bool null_are_equal);
-my_bool mi_get_status(void *param, my_bool concurrent_insert);
+void mi_get_status(void *param, my_bool concurrent_insert);
 void mi_update_status(void *param);
 void mi_restore_status(void *param);
 void mi_copy_status(void *to, void *from);
@@ -774,30 +757,6 @@ extern PSI_file_key mi_key_file_datatmp, mi_key_file_dfile, mi_key_file_kfile,
 extern PSI_thread_key mi_key_thread_find_all_keys;
 
 void init_myisam_psi_keys();
-#else
-#define init_myisam_psi_keys() do { } while(0)
 #endif /* HAVE_PSI_INTERFACE */
-
-extern PSI_memory_key mi_key_memory_MYISAM_SHARE;
-extern PSI_memory_key mi_key_memory_MI_INFO;
-extern PSI_memory_key mi_key_memory_MI_INFO_ft1_to_ft2;
-extern PSI_memory_key mi_key_memory_MI_INFO_bulk_insert;
-extern PSI_memory_key mi_key_memory_record_buffer;
-extern PSI_memory_key mi_key_memory_FTB;
-extern PSI_memory_key mi_key_memory_FT_INFO;
-extern PSI_memory_key mi_key_memory_FTPARSER_PARAM;
-extern PSI_memory_key mi_key_memory_ft_memroot;
-extern PSI_memory_key mi_key_memory_ft_stopwords;
-extern PSI_memory_key mi_key_memory_MI_SORT_PARAM;
-extern PSI_memory_key mi_key_memory_MI_SORT_PARAM_wordroot;
-extern PSI_memory_key mi_key_memory_SORT_FT_BUF;
-extern PSI_memory_key mi_key_memory_SORT_KEY_BLOCKS;
-extern PSI_memory_key mi_key_memory_filecopy;
-extern PSI_memory_key mi_key_memory_SORT_INFO_buffer;
-extern PSI_memory_key mi_key_memory_MI_DECODE_TREE;
-extern PSI_memory_key mi_key_memory_MYISAM_SHARE_decode_tables;
-extern PSI_memory_key mi_key_memory_preload_buffer;
-extern PSI_memory_key mi_key_memory_stPageList_pages;
-extern PSI_memory_key mi_key_memory_keycache_thread_var;
 
 C_MODE_END

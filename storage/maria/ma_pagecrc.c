@@ -28,7 +28,7 @@
 
 static uint32 maria_page_crc(uint32 start, uchar *data, uint length)
 {
-  uint32 crc= my_checksum(start, data, length);
+  uint32 crc= crc32(start, data, length);
 
   /* we need this assert to get following comparison working */
   compile_time_assert(MARIA_NO_CRC_BITMAP_PAGE ==
@@ -244,9 +244,10 @@ my_bool maria_page_crc_check_index(int res, PAGECACHE_IO_HOOK_ARGS *args)
   pgcache_page_no_t page_no= args->pageno;
   MARIA_SHARE *share= (MARIA_SHARE *)args->data;
   uint length= _ma_get_page_used(share, page);
-
   if (res)
+  {
     return 1;
+  }
   if (length > share->block_size - CRC_SIZE)
   {
     DBUG_PRINT("error", ("Wrong page length: %u", length));
@@ -260,7 +261,7 @@ my_bool maria_page_crc_check_index(int res, PAGECACHE_IO_HOOK_ARGS *args)
 
 
 /**
-  @brief Maria pages dummy read callback for temporary tables
+  @brief Maria pages dumme read callback for temporary tables
 
   @retval 0 OK
   @retval 1 Error

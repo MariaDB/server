@@ -1,6 +1,6 @@
 set @save_tmp_table_size=@@tmp_table_size;
 set @save_max_heap_table_size=@@max_heap_table_size;
-set default_storage_engine=MYISAM;
+set storage_engine=MYISAM;
 CREATE TABLE t1 (id INTEGER);
 CREATE TABLE t2 (id INTEGER);
 INSERT INTO t1 SELECT b.seq FROM seq_1_to_128,seq_1_to_1024 b;

@@ -10,8 +10,8 @@ drop table if exists t1,t3;
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
-set @tmp=@@default_storage_engine;
-eval set default_storage_engine=$engine_type;
+set @tmp=@@storage_engine;
+eval set storage_engine=$engine_type;
 
 create table t3 (
   ID bigint(20) NOT NULL AUTO_INCREMENT,
@@ -27,7 +27,7 @@ create table t3 (
 );
 
 show create table t3;
-set default_storage_engine= @tmp;
+set storage_engine= @tmp;
 
 insert into t3 select 
   A.a+10*B.a,

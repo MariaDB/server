@@ -775,6 +775,7 @@ bool JDBConn::Connect(PJPARM sop)
 	int      irc = RC_FX;
 	bool		 err = false;
 	jint     rc;
+	jboolean jt = (trace(1));
 	PGLOBAL& g = m_G;
 
 	/*******************************************************************/
@@ -944,7 +945,7 @@ int JDBConn::Rewind(PCSZ sql)
 		if (gmID(m_G, fetchid, "Fetch", "(I)Z"))
 			return -1;
 
-		(void) env->CallBooleanMethod(job, fetchid, 0);
+		jboolean b = env->CallBooleanMethod(job, fetchid, 0);
 
 		rbuf = m_Rows;
 	} else if (ExecuteCommand(sql) != RC_FX)
@@ -1196,7 +1197,7 @@ int JDBConn::ExecuteUpdate(PCSZ sql)
 /***********************************************************************/
 int JDBConn::GetResultSize(PCSZ sql, PCOL colp)
 {
-	int rc;
+	int rc, n = 0;
 
 	if ((rc = ExecuteQuery(sql)) != RC_OK)
 		return -1;
@@ -1503,6 +1504,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		PCSZ     fnc = "Unknown";
 		uint     n;
 		short    len, tp;
+		int      crow = 0;
 		PQRYRES  qrp = cap->Qrp;
 		PCOLRES  crp;
 		jboolean rc = false;

@@ -294,7 +294,7 @@ affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TEMPORARY TABLE temp_tab AS SELECT * FROM tab where c1 = c2;
-ERROR HY000: Illegal parameter data types int and point for operation '='
+ERROR HY000: Illegal parameter data types int and geometry for operation '='
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TEMPORARY TABLE temp_tab AS SELECT * FROM tab;
 INSERT INTO temp_tab SELECT * FROM tab;
@@ -773,13 +773,13 @@ DROP TABLE t1;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 insert into t1 values(default);
-ERROR 22007: Incorrect POINT value: 'LINESTRING(0 0,1 1)' for column `test`.`t1`.`p` at row 1
+ERROR 22007: Incorrect POINT value: 'GEOMETRYCOLLECTION(POINT(0 0),POINT(1 1))' for column `test`.`t1`.`p` at row 1
 drop table t1;
 SET timestamp=default;
 create table t1 (p point not null default if(unix_timestamp()>10,POINT(1,1),LineString(Point(0,0),Point(1,1)))) ENGINE=innodb;
 set timestamp=10;
 alter table t1 add column i int;
-ERROR 22007: Incorrect POINT value: 'LINESTRING(0 0,1 1)' for column `test`.`t1`.`p` at row 1
+ERROR 22007: Incorrect POINT value: 'GEOMETRYCOLLECTION(POINT(0 0),POINT(1 1))' for column `test`.`t1`.`p` at row 1
 drop table t1;
 SET timestamp=default;
 CREATE OR REPLACE TABLE t1 (a INT) ENGINE=InnoDB;

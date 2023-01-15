@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "xbstream.h"
 #include "datasink.h"
+#include "crc_glue.h"
 
 #define XBSTREAM_VERSION "1.0"
 #define XBSTREAM_BUFFER_SIZE (10 * 1024 * 1024UL)
@@ -89,13 +90,15 @@ typedef struct {
 static int get_options(int *argc, char ***argv);
 static int mode_create(int argc, char **argv);
 static int mode_extract(int n_threads, int argc, char **argv);
-static my_bool get_one_option(const struct my_option *opt,
-			      const char *argument, const char *filename);
+static my_bool get_one_option(int optid, const struct my_option *opt,
+			      char *argument);
 
 int
 main(int argc, char **argv)
 {
 	MY_INIT(argv[0]);
+
+	crc_init();
 
 	if (get_options(&argc, &argv)) {
 		goto err;
@@ -138,8 +141,7 @@ get_options(int *argc, char ***argv)
 	int ho_error;
 
 	if ((ho_error= handle_options(argc, argv, my_long_options,
-				      get_one_option)))
-        {
+				      get_one_option))) {
 		exit(EXIT_FAILURE);
 	}
 
@@ -192,9 +194,10 @@ set_run_mode(run_mode_t mode)
 
 static
 my_bool
-get_one_option(const struct my_option *opt, const char *, const char *)
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument __attribute__((unused)))
 {
-	switch (opt->id) {
+	switch (optid) {
 	case 'c':
 		if (set_run_mode(RUN_MODE_CREATE)) {
 			return TRUE;
@@ -224,7 +227,7 @@ stream_one_file(File file, xb_wstream_file_t *xbfile)
 	posix_fadvise(file, 0, 0, POSIX_FADV_SEQUENTIAL);
 	offset = my_tell(file, MYF(MY_WME));
 
-	buf = (uchar*)(my_malloc(PSI_NOT_INSTRUMENTED, XBSTREAM_BUFFER_SIZE, MYF(MY_FAE)));
+	buf = (uchar*)(my_malloc(XBSTREAM_BUFFER_SIZE, MYF(MY_FAE)));
 
 	while ((bytes = (ssize_t)my_read(file, buf, XBSTREAM_BUFFER_SIZE,
 				MYF(MY_WME))) > 0) {
@@ -319,13 +322,13 @@ file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen)
 	file_entry_t	*entry;
 	ds_file_t	*file;
 
-	entry = (file_entry_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(file_entry_t),
+	entry = (file_entry_t *) my_malloc(sizeof(file_entry_t),
 					   MYF(MY_WME | MY_ZEROFILL));
 	if (entry == NULL) {
 		return NULL;
 	}
 
-	entry->path = my_strndup(PSI_NOT_INSTRUMENTED, path, pathlen, MYF(MY_WME));
+	entry->path = my_strndup(path, pathlen, MYF(MY_WME));
 	if (entry->path == NULL) {
 		goto err;
 	}
@@ -493,8 +496,8 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	pthread_mutex_t		mutex;
 	int			ret = 0;
 
-        if (my_hash_init(PSI_NOT_INSTRUMENTED, &filehash, &my_charset_bin,
-                         START_FILE_HASH_SIZE, 0, 0, (my_hash_get_key) get_file_entry_key,
+	if (my_hash_init(&filehash, &my_charset_bin, START_FILE_HASH_SIZE,
+			  0, 0, (my_hash_get_key) get_file_entry_key,
 			  (my_hash_free_key) file_entry_free, MYF(0))) {
 		msg("%s: failed to initialize file hash.", my_progname);
 		return 1;

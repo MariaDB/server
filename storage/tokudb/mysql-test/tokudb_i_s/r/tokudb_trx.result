@@ -1,7 +1,0 @@
-SHOW CREATE TABLE INFORMATION_SCHEMA.TOKUDB_TRX;
-Table	Create Table
-TokuDB_trx	CREATE TEMPORARY TABLE `TokuDB_trx` (
-  `trx_id` bigint(0) NOT NULL DEFAULT 0,
-  `trx_mysql_thread_id` bigint(0) NOT NULL DEFAULT 0,
-  `trx_time` bigint(0) NOT NULL DEFAULT 0
-) ENGINE=MEMORY DEFAULT CHARSET=utf8

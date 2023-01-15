@@ -173,7 +173,7 @@ test_search()
 
 int main()
 {
-  ci= &my_charset_utf8mb3_general_ci;
+  ci= &my_charset_utf8_general_ci;
 
   plan(6);
   diag("Testing json_lib functions.");

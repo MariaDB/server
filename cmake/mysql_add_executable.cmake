@@ -1,5 +1,5 @@
 # Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
-#
+# 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
@@ -36,7 +36,7 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
   )
   LIST(GET ARG_UNPARSED_ARGUMENTS 0 target)
   LIST(REMOVE_AT  ARG_UNPARSED_ARGUMENTS 0)
-
+  
   SET(sources ${ARG_UNPARSED_ARGUMENTS})
   ADD_VERSION_INFO(${target} EXECUTABLE sources)
 
@@ -62,7 +62,6 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
   ELSE()
     UNSET(EXCLUDE_FROM_ALL)
   ENDIF()
-
   ADD_EXECUTABLE(${target} ${WIN32} ${MACOSX_BUNDLE} ${EXCLUDE_FROM_ALL} ${sources})
 
   # tell CPack where to install
@@ -80,44 +79,9 @@ FUNCTION (MYSQL_ADD_EXECUTABLE)
     IF (COMP MATCHES ${SKIP_COMPONENTS})
       RETURN()
     ENDIF()
-
-    IF (WITH_STRIPPED_CLIENT AND NOT target STREQUAL mariadbd)
-      INSTALL(CODE "SET(CMAKE_INSTALL_DO_STRIP 1)" COMPONENT ${COMP})
-      SET(reset_strip ON)
-    ENDIF()
-
     MYSQL_INSTALL_TARGETS(${target} DESTINATION ${ARG_DESTINATION} COMPONENT ${COMP})
-    
-    IF (reset_strip)
-      INSTALL(CODE "SET(CMAKE_INSTALL_DO_STRIP 0)" COMPONENT ${COMP})
-    ENDIF()
   ENDIF()
 
-  # create MySQL named "legacy links"
-  GET_SYMLINK(${target} link)
-  IF(link)
-    IF(UNIX)
-      ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-         ${target} ${link}
-        COMMENT "Creating ${link} link"
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR})
-      INSTALL(PROGRAMS
-         ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${link}
-         DESTINATION
-         ${ARG_DESTINATION}
-         COMPONENT ${COMP})
-    ELSE()
-      # Windows note:
-      # Here, hardlinks are used, because cmake can't install symlinks.
-      # In packages, there are won't be links, just copies.
-      SET(link ${link}.exe)
-      ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
-        COMMAND cmake -E remove -f ${link}
-        COMMAND mklink /H ${link} $<TARGET_FILE_NAME:${target}>
-        COMMENT "Creating ${link} link"
-        WORKING_DIRECTORY $<TARGET_FILE_DIR:${target}>)
-      INSTALL(PROGRAMS $<TARGET_FILE_DIR:${target}>/${link} DESTINATION ${ARG_DESTINATION} COMPONENT ${COMP})
-    ENDIF()
-  ENDIF()
+  # create mariadb named symlink
+  CREATE_MARIADB_SYMLINK(${target} ${ARG_DESTINATION} ${COMP})
 ENDFUNCTION()

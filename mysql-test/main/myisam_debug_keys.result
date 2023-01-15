@@ -245,7 +245,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a INT NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=4 LONG_INT
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -267,7 +267,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a INT NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=4 LONG_INT
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -289,7 +289,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a INT NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=4 LONG_INT
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -311,7 +311,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a INT NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=4 LONG_INT
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -641,7 +641,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a BIGINT NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=10 LONGLONG
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -663,7 +663,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a BIGINT NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=10 LONGLONG
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -685,7 +685,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a BIGINT NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=10 LONGLONG
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -707,7 +707,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a BIGINT NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=10 LONGLONG
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -1037,7 +1037,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a DOUBLE NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=6 DOUBLE
 Note	1105	DBUG:   seg[0].flag=00000800 (HA_CAN_MEMCMP)
@@ -1059,7 +1059,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a DOUBLE NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=6 DOUBLE
 Note	1105	DBUG:   seg[0].flag=00000800 (HA_CAN_MEMCMP)
@@ -1081,7 +1081,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a DOUBLE NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=6 DOUBLE
 Note	1105	DBUG:   seg[0].flag=00000800 (HA_CAN_MEMCMP)
@@ -1103,7 +1103,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a DOUBLE NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=6 DOUBLE
 Note	1105	DBUG:   seg[0].flag=00000800 (HA_CAN_MEMCMP)
@@ -1433,7 +1433,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a DECIMAL(20,10) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000002 (HA_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=2 BINARY
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -1455,7 +1455,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a DECIMAL(20,10) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000002 (HA_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=2 BINARY
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -1477,7 +1477,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a DECIMAL(20,10) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000002 (HA_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=2 BINARY
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -1499,7 +1499,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a DECIMAL(20,10) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000002 (HA_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=2 BINARY
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -1829,7 +1829,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a CHAR(4) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=1 TEXT
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -1851,7 +1851,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a CHAR(4) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=1 TEXT
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -1873,7 +1873,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a CHAR(4) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=1 TEXT
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -1895,7 +1895,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a CHAR(4) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=1 TEXT
 Note	1105	DBUG:   seg[0].flag=00000000 
@@ -2225,7 +2225,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a CHAR(10) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000002 (HA_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=1 TEXT
 Note	1105	DBUG:   seg[0].flag=00000001 (HA_SPACE_PACK)
@@ -2247,7 +2247,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a CHAR(10) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000002 (HA_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=1 TEXT
 Note	1105	DBUG:   seg[0].flag=00000001 (HA_SPACE_PACK)
@@ -2269,7 +2269,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a CHAR(10) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000002 (HA_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=1 TEXT
 Note	1105	DBUG:   seg[0].flag=00000001 (HA_SPACE_PACK)
@@ -2291,7 +2291,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a CHAR(10) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000002 (HA_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=1 TEXT
 Note	1105	DBUG:   seg[0].flag=00000001 (HA_SPACE_PACK)
@@ -2621,7 +2621,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(4) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -2643,7 +2643,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(4) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -2665,7 +2665,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(4) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -2687,7 +2687,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(4) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3017,7 +3017,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(6) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3039,7 +3039,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(6) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3061,7 +3061,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(6) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3083,7 +3083,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(6) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00000002 (HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3413,7 +3413,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(8) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3435,7 +3435,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(8) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3457,7 +3457,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(8) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3479,7 +3479,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(8) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3809,7 +3809,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(12) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3831,7 +3831,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(12) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3853,7 +3853,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(12) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -3875,7 +3875,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(12) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4205,7 +4205,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(16) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4227,7 +4227,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(16) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4249,7 +4249,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(16) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4271,7 +4271,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(16) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4601,7 +4601,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(100) NOT NULL, b VARCHAR(8) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4623,7 +4623,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(100) NOT NULL, b VARCHAR(12) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4645,7 +4645,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(100) NOT NULL, b VARCHAR(16) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4667,7 +4667,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a VARCHAR(100) NOT NULL, b VARCHAR(100) NOT NULL, KEY(a,b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0000002A (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00000028 (HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=15 VARTEXT1
 Note	1105	DBUG:   seg[0].flag=00000008 (HA_VAR_LENGTH_PART)
@@ -4997,7 +4997,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(8) NOT NULL, KEY(a(4),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00010002 (HA_KEY_HAS_PART_KEY_SEG|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5019,7 +5019,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(12) NOT NULL, KEY(a(4),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00010002 (HA_KEY_HAS_PART_KEY_SEG|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5041,7 +5041,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(16) NOT NULL, KEY(a(4),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00010002 (HA_KEY_HAS_PART_KEY_SEG|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5063,7 +5063,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(100) NOT NULL, KEY(a(4),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00010002 (HA_KEY_HAS_PART_KEY_SEG|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5393,7 +5393,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(8) NOT NULL, KEY(a(6),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00010002 (HA_KEY_HAS_PART_KEY_SEG|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5415,7 +5415,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(12) NOT NULL, KEY(a(6),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00010002 (HA_KEY_HAS_PART_KEY_SEG|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5437,7 +5437,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(16) NOT NULL, KEY(a(6),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00010002 (HA_KEY_HAS_PART_KEY_SEG|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5459,7 +5459,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(100) NOT NULL, KEY(a(6),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=00010002 (HA_KEY_HAS_PART_KEY_SEG|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5789,7 +5789,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(8) NOT NULL, KEY(a(8),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5811,7 +5811,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(12) NOT NULL, KEY(a(8),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5833,7 +5833,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(16) NOT NULL, KEY(a(8),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -5855,7 +5855,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(100) NOT NULL, KEY(a(8),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6185,7 +6185,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(8) NOT NULL, KEY(a(12),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6207,7 +6207,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(12) NOT NULL, KEY(a(12),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6229,7 +6229,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(16) NOT NULL, KEY(a(12),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6251,7 +6251,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(100) NOT NULL, KEY(a(12),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6581,7 +6581,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(8) NOT NULL, KEY(a(16),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6603,7 +6603,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(12) NOT NULL, KEY(a(16),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6625,7 +6625,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(16) NOT NULL, KEY(a(16),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6647,7 +6647,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(100) NOT NULL, KEY(a(16),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6977,7 +6977,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(8) NOT NULL, KEY(a(100),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -6999,7 +6999,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(12) NOT NULL, KEY(a(100),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -7021,7 +7021,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(16) NOT NULL, KEY(a(100),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)
@@ -7043,7 +7043,7 @@ t1	CREATE TABLE `t1` (
 
 CREATE TABLE t1 (a TEXT NOT NULL, b VARCHAR(100) NOT NULL, KEY(a(100),b))
 Level	Code	Message
-Note	1105	DBUG: prep_create_table: name=`a` flags=0001002A (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY|HA_PACK_KEY)
+Note	1105	DBUG: prep_create_table: name=`a` flags=00010028 (HA_KEY_HAS_PART_KEY_SEG|HA_BINARY_PACK_KEY|HA_VAR_LENGTH_KEY)
 Note	1105	DBUG: ha_myisam::create: name=`a` flags=00000020 (HA_BINARY_PACK_KEY)
 Note	1105	DBUG:   seg[0].type=17 VARTEXT2
 Note	1105	DBUG:   seg[0].flag=00000024 (HA_BLOB_PART|HA_PART_KEY_SEG)

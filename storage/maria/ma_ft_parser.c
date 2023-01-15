@@ -1,5 +1,4 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -127,7 +126,7 @@ uchar maria_ft_get_word(CHARSET_INFO *cs, const uchar **start,
   {
     for (; doc < end; doc+= (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1)))
     {
-      mbl= my_ci_ctype(cs, &ctype, doc, end);
+      mbl= cs->cset->ctype(cs, &ctype, doc, end);
       if (true_word_char(ctype, *doc))
         break;
       if (*doc == FTB_RQUOT && param->quot)
@@ -167,7 +166,7 @@ uchar maria_ft_get_word(CHARSET_INFO *cs, const uchar **start,
     for (word->pos= doc; doc < end; length++,
          doc+= (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1)))
     {
-      mbl= my_ci_ctype(cs, &ctype, doc, end);
+      mbl= cs->cset->ctype(cs, &ctype, doc, end);
       if (true_word_char(ctype, *doc))
         mwc=0;
       else if (!misc_word_char(*doc) || mwc)
@@ -220,7 +219,7 @@ uchar maria_ft_simple_get_word(CHARSET_INFO *cs, uchar **start,
     {
       if (doc >= end)
         DBUG_RETURN(0);
-      mbl= my_ci_ctype(cs, &ctype, doc, end);
+      mbl= cs->cset->ctype(cs, &ctype, doc, end);
       if (true_word_char(ctype, *doc))
         break;
     }
@@ -229,7 +228,7 @@ uchar maria_ft_simple_get_word(CHARSET_INFO *cs, uchar **start,
     for (word->pos= doc; doc < end; length++,
          doc+= (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1)))
     {
-      mbl= my_ci_ctype(cs, &ctype, doc, end);
+      mbl= cs->cset->ctype(cs, &ctype, doc, end);
       if (true_word_char(ctype, *doc))
         mwc= 0;
       else if (!misc_word_char(*doc) || mwc)
@@ -347,9 +346,9 @@ MYSQL_FTPARSER_PARAM* maria_ftparser_alloc_param(MARIA_HA *info)
       (ftb_check_phrase_internal, ftb_phrase_add_word). Thus MAX_PARAM_NR=2.
     */
     info->ftparser_param= (MYSQL_FTPARSER_PARAM *)
-      my_malloc(PSI_INSTRUMENT_ME, MAX_PARAM_NR * sizeof(MYSQL_FTPARSER_PARAM) *
+      my_malloc(MAX_PARAM_NR * sizeof(MYSQL_FTPARSER_PARAM) *
                 info->s->ftkeys, MYF(MY_WME | MY_ZEROFILL));
-    init_alloc_root(PSI_INSTRUMENT_ME, &info->ft_memroot,
+    init_alloc_root(&info->ft_memroot, "fulltext_parser",
                     FTPARSER_MEMROOT_ALLOC_SIZE, 0, MYF(0));
   }
   return info->ftparser_param;

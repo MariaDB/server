@@ -834,10 +834,10 @@ public:
     {
       //DBUG_ASSERT(info->read_record == rr_from_tempfile);
       rownum= 0;
-      io_cache= (IO_CACHE*)my_malloc(PSI_INSTRUMENT_ME, sizeof(IO_CACHE), MYF(0));
+      io_cache= (IO_CACHE*)my_malloc(sizeof(IO_CACHE), MYF(0));
       init_slave_io_cache(info->io_cache, io_cache);
 
-      ref_buffer= (uchar*)my_malloc(PSI_INSTRUMENT_ME, ref_length, MYF(0));
+      ref_buffer= (uchar*)my_malloc(ref_length, MYF(0));
       ref_buffer_valid= false;
     }
   }
@@ -2872,7 +2872,7 @@ bool compute_window_func(THD *thd,
 
   List_iterator_fast<Group_bound_tracker> iter_part_trackers(partition_trackers);
   ha_rows rownum= 0;
-  uchar *rowid_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, tbl->file->ref_length, MYF(0));
+  uchar *rowid_buf= (uchar*) my_malloc(tbl->file->ref_length, MYF(0));
 
   while (true)
   {
@@ -2991,14 +2991,6 @@ bool Window_func_runner::add_function_to_run(Item_window_func *win_func)
     case Item_sum::COUNT_DISTINCT_FUNC:
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                "COUNT(DISTINCT) aggregate as window function");
-      return true;
-    case Item_sum::JSON_ARRAYAGG_FUNC:
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "JSON_ARRAYAGG() aggregate as window function");
-      return true;
-    case Item_sum::JSON_OBJECTAGG_FUNC:
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-               "JSON_OBJECTAGG() aggregate as window function");
       return true;
     default:
       break;

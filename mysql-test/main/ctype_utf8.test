@@ -1604,12 +1604,11 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#11764503 (Bug#57341) Query in EXPLAIN EXTENDED shows wrong characters
 --echo #
-
---echo # Emulate utf8 client erroneously started with --default-character-set=latin1,
---echo # # as in the bug report. EXPLAIN output should still be pretty readable
+# Emulate utf8 client erroneously started with --default-character-set=latin1,
+# as in the bug report. EXPLAIN output should still be pretty readable
 SET NAMES latin1;
 EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8'abcdÁÂÃÄÅ' AS u;
---echo # Test normal utf8
+# Test normal utf8
 SET NAMES utf8;
 EXPLAIN EXTENDED SELECT 'abcdÁÂÃÄÅ', _latin1'abcdÁÂÃÄÅ', _utf8'abcdÁÂÃÄÅ';
 
@@ -2310,54 +2309,4 @@ VALUES (_latin1 0xDF) UNION VALUES(_utf8'a' COLLATE utf8_bin);
 
 --echo #
 --echo # End of 10.3 tests
---echo #
-
-
---echo #
---echo # Start of 10.5 tests
---echo #
-
---echo #
---echo # MDEV-20712 Wrong data type for CAST(@a AS BINARY) for a numeric variable
---echo #
-
-SET NAMES utf8;
-SET @a=2;
-CREATE OR REPLACE TABLE t1 AS SELECT CAST(1 AS BINARY), CAST(@a AS BINARY), CAST(@b:=3 AS BINARY);
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
---echo #
---echo # MDEV-20890 Illegal mix of collations with UUID()
---echo #
-
-SET NAMES utf8 COLLATE utf8_unicode_ci;
-SELECT uuid()>'';
-
-
---echo #
---echo # MDEV-8844 Unreadable control characters printed as is in warnings
---echo #
-SET NAMES utf8;
---echo # control, part1
-SELECT CAST(_utf8 0x610062 AS INT);
-SELECT CAST(_utf8 0x610162 AS INT);
-SELECT CAST(_utf8 0x611F62 AS INT);
-
---echo # control, part2: U+0080..U+009F
-SELECT CAST(_utf8 0x617F62 AS INT);
-SELECT CAST(_utf8 0x61C28062 AS INT);
-SELECT CAST(_utf8 0x61C29F62 AS INT);
-
---echo # normal characters
-SELECT CAST(_utf8 0x612062 AS INT);
-SELECT CAST(_utf8 0x617E62 AS INT);
-SELECT CAST(_utf8 0x61C2BF62 AS INT);
-SELECT CAST(_utf8 'ëëë' AS INT);
-SELECT CAST(_utf8 'œœœ' AS INT);
-SELECT CAST(_utf8 'яяя' AS INT);
-
-
---echo #
---echo # End of 10.5 tests
 --echo #

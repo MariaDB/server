@@ -28,7 +28,6 @@
 #include <handler.h>
 #include <table.h>
 #include <field.h>
-#include <sql_limit.h>
 
 static handlerton *sequence_hton;
 
@@ -53,7 +52,7 @@ public:
   }
 };
 
-class ha_seq final : public handler
+class ha_seq: public handler
 {
 private:
   THR_LOCK_DATA lock;
@@ -69,15 +68,10 @@ public:
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
-             HA_CREATE_INFO *create_info)
-  { return HA_ERR_WRONG_COMMAND; }
+             HA_CREATE_INFO *create_info) { return HA_ERR_WRONG_COMMAND; }
 
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
-  int delete_table(const char *name)
-  {
-    return 0;
-  }
   THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type);
 
   /* table scan */
@@ -98,8 +92,9 @@ public:
   int index_prev(uchar *buf);
   int index_first(uchar *buf);
   int index_last(uchar *buf);
-  ha_rows records_in_range(uint inx, const key_range *start_key,
-                           const key_range *end_key, page_range *pages);
+  ha_rows records_in_range(uint inx, key_range *min_key,
+                                   key_range *max_key);
+
   double scan_time() { return (double)nvalues(); }
   double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
   double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
@@ -238,9 +233,8 @@ int ha_seq::index_last(uchar *buf)
   return index_prev(buf);
 }
 
-ha_rows ha_seq::records_in_range(uint inx, const key_range *min_key,
-                                 const key_range *max_key,
-                                 page_range *pages)
+ha_rows ha_seq::records_in_range(uint inx, key_range *min_key,
+                                 key_range *max_key)
 {
   ulonglong kmin= min_key ? uint8korr(min_key->key) : seqs->from;
   ulonglong kmax= max_key ? uint8korr(max_key->key) : seqs->to - 1;
@@ -367,21 +361,15 @@ static int dummy_savepoint(handlerton *, THD *, void *) { return 0; }
 
 class ha_seq_group_by_handler: public group_by_handler
 {
-  Select_limit_counters limit;
   List<Item> *fields;
   TABLE_LIST *table_list;
   bool first_row;
 
 public:
   ha_seq_group_by_handler(THD *thd_arg, List<Item> *fields_arg,
-                          TABLE_LIST *table_list_arg,
-                          Select_limit_counters *orig_lim)
-    : group_by_handler(thd_arg, sequence_hton),  limit(orig_lim[0]),
-      fields(fields_arg), table_list(table_list_arg)
-    {
-      // Reset limit because we are handling it now
-      orig_lim->set_unlimited();
-    }
+                          TABLE_LIST *table_list_arg)
+    : group_by_handler(thd_arg, sequence_hton), fields(fields_arg),
+      table_list(table_list_arg) {}
   ~ha_seq_group_by_handler() {}
   int init_scan() { first_row= 1 ; return 0; }
   int next_row();
@@ -437,8 +425,7 @@ create_group_by_handler(THD *thd, Query *query)
   }
 
   /* Create handler and return it */
-  handler= new ha_seq_group_by_handler(thd, query->select, query->from,
-                                       query->limit);
+  handler= new ha_seq_group_by_handler(thd, query->select, query->from);
   return handler;
 }
 
@@ -453,9 +440,7 @@ int ha_seq_group_by_handler::next_row()
     Check if this is the first call to the function. If not, we have already
     returned all data.
   */
-  if (!first_row ||
-      limit.get_offset_limit() > 0 ||
-      limit.get_select_limit() == 0)
+  if (!first_row)
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   first_row= 0;
 
@@ -497,21 +482,11 @@ int ha_seq_group_by_handler::next_row()
   Initialize the interface between the sequence engine and MariaDB
 *****************************************************************************/
 
-static int drop_table(handlerton *hton, const char *path)
-{
-  const char *name= strrchr(path, FN_LIBCHAR)+1;
-  ulonglong from, to, step;
-  if (parse_table_name(name, strlen(name), &from, &to, &step))
-    return ENOENT;
-  return 0;
-}
-
 static int init(void *p)
 {
   handlerton *hton= (handlerton *)p;
   sequence_hton= hton;
   hton->create= create_handler;
-  hton->drop_table= drop_table;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
   hton->commit= hton->rollback= dummy_commit_rollback;
@@ -541,3 +516,4 @@ maria_declare_plugin(sequence)
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
+

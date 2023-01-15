@@ -545,16 +545,3 @@ SELECT (1,null) NOT IN ((2,2),(3,3)), (1,null) NOT IN ((2,2)), (1,null) NOT IN (
 #
 # End of 10.1 tests
 #
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-20809 EXTRACT from INET6 value does not produce any warnings
-#
-CREATE TABLE t1 (a GEOMETRY);
-SELECT EXTRACT(DAY FROM a) FROM t1;
-ERROR HY000: Illegal parameter data type geometry for operation 'extract(day)'
-DROP TABLE t1;
-#
-# End of 10.5 tests
-#

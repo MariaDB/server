@@ -281,11 +281,8 @@ EOF
 # This is really a name mismatch error, need better error codes.
 -- error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t1 IMPORT TABLESPACE;
---error ER_TABLESPACE_DISCARDED
-select count(*) from t1;
+
 ALTER TABLE t1 DROP INDEX x;
---error ER_CANT_DROP_FIELD_OR_KEY
-ALTER TABLE t1 DROP INDEX x, ALGORITHM=copy;
 ALTER TABLE t1 ADD INDEX idx(c2);
 
 perl;

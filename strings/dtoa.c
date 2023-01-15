@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2012, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2017, 2020, MariaDB Corporation.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public

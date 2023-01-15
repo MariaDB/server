@@ -41,7 +41,7 @@ echo ""
 ./scripts/mysql_install_db --no-defaults
 if [ $? = 0 ]
 then
-  echo "Starting the mariadbd server.  You can test that it is up and running"
+  echo "Starting the mysqld server.  You can test that it is up and running"
   echo "with the command:"
   echo "./bin/mysqladmin version"
   ./bin/mysqld_safe --no-defaults &

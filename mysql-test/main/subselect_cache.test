@@ -432,13 +432,13 @@ select a, a in (select a from t1 where -1 < benchmark(a,100)) from t1 as ext;
 show status like "subquery_cache%";
 drop table t1;
 
---echo #test of big_tables switch and outer table reference in subquery with grouping
-set tmp_memory_table_size=0; # force on-disk tmp table
+--echo #test of sql_big_tables switch and outer table reference in subquery with grouping
+set big_tables=1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 INSERT INTO t1 VALUES (1,1),(2,1),(3,2),(4,2),(5,3),(6,3);
 SELECT (SELECT t1_outer.a FROM t1 AS t1_inner GROUP BY b LIMIT 1) FROM t1 AS t1_outer;
 drop table t1;
-set tmp_memory_table_size=default;
+set big_tables=0;
 
 --echo #test of function reference to outer query
 set local group_concat_max_len=400;

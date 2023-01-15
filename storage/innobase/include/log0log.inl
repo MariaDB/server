@@ -25,9 +25,12 @@ Created 12/9/1995 Heikki Tuuri
 *******************************************************/
 
 #include "mach0data.h"
-#include "assume_aligned.h"
+#include "srv0mon.h"
 #include "ut0crc32.h"
 
+#ifdef UNIV_LOG_LSN_DEBUG
+#include "mtr0types.h"
+#endif /* UNIV_LOG_LSN_DEBUG */
 extern ulong srv_log_buffer_size;
 
 /************************************************************//**
@@ -39,10 +42,13 @@ log_block_get_flush_bit(
 /*====================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-  static_assert(LOG_BLOCK_HDR_NO == 0, "compatibility");
-  static_assert(LOG_BLOCK_FLUSH_BIT_MASK == 0x80000000, "compatibility");
+	if (LOG_BLOCK_FLUSH_BIT_MASK
+	    & mach_read_from_4(log_block + LOG_BLOCK_HDR_NO)) {
 
-  return *log_block & 0x80;
+		return(TRUE);
+	}
+
+	return(FALSE);
 }
 
 /************************************************************//**
@@ -54,13 +60,17 @@ log_block_set_flush_bit(
 	byte*	log_block,	/*!< in/out: log block */
 	ibool	val)		/*!< in: value to set */
 {
-  static_assert(LOG_BLOCK_HDR_NO == 0, "compatibility");
-  static_assert(LOG_BLOCK_FLUSH_BIT_MASK == 0x80000000, "compatibility");
+	ulint	field;
 
-  if (val)
-    *log_block|= 0x80;
-  else
-    *log_block&= 0x7f;
+	field = mach_read_from_4(log_block + LOG_BLOCK_HDR_NO);
+
+	if (val) {
+		field = field | LOG_BLOCK_FLUSH_BIT_MASK;
+	} else {
+		field = field & ~LOG_BLOCK_FLUSH_BIT_MASK;
+	}
+
+	mach_write_to_4(log_block + LOG_BLOCK_HDR_NO, field);
 }
 
 /************************************************************//**
@@ -72,9 +82,8 @@ log_block_get_hdr_no(
 /*=================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-  static_assert(LOG_BLOCK_HDR_NO == 0, "compatibility");
-  return mach_read_from_4(my_assume_aligned<4>(log_block)) &
-    ~LOG_BLOCK_FLUSH_BIT_MASK;
+	return(~LOG_BLOCK_FLUSH_BIT_MASK
+	       & mach_read_from_4(log_block + LOG_BLOCK_HDR_NO));
 }
 
 /************************************************************//**
@@ -88,11 +97,10 @@ log_block_set_hdr_no(
 	ulint	n)		/*!< in: log block number: must be > 0 and
 				< LOG_BLOCK_FLUSH_BIT_MASK */
 {
-  static_assert(LOG_BLOCK_HDR_NO == 0, "compatibility");
-  ut_ad(n > 0);
-  ut_ad(n < LOG_BLOCK_FLUSH_BIT_MASK);
+	ut_ad(n > 0);
+	ut_ad(n < LOG_BLOCK_FLUSH_BIT_MASK);
 
-  mach_write_to_4(my_assume_aligned<4>(log_block), n);
+	mach_write_to_4(log_block + LOG_BLOCK_HDR_NO, n);
 }
 
 /************************************************************//**
@@ -104,8 +112,7 @@ log_block_get_data_len(
 /*===================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-  return mach_read_from_2(my_assume_aligned<2>
-                          (log_block + LOG_BLOCK_HDR_DATA_LEN));
+	return(mach_read_from_2(log_block + LOG_BLOCK_HDR_DATA_LEN));
 }
 
 /************************************************************//**
@@ -117,8 +124,7 @@ log_block_set_data_len(
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	len)		/*!< in: data length */
 {
-  mach_write_to_2(my_assume_aligned<2>(log_block + LOG_BLOCK_HDR_DATA_LEN),
-                  len);
+	mach_write_to_2(log_block + LOG_BLOCK_HDR_DATA_LEN, len);
 }
 
 /************************************************************//**
@@ -131,8 +137,7 @@ log_block_get_first_rec_group(
 /*==========================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-  return mach_read_from_2(my_assume_aligned<2>
-                          (log_block + LOG_BLOCK_FIRST_REC_GROUP));
+	return(mach_read_from_2(log_block + LOG_BLOCK_FIRST_REC_GROUP));
 }
 
 /************************************************************//**
@@ -144,8 +149,7 @@ log_block_set_first_rec_group(
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	offset)		/*!< in: offset, 0 if none */
 {
-  mach_write_to_2(my_assume_aligned<2>
-                  (log_block + LOG_BLOCK_FIRST_REC_GROUP), offset);
+	mach_write_to_2(log_block + LOG_BLOCK_FIRST_REC_GROUP, offset);
 }
 
 /************************************************************//**
@@ -157,8 +161,7 @@ log_block_get_checkpoint_no(
 /*========================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-  return mach_read_from_4(my_assume_aligned<4>
-                          (log_block + LOG_BLOCK_CHECKPOINT_NO));
+	return(mach_read_from_4(log_block + LOG_BLOCK_CHECKPOINT_NO));
 }
 
 /************************************************************//**
@@ -170,8 +173,7 @@ log_block_set_checkpoint_no(
 	byte*		log_block,	/*!< in/out: log block */
 	ib_uint64_t	no)		/*!< in: checkpoint no */
 {
-  mach_write_to_4(my_assume_aligned<4>(log_block + LOG_BLOCK_CHECKPOINT_NO),
-                  static_cast<uint32_t>(no));
+	mach_write_to_4(log_block + LOG_BLOCK_CHECKPOINT_NO, (ulint) no);
 }
 
 /************************************************************//**
@@ -188,10 +190,42 @@ log_block_convert_lsn_to_no(
 			0xFUL, 0x3FFFFFFFUL)) + 1);
 }
 
-/** Calculate the CRC-32C checksum of a log block.
+/** Calculate the checksum for a log block using the pre-5.7.9 algorithm.
+@param[in]	block	log block
+@return		checksum */
+UNIV_INLINE
+ulint
+log_block_calc_checksum_format_0(
+	const byte*	block)
+{
+	ulint	sum;
+	ulint	sh;
+	ulint	i;
+
+	sum = 1;
+	sh = 0;
+
+	for (i = 0; i < OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM; i++) {
+		ulint	b = (ulint) block[i];
+		sum &= 0x7FFFFFFFUL;
+		sum += b;
+		sum += b << sh;
+		sh++;
+		if (sh > 24) {
+			sh = 0;
+		}
+	}
+
+	return(sum);
+}
+
+/** Calculate the checksum for a log block using the MySQL 5.7 algorithm.
 @param[in]	block	log block
 @return checksum */
-inline ulint log_block_calc_checksum_crc32(const byte* block)
+UNIV_INLINE
+ulint
+log_block_calc_checksum_crc32(
+	const byte*	block)
 {
 	return ut_crc32(block, OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM);
 }
@@ -205,9 +239,8 @@ log_block_get_checksum(
 /*===================*/
 	const byte*	log_block)	/*!< in: log block */
 {
-  return mach_read_from_4(my_assume_aligned<4>
-                          (OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM +
-                           log_block));
+	return(mach_read_from_4(log_block + OS_FILE_LOG_BLOCK_SIZE
+				- LOG_BLOCK_CHECKSUM));
 }
 
 /************************************************************//**
@@ -219,9 +252,9 @@ log_block_set_checksum(
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	checksum)	/*!< in: checksum */
 {
-  mach_write_to_4(my_assume_aligned<4>
-                  (OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM +
-                   log_block), checksum);
+	mach_write_to_4(log_block + OS_FILE_LOG_BLOCK_SIZE
+			- LOG_BLOCK_CHECKSUM,
+			checksum);
 }
 
 /************************************************************//**
@@ -255,10 +288,35 @@ log_reserve_and_write_fast(
 	ulint		len,
 	lsn_t*		start_lsn)
 {
-	mysql_mutex_assert_owner(&log_sys.mutex);
+	ut_ad(log_mutex_own());
 	ut_ad(len > 0);
 
+#ifdef UNIV_LOG_LSN_DEBUG
+	/* Append a MLOG_LSN record after mtr_commit(), except when
+	the last bytes could be a MLOG_CHECKPOINT marker. We have special
+	handling when the log consists of only a single MLOG_CHECKPOINT
+	record since the latest checkpoint, and appending the
+	MLOG_LSN would ruin that.
+
+	Note that a longer redo log record could happen to end in what
+	looks like MLOG_CHECKPOINT, and we could be omitting MLOG_LSN
+	without reason. This is OK, because writing the MLOG_LSN is
+	just a 'best effort', aimed at finding log corruption due to
+	bugs in the redo log writing logic. */
+	const ulint	lsn_len
+		= len >= SIZE_OF_MLOG_CHECKPOINT
+		&& MLOG_CHECKPOINT == static_cast<const char*>(str)[
+			len - SIZE_OF_MLOG_CHECKPOINT]
+		? 0
+		: 1
+		+ mach_get_compressed_size(log_sys.lsn >> 32)
+		+ mach_get_compressed_size(log_sys.lsn & 0xFFFFFFFFUL);
+#endif /* UNIV_LOG_LSN_DEBUG */
+
 	const ulint	data_len = len
+#ifdef UNIV_LOG_LSN_DEBUG
+		+ lsn_len
+#endif /* UNIV_LOG_LSN_DEBUG */
 		+ log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
 
 	if (data_len >= log_sys.trailer_offset()) {
@@ -269,9 +327,26 @@ log_reserve_and_write_fast(
 		return(0);
 	}
 
-	lsn_t lsn = log_sys.get_lsn();
-	*start_lsn = lsn;
+	*start_lsn = log_sys.lsn;
 
+#ifdef UNIV_LOG_LSN_DEBUG
+	if (lsn_len) {
+		/* Write the LSN pseudo-record. */
+		byte* b = &log_sys.buf[log_sys.buf_free];
+
+		*b++ = MLOG_LSN | (MLOG_SINGLE_REC_FLAG & *(const byte*) str);
+
+		/* Write the LSN in two parts,
+		as a pseudo page number and space id. */
+		b += mach_write_compressed(b, log_sys.lsn >> 32);
+		b += mach_write_compressed(b, log_sys.lsn & 0xFFFFFFFFUL);
+		ut_a(b - lsn_len == &log_sys.buf[log_sys.buf_free]);
+
+		::memcpy(b, str, len);
+
+		len += lsn_len;
+	} else
+#endif /* UNIV_LOG_LSN_DEBUG */
 	memcpy(log_sys.buf + log_sys.buf_free, str, len);
 
 	log_block_set_data_len(
@@ -280,14 +355,97 @@ log_reserve_and_write_fast(
                         OS_FILE_LOG_BLOCK_SIZE)),
                 data_len);
 
-	log_sys.buf_free += len;
+	log_sys.buf_free += ulong(len);
 
-	ut_ad(log_sys.buf_free <= size_t{srv_log_buffer_size});
+	ut_ad(log_sys.buf_free <= srv_log_buffer_size);
 
-	lsn += len;
-	log_sys.set_lsn(lsn);
+	log_sys.lsn += len;
 
-	return lsn;
+	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
+		    log_sys.lsn - log_sys.last_checkpoint_lsn);
+
+	return(log_sys.lsn);
+}
+
+/************************************************************//**
+Gets the current lsn.
+@return current lsn */
+UNIV_INLINE
+lsn_t
+log_get_lsn(void)
+/*=============*/
+{
+	lsn_t	lsn;
+
+	log_mutex_enter();
+
+	lsn = log_sys.lsn;
+
+	log_mutex_exit();
+
+	return(lsn);
+}
+
+/************************************************************//**
+Gets the last lsn that is fully flushed to disk.
+@return	last flushed lsn */
+UNIV_INLINE
+ib_uint64_t
+log_get_flush_lsn(void)
+{
+	ib_uint64_t	lsn;
+
+	log_mutex_enter();
+
+	lsn = log_sys.flushed_to_disk_lsn;
+
+	log_mutex_exit();
+
+	return(lsn);
+}
+
+/************************************************************//**
+Gets the current lsn with a trylock
+@return	current lsn or 0 if false*/
+UNIV_INLINE
+lsn_t
+log_get_lsn_nowait(void)
+/*====================*/
+{
+	lsn_t	lsn=0;
+
+	if (!mutex_enter_nowait(&(log_sys.mutex))) {
+
+		lsn = log_sys.lsn;
+
+		mutex_exit(&(log_sys.mutex));
+	}
+
+	return(lsn);
+}
+
+/****************************************************************
+Gets the log group capacity. It is OK to read the value without
+holding log_sys.mutex because it is constant.
+@return log group capacity */
+UNIV_INLINE
+lsn_t
+log_get_capacity(void)
+/*==================*/
+{
+	return(log_sys.log_group_capacity);
+}
+
+/****************************************************************
+Get log_sys::max_modified_age_async. It is OK to read the value without
+holding log_sys::mutex because it is constant.
+@return max_modified_age_async */
+UNIV_INLINE
+lsn_t
+log_get_max_modified_age_async(void)
+/*================================*/
+{
+	return(log_sys.max_modified_age_async);
 }
 
 /***********************************************************************//**
@@ -319,7 +477,7 @@ log_free_check(void)
 		      sync_allowed_latches(latches,
 					   latches + UT_ARR_SIZE(latches))));
 
-	if (log_sys.check_flush_or_checkpoint()) {
+	if (log_sys.check_flush_or_checkpoint) {
 
 		log_check_margins();
 	}

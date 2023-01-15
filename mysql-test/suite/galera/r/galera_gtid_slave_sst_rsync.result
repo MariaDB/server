@@ -25,14 +25,14 @@ INSERT INTO t2 VALUES(5,55);
 INSERT INTO t2 VALUES(6,66);
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
-1-1-3,2-3-4
+0-2-3,2-3-4
 #Connection 1
 connection node_1;
 INSERT INTO t2 VALUES(7,77);
 INSERT INTO t2 VALUES(8,88);
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
-1-1-5,2-3-4
+1-1-2,2-3-4,2-2-7
 #Connection 3
 connection node_3;
 CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
@@ -100,12 +100,12 @@ node2_committed_before
 connection node_1;
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
-1-1-8,2-3-6
+1-1-3,2-3-6,2-2-9
 #Connection 2
 connection node_2;
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
-1-1-8,2-3-6
+0-1-7,0-2-8,2-3-6
 #Connection 3
 connection node_3;
 SET AUTOCOMMIT=ON;
@@ -134,7 +134,7 @@ count(*)
 12
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
-1-1-11,2-3-7
+0-1-7,0-2-11,2-3-7
 #Connection 1
 connection node_1;
 SELECT count(*) from t1;
@@ -142,7 +142,7 @@ count(*)
 12
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
-1-1-11,2-3-7
+1-1-3,2-3-7,2-2-12
 #Connection 3
 connection node_3;
 DROP TABLE t2,t1;
@@ -166,5 +166,3 @@ set global wsrep_on=ON;
 #Connection 3
 connection node_3;
 reset master;
-connection node_2;
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

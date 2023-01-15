@@ -17,21 +17,14 @@
 #include "myrg_def.h"
 
 ha_rows myrg_records_in_range(MYRG_INFO *info, int inx,
-                              const key_range *min_key,
-                              const key_range *max_key,
-                              page_range *pages)
+                              key_range *min_key, key_range *max_key)
 {
   ha_rows records=0, res;
   MYRG_TABLE *table;
-  page_range ignore_pages;
-
-  /* Don't calculate pages of more than one active partition */
-  if (info->open_tables +1 != info->end_table)
-    pages= &ignore_pages;
 
   for (table=info->open_tables ; table != info->end_table ; table++)
   {
-    res= mi_records_in_range(table->table, inx, min_key, max_key, pages);
+    res= mi_records_in_range(table->table, inx, min_key, max_key);
     if (res == HA_POS_ERROR)
       return HA_POS_ERROR; 
     if (records > HA_POS_ERROR - res)

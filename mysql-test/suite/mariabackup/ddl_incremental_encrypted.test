@@ -1,0 +1,66 @@
+#
+# If MDEV-20755 bug is no fixed, incremental prepare will fail.
+#
+--source include/have_debug.inc
+--source include/have_file_key_management.inc
+
+--let $base_dir=$MYSQLTEST_VARDIR/tmp/backup
+--let $inc_dir=$MYSQLTEST_VARDIR/tmp/backup_inc
+
+SET @old_innodb_log_optimize_ddl=@@global.innodb_log_optimize_ddl;
+SET GLOBAL innodb_log_optimize_ddl=ON;
+
+# Disable pages flushing to allow redo log records to be executed on --prepare.
+SET @old_debug_dbug=@@global.debug_dbug;
+SET GLOBAL debug_dbug="+d,ib_log_checkpoint_avoid";
+SET @old_innodb_page_cleaner_disabled_debug=@@global.innodb_page_cleaner_disabled_debug;
+SET GLOBAL innodb_page_cleaner_disabled_debug=ON;
+
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--echo # backup
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$base_dir
+--enable_result_log
+
+# Do not log crypt data to avoid it's execution on --prepare.
+SET GLOBAL debug_dbug="+d,ib_do_not_log_crypt_data";
+INSERT INTO t1 VALUES (2);
+
+--disable_result_log
+
+# Execute OPTIMIZE TABLE after the table is copied to execute optimized ddl
+# callback during backup, which, in turns, will create t1.new file in backup
+# directory.
+--let after_copy_test_t1=OPTIMIZE TABLE test.t1;
+
+--echo # incremental backup
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$inc_dir --incremental-basedir=$base_dir --dbug=+d,mariabackup_events
+
+--echo # prepare
+--exec $XTRABACKUP --prepare --target-dir=$base_dir
+
+# If the tablespace is created during delta tablespace open procedure, then
+# crypt data will be not written, and page corruption test will not pass
+# when some redo log event is executed, and --prepare will fail.
+--echo # incremental prepare
+--exec $XTRABACKUP --prepare --target-dir=$base_dir --incremental-dir=$inc_dir
+
+--enable_result_log
+
+SET GLOBAL innodb_log_optimize_ddl=@old_innodb_log_optimize_ddl;
+SET GLOBAL innodb_page_cleaner_disabled_debug=@old_innodb_page_cleaner_disabled_debug;
+SET GLOBAL debug_dbug=@old_debug_dbug;
+
+--echo # Restore and check results
+--let $targetdir=$base_dir
+--source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT count(*) FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+--rmdir $base_dir
+--rmdir $inc_dir

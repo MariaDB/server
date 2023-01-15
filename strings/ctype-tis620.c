@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009-2011, Monty Program Ab
    Copyright (C) 2003  by Sathit Jittanupat
           <jsat66@hotmail.com,jsat66@yahoo.com>
 	* solving bug crash with long text field string
@@ -39,8 +39,6 @@
 #include <my_sys.h>
 
 #ifdef HAVE_CHARSET_tis620
-
-const char charset_name_tis620[]= "tis620";
 
 #define M  L_MIDDLE
 #define U  L_UPPER
@@ -526,7 +524,7 @@ int my_strnncoll_tis620(CHARSET_INFO *cs __attribute__((unused)),
 
   tc1= buf;
   if ((len1 + len2 +2) > (int) sizeof(buf))
-    tc1= (uchar*) my_malloc(PSI_INSTRUMENT_ME, len1+len2+2, MYF(MY_FAE));
+    tc1= (uchar*) my_malloc(len1+len2+2, MYF(MY_FAE));
   tc2= tc1 + len1+1;
   memcpy((char*) tc1, (char*) s1, len1);
   tc1[len1]= 0;		/* if length(s1)> len1, need to put 'end of string' */
@@ -552,7 +550,7 @@ int my_strnncollsp_tis620(CHARSET_INFO * cs __attribute__((unused)),
 
   a= buf;
   if ((a_length + b_length +2) > (int) sizeof(buf))
-    alloced= a= (uchar*) my_malloc(PSI_INSTRUMENT_ME, a_length+b_length+2, MYF(MY_FAE));
+    alloced= a= (uchar*) my_malloc(a_length+b_length+2, MYF(MY_FAE));
   
   b= a + a_length+1;
   if (a_length)
@@ -629,7 +627,7 @@ my_strnxfrm_tis620(CHARSET_INFO *cs,
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len < dstlen0)
   {
     size_t fill_length= dstlen0 - len;
-    my_ci_fill(cs, (char*) dst + len, fill_length, cs->pad_char);
+    cs->cset->fill(cs, (char*) dst + len, fill_length, cs->pad_char);
     len= dstlen0;
   }
   return len;
@@ -923,7 +921,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
-    my_wc_to_printable_generic
 };
 
 
@@ -932,7 +929,7 @@ struct charset_info_st my_charset_tis620_thai_ci=
 {
     18,0,0,		/* number    */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_NON1TO1, /* state     */
-    charset_name_tis620,		/* cs name    */
+    "tis620",		/* cs name    */
     "tis620_thai_ci",	/* name      */
     "",			/* comment   */
     NULL,		/* tailoring */
@@ -964,7 +961,7 @@ struct charset_info_st my_charset_tis620_bin=
 {
     89,0,0,		/* number    */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state     */
-    charset_name_tis620,		/* cs name    */
+    "tis620",		/* cs name    */
     "tis620_bin",	/* name      */
     "",			/* comment   */
     NULL,		/* tailoring */
@@ -997,7 +994,7 @@ struct charset_info_st my_charset_tis620_thai_nopad_ci=
 {
     MY_NOPAD_ID(18),0,0,   /* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NON1TO1|MY_CS_NOPAD, /* state */
-    charset_name_tis620,              /* cs name          */
+    "tis620",              /* cs name          */
     "tis620_thai_nopad_ci",/* name             */
     "",                    /* comment          */
     NULL,                  /* tailoring        */
@@ -1030,7 +1027,7 @@ struct charset_info_st my_charset_tis620_nopad_bin=
 {
     MY_NOPAD_ID(89),0,0,   /* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    charset_name_tis620,              /* cs name          */
+    "tis620",              /* cs name          */
     "tis620_nopad_bin",    /* name             */
     "",                    /* comment          */
     NULL,                  /* tailoring        */

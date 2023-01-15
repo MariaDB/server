@@ -25,13 +25,13 @@
                                            // date_add_interval,
                                            // calc_time_diff
 #include "tztime.h"     // my_tz_find, my_tz_OFFSET0, struct Time_zone
+#include "sql_acl.h"    // EVENT_ACL, SUPER_ACL
 #include "sp.h"         // load_charset, load_collation
 #include "events.h"
 #include "event_data_objects.h"
 #include "event_db_repository.h"
 #include "sp_head.h"
 #include "sql_show.h"                // append_definer, append_identifier
-#include "mysql/psi/mysql_sp.h"
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
@@ -40,18 +40,6 @@
   @addtogroup Event_Scheduler
   @{
 */
-
-#ifdef HAVE_PSI_INTERFACE
-void init_scheduler_psi_keys()
-{
-  const char *category= "scheduler";
-
-  PSI_server->register_statement(category, & Event_queue_element_for_exec::psi_info, 1);
-}
-
-PSI_statement_info Event_queue_element_for_exec::psi_info=
-{ 0, "event", 0};
-#endif
 
 /*************************************************************************/
 
@@ -186,13 +174,11 @@ Event_creation_ctx::load_from_db(THD *thd,
 */
 
 bool
-Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n)
+Event_queue_element_for_exec::init(const LEX_CSTRING *db, const LEX_CSTRING *n)
 {
-  if (!(dbname.str= my_strndup(key_memory_Event_queue_element_for_exec_names,
-                               db.str, dbname.length= db.length, MYF(MY_WME))))
+  if (!(dbname.str= my_strndup(db->str, dbname.length= db->length, MYF(MY_WME))))
     return TRUE;
-  if (!(name.str= my_strndup(key_memory_Event_queue_element_for_exec_names,
-                             n.str, name.length= n.length, MYF(MY_WME))))
+  if (!(name.str= my_strndup(n->str, name.length= n->length, MYF(MY_WME))))
   {
     my_free(const_cast<char*>(dbname.str));
     dbname.str= NULL;
@@ -227,7 +213,7 @@ Event_basic::Event_basic()
 {
   DBUG_ENTER("Event_basic::Event_basic");
   /* init memory root */
-  init_sql_alloc(key_memory_event_basic_root, &mem_root, 256, 512, MYF(0));
+  init_sql_alloc(&mem_root, "Event_basic", 256, 512, MYF(0));
   dbname.str= name.str= NULL;
   dbname.length= name.length= 0;
   time_zone= NULL;
@@ -1441,23 +1427,15 @@ Event_job_data::execute(THD *thd, bool drop)
 
   {
     Parser_state parser_state;
-    sql_digest_state *parent_digest= thd->m_digest;
-    PSI_statement_locker *parent_locker= thd->m_statement_psi;
-    bool res;
-
     if (parser_state.init(thd, thd->query(), thd->query_length()))
       goto end;
 
-    thd->m_digest= NULL;
-    thd->m_statement_psi= NULL;
-    res= parse_sql(thd, & parser_state, creation_ctx);
-    thd->m_digest= parent_digest;
-    thd->m_statement_psi= parent_locker;
-
-    if (res)
+    if (parse_sql(thd, & parser_state, creation_ctx))
     {
-      sql_print_error("Event Scheduler: %serror during compilation of %s.%s",
-                      thd->is_fatal_error ? "fatal " : "", dbname.str, name.str);
+      sql_print_error("Event Scheduler: "
+                      "%serror during compilation of %s.%s",
+                      thd->is_fatal_error ? "fatal " : "",
+                      (const char *) dbname.str, (const char *) name.str);
       goto end;
     }
   }
@@ -1480,9 +1458,6 @@ Event_job_data::execute(THD *thd, bool drop)
     sphead->set_creation_ctx(creation_ctx);
     sphead->optimize();
 
-    sphead->m_sp_share= MYSQL_GET_SP_SHARE(SP_TYPE_EVENT,
-                                           dbname.str, static_cast<uint>(dbname.length),
-                                           name.str, static_cast<uint>(name.length));
     ret= sphead->execute_procedure(thd, &empty_item_list);
     /*
       There is no pre-locking and therefore there should be no
@@ -1507,6 +1482,8 @@ end:
       ret= 1;
     else
     {
+      ulong saved_master_access;
+
       thd->set_query(sp_sql.c_ptr_safe(), sp_sql.length());
 
       /*
@@ -1518,8 +1495,8 @@ end:
         Temporarily reset it to read-write.
       */
 
-      privilege_t saved_master_access(thd->security_ctx->master_access);
-      thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
+      saved_master_access= thd->security_ctx->master_access;
+      thd->security_ctx->master_access |= SUPER_ACL;
       bool save_tx_read_only= thd->tx_read_only;
       thd->tx_read_only= false;
 

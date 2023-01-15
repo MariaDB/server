@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,7 +26,7 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -34,15 +34,8 @@
 #include "pfs_global.h"
 #include "pfs_account.h"
 #include "pfs_visitor.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_esgs_by_host_by_event_name::m_table_lock;
-
-PFS_engine_table_share_state
-table_esgs_by_host_by_event_name::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_esgs_by_host_by_event_name::m_share=
@@ -52,7 +45,8 @@ table_esgs_by_host_by_event_name::m_share=
   table_esgs_by_host_by_event_name::create,
   NULL, /* write_row */
   table_esgs_by_host_by_event_name::delete_all_rows,
-  table_esgs_by_host_by_event_name::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(pos_esgs_by_host_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_summary_by_host_by_event_name("
@@ -62,10 +56,7 @@ table_esgs_by_host_by_event_name::m_share=
                       "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the timed summarized events.',"
                       "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the timed summarized events.',"
                       "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the timed summarized events.',"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the timed summarized events.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the timed summarized events.')") }
 };
 
 PFS_engine_table*
@@ -81,12 +72,6 @@ table_esgs_by_host_by_event_name::delete_all_rows(void)
   reset_events_stages_by_account();
   reset_events_stages_by_host();
   return 0;
-}
-
-ha_rows
-table_esgs_by_host_by_event_name::get_row_count(void)
-{
-  return global_host_container.get_row_count() * stage_class_max;
 }
 
 table_esgs_by_host_by_event_name::table_esgs_by_host_by_event_name()
@@ -110,14 +95,13 @@ int table_esgs_by_host_by_event_name::rnd_next(void)
 {
   PFS_host *host;
   PFS_stage_class *stage_class;
-  bool has_more_host= true;
 
   for (m_pos.set_at(&m_next_pos);
-       has_more_host;
+       m_pos.has_more_host();
        m_pos.next_host())
   {
-    host= global_host_container.get(m_pos.m_index_1, & has_more_host);
-    if (host != NULL)
+    host= &host_array[m_pos.m_index_1];
+    if (host->m_lock.is_populated())
     {
       stage_class= find_stage_class(m_pos.m_index_2);
       if (stage_class)
@@ -139,16 +123,17 @@ table_esgs_by_host_by_event_name::rnd_pos(const void *pos)
   PFS_stage_class *stage_class;
 
   set_position(pos);
+  DBUG_ASSERT(m_pos.m_index_1 < host_max);
 
-  host= global_host_container.get(m_pos.m_index_1);
-  if (host != NULL)
+  host= &host_array[m_pos.m_index_1];
+  if (! host->m_lock.is_populated())
+    return HA_ERR_RECORD_DELETED;
+
+  stage_class= find_stage_class(m_pos.m_index_2);
+  if (stage_class)
   {
-    stage_class= find_stage_class(m_pos.m_index_2);
-    if (stage_class)
-    {
-      make_row(host, stage_class);
-      return 0;
-    }
+    make_row(host, stage_class);
+    return 0;
   }
 
   return HA_ERR_RECORD_DELETED;
@@ -157,7 +142,7 @@ table_esgs_by_host_by_event_name::rnd_pos(const void *pos)
 void table_esgs_by_host_by_event_name
 ::make_row(PFS_host *host, PFS_stage_class *klass)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   m_row_exists= false;
 
   host->m_lock.begin_optimistic_lock(&lock);
@@ -168,11 +153,7 @@ void table_esgs_by_host_by_event_name
   m_row.m_event_name.make_row(klass);
 
   PFS_connection_stage_visitor visitor(klass);
-  PFS_connection_iterator::visit_host(host,
-                                      true,  /* accounts */
-                                      true,  /* threads */
-                                      false, /* THDs */
-                                      & visitor);
+  PFS_connection_iterator::visit_host(host, true, true, & visitor);
 
   if (! host->m_lock.end_optimistic_lock(&lock))
     return;
@@ -191,7 +172,7 @@ int table_esgs_by_host_by_event_name
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)

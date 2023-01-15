@@ -30,13 +30,6 @@
 #include "sql_list.h"
 
 class String;
-#ifdef MYSQL_SERVER
-extern PSI_memory_key key_memory_String_value;
-#define STRING_PSI_MEMORY_KEY key_memory_String_value
-#else
-#define STRING_PSI_MEMORY_KEY PSI_NOT_INSTRUMENTED
-#endif
-
 typedef struct st_io_cache IO_CACHE;
 typedef struct st_mem_root MEM_ROOT;
 
@@ -67,7 +60,7 @@ class Well_formed_prefix_status: public String_copy_status
 public:
   Well_formed_prefix_status(CHARSET_INFO *cs,
                             const char *str, const char *end, size_t nchars)
-  { cs->well_formed_char_length(str, end, nchars, this); }
+  { cs->cset->well_formed_char_length(cs, str, end, nchars, this); }
 };
 
 
@@ -148,26 +141,20 @@ public:
   Charset(CHARSET_INFO *cs) :m_charset(cs) { }
 
   CHARSET_INFO *charset() const { return m_charset; }
-  bool use_mb() const { return m_charset->use_mb(); }
   uint mbminlen() const { return m_charset->mbminlen; }
   uint mbmaxlen() const { return m_charset->mbmaxlen; }
-  bool is_good_for_ft() const
-  {
-    // Binary and UCS2/UTF16/UTF32 are not supported
-    return m_charset != &my_charset_bin && m_charset->mbminlen == 1;
-  }
 
   size_t numchars(const char *str, const char *end) const
   {
-    return m_charset->numchars(str, end);
+    return m_charset->cset->numchars(m_charset, str, end);
   }
   size_t lengthsp(const char *str, size_t length) const
   {
-    return m_charset->lengthsp(str, length);
+    return m_charset->cset->lengthsp(m_charset, str, length);
   }
   size_t charpos(const char *str, const char *end, size_t pos) const
   {
-    return m_charset->charpos(str, end, pos);
+    return m_charset->cset->charpos(m_charset, str, end, pos);
   }
   void set_charset(CHARSET_INFO *charset_arg)
   {
@@ -226,6 +213,18 @@ public:
   inline bool is_empty() const { return (str_length == 0); }
   inline const char *ptr() const { return Ptr; }
   inline const char *end() const { return Ptr + str_length; }
+
+  LEX_STRING lex_string() const
+  {
+    LEX_STRING str = { (char*) ptr(), length() };
+    return str;
+  }
+  LEX_CSTRING lex_cstring() const
+  {
+    LEX_CSTRING skr = { ptr(), length() };
+    return skr;
+  }
+
   bool has_8bit_bytes() const
   {
     for (const char *c= ptr(), *c_end= end(); c < c_end; c++)
@@ -351,7 +350,7 @@ public:
   void qs_append_hex(const char *str, uint32 len);
   void qs_append_hex_uint32(uint32 num);
   void qs_append(double d);
-  void qs_append(const double *d);
+  void qs_append(double *d);
   inline void qs_append(const char c)
   {
      Ptr[str_length]= c;
@@ -482,12 +481,6 @@ public:
     if (str.Alloced_length)
       Alloced_length= (uint32) (str.Alloced_length - offset);
   }
-  inline LEX_CSTRING *get_value(LEX_CSTRING *res)
-  {
-    res->str=    Ptr;
-    res->length= str_length;
-    return res;
-  }
 
   /* Take over handling of buffer from some other object */
   void reset(char *ptr_arg, size_t length_arg, size_t alloced_length_arg)
@@ -537,15 +530,6 @@ public:
   bool copy(const char *s, size_t arg_length);	// Allocate new string
   bool copy_or_move(const char *s,size_t arg_length);
 
-  /**
-    Convert a string to a printable format.
-    All non-convertable and control characters are replaced to 5-character
-    sequences '\hhhh'.
-  */
-  bool copy_printable_hhhh(CHARSET_INFO *to_cs,
-                           CHARSET_INFO *from_cs,
-                           const char *from, size_t from_length);
-
   bool append_ulonglong(ulonglong val);
   bool append_longlong(longlong val);
 
@@ -557,10 +541,6 @@ public:
       return true;
     q_append(s, size);
     return false;
-  }
-  bool append(const LEX_CSTRING &s)
-  {
-    return append(s.str, s.length);
   }
   bool append(const Binary_string &s)
   {
@@ -677,8 +657,28 @@ public:
     return realloc_with_extra(arg_length);
   }
   // Shrink the buffer, but only if it is allocated on the heap.
-  void shrink(size_t arg_length);
-
+  inline void shrink(size_t arg_length)
+  {
+    if (!is_alloced())
+      return;
+    if (ALIGN_SIZE(arg_length+1) < Alloced_length)
+    {
+      char *new_ptr;
+      if (unlikely(!(new_ptr=(char*)
+                     my_realloc(Ptr,
+                                arg_length,MYF((thread_specific ?
+                                                MY_THREAD_SPECIFIC : 0))))))
+      {
+        Alloced_length= 0;
+        real_alloc(arg_length);
+      }
+      else
+      {
+        Ptr= new_ptr;
+        Alloced_length= (uint32) arg_length;
+      }
+    }
+  }
   void move(Binary_string &s)
   {
     set_alloced(s.Ptr, s.str_length, s.Alloced_length);
@@ -857,15 +857,6 @@ public:
   bool copy_aligned(const char *s, size_t arg_length, size_t offset,
 		    CHARSET_INFO *cs);
   bool set_or_copy_aligned(const char *s, size_t arg_length, CHARSET_INFO *cs);
-  bool can_be_safely_converted_to(CHARSET_INFO *tocs) const
-  {
-    if (charset() == &my_charset_bin)
-      return Well_formed_prefix(tocs, ptr(), length()).length() == length();
-    String try_val;
-    uint try_conv_error= 0;
-    try_val.copy(ptr(), length(), charset(), tocs, &try_conv_error);
-    return try_conv_error == 0;
-  }
   bool copy(const char*s, size_t arg_length, CHARSET_INFO *csfrom,
 	    CHARSET_INFO *csto, uint *errors);
   bool copy(const String *str, CHARSET_INFO *tocs, uint *errors)
@@ -899,14 +890,6 @@ public:
   bool append_hex(const uchar *src, uint32 srclen)
   {
     return Binary_string::append_hex((const char*)src, srclen);
-  }
-  bool append_introducer_and_hex(const String *str)
-  {
-    return
-      append(STRING_WITH_LEN("_"))   ||
-      append(str->charset()->csname)  ||
-      append(STRING_WITH_LEN(" 0x")) ||
-      append_hex(str->ptr(), (uint32) str->length());
   }
   bool append(IO_CACHE* file, uint32 arg_length)
   {
@@ -1089,15 +1072,6 @@ public:
 };
 
 
-template<size_t buff_sz>
-class BinaryStringBuffer : public Binary_string
-{
-  char buff[buff_sz];
-public:
-  BinaryStringBuffer() : Binary_string(buff, buff_sz) { length(0); }
-};
-
-
 class String_space: public String
 {
 public:
@@ -1113,7 +1087,7 @@ static inline bool check_if_only_end_space(CHARSET_INFO *cs,
                                            const char *str,
                                            const char *end)
 {
-  return str + cs->scan(str, end, MY_SEQ_SPACES) == end;
+  return str+ cs->cset->scan(cs, str, end, MY_SEQ_SPACES) == end;
 }
 
 int append_query_string(CHARSET_INFO *csinfo, String *to,

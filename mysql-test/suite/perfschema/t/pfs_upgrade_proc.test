@@ -9,7 +9,7 @@
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
---echo # Testing mysql_upgrade with PROCEDURE performance_schema.user_proc
+--echo "Testing mysql_upgrade with PROCEDURE performance_schema.user_proc"
 
 create procedure test.user_proc()
   select "Not supposed to be here";

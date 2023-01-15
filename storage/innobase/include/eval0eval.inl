@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -231,7 +230,7 @@ eval_node_copy_and_alloc_val(
 
 	data = eval_node_ensure_val_buf(node, len);
 
-	memcpy(data, str, len);
+	ut_memcpy(data, str, len);
 }
 
 /*****************************************************************//**

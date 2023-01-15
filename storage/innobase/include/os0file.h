@@ -37,14 +37,19 @@ Created 10/21/1995 Heikki Tuuri
 #define os0file_h
 
 #include "fsp0types.h"
-#include "tpool.h"
-#include "my_counter.h"
+#include "os0api.h"
 
 #ifndef _WIN32
 #include <dirent.h>
 #include <sys/stat.h>
 #include <time.h>
 #endif /* !_WIN32 */
+
+#include "my_counter.h"
+
+/** File node of a tablespace or the log data space */
+struct fil_node_t;
+struct fil_space_t;
 
 extern bool	os_has_said_disk_full;
 
@@ -61,7 +66,7 @@ the OS actually supports it: Win 95 does not, NT does. */
 # define UNIV_NON_BUFFERED_IO
 
 /** File handle */
-typedef native_file_handle os_file_t;
+typedef HANDLE os_file_t;
 
 
 #else /* _WIN32 */
@@ -95,14 +100,6 @@ struct pfs_os_file_t
 	/** Assignment operator.
 	@param[in]	file	file handle to be assigned */
 	void operator=(os_file_t file) { m_file = file; }
-	bool operator==(os_file_t file) const { return m_file == file; }
-	bool operator!=(os_file_t file) const { return !(*this == file); }
-#ifndef DBUG_OFF
-	friend std::ostream& operator<<(std::ostream& os, pfs_os_file_t f){
-		os << os_file_t(f);
-		return os;
-	}
-#endif
 };
 
 /** The next value should be smaller or equal to the smallest sector size used
@@ -174,81 +171,259 @@ static const ulint OS_FILE_OPERATION_NOT_SUPPORTED = 125;
 static const ulint OS_FILE_ERROR_MAX = 200;
 /* @} */
 
+/** Types for AIO operations @{ */
+
+/** No transformations during read/write, write as is. */
+#define IORequestRead		IORequest(IORequest::READ)
+#define IORequestWrite		IORequest(IORequest::WRITE)
+#define IORequestLogRead	IORequest(IORequest::LOG | IORequest::READ)
+#define IORequestLogWrite	IORequest(IORequest::LOG | IORequest::WRITE)
+
+
+
 /**
-The I/O context that is passed down to the low level IO code */
-class IORequest
-{
+The IO Context that is passed down to the low level IO code */
+class IORequest {
 public:
-  enum Type
-  {
-    /** Synchronous read */
-    READ_SYNC= 2,
-    /** Asynchronous read; some errors will be ignored */
-    READ_ASYNC= READ_SYNC | 1,
-    /** Possibly partial read; only used with
-    os_file_read_no_error_handling() */
-    READ_MAYBE_PARTIAL= READ_SYNC | 4,
-    /** Read for doublewrite buffer recovery */
-    DBLWR_RECOVER= READ_SYNC | 8,
-    /** Synchronous write */
-    WRITE_SYNC= 16,
-    /** Asynchronous write */
-    WRITE_ASYNC= WRITE_SYNC | 1,
-    /** A doublewrite batch */
-    DBLWR_BATCH= WRITE_ASYNC | 8,
-    /** Write data; evict the block on write completion */
-    WRITE_LRU= WRITE_ASYNC | 32,
-    /** Write data and punch hole for the rest */
-    PUNCH= WRITE_ASYNC | 64,
-    /** Write data and punch hole; evict the block on write completion */
-    PUNCH_LRU= PUNCH | WRITE_LRU,
-    /** Zero out a range of bytes in fil_space_t::io() */
-    PUNCH_RANGE= WRITE_SYNC | 128,
-  };
+	/** Flags passed in the request, they can be ORred together. */
+	enum {
+		READ = 1,
+		WRITE = 2,
 
-  constexpr IORequest(buf_page_t *bpage, fil_node_t *node, Type type) :
-    bpage(bpage), node(node), type(type) {}
+		/** Double write buffer recovery. */
+		DBLWR_RECOVER = 4,
 
-  constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr) :
-    bpage(bpage), type(type) {}
+		/** Enumarations below can be ORed to READ/WRITE above*/
 
-  bool is_read() const { return (type & READ_SYNC) != 0; }
-  bool is_write() const { return (type & WRITE_SYNC) != 0; }
-  bool is_LRU() const { return (type & (WRITE_LRU ^ WRITE_ASYNC)) != 0; }
-  bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
+		/** Data file */
+		DATA_FILE = 8,
 
-  /** If requested, free storage space associated with a section of the file.
-  @param off   byte offset from the start (SEEK_SET)
-  @param len   size of the hole in bytes
-  @return DB_SUCCESS or error code */
-  dberr_t maybe_punch_hole(os_offset_t off, ulint len)
-  {
-    return off && len && node && (type & (PUNCH ^ WRITE_ASYNC))
-      ? punch_hole(off, len)
-      : DB_SUCCESS;
-  }
+		/** Log file request*/
+		LOG = 16,
+
+		/** Disable partial read warnings */
+		DISABLE_PARTIAL_IO_WARNINGS = 32,
+
+		/** Do not to wake i/o-handler threads, but the caller will do
+		the waking explicitly later, in this way the caller can post
+		several requests in a batch; NOTE that the batch must not be
+		so big that it exhausts the slots in AIO arrays! NOTE that
+		a simulated batch may introduce hidden chances of deadlocks,
+		because I/Os are not actually handled until all
+		have been posted: use with great caution! */
+		DO_NOT_WAKE = 64,
+
+		/** Ignore failed reads of non-existent pages */
+		IGNORE_MISSING = 128,
+
+		/** Use punch hole if available*/
+		PUNCH_HOLE = 256,
+	};
+
+	/** Default constructor */
+	IORequest()
+		:
+		m_bpage(NULL),
+		m_fil_node(NULL),
+		m_type(READ)
+	{
+		/* No op */
+	}
+
+	/**
+	@param[in]	type		Request type, can be a value that is
+					ORed from the above enum */
+	explicit IORequest(ulint type)
+		:
+		m_bpage(NULL),
+		m_fil_node(NULL),
+		m_type(static_cast<uint16_t>(type))
+	{
+		if (!is_punch_hole_supported()) {
+			clear_punch_hole();
+		}
+	}
+
+	/**
+	@param[in]	type		Request type, can be a value that is
+					ORed from the above enum
+	@param[in]	bpage		Page to be written */
+	IORequest(ulint type, buf_page_t* bpage)
+		:
+		m_bpage(bpage),
+		m_fil_node(NULL),
+		m_type(static_cast<uint16_t>(type))
+	{
+		if (bpage && buf_page_should_punch_hole(bpage)) {
+			set_punch_hole();
+		}
+
+		if (!is_punch_hole_supported()) {
+			clear_punch_hole();
+		}
+	}
+
+	/** Destructor */
+	~IORequest() { }
+
+	/** @return true if ignore missing flag is set */
+	static bool ignore_missing(ulint type)
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return((type & IGNORE_MISSING) == IGNORE_MISSING);
+	}
+
+	/** @return true if it is a read request */
+	bool is_read() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return((m_type & READ) == READ);
+	}
+
+	/** @return true if it is a write request */
+	bool is_write() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return((m_type & WRITE) == WRITE);
+	}
+
+	/** @return true if it is a redo log write */
+	bool is_log() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return((m_type & LOG) == LOG);
+	}
+
+	/** @return true if the simulated AIO thread should be woken up */
+	bool is_wake() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return((m_type & DO_NOT_WAKE) == 0);
+	}
+
+	/** Clear the punch hole flag */
+	void clear_punch_hole()
+	{
+		m_type &= ~PUNCH_HOLE;
+	}
+
+	/** @return true if partial read warning disabled */
+	bool is_partial_io_warning_disabled() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return((m_type & DISABLE_PARTIAL_IO_WARNINGS)
+		       == DISABLE_PARTIAL_IO_WARNINGS);
+	}
+
+	/** Disable partial read warnings */
+	void disable_partial_io_warnings()
+	{
+		m_type |= DISABLE_PARTIAL_IO_WARNINGS;
+	}
+
+	/** @return true if missing files should be ignored */
+	bool ignore_missing() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return(ignore_missing(m_type));
+	}
+
+	/** @return true if punch hole should be used */
+	bool punch_hole() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return((m_type & PUNCH_HOLE) == PUNCH_HOLE);
+	}
+
+	/** @return true if the read should be validated */
+	bool validate() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return(is_read() ^ is_write());
+	}
+
+	/** Set the punch hole flag */
+	void set_punch_hole()
+	{
+		if (is_punch_hole_supported()) {
+			m_type |= PUNCH_HOLE;
+		}
+	}
+
+	/** Clear the do not wake flag */
+	void clear_do_not_wake()
+	{
+		m_type &= ~DO_NOT_WAKE;
+	}
+
+	/** Set the pointer to file node for IO
+	@param[in] node			File node */
+	inline void set_fil_node(fil_node_t* node);
+
+	bool operator==(const IORequest& rhs) const
+	{
+		return(m_type == rhs.m_type);
+	}
+
+	/** Note that the IO is for double write recovery. */
+	void dblwr_recover()
+	{
+		m_type |= DBLWR_RECOVER;
+	}
+
+	/** @return true if the request is from the dblwr recovery */
+	bool is_dblwr_recover() const
+		MY_ATTRIBUTE((warn_unused_result))
+	{
+		return((m_type & DBLWR_RECOVER) == DBLWR_RECOVER);
+	}
+
+	/** @return true if punch hole is supported */
+	static bool is_punch_hole_supported()
+	{
+
+		/* In this debugging mode, we act as if punch hole is supported,
+		and then skip any calls to actually punch a hole here.
+		In this way, Transparent Page Compression is still being tested. */
+		DBUG_EXECUTE_IF("ignore_punch_hole",
+			return(true);
+		);
+
+#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
+		return(true);
+#else
+		return(false);
+#endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || _WIN32 */
+	}
+
+	ulint get_trim_length(ulint write_length) const
+	{
+		return (m_bpage ?
+			buf_page_get_trim_length(m_bpage, write_length)
+			: 0);
+	}
+
+	inline bool should_punch_hole() const;
+
+	/** Free storage space associated with a section of the file.
+	@param[in]	fh		Open file handle
+	@param[in]	off		Starting offset (SEEK_SET)
+	@param[in]	len		Size of the hole
+	@return DB_SUCCESS or error code */
+	dberr_t punch_hole(os_file_t fh, os_offset_t off, ulint len);
 
 private:
-  /** Free storage space associated with a section of the file.
-  @param off   byte offset from the start (SEEK_SET)
-  @param len   size of the hole in bytes
-  @return DB_SUCCESS or error code */
-  dberr_t punch_hole(os_offset_t off, ulint len) const;
+	/** Page to be written on write operation. */
+	buf_page_t*		m_bpage;
 
-public:
-  /** Page to be written on write operation */
-  buf_page_t* const bpage= nullptr;
+	/** File node */
+	fil_node_t*		m_fil_node;
 
-  /** File descriptor */
-  fil_node_t *const node= nullptr;
-
-  /** Request type bit flags */
-  const Type type;
+	/** Request type bit flags */
+	uint16_t		m_type;
 };
 
-constexpr IORequest IORequestRead(IORequest::READ_SYNC);
-constexpr IORequest IORequestReadPartial(IORequest::READ_MAYBE_PARTIAL);
-constexpr IORequest IORequestWrite(IORequest::WRITE_SYNC);
+/* @} */
 
 /** Sparse file size information. */
 struct os_file_size_t {
@@ -260,7 +435,27 @@ struct os_file_size_t {
 	os_offset_t	m_alloc_size;
 };
 
-constexpr ulint OS_AIO_N_PENDING_IOS_PER_THREAD= 256;
+/** Win NT does not allow more than 64 */
+static const ulint OS_AIO_N_PENDING_IOS_PER_THREAD = 32;
+
+/** Modes for aio operations @{ */
+/** Normal asynchronous i/o not for ibuf pages or ibuf bitmap pages */
+static const ulint OS_AIO_NORMAL = 21;
+
+/**  Asynchronous i/o for ibuf pages or ibuf bitmap pages */
+static const ulint OS_AIO_IBUF = 22;
+
+/** Asynchronous i/o for the log */
+static const ulint OS_AIO_LOG = 23;
+
+/** Asynchronous i/o where the calling thread will itself wait for
+the i/o to complete, doing also the job of the i/o-handler thread;
+can be used for any pages, ibuf or non-ibuf.  This is used to save
+CPU time, as we can do with fewer thread switches. Plain synchronous
+I/O is not as good, because it must serialize the file seek and read
+or write, causing a bottleneck for parallelism. */
+static const ulint OS_AIO_SYNC = 24;
+/* @} */
 
 extern Atomic_counter<ulint> os_n_file_reads;
 extern ulint	os_n_file_writes;
@@ -451,7 +646,8 @@ Closes a file handle. In case of error, error number can be retrieved with
 os_file_get_last_error.
 @param[in]	file		own: handle to a file
 @return true if success */
-bool os_file_close_func(os_file_t file);
+bool
+os_file_close_func(os_file_t file);
 
 #ifdef UNIV_PFS_IO
 
@@ -494,12 +690,10 @@ do {									\
 	register_pfs_file_open_begin(state, locker, key, op, name,	\
 					src_file, src_line)		\
 
-# define register_pfs_file_rename_end(locker, from, to, result)		\
+# define register_pfs_file_rename_end(locker, result)			\
 do {									\
-	if (locker != NULL) {						\
-		 PSI_FILE_CALL(						\
-			end_file_rename_wait)(				\
-			locker, from, to, result);			\
+	if (locker != NULL) {				\
+		PSI_FILE_CALL(end_file_open_wait)(locker, result);	\
 	}								\
 } while (0)
 
@@ -574,6 +768,12 @@ The wrapper functions have the prefix of "innodb_". */
 
 # define os_file_close(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
+
+# define os_aio(type, mode, name, file, buf, offset,		\
+	n, read_only, message1, message2)			\
+	pfs_os_aio_func(type, mode, name, file, buf, offset,	\
+		n, read_only, message1, message2,		\
+			__FILE__, __LINE__)
 
 # define os_file_read(type, file, buf, offset, n)			\
 	pfs_os_file_read_func(type, file, buf, offset, n, __FILE__, __LINE__)
@@ -754,6 +954,44 @@ pfs_os_file_read_no_error_handling_func(
 	const char*		src_file,
 	uint			src_line);
 
+/** NOTE! Please use the corresponding macro os_aio(), not directly this
+function!
+Performance schema wrapper function of os_aio() which requests
+an asynchronous I/O operation.
+@param[in,out]	type		IO request context
+@param[in]	mode		IO mode
+@param[in]	name		Name of the file or path as NUL terminated
+				string
+@param[in]	file		Open file handle
+@param[out]	buf		buffer where to read
+@param[in]	offset		file offset where to read
+@param[in]	n		number of bytes to read
+@param[in]	read_only	if true read only mode checks are enforced
+@param[in,out]	m1		Message for the AIO handler, (can be used to
+				identify a completed AIO operation); ignored
+				if mode is OS_AIO_SYNC
+@param[in,out]	m2		message for the AIO handler (can be used to
+				identify a completed AIO operation); ignored
+				if mode is OS_AIO_SYNC
+@param[in]	src_file	file name where func invoked
+@param[in]	src_line	line where the func invoked
+@return DB_SUCCESS if request was queued successfully, FALSE if fail */
+UNIV_INLINE
+dberr_t
+pfs_os_aio_func(
+	IORequest&	type,
+	ulint		mode,
+	const char*	name,
+	pfs_os_file_t	file,
+	void*		buf,
+	os_offset_t	offset,
+	ulint		n,
+	bool		read_only,
+	fil_node_t*	m1,
+	void*		m2,
+	const char*	src_file,
+	uint		src_line);
+
 /** NOTE! Please use the corresponding macro os_file_write(), not directly
 this function!
 This is the performance schema instrumented wrapper function for
@@ -795,7 +1033,6 @@ pfs_os_file_flush_func(
 	pfs_os_file_t	file,
 	const char*	src_file,
 	uint		src_line);
-
 
 /** NOTE! Please use the corresponding macro os_file_rename(), not directly
 this function!
@@ -874,6 +1111,11 @@ to original un-instrumented file I/O APIs */
 		name, create_mode, access, read_only, success)
 
 # define os_file_close(file)	os_file_close_func(file)
+
+# define os_aio(type, mode, name, file, buf, offset,			\
+	n, read_only, message1, message2)			\
+	os_aio_func(type, mode, name, file, buf, offset,		\
+		n, read_only, message1, message2)
 
 # define os_file_read(type, file, buf, offset, n)			\
 	os_file_read_func(type, file, buf, offset, n)
@@ -1102,30 +1344,111 @@ void
 unit_test_os_file_get_parent_dir();
 #endif /* UNIV_ENABLE_UNIT_TEST_GET_PARENT_DIR */
 
-/**
-Initializes the asynchronous io system. */
-int os_aio_init();
+/** Initializes the asynchronous io system. Creates one array each for ibuf
+and log i/o. Also creates one array each for read and write where each
+array is divided logically into n_read_segs and n_write_segs
+respectively. The caller must create an i/o handler thread for each
+segment in these arrays. This function also creates the sync array.
+No i/o handler thread needs to be created for that
+@param[in]	n_read_segs	number of reader threads
+@param[in]	n_write_segs	number of writer threads
+@param[in]	n_slots_sync	number of slots in the sync aio array */
+
+bool
+os_aio_init(
+	ulint		n_read_segs,
+	ulint		n_write_segs,
+	ulint		n_slots_sync);
 
 /**
 Frees the asynchronous io system. */
-void os_aio_free();
+void
+os_aio_free();
 
-/** Request a read or write.
-@param type		I/O request
-@param buf		buffer
-@param offset		file offset
-@param n		number of bytes
-@retval DB_SUCCESS if request was queued successfully
-@retval DB_IO_ERROR on I/O error */
-dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
+/**
+NOTE! Use the corresponding macro os_aio(), not directly this function!
+Requests an asynchronous i/o operation.
+@param[in,out]	type		IO request context
+@param[in]	mode		IO mode
+@param[in]	name		Name of the file or path as NUL terminated
+				string
+@param[in]	file		Open file handle
+@param[out]	buf		buffer where to read
+@param[in]	offset		file offset where to read
+@param[in]	n		number of bytes to read
+@param[in]	read_only	if true read only mode checks are enforced
+@param[in,out]	m1		Message for the AIO handler, (can be used to
+				identify a completed AIO operation); ignored
+				if mode is OS_AIO_SYNC
+@param[in,out]	m2		message for the AIO handler (can be used to
+				identify a completed AIO operation); ignored
+				if mode is OS_AIO_SYNC
+@return DB_SUCCESS or error code */
+dberr_t
+os_aio_func(
+	IORequest&	type,
+	ulint		mode,
+	const char*	name,
+	pfs_os_file_t	file,
+	void*		buf,
+	os_offset_t	offset,
+	ulint		n,
+	bool		read_only,
+	fil_node_t*	m1,
+	void*		m2);
 
-/** Wait until there are no pending asynchronous writes. */
-void os_aio_wait_until_no_pending_writes();
+/** Wakes up all async i/o threads so that they know to exit themselves in
+shutdown. */
+void
+os_aio_wake_all_threads_at_shutdown();
 
+/** Waits until there are no pending writes in os_aio_write_array. There can
+be other, synchronous, pending writes. */
+void
+os_aio_wait_until_no_pending_writes();
 
-/** Wait until there are no pending asynchronous reads. */
-void os_aio_wait_until_no_pending_reads();
+/** Wakes up simulated aio i/o-handler threads if they have something to do. */
+void
+os_aio_simulated_wake_handler_threads();
 
+#ifdef _WIN32
+/** This function can be called if one wants to post a batch of reads and
+prefers an i/o-handler thread to handle them all at once later. You must
+call os_aio_simulated_wake_handler_threads later to ensure the threads
+are not left sleeping! */
+void
+os_aio_simulated_put_read_threads_to_sleep();
+#else /* _WIN32 */
+# define os_aio_simulated_put_read_threads_to_sleep()
+#endif /* _WIN32 */
+
+/** This is the generic AIO handler interface function.
+Waits for an aio operation to complete. This function is used to wait the
+for completed requests. The AIO array of pending requests is divided
+into segments. The thread specifies which segment or slot it wants to wait
+for. NOTE: this function will also take care of freeing the aio slot,
+therefore no other thread is allowed to do the freeing!
+@param[in]	segment		the number of the segment in the aio arrays to
+				wait for; segment 0 is the ibuf I/O thread,
+				segment 1 the log I/O thread, then follow the
+				non-ibuf read threads, and as the last are the
+				non-ibuf write threads; if this is
+				ULINT_UNDEFINED, then it means that sync AIO
+				is used, and this parameter is ignored
+@param[out]	m1		the messages passed with the AIO request;
+				note that also in the case where the AIO
+				operation failed, these output parameters
+				are valid and can be used to restart the
+				operation, for example
+@param[out]	m2		callback message
+@param[out]	type		OS_FILE_WRITE or ..._READ
+@return DB_SUCCESS or error code */
+dberr_t
+os_aio_handler(
+	ulint		segment,
+	fil_node_t**	m1,
+	void**		m2,
+	IORequest*	type);
 
 /** Prints info of the aio arrays.
 @param[in/out]	file		file where to print */
@@ -1141,6 +1464,14 @@ no pending io operations. */
 bool
 os_aio_all_slots_free();
 
+#ifdef UNIV_DEBUG
+
+/** Prints all pending IO
+@param[in]	file	file where to print */
+void
+os_aio_print_pending_io(FILE* file);
+
+#endif /* UNIV_DEBUG */
 
 /** This function returns information about the specified file
 @param[in]	path		pathname of the file
@@ -1155,6 +1486,15 @@ os_file_get_status(
 	os_file_stat_t* stat_info,
 	bool		check_rw_perm,
 	bool		read_only);
+
+/** Creates a temporary file in the location specified by the parameter
+path. If the path is NULL then it will be created on --tmpdir location.
+This function is defined in ha_innodb.cc.
+@param[in]	path	location for creating temporary file
+@return temporary file descriptor, or < 0 on error */
+os_file_t
+innobase_mysql_tmpfile(
+	const char*	path);
 
 /** Set the file create umask
 @param[in]	umask		The umask to use for file creation. */

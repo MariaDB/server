@@ -56,15 +56,3 @@ select count(NULL) from seq_1_to_3;
 select count(NULL) from seq_1_to_3 limit 0;
 
 --echo # End of 10.3 tests
-
---echo #
---echo # MDEV-16327: Server doesn't account for engines that supports
---echo # OFFSET on their own.
---echo #
-
-select count(NULL) from seq_1_to_3 limit 1;
-explain format=json select count(NULL) from seq_1_to_3 limit 1;
-select count(NULL) from seq_1_to_3 limit 1 offset 1;
-explain format=json select count(NULL) from seq_1_to_3 limit 1 offset 1;
-
---echo # End of 10.5 tests

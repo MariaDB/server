@@ -1,6 +1,5 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -480,7 +479,8 @@ static void update_record(uchar *record)
     ptr=blob_key;
     memcpy(pos+4, &ptr, sizeof(char*));	/* Store pointer to new key */
     if (keyinfo[0].seg[0].type != HA_KEYTYPE_NUM)
-      my_ci_casedn(default_charset_info, (char*) blob_key, length,
+      default_charset_info->cset->casedn(default_charset_info,
+                                         (char*) blob_key, length,
                                          (char*) blob_key, length);
     pos+=recinfo[1].length;
   }
@@ -488,14 +488,16 @@ static void update_record(uchar *record)
   {
     uint pack_length= HA_VARCHAR_PACKLENGTH(recinfo[1].length-1);
     uint length= pack_length == 1 ? (uint) *(uchar*) pos : uint2korr(pos);
-    my_ci_casedn(default_charset_info, (char*) pos + pack_length, length,
+    default_charset_info->cset->casedn(default_charset_info,
+                                       (char*) pos + pack_length, length,
                                        (char*) pos + pack_length, length);
     pos+=recinfo[1].length;
   }
   else
   {
     if (keyinfo[0].seg[0].type != HA_KEYTYPE_NUM)
-      my_ci_casedn(default_charset_info, (char*) pos, keyinfo[0].seg[0].length,
+      default_charset_info->cset->casedn(default_charset_info,
+                                         (char*) pos, keyinfo[0].seg[0].length,
                                          (char*) pos, keyinfo[0].seg[0].length);
     pos+=recinfo[1].length;
   }
@@ -588,11 +590,10 @@ static struct my_option my_long_options[] =
 
 
 static my_bool
-get_one_option(const struct my_option *opt,
-	       const char *argument __attribute__((unused)),
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument __attribute__((unused)))
 {
-  switch(opt->id) {
+  switch(optid) {
   case 'a':
     key_type= HA_KEYTYPE_TEXT;
     break;

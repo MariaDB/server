@@ -34,4 +34,43 @@ disconnect prevent_purge;
 let $wait_all_purged= 0;
 --source include/wait_all_purged.inc
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17813 Crash in instant ALTER TABLE due to purge
+--echo # concurrently emptying table
+--echo #
+CREATE TABLE t1 (f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 SET f2=1;
+ALTER TABLE t1 ADD COLUMN f1 INT;
+
+connect (purge_control,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+DELETE FROM t1;
+
+if ($have_debug) {
+SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL go WAIT_FOR do';
+}
+send ALTER TABLE t1 ADD COLUMN f3 INT;
+
+connection purge_control;
+if ($have_debug) {
+SET DEBUG_SYNC='now WAIT_FOR go';
+}
+COMMIT;
+SET GLOBAL innodb_max_purge_lag_wait= 0;
+if ($have_debug) {
+--source include/wait_all_purged.inc
+SET DEBUG_SYNC='now SIGNAL do';
+}
+disconnect purge_control;
+
+connection default;
+reap;
+if ($have_debug) {
+SET DEBUG_SYNC=RESET;
+}
+DROP TABLE t1;
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

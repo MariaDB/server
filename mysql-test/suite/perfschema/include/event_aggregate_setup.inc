@@ -19,16 +19,11 @@
 # - events_statements_summary_by_account_by_event_name
 # - events_statements_summary_by_user_by_event_name
 # - events_statements_summary_by_host_by_event_name
-# - events_transactions_summary_by_thread_by_event_name
-# - events_transactions_summary_by_account_by_event_name
-# - events_transactions_summary_by_user_by_event_name
-# - events_transactions_summary_by_host_by_event_name
 #
 # Globally:
 # - events_waits_summary_global_by_event_name
 # - events_stages_summary_global_by_event_name
 # - events_statements_summary_global_by_event_name
-# - events_transactions_summary_global_by_event_name
 #
 # The tests are written with the following helpers:
 # - include/event_aggregate_setup.inc
@@ -95,8 +90,6 @@ drop table if exists test.t1;
 --enable_warnings
 
 create table test.t1(a varchar(64));
-create function test.f(a int, b int) returns int
-return a+b;
 
 create table test.setup_actors as
   select * from performance_schema.setup_actors;
@@ -119,15 +112,14 @@ update performance_schema.setup_instruments set enabled='NO', timed='NO';
 
 update performance_schema.setup_instruments set enabled='YES', timed='YES'
   where name in ('wait/synch/mutex/sql/LOCK_connection_count',
-                 'wait/synch/mutex/sql/LOCK_uuid_generator',
+                 'wait/synch/mutex/sql/LOCK_user_locks',
                  'wait/synch/rwlock/sql/LOCK_grant',
                  'wait/io/file/sql/query_log',
                  'idle');
 
 update performance_schema.setup_instruments set enabled='YES', timed='YES'
-  where name in ('stage/sql/starting',
-                 'stage/sql/init',
-                 'stage/sql/checking permissions',
+  where name in ('stage/sql/Init', 'stage/sql/Init for update',
+                 'stage/sql/Checking permissions',
                  'stage/sql/Opening tables',
                  'stage/sql/Closing tables');
 
@@ -137,11 +129,7 @@ update performance_schema.setup_instruments set enabled='YES', timed='YES'
                  'statement/abstract/new_packet',
                  'statement/abstract/Query',
                  'statement/com/Quit',
-                 'statement/com/error',
-                 'statement/sp/freturn');
-
-update performance_schema.setup_instruments set enabled='YES', timed='YES'
-  where name in ('transaction');
+                 'statement/com/error');
 
 # Start from a known clean state, to avoid noise from previous tests
 flush tables;
@@ -166,13 +154,6 @@ truncate performance_schema.events_statements_summary_by_user_by_event_name;
 truncate performance_schema.events_statements_summary_by_host_by_event_name;
 truncate performance_schema.events_statements_summary_global_by_event_name;
 truncate performance_schema.events_statements_history_long;
-
-truncate performance_schema.events_transactions_summary_by_thread_by_event_name;
-truncate performance_schema.events_transactions_summary_by_account_by_event_name;
-truncate performance_schema.events_transactions_summary_by_user_by_event_name;
-truncate performance_schema.events_transactions_summary_by_host_by_event_name;
-truncate performance_schema.events_transactions_summary_global_by_event_name;
-truncate performance_schema.events_transactions_history_long;
 
 --disable_warnings
 drop procedure if exists dump_thread;
@@ -201,7 +182,7 @@ begin
     select username, event_name, count_star
       from performance_schema.events_waits_summary_by_thread_by_event_name
       where event_name in ('wait/synch/mutex/sql/LOCK_connection_count',
-                           'wait/synch/mutex/sql/LOCK_uuid_generator',
+                           'wait/synch/mutex/sql/LOCK_user_locks',
                            'wait/synch/rwlock/sql/LOCK_grant',
                            'wait/io/file/sql/query_log')
       and thread_id = my_thread_id
@@ -219,7 +200,7 @@ prepare dump_waits_account from
   from performance_schema.events_waits_summary_by_account_by_event_name
   where user like \'user%\'
   and event_name in ('wait/synch/mutex/sql/LOCK_connection_count',
-                     'wait/synch/mutex/sql/LOCK_uuid_generator',
+                     'wait/synch/mutex/sql/LOCK_user_locks',
                      'wait/synch/rwlock/sql/LOCK_grant',
                      'wait/io/file/sql/query_log')
   order by user, host, event_name;";
@@ -229,7 +210,7 @@ prepare dump_waits_user from
   from performance_schema.events_waits_summary_by_user_by_event_name
   where user like \'user%\'
   and event_name in ('wait/synch/mutex/sql/LOCK_connection_count',
-                     'wait/synch/mutex/sql/LOCK_uuid_generator',
+                     'wait/synch/mutex/sql/LOCK_user_locks',
                      'wait/synch/rwlock/sql/LOCK_grant',
                      'wait/io/file/sql/query_log')
   order by user, event_name;";
@@ -239,7 +220,7 @@ prepare dump_waits_host from
   from performance_schema.events_waits_summary_by_host_by_event_name
   where host=\'localhost\'
   and event_name in ('wait/synch/mutex/sql/LOCK_connection_count',
-                     'wait/synch/mutex/sql/LOCK_uuid_generator',
+                     'wait/synch/mutex/sql/LOCK_user_locks',
                      'wait/synch/rwlock/sql/LOCK_grant',
                      'wait/io/file/sql/query_log')
   order by host, event_name;";
@@ -248,7 +229,7 @@ prepare dump_waits_global from
   "select event_name, count_star
   from performance_schema.events_waits_summary_global_by_event_name
   where event_name in ('wait/synch/mutex/sql/LOCK_connection_count',
-                       'wait/synch/mutex/sql/LOCK_uuid_generator',
+                       'wait/synch/mutex/sql/LOCK_user_locks',
                        'wait/synch/rwlock/sql/LOCK_grant',
                        'wait/io/file/sql/query_log')
   order by event_name;";
@@ -257,7 +238,7 @@ prepare dump_waits_history from
   "select event_name, count(event_name)
   from performance_schema.events_waits_history_long
   where event_name in ('wait/synch/mutex/sql/LOCK_connection_count',
-                       'wait/synch/mutex/sql/LOCK_uuid_generator',
+                       'wait/synch/mutex/sql/LOCK_user_locks',
                        'wait/synch/rwlock/sql/LOCK_grant',
                        'wait/io/file/sql/query_log')
   group by event_name order by event_name;";
@@ -266,8 +247,7 @@ prepare dump_stages_account from
   "select user, host, event_name, count_star
   from performance_schema.events_stages_summary_by_account_by_event_name
   where user like \'user%\'
-  and event_name in ('stage/sql/starting',
-                     'stage/sql/init',
+  and event_name in ('stage/sql/init', 'stage/sql/Init for update',
                      'stage/sql/checking permissions',
                      'stage/sql/Opening tables',
                      'stage/sql/closing tables')
@@ -277,8 +257,7 @@ prepare dump_stages_user from
   "select user, event_name, count_star
   from performance_schema.events_stages_summary_by_user_by_event_name
   where user like \'user%\'
-  and event_name in ('stage/sql/starting',
-                     'stage/sql/init',
+  and event_name in ('stage/sql/init', 'stage/sql/Init for update',
                      'stage/sql/checking permissions',
                      'stage/sql/Opening tables',
                      'stage/sql/closing tables')
@@ -288,8 +267,7 @@ prepare dump_stages_host from
   "select host, event_name, count_star
   from performance_schema.events_stages_summary_by_host_by_event_name
   where host=\'localhost\'
-  and event_name in ('stage/sql/starting',
-                     'stage/sql/init',
+  and event_name in ('stage/sql/init', 'stage/sql/Init for update',
                      'stage/sql/checking permissions',
                      'stage/sql/Opening tables',
                      'stage/sql/closing tables')
@@ -298,8 +276,7 @@ prepare dump_stages_host from
 prepare dump_stages_global from
   "select event_name, count_star
   from performance_schema.events_stages_summary_global_by_event_name
-  where event_name in ('stage/sql/starting',
-                       'stage/sql/init',
+  where event_name in ('stage/sql/init', 'stage/sql/Init for update',
                        'stage/sql/checking permissions',
                        'stage/sql/Opening tables',
                        'stage/sql/closing tables')
@@ -308,8 +285,7 @@ prepare dump_stages_global from
 prepare dump_stages_history from
   "select event_name, count(event_name)
   from performance_schema.events_stages_history_long
-  where event_name in ('stage/sql/starting',
-                       'stage/sql/init',
+  where event_name in ('stage/sql/init', 'stage/sql/Init for update',
                        'stage/sql/checking permissions',
                        'stage/sql/Opening tables',
                        'stage/sql/closing tables')
@@ -322,8 +298,7 @@ prepare dump_statements_account from
   and event_name in ('statement/sql/select',
                      'statement/sql/insert',
                      'statement/com/Quit',
-                     'statement/com/error',
-                     'statement/sp/freturn')
+                     'statement/com/error')
   order by user, host, event_name;";
 
 prepare dump_statements_user from
@@ -333,8 +308,7 @@ prepare dump_statements_user from
   and event_name in ('statement/sql/select',
                      'statement/sql/insert',
                      'statement/com/Quit',
-                     'statement/com/error',
-                     'statement/sp/freturn')
+                     'statement/com/error')
   order by user, event_name;";
 
 prepare dump_statements_host from
@@ -344,8 +318,7 @@ prepare dump_statements_host from
   and event_name in ('statement/sql/select',
                      'statement/sql/insert',
                      'statement/com/Quit',
-                     'statement/com/error',
-                     'statement/sp/freturn')
+                     'statement/com/error')
   order by host, event_name;";
 
 prepare dump_statements_global from
@@ -354,8 +327,7 @@ prepare dump_statements_global from
   where event_name in ('statement/sql/select',
                        'statement/sql/insert',
                        'statement/com/Quit',
-                       'statement/com/error',
-                       'statement/sp/freturn')
+                       'statement/com/error')
   order by event_name;";
 
 prepare dump_statements_history from
@@ -364,41 +336,7 @@ prepare dump_statements_history from
   where event_name in ('statement/sql/select',
                        'statement/sql/insert',
                        'statement/com/Quit',
-                       'statement/com/error',
-                       'statement/sp/freturn')
-  group by event_name order by event_name;";
-
-prepare dump_transactions_account from
-  "select user, host, event_name, count_star
-  from performance_schema.events_transactions_summary_by_account_by_event_name
-  where user like \'user%\'
-  and event_name in ('transaction')
-  order by user, host, event_name;";
-
-prepare dump_transactions_user from
-  "select user, event_name, count_star
-  from performance_schema.events_transactions_summary_by_user_by_event_name
-  where user like \'user%\'
-  and event_name in ('transaction')
-  order by user, event_name;";
-
-prepare dump_transactions_host from
-  "select host, event_name, count_star
-  from performance_schema.events_transactions_summary_by_host_by_event_name
-  where host=\'localhost\'
-  and event_name in ('transaction')
-  order by host, event_name;";
-
-prepare dump_transactions_global from
-  "select event_name, count_star
-  from performance_schema.events_transactions_summary_global_by_event_name
-  where event_name in ('transaction')
-  order by event_name;";
-
-prepare dump_transactions_history from
-  "select event_name, count(event_name)
-  from performance_schema.events_transactions_history_long
-  where event_name in ('transaction')
+                       'statement/com/error')
   group by event_name order by event_name;";
 
 prepare dump_users from

@@ -3,7 +3,7 @@
 # vim: tw=160:nowrap:expandtab:tabstop=3:shiftwidth=3:softtabstop=3
 
 # This program is copyright (c) 2006 Baron Schwartz, baron at xaprb dot com.
-# Maintainers since 2013 : Kenny Gryp - Frédéric Descamps
+# Maintainers since 2013 : Kenny Gryp - Frédéric Descamps 
 # Feedback and improvements are gratefully received.
 #
 # THIS PROGRAM IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED
@@ -63,7 +63,7 @@ sub new {
          },
          F => {
             desc => 'Only read default options from the given file',
-            dsn  => 'mariadb_read_default_file',
+            dsn  => 'mysql_read_default_file',
             copy => 1,
          },
          h => {
@@ -83,7 +83,7 @@ sub new {
          },
          S => {
             desc => 'Socket file to use for connection',
-            dsn  => 'mariadb_socket',
+            dsn  => 'mysql_socket',
             copy => 1,
          },
          u => {
@@ -218,11 +218,11 @@ sub get_cxn_params {
                      qw(h P));
    }
    else {
-      $dsn = 'DBI:MariaDB:' . ( $info->{D} || '' ) . ';'
+      $dsn = 'DBI:mysql:' . ( $info->{D} || '' ) . ';'
          . join(';', map  { "$opts{$_}->{dsn}=$info->{$_}" }
                      grep { defined $info->{$_} }
                      qw(F h P S A))
-         . ';mariadb_read_default_group=client';
+         . ';mysql_read_default_group=client';
    }
    MKDEBUG && _d($dsn);
    return ($dsn, $info->{u}, $info->{p});
@@ -249,6 +249,7 @@ sub get_dbh {
       AutoCommit        => 0,
       RaiseError        => 1,
       PrintError        => 0,
+      mysql_enable_utf8 => ($cxn_string =~ m/charset=utf8/ ? 1 : 0),
    };
    @{$defaults}{ keys %$opts } = values %$opts;
    my $dbh;
@@ -275,6 +276,10 @@ sub get_dbh {
       };
       if ( !$dbh && $EVAL_ERROR ) {
          MKDEBUG && _d($EVAL_ERROR);
+         if ( $EVAL_ERROR =~ m/not a compiled character set|character set utf8/ ) {
+            MKDEBUG && _d("Going to try again without utf8 support");
+            delete $defaults->{mysql_enable_utf8};
+         }
          if ( !$tries ) {
             die $EVAL_ERROR;
          }
@@ -296,11 +301,11 @@ sub get_dbh {
       $dbh,
       Dumper($dbh->selectrow_hashref(
          'SELECT DATABASE(), CONNECTION_ID(), VERSION()/*!50038 , @@hostname*/')),
-      ' Connection info: ', ($dbh->{mariadb_hostinfo} || 'undef'),
+      ' Connection info: ', ($dbh->{mysql_hostinfo} || 'undef'),
       ' Character set info: ',
       Dumper($dbh->selectall_arrayref(
          'SHOW VARIABLES LIKE "character_set%"', { Slice => {}})),
-      ' $DBD::MariaDB::VERSION: ', $DBD::MariaDB::VERSION,
+      ' $DBD::mysql::VERSION: ', $DBD::mysql::VERSION,
       ' $DBI::VERSION: ', $DBI::VERSION,
    );
    return $dbh;
@@ -309,7 +314,7 @@ sub get_dbh {
 # Tries to figure out a hostname for the connection.
 sub get_hostname {
    my ( $self, $dbh ) = @_;
-   if ( my ($host) = ($dbh->{mariadb_hostinfo} || '') =~ m/^(\w+) via/ ) {
+   if ( my ($host) = ($dbh->{mysql_hostinfo} || '') =~ m/^(\w+) via/ ) {
       return $host;
    }
    my ( $hostname, $one ) = $dbh->selectrow_array(
@@ -466,7 +471,7 @@ sub parse_status_text {
    # too many locks to print, the output might be truncated)
 
    my $time_text;
-   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10\.[0-9]\./) ) {
+   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10\.[012]\./) ) {
       ( $time_text ) = $fulltext =~ m/^([0-9-]* [0-9:]*) [0-9a-fx]* INNODB MONITOR OUTPUT/m;
       $innodb_data{'ts'} = [ parse_innodb_timestamp_56( $time_text ) ];
    } else {
@@ -634,13 +639,13 @@ sub parse_fk_section {
    return 0 unless $fulltext;
 
    my ( $ts, $type );
-   if ( ($mysqlversion =~ /^5.[67]\./) || ($mysqlversion =~ /^10.[0-9]\./) ) {
+   if ( ($mysqlversion =~ /^5.[67]\./) || ($mysqlversion =~ /^10.[012]\./) ) {
       ( $ts, $type ) = $fulltext =~ m/^([0-9-]* [0-9:]*)\s[0-9a-fx]*\s+(\w+)/m;
       $section->{'ts'} = [ parse_innodb_timestamp_56( $ts ) ];
    } else {
       ( $ts, $type ) = $fulltext =~ m/^$s\s+(\w+)/m;
       $section->{'ts'} = [ parse_innodb_timestamp( $ts ) ];
-   }
+   } 
 
    $section->{'timestring'} = ts_to_string($section->{'ts'});
    $section->{'type'} = $type;
@@ -715,7 +720,7 @@ sub parse_fk_bad_constraint_error {
    @{$section}{ qw(reason) } = $fulltext =~ m/:\s*([^:]+)(?= Constraint:|$)/ms;
    $section->{'reason'} =~ s/\s+/ /g
       if $section->{'reason'};
-
+   
    # Certain data may not be present.  Make them '' if not present.
    map { $section->{$_} ||= "" }
       qw(child_index fk_name col_name parent_table parent_col);
@@ -894,7 +899,7 @@ sub parse_dl_section {
    my ( $ts ) = $fulltext =~ m/^$s$/m;
    return 0 unless $ts;
 
-   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10\.[0-9]\./) ) {
+   if ( ($mysqlversion =~ /^5\.[67]\./) || ($mysqlversion =~ /^10\.[012]\./) ) {
       $dl->{'ts'} = [ parse_innodb_timestamp_56( $ts ) ];
    }
    else {
@@ -1042,7 +1047,7 @@ sub parse_tx_text {
    if ( $txn =~ m/^TABLE LOCK|RECORD LOCKS/ ) {
       $locks = [parse_innodb_record_locks($txn, $complete, $debug, $full)];
    }
-
+   
    my ( $tables_in_use, $tables_locked )
       = $txn
       =~ m/^mysql tables in use $d, locked $d$/m;
@@ -1544,7 +1549,7 @@ innotop is a MySQL and InnoDB transaction/status monitor, like 'top' for
 MySQL.  It displays queries, InnoDB transactions, lock waits, deadlocks,
 foreign key errors, open tables, replication status, buffer information,
 row operations, logs, I/O operations, load graph, and more.  You can
-monitor many servers at once with innotop.
+monitor many servers at once with innotop. 
 
 USAGE
    exit(1);
@@ -4529,7 +4534,7 @@ my %stmt_maker_for = (
       eval { # This can fail if the table doesn't exist, INFORMATION_SCHEMA doesn't exist, etc.
          my $cols = $dbh->selectall_arrayref(q{SHOW /*innotop*/ COLUMNS FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS});
          if ( @$cols ) {
-          if ($dbh->{mariadb_serverinfo} =~ /^5.1/) {
+          if ($dbh->{mysql_serverinfo} =~ /^5.1/) {
             $sth = $dbh->prepare(q{
                SELECT /*innotop*/
                   r.trx_mysql_thread_id                            AS waiting_thread,
@@ -4695,23 +4700,23 @@ sub main {
    if ( !$windows ) {
       delete $config{max_height};
    }
-
+   
    # Try to lower my priority.
    eval { setpriority(0, 0, getpriority(0, 0) + 10); };
-
+   
    # Print stuff to the screen immediately, don't wait for a newline.
    $OUTPUT_AUTOFLUSH = 1;
-
+   
    # Clear the screen and load the configuration.
    $clear_screen_sub->();
    load_config();
-
+   
    # Override config variables with command-line options
    my %cmdline =
       map  { $_->{c} => $opts{$_->{k}} }
       grep { exists $_->{c} && exists $opts{$_->{k}} }
       @opt_spec;
-
+   
    foreach my $name (keys %cmdline) {
       next if not defined $cmdline{$name};
       my $val = $cmdline{$name};
@@ -4719,23 +4724,23 @@ sub main {
          $config{$name}->{val} = $val;
       }
    }
-
+   
    post_process_tbl_meta();
-
+   
    # Make sure no changes are written to config file in non-interactive mode.
    if ( $opts{n} ) {
       $config{readonly}->{val} = 1;
    }
-
+   
    eval {
-
+   
       # Open the file for InnoDB status
       if ( @ARGV ) {
          my $filename = shift @ARGV;
          open $file, "<", $filename
             or die "Cannot open '$filename': $OS_ERROR";
       }
-
+   
       # In certain modes we might have to collect data for two cycles
       # before printing anything out, so we need to bump up the count one.
       if ( $opts{n} && $opts{count} && $config{status_inc}->{val}
@@ -4743,16 +4748,16 @@ sub main {
       {
          $opts{count}++;
       }
-
+   
       while (++$clock) {
-
+   
          my $mode = $config{mode}->{val} || 'Q';
          if ( !$modes{$mode} ) {
             die "Mode '$mode' doesn't exist; try one of these:\n"
                . join("\n", map { "  $_ $modes{$_}->{hdr}" }  sort keys %modes)
                . "\n";
          }
-
+   
          if ( !$opts{n} ) {
             @last_term_size = @this_term_size;
             @this_term_size = Term::ReadKey::GetTerminalSize(\*STDOUT);
@@ -4763,13 +4768,13 @@ sub main {
             }
             die("Can't read terminal size") unless @this_term_size;
          }
-
+   
          # If there's no connection to a database server, we need to fix that...
          if ( !%connections ) {
             print "You have not defined any database connections.\n\n";
             add_new_dsn();
          }
-
+   
          # See whether there are any connections defined for this mode.  If there's only one
          # connection total, assume the user wants to just use innotop for a single server
          # and don't ask which server to connect to.  Also, if we're monitoring from a file,
@@ -4782,20 +4787,20 @@ sub main {
                choose_connections();
             }
          }
-
+   
          # Term::ReadLine might have re-set $OUTPUT_AUTOFLUSH.
          $OUTPUT_AUTOFLUSH = 1;
-
+   
          # Prune old data
          my $sets = $config{num_status_sets}->{val};
          foreach my $store ( values %vars ) {
             delete @{$store}{ grep { $_ < $clock - $sets } keys %$store };
          }
          %info_gotten = ();
-
+   
          # Call the subroutine to display this mode.
          $modes{$mode}->{display_sub}->();
-
+   
          # It may be time to quit now.
          if ( $opts{count} && $clock >= $opts{count} ) {
             finish();
@@ -4805,7 +4810,7 @@ sub main {
          foreach my $cxn ( grep { $dbhs{$_}->{failed} } keys %dbhs ) {
             eval { connect_to_db($cxn); }; # Ignore errors entirely here.
          }
-
+   
          # Wait for a bit.
          if ( $opts{n} ) {
             sleep($config{interval}->{val});
@@ -4815,10 +4820,10 @@ sub main {
             $char = ReadKey($config{interval}->{val});
             ReadMode('normal');
          }
-
+   
          # Handle whatever action the key indicates.
          do_key_action();
-
+   
       }
    };
    if ( $EVAL_ERROR ) {
@@ -5620,7 +5625,7 @@ sub display_M {
 				push @slave_io_status, extract_values($set, $set, $pre, 'slave_io_status');
 			}
 		 }
-		 if ( $linecount < 1 ) {
+		 if ( $linecount < 1 ) { 
 			$channel = 'no_channels';
 			my $chcxn = $channel . '=' . $cxn;
 			get_slave_status($cxn,$channel);
@@ -6546,7 +6551,7 @@ sub set_to_tbl {
       map { push @group_by, $_ if $_ !~ /^cxn$/ } @{$meta->{group_by}};
       $meta->{group_by} = \@group_by;
    }
-   # if cxn is not visible and there is now more than one connection,
+   # if cxn is not visible and there is now more than one connection, 
    # make cxn visible again.  assume it's not in group_by if it's not
    # visible
    else {
@@ -7187,7 +7192,7 @@ sub distill {
          }
          $query .= " " . $t;
       }
-   }
+   } 
 
    # die $orig_query if $query eq 'LOCK lock';
    return $query;
@@ -7254,7 +7259,7 @@ sub create_statusbar {
    my $cxn = '';
 
    if ( 1 == @cxns && $dbhs{$cxns[0]} && $dbhs{$cxns[0]}->{dbh} ) {
-      $cxn = $dbhs{$cxns[0]}->{dbh}->{mariadb_serverinfo} || '';
+      $cxn = $dbhs{$cxns[0]}->{dbh}->{mysql_serverinfo} || '';
    }
    else {
       if ( $modes{$mode}->{server_group} ) {
@@ -7336,11 +7341,11 @@ sub add_new_dsn {
    if ( !$dsn ) {
       do {
          $clear_screen_sub->();
-         print "Typical DSN strings look like\n   DBI:MariaDB:;host=hostname;port=port\n"
+         print "Typical DSN strings look like\n   DBI:mysql:;host=hostname;port=port\n"
             . "The db and port are optional and can usually be omitted.\n"
-            . "If you specify 'mariadb_read_default_group=mysql' many options can be read\n"
+            . "If you specify 'mysql_read_default_group=mysql' many options can be read\n"
             . "from your mysql options files (~/.my.cnf, /etc/my.cnf).\n\n";
-         $dsn = prompt("Enter a DSN string", undef, "DBI:MariaDB:;mariadb_read_default_group=mysql;host=$name");
+         $dsn = prompt("Enter a DSN string", undef, "DBI:mysql:;mysql_read_default_group=mysql;host=$name");
       } until ( $dsn );
    }
    if ( !$dl_table ) {
@@ -7524,7 +7529,7 @@ sub do_stmt {
 
    # Test if the cxn should not even be tried
    return undef if $dbhs{$cxn}
-      && $dbhs{$cxn}->{failed}
+      && $dbhs{$cxn}->{failed} 
       && ( !$dbhs{$cxn}->{dbh} || !$dbhs{$cxn}->{dbh}->{Active} || $dbhs{$cxn}->{mode} eq $config{mode}->{val} );
 
    my $sth;
@@ -7599,7 +7604,7 @@ sub do_query {
 
    # Test if the cxn should not even be tried
    return undef if $dbhs{$cxn}
-      && $dbhs{$cxn}->{failed}
+      && $dbhs{$cxn}->{failed} 
       && ( !$dbhs{$cxn}->{dbh} || !$dbhs{$cxn}->{dbh}->{Active} || $dbhs{$cxn}->{mode} eq $config{mode}->{val} );
 
    my $sth;
@@ -7627,7 +7632,7 @@ sub do_query {
          }
       }
    }
-
+ 
    return $sth;
 }
 
@@ -7669,7 +7674,7 @@ sub connect_to_db {
 # Compares versions like 5.0.27 and 4.1.15-standard-log
 sub version_ge {
    my ( $dbh, $target ) = @_;
-   my $version = sprintf('%03d%03d%03d', $dbh->{mariadb_serverinfo} =~ m/^(\d+).(\d+).(\d+)/g);
+   my $version = sprintf('%03d%03d%03d', $dbh->{mysql_serverinfo} =~ m/^(\d+).(\d+).(\d+)/g);
    return $version ge sprintf('%03d%03d%03d', $target =~ m/(\d+)/g);
 }
 
@@ -7681,7 +7686,7 @@ sub get_driver_status {
          next unless $dbhs{$cxn} && $dbhs{$cxn}->{dbh} && $dbhs{$cxn}->{dbh}->{Active};
          $vars{$cxn}->{$clock} ||= {};
          my $vars = $vars{$cxn}->{$clock};
-         my %res = map {  $_ =~ s/ +/_/g; $_ } $dbhs{$cxn}->{dbh}->{mariadb_stat} =~ m/(\w[^:]+): ([\d\.]+)/g;
+         my %res = map {  $_ =~ s/ +/_/g; $_ } $dbhs{$cxn}->{dbh}->{mysql_stat} =~ m/(\w[^:]+): ([\d\.]+)/g;
          map { $vars->{$_} ||= $res{$_} } keys %res;
          $vars->{Uptime_hires} ||= get_uptime($cxn);
          $vars->{cxn} = $cxn;
@@ -7698,14 +7703,14 @@ sub get_new_db_connection {
    my $dsn = $connections{$connection}
       or die "No connection named '$connection' is defined in your configuration";
 
-   # don't ask for a username if mariadb_read_default_group=client is in the DSN
-   if ( !defined $dsn->{have_user} and $dsn->{dsn} !~ /mariadb_read_default_group=client/ ) {
+   # don't ask for a username if mysql_read_default_group=client is in the DSN
+   if ( !defined $dsn->{have_user} and $dsn->{dsn} !~ /mysql_read_default_group=client/ ) {
       my $answer = prompt("Do you want to specify a username for $connection?", undef, 'n');
       $dsn->{have_user} = $answer && $answer =~ m/1|y/i;
    }
 
-   # don't ask for a password if mariadb_read_default_group=client is in the DSN
-   if ( !defined $dsn->{have_pass} and $dsn->{dsn} !~ /mariadb_read_default_group=client/ ) {
+   # don't ask for a password if mysql_read_default_group=client is in the DSN
+   if ( !defined $dsn->{have_pass} and $dsn->{dsn} !~ /mysql_read_default_group=client/ ) {
       my $answer = prompt("Do you want to specify a password for $connection?", undef, 'n');
       $dsn->{have_pass} = $answer && $answer =~ m/1|y/i;
    }
@@ -7892,17 +7897,17 @@ sub migrate_config {
 
 # load_config {{{3
 sub load_config {
-
+    
    my ($old_filename, $answer);
 
    if ( $opts{u} or $opts{p} or $opts{h} or $opts{P} or $opts{S} ) {
      my @params = $dsn_parser->get_cxn_params(\%opts); # dsn=$params[0]
-     add_new_dsn($opts{h} || 'localhost', $params[0], 'test.innotop_dl',
+     add_new_dsn($opts{h} || 'localhost', $params[0], 'test.innotop_dl', 
                  $opts{u} ? 1 : 0, $opts{u}, $opts{p} ? 1 : 0, $opts{p});
    }
    if ($opts{c}) {
       $conf_file = $opts{c};
-   }
+   }  
    # If we don't have a new config file but we do have an old one,
    # innotop got upgraded and this is an old config file. Convert it, but
    # don't overwrite something existing.
@@ -7930,14 +7935,14 @@ sub load_config {
       $conf_file = $default_central_conf;
    }
    else {
-      # If no config file was loaded, set readonly to 0 if the user wants to
+      # If no config file was loaded, set readonly to 0 if the user wants to 
       # write a config
       $config{readonly}->{val} = 0 if $opts{w};
-      # If no connections have been defined, connect to a MySQL database
-      # on localhost using mariadb_read_default_group=client
+      # If no connections have been defined, connect to a MySQL database 
+      # on localhost using mysql_read_default_group=client
       if (!%connections) {
-         add_new_dsn('localhost',
-                     'DBI:MariaDB:;host=localhost;mariadb_read_default_group=client',
+         add_new_dsn('localhost', 
+                     'DBI:mysql:;host=localhost;mysql_read_default_group=client', 
                      'test.innotop_dl');
       }
    }
@@ -8476,7 +8481,7 @@ sub save_config {
    elsif ($conf_file and $opts{w}) {
      print "Loaded config file on start-up, so ignoring -w (see --help)\n"
    }
-
+   
    my $dirname  = dirname($conf_file);
 
    # if directories don't exist, create them.  This could cause errors
@@ -9369,7 +9374,7 @@ sub choose_thread {
 
    my %thread_for = map {
       # Eliminate innotop's own threads.
-      $_ => $dbhs{$_}->{dbh} ? $dbhs{$_}->{dbh}->{mariadb_thread_id} : 0
+      $_ => $dbhs{$_}->{dbh} ? $dbhs{$_}->{dbh}->{mysql_thread_id} : 0
    } keys %connections;
 
    my @candidates = grep {
@@ -9819,7 +9824,7 @@ sub get_slave_status {
          	}
 	  	 } else {
 				 my $dbh = connect_to_db($cxn);
-				 my $sql = 'SHOW SLAVE STATUS FOR CHANNEL \'' . $channel . '\'';
+				 my $sql = 'SHOW SLAVE STATUS FOR CHANNEL \'' . $channel . '\''; 
 				 my $stmt = $dbh->prepare($sql ) ;
 				 $stmt->execute();
          		 my $res = $stmt->fetchall_arrayref({});
@@ -9835,8 +9840,8 @@ sub get_slave_status {
         		 }
 			}
       	}
-
-
+	
+   
 
 
 sub is_func {
@@ -9894,7 +9899,7 @@ Enter; otherwise, you will need to change to innotop's directory and type "perl
 innotop".
 
 With no options specified, innotop will attempt to connect to a MySQL server on
-localhost using mariadb_read_default_group=client for other connection
+localhost using mysql_read_default_group=client for other connection
 parameters.  If you need to specify a different username and password, use the
 -u and -p options, respectively.  To monitor a MySQL database on another
 host, use the -h option.
@@ -9902,8 +9907,8 @@ host, use the -h option.
 After you've connected, innotop should show you something like the following:
 
  [RO] Query List (? for help) localhost, 01:11:19, 449.44 QPS, 14/7/163 con/run
-
- CXN        When   Load  QPS    Slow  QCacheHit  KCacheHit  BpsIn    BpsOut
+ 
+ CXN        When   Load  QPS    Slow  QCacheHit  KCacheHit  BpsIn    BpsOut 
  localhost  Total  0.00  1.07k   697      0.00%     98.17%  476.83k  242.83k
 
  CXN        Cmd    ID         User  Host      DB   Time   Query
@@ -10070,7 +10075,7 @@ L<"cmd_summary"> table, which looks something like the following:
 
  Command Summary (? for help) localhost, 25+07:16:43, 2.45 QPS, 3 thd, 5.0.40
  _____________________ Command Summary _____________________
- Name                    Value    Pct     Last Incr  Pct
+ Name                    Value    Pct     Last Incr  Pct    
  Select_scan             3244858  69.89%          2  100.00%
  Select_range            1354177  29.17%          0    0.00%
  Select_full_join          39479   0.85%          0    0.00%
@@ -10389,15 +10394,15 @@ inputs, as follows:
 A DSN is a Data Source Name, which is the initial argument passed to the DBI
 module for connecting to a server.  It is usually of the form
 
- DBI:MariaDB:;mariadb_read_default_group=mysql;host=HOSTNAME
+ DBI:mysql:;mysql_read_default_group=mysql;host=HOSTNAME
 
-Since this DSN is passed to the DBD::MariaDB driver, you should read the driver's
-documentation at L<https://metacpan.org/pod/DBD::MariaDB> for
+Since this DSN is passed to the DBD::mysql driver, you should read the driver's
+documentation at L<"http://search.cpan.org/dist/DBD-mysql/lib/DBD/mysql.pm"> for
 the exact details on all the options you can pass the driver in the DSN.  You
 can read more about DBI at L<http://dbi.perl.org/docs/>, and especially at
 L<http://search.cpan.org/~timb/DBI/DBI.pm>.
 
-The mariadb_read_default_group=mysql option lets the DBD driver read your MySQL
+The mysql_read_default_group=mysql option lets the DBD driver read your MySQL
 options files, such as ~/.my.cnf on UNIX-ish systems.  You can use this to avoid
 specifying a username or password for the connection.
 
@@ -11189,7 +11194,7 @@ L<"STATUS_VARIABLES">.
 
 =item slave_io_status
 
-Displays data about the slave I/O thread.  Data source:
+Displays data about the slave I/O thread.  Data source: 
 L<"STATUS_VARIABLES">.
 
 =item slave_sql_status
@@ -11438,8 +11443,8 @@ L<"processlist"> table when prompted).
 Your display might now look like the following:
 
  Query List (? for help) localhost, 32:33, 0.11 QPS, 1 thd, 5.0.38-log
-
- CXN        Cmd        Cnt  ID      User   Host           Time   Query
+ 
+ CXN        Cmd        Cnt  ID      User   Host           Time   Query       
  localhost  Query      49    12933  webusr localhost      19:38  SELECT * FROM
  localhost  Sending Da 23     2383  webusr localhost      12:43  SELECT col1,
  localhost  Sleep      120     140  webusr localhost    5:18:12
@@ -11488,14 +11493,14 @@ matches the row; if it does, the row gets the specified color, and no further
 rules are evaluated.  The rules look like the following:
 
  state  eq  Locked       black on_red
- cmd    eq  Sleep        white
- user   eq  system user  white
- cmd    eq  Connect      white
- cmd    eq  Binlog Dump  white
- time   >   600          red
- time   >   120          yellow
- time   >   60           green
- time   >   30           cyan
+ cmd    eq  Sleep        white       
+ user   eq  system user  white       
+ cmd    eq  Connect      white       
+ cmd    eq  Binlog Dump  white       
+ time   >   600          red         
+ time   >   120          yellow      
+ time   >   60           green       
+ time   >   30           cyan        
 
 This is the default rule set for the L<"processlist"> table.  In order of
 priority, these rules make locked queries black on a red background, "gray out"
@@ -11639,9 +11644,9 @@ screen, it will prompt you to choose one of them.  Once you do, innotop will
 show you something like this:
 
  Editing table definition for Buffer Pool.  Press ? for help, q to quit.
-
- name               hdr          label                  src
- cxn                CXN          Connection from which  cxn
+ 
+ name               hdr          label                  src          
+ cxn                CXN          Connection from which  cxn          
  buf_pool_size      Size         Buffer pool size       IB_bp_buf_poo
  buf_free           Free Bufs    Buffers free in the b  IB_bp_buf_fre
  pages_total        Pages        Pages total            IB_bp_pages_t
@@ -11931,15 +11936,15 @@ whitespace).
 
  use strict;
  use warnings FATAL => 'all';
-
+ 
  package Innotop::Plugin::Example;
  # description: Adds an 'example' column to every table
-
+ 
  sub new {
     my ( $class, %vars ) = @_;
     # Store reference to innotop's variables in $self
     my $self = bless { %vars }, $class;
-
+ 
     # Design the example column
     my $col = {
        hdr   => 'Example',
@@ -11951,7 +11956,7 @@ whitespace).
        tbl   => '',
        trans => [],
     };
-
+ 
     # Add the column to every table.
     my $tbl_meta = $vars{tbl_meta};
     foreach my $tbl ( values %$tbl_meta ) {
@@ -11960,17 +11965,17 @@ whitespace).
        # Add the column to the list of visible columns
        unshift @{$tbl->{visible}}, 'example';
     }
-
+ 
     # Be sure to return a reference to the object.
     return $self;
  }
-
+ 
  # I'd like to be called when a data set is being rendered into a table, please.
  sub register_for_events {
     my ( $self ) = @_;
     return qw(set_to_tbl_pre_filter);
  }
-
+ 
  # This method will be called when the event fires.
  sub set_to_tbl_pre_filter {
     my ( $self, $rows, $tbl ) = @_;
@@ -11979,7 +11984,7 @@ whitespace).
        $row->{example} = 1;
     }
  }
-
+ 
  1;
 
 =head2 Plugin Editor
@@ -12064,7 +12069,7 @@ This data is from the TRANSACTIONS section of SHOW INNODB STATUS.
 
 =item IO_THREADS
 
-This data is from the list of threads in the FILE I/O section of SHOW INNODB
+This data is from the list of threads in the the FILE I/O section of SHOW INNODB
 STATUS.
 
 =item INNODB_LOCKS
@@ -12132,7 +12137,7 @@ You need appropriate privileges to create and drop the deadlock tables if needed
 =head1 SYSTEM REQUIREMENTS
 
 You need Perl to run innotop, of course.  You also need a few Perl modules: DBI,
-DBD::MariaDB,  Term::ReadKey, and Time::HiRes.  These should be included with most
+DBD::mysql,  Term::ReadKey, and Time::HiRes.  These should be included with most
 Perl distributions, but in case they are not, I recommend using versions
 distributed with your operating system or Perl distribution, not from CPAN.
 Term::ReadKey in particular has been known to cause problems if installed from
@@ -12181,7 +12186,7 @@ Allen K. Smith,
 Aurimas Mikalauskas,
 Bartosz Fenski,
 Brian Miezejewski,
-Christian Hammers,
+Christian Hammers, 
 Cyril Scetbon,
 Dane Miller,
 David Multer,

@@ -24,4 +24,5 @@ INSERT INTO t SELECT * FROM t;
 # xtrabackup backup
 FOUND 1 /failed: redo log block is overwritten/ in backup.log
 FOUND 1 /failed: redo log block checksum does not match/ in backup.log
+FOUND 1 /failed: unknown reason/ in backup.log
 DROP TABLE t;

@@ -149,7 +149,7 @@ int trnman_init(TrID initial_trid)
   DBUG_ENTER("trnman_init");
   DBUG_PRINT("enter", ("initial_trid: %lu", (ulong) initial_trid));
 
-  short_trid_to_active_trn= (TRN **)my_malloc(PSI_INSTRUMENT_ME, SHORT_TRID_MAX*sizeof(TRN*),
+  short_trid_to_active_trn= (TRN **)my_malloc(SHORT_TRID_MAX*sizeof(TRN*),
                                      MYF(MY_WME|MY_ZEROFILL));
   if (unlikely(!short_trid_to_active_trn))
     DBUG_RETURN(1);
@@ -238,7 +238,7 @@ void trnman_destroy()
 static TrID new_trid()
 {
   DBUG_ENTER("new_trid");
-  DBUG_ASSERT(global_trid_generator < MAX_INTERNAL_TRID);
+  DBUG_ASSERT(global_trid_generator < 0xffffffffffffLL);
   DBUG_PRINT("info", ("mysql_mutex_assert_owner LOCK_trn_list"));
   mysql_mutex_assert_owner(&LOCK_trn_list);
   DBUG_RETURN(++global_trid_generator);
@@ -312,7 +312,7 @@ TRN *trnman_new_trn(WT_THD *wt)
       (Like redo_lns, which is assumed to be 0 at start of row handling
       and reset to zero before end of row handling)
     */
-    trn= (TRN *)my_malloc(PSI_INSTRUMENT_ME, sizeof(TRN), MYF(MY_WME | MY_ZEROFILL));
+    trn= (TRN *)my_malloc(sizeof(TRN), MYF(MY_WME | MY_ZEROFILL));
     if (unlikely(!trn))
     {
       DBUG_PRINT("info", ("mysql_mutex_unlock LOCK_trn_list"));
@@ -700,8 +700,8 @@ my_bool trnman_collect_transactions(LEX_STRING *str_act, LEX_STRING *str_com,
 #endif
      LSN_STORE_SIZE /* first_undo_lsn */
      ) * trnman_committed_transactions;
-  if ((NULL == (str_act->str= my_malloc(PSI_INSTRUMENT_ME, str_act->length, MYF(MY_WME)))) ||
-      (NULL == (str_com->str= my_malloc(PSI_INSTRUMENT_ME, str_com->length, MYF(MY_WME)))))
+  if ((NULL == (str_act->str= my_malloc(str_act->length, MYF(MY_WME)))) ||
+      (NULL == (str_com->str= my_malloc(str_com->length, MYF(MY_WME)))))
     goto err;
   /* First, the active transactions */
   ptr= str_act->str + 2 + LSN_STORE_SIZE;

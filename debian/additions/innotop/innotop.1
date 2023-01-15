@@ -184,7 +184,7 @@ Enter; otherwise, you will need to change to innotop's directory and type \*(L"p
 innotop\*(R".
 .PP
 With no options specified, innotop will attempt to connect to a MySQL server on
-localhost using mariadb_read_default_group=client for other connection
+localhost using mysql_read_default_group=client for other connection
 parameters.  If you need to specify a different username and password, use the
 \&\-u and \-p options, respectively.  To monitor a MySQL database on another
 host, use the \-h option.
@@ -193,8 +193,8 @@ After you've connected, innotop should show you something like the following:
 .PP
 .Vb 1
 \& [RO] Query List (? for help) localhost, 01:11:19, 449.44 QPS, 14/7/163 con/run
-\&
-\& CXN        When   Load  QPS    Slow  QCacheHit  KCacheHit  BpsIn    BpsOut
+\& 
+\& CXN        When   Load  QPS    Slow  QCacheHit  KCacheHit  BpsIn    BpsOut 
 \& localhost  Total  0.00  1.07k   697      0.00%     98.17%  476.83k  242.83k
 \&
 \& CXN        Cmd    ID         User  Host      DB   Time   Query
@@ -324,7 +324,7 @@ This mode is similar to mytop's Command Summary mode.  It shows the
 .Vb 8
 \& Command Summary (? for help) localhost, 25+07:16:43, 2.45 QPS, 3 thd, 5.0.40
 \& _\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_ Command Summary _\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_\|_
-\& Name                    Value    Pct     Last Incr  Pct
+\& Name                    Value    Pct     Last Incr  Pct    
 \& Select_scan             3244858  69.89%          2  100.00%
 \& Select_range            1354177  29.17%          0    0.00%
 \& Select_full_join          39479   0.85%          0    0.00%
@@ -626,16 +626,16 @@ A \s-1DSN\s0 is a Data Source Name, which is the initial argument passed to the 
 module for connecting to a server.  It is usually of the form
 .Sp
 .Vb 1
-\& DBI:MariaDB:;mariadb_read_default_group=mysql;host=HOSTNAME
+\& DBI:mysql:;mysql_read_default_group=mysql;host=HOSTNAME
 .Ve
 .Sp
-Since this \s-1DSN\s0 is passed to the DBD::MariaDB driver, you should read the driver's
-documentation at <https://metacpan.org/pod/DBD::MariaDB> for
+Since this \s-1DSN\s0 is passed to the DBD::mysql driver, you should read the driver's
+documentation at \*(L"/search.cpan.org/dist/DBD\-mysql/lib/DBD/mysql.pm\*(R"\*(L" in \*(R"http: for
 the exact details on all the options you can pass the driver in the \s-1DSN. \s0 You
 can read more about \s-1DBI\s0 at <http://dbi.perl.org/docs/>, and especially at
 <http://search.cpan.org/~timb/DBI/DBI.pm>.
 .Sp
-The mariadb_read_default_group=mysql option lets the \s-1DBD\s0 driver read your MySQL
+The mysql_read_default_group=mysql option lets the \s-1DBD\s0 driver read your MySQL
 options files, such as ~/.my.cnf on UNIX-ish systems.  You can use this to avoid
 specifying a username or password for the connection.
 .IP "InnoDB Deadlock Table" 4
@@ -1261,7 +1261,7 @@ Displays data about InnoDB's semaphores and mutexes.  Data source:
 \&\*(L"\s-1STATUS_VARIABLES\*(R"\s0.
 .IP "slave_io_status" 4
 .IX Item "slave_io_status"
-Displays data about the slave I/O thread.  Data source:
+Displays data about the slave I/O thread.  Data source: 
 \&\*(L"\s-1STATUS_VARIABLES\*(R"\s0.
 .IP "slave_sql_status" 4
 .IX Item "slave_sql_status"
@@ -1472,8 +1472,8 @@ Your display might now look like the following:
 .PP
 .Vb 1
 \& Query List (? for help) localhost, 32:33, 0.11 QPS, 1 thd, 5.0.38\-log
-\&
-\& CXN        Cmd        Cnt  ID      User   Host           Time   Query
+\& 
+\& CXN        Cmd        Cnt  ID      User   Host           Time   Query       
 \& localhost  Query      49    12933  webusr localhost      19:38  SELECT * FROM
 \& localhost  Sending Da 23     2383  webusr localhost      12:43  SELECT col1,
 \& localhost  Sleep      120     140  webusr localhost    5:18:12
@@ -1526,13 +1526,13 @@ rules are evaluated.  The rules look like the following:
 .PP
 .Vb 9
 \& state  eq  Locked       black on_red
-\& cmd    eq  Sleep        white
-\& user   eq  system user  white
-\& cmd    eq  Connect      white
-\& cmd    eq  Binlog Dump  white
-\& time   >   600          red
-\& time   >   120          yellow
-\& time   >   60           green
+\& cmd    eq  Sleep        white       
+\& user   eq  system user  white       
+\& cmd    eq  Connect      white       
+\& cmd    eq  Binlog Dump  white       
+\& time   >   600          red         
+\& time   >   120          yellow      
+\& time   >   60           green       
 \& time   >   30           cyan
 .Ve
 .PP
@@ -1669,9 +1669,9 @@ show you something like this:
 .PP
 .Vb 1
 \& Editing table definition for Buffer Pool.  Press ? for help, q to quit.
-\&
-\& name               hdr          label                  src
-\& cxn                CXN          Connection from which  cxn
+\& 
+\& name               hdr          label                  src          
+\& cxn                CXN          Connection from which  cxn          
 \& buf_pool_size      Size         Buffer pool size       IB_bp_buf_poo
 \& buf_free           Free Bufs    Buffers free in the b  IB_bp_buf_fre
 \& pages_total        Pages        Pages total            IB_bp_pages_t
@@ -1924,15 +1924,15 @@ whitespace).
 .Vb 2
 \& use strict;
 \& use warnings FATAL => \*(Aqall\*(Aq;
-\&
+\& 
 \& package Innotop::Plugin::Example;
 \& # description: Adds an \*(Aqexample\*(Aq column to every table
-\&
+\& 
 \& sub new {
 \&    my ( $class, %vars ) = @_;
 \&    # Store reference to innotop\*(Aqs variables in $self
 \&    my $self = bless { %vars }, $class;
-\&
+\& 
 \&    # Design the example column
 \&    my $col = {
 \&       hdr   => \*(AqExample\*(Aq,
@@ -1944,7 +1944,7 @@ whitespace).
 \&       tbl   => \*(Aq\*(Aq,
 \&       trans => [],
 \&    };
-\&
+\& 
 \&    # Add the column to every table.
 \&    my $tbl_meta = $vars{tbl_meta};
 \&    foreach my $tbl ( values %$tbl_meta ) {
@@ -1953,17 +1953,17 @@ whitespace).
 \&       # Add the column to the list of visible columns
 \&       unshift @{$tbl\->{visible}}, \*(Aqexample\*(Aq;
 \&    }
-\&
+\& 
 \&    # Be sure to return a reference to the object.
 \&    return $self;
 \& }
-\&
+\& 
 \& # I\*(Aqd like to be called when a data set is being rendered into a table, please.
 \& sub register_for_events {
 \&    my ( $self ) = @_;
 \&    return qw(set_to_tbl_pre_filter);
 \& }
-\&
+\& 
 \& # This method will be called when the event fires.
 \& sub set_to_tbl_pre_filter {
 \&    my ( $self, $rows, $tbl ) = @_;
@@ -1972,7 +1972,7 @@ whitespace).
 \&       $row\->{example} = 1;
 \&    }
 \& }
-\&
+\& 
 \& 1;
 .Ve
 .SS "Plugin Editor"
@@ -2048,7 +2048,7 @@ the processlist.
 This data is from the \s-1TRANSACTIONS\s0 section of \s-1SHOW INNODB STATUS.\s0
 .IP "\s-1IO_THREADS\s0" 4
 .IX Item "IO_THREADS"
-This data is from the list of threads in the \s-1FILE I/O\s0 section of \s-1SHOW INNODB
+This data is from the list of threads in the the \s-1FILE I/O\s0 section of \s-1SHOW INNODB
 STATUS.\s0
 .IP "\s-1INNODB_LOCKS\s0" 4
 .IX Item "INNODB_LOCKS"
@@ -2095,7 +2095,7 @@ You need appropriate privileges to create and drop the deadlock tables if needed
 .SH "SYSTEM REQUIREMENTS"
 .IX Header "SYSTEM REQUIREMENTS"
 You need Perl to run innotop, of course.  You also need a few Perl modules: \s-1DBI,\s0
-DBD::MariaDB,  Term::ReadKey, and Time::HiRes.  These should be included with most
+DBD::mysql,  Term::ReadKey, and Time::HiRes.  These should be included with most
 Perl distributions, but in case they are not, I recommend using versions
 distributed with your operating system or Perl distribution, not from \s-1CPAN.\s0
 Term::ReadKey in particular has been known to cause problems if installed from
@@ -2137,7 +2137,7 @@ Allen K. Smith,
 Aurimas Mikalauskas,
 Bartosz Fenski,
 Brian Miezejewski,
-Christian Hammers,
+Christian Hammers, 
 Cyril Scetbon,
 Dane Miller,
 David Multer,

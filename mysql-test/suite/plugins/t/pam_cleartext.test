@@ -13,22 +13,22 @@ EOF
 --echo # same test as in pam.test now fails
 --echo #
 --error 1
---exec $MYSQL_TEST -u test_pam < $MYSQLTEST_VARDIR/tmp/pam_good.txt
+--exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good.txt
 --error 1
---exec $MYSQL_TEST -u test_pam -p'something' < $MYSQLTEST_VARDIR/tmp/pam_good.txt
+--exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir -p'something' < $MYSQLTEST_VARDIR/tmp/pam_good.txt
 
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
 
 --echo #
 --echo # success
 --echo #
---exec $MYSQL -u test_pam -p'cleartext good' -e 'select user(), current_user(), database()'
+--exec $MYSQL -u test_pam --plugin-dir=$plugindir -p'cleartext good' -e 'select user(), current_user(), database()'
 
 --echo #
 --echo # failure
 --echo #
 --error 1
---exec $MYSQL -u test_pam -p'cleartext bad' -e 'select user(), current_user(), database()'
+--exec $MYSQL -u test_pam --plugin-dir=$plugindir -p'cleartext bad' -e 'select user(), current_user(), database()'
 
 drop user test_pam;
 drop user pam_test;

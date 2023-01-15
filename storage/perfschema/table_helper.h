@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -31,7 +31,7 @@
 #include "pfs_digest.h"
 
 /*
-  Write MD5 hash value in a string to be used
+  Write MD5 hash value in a string to be used 
   as DIGEST for the statement.
 */
 #define MD5_HASH_TO_STRING(_hash, _str)                    \
@@ -47,10 +47,6 @@
 struct PFS_host;
 struct PFS_user;
 struct PFS_account;
-struct PFS_object_name;
-struct PFS_program;
-class System_variable;
-class Status_variable;
 
 /**
   @file storage/perfschema/table_helper.h
@@ -73,8 +69,7 @@ struct PFS_instrument_view_constants
   static const uint VIEW_TABLE= 5;
   static const uint VIEW_SOCKET= 6;
   static const uint VIEW_IDLE= 7;
-  static const uint VIEW_METADATA= 8;
-  static const uint LAST_VIEW= 8;
+  static const uint LAST_VIEW= 7;
 };
 
 /** Namespace, internal views used within object summaries. */
@@ -82,8 +77,12 @@ struct PFS_object_view_constants
 {
   static const uint FIRST_VIEW= 1;
   static const uint VIEW_TABLE= 1;
-  static const uint VIEW_PROGRAM= 2;
-  static const uint LAST_VIEW= 2;
+  static const uint LAST_VIEW= 1;
+
+  /* Future use */
+  static const uint VIEW_EVENT= 2;
+  static const uint VIEW_PROCEDURE= 3;
+  static const uint VIEW_FUNCTION= 4;
 };
 
 /** Row fragment for column HOST. */
@@ -190,11 +189,8 @@ struct PFS_object_row
 
   /** Build a row from a memory buffer. */
   int make_row(PFS_table_share *pfs);
-  int make_row(PFS_program *pfs);
-  int make_row(const MDL_key *pfs);
   /** Set a table field from the row. */
   void set_field(uint index, Field *f);
-  void set_nullable_field(uint index, Field *f);
 };
 
 /** Row fragment for columns OBJECT_TYPE, SCHEMA_NAME, OBJECT_NAME, INDEX_NAME. */
@@ -207,8 +203,7 @@ struct PFS_index_row
   uint m_index_name_length;
 
   /** Build a row from a memory buffer. */
-  int make_row(PFS_table_share *pfs, PFS_table_share_index *pfs_index,
-               uint table_index);
+  int make_row(PFS_table_share *pfs, uint table_index);
   /** Set a table field from the row. */
   void set_field(uint index, Field *f);
 };
@@ -226,15 +221,6 @@ struct PFS_stat_row
   ulonglong m_avg;
   /** Column MAX_TIMER_WAIT. */
   ulonglong m_max;
-
-  inline void reset()
-  {
-    m_count= 0;
-    m_sum= 0;
-    m_min= 0;
-    m_avg= 0;
-    m_max= 0;
-  }
 
   /** Build a row with timer fields from a memory buffer. */
   inline void set(time_normalizer *normalizer, const PFS_single_stat *stat)
@@ -278,7 +264,7 @@ struct PFS_stat_row
         PFS_engine_table::set_field_ulonglong(f, m_max);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
     }
   }
 };
@@ -441,106 +427,33 @@ struct PFS_statement_stat_row
   /** Build a row from a memory buffer. */
   inline void set(time_normalizer *normalizer, const PFS_statement_stat *stat)
   {
-    if (stat->m_timer1_stat.m_count != 0)
-    {
-      m_timer1_row.set(normalizer, & stat->m_timer1_stat);
-
-      m_error_count= stat->m_error_count;
-      m_warning_count= stat->m_warning_count;
-      m_lock_time= stat->m_lock_time * MICROSEC_TO_PICOSEC;
-      m_rows_affected= stat->m_rows_affected;
-      m_rows_sent= stat->m_rows_sent;
-      m_rows_examined= stat->m_rows_examined;
-      m_created_tmp_disk_tables= stat->m_created_tmp_disk_tables;
-      m_created_tmp_tables= stat->m_created_tmp_tables;
-      m_select_full_join= stat->m_select_full_join;
-      m_select_full_range_join= stat->m_select_full_range_join;
-      m_select_range= stat->m_select_range;
-      m_select_range_check= stat->m_select_range_check;
-      m_select_scan= stat->m_select_scan;
-      m_sort_merge_passes= stat->m_sort_merge_passes;
-      m_sort_range= stat->m_sort_range;
-      m_sort_rows= stat->m_sort_rows;
-      m_sort_scan= stat->m_sort_scan;
-      m_no_index_used= stat->m_no_index_used;
-      m_no_good_index_used= stat->m_no_good_index_used;
-    }
-    else
-    {
-      m_timer1_row.reset();
-
-      m_error_count= 0;
-      m_warning_count= 0;
-      m_lock_time= 0;
-      m_rows_affected= 0;
-      m_rows_sent= 0;
-      m_rows_examined= 0;
-      m_created_tmp_disk_tables= 0;
-      m_created_tmp_tables= 0;
-      m_select_full_join= 0;
-      m_select_full_range_join= 0;
-      m_select_range= 0;
-      m_select_range_check= 0;
-      m_select_scan= 0;
-      m_sort_merge_passes= 0;
-      m_sort_range= 0;
-      m_sort_rows= 0;
-      m_sort_scan= 0;
-      m_no_index_used= 0;
-      m_no_good_index_used= 0;
-    }
-  }
-
-  /** Set a table field from the row. */
-  void set_field(uint index, Field *f);
-};
-
-/** Row fragment for stored program statistics. */
-struct PFS_sp_stat_row
-{
-  PFS_stat_row m_timer1_row;
-
-  /** Build a row from a memory buffer. */
-  inline void set(time_normalizer *normalizer, const PFS_sp_stat *stat)
-  {
     m_timer1_row.set(normalizer, & stat->m_timer1_stat);
-  }
 
-  /** Set a table field from the row. */
-  inline void set_field(uint index, Field *f)
-  {
-    m_timer1_row.set_field(index, f);
-  }
-};
-
-/** Row fragment for transaction statistics columns. */
-struct PFS_transaction_stat_row
-{
-  PFS_stat_row m_timer1_row;
-  PFS_stat_row m_read_write_row;
-  PFS_stat_row m_read_only_row;
-  ulonglong m_savepoint_count;
-  ulonglong m_rollback_to_savepoint_count;
-  ulonglong m_release_savepoint_count;
-
-  /** Build a row from a memory buffer. */
-  inline void set(time_normalizer *normalizer, const PFS_transaction_stat *stat)
-  {
-    /* Combine read write/read only stats */
-    PFS_single_stat all;
-    all.aggregate(&stat->m_read_only_stat);
-    all.aggregate(&stat->m_read_write_stat);
-
-    m_timer1_row.set(normalizer, &all);
-    m_read_write_row.set(normalizer, &stat->m_read_write_stat);
-    m_read_only_row.set(normalizer, &stat->m_read_only_stat);
+    m_error_count= stat->m_error_count;
+    m_warning_count= stat->m_warning_count;
+    m_lock_time= stat->m_lock_time * MICROSEC_TO_PICOSEC;
+    m_rows_affected= stat->m_rows_affected;
+    m_rows_sent= stat->m_rows_sent;
+    m_rows_examined= stat->m_rows_examined;
+    m_created_tmp_disk_tables= stat->m_created_tmp_disk_tables;
+    m_created_tmp_tables= stat->m_created_tmp_tables;
+    m_select_full_join= stat->m_select_full_join;
+    m_select_full_range_join= stat->m_select_full_range_join;
+    m_select_range= stat->m_select_range;
+    m_select_range_check= stat->m_select_range_check;
+    m_select_scan= stat->m_select_scan;
+    m_sort_merge_passes= stat->m_sort_merge_passes;
+    m_sort_range= stat->m_sort_range;
+    m_sort_rows= stat->m_sort_rows;
+    m_sort_scan= stat->m_sort_scan;
+    m_no_index_used= stat->m_no_index_used;
+    m_no_good_index_used= stat->m_no_good_index_used;
   }
 
   /** Set a table field from the row. */
   void set_field(uint index, Field *f);
 };
 
-/** Row fragment for connection statistics. */
 struct PFS_connection_stat_row
 {
   ulonglong m_current_connections;
@@ -557,12 +470,6 @@ struct PFS_connection_stat_row
 };
 
 void set_field_object_type(Field *f, enum_object_type object_type);
-void set_field_lock_type(Field *f, PFS_TL_LOCK_TYPE lock_type);
-void set_field_mdl_type(Field *f, opaque_mdl_type mdl_type, bool backup);
-void set_field_mdl_duration(Field *f, opaque_mdl_duration mdl_duration);
-void set_field_mdl_status(Field *f, opaque_mdl_status mdl_status);
-void set_field_isolation_level(Field *f, enum_isolation_level iso_level);
-void set_field_xa_state(Field *f, enum_xa_transaction_state xa_state);
 
 /** Row fragment for socket io statistics columns. */
 struct PFS_socket_io_stat_row
@@ -571,7 +478,7 @@ struct PFS_socket_io_stat_row
   PFS_byte_stat_row m_write;
   PFS_byte_stat_row m_misc;
   PFS_byte_stat_row m_all;
-
+  
   inline void set(time_normalizer *normalizer, const PFS_socket_io_stat *stat)
   {
     PFS_byte_stat all;
@@ -579,7 +486,7 @@ struct PFS_socket_io_stat_row
     m_read.set(normalizer, &stat->m_read);
     m_write.set(normalizer, &stat->m_write);
     m_misc.set(normalizer, &stat->m_misc);
-
+    
     /* Combine stats for all operations */
     all.aggregate(&stat->m_read);
     all.aggregate(&stat->m_write);
@@ -596,7 +503,7 @@ struct PFS_file_io_stat_row
   PFS_byte_stat_row m_write;
   PFS_byte_stat_row m_misc;
   PFS_byte_stat_row m_all;
-
+  
   inline void set(time_normalizer *normalizer, const PFS_file_io_stat *stat)
   {
     PFS_byte_stat all;
@@ -604,7 +511,7 @@ struct PFS_file_io_stat_row
     m_read.set(normalizer, &stat->m_read);
     m_write.set(normalizer, &stat->m_write);
     m_misc.set(normalizer, &stat->m_misc);
-
+    
     /* Combine stats for all operations */
     all.aggregate(&stat->m_read);
     all.aggregate(&stat->m_write);
@@ -612,88 +519,6 @@ struct PFS_file_io_stat_row
 
     m_all.set(normalizer, &all);
   }
-};
-
-/** Row fragment for memory statistics columns. */
-struct PFS_memory_stat_row
-{
-  PFS_memory_stat m_stat;
-
-  /** Build a row from a memory buffer. */
-  inline void set(const PFS_memory_stat *stat)
-  {
-    m_stat= *stat;
-  }
-
-  /** Set a table field from the row. */
-  void set_field(uint index, Field *f);
-};
-
-struct PFS_variable_name_row
-{
-public:
-  PFS_variable_name_row()
-  {
-    m_str[0]= '\0';
-    m_length= 0;
-  }
-
-  void make_row(const char* str, size_t length);
-
-  char m_str[NAME_CHAR_LEN+1];
-  uint m_length;
-};
-
-struct PFS_variable_value_row
-{
-public:
-  /** Set the row from a status variable. */
-  void make_row(const Status_variable *var);
-
-  /** Set the row from a system variable. */
-  void make_row(const System_variable *var);
-
-  /** Set a table field from the row. */
-  void set_field(Field *f);
-
-private:
-  void make_row(const CHARSET_INFO *cs, const char* str, size_t length);
-
-  char m_str[1024];
-  uint m_length;
-  const CHARSET_INFO *m_charset;
-};
-
-struct PFS_user_variable_value_row
-{
-public:
-  PFS_user_variable_value_row()
-    : m_value(NULL), m_value_length(0)
-  {}
-
-  PFS_user_variable_value_row(const PFS_user_variable_value_row& rhs)
-  {
-    make_row(rhs.m_value, rhs.m_value_length);
-  }
-
-  ~PFS_user_variable_value_row()
-  {
-    clear();
-  }
-
-  void make_row(const char* val, size_t length);
-
-  const char *get_value() const
-  { return m_value; }
-
-  size_t get_value_length() const
-  { return m_value_length; }
-
-  void clear();
-
-private:
-  char *m_value;
-  size_t m_value_length;
 };
 
 /** @} */

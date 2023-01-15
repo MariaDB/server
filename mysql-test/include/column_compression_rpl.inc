@@ -5,7 +5,7 @@ SET @saved_slave_type_conversions = @@slave_type_conversions;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY';
 
 --connection master
-if (!$engine_type)  {let $engine_type=`SELECT @@default_storage_engine`; let $engine_type2=`SELECT @@default_storage_engine`;}
+if (!$engine_type)  {let $engine_type=`SELECT @@storage_engine`; let $engine_type2=`SELECT @@storage_engine`;}
 
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;

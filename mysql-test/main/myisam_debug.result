@@ -38,9 +38,7 @@ insert t1 values (1),(2),(1);
 set @old_dbug=@@debug_dbug;
 SET debug_dbug='+d,mi_lock_database_failure';
 unlock tables;
-ERROR HY000: Index for table './test/t1.MYI' is corrupt; try to repair it
-SHOW WARNINGS;
-Level	Code	Message
+Warnings:
 Error	126	Index for table './test/t1.MYI' is corrupt; try to repair it
 Error	1030	Got error 22 "Invalid argument" from storage engine MyISAM
 SET debug_dbug=@old_dbug;

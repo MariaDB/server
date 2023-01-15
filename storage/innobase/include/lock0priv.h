@@ -521,7 +521,7 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
 	byte	mask = byte(1U << (i & 7));
 	byte	bit = *b & mask;
-	*b &= byte(~mask);
+	*b &= ~mask;
 
 	if (bit != 0) {
 		ut_ad(lock->trx->lock.n_rec_locks > 0);
@@ -539,6 +539,29 @@ lock_t*
 lock_rec_get_next_on_page(
 /*======================*/
 	lock_t*		lock);		/*!< in: a record lock */
+/*********************************************************************//**
+Gets the first record lock on a page, where the page is identified by its
+file address.
+@return first lock, NULL if none exists */
+UNIV_INLINE
+lock_t*
+lock_rec_get_first_on_page_addr(
+/*============================*/
+	hash_table_t*   lock_hash,	/* Lock hash table */
+	ulint           space,		/*!< in: space */
+	ulint           page_no);	/*!< in: page number */
+
+/*********************************************************************//**
+Gets the first record lock on a page, where the page is identified by a
+pointer to it.
+@return first lock, NULL if none exists */
+UNIV_INLINE
+lock_t*
+lock_rec_get_first_on_page(
+/*=======================*/
+	hash_table_t*		lock_hash,	/*!< in: lock hash table */
+	const buf_block_t*	block);		/*!< in: buffer block */
+
 
 /*********************************************************************//**
 Gets the next explicit lock request on a record.
@@ -608,6 +631,20 @@ ulint
 lock_get_wait(
 /*==========*/
 	const lock_t*	lock);	/*!< in: lock */
+
+/*********************************************************************//**
+Looks for a suitable type record lock struct by the same trx on the same page.
+This can be used to save space when a new record lock should be set on a page:
+no new struct is needed, if a suitable old is found.
+@return lock or NULL */
+UNIV_INLINE
+lock_t*
+lock_rec_find_similar_on_page(
+/*==========================*/
+	ulint		type_mode,	/*!< in: lock type_mode field */
+	ulint		heap_no,	/*!< in: heap number of the record */
+	lock_t*		lock,		/*!< in: lock_rec_get_first_on_page() */
+	const trx_t*	trx);		/*!< in: transaction */
 
 /*********************************************************************//**
 Checks if a transaction has the specified table lock, or stronger. This

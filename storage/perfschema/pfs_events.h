@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -41,16 +41,8 @@ struct PFS_events
   ulonglong m_event_id;
   /** END_EVENT_ID. */
   ulonglong m_end_event_id;
-  /** (EVENT_TYPE) */
-  enum_event_type m_event_type;
   /** NESTING_EVENT_ID. */
   ulonglong m_nesting_event_id;
-  /** NESTING_EVENT_TYPE */
-  enum_event_type m_nesting_event_type;
-  /** NESTING_EVENT_LEVEL */
-  uint m_nesting_event_level;
-  /** Instrument metadata. */
-  PFS_instr_class *m_class;
   /**
     Timer start.
     This member is populated only if m_class->m_timed is true.
@@ -61,8 +53,14 @@ struct PFS_events
     This member is populated only if m_class->m_timed is true.
   */
   ulonglong m_timer_end;
+  /** Instrument metadata. */
+  PFS_instr_class *m_class;
   /** Location of the instrumentation in the source code (file name). */
   const char *m_source_file;
+  /** (EVENT_TYPE) */
+  enum_event_type m_event_type;
+  /** NESTING_EVENT_TYPE */
+  enum_event_type m_nesting_event_type;
   /** Location of the instrumentation in the source code (line number). */
   uint m_source_line;
 };

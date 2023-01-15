@@ -91,7 +91,7 @@ SELECT * FROM graph WHERE latch='-1' and destid=1;
 SELECT * FROM graph WHERE latch='-1' and origid=666;
 SELECT * FROM graph WHERE latch='-1' and origid is NULL;
 
---echo # Make sure we don't crash if someone passed in a UTF string
+--echo # Make sure we dont crash if someone passed in a UTF string
 #-- Note the next line couter-intuitively produces no warning
 SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄';
 SELECT * FROM graph WHERE latch='Ω Ohms Tennis Ball 〄' and destid=2 and origid=1;
@@ -125,7 +125,7 @@ FLUSH TABLES;
 
 TRUNCATE TABLE graph_base;
 #-- Uncomment the following after fixing https://bugs.launchpad.net/oqgraph/+bug/xxxxxxx - Causes the later select to not fail!
-#-- For now don't report a separate bug as it may be a manifestation of https://bugs.launchpad.net/oqgraph/+bug/1195735
+#-- For now dont report a separate bug as it may be a manifestation of https://bugs.launchpad.net/oqgraph/+bug/1195735
 SELECT * FROM graph;
 
 #-- Expect error if we pull the table out from under

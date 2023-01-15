@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, 2021, MariaDB Corporation.
+/* Copyright (c) 2016, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,15 +19,10 @@ my_bool my_may_have_atomic_write= IF_WIN(1,0);
 
 #ifdef __linux__
 
-my_bool has_shannon_atomic_write= 0, has_fusion_io_atomic_write= 0,
-        has_sfx_atomic_write= 0;
+my_bool has_shannon_atomic_write= 0, has_fusion_io_atomic_write= 0;
 
 #include <sys/ioctl.h>
 
-/* Linux seems to allow up to 15 partitions per block device.
-Partition number 0 is the whole block device. */
-# define SAME_DEV(fs_dev, blk_dev) \
-  (fs_dev == blk_dev) || ((fs_dev & ~15U) == blk_dev)
 
 /***********************************************************************
   FUSION_IO
@@ -119,9 +114,9 @@ static my_bool test_if_shannon_card_exists()
 
     sprintf(path, "/dev/df%c", dev_part);
 #ifdef TEST_SHANNON
-    if (stat(path, &stat_buff) < 0)
+    if (lstat(path, &stat_buff) < 0)
     {
-      printf("%s(): stat %s failed.\n", __func__, path);
+      printf("%s(): lstat failed.\n", __func__);
       break;
     }
 #endif
@@ -151,7 +146,7 @@ static my_bool test_if_shannon_card_exists()
     for (dev_no= 1 ; dev_no < 9 ; dev_no++)
     {
       sprintf(path, "/dev/df%c%d", dev_part, dev_no);
-      if (stat(path, &stat_buff) < 0)
+      if (lstat(path, &stat_buff) < 0)
         break;
 
       shannon_devices[shannon_found_devices].st_dev= stat_buff.st_rdev;
@@ -198,13 +193,12 @@ static my_bool shannon_dev_has_atomic_write(struct shannon_dev *dev,
     int fd= open(dev->dev_name, 0);
     if (fd < 0)
     {
-      fprintf(stderr, "Unable to determine if atomic writes are supported:"
-              " open(\"%s\"): %m\n", dev->dev_name);
+      perror("open() failed!");
       dev->atomic_size= 0;                      /* Don't try again */
       return FALSE;
     }
-    dev->atomic_size= ioctl(fd, SHANNON_IOCQATOMIC_SIZE);
-    close(fd);
+     dev->atomic_size= ioctl(fd, SHANNON_IOCQATOMIC_SIZE);
+     close(fd);
   }
 
 #ifdef TEST_SHANNON
@@ -253,111 +247,13 @@ static my_bool shannon_has_atomic_write(File file, int page_size)
 #ifdef TEST_SHANNON
     printf("%s(): st_rdev=0x%lx\n", __func__, (ulong) dev->st_dev);
 #endif
-    if (SAME_DEV(stat_buff.st_dev, dev->st_dev))
+    if (stat_buff.st_dev == dev->st_dev)
       return shannon_dev_has_atomic_write(dev, page_size);
  }
  return 0;
 }
 
 
-/***********************************************************************
-  ScaleFlux
-************************************************************************/
-
-#define SFX_GET_ATOMIC_SIZE  _IO('N', 0x244)
-#define SFX_MAX_DEVICES 32
-#define SFX_NO_ATOMIC_SIZE_YET -2
-
-struct sfx_dev
-{
-  char dev_name[32];
-  dev_t st_dev;
-  int atomic_size;
-};
-
-static struct sfx_dev sfx_devices[SFX_MAX_DEVICES + 1];
-
-/**
-   Check if the system has a ScaleFlux card
-   If card exists, record device numbers to allow us to later check if
-   a given file is on this device.
-   @return TRUE   Card exists
-*/
-
-static my_bool test_if_sfx_card_exists()
-{
-  uint sfx_found_devices = 0;
-  uint dev_num;
-
-  for (dev_num = 0; dev_num < SFX_MAX_DEVICES; dev_num++)
-  {
-    struct stat stat_buff;
-
-    sprintf(sfx_devices[sfx_found_devices].dev_name, "/dev/sfdv%dn1",
-            dev_num);
-    if (stat(sfx_devices[sfx_found_devices].dev_name, &stat_buff) < 0)
-      break;
-
-    sfx_devices[sfx_found_devices].st_dev= stat_buff.st_rdev;
-    /*
-      The atomic size will be checked on first access. This is needed
-      as a normal user can't open the /dev/sfdvXn1 file
-    */
-    sfx_devices[sfx_found_devices].atomic_size = SFX_NO_ATOMIC_SIZE_YET;
-    if (++sfx_found_devices == SFX_MAX_DEVICES)
-      goto end;
-  }
-end:
-  sfx_devices[sfx_found_devices].st_dev= 0;
-  return sfx_found_devices > 0;
-}
-
-static my_bool sfx_dev_has_atomic_write(struct sfx_dev *dev,
-                                            int page_size)
-{
-  if (dev->atomic_size == SFX_NO_ATOMIC_SIZE_YET)
-  {
-    int fd= open(dev->dev_name, 0);
-    if (fd < 0)
-    {
-      fprintf(stderr, "Unable to determine if atomic writes are supported:"
-              " open(\"%s\"): %m\n", dev->dev_name);
-      dev->atomic_size= 0;                      /* Don't try again */
-    }
-    else
-    {
-      dev->atomic_size= ioctl(fd, SFX_GET_ATOMIC_SIZE);
-      close(fd);
-    }
-  }
-
-  return (page_size <= dev->atomic_size);
-}
-
-
-/**
-   Check if a file is on a ScaleFlux device and that it supports atomic_write
-   @param[in] file              OS file handle
-   @param[in] page_size         page size
-   @return TRUE                 Atomic write supported
-
-   @notes
-   This is called only at first open of a file.  In this case it's doesn't
-   matter so much that we loop over all cards.
-   We update the atomic size on first access.
-*/
-
-static my_bool sfx_has_atomic_write(File file, int page_size)
-{
-  struct sfx_dev *dev;
-  struct stat stat_buff;
-
-  if (fstat(file, &stat_buff) == 0)
-    for (dev= sfx_devices; dev->st_dev; dev++)
-      if (SAME_DEV(stat_buff.st_dev, dev->st_dev))
-        return sfx_dev_has_atomic_write(dev, page_size);
-  return 0;
-}
 /***********************************************************************
   Generic atomic write code
 ************************************************************************/
@@ -369,13 +265,9 @@ static my_bool sfx_has_atomic_write(File file, int page_size)
 
 void my_init_atomic_write(void)
 {
-  has_shannon_atomic_write= test_if_shannon_card_exists();
-  has_fusion_io_atomic_write= test_if_fusion_io_card_exists();
-  has_sfx_atomic_write= test_if_sfx_card_exists();
-
-  my_may_have_atomic_write= has_shannon_atomic_write ||
-    has_fusion_io_atomic_write || has_sfx_atomic_write;
-
+  if ((has_shannon_atomic_write=   test_if_shannon_card_exists()) ||
+      (has_fusion_io_atomic_write= test_if_fusion_io_card_exists()))
+  my_may_have_atomic_write= 1;
 #ifdef TEST_SHANNON
   printf("%s(): has_shannon_atomic_write=%d, my_may_have_atomic_write=%d\n",
           __func__,
@@ -402,17 +294,12 @@ my_bool my_test_if_atomic_write(File handle, int page_size)
 #endif
   if (!my_may_have_atomic_write)
     return 0;
-
   if (has_shannon_atomic_write &&
       shannon_has_atomic_write(handle, page_size))
     return 1;
 
   if (has_fusion_io_atomic_write &&
       fusion_io_has_atomic_write(handle, page_size))
-    return 1;
-
-  if (has_sfx_atomic_write &&
-      sfx_has_atomic_write(handle, page_size))
     return 1;
 
   return 0;

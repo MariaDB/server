@@ -92,7 +92,8 @@ cmp_dfield_dfield_like_prefix(
 	uint cs_num = (uint) dtype_get_charset_coll(type->prtype);
 
 	if (CHARSET_INFO* cs = get_charset(cs_num, MYF(MY_WME))) {
-		return(cs->strnncoll(
+		return(cs->coll->strnncoll(
+			       cs,
 			       static_cast<const uchar*>(
 				       dfield_get_data(dfield1)),
 			       dfield_get_len(dfield1),

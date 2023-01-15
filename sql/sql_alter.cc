@@ -25,7 +25,6 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   :drop_list(rhs.drop_list, mem_root),
   alter_list(rhs.alter_list, mem_root),
   key_list(rhs.key_list, mem_root),
-  alter_rename_key_list(rhs.alter_rename_key_list, mem_root),
   create_list(rhs.create_list, mem_root),
   check_constraint_list(rhs.check_constraint_list, mem_root),
   flags(rhs.flags), partition_flags(rhs.partition_flags),
@@ -47,7 +46,6 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   list_copy_and_replace_each_value(drop_list, mem_root);
   list_copy_and_replace_each_value(alter_list, mem_root);
   list_copy_and_replace_each_value(key_list, mem_root);
-  list_copy_and_replace_each_value(alter_rename_key_list, mem_root);
   list_copy_and_replace_each_value(create_list, mem_root);
   /* partition_names are not deeply copied currently */
 }
@@ -253,8 +251,7 @@ Alter_info::algorithm(const THD *thd) const
 
 
 Alter_table_ctx::Alter_table_ctx()
-  : implicit_default_value_error_field(NULL),
-    error_if_not_empty(false),
+  : datetime_field(NULL), error_if_not_empty(false),
     tables_opened(0),
     db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
     new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
@@ -275,7 +272,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                  uint tables_opened_arg,
                                  const LEX_CSTRING *new_db_arg,
                                  const LEX_CSTRING *new_name_arg)
-  : implicit_default_value_error_field(NULL), error_if_not_empty(false),
+  : datetime_field(NULL), error_if_not_empty(false),
     tables_opened(tables_opened_arg),
     new_db(*new_db_arg), new_name(*new_name_arg),
     fk_error_if_delete_row(false), fk_error_id(NULL),
@@ -334,8 +331,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
   }
 
   tmp_name.str= tmp_name_buff;
-  tmp_name.length= my_snprintf(tmp_name_buff, sizeof(tmp_name_buff),
-                               "%s-alter-%lx-%llx",
+  tmp_name.length= my_snprintf(tmp_name_buff, sizeof(tmp_name_buff), "%s-%lx_%llx",
                                tmp_file_prefix, current_pid, thd->thread_id);
   /* Safety fix for InnoDB */
   if (lower_case_table_names)
@@ -368,21 +364,6 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 }
 
 
-void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
-                                                          const TABLE_SHARE *s)
-                                                          const
-{
-  Create_field *error_field= implicit_default_value_error_field;
-  const Type_handler *h= error_field->type_handler();
-  thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
-                                              h->name().ptr(),
-                                              h->default_value().ptr(),
-                                              s ? s->db.str : nullptr,
-                                              s ? s->table_name.str : nullptr,
-                                              error_field->field_name.str);
-}
-
-
 bool Sql_cmd_alter_table::execute(THD *thd)
 {
   LEX *lex= thd->lex;
@@ -411,9 +392,8 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   */
   HA_CREATE_INFO create_info(lex->create_info);
   Alter_info alter_info(lex->alter_info, thd->mem_root);
-  create_info.alter_info= &alter_info;
-  privilege_t priv(NO_ACL);
-  privilege_t priv_needed(ALTER_ACL);
+  ulong priv=0;
+  ulong priv_needed= ALTER_ACL;
   bool result;
 
   DBUG_ENTER("Sql_cmd_alter_table::execute");
@@ -498,12 +478,9 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     wsrep::key_array keys;
     wsrep_append_fk_parent_table(thd, first_table, &keys);
 
-    WSREP_TO_ISOLATION_BEGIN_ALTER(lex->name.str ? select_lex->db.str
-                                   : first_table->db.str,
-                                   lex->name.str ? lex->name.str
-                                   : first_table->table_name.str,
-                                   first_table, &alter_info, &keys,
-                                   used_engine ? &create_info : nullptr)
+    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
+                                   (lex->name.str ? lex->name.str : NULL),
+                                   first_table, &alter_info, &keys)
     {
       WSREP_WARN("ALTER TABLE isolation failure");
       DBUG_RETURN(TRUE);
@@ -556,7 +533,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             &alter_info,
                             select_lex->order_list.elements,
                             select_lex->order_list.first,
-                            lex->ignore, lex->if_exists());
+                            lex->ignore);
 
   DBUG_RETURN(result);
 }

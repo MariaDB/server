@@ -30,3 +30,4 @@
 --enable-plugin-innodb-mutexes
 --enable-plugin-innodb-sys-semaphore-waits
 --enable-plugin-innodb-tablespaces-encryption
+--enable-plugin-innodb-tablespaces-scrubbing

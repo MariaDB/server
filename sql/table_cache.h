@@ -26,11 +26,14 @@ struct Share_free_tables
   char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 };
 
+typedef int64 tdc_version_t;
+#define TDC_VERSION_MAX INT_MAX64
 
 struct TDC_element
 {
   uchar m_key[NAME_LEN + 1 + NAME_LEN + 1];
   uint m_key_length;
+  tdc_version_t version;
   bool flushed;
   TABLE_SHARE *share;
 
@@ -54,12 +57,16 @@ struct TDC_element
   /** Avoid false sharing between TDC_element and free_tables */
   char pad[CPU_LEVEL1_DCACHE_LINESIZE];
   Share_free_tables free_tables[1];
-
-  inline void wait_for_refs(uint my_refs);
-  void flush(THD *thd, bool mark_flushed);
-  void flush_unused(bool mark_flushed);
 };
 
+
+enum enum_tdc_remove_table_type
+{
+  TDC_RT_REMOVE_ALL,
+  TDC_RT_REMOVE_NOT_OWN,
+  TDC_RT_REMOVE_UNUSED,
+  TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE
+};
 
 extern ulong tdc_size;
 extern ulong tc_size;
@@ -73,23 +80,26 @@ extern void tdc_purge(bool all);
 extern TDC_element *tdc_lock_share(THD *thd, const char *db,
                                    const char *table_name);
 extern void tdc_unlock_share(TDC_element *element);
-int tdc_share_is_cached(THD *thd, const char *db, const char *table_name);
 extern TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
                                       TABLE **out_table= 0);
 extern void tdc_release_share(TABLE_SHARE *share);
-void tdc_remove_referenced_share(THD *thd, TABLE_SHARE *share);
-void tdc_remove_table(THD *thd, const char *db, const char *table_name);
+extern bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
+                             const char *db, const char *table_name,
+                             bool kill_delayed_threads);
 
 extern int tdc_wait_for_old_version(THD *thd, const char *db,
                                     const char *table_name,
-                                    ulong wait_timeout, uint deadlock_weight);
+                                    ulong wait_timeout, uint deadlock_weight,
+                                    tdc_version_t refresh_version= TDC_VERSION_MAX);
+extern tdc_version_t tdc_refresh_version(void);
+extern tdc_version_t tdc_increment_refresh_version(void);
 extern int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
                        bool no_dups= false);
 
 extern uint tc_records(void);
 int show_tc_active_instances(THD *thd, SHOW_VAR *var, char *buff,
                              enum enum_var_type scope);
-extern void tc_purge();
+extern void tc_purge(bool mark_flushed= false);
 extern void tc_add_table(THD *thd, TABLE *table);
 extern void tc_release_table(TABLE *table);
 extern TABLE *tc_acquire_table(THD *thd, TDC_element *element);

@@ -179,6 +179,7 @@ static int oqgraph_init(void *p)
   handlerton *hton= (handlerton *)p;
   DBUG_PRINT( "oq-debug", ("oqgraph_init"));
 
+  hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_AUTOASSIGN;
   hton->create= oqgraph_create_handler;
   hton->flags= HTON_ALTER_NOT_SUPPORTED;
@@ -192,7 +193,6 @@ static int oqgraph_init(void *p)
   hton->discover_table_structure= oqgraph_discover_table_structure;
 
   hton->close_connection = oqgraph_close_connection;
-  hton->drop_table= [](handlerton *, const char*) { return -1; };
 
   oqgraph_init_done= TRUE;
   return 0;
@@ -563,11 +563,11 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
   // because of that, we need to reinitialize the memroot (to reset MY_THREAD_SPECIFIC flag)
   DBUG_ASSERT(share->mem_root.used == NULL); // it's still empty
-  init_sql_alloc(PSI_INSTRUMENT_ME, &share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&share->mem_root, "share", TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   // What I think this code is doing:
   // * Our OQGRAPH table is `database_blah/name`
-  // * We point p --> /name (or if table happened to be simply `name`, to `name`, don't know if this is possible)
+  // * We point p --> /name (or if table happened to be simply `name`, to `name`, dont know if this is possible)
   // * plen seems to be then set to length of `database_blah/options_data_table_name`
   // * then we set share->normalized_path.str and share->path.str to `database_blah/options_data_table_name`
   // * I assume that this verbiage is needed so  the memory used by share->path.str is set in the share mem root
@@ -1186,10 +1186,8 @@ int ha_oqgraph::rename_table(const char *, const char *)
 }
 
 
-ha_rows ha_oqgraph::records_in_range(uint inx,
-                                     const key_range *min_key,
-                                     const key_range *max_key,
-                                     page_range *pages)
+ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
+                                  key_range *max_key)
 {
   if (graph->get_thd() != current_thd) {
     DBUG_PRINT( "oq-debug", ("g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));

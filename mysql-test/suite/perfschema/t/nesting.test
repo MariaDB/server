@@ -1,8 +1,5 @@
 # Test to check the proper nesting of events
 
-## To skip the test with QC enabled till BUG#14830950 is fixed.
-#-- source include/have_QC_Disabled.inc
-
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 # On windows, the socket instrumentation collects an extra "opt"
@@ -45,7 +42,6 @@ update performance_schema.setup_instruments set enabled='YES', timed='YES'
                  'wait/synch/rwlock/sql/LOCK_grant',
                  'wait/synch/mutex/sql/THD::LOCK_thd_data',
                  'wait/synch/mutex/sql/THD::LOCK_thd_kill',
-                 'wait/synch/mutex/sql/THD::LOCK_thd_query',
                  'wait/io/file/sql/query_log');
 
 update performance_schema.setup_instruments set enabled='YES', timed='YES'
@@ -111,7 +107,7 @@ set @marker_end = (select end_event_id from performance_schema.events_statements
 select (@marker_end is not null) as expected;
 
 # Will point to what happened on spurious test failures
-show global status like "performance_schema%";
+show status like "performance_schema%";
 
 #
 # This is the test itself:
@@ -189,3 +185,5 @@ update performance_schema.threads set instrumented='YES';
 update performance_schema.setup_instruments set enabled='YES', timed='YES';
 
 --enable_query_log
+
+

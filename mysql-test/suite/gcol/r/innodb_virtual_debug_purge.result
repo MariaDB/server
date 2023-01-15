@@ -201,5 +201,77 @@ connection truncate;
 disconnect truncate;
 connection default;
 DROP TABLE t1, t2;
+#
+# MDEV-16222 Assertion `0' failed in row_purge_remove_sec_if_poss_leaf
+# on table with virtual columns and indexes
+#
+InnoDB		0 transactions not purged
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+set global debug_dbug= "d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
+create table t1 (
+pk serial, vb tinyblob as (b) virtual, b tinyblob,
+primary key(pk), index (vb(64)))
+engine innodb;
+insert ignore into t1 (b) values ('foo');
+select * into outfile 'load.data' from t1;
+load data infile 'load.data' replace into table t1;
+set debug_sync= "now WAIT_FOR latch_released";
+set global debug_dbug= @saved_dbug;
+drop table t1;
+set debug_sync= "now SIGNAL drop_started WAIT_FOR got_no_such_table";
+create table t1 (
+pk serial, vb tinyblob as (b) virtual, b tinyblob,
+primary key(pk), index (vb(64)))
+engine innodb;
+insert ignore into t1 (b) values ('foo');
+select * into outfile 'load.data' from t1;
+load data infile 'load.data' replace into table t1;
+set debug_sync= "now WAIT_FOR got_no_such_table";
+set global debug_dbug= @saved_dbug;
+drop table t1;
 set debug_sync=reset;
+#
+# MDEV-18546 ASAN heap-use-after-free
+# in innobase_get_computed_value / row_purge
+#
+CREATE TABLE t1 (
+pk INT AUTO_INCREMENT,
+b BIT(15),
+v BIT(15) AS (b) VIRTUAL,
+PRIMARY KEY(pk),
+UNIQUE(v)
+) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (b) VALUES
+(NULL),(b'011'),(b'000110100'),
+(b'01101101010'),(b'01111001001011'),(NULL);
+SET GLOBAL innodb_debug_sync = "ib_clust_v_col_before_row_allocated "
+                               "SIGNAL before_row_allocated "
+                               "WAIT_FOR flush_unlock";
+SET GLOBAL innodb_debug_sync = "ib_open_after_dict_open "
+                               "SIGNAL purge_open "
+                               "WAIT_FOR select_open";
+set global debug_dbug= "d,ib_purge_virtual_index_callback";
+connect purge_waiter,localhost,root;
+SET debug_sync= "now WAIT_FOR before_row_allocated";
+connection default;
+REPLACE INTO t1 (pk, b) SELECT pk, b FROM t1;
+connection purge_waiter;
+connection default;
+disconnect purge_waiter;
+FLUSH TABLES;
+SET GLOBAL innodb_debug_sync = reset;
+SET debug_sync= "now SIGNAL flush_unlock WAIT_FOR purge_open";
+SET GLOBAL innodb_debug_sync = reset;
+SET debug_sync= "ib_open_after_dict_open SIGNAL select_open";
+SELECT * FROM t1;
+pk	b	v
+1	NULL	NULL
+2	 	 
+3	 4	 4
+4	j	j
+5	K	K
+6	NULL	NULL
+DROP TABLE t1;
+SET debug_sync= reset;
+set global debug_dbug= @old_dbug;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

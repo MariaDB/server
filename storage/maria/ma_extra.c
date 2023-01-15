@@ -235,9 +235,6 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     info->lock_wait= MY_SHORT_WAIT;
     break;
   case HA_EXTRA_NO_KEYS:
-    if (share->s3_path)                    /* Not supported with S3 */
-      break;
-
     /* we're going to modify pieces of the state, stall Checkpoint */
     mysql_mutex_lock(&share->intern_lock);
     if (info->lock_type == F_UNLCK)
@@ -378,16 +375,16 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       if (end_io_cache(&info->rec_cache))
         error= 1;
     }
-    if (share->kfile.file >= 0 && share->s3_path == 0)
+    if (share->kfile.file >= 0)
     {
       if (do_flush)
       {
         /* Save the state so that others can find it from disk. */
-        if (share->changed &&
-            (_ma_state_info_write(share,
+        if ((share->changed &&
+             _ma_state_info_write(share,
                                   MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET |
-                                  MA_STATE_INFO_WRITE_FULL_INFO) ||
-             mysql_file_sync(share->kfile.file, MYF(0))))
+                                  MA_STATE_INFO_WRITE_FULL_INFO)) ||
+            mysql_file_sync(share->kfile.file, MYF(0)))
           error= my_errno;
       }
       else
@@ -399,7 +396,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       }
     }
     if (share->data_file_type == BLOCK_RECORD &&
-        share->bitmap.file.file >= 0 && share->s3_path == 0)
+        share->bitmap.file.file >= 0)
     {
       DBUG_ASSERT(share->bitmap.non_flushable == 0 &&
                   share->bitmap.changed == 0);

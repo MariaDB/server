@@ -1,5 +1,4 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +15,7 @@
 
 /* Written by Sinisa Milivojevic <sinisa@mysql.com> */
 
-#include <mysys_priv.h>
+#include <my_global.h>
 #ifdef HAVE_COMPRESS
 #include <my_sys.h>
 #ifndef SCO
@@ -58,11 +57,34 @@ my_bool my_compress(uchar *packet, size_t *len, size_t *complen)
 }
 
 
+/*
+  Valgrind normally gives false alarms for zlib operations, in the form of
+  "conditional jump depends on uninitialised values" etc. The reason is
+  explained in the zlib FAQ (http://www.zlib.net/zlib_faq.html#faq36):
+
+    "That is intentional for performance reasons, and the output of deflate
+    is not affected."
+
+  Also discussed on a blog
+  (http://www.sirena.org.uk/log/2006/02/19/zlib-generating-valgrind-warnings/):
+
+    "...loop unrolling in the zlib library causes the mentioned
+    “Conditional jump or move depends on uninitialised value(s)”
+    warnings. These are safe since the results of the comparison are
+    subsequently ignored..."
+
+    "the results of the calculations are discarded by bounds checking done
+    after the loop exits"
+
+  Fix by initializing the memory allocated by zlib when running under Valgrind.
+
+  This fix is safe, since such memory is only used internally by zlib, so we
+  will not hide any bugs in mysql this way.
+*/
 void *my_az_allocator(void *dummy __attribute__((unused)), unsigned int items,
                       unsigned int size)
 {
-  return my_malloc(key_memory_my_compress_alloc, (size_t)items*(size_t)size,
-                   MYF(0));
+  return my_malloc((size_t)items*(size_t)size, IF_VALGRIND(MY_ZEROFILL, MYF(0)));
 }
 
 void my_az_free(void *dummy __attribute__((unused)), void *address)
@@ -111,9 +133,8 @@ uchar *my_compress_alloc(const uchar *packet, size_t *len, size_t *complen)
   int res;
   *complen=  *len * 120 / 100 + 12;
 
-  if (!(compbuf= (uchar *) my_malloc(key_memory_my_compress_alloc,
-                                     *complen, MYF(MY_WME))))
-    return 0;
+  if (!(compbuf= (uchar *) my_malloc(*complen, MYF(MY_WME))))
+    return 0;					/* Not enough memory */
 
   res= my_compress_buffer(compbuf, complen, packet, *len);
 
@@ -159,8 +180,7 @@ my_bool my_uncompress(uchar *packet, size_t len, size_t *complen)
 
   if (*complen)					/* If compressed */
   {
-    uchar *compbuf= (uchar *) my_malloc(key_memory_my_compress_alloc,
-                                        *complen,MYF(MY_WME));
+    uchar *compbuf= (uchar *) my_malloc(*complen,MYF(MY_WME));
     int error;
     if (!compbuf)
       DBUG_RETURN(1);				/* Not enough memory */

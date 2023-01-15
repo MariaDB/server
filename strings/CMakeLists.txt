@@ -32,8 +32,7 @@ ENDIF()
 # Avoid dependencies on perschema data defined in mysys
 ADD_DEFINITIONS(-DDISABLE_MYSQL_THREAD_H)
 ADD_CONVENIENCE_LIBRARY(strings ${STRINGS_SOURCES})
-TARGET_LINK_LIBRARIES(strings dbug mysys)
-MAYBE_DISABLE_IPO(strings)
+
 ADD_EXECUTABLE(conf_to_src EXCLUDE_FROM_ALL conf_to_src.c)
 SET_TARGET_PROPERTIES(conf_to_src PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 TARGET_LINK_LIBRARIES(conf_to_src mysys strings)

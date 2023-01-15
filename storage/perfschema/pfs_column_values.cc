@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -38,11 +38,8 @@ LEX_CSTRING mutex_instrument_prefix=
 LEX_CSTRING rwlock_instrument_prefix=
 { STRING_WITH_LEN("wait/synch/rwlock/") };
 
-LEX_CSTRING sxlock_instrument_prefix=
-{ C_STRING_WITH_LEN("wait/synch/sxlock/") };
-
 LEX_CSTRING cond_instrument_prefix=
-{ C_STRING_WITH_LEN("wait/synch/cond/") };
+{ STRING_WITH_LEN("wait/synch/cond/") };
 
 LEX_CSTRING thread_instrument_prefix=
 { STRING_WITH_LEN("thread/") };
@@ -56,12 +53,5 @@ LEX_CSTRING stage_instrument_prefix=
 LEX_CSTRING statement_instrument_prefix=
 { STRING_WITH_LEN("statement/") };
 
-LEX_CSTRING transaction_instrument_prefix=
-{ C_STRING_WITH_LEN("transaction") };
-
 LEX_CSTRING socket_instrument_prefix=
-{ C_STRING_WITH_LEN("wait/io/socket/") };
-
-LEX_CSTRING memory_instrument_prefix=
-{ C_STRING_WITH_LEN("memory/") };
-
+{ STRING_WITH_LEN("wait/io/socket/") };

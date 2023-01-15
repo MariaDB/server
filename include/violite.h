@@ -39,10 +39,7 @@ enum enum_vio_type
 {
   VIO_CLOSED, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
   VIO_TYPE_SSL
-  /* see also vio_type_names[] */
 };
-#define FIRST_VIO_TYPE VIO_CLOSED
-#define LAST_VIO_TYPE VIO_TYPE_SSL
 
 /**
   VIO I/O events.
@@ -189,8 +186,6 @@ void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd);
 #endif /* HAVE_OPENSSL */
 
 void vio_end(void);
-
-const char *vio_type_name(enum enum_vio_type vio_type, size_t *len);
 
 #ifdef	__cplusplus
 }

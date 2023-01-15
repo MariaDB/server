@@ -7,6 +7,7 @@
 # application. 'mysqltest' does not handle the kill request.
 #
 -- source include/not_embedded.inc
+-- source include/not_threadpool.inc
 
 --echo #
 --echo # MDEV-6896 kill user command cause MariaDB crash!

@@ -39,11 +39,17 @@
 # Does not work with --embedded
 --source include/not_embedded.inc
 
+--disable_query_log
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 # These values can change during the test
-SET @file_per_table= @@GLOBAL.innodb_file_per_table;
-SET @strict_mode= @@SESSION.innodb_strict_mode;
+LET $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
+LET $innodb_strict_mode_orig=`select @@session.innodb_strict_mode`;
+--enable_query_log
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
 
 --mkdir $MYSQLTEST_VARDIR/mysql-test-data-dir
 --mkdir $MYSQLTEST_VARDIR/mysql-test-idx-dir
@@ -93,17 +99,9 @@ SHOW WARNINGS;
 
 --echo # Verifying .frm, .par, .isl & .ibd files
 --echo ---- MYSQLD_DATADIR/test
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQLD_DATADIR/test
---replace_regex $regexp
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLTEST_VARDIR/files.txt $MYSQLTEST_VARDIR/mysql-test-data-dir/test
---replace_regex $regexp
---cat_file $MYSQLTEST_VARDIR/files.txt
---remove_file $MYSQLTEST_VARDIR/files.txt
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/test
 --echo # The ibd tablespaces should not be directly under the DATA DIRECTORY
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
@@ -122,11 +120,8 @@ ALTER TABLE t1 engine=MyISAM;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 SHOW CREATE TABLE t1;
 --echo # Verifying .frm, .par and MyISAM files (.MYD, MYI)
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQLD_DATADIR/test
---replace_regex $regexp
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--echo ---- MYSQLD_DATADIR/test
+--list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
 --echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
@@ -142,21 +137,13 @@ ALTER TABLE t1 engine=InnoDB;
 SHOW CREATE TABLE t1;
 --echo # Verifying .frm, .par, .isl and InnoDB .ibd files
 --echo ---- MYSQLD_DATADIR/test
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQLD_DATADIR/test
---replace_regex $regexp
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
 --echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-idx-dir
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLTEST_VARDIR/files.txt $MYSQLTEST_VARDIR/mysql-test-data-dir/test
---replace_regex $regexp
---cat_file $MYSQLTEST_VARDIR/files.txt
---remove_file $MYSQLTEST_VARDIR/files.txt
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/test
 
 DROP TABLE t1;
 
@@ -188,7 +175,7 @@ eval CREATE TABLE t2
    myval VARCHAR(10),
    PRIMARY KEY (myid)
 ) ENGINE=INNODB DATA DIRECTORY = '$data_dir_path';
-
+  
 ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
@@ -218,7 +205,7 @@ eval CREATE TABLE t2
 
 insert into t1 values (1, 'one');
 insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
-
+  
 select * from t1;
 ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
 
@@ -254,7 +241,7 @@ eval CREATE TABLE t2
 
 insert into t1 values (1, 'one');
 insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
-
+  
 select * from t1;
 ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
 
@@ -290,7 +277,7 @@ eval CREATE TABLE t2
 
 insert into t1 values (1, 'one');
 insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
-
+  
 select * from t1;
 ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
 
@@ -309,5 +296,8 @@ DROP TABLE t1, t2;
 --rmdir $MYSQLTEST_VARDIR/mysql-test-data-dir
 --rmdir $MYSQLTEST_VARDIR/mysql-test-idx-dir
 
-SET GLOBAL innodb_file_per_table=@file_per_table;
-SET SESSION innodb_strict_mode=@strict_mode;
+--disable_query_log
+EVAL SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;
+EVAL SET SESSION innodb_strict_mode=$innodb_strict_mode_orig;
+--enable_query_log
+

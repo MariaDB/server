@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -105,11 +105,6 @@ extern enum_timer_name stage_timer;
   The timer used to measure all statement events.
 */
 extern enum_timer_name statement_timer;
-/**
-  Transaction timer.
-  The timer used to measure all transaction events.
-*/
-extern enum_timer_name transaction_timer;
 /**
   Timer information data.
   Characteristics about each supported timer.

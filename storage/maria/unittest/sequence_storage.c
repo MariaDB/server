@@ -33,8 +33,7 @@ my_bool seq_storage_reader_init(SEQ_STORAGE *seq, const char *file)
   seq->pos= 0;
   if ((fd= my_fopen(file, O_RDONLY, MYF(MY_WME))) == NULL)
     return 1;
-  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &seq->seq, sizeof(ulong), 10,
-                            10, MYF(0)))
+  if (my_init_dynamic_array(&seq->seq, sizeof(ulong), 10, 10, MYF(0)))
     return 1;
 
   for(;;)

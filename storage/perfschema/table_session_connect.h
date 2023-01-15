@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2012, 2013, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -59,7 +59,6 @@ struct row_session_connect_attrs
   ulong m_ordinal_position;
 };
 
-/** Abstract table PERFORMANCE_SCHEMA.SESSION_CONNECT_ATTRS. */
 class table_session_connect : public cursor_by_thread_connect_attr
 {
 protected:

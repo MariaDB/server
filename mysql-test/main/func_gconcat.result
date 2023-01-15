@@ -1043,7 +1043,7 @@ DROP TABLE t1;
 CREATE TABLE t1(f1 int);
 INSERT INTO t1 values (0),(0);
 SELECT POLYGON((SELECT 1 FROM (SELECT 1 IN (GROUP_CONCAT(t1.f1)) FROM t1, t1 t GROUP BY t.f1 ) d));
-ERROR HY000: Illegal parameter data type int for operation 'polygon'
+ERROR HY000: Illegal parameter data type int for operation 'geometrycollection'
 DROP TABLE t1;
 #
 # Bug#58396 group_concat and explain extended are still crashy

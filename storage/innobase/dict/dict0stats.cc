@@ -319,7 +319,7 @@ dict_stats_exec_sql(
 	} else {
 		trx->op_info = "rollback of internal trx on stats tables";
 		trx->dict_operation_lock_mode = RW_X_LATCH;
-		trx->rollback();
+		trx_rollback_to_savepoint(trx, NULL);
 		trx->dict_operation_lock_mode = 0;
 		trx->op_info = "";
 		ut_a(trx->error_state == DB_SUCCESS);
@@ -1033,7 +1033,8 @@ dict_stats_analyze_index_level(
 	DEBUG_PRINTF("    %s(table=%s, index=%s, level=" ULINTPF ")\n",
 		     __func__, index->table->name, index->name, level);
 
-	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
+	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
+				MTR_MEMO_SX_LOCK));
 
 	n_uniq = dict_index_get_n_unique(index);
 
@@ -1496,7 +1497,6 @@ dict_stats_analyze_index_below_cur(
 	rec_offs_set_n_alloc(offsets2, size);
 
 	rec = btr_cur_get_rec(cur);
-	page = page_align(rec);
 	ut_ad(!page_rec_is_leaf(rec));
 
 	offsets_rec = rec_get_offsets(rec, index, offsets1, 0,
@@ -1518,11 +1518,9 @@ dict_stats_analyze_index_below_cur(
 
 		dberr_t err = DB_SUCCESS;
 
-		block = buf_page_get_gen(page_id, zip_size,
-					 RW_S_LATCH, NULL, BUF_GET,
-					 __FILE__, __LINE__, &mtr, &err,
-					 !index->is_clust()
-					 && 1 == btr_page_get_level(page));
+		block = buf_page_get_gen(page_id, zip_size, RW_S_LATCH,
+					 NULL /* no guessed block */,
+					 BUF_GET, __FILE__, __LINE__, &mtr, &err);
 
 		page = buf_block_get_frame(block);
 
@@ -1667,7 +1665,8 @@ dict_stats_analyze_index_for_n_prefix(
 		     n_prefix, n_diff_data->n_diff_on_level);
 #endif
 
-	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
+	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
+				MTR_MEMO_SX_LOCK));
 
 	/* Position pcur on the leftmost record on the leftmost page
 	on the desired level. */
@@ -3193,7 +3192,7 @@ dict_stats_update(
 
 	if (!table->is_readable()) {
 		return (dict_stats_report_error(table));
-	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
+	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		/* If we have set a high innodb_force_recovery level, do
 		not calculate statistics, as a badly corrupted index can
 		cause a crash in it. */
@@ -3393,18 +3392,16 @@ transient:
 	return(DB_SUCCESS);
 }
 
-/** Remove the information for a particular index's stats from the persistent
+/*********************************************************************//**
+Removes the information for a particular index's stats from the persistent
 storage if it exists and if there is data stored for this index.
 This function creates its own trx and commits it.
-
-We must modify system tables in a separate transaction in order to
-adhere to the InnoDB design constraint that dict_sys.latch prevents
-lock waits on system tables. If we modified system and user tables in
-the same transaction, we should exclusively hold dict_sys.latch until
-the transaction is committed, and effectively block other transactions
-that will attempt to open any InnoDB tables. Because we have no
-guarantee that user transactions will be committed fast, we cannot
-afford to keep the system tables locked in a user transaction.
+A note from Marko why we cannot edit user and sys_* tables in one trx:
+marko: The problem is that ibuf merges should be disabled while we are
+rolling back dict transactions.
+marko: If ibuf merges are not disabled, we need to scan the *.ibd files.
+But we shouldn't open *.ibd files before we have rolled back dict
+transactions and opened the SYS_* records for the *.ibd files.
 @return DB_SUCCESS or error code */
 dberr_t
 dict_stats_drop_index(

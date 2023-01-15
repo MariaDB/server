@@ -101,7 +101,7 @@ void THD::unregister_slave()
     mysql_mutex_lock(&LOCK_thd_data);
     slave_info= 0;
     mysql_mutex_unlock(&LOCK_thd_data);
-    my_free(old_si);
+    delete old_si;
     binlog_dump_thread_count--;
   }
 }
@@ -122,10 +122,9 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   uchar *p= packet, *p_end= packet + packet_length;
   const char *errmsg= "Wrong parameters to function register_slave";
 
-  if (check_access(this, PRIV_COM_REGISTER_SLAVE, any_db, NULL, NULL, 0, 0))
+  if (check_access(this, REPL_SLAVE_ACL, any_db, NULL, NULL, 0, 0))
     return 1;
-  if (!(si= (Slave_info*)my_malloc(key_memory_SLAVE_INFO, sizeof(Slave_info),
-                                   MYF(MY_WME))))
+  if (!(si= new Slave_info))
     return 1;
 
   variables.server_id= si->server_id= uint4korr(p);
@@ -147,9 +146,6 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   p += 4;
   if (!(si->master_id= uint4korr(p)))
     si->master_id= global_system_variables.server_id;
-
-  if (!*si->host)
-    ::strmake(si->host, main_security_ctx.host_or_ip, sizeof(si->host));
 
   unregister_slave();
   mysql_mutex_lock(&LOCK_thd_data);

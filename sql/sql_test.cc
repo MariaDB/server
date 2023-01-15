@@ -27,14 +27,10 @@
 #include "my_json_writer.h"
 #include <hash.h>
 #include <thr_alarm.h>
-#include "sql_connect.h"
-#include "thread_cache.h"
 #if defined(HAVE_MALLINFO) && defined(HAVE_MALLOC_H)
 #include <malloc.h>
 #elif defined(HAVE_MALLINFO) && defined(HAVE_SYS_MALLOC_H)
 #include <sys/malloc.h>
-#elif defined(HAVE_MALLOC_ZONE)
-#include <malloc/malloc.h>
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER
@@ -92,8 +88,9 @@ static my_bool print_cached_tables_callback(TDC_element *element,
   while ((entry= it++))
   {
     THD *in_use= entry->in_use;
-    printf("%-14.14s %-32s%8ld%6d  %s\n",
+    printf("%-14.14s %-32s%6lu%8ld%6d  %s\n",
            entry->s->db.str, entry->s->table_name.str,
+           (ulong) element->version,
            in_use ? (long) in_use->thread_id : (long) 0,
            entry->db_stat ? 1 : 0,
            in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
@@ -113,6 +110,8 @@ static void print_cached_tables(void)
 
   tdc_iterate(0, (my_hash_walk_action) print_cached_tables_callback, NULL, true);
 
+  printf("\nCurrent refresh version: %ld\n",
+         (long) tdc_refresh_version());
   fflush(stdout);
   /* purecov: end */
   return;
@@ -469,8 +468,7 @@ static void display_table_locks(void)
   void *saved_base;
   DYNAMIC_ARRAY saved_table_locks;
 
-  (void) my_init_dynamic_array(key_memory_locked_thread_list,
-                               &saved_table_locks, sizeof(TABLE_LOCK_INFO),
+  (void) my_init_dynamic_array(&saved_table_locks,sizeof(TABLE_LOCK_INFO),
                                tc_records() + 20, 50, MYF(0));
   mysql_mutex_lock(&THR_LOCK_lock);
   for (list= thr_lock_thread_list; list; list= list_rest(list))
@@ -572,7 +570,7 @@ void mysql_print_status()
   (void) my_getwd(current_dir, sizeof(current_dir),MYF(0));
   printf("Current dir: %s\n", current_dir);
   printf("Running threads: %d  Cached threads: %lu  Stack size: %ld\n",
-         count, thread_cache.size(),
+         count, cached_thread_count,
 	 (long) my_thread_stack_size);
 #ifdef EXTRA_DEBUG
   thr_print_locks();				// Write some debug info
@@ -649,25 +647,10 @@ Memory allocated by threads:             %s\n",
 	 llstr(info.uordblks, llbuff[4]),
 	 llstr(info.fordblks, llbuff[5]),
 	 llstr(info.keepcost, llbuff[6]),
-         llstr((count + thread_cache.size()) * my_thread_stack_size +
-               info.hblkhd + info.arena, llbuff[7]),
+	 llstr((count + cached_thread_count)* my_thread_stack_size + info.hblkhd + info.arena, llbuff[7]),
          llstr(tmp.global_memory_used, llbuff[8]),
          llstr(tmp.local_memory_used, llbuff[9]));
 
-#elif defined(HAVE_MALLOC_ZONE)
-  malloc_statistics_t info;
-  char llbuff[4][22];
-
-  malloc_zone_statistics(nullptr, &info);
-  printf("\nMemory status:\n\
-Total allocated space:                   %s\n\
-Total free space:                        %s\n\
-Global memory allocated by server:       %s\n\
-Memory allocated by threads:             %s\n",
-         llstr(info.size_allocated, llbuff[0]),
-         llstr((info.size_allocated - info.size_in_use), llbuff[1]),
-         llstr(tmp.global_memory_used, llbuff[2]),
-         llstr(tmp.local_memory_used, llbuff[3]));
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER

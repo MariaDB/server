@@ -123,10 +123,27 @@ and the shift needed to obtain each bit-field of the record. */
 # error "sum of new-style masks != 0xFFFFFFUL"
 #endif
 
+/***********************************************************//**
+Sets the value of the ith field SQL null bit of an old-style record. */
+void
+rec_set_nth_field_null_bit(
+/*=======================*/
+	rec_t*	rec,	/*!< in: record */
+	ulint	i,	/*!< in: ith field */
+	ibool	val);	/*!< in: value to set */
+/***********************************************************//**
+Sets an old-style record field to SQL null.
+The physical size of the field is not changed. */
+void
+rec_set_nth_field_sql_null(
+/*=======================*/
+	rec_t*	rec,	/*!< in: record */
+	ulint	n);	/*!< in: index of the field */
+
 /******************************************************//**
 Gets a bit field from within 1 byte. */
 UNIV_INLINE
-byte
+ulint
 rec_get_bit_field_1(
 /*================*/
 	const rec_t*	rec,	/*!< in: pointer to record origin */
@@ -134,7 +151,9 @@ rec_get_bit_field_1(
 	ulint		mask,	/*!< in: mask used to filter bits */
 	ulint		shift)	/*!< in: shift right applied after masking */
 {
-  return static_cast<byte>((*(rec - offs) & mask) >> shift);
+	ut_ad(rec);
+
+	return((mach_read_from_1(rec - offs) & mask) >> shift);
 }
 
 /******************************************************//**
@@ -485,6 +504,19 @@ rec_get_n_owned_old(
 }
 
 /******************************************************//**
+The following function is used to set the number of owned records. */
+UNIV_INLINE
+void
+rec_set_n_owned_old(
+/*================*/
+	rec_t*	rec,		/*!< in: old-style physical record */
+	ulint	n_owned)	/*!< in: the number of owned */
+{
+	rec_set_bit_field_1(rec, n_owned, REC_OLD_N_OWNED,
+			    REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
+}
+
+/******************************************************//**
 The following function is used to get the number of records owned by the
 previous directory record.
 @return number of owned records */
@@ -499,38 +531,85 @@ rec_get_n_owned_new(
 }
 
 /******************************************************//**
+The following function is used to set the number of owned records. */
+UNIV_INLINE
+void
+rec_set_n_owned_new(
+/*================*/
+	rec_t*		rec,	/*!< in/out: new-style physical record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	ulint		n_owned)/*!< in: the number of owned */
+{
+	rec_set_bit_field_1(rec, n_owned, REC_NEW_N_OWNED,
+			    REC_N_OWNED_MASK, REC_N_OWNED_SHIFT);
+	if (page_zip && rec_get_status(rec) != REC_STATUS_SUPREMUM) {
+		page_zip_rec_set_owned(page_zip, rec, n_owned);
+	}
+}
+
+/******************************************************//**
 The following function is used to retrieve the info bits of a record.
 @return info bits */
 UNIV_INLINE
-byte
+ulint
 rec_get_info_bits(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
 	ulint		comp)	/*!< in: nonzero=compact page format */
 {
-	return rec_get_bit_field_1(
+	const ulint	val = rec_get_bit_field_1(
 		rec, comp ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS,
 		REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
+	return(val);
+}
+
+/******************************************************//**
+The following function is used to set the info bits of a record. */
+UNIV_INLINE
+void
+rec_set_info_bits_old(
+/*==================*/
+	rec_t*	rec,	/*!< in: old-style physical record */
+	ulint	bits)	/*!< in: info bits */
+{
+	rec_set_bit_field_1(rec, bits, REC_OLD_INFO_BITS,
+			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
+}
+/******************************************************//**
+The following function is used to set the info bits of a record. */
+UNIV_INLINE
+void
+rec_set_info_bits_new(
+/*==================*/
+	rec_t*	rec,	/*!< in/out: new-style physical record */
+	ulint	bits)	/*!< in: info bits */
+{
+	rec_set_bit_field_1(rec, bits, REC_NEW_INFO_BITS,
+			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
 }
 
 /******************************************************//**
 The following function is used to retrieve the info and status
 bits of a record.  (Only compact records have status bits.)
-@return info and status bits */
+@return info bits */
 UNIV_INLINE
-byte
+ulint
 rec_get_info_and_status_bits(
 /*=========================*/
 	const rec_t*	rec,	/*!< in: physical record */
 	ulint		comp)	/*!< in: nonzero=compact page format */
 {
-  compile_time_assert(!((REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT)
-                        & (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
-  if (comp)
-    return static_cast<byte>(rec_get_info_bits(rec, TRUE) |
-                             rec_get_status(rec));
-  else
-    return rec_get_info_bits(rec, FALSE);
+	ulint	bits;
+	compile_time_assert(!((REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT)
+			      & (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
+	if (comp) {
+		bits = rec_get_info_bits(rec, TRUE)
+			| ulint(rec_get_status(rec));
+	} else {
+		bits = rec_get_info_bits(rec, FALSE);
+		ut_ad(!(bits & ~(REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
+	}
+	return(bits);
 }
 /******************************************************//**
 The following function is used to set the info and status
@@ -545,9 +624,7 @@ rec_set_info_and_status_bits(
 	compile_time_assert(!((REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT)
 			      & (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
 	rec_set_status(rec, bits & REC_NEW_STATUS_MASK);
-	rec_set_bit_field_1(rec, bits & ~REC_NEW_STATUS_MASK,
-			    REC_NEW_INFO_BITS,
-			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
+	rec_set_info_bits_new(rec, bits & ~REC_NEW_STATUS_MASK);
 }
 
 /******************************************************//**
@@ -568,6 +645,55 @@ rec_get_deleted_flag(
 		return(rec_get_bit_field_1(rec, REC_OLD_INFO_BITS,
 					   REC_INFO_DELETED_FLAG,
 					   REC_INFO_BITS_SHIFT));
+	}
+}
+
+/******************************************************//**
+The following function is used to set the deleted bit. */
+UNIV_INLINE
+void
+rec_set_deleted_flag_old(
+/*=====================*/
+	rec_t*	rec,	/*!< in: old-style physical record */
+	ulint	flag)	/*!< in: nonzero if delete marked */
+{
+	ulint	val;
+
+	val = rec_get_info_bits(rec, FALSE);
+
+	if (flag) {
+		val |= REC_INFO_DELETED_FLAG;
+	} else {
+		val &= ~REC_INFO_DELETED_FLAG;
+	}
+
+	rec_set_info_bits_old(rec, val);
+}
+
+/******************************************************//**
+The following function is used to set the deleted bit. */
+UNIV_INLINE
+void
+rec_set_deleted_flag_new(
+/*=====================*/
+	rec_t*		rec,	/*!< in/out: new-style physical record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	ulint		flag)	/*!< in: nonzero if delete marked */
+{
+	ulint	val;
+
+	val = rec_get_info_bits(rec, TRUE);
+
+	if (flag) {
+		val |= REC_INFO_DELETED_FLAG;
+	} else {
+		val &= ~REC_INFO_DELETED_FLAG;
+	}
+
+	rec_set_info_bits_new(rec, val);
+
+	if (page_zip) {
+		page_zip_rec_set_deleted(page_zip, rec, flag);
 	}
 }
 
@@ -598,6 +724,20 @@ rec_get_heap_no_old(
 }
 
 /******************************************************//**
+The following function is used to set the heap number
+field in an old-style record. */
+UNIV_INLINE
+void
+rec_set_heap_no_old(
+/*================*/
+	rec_t*	rec,	/*!< in: physical record */
+	ulint	heap_no)/*!< in: the heap number */
+{
+	rec_set_bit_field_2(rec, heap_no, REC_OLD_HEAP_NO,
+			    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
+}
+
+/******************************************************//**
 The following function is used to get the order number
 of a new-style record in the heap of the index page.
 @return heap order number */
@@ -609,6 +749,20 @@ rec_get_heap_no_new(
 {
 	return(rec_get_bit_field_2(rec, REC_NEW_HEAP_NO,
 				   REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT));
+}
+
+/******************************************************//**
+The following function is used to set the heap number
+field in a new-style record. */
+UNIV_INLINE
+void
+rec_set_heap_no_new(
+/*================*/
+	rec_t*	rec,	/*!< in/out: physical record */
+	ulint	heap_no)/*!< in: the heap number */
+{
+	rec_set_bit_field_2(rec, heap_no, REC_NEW_HEAP_NO,
+			    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
 }
 
 /******************************************************//**
@@ -985,6 +1139,50 @@ rec_get_nth_field_size(
 	return(next_os - os);
 }
 
+/***********************************************************//**
+This is used to modify the value of an already existing field in a record.
+The previous value must have exactly the same size as the new value. If len
+is UNIV_SQL_NULL then the field is treated as an SQL null.
+For records in ROW_FORMAT=COMPACT (new-style records), len must not be
+UNIV_SQL_NULL unless the field already is SQL null. */
+UNIV_INLINE
+void
+rec_set_nth_field(
+/*==============*/
+	rec_t*		rec,	/*!< in: record */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
+	ulint		n,	/*!< in: index number of the field */
+	const void*	data,	/*!< in: pointer to the data
+				if not SQL null */
+	ulint		len)	/*!< in: length of the data or UNIV_SQL_NULL */
+{
+	byte*	data2;
+	ulint	len2;
+
+	ut_ad(rec_offs_validate(rec, NULL, offsets));
+	ut_ad(!rec_offs_nth_default(offsets, n));
+
+	if (len == UNIV_SQL_NULL) {
+		if (!rec_offs_nth_sql_null(offsets, n)) {
+			ut_a(!rec_offs_comp(offsets));
+			rec_set_nth_field_sql_null(rec, n);
+		}
+
+		return;
+	}
+
+	data2 = (byte*)rec_get_nth_field(rec, offsets, n, &len2);
+	if (len2 == UNIV_SQL_NULL) {
+		ut_ad(!rec_offs_comp(offsets));
+		rec_set_nth_field_null_bit(rec, n, FALSE);
+		ut_ad(len == rec_get_nth_field_size(rec, n));
+	} else {
+		ut_ad(len2 == len);
+	}
+
+	ut_memcpy(data2, data, len);
+}
+
 /**********************************************************//**
 The following function returns the data size of an old-style physical
 record, that is the sum of field lengths. SQL null fields
@@ -1123,7 +1321,7 @@ rec_copy(
 	extra_len = rec_offs_extra_size(offsets);
 	data_len = rec_offs_data_size(offsets);
 
-	memcpy(buf, rec - extra_len, extra_len + data_len);
+	ut_memcpy(buf, rec - extra_len, extra_len + data_len);
 
 	return((byte*) buf + extra_len);
 }
@@ -1169,8 +1367,8 @@ rec_get_converted_size(
 		ut_ad(dtuple->n_fields > 1);
 	} else if ((dtuple_get_info_bits(dtuple) & REC_NEW_STATUS_MASK)
 		   == REC_STATUS_NODE_PTR) {
-		ut_ad(dtuple->n_fields - 1
-		      == dict_index_get_n_unique_in_tree_nonleaf(index));
+		ut_ad(dtuple->n_fields
+		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
 	} else if (index->table->id == DICT_INDEXES_ID) {
 		/* The column SYS_INDEXES.MERGE_THRESHOLD was
 		instantly added in MariaDB 10.2.2 (MySQL 5.7). */

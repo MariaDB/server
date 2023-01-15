@@ -53,7 +53,7 @@ struct ha_table_option_struct
 };
 
 /** The class defining a handle to an Innodb table */
-class ha_innobase final : public handler
+class ha_innobase final: public handler
 {
 public:
 	ha_innobase(handlerton* hton, TABLE_SHARE* table_arg);
@@ -177,10 +177,9 @@ public:
 	int start_stmt(THD *thd, thr_lock_type lock_type) override;
 
 	ha_rows records_in_range(
-                uint                    inx,
-                const key_range*        min_key,
-                const key_range*        max_key,
-                page_range*             pages) override;
+		uint			inx,
+		key_range*		min_key,
+		key_range*		max_key) override;
 
 	ha_rows estimate_rows_upper_bound() override;
 
@@ -207,8 +206,6 @@ public:
 	int rename_table(const char* from, const char* to) override;
 	inline int defragment_table(const char* name);
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
-
-	inline void reload_statistics();
 
 	char* get_foreign_key_create_info() override;
 
@@ -256,6 +253,8 @@ public:
 		uint			key_length,
 		qc_engine_callback*	call_back,
 		ulonglong*		engine_data) override;
+
+	bool primary_key_is_clustered() override;
 
 	int cmp_ref(const uchar* ref1, const uchar* ref2) override;
 
@@ -644,9 +643,6 @@ public:
 
 	/** Set m_tablespace_type. */
 	void set_tablespace_type(bool table_being_altered_is_file_per_table);
-
-	/** Create InnoDB foreign keys from MySQL alter_info. */
-	dberr_t create_foreign_keys();
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */

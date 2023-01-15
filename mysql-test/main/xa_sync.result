@@ -18,11 +18,6 @@ disconnect con1;
 SET debug_sync='now SIGNAL go';
 connection con2;
 ERROR XAE04: XAER_NOTA: Unknown XID
-*** Must have 'xatest' in the list
-XA RECOVER;
-formatID	gtrid_length	bqual_length	data
-1	6	0	xatest
-XA COMMIT 'xatest';
 disconnect con2;
 connection default;
 SET debug_sync='RESET';
@@ -42,11 +37,6 @@ disconnect con1;
 SET debug_sync='now SIGNAL go';
 connection con2;
 ERROR XAE04: XAER_NOTA: Unknown XID
-*** Must have 'xatest' in the list
-XA RECOVER;
-formatID	gtrid_length	bqual_length	data
-1	6	0	xatest
-XA ROLLBACK 'xatest';
 disconnect con2;
 connection default;
 SET debug_sync='RESET';

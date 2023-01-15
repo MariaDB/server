@@ -1,5 +1,4 @@
 /* Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +22,6 @@
 #include "sql_priv.h"
 #include "gstream.h"
 #include "m_string.h"                           // LEX_STRING
-#include "mysqld.h"
 
 enum Gis_read_stream::enum_tok_types Gis_read_stream::get_next_toc_type()
 {
@@ -109,7 +107,8 @@ bool Gis_read_stream::get_next_number(double *d)
     return 1;
   }
 
-  *d = m_charset->strntod((char *)m_cur, (uint) (m_limit-m_cur), &endptr, &err);
+  *d = my_strntod(m_charset, (char *)m_cur,
+		  (uint) (m_limit-m_cur), &endptr, &err);
   if (err)
     return 1;
   if (endptr)
@@ -141,7 +140,6 @@ bool Gis_read_stream::check_next_symbol(char symbol)
 void Gis_read_stream::set_error_msg(const char *msg)
 {
   size_t len= strlen(msg);			// ok in this context
-  m_err_msg= (char *) my_realloc(key_memory_Gis_read_stream_err_msg,
-                                 m_err_msg, (uint) len + 1, MYF(MY_ALLOW_ZERO_PTR));
+  m_err_msg= (char *) my_realloc(m_err_msg, (uint) len + 1, MYF(MY_ALLOW_ZERO_PTR));
   memcpy(m_err_msg, msg, len + 1);
 }

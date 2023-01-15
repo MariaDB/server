@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,7 +29,8 @@ Created 2013-03-16 Sunny Bains
 /** Value of dyn_block_t::magic_n */
 #define DYN_BLOCK_MAGIC_N	375767
 
-/** This is the initial 'payload' size of a dynamic array */
+/** This is the initial 'payload' size of a dynamic array;
+this must be > MLOG_BUF_MARGIN + 30! */
 #define	DYN_ARRAY_DATA_SIZE	512
 
 /** Flag for dyn_block_t::used that indicates a full block */

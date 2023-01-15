@@ -22,7 +22,6 @@
 #include "sql_acl.h"     // acl_reload
 #include "sql_servers.h" // servers_reload
 #include "sql_connect.h" // reset_mqh
-#include "thread_cache.h"
 #include "sql_base.h"    // close_cached_tables
 #include "sql_db.h"      // my_dbopt_cleanup
 #include "hostname.h"    // hostname_cache_refresh
@@ -137,7 +136,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     logger.flush_general_log();
 
   if (options & REFRESH_ENGINE_LOG)
-    if (ha_flush_logs())
+    if (ha_flush_logs(NULL))
       result= 1;
 
   if (options & REFRESH_BINARY_LOG)
@@ -356,7 +355,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   if (thd && (options & REFRESH_STATUS))
     refresh_status(thd);
   if (options & REFRESH_THREADS)
-    thread_cache.flush();
+    flush_thread_cache();
 #ifdef HAVE_REPLICATION
   if (options & REFRESH_MASTER)
   {
@@ -527,6 +526,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
 {
   Lock_tables_prelocking_strategy lock_tables_prelocking_strategy;
+  TABLE_LIST *table_list;
 
   /*
     This is called from SQLCOM_FLUSH, the transaction has
@@ -566,10 +566,16 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
 
     DEBUG_SYNC(thd,"flush_tables_with_read_lock_after_acquire_locks");
 
-    /* Reset ticket to satisfy asserts in open_tables(). */
-    for (auto table_list= all_tables; table_list;
+    for (table_list= all_tables; table_list;
          table_list= table_list->next_global)
+    {
+      /* Request removal of table from cache. */
+      tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
+                       table_list->db.str,
+                       table_list->table_name.str, FALSE);
+      /* Reset ticket to satisfy asserts in open_tables(). */
       table_list->mdl_request.ticket= NULL;
+    }
   }
 
   thd->variables.option_bits|= OPTION_TABLE_LOCK;
@@ -601,16 +607,6 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
                  table_list->db.str, table_list->table_name.str);
         goto error_reset_bits;
       }
-    }
-  }
-
-  if (thd->lex->type & REFRESH_READ_LOCK)
-  {
-    for (auto table_list= all_tables; table_list;
-         table_list= table_list->next_global)
-    {
-      if (table_list->table->file->extra(HA_EXTRA_FLUSH))
-        goto error_reset_bits;
     }
   }
 

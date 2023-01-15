@@ -9,6 +9,7 @@ let $datadir=`select @@datadir`;
 --source include/shutdown_mysqld.inc
 
 --remove_file $datadir/ib_logfile0
+--remove_file $datadir/ib_logfile1
 --remove_file $datadir/ibdata1
 
 --source include/start_mysqld.inc

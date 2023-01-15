@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'MyISAM';
+SET @@session.storage_engine = 'MyISAM';
 # RAND()
 create or replace table t1 (b double as (rand()));
 create or replace table t1 (b double as (rand()) PERSISTENT);

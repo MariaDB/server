@@ -132,18 +132,10 @@ drop table t1;
 
 show status like "feature_delay_key_write";
 
---echo #
---echo # Feature CHECK CONSTRAINT
---echo #
+#
+# Feature CHECK CONSTRAINT
+#
 create table t1 (a int check (a > 5));
 create table t2 (b int, constraint foo check (b < 10));
 drop table t1, t2;
 show status like "feature_check_constraint";
-
---echo #
---echo # Feature insert...returning
---echo #
-create table t1(id1 int);
-insert into t1 values (1),(2) returning *;
-drop table t1;
-show status like "feature_insert_returning";

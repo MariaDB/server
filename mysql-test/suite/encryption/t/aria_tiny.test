@@ -1,43 +1,12 @@
---source include/have_file_key_management_plugin.inc
---source include/have_sequence.inc
-
-SET @aria_encrypt= @@aria_encrypt_tables;
-SET global aria_encrypt_tables=1;
 #
 # MDEV-8022 Assertion `rc == 0' failed in ma_encrypt on dropping an encrypted Aria table
 #
 
+--source include/have_file_key_management_plugin.inc
+
+set global aria_encrypt_tables = 1;
 create table t1 (i int, key(i)) engine=aria;
 insert into t1 values (1);
 drop table t1;
+set global aria_encrypt_tables = 0;
 
-#
-# MDEV-17913 Encrypted transactional Aria tables remain corrupt after crash
-# recovery, automatic repair does not work
-#
-# We are using a simplifed version of the test here. This works thanks to
-# the extended check table code that also checks if LSN's are reasonable.
-#
-
-create table t1 (a int primary key, b int, c int, key(b),key(c)) engine=aria;
-alter table t1 disable keys;
-insert into t1 select seq,seq,seq from seq_1_to_100;
-alter table t1 enable keys;
-check table t1;
-drop table t1;
-
---echo #
---echo # MDEV CHECK on encrypted Aria table complains about "Wrong LSN"
---echo #
-
-CREATE TABLE t1 (f DATE PRIMARY KEY) ENGINE=Aria;
-INSERT INTO t1 (f) VALUES ('1995-01-01'),('2000-01-01');
-DELETE FROM t1 WHERE f = '2000-01-01';
-OPTIMIZE TABLE t1;
-CHECK TABLE t1 EXTENDED;
-DROP TABLE t1;
-
-#
-# Cleanup
-#
-set global aria_encrypt_tables=@aria_encrypt;

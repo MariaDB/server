@@ -1,4 +1,4 @@
-# Copyright (c) 2020 IBM
+# Copyright (c) 2009 Sun Microsystems, Inc.
 # Use is subject to license terms.
 # 
 # This program is free software; you can redistribute it and/or modify
@@ -14,21 +14,43 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
+FILE(REMOVE "${TARGET_LOCATION}")
 
-# MRI scripts have a problem with +. It's a line contination character
-# unfortunately there is no escape character. We know we don't have
-# "+" in libraries or the MariaDB paths, but Ubuntu CI builds will have
-# in their CI path due to the package names that Ubuntu generates.
-# So here we replace the fully expanded paths in the TARGET_SCRIPT,
-# strip off the TOP_DIR to make it a relative path to the top level directory
-# and then execute AR on the top level directory.
+SET(TEMP_DIR ${CMAKE_CURRENT_BINARY_DIR}/merge_archives_${TARGET})
+MAKE_DIRECTORY(${TEMP_DIR})
+# Extract each archive to its own subdirectory(avoid object filename clashes)
+SEPARATE_ARGUMENTS(STATIC_LIBS UNIX_COMMAND "${STATIC_LIBS}")
+FOREACH(LIB ${STATIC_LIBS})
+  GET_FILENAME_COMPONENT(NAME_NO_EXT ${LIB} NAME_WE)
+  SET(TEMP_SUBDIR ${TEMP_DIR}/${NAME_NO_EXT})
+  MAKE_DIRECTORY(${TEMP_SUBDIR})
+  EXECUTE_PROCESS(
+    COMMAND ${CMAKE_AR} -x ${LIB}
+    WORKING_DIRECTORY ${TEMP_SUBDIR}
+  )
 
-FILE(READ ${TARGET_SCRIPT} SCRIPT_CONTENTS)
-STRING(REPLACE "${TOP_DIR}/" "" SCRIPT_CONTENTS_TRIMMED "${SCRIPT_CONTENTS}")
-FILE(WRITE "${TARGET_SCRIPT}.mri" ${SCRIPT_CONTENTS_TRIMMED})
+  FILE(GLOB_RECURSE LIB_OBJECTS "${TEMP_SUBDIR}/*")
+  SET(OBJECTS ${OBJECTS} ${LIB_OBJECTS})
+ENDFOREACH()
 
+# Use relative paths, makes command line shorter.
+GET_FILENAME_COMPONENT(ABS_TEMP_DIR ${TEMP_DIR} ABSOLUTE)
+FOREACH(OBJ ${OBJECTS})
+  FILE(RELATIVE_PATH OBJ ${ABS_TEMP_DIR} ${OBJ})
+  FILE(TO_NATIVE_PATH ${OBJ} OBJ)
+  SET(ALL_OBJECTS ${ALL_OBJECTS} ${OBJ})
+ENDFOREACH()
+
+FILE(TO_NATIVE_PATH ${TARGET_LOCATION} ${TARGET_LOCATION})
+# Now pack the objects into library with ar.
 EXECUTE_PROCESS(
-  WORKING_DIRECTORY ${TOP_DIR}
-  COMMAND ${CMAKE_AR} -M
-  INPUT_FILE ${TARGET_SCRIPT}.mri
+  COMMAND ${CMAKE_AR} -r ${TARGET_LOCATION} ${ALL_OBJECTS}
+  WORKING_DIRECTORY ${TEMP_DIR}
 )
+EXECUTE_PROCESS(
+  COMMAND ${CMAKE_RANLIB} ${TARGET_LOCATION}
+  WORKING_DIRECTORY ${TEMP_DIR}
+)
+
+# Cleanup
+FILE(REMOVE_RECURSE ${TEMP_DIR})

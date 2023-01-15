@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,7 +26,7 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -34,15 +34,8 @@
 #include "pfs_global.h"
 #include "pfs_account.h"
 #include "pfs_visitor.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_esms_by_host_by_event_name::m_table_lock;
-
-PFS_engine_table_share_state
-table_esms_by_host_by_event_name::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_esms_by_host_by_event_name::m_share=
@@ -52,7 +45,8 @@ table_esms_by_host_by_event_name::m_share=
   table_esms_by_host_by_event_name::create,
   NULL, /* write_row */
   table_esms_by_host_by_event_name::delete_all_rows,
-  table_esms_by_host_by_event_name::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(pos_esms_by_host_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_summary_by_host_by_event_name("
@@ -81,10 +75,7 @@ table_esms_by_host_by_event_name::m_share=
                       "SUM_SORT_ROWS BIGINT unsigned not null comment 'Sum of the SORT_ROWS column in the events_statements_current table.',"
                       "SUM_SORT_SCAN BIGINT unsigned not null comment 'Sum of the SORT_SCAN column in the events_statements_current table.',"
                       "SUM_NO_INDEX_USED BIGINT unsigned not null comment 'Sum of the NO_INDEX_USED column in the events_statements_current table.',"
-                      "SUM_NO_GOOD_INDEX_USED BIGINT unsigned not null comment 'Sum of the NO_GOOD_INDEX_USED column in the events_statements_current table.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "SUM_NO_GOOD_INDEX_USED BIGINT unsigned not null comment 'Sum of the NO_GOOD_INDEX_USED column in the events_statements_current table.')") }
 };
 
 PFS_engine_table*
@@ -100,12 +91,6 @@ table_esms_by_host_by_event_name::delete_all_rows(void)
   reset_events_statements_by_account();
   reset_events_statements_by_host();
   return 0;
-}
-
-ha_rows
-table_esms_by_host_by_event_name::get_row_count(void)
-{
-  return global_host_container.get_row_count() * statement_class_max;
 }
 
 table_esms_by_host_by_event_name::table_esms_by_host_by_event_name()
@@ -129,14 +114,13 @@ int table_esms_by_host_by_event_name::rnd_next(void)
 {
   PFS_host *host;
   PFS_statement_class *statement_class;
-  bool has_more_host= true;
 
   for (m_pos.set_at(&m_next_pos);
-       has_more_host;
+       m_pos.has_more_host();
        m_pos.next_host())
   {
-    host= global_host_container.get(m_pos.m_index_1, & has_more_host);
-    if (host != NULL)
+    host= &host_array[m_pos.m_index_1];
+    if (host->m_lock.is_populated())
     {
       statement_class= find_statement_class(m_pos.m_index_2);
       if (statement_class)
@@ -158,16 +142,17 @@ table_esms_by_host_by_event_name::rnd_pos(const void *pos)
   PFS_statement_class *statement_class;
 
   set_position(pos);
+  DBUG_ASSERT(m_pos.m_index_1 < host_max);
 
-  host= global_host_container.get(m_pos.m_index_1);
-  if (host != NULL)
+  host= &host_array[m_pos.m_index_1];
+  if (! host->m_lock.is_populated())
+    return HA_ERR_RECORD_DELETED;
+
+  statement_class= find_statement_class(m_pos.m_index_2);
+  if (statement_class)
   {
-    statement_class= find_statement_class(m_pos.m_index_2);
-    if (statement_class)
-    {
-      make_row(host, statement_class);
-      return 0;
-    }
+    make_row(host, statement_class);
+    return 0;
   }
 
   return HA_ERR_RECORD_DELETED;
@@ -176,7 +161,7 @@ table_esms_by_host_by_event_name::rnd_pos(const void *pos)
 void table_esms_by_host_by_event_name
 ::make_row(PFS_host *host, PFS_statement_class *klass)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   m_row_exists= false;
 
   if (klass->is_mutable())
@@ -190,11 +175,7 @@ void table_esms_by_host_by_event_name
   m_row.m_event_name.make_row(klass);
 
   PFS_connection_statement_visitor visitor(klass);
-  PFS_connection_iterator::visit_host(host,
-                                      true,  /* accounts */
-                                      true,  /* threads */
-                                      false, /* THDs */
-                                      & visitor);
+  PFS_connection_iterator::visit_host(host, true, true, & visitor);
 
   if (! host->m_lock.end_optimistic_lock(&lock))
     return;
@@ -213,7 +194,7 @@ int table_esms_by_host_by_event_name
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)

@@ -699,7 +699,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 Warnings:
-Note	1003	with recursive ancestor_couple_ids(`h_id`,`w_id`) as (/* select#2 */ select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null), coupled_ancestors(`id`,`name`,`dob`,`father`,`mother`) as (/* select#3 */ select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all /* select#4 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all /* select#5 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`)/* select#1 */ select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
+Note	1003	with recursive ancestor_couple_ids(h_id,w_id) as (/* select#2 */ select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null), coupled_ancestors(id,name,dob,father,mother) as (/* select#3 */ select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all /* select#4 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all /* select#5 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`)/* select#1 */ select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
 # simple mutual recursion
 with recursive
 ancestor_couple_ids(h_id, w_id)
@@ -2407,8 +2407,7 @@ ANALYZE
       "r_loops": 1,
       "rows": 2,
       "r_rows": 10,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "materialized": {
@@ -2439,8 +2438,7 @@ ANALYZE
                     "r_loops": 10,
                     "rows": 2,
                     "r_rows": 1,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 90,
                     "attached_condition": "src.counter < 10"
@@ -3093,7 +3091,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	with recursive destinations(`city`,`legs`) as (/* select#2 */ select `test`.`a`.`arrival` AS `city`,1 AS `legs` from `test`.`flights` `a` where `test`.`a`.`departure` = 'Cairo' union /* select#3 */ select `test`.`b`.`arrival` AS `arrival`,`r`.`legs` + 1 AS `r.legs + 1` from `destinations` `r` join `test`.`flights` `b` where `r`.`city` = `test`.`b`.`departure` and !(<in_optimizer>(`test`.`b`.`arrival`,<exists>(/* select#4 */ select `destinations`.`city` from `destinations` where trigcond(`test`.`b`.`arrival` = `destinations`.`city` or `destinations`.`city` is null) having trigcond(`destinations`.`city` is null)))))/* select#1 */ select `destinations`.`city` AS `city`,`destinations`.`legs` AS `legs` from `destinations`
+Note	1003	with recursive destinations(city,legs) as (/* select#2 */ select `test`.`a`.`arrival` AS `city`,1 AS `legs` from `test`.`flights` `a` where `test`.`a`.`departure` = 'Cairo' union /* select#3 */ select `test`.`b`.`arrival` AS `arrival`,`r`.`legs` + 1 AS `r.legs + 1` from `destinations` `r` join `test`.`flights` `b` where `r`.`city` = `test`.`b`.`departure` and !<in_optimizer>(`test`.`b`.`arrival`,<exists>(/* select#4 */ select `destinations`.`city` from `destinations` where trigcond(`test`.`b`.`arrival` = `destinations`.`city` or `destinations`.`city` is null) having trigcond(`destinations`.`city` is null))))/* select#1 */ select `destinations`.`city` AS `city`,`destinations`.`legs` AS `legs` from `destinations`
 set standard_compliant_cte=default;
 drop table flights;
 #
@@ -3112,7 +3110,7 @@ SELECT * FROM cte;
 #
 # MDEV-15575: using recursive cte with big_tables enabled
 #
-set tmp_memory_table_size=0;
+set big_tables=1;
 with recursive qn as
 (select 123 as a union all select 1+a from qn where a<130)
 select * from qn;
@@ -3125,13 +3123,13 @@ a
 128
 129
 130
-set tmp_memory_table_size=default;
+set big_tables=default;
 #
 # MDEV-15571: using recursive cte with big_tables enabled
 #
 create table t1 (a bigint);
 insert into t1 values(1);
-set tmp_memory_table_size=0;
+set big_tables=1;
 with recursive qn as
 (
 select  a from t1
@@ -3140,13 +3138,13 @@ select a*2000 from qn where a<10000000000000000000
 )
 select * from qn;
 ERROR 22003: BIGINT value is out of range in '`qn`.`a` * 2000'
-set tmp_memory_table_size=default;
+set big_tables=default;
 drop table t1;
 #
 # MDEV-15556: using recursive cte with big_tables enabled
 #             when recursive tables are accessed by key
 #
-set tmp_memory_table_size=0;
+SET big_tables=1;
 CREATE TABLE t1 (id int, name char(10), leftpar int, rightpar int);
 INSERT INTO t1 VALUES
 (1, "A", 2, 3), (2, "LA", 4, 5), (4, "LLA", 6, 7),
@@ -3197,7 +3195,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	2	
 NULL	UNION RESULT	<union2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 DROP TABLE t1,t2;
-set tmp_memory_table_size=default;
+SET big_tables=0;
 #
 # MDEV-15840: recursive tables are accessed by key
 #             (the same problem as for MDEV-15556)
@@ -3380,7 +3378,7 @@ NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 5	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	with recursive rcte(`a`) as (/* select#2 */ select 1 AS `a` union /* select#3 */ select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (/* select#4 */ select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (/* select#5 */ select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)/* select#1 */ select `cte1`.`c1` AS `c1`,`cte2`.`c2` AS `c2` from `cte1` join `cte2`
+Note	1003	with recursive rcte(a) as (/* select#2 */ select 1 AS `a` union /* select#3 */ select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (/* select#4 */ select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (/* select#5 */ select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)/* select#1 */ select `cte1`.`c1` AS `c1`,`cte2`.`c2` AS `c2` from `cte1` join `cte2`
 prepare stmt from "with recursive
 rcte(a) as
 (select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
@@ -3466,7 +3464,7 @@ NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	with recursive rcte(`a`) as (/* select#2 */ select 1 AS `a` union /* select#3 */ select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (/* select#4 */ select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (/* select#5 */ select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)/* select#1 */ select `cte2`.`c2` AS `c2`,`cte1`.`c1` AS `c1` from `cte2` join `cte1`
+Note	1003	with recursive rcte(a) as (/* select#2 */ select 1 AS `a` union /* select#3 */ select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (/* select#4 */ select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (/* select#5 */ select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)/* select#1 */ select `cte2`.`c2` AS `c2`,`cte1`.`c1` AS `c1` from `cte2` join `cte1`
 prepare stmt from "with recursive
 rcte(a) as
 (select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
@@ -3782,8 +3780,9 @@ where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
    union select tt2.a2 from t2 tt2 join cte on tt2.b1=cte.a2)
 select a2 from cte);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	23	test.t1.a1	1	FirstMatch(t1)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	23	func	1	
+5	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
 3	DERIVED	t2	const	PRIMARY	PRIMARY	22	const	1	Using index
 4	RECURSIVE UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	2	Using where
 4	RECURSIVE UNION	tt2	ref	b1	b1	23	cte.a2	2	
@@ -3799,101 +3798,112 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
+    "const_condition": "1",
     "table": {
       "table_name": "t1",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 3,
       "r_rows": 3,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
-      "r_filtered": 100,
-      "attached_condition": "t1.a1 is not null"
+      "r_filtered": 100
     },
     "table": {
-      "table_name": "<derived3>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
+      "table_name": "<subquery5>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
       "key_length": "23",
       "used_key_parts": ["a2"],
-      "ref": ["test.t1.a1"],
+      "ref": ["func"],
       "r_loops": 3,
       "rows": 1,
-      "r_rows": 0.333333333,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_rows": 0.3333,
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
-      "first_match": "t1",
       "materialized": {
+        "unique": 1,
         "query_block": {
-          "recursive_union": {
-            "table_name": "<union3,4>",
+          "select_id": 5,
+          "table": {
+            "table_name": "<derived3>",
             "access_type": "ALL",
-            "r_loops": 0,
-            "r_rows": null,
-            "query_specifications": [
-              {
-                "query_block": {
-                  "select_id": 3,
-                  "r_loops": 1,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "t2",
-                    "access_type": "const",
-                    "possible_keys": ["PRIMARY"],
-                    "key": "PRIMARY",
-                    "key_length": "22",
-                    "used_key_parts": ["a2"],
-                    "ref": ["const"],
-                    "r_loops": 0,
-                    "rows": 1,
-                    "r_rows": null,
-                    "filtered": 100,
-                    "r_filtered": null,
-                    "using_index": true
-                  }
-                }
-              },
-              {
-                "query_block": {
-                  "select_id": 4,
-                  "operation": "UNION",
-                  "r_loops": 1,
-                  "r_total_time_ms": "REPLACED",
-                  "table": {
-                    "table_name": "<derived3>",
-                    "access_type": "ALL",
-                    "r_loops": 1,
-                    "rows": 2,
-                    "r_rows": 1,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "filtered": 100,
-                    "r_filtered": 100,
-                    "attached_condition": "cte.a2 is not null"
-                  },
-                  "table": {
-                    "table_name": "tt2",
-                    "access_type": "ref",
-                    "possible_keys": ["b1"],
-                    "key": "b1",
-                    "key_length": "23",
-                    "used_key_parts": ["b1"],
-                    "ref": ["cte.a2"],
-                    "r_loops": 1,
-                    "rows": 2,
-                    "r_rows": 1,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
-                    "filtered": 100,
-                    "r_filtered": 100
-                  }
+            "r_loops": 1,
+            "rows": 2,
+            "r_rows": 1,
+            "r_total_time_ms": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 100,
+            "materialized": {
+              "query_block": {
+                "recursive_union": {
+                  "table_name": "<union3,4>",
+                  "access_type": "ALL",
+                  "r_loops": 0,
+                  "r_rows": null,
+                  "query_specifications": [
+                    {
+                      "query_block": {
+                        "select_id": 3,
+                        "r_loops": 1,
+                        "r_total_time_ms": "REPLACED",
+                        "table": {
+                          "table_name": "t2",
+                          "access_type": "const",
+                          "possible_keys": ["PRIMARY"],
+                          "key": "PRIMARY",
+                          "key_length": "22",
+                          "used_key_parts": ["a2"],
+                          "ref": ["const"],
+                          "r_loops": 0,
+                          "rows": 1,
+                          "r_rows": null,
+                          "filtered": 100,
+                          "r_filtered": null,
+                          "using_index": true
+                        }
+                      }
+                    },
+                    {
+                      "query_block": {
+                        "select_id": 4,
+                        "operation": "UNION",
+                        "r_loops": 1,
+                        "r_total_time_ms": "REPLACED",
+                        "table": {
+                          "table_name": "<derived3>",
+                          "access_type": "ALL",
+                          "r_loops": 1,
+                          "rows": 2,
+                          "r_rows": 1,
+                          "r_total_time_ms": "REPLACED",
+                          "filtered": 100,
+                          "r_filtered": 100,
+                          "attached_condition": "cte.a2 is not null"
+                        },
+                        "table": {
+                          "table_name": "tt2",
+                          "access_type": "ref",
+                          "possible_keys": ["b1"],
+                          "key": "b1",
+                          "key_length": "23",
+                          "used_key_parts": ["b1"],
+                          "ref": ["cte.a2"],
+                          "r_loops": 1,
+                          "rows": 2,
+                          "r_rows": 1,
+                          "r_total_time_ms": "REPLACED",
+                          "filtered": 100,
+                          "r_filtered": 100
+                        }
+                      }
+                    }
+                  ]
                 }
               }
-            ]
+            }
           }
         }
       }
@@ -4061,8 +4071,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 4,
               "r_rows": 4,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100,
               "materialized": {
@@ -4084,8 +4093,7 @@ ANALYZE
                             "r_loops": 1,
                             "rows": 4,
                             "r_rows": 4,
-                            "r_table_time_ms": "REPLACED",
-                            "r_other_time_ms": "REPLACED",
+                            "r_total_time_ms": "REPLACED",
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -4103,8 +4111,7 @@ ANALYZE
                             "r_loops": 1,
                             "rows": 4,
                             "r_rows": 4,
-                            "r_table_time_ms": "REPLACED",
-                            "r_other_time_ms": "REPLACED",
+                            "r_total_time_ms": "REPLACED",
                             "filtered": 100,
                             "r_filtered": 100,
                             "attached_condition": "t1.c is not null"
@@ -4120,8 +4127,7 @@ ANALYZE
                             "r_loops": 4,
                             "rows": 2,
                             "r_rows": 0.5,
-                            "r_table_time_ms": "REPLACED",
-                            "r_other_time_ms": "REPLACED",
+                            "r_total_time_ms": "REPLACED",
                             "filtered": 100,
                             "r_filtered": 100
                           }
@@ -4199,8 +4205,7 @@ ANALYZE
       "r_loops": 1,
       "rows": 4,
       "r_rows": 4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100
     }
@@ -4277,8 +4282,6 @@ use test;
 #
 set @save_big_tables=@@big_tables;
 set big_tables=1;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 create table  folks(id int, name char(32), dob date, father int, mother int);
 insert into folks values
 (100, 'Me', '2000-01-01', 20, 30),
@@ -4453,9 +4456,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 4	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 5	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
-2	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using join buffer (flat, BNL join)
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+2	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	Using where
+2	DERIVED	<derived3>	ref	key0	key0	5	test.h.id	2	
+2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 prepare stmt from "with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)
@@ -4493,8 +4496,6 @@ Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
 deallocate prepare stmt;
 drop table folks;
 set big_tables=@save_big_tables;
-Warnings:
-Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
 #
 # MDEV-26135: execution of PS for query with hanging recursive CTE
 #

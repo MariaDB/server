@@ -557,54 +557,6 @@ SET DEBUG_SYNC=reset;
 
 --echo # End of 10.4 tests
 
---echo #
---echo # MDEV-22867 Assertion instant.n_core_fields == n_core_fields
---echo # in dict_index_t::instant_add_field
---echo #
-
-CREATE TABLE t1 (a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
-INSERT INTO t1 SET a=1;
-
-connect (prevent_purge,localhost,root,,);
-START TRANSACTION WITH CONSISTENT SNAPSHOT;
-connection default;
-ALTER TABLE t1 ADD COLUMN c INT;
-DELETE FROM t1;
-
-connect (con2,localhost,root,,test);
-# FIXME: If this is implemented then also i->online_log must be checked in
-# dict_index_t::must_avoid_clear_instant_add(). See the comment there.
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER TABLE t1 DROP b, ADD INDEX(c), ALGORITHM=NOCOPY;
-SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL ddl WAIT_FOR emptied';
-send ALTER TABLE t1 DROP b;
-
-connection default;
-SET DEBUG_SYNC='now WAIT_FOR ddl';
-BEGIN;
-INSERT INTO t1 SET a=1;
-
-connection prevent_purge;
-COMMIT;
-disconnect prevent_purge;
-
-connection default;
-ROLLBACK;
-SELECT * FROM t1;
-SET DEBUG_SYNC='now SIGNAL emptied';
-
-connection con2;
-reap;
-disconnect con2;
-connection default;
-ALTER TABLE t1 DROP c;
-INSERT INTO t1 VALUES (2),(3),(4);
-CHECK TABLE t1;
-DROP TABLE t1;
-SET DEBUG_SYNC=RESET;
-
---echo # End of 10.5 tests
-
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 
 SELECT variable_value-@old_instant instants

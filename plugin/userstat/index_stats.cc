@@ -1,15 +1,11 @@
-namespace Show {
-
 static ST_FIELD_INFO index_stats_fields[]=
 {
-  Column("TABLE_SCHEMA", Varchar(NAME_LEN),   NOT_NULL, "Table_schema"),
-  Column("TABLE_NAME",   Varchar(NAME_LEN),   NOT_NULL, "Table_name"),
-  Column("INDEX_NAME",   Varchar(NAME_LEN),   NOT_NULL, "Index_name"),
-  Column("ROWS_READ",    SLonglong(),         NOT_NULL, "Rows_read"),
-  CEnd()
+  {"TABLE_SCHEMA", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_schema",SKIP_OPEN_TABLE},
+  {"TABLE_NAME", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_name",SKIP_OPEN_TABLE},
+  {"INDEX_NAME", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Index_name",SKIP_OPEN_TABLE},
+  {"ROWS_READ", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_read",SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0,0}
 };
-
-} // namespace Show
 
 static int index_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
 {
@@ -29,7 +25,7 @@ static int index_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     tmp_table.db.length= strlen(index_stats->index);
     tmp_table.table_name.str= index_stats->index + tmp_table.db.length + 1;
     tmp_table.table_name.length= strlen(tmp_table.table_name.str);
-    tmp_table.grant.privilege= NO_ACL;
+    tmp_table.grant.privilege= 0;
     if (check_access(thd, SELECT_ACL, tmp_table.db.str,
                       &tmp_table.grant.privilege, NULL, 0, 1) ||
         check_grant(thd, SELECT_ACL, &tmp_table, 1, 1, 1))
@@ -67,7 +63,7 @@ static int index_stats_reset()
 static int index_stats_init(void *p)
 {
   ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
-  schema->fields_info= Show::index_stats_fields;
+  schema->fields_info= index_stats_fields;
   schema->fill_table= index_stats_fill;
   schema->reset_table= index_stats_reset;
   return 0;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -22,7 +22,7 @@
 
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_con_slice.h"
 #include "pfs_stat.h"
 #include "pfs_global.h"
@@ -37,6 +37,66 @@
   @addtogroup Performance_schema_buffers
   @{
 */
+
+PFS_single_stat *
+PFS_connection_slice::alloc_waits_slice(uint sizing)
+{
+  PFS_single_stat *slice= NULL;
+  uint index;
+
+  if (sizing > 0)
+  {
+    slice= PFS_MALLOC_ARRAY(sizing, sizeof(PFS_single_stat), PFS_single_stat,
+                            MYF(MY_ZEROFILL));
+    if (unlikely(slice == NULL))
+      return NULL;
+
+    for (index= 0; index < sizing; index++)
+      slice[index].reset();
+  }
+
+  return slice;
+}
+
+PFS_stage_stat *
+PFS_connection_slice::alloc_stages_slice(uint sizing)
+{
+  PFS_stage_stat *slice= NULL;
+  uint index;
+
+  if (sizing > 0)
+  {
+    slice= PFS_MALLOC_ARRAY(sizing, sizeof(PFS_stage_stat), PFS_stage_stat,
+                            MYF(MY_ZEROFILL));
+    if (unlikely(slice == NULL))
+      return NULL;
+
+    for (index= 0; index < sizing; index++)
+      slice[index].reset();
+  }
+
+  return slice;
+}
+
+PFS_statement_stat *
+PFS_connection_slice::alloc_statements_slice(uint sizing)
+{
+  PFS_statement_stat *slice= NULL;
+  uint index;
+
+  if (sizing > 0)
+  {
+    slice= PFS_MALLOC_ARRAY(sizing, sizeof(PFS_statement_stat), PFS_statement_stat,
+                            MYF(MY_ZEROFILL));
+    if (unlikely(slice == NULL))
+      return NULL;
+
+    for (index= 0; index < sizing; index++)
+      slice[index].reset();
+  }
+
+  return slice;
+}
 
 void PFS_connection_slice::reset_waits_stats()
 {
@@ -58,22 +118,6 @@ void PFS_connection_slice::reset_statements_stats()
 {
   PFS_statement_stat *stat= m_instr_class_statements_stats;
   PFS_statement_stat *stat_last= stat + statement_class_max;
-  for ( ; stat < stat_last; stat++)
-    stat->reset();
-}
-
-void PFS_connection_slice::reset_transactions_stats()
-{
-  PFS_transaction_stat *stat=
-                    &m_instr_class_transactions_stats[GLOBAL_TRANSACTION_INDEX];
-  if (stat)
-    stat->reset();
-}
-
-void PFS_connection_slice::rebase_memory_stats()
-{
-  PFS_memory_stat *stat= m_instr_class_memory_stats;
-  PFS_memory_stat *stat_last= stat + memory_class_max;
   for ( ; stat < stat_last; stat++)
     stat->reset();
 }

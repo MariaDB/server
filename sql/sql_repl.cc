@@ -24,6 +24,7 @@
 #include "rpl_mi.h"
 #include "rpl_rli.h"
 #include "sql_repl.h"
+#include "sql_acl.h"                            // SUPER_ACL
 #include "log_event.h"
 #include "rpl_filter.h"
 #include <my_dir.h>
@@ -1247,8 +1248,7 @@ check_slave_start_position(binlog_send_info *info, const char **errormsg,
       if (!delete_list)
       {
         if (!(delete_list= (slave_connection_state::entry **)
-              my_malloc(PSI_INSTRUMENT_ME,
-                        sizeof(*delete_list) * st->hash.records, MYF(MY_WME))))
+              my_malloc(sizeof(*delete_list) * st->hash.records, MYF(MY_WME))))
         {
           *errormsg= "Out of memory while checking slave start position";
           err= ER_OUT_OF_RESOURCES;
@@ -1310,9 +1310,8 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
   const char *errormsg= NULL;
   char buf[FN_REFLEN];
 
-  init_alloc_root(PSI_INSTRUMENT_ME, &memroot,
-                  10*(FN_REFLEN+sizeof(binlog_file_entry)), 0,
-                  MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&memroot, "gtid_find_binlog_file",
+                  8192, 0, MYF(MY_THREAD_SPECIFIC));
   if (!(list= get_binlog_list(&memroot)))
   {
     errormsg= "Out of memory while looking for GTID position in binlog";
@@ -1679,7 +1678,7 @@ is_until_reached(binlog_send_info *info, ulong *ev_offset,
       return false;
     break;
   case GTID_UNTIL_STOP_AFTER_TRANSACTION:
-    if (event_type != XID_EVENT && event_type != XA_PREPARE_LOG_EVENT &&
+    if (event_type != XID_EVENT &&
         (event_type != QUERY_EVENT ||    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
          !Query_log_event::peek_is_commit_rollback
                (info->packet->ptr()+*ev_offset,
@@ -1914,7 +1913,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
       info->gtid_skip_group= GTID_SKIP_NOT;
     return NULL;
   case GTID_SKIP_TRANSACTION:
-    if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT ||
+    if (event_type == XID_EVENT ||
         (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
          Query_log_event::peek_is_commit_rollback(packet->ptr() + ev_offset,
                                                   len - ev_offset,
@@ -1981,7 +1980,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return "Failed to replace GTID event with backwards-compatible event: "
-             "corrupt event.";
+             "currupt event.";
     }
     if (!need_dummy)
       return NULL;
@@ -3116,7 +3115,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("start_slave");
 
-  if (check_global_access(thd, PRIV_STMT_START_SLAVE))
+  if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
     DBUG_RETURN(-1);
 
   create_logfile_name_with_suffix(master_info_file_tmp,
@@ -3319,7 +3318,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   DBUG_ENTER("stop_slave");
   DBUG_PRINT("enter",("Connection: %s", mi->connection_name.str));
 
-  if (check_global_access(thd, PRIV_STMT_STOP_SLAVE))
+  if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
     DBUG_RETURN(-1);
   THD_STAGE_INFO(thd, stage_killing_slave);
   int thread_mask;
@@ -3543,7 +3542,7 @@ static bool get_string_parameter(char *to, const char *from, size_t length,
   if (from)                                     // Empty paramaters allowed
   {
     size_t from_length= strlen(from);
-    size_t from_numchars= cs->numchars(from, from + from_length);
+    size_t from_numchars= cs->cset->numchars(cs, from, from + from_length);
     if (from_numchars > length / cs->mbmaxlen)
     {
       my_error(ER_WRONG_STRING_LENGTH, MYF(0), from, name,
@@ -4003,8 +4002,6 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);
   repl_semisync_master.after_reset_master();
-  DBUG_EXECUTE_IF("crash_after_reset_master", DBUG_SUICIDE(););
-
   return ret;
 }
 
@@ -4074,7 +4071,7 @@ bool mysql_show_binlog_events(THD* thd)
   if (binary_log->is_open())
   {
     SELECT_LEX_UNIT *unit= &thd->lex->unit;
-    ha_rows event_count;
+    ha_rows event_count, limit_start, limit_end;
     my_off_t pos = MY_MAX(BIN_LOG_HEADER_SIZE, lex_mi->pos); // user-friendly
     char search_file_name[FN_REFLEN], *name;
     const char *log_file_name = lex_mi->log_file_name;
@@ -4089,6 +4086,8 @@ bool mysql_show_binlog_events(THD* thd)
     }
 
     unit->set_limit(thd->lex->current_select);
+    limit_start= unit->offset_limit_cnt;
+    limit_end= unit->select_limit_cnt;
 
     name= search_file_name;
     if (log_file_name)
@@ -4215,13 +4214,13 @@ bool mysql_show_binlog_events(THD* thd)
                                          (opt_master_verify_checksum ||
                                           verify_checksum_once))); )
     {
-      if (!unit->lim.check_offset(event_count) &&
-	        ev->net_send(protocol, linfo.log_file_name, pos))
+      if (event_count >= limit_start &&
+          ev->net_send(protocol, linfo.log_file_name, pos))
       {
-	      errmsg = "Net error";
-	      delete ev;
+        errmsg = "Net error";
+        delete ev;
         mysql_mutex_unlock(log_lock);
-	      goto err;
+        goto err;
       }
 
       if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
@@ -4250,11 +4249,11 @@ bool mysql_show_binlog_events(THD* thd)
       verify_checksum_once= false;
       pos = my_b_tell(&log);
 
-      if (++event_count >= unit->lim.get_select_limit())
-	      break;
+      if (++event_count >= limit_end)
+        break;
     }
 
-    if (unlikely(event_count < unit->lim.get_select_limit() && log.error))
+    if (unlikely(event_count < limit_end && log.error))
     {
       errmsg = "Wrong offset or I/O error";
       mysql_mutex_unlock(log_lock);
@@ -4311,7 +4310,7 @@ void show_binlog_info_get_fields(THD *thd, List<Item> *field_list)
 
 
 /**
-  Execute a SHOW BINLOG STATUS statement.
+  Execute a SHOW MASTER STATUS statement.
 
   @param thd Pointer to THD object for the client thread executing the
   statement.
@@ -4404,7 +4403,8 @@ bool show_binlogs(THD* thd)
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
-  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&mem_root, "binlog_file_list", 8192, 0,
+                  MYF(MY_THREAD_SPECIFIC));
 retry:
   /*
     The current mutex handling here is to ensure we get the current log position

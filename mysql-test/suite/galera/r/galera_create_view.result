@@ -1,4 +1,0 @@
-connection node_2;
-connection node_1;
-CREATE OR REPLACE VIEW v AS WITH cte AS ( SELECT 1 ) SELECT * FROM cte;
-DROP VIEW v;

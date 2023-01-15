@@ -1,5 +1,5 @@
 #
-# Bug#34300 Tinyblob & tinytext fields corrupted after export/import and alter in 5.1
+# Bug#34300 Tinyblob & tinytext fields currupted after export/import and alter in 5.1
 #
 SET @@global.max_allowed_packet=16777216;
 connect  newconn, localhost, root,,;

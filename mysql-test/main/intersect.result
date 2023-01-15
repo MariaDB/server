@@ -108,8 +108,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 3,
               "r_rows": 3,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             }
@@ -127,8 +126,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 3,
               "r_rows": 3,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             }
@@ -146,8 +144,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 3,
               "r_rows": 3,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             }
@@ -170,8 +167,7 @@ ANALYZE
       "r_loops": 1,
       "rows": 3,
       "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "materialized": {
@@ -193,8 +189,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 3,
                     "r_rows": 3,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -212,8 +207,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 3,
                     "r_rows": 3,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -231,8 +225,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 3,
                     "r_rows": 3,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -356,8 +349,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 3,
               "r_rows": 3,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             }
@@ -375,8 +367,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 3,
               "r_rows": 3,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             },
@@ -387,8 +378,7 @@ ANALYZE
                 "r_loops": 1,
                 "rows": 3,
                 "r_rows": 3,
-                "r_table_time_ms": "REPLACED",
-                "r_other_time_ms": "REPLACED",
+                "r_total_time_ms": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 100
               },
@@ -416,8 +406,7 @@ ANALYZE
       "r_loops": 1,
       "rows": 3,
       "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "materialized": {
@@ -439,8 +428,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 3,
                     "r_rows": 3,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -458,8 +446,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 3,
                     "r_rows": 3,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   },
@@ -470,8 +457,7 @@ ANALYZE
                       "r_loops": 1,
                       "rows": 3,
                       "r_rows": 3,
-                      "r_table_time_ms": "REPLACED",
-                      "r_other_time_ms": "REPLACED",
+                      "r_total_time_ms": "REPLACED",
                       "filtered": 100,
                       "r_filtered": 100
                     },
@@ -522,6 +508,8 @@ select 1 as a from dual union all select 1 from dual;
 a
 1
 1
+select 1 from dual intersect all select 1 from dual;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'all select 1 from dual' at line 1
 create table t1 (a int, b blob, a1 int, b1 blob);
 create table t2 (c int, d blob, c1 int, d1 blob);
 insert into t1 values (1,"ddd", 1, "sdfrrwwww"),(2, "fgh", 2, "dffggtt");
@@ -623,6 +611,22 @@ NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 NULL	UNION RESULT	<union1,5,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	(/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) union /* select#5 */ select `__5`.`c` AS `c`,`__5`.`d` AS `d` from ((/* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`) intersect (/* select#3 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`)) `__5` union (/* select#4 */ select 4 AS `4`,4 AS `4`)
+set SQL_MODE=ORACLE;
+(select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
+a	b
+3	3
+4	4
+explain extended
+(select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") union (/* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") intersect (/* select#3 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") union (/* select#4 */ select 4 AS "4",4 AS "4")
+set SQL_MODE=default;
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
 e	f
 3	3
@@ -639,6 +643,24 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	(/* select#1 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`) intersect (/* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`) union (/* select#3 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) union (/* select#4 */ select 4 AS `4`,4 AS `4`)
+set SQL_MODE=ORACLE;
+(select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
+e	f
+3	3
+4	4
+5	5
+6	6
+explain extended
+(select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	(/* select#1 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") intersect (/* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") union (/* select#3 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") union (/* select#4 */ select 4 AS "4",4 AS "4")
+set SQL_MODE=default;
 (/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) union /* select#3 */ select `__3`.`c` AS `c`,`__3`.`d` AS `d` from ((/* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`) intersect (/* select#4 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`)) `__3` union (/* select#5 */ select 4 AS `4`,4 AS `4`);
 a	b
 3	3
@@ -802,6 +824,12 @@ create table t234(c1 int);
 insert into t234 values(2);
 insert into t234 values(3);
 insert into t234 values(4);
+set SQL_MODE=oracle;
+select * from t13 union select * from t234 intersect select * from t12;
+c1
+1
+2
+set SQL_MODE=default;
 select * from t13 union select * from t234 intersect select * from t12;
 c1
 1
@@ -824,9 +852,9 @@ select * from t2 where a < 5
 intersect
 select * from t3 where a < 5;
 a
+7
+7
 1
-7
-7
 explain extended
 select * from t1 where a > 4
 union all 

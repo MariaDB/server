@@ -77,62 +77,35 @@ cmp_dfield_dfield(
 	const dfield_t*	dfield1,/*!< in: data field; must have type field set */
 	const dfield_t*	dfield2);/*!< in: data field */
 
-#ifdef UNIV_DEBUG
+
 /** Compare a GIS data tuple to a physical record.
 @param[in] dtuple data tuple
 @param[in] rec R-tree record
+@param[in] offsets rec_get_offsets(rec)
 @param[in] mode compare mode
 @retval negative if dtuple is less than rec */
-int cmp_dtuple_rec_with_gis(const dtuple_t *dtuple, const rec_t *rec,
-                            page_cur_mode_t mode)
-  MY_ATTRIBUTE((nonnull));
-#endif
+int
+cmp_dtuple_rec_with_gis(
+/*====================*/
+	const dtuple_t*	dtuple,
+	const rec_t*	rec,
+	const rec_offs*	offsets,
+	page_cur_mode_t	mode)
+	MY_ATTRIBUTE((nonnull));
 
-/** Compare two minimum bounding rectangles.
-@return	1, 0, -1, if a is greater, equal, less than b, respectively */
-inline int cmp_geometry_field(const void *a, const void *b)
-{
-  const byte *mbr1= static_cast<const byte*>(a);
-  const byte *mbr2= static_cast<const byte*>(b);
-
-  static_assert(SPDIMS == 2, "compatibility");
-  static_assert(DATA_MBR_LEN == SPDIMS * 2 * sizeof(double), "compatibility");
-
-  /* Try to compare mbr left lower corner (xmin, ymin) */
-  double x1= mach_double_read(mbr1);
-  double x2= mach_double_read(mbr2);
-  if (x1 > x2)
-    return 1;
-  if (x2 > x1)
-    return -1;
-
-  double y1= mach_double_read(mbr1 + sizeof(double) * SPDIMS);
-  double y2= mach_double_read(mbr2 + sizeof(double) * SPDIMS);
-
-  if (y1 > y2)
-    return 1;
-  if (y2 > y1)
-    return -1;
-
-  /* left lower corner (xmin, ymin) overlaps, now right upper corner */
-  x1= mach_double_read(mbr1 + sizeof(double));
-  x2= mach_double_read(mbr2 + sizeof(double));
-
-  if (x1 > x2)
-    return 1;
-  if (x2 > x1)
-    return -1;
-
-  y1= mach_double_read(mbr1 + sizeof(double) * 2 + sizeof(double));
-  y2= mach_double_read(mbr2 + sizeof(double) * 2 + sizeof(double));
-
-  if (y1 > y2)
-    return 1;
-  if (y2 > y1)
-    return -1;
-
-  return 0;
-}
+/** Compare a GIS data tuple to a physical record in rtree non-leaf node.
+We need to check the page number field, since we don't store pk field in
+rtree non-leaf node.
+@param[in] dtuple data tuple
+@param[in] rec R-tree record
+@param[in] offsets rec_get_offsets(rec)
+@param[in] mode compare mode
+@retval negative if dtuple is less than rec */
+int
+cmp_dtuple_rec_with_gis_internal(
+	const dtuple_t*	dtuple,
+	const rec_t*	rec,
+	const rec_offs*	offsets);
 
 /** Compare a data tuple to a physical record.
 @param[in] dtuple data tuple

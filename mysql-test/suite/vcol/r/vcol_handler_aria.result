@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'maria';
+SET @@session.storage_engine = 'maria';
 create table t1 (a int, 
 b int as (-a),
 c int as (-a) persistent,

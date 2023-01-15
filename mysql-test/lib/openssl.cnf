@@ -9,4 +9,4 @@ ssl_conf = ssl_section
 system_default = system_default_section
 
 [system_default_section]
-CipherString = ALL:@SECLEVEL=0
+CipherString = ALL:@SECLEVEL=1

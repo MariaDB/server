@@ -62,8 +62,8 @@ tmpfile_init(const char *root)
 	ds_ctxt_t		*ctxt;
 	ds_tmpfile_ctxt_t	*tmpfile_ctxt;
 
-	ctxt = (ds_ctxt_t *)my_malloc(PSI_NOT_INSTRUMENTED,
-                   sizeof(ds_ctxt_t) + sizeof(ds_tmpfile_ctxt_t), MYF(MY_FAE));
+	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_tmpfile_ctxt_t),
+			 MYF(MY_FAE));
 	tmpfile_ctxt = (ds_tmpfile_ctxt_t *) (ctxt + 1);
 	tmpfile_ctxt->file_list = NULL;
 	if (pthread_mutex_init(&tmpfile_ctxt->mutex, NULL)) {
@@ -73,7 +73,7 @@ tmpfile_init(const char *root)
 	}
 
 	ctxt->ptr = tmpfile_ctxt;
-	ctxt->root = my_strdup(PSI_NOT_INSTRUMENTED, root, MYF(MY_FAE));
+	ctxt->root = my_strdup(root, MYF(MY_FAE));
 
 	return ctxt;
 }
@@ -101,8 +101,9 @@ tmpfile_open(ds_ctxt_t *ctxt, const char *path,
 
 	path_len = strlen(path) + 1; /* terminating '\0' */
 
-	file = (ds_file_t *) my_malloc(PSI_NOT_INSTRUMENTED,
-                        sizeof(ds_file_t) + sizeof(ds_tmp_file_t) + path_len, MYF(MY_FAE));
+	file = (ds_file_t *) my_malloc(sizeof(ds_file_t) +
+				       sizeof(ds_tmp_file_t) + path_len,
+				       MYF(MY_FAE));
 
 	tmp_file = (ds_tmp_file_t *) (file + 1);
 	tmp_file->file = file;
@@ -114,7 +115,7 @@ tmpfile_open(ds_ctxt_t *ctxt, const char *path,
 	memcpy(tmp_file->orig_path, path, path_len);
 
 	/* Store the real temporary file name in file->path */
-	file->path = my_strdup(PSI_NOT_INSTRUMENTED, tmp_path, MYF(MY_FAE));
+	file->path = my_strdup(tmp_path, MYF(MY_FAE));
 	file->ptr = tmp_file;
 
 	/* Store the file object in the list to be piped later */
@@ -170,7 +171,7 @@ tmpfile_deinit(ds_ctxt_t *ctxt)
 	pipe_ctxt = ctxt->pipe_ctxt;
 	xb_a(pipe_ctxt != NULL);
 
-	buf = my_malloc(PSI_NOT_INSTRUMENTED, buf_size, MYF(MY_FAE));
+	buf = my_malloc(buf_size, MYF(MY_FAE));
 
 	tmpfile_ctxt = (ds_tmpfile_ctxt_t *) ctxt->ptr;
 	list = tmpfile_ctxt->file_list;

@@ -13,7 +13,7 @@ drop table if exists test.no_index_tab;
 drop table if exists test.index_tab;
 --enable_warnings
 
-let $table_io_select= select SUM(NUMBER_OF_BYTES)
+let $table_io_select= select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
@@ -104,7 +104,7 @@ update performance_schema.setup_consumers set enabled='NO';
 eval $table_io_select 'index_tab';
 
 # In case of failures, this will tell if table io are lost.
-show global status like 'performance_schema_%';
+show status like 'performance_schema_%';
 
 # Cleanup
 drop table test.no_index_tab;

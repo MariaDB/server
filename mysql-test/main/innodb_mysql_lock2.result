@@ -238,7 +238,8 @@ Success: 'show keys from t1' doesn't take row locks on 't1'.
 # statement-by-statement) and thanks to MVCC we can always get
 # versions of rows prior to the update that has locked them.
 # But in practice InnoDB does locking reads for all statements
-# other than SELECT (unless READ UNCOMMITTED or READ COMMITTED).
+# other than SELECT (unless it is a READ-COMITTED mode or
+# innodb_locks_unsafe_for_binlog is ON).
 connection default;
 Success: 'call p1((select i + 5 from t1 where i = 1))' takes shared row locks on 't1'.
 #

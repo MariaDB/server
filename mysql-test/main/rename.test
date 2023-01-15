@@ -148,21 +148,3 @@ create table t1 (a int) engine=memory;
 --error ER_BAD_DB_ERROR
 rename table t1 to non_existent.t2;
 drop table t1;
-
---echo #
---echo # Test rename IF EXISTS
---echo #
-rename table if exists t1 to t2;
-alter table if exists t1 rename to t2;
-create table t2 (a int);
-alter table if exists t1 rename to t2;
-rename table if exists t1 to t2;
-create table t1 (a int);
---error ER_TABLE_EXISTS_ERROR
-rename table if exists t1 to t2;
---error ER_TABLE_EXISTS_ERROR
-alter table if exists t1 rename to t2;
-drop table t2;
-rename table if exists t1 to t2;
-alter table if exists t2 rename to t1;
-drop table t1;

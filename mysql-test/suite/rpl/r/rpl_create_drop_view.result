@@ -93,8 +93,7 @@ id
 80
 40
 connection master;
-RENAME TABLE v1 TO v2;
-DROP VIEW v2;
+DROP VIEW v1;
 DROP TABLE t1;
 DROP VIEW v1;
 ERROR 42S02: Unknown VIEW: 'test.v1'

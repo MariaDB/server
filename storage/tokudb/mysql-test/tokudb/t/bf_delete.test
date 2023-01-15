@@ -2,8 +2,6 @@
 
 source include/have_tokudb.inc;
 source include/big_test.inc;
-# ASan causes test to timeout
-source include/not_asan.inc;
 set default_storage_engine='tokudb';
 disable_warnings;
 drop table if exists t;

@@ -162,7 +162,7 @@ connection con10;
 set sql_log_off = 1;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 set sql_log_bin = 0;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 disconnect con10;
 connection default;
 delete from mysql.user where user like 'mysqltest\_1';

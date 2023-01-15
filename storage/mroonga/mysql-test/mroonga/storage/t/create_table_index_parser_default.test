@@ -21,8 +21,8 @@
 drop table if exists diaries;
 --enable_warnings
 
-set @mroonga_default_tokenizer_backup=@@mroonga_default_tokenizer;
-set global mroonga_default_tokenizer=TokenBigramSplitSymbolAlphaDigit;
+set @mroonga_default_parser_backup=@@mroonga_default_parser;
+set global mroonga_default_parser=TokenBigramSplitSymbolAlphaDigit;
 create table diaries (
   id int primary key auto_increment,
   body text,
@@ -35,6 +35,6 @@ insert into diaries (body) values ("finished Groonga.");
 select * from diaries;
 select * from diaries where match(body) against("+start" IN BOOLEAN MODE) order by id;
 drop table diaries;
-set global mroonga_default_tokenizer=@mroonga_default_tokenizer_backup;
+set global mroonga_default_parser=@mroonga_default_parser_backup;
 
 --source ../../include/mroonga/have_mroonga_deinit.inc

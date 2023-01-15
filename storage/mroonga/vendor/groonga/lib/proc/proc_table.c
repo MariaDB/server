@@ -40,7 +40,7 @@ command_table_create_parse_flags(grn_ctx *ctx,
 
 #define CHECK_FLAG(name)                                                \
     name_size = strlen(#name);                                          \
-    if ((unsigned long) (end - nptr) >= (unsigned long) name_size &&    \
+    if ((end - nptr) >= name_size &&                                    \
         memcmp(nptr, #name, name_size) == 0) {                          \
       flags |= GRN_OBJ_ ## name;                                        \
       nptr += name_size;                                                \

@@ -2060,34 +2060,4 @@ connection slave;
 DROP TABLE federated.t1;
 connection default;
 
---echo #
---echo # MDEV-30395 Wrong result with semijoin and Federated as outer table
---echo #
-
-
---replace_result $MASTER_MYPORT MASTER_PORT
-eval create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
-
-CREATE TABLE t1 (a INT);
-INSERT INTO t1 VALUES (3),(2),(3);
-CREATE TABLE t2 (pk INT PRIMARY KEY);
-INSERT INTO t2 VALUES (1),(2),(3),(4);
-
-set @save_optimizer_switch=@@optimizer_switch;
-set optimizer_switch="materialization=off";
-
-CREATE TABLE t2_fed ENGINE=FEDERATED CONNECTION='s/t2';
-explain SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
-SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
-SET optimizer_switch='semijoin=off';
-explain SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
-SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
-
-DROP TABLE t2_fed, t1, t2;
-set @@optimizer_switch=@save_optimizer_switch;
-
-DROP SERVER s;
-
---echo # End of 10.5 tests
-
 source include/federated_cleanup.inc;

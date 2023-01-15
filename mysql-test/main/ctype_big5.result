@@ -4827,7 +4827,7 @@ DROP TABLE t1;
 # MDEV-9711 NO PAD Collatons
 #
 SET character_set_connection=big5;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -4965,7 +4965,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -5103,8 +5103,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
-SET DEFAULT_STORAGE_ENGINE=MyISAM;
+SET STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -5242,7 +5242,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=HEAP;
+SET STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -5380,65 +5380,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET DEFAULT_STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
-#
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-22625 SIGSEGV in intern_find_sys_var (optimized builds)
-#
-SET NAMES big5;
-SET @seq=_big5 0xA3C0;
-#
-# SET STATEMENT (bad|good.bad|bad.good)=1
-#
-EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '=1 SELECT 1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '.a=1 SELECT 1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('SET STATEMENT a.',@seq, '=1 SELECT 1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-#
-# SET SESSION (bad|good.bad|bad.good)=1
-#
-EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '=1 SELECT 1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '.a=1 SELECT 1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('SET SESSION a.',@seq, '=1 SELECT 1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-#
-# SET (bad|good.bad|bad.good)=1
-#
-EXECUTE IMMEDIATE CONCAT('SET ', @seq, '=1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('SET ', @seq, '.a=1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('SET a.', @seq, '=1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-#
-# Oracle SP call: BEGIN (bad|good.bad|bad.good)(params); END
-#
-SET sql_mode=ORACLE;
-EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '(1); END;');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '.a(1); END;');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('BEGIN a.',@seq, '(1); END;');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-#
-# Oracle assignment: (bad|good.bad|bad.good):= value
-#
-EXECUTE IMMEDIATE CONCAT(@seq, ':=1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT(@seq, '.a:=1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
-ERROR HY000: Invalid big5 character string: '\xA3\xC0'
-SET sql_mode=DEFAULT;
-#
-# End of 10.5 tests
 #

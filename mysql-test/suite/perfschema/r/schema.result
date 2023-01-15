@@ -23,18 +23,9 @@ events_statements_history_long
 events_statements_summary_by_account_by_event_name
 events_statements_summary_by_digest
 events_statements_summary_by_host_by_event_name
-events_statements_summary_by_program
 events_statements_summary_by_thread_by_event_name
 events_statements_summary_by_user_by_event_name
 events_statements_summary_global_by_event_name
-events_transactions_current
-events_transactions_history
-events_transactions_history_long
-events_transactions_summary_by_account_by_event_name
-events_transactions_summary_by_host_by_event_name
-events_transactions_summary_by_thread_by_event_name
-events_transactions_summary_by_user_by_event_name
-events_transactions_summary_global_by_event_name
 events_waits_current
 events_waits_history
 events_waits_history_long
@@ -47,27 +38,14 @@ events_waits_summary_global_by_event_name
 file_instances
 file_summary_by_event_name
 file_summary_by_instance
-global_status
 host_cache
 hosts
-memory_summary_by_account_by_event_name
-memory_summary_by_host_by_event_name
-memory_summary_by_thread_by_event_name
-memory_summary_by_user_by_event_name
-memory_summary_global_by_event_name
-metadata_locks
 mutex_instances
 objects_summary_global_by_type
 performance_timers
-prepared_statements_instances
-replication_applier_configuration
-replication_applier_status
-replication_applier_status_by_coordinator
-replication_connection_configuration
 rwlock_instances
 session_account_connect_attrs
 session_connect_attrs
-session_status
 setup_actors
 setup_consumers
 setup_instruments
@@ -76,16 +54,10 @@ setup_timers
 socket_instances
 socket_summary_by_event_name
 socket_summary_by_instance
-status_by_account
-status_by_host
-status_by_thread
-status_by_user
-table_handles
 table_io_waits_summary_by_index_usage
 table_io_waits_summary_by_table
 table_lock_waits_summary_by_table
 threads
-user_variables_by_thread
 users
 show create table accounts;
 Table	Create Table
@@ -112,10 +84,8 @@ events_stages_current	CREATE TABLE `events_stages_current` (
   `TIMER_START` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds when the event timing started or NULL if timing is not collected.',
   `TIMER_END` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',
   `TIMER_WAIT` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',
-  `WORK_COMPLETED` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',
-  `WORK_ESTIMATED` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',
   `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'EVENT_ID of event within which this event nests.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either transaction, statement, stage or wait.'
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table events_stages_history;
 Table	Create Table
@@ -128,10 +98,8 @@ events_stages_history	CREATE TABLE `events_stages_history` (
   `TIMER_START` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds when the event timing started or NULL if timing is not collected.',
   `TIMER_END` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',
   `TIMER_WAIT` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',
-  `WORK_COMPLETED` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',
-  `WORK_ESTIMATED` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',
   `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'EVENT_ID of event within which this event nests.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either transaction, statement, stage or wait.'
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table events_stages_history_long;
 Table	Create Table
@@ -144,10 +112,8 @@ events_stages_history_long	CREATE TABLE `events_stages_history_long` (
   `TIMER_START` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds when the event timing started or NULL if timing is not collected.',
   `TIMER_END` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',
   `TIMER_WAIT` bigint(20) unsigned DEFAULT NULL COMMENT 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',
-  `WORK_COMPLETED` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',
-  `WORK_ESTIMATED` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',
   `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'EVENT_ID of event within which this event nests.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either transaction, statement, stage or wait.'
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table events_stages_summary_by_host_by_event_name;
 Table	Create Table
@@ -220,9 +186,9 @@ events_statements_current	CREATE TABLE `events_statements_current` (
   `DIGEST` varchar(32) DEFAULT NULL COMMENT 'Statement digest.',
   `DIGEST_TEXT` longtext DEFAULT NULL COMMENT 'Statement digest text.',
   `CURRENT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'Statement''s default database for the statement, or NULL if there was none.',
-  `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',
-  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',
-  `OBJECT_NAME` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',
+  `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
+  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
+  `OBJECT_NAME` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
   `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned DEFAULT NULL COMMENT 'Address in memory of the statement object.',
   `MYSQL_ERRNO` int(11) DEFAULT NULL COMMENT 'Error code. See MariaDB Error Codes for a full list.',
   `RETURNED_SQLSTATE` varchar(5) DEFAULT NULL COMMENT 'The SQLSTATE value.',
@@ -245,9 +211,8 @@ events_statements_current	CREATE TABLE `events_statements_current` (
   `SORT_SCAN` bigint(20) unsigned NOT NULL COMMENT 'Number of sorts performed by the statement which used a full table scan.',
   `NO_INDEX_USED` bigint(20) unsigned NOT NULL COMMENT '0 if the statement performed a table scan with an index, 1 if without an index.',
   `NO_GOOD_INDEX_USED` bigint(20) unsigned NOT NULL COMMENT '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',
-  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',
-  `NESTING_EVENT_LEVEL` int(11) DEFAULT NULL COMMENT '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).'
+  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Reserved, currently NULL.',
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Reserved, currently NULL.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table events_statements_history;
 Table	Create Table
@@ -265,9 +230,9 @@ events_statements_history	CREATE TABLE `events_statements_history` (
   `DIGEST` varchar(32) DEFAULT NULL COMMENT 'Statement digest.',
   `DIGEST_TEXT` longtext DEFAULT NULL COMMENT 'Statement digest text.',
   `CURRENT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'Statement''s default database for the statement, or NULL if there was none.',
-  `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',
-  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',
-  `OBJECT_NAME` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',
+  `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
+  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
+  `OBJECT_NAME` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
   `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned DEFAULT NULL COMMENT 'Address in memory of the statement object.',
   `MYSQL_ERRNO` int(11) DEFAULT NULL COMMENT 'Error code. See MariaDB Error Codes for a full list.',
   `RETURNED_SQLSTATE` varchar(5) DEFAULT NULL COMMENT 'The SQLSTATE value.',
@@ -290,9 +255,8 @@ events_statements_history	CREATE TABLE `events_statements_history` (
   `SORT_SCAN` bigint(20) unsigned NOT NULL COMMENT 'Number of sorts performed by the statement which used a full table scan.',
   `NO_INDEX_USED` bigint(20) unsigned NOT NULL COMMENT '0 if the statement performed a table scan with an index, 1 if without an index.',
   `NO_GOOD_INDEX_USED` bigint(20) unsigned NOT NULL COMMENT '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',
-  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',
-  `NESTING_EVENT_LEVEL` int(11) DEFAULT NULL COMMENT '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).'
+  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Reserved, currently NULL.',
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Reserved, currently NULL.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table events_statements_history_long;
 Table	Create Table
@@ -310,9 +274,9 @@ events_statements_history_long	CREATE TABLE `events_statements_history_long` (
   `DIGEST` varchar(32) DEFAULT NULL COMMENT 'Statement digest.',
   `DIGEST_TEXT` longtext DEFAULT NULL COMMENT 'Statement digest text.',
   `CURRENT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'Statement''s default database for the statement, or NULL if there was none.',
-  `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',
-  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',
-  `OBJECT_NAME` varchar(64) DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',
+  `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
+  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
+  `OBJECT_NAME` varchar(64) DEFAULT NULL COMMENT 'Reserved, currently NULL',
   `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned DEFAULT NULL COMMENT 'Address in memory of the statement object.',
   `MYSQL_ERRNO` int(11) DEFAULT NULL COMMENT 'Error code. See MariaDB Error Codes for a full list.',
   `RETURNED_SQLSTATE` varchar(5) DEFAULT NULL COMMENT 'The SQLSTATE value.',
@@ -335,9 +299,8 @@ events_statements_history_long	CREATE TABLE `events_statements_history_long` (
   `SORT_SCAN` bigint(20) unsigned NOT NULL COMMENT 'Number of sorts performed by the statement which used a full table scan.',
   `NO_INDEX_USED` bigint(20) unsigned NOT NULL COMMENT '0 if the statement performed a table scan with an index, 1 if without an index.',
   `NO_GOOD_INDEX_USED` bigint(20) unsigned NOT NULL COMMENT '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',
-  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',
-  `NESTING_EVENT_LEVEL` int(11) DEFAULT NULL COMMENT '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).'
+  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Reserved, currently NULL.',
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Reserved, currently NULL.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table events_statements_summary_by_digest;
 Table	Create Table
@@ -522,195 +485,6 @@ events_statements_summary_global_by_event_name	CREATE TABLE `events_statements_s
   `SUM_NO_INDEX_USED` bigint(20) unsigned NOT NULL COMMENT 'Sum of the NO_INDEX_USED column in the events_statements_current table.',
   `SUM_NO_GOOD_INDEX_USED` bigint(20) unsigned NOT NULL COMMENT 'Sum of the NO_GOOD_INDEX_USED column in the events_statements_current table.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table events_transactions_current;
-Table	Create Table
-events_transactions_current	CREATE TABLE `events_transactions_current` (
-  `THREAD_ID` bigint(20) unsigned NOT NULL COMMENT 'The thread associated with the event.',
-  `EVENT_ID` bigint(20) unsigned NOT NULL COMMENT 'The event id associated with the event.',
-  `END_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'This column is set to NULL when the event starts and updated to the thread current event number when the event ends.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'The name of the instrument from which the event was collected. This is a NAME value from the setup_instruments table.',
-  `STATE` enum('ACTIVE','COMMITTED','ROLLED BACK') DEFAULT NULL COMMENT 'The current transaction state. The value is ACTIVE (after START TRANSACTION or BEGIN), COMMITTED (after COMMIT), or ROLLED BACK (after ROLLBACK).',
-  `TRX_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Unused.',
-  `GTID` varchar(64) DEFAULT NULL COMMENT 'Transaction GTID, using the format DOMAIN-SERVER_ID-SEQUENCE_NO.',
-  `XID_FORMAT_ID` int(11) DEFAULT NULL COMMENT 'XA transaction format ID for GTRID and BQUAL values.',
-  `XID_GTRID` varchar(130) DEFAULT NULL COMMENT 'XA global transaction ID.',
-  `XID_BQUAL` varchar(130) DEFAULT NULL COMMENT 'XA transaction branch qualifier.',
-  `XA_STATE` varchar(64) DEFAULT NULL COMMENT 'The state of the XA transaction. The value is ACTIVE (after XA START), IDLE (after XA END), PREPARED (after XA PREPARE), ROLLED BACK (after XA ROLLBACK), or COMMITTED (after XA COMMIT).',
-  `SOURCE` varchar(64) DEFAULT NULL COMMENT 'The name of the source file containing the instrumented code that produced the event and the line number in the file at which the instrumentation occurs.',
-  `TIMER_START` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. When event timing started. NULL if event has no timing information.',
-  `TIMER_END` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. When event timing ended. NULL if event has no timing information.',
-  `TIMER_WAIT` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. Event duration. NULL if event has not timing information.',
-  `ACCESS_MODE` enum('READ ONLY','READ WRITE') DEFAULT NULL COMMENT 'Transaction access mode.',
-  `ISOLATION_LEVEL` varchar(64) DEFAULT NULL COMMENT 'Transaction isolation level. One of: REPEATABLE READ, READ COMMITTED, READ UNCOMMITTED, or SERIALIZABLE.',
-  `AUTOCOMMIT` enum('YES','NO') NOT NULL COMMENT 'Whether autcommit mode was enabled when the transaction started.',
-  `NUMBER_OF_SAVEPOINTS` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of SAVEPOINT statements issued during the transaction.',
-  `NUMBER_OF_ROLLBACK_TO_SAVEPOINT` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of ROLLBACK_TO_SAVEPOINT statements issued during the transaction.',
-  `NUMBER_OF_RELEASE_SAVEPOINT` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of RELEASE_SAVEPOINT statements issued during the transaction.',
-  `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned DEFAULT NULL COMMENT 'Unused.',
-  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'The EVENT_ID value of the event within which this event is nested.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'The nesting event type.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table events_transactions_history;
-Table	Create Table
-events_transactions_history	CREATE TABLE `events_transactions_history` (
-  `THREAD_ID` bigint(20) unsigned NOT NULL COMMENT 'The thread associated with the event.',
-  `EVENT_ID` bigint(20) unsigned NOT NULL COMMENT 'The event id associated with the event.',
-  `END_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'This column is set to NULL when the event starts and updated to the thread current event number when the event ends.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'The name of the instrument from which the event was collected. This is a NAME value from the setup_instruments table.',
-  `STATE` enum('ACTIVE','COMMITTED','ROLLED BACK') DEFAULT NULL COMMENT 'The current transaction state. The value is ACTIVE (after START TRANSACTION or BEGIN), COMMITTED (after COMMIT), or ROLLED BACK (after ROLLBACK).',
-  `TRX_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Unused.',
-  `GTID` varchar(64) DEFAULT NULL COMMENT 'Transaction GTID, using the format DOMAIN-SERVER_ID-SEQUENCE_NO.',
-  `XID_FORMAT_ID` int(11) DEFAULT NULL COMMENT 'XA transaction format ID for GTRID and BQUAL values.',
-  `XID_GTRID` varchar(130) DEFAULT NULL COMMENT 'XA global transaction ID.',
-  `XID_BQUAL` varchar(130) DEFAULT NULL COMMENT 'XA transaction branch qualifier.',
-  `XA_STATE` varchar(64) DEFAULT NULL COMMENT 'The state of the XA transaction. The value is ACTIVE (after XA START), IDLE (after XA END), PREPARED (after XA PREPARE), ROLLED BACK (after XA ROLLBACK), or COMMITTED (after XA COMMIT).',
-  `SOURCE` varchar(64) DEFAULT NULL COMMENT 'The name of the source file containing the instrumented code that produced the event and the line number in the file at which the instrumentation occurs.',
-  `TIMER_START` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. When event timing started. NULL if event has no timing information.',
-  `TIMER_END` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. When event timing ended. NULL if event has no timing information.',
-  `TIMER_WAIT` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. Event duration. NULL if event has not timing information.',
-  `ACCESS_MODE` enum('READ ONLY','READ WRITE') DEFAULT NULL COMMENT 'Transaction access mode.',
-  `ISOLATION_LEVEL` varchar(64) DEFAULT NULL COMMENT 'Transaction isolation level. One of: REPEATABLE READ, READ COMMITTED, READ UNCOMMITTED, or SERIALIZABLE.',
-  `AUTOCOMMIT` enum('YES','NO') NOT NULL COMMENT 'Whether autcommit mode was enabled when the transaction started.',
-  `NUMBER_OF_SAVEPOINTS` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of SAVEPOINT statements issued during the transaction.',
-  `NUMBER_OF_ROLLBACK_TO_SAVEPOINT` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of ROLLBACK_TO_SAVEPOINT statements issued during the transaction.',
-  `NUMBER_OF_RELEASE_SAVEPOINT` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of RELEASE_SAVEPOINT statements issued during the transaction.',
-  `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned DEFAULT NULL COMMENT 'Unused.',
-  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'The EVENT_ID value of the event within which this event is nested.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'The nesting event type.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table events_transactions_history_long;
-Table	Create Table
-events_transactions_history_long	CREATE TABLE `events_transactions_history_long` (
-  `THREAD_ID` bigint(20) unsigned NOT NULL COMMENT 'The thread associated with the event.',
-  `EVENT_ID` bigint(20) unsigned NOT NULL COMMENT 'The event id associated with the event.',
-  `END_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'This column is set to NULL when the event starts and updated to the thread current event number when the event ends.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'The name of the instrument from which the event was collected. This is a NAME value from the setup_instruments table.',
-  `STATE` enum('ACTIVE','COMMITTED','ROLLED BACK') DEFAULT NULL COMMENT 'The current transaction state. The value is ACTIVE (after START TRANSACTION or BEGIN), COMMITTED (after COMMIT), or ROLLED BACK (after ROLLBACK).',
-  `TRX_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Unused.',
-  `GTID` varchar(64) DEFAULT NULL COMMENT 'Transaction GTID, using the format DOMAIN-SERVER_ID-SEQUENCE_NO.',
-  `XID_FORMAT_ID` int(11) DEFAULT NULL COMMENT 'XA transaction format ID for GTRID and BQUAL values.',
-  `XID_GTRID` varchar(130) DEFAULT NULL COMMENT 'XA global transaction ID.',
-  `XID_BQUAL` varchar(130) DEFAULT NULL COMMENT 'XA transaction branch qualifier.',
-  `XA_STATE` varchar(64) DEFAULT NULL COMMENT 'The state of the XA transaction. The value is ACTIVE (after XA START), IDLE (after XA END), PREPARED (after XA PREPARE), ROLLED BACK (after XA ROLLBACK), or COMMITTED (after XA COMMIT).',
-  `SOURCE` varchar(64) DEFAULT NULL COMMENT 'The name of the source file containing the instrumented code that produced the event and the line number in the file at which the instrumentation occurs.',
-  `TIMER_START` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. When event timing started. NULL if event has no timing information.',
-  `TIMER_END` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. When event timing ended. NULL if event has no timing information.',
-  `TIMER_WAIT` bigint(20) unsigned DEFAULT NULL COMMENT 'The unit is picoseconds. Event duration. NULL if event has not timing information.',
-  `ACCESS_MODE` enum('READ ONLY','READ WRITE') DEFAULT NULL COMMENT 'Transaction access mode.',
-  `ISOLATION_LEVEL` varchar(64) DEFAULT NULL COMMENT 'Transaction isolation level. One of: REPEATABLE READ, READ COMMITTED, READ UNCOMMITTED, or SERIALIZABLE.',
-  `AUTOCOMMIT` enum('YES','NO') NOT NULL COMMENT 'Whether autcommit mode was enabled when the transaction started.',
-  `NUMBER_OF_SAVEPOINTS` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of SAVEPOINT statements issued during the transaction.',
-  `NUMBER_OF_ROLLBACK_TO_SAVEPOINT` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of ROLLBACK_TO_SAVEPOINT statements issued during the transaction.',
-  `NUMBER_OF_RELEASE_SAVEPOINT` bigint(20) unsigned DEFAULT NULL COMMENT 'The number of RELEASE_SAVEPOINT statements issued during the transaction.',
-  `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned DEFAULT NULL COMMENT 'Unused.',
-  `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'The EVENT_ID value of the event within which this event is nested.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'The nesting event type.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table events_transactions_summary_by_host_by_event_name;
-Table	Create Table
-events_transactions_summary_by_host_by_event_name	CREATE TABLE `events_transactions_summary_by_host_by_event_name` (
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'Host for which summary is generated.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name for which summary is generated.',
-  `COUNT_STAR` bigint(20) unsigned NOT NULL COMMENT 'The number of summarized events. This value includes all events, whether timed or nontimed.',
-  `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of the summarized timed events. This value is calculated only for timed events because nontimed events have a wait time of NULL. The same is true for the other xxx_TIMER_WAIT values.',
-  `MIN_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of the summarized timed events.',
-  `AVG_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of the summarized timed events.',
-  `MAX_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of the summarized timed events.',
-  `COUNT_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ/WRITE transaction events.',
-  `SUM_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ/WRITE transaction events.',
-  `MIN_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ/WRITE transaction events.',
-  `AVG_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ/WRITE transaction events.',
-  `MAX_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ/WRITE transaction events.',
-  `COUNT_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ ONLY transaction events.',
-  `SUM_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ ONLY transaction events.',
-  `MIN_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ ONLY transaction events.',
-  `AVG_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ ONLY transaction events.',
-  `MAX_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ ONLY transaction events.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table events_transactions_summary_by_thread_by_event_name;
-Table	Create Table
-events_transactions_summary_by_thread_by_event_name	CREATE TABLE `events_transactions_summary_by_thread_by_event_name` (
-  `THREAD_ID` bigint(20) unsigned NOT NULL COMMENT 'Thread for which summary is generated.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name for which summary is generated.',
-  `COUNT_STAR` bigint(20) unsigned NOT NULL COMMENT 'The number of summarized events. This value includes all events, whether timed or nontimed.',
-  `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of the summarized timed events. This value is calculated only for timed events because nontimed events have a wait time of NULL. The same is true for the other xxx_TIMER_WAIT values.',
-  `MIN_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of the summarized timed events.',
-  `AVG_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of the summarized timed events.',
-  `MAX_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of the summarized timed events.',
-  `COUNT_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ/WRITE transaction events.',
-  `SUM_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ/WRITE transaction events.',
-  `MIN_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ/WRITE transaction events.',
-  `AVG_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ/WRITE transaction events.',
-  `MAX_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ/WRITE transaction events.',
-  `COUNT_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ ONLY transaction events.',
-  `SUM_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ ONLY transaction events.',
-  `MIN_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ ONLY transaction events.',
-  `AVG_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ ONLY transaction events.',
-  `MAX_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ ONLY transaction events.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table events_transactions_summary_by_user_by_event_name;
-Table	Create Table
-events_transactions_summary_by_user_by_event_name	CREATE TABLE `events_transactions_summary_by_user_by_event_name` (
-  `USER` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'User for which summary is generated.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name for which summary is generated.',
-  `COUNT_STAR` bigint(20) unsigned NOT NULL COMMENT 'The number of summarized events. This value includes all events, whether timed or nontimed.',
-  `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of the summarized timed events. This value is calculated only for timed events because nontimed events have a wait time of NULL. The same is true for the other xxx_TIMER_WAIT values.',
-  `MIN_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of the summarized timed events.',
-  `AVG_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of the summarized timed events.',
-  `MAX_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of the summarized timed events.',
-  `COUNT_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ/WRITE transaction events.',
-  `SUM_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ/WRITE transaction events.',
-  `MIN_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ/WRITE transaction events.',
-  `AVG_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ/WRITE transaction events.',
-  `MAX_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ/WRITE transaction events.',
-  `COUNT_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ ONLY transaction events.',
-  `SUM_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ ONLY transaction events.',
-  `MIN_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ ONLY transaction events.',
-  `AVG_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ ONLY transaction events.',
-  `MAX_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ ONLY transaction events.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table events_transactions_summary_by_account_by_event_name;
-Table	Create Table
-events_transactions_summary_by_account_by_event_name	CREATE TABLE `events_transactions_summary_by_account_by_event_name` (
-  `USER` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'User for which summary is generated.',
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'Host for which summary is generated.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name for which summary is generated.',
-  `COUNT_STAR` bigint(20) unsigned NOT NULL COMMENT 'The number of summarized events. This value includes all events, whether timed or nontimed.',
-  `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of the summarized timed events. This value is calculated only for timed events because nontimed events have a wait time of NULL. The same is true for the other xxx_TIMER_WAIT values.',
-  `MIN_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of the summarized timed events.',
-  `AVG_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of the summarized timed events.',
-  `MAX_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of the summarized timed events.',
-  `COUNT_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ/WRITE transaction events.',
-  `SUM_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ/WRITE transaction events.',
-  `MIN_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ/WRITE transaction events.',
-  `AVG_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ/WRITE transaction events.',
-  `MAX_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ/WRITE transaction events.',
-  `COUNT_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ ONLY transaction events.',
-  `SUM_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ ONLY transaction events.',
-  `MIN_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ ONLY transaction events.',
-  `AVG_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ ONLY transaction events.',
-  `MAX_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ ONLY transaction events.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table events_transactions_summary_global_by_event_name;
-Table	Create Table
-events_transactions_summary_global_by_event_name	CREATE TABLE `events_transactions_summary_global_by_event_name` (
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name for which summary is generated.',
-  `COUNT_STAR` bigint(20) unsigned NOT NULL COMMENT 'The number of summarized events. This value includes all events, whether timed or nontimed.',
-  `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of the summarized timed events. This value is calculated only for timed events because nontimed events have a wait time of NULL. The same is true for the other xxx_TIMER_WAIT values.',
-  `MIN_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of the summarized timed events.',
-  `AVG_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of the summarized timed events.',
-  `MAX_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of the summarized timed events.',
-  `COUNT_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ/WRITE transaction events.',
-  `SUM_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ/WRITE transaction events.',
-  `MIN_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ/WRITE transaction events.',
-  `AVG_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ/WRITE transaction events.',
-  `MAX_TIMER_READ_WRITE` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ/WRITE transaction events.',
-  `COUNT_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total number of only READ ONLY transaction events.',
-  `SUM_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The total wait time of only READ ONLY transaction events.',
-  `MIN_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The minimum wait time of only READ ONLY transaction events.',
-  `AVG_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The average wait time of only READ ONLY transaction events.',
-  `MAX_TIMER_READ_ONLY` bigint(20) unsigned NOT NULL COMMENT 'The maximum wait time of only READ ONLY transaction events.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table events_waits_current;
 Table	Create Table
 events_waits_current	CREATE TABLE `events_waits_current` (
@@ -729,7 +503,7 @@ events_waits_current	CREATE TABLE `events_waits_current` (
   `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'FILE for a file object, TABLE or TEMPORARY TABLE for a table object, or NULL for a synchronization object.',
   `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned NOT NULL COMMENT 'Address in memory of the object.',
   `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'EVENT_ID of event within which this event nests.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.',
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.',
   `OPERATION` varchar(32) NOT NULL COMMENT 'Operation type, for example read, write or lock',
   `NUMBER_OF_BYTES` bigint(20) DEFAULT NULL COMMENT 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',
   `FLAGS` int(10) unsigned DEFAULT NULL COMMENT 'Reserved for use in the future.'
@@ -752,7 +526,7 @@ events_waits_history	CREATE TABLE `events_waits_history` (
   `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'FILE for a file object, TABLE or TEMPORARY TABLE for a table object, or NULL for a synchronization object.',
   `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned NOT NULL COMMENT 'Address in memory of the object.',
   `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'EVENT_ID of event within which this event nests.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.',
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.',
   `OPERATION` varchar(32) NOT NULL COMMENT 'Operation type, for example read, write or lock',
   `NUMBER_OF_BYTES` bigint(20) DEFAULT NULL COMMENT 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',
   `FLAGS` int(10) unsigned DEFAULT NULL COMMENT 'Reserved for use in the future.'
@@ -775,7 +549,7 @@ events_waits_history_long	CREATE TABLE `events_waits_history_long` (
   `OBJECT_TYPE` varchar(64) DEFAULT NULL COMMENT 'FILE for a file object, TABLE or TEMPORARY TABLE for a table object, or NULL for a synchronization object.',
   `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned NOT NULL COMMENT 'Address in memory of the object.',
   `NESTING_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'EVENT_ID of event within which this event nests.',
-  `NESTING_EVENT_TYPE` enum('TRANSACTION','STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.',
+  `NESTING_EVENT_TYPE` enum('STATEMENT','STAGE','WAIT') DEFAULT NULL COMMENT 'Nesting event type. Either statement, stage or wait.',
   `OPERATION` varchar(32) NOT NULL COMMENT 'Operation type, for example read, write or lock',
   `NUMBER_OF_BYTES` bigint(20) DEFAULT NULL COMMENT 'Number of bytes that the operation read or wrote, or NULL for table I/O waits.',
   `FLAGS` int(10) unsigned DEFAULT NULL COMMENT 'Reserved for use in the future.'
@@ -845,100 +619,6 @@ events_waits_summary_global_by_event_name	CREATE TABLE `events_waits_summary_glo
   `MIN_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'Minimum wait time of the summarized events that are timed.',
   `AVG_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'Average wait time of the summarized events that are timed.',
   `MAX_TIMER_WAIT` bigint(20) unsigned NOT NULL COMMENT 'Maximum wait time of the summarized events that are timed.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table memory_summary_by_host_by_event_name;
-Table	Create Table
-memory_summary_by_host_by_event_name	CREATE TABLE `memory_summary_by_host_by_event_name` (
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'Host portion of the account.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
-  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
-  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
-  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table memory_summary_by_thread_by_event_name;
-Table	Create Table
-memory_summary_by_thread_by_event_name	CREATE TABLE `memory_summary_by_thread_by_event_name` (
-  `THREAD_ID` bigint(20) unsigned NOT NULL COMMENT 'Thread id.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
-  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
-  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
-  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table memory_summary_by_user_by_event_name;
-Table	Create Table
-memory_summary_by_user_by_event_name	CREATE TABLE `memory_summary_by_user_by_event_name` (
-  `USER` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'User portion of the account.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
-  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
-  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
-  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table memory_summary_by_account_by_event_name;
-Table	Create Table
-memory_summary_by_account_by_event_name	CREATE TABLE `memory_summary_by_account_by_event_name` (
-  `USER` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'User portion of the account.',
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'Host portion of the account.',
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
-  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
-  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
-  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table memory_summary_global_by_event_name;
-Table	Create Table
-memory_summary_global_by_event_name	CREATE TABLE `memory_summary_global_by_event_name` (
-  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
-  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
-  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
-  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table metadata_locks;
-Table	Create Table
-metadata_locks	CREATE TABLE `metadata_locks` (
-  `OBJECT_TYPE` varchar(64) NOT NULL COMMENT 'Object type. One of BACKUP, COMMIT, EVENT, FUNCTION, GLOBAL, LOCKING SERVICE, PROCEDURE, SCHEMA, TABLE, TABLESPACE, TRIGGER (unused) or USER LEVEL LOCK.',
-  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'Object schema.',
-  `OBJECT_NAME` varchar(64) DEFAULT NULL COMMENT 'Object name.',
-  `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned NOT NULL COMMENT 'Address in memory of the instrumented object.',
-  `LOCK_TYPE` varchar(32) NOT NULL COMMENT 'Lock type. One of BACKUP_FTWRL1, BACKUP_START, BACKUP_TRANS_DML, EXCLUSIVE, INTENTION_EXCLUSIVE, SHARED, SHARED_HIGH_PRIO, SHARED_NO_READ_WRITE, SHARED_NO_WRITE, SHARED_READ, SHARED_UPGRADABLE or SHARED_WRITE.',
-  `LOCK_DURATION` varchar(32) NOT NULL COMMENT 'Lock duration. One of EXPLICIT (locks released by explicit action, for example a global lock acquired with FLUSH TABLES WITH READ LOCK) , STATEMENT (locks implicitly released at statement end) or TRANSACTION (locks implicitly released at transaction end).',
-  `LOCK_STATUS` varchar(32) NOT NULL COMMENT 'Lock status. One of GRANTED, KILLED, PENDING, POST_RELEASE_NOTIFY, PRE_ACQUIRE_NOTIFY, TIMEOUT or VICTIM.',
-  `SOURCE` varchar(64) DEFAULT NULL COMMENT 'Source file containing the instrumented code that produced the event, as well as the line number where the instrumentation occurred. This allows one to examine the source code involved.',
-  `OWNER_THREAD_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Thread that requested the lock.',
-  `OWNER_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Event that requested the lock.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table file_instances;
 Table	Create Table
@@ -1083,9 +763,7 @@ Table	Create Table
 setup_actors	CREATE TABLE `setup_actors` (
   `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '%' COMMENT 'Host name, either a literal, or the % wildcard representing any host.',
   `USER` char(128) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '%' COMMENT 'User name, either a literal or the % wildcard representing any name.',
-  `ROLE` char(128) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '%' COMMENT 'Unused',
-  `ENABLED` enum('YES','NO') NOT NULL DEFAULT 'YES' COMMENT 'Whether to enable instrumentation for foreground threads matched by the row.',
-  `HISTORY` enum('YES','NO') NOT NULL DEFAULT 'YES' COMMENT 'Whether to log historical events for foreground threads matched by the row.'
+  `ROLE` char(128) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '%' COMMENT 'Unused'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table setup_consumers;
 Table	Create Table
@@ -1103,7 +781,7 @@ setup_instruments	CREATE TABLE `setup_instruments` (
 show create table setup_objects;
 Table	Create Table
 setup_objects	CREATE TABLE `setup_objects` (
-  `OBJECT_TYPE` enum('EVENT','FUNCTION','PROCEDURE','TABLE','TRIGGER') NOT NULL DEFAULT 'TABLE' COMMENT 'Type of object to instrument.',
+  `OBJECT_TYPE` enum('TABLE') NOT NULL DEFAULT 'TABLE' COMMENT 'Type of object to instrument. Currently, only TABLE, for base table.',
   `OBJECT_SCHEMA` varchar(64) DEFAULT '%' COMMENT 'Schema containing the object, either the literal or % for any schema.',
   `OBJECT_NAME` varchar(64) NOT NULL DEFAULT '%' COMMENT 'Name of the instrumented object, either the literal or % for any object.',
   `ENABLED` enum('YES','NO') NOT NULL DEFAULT 'YES' COMMENT 'Whether the object''s events are instrumented or not. Can be disabled, in which case monitoring is not enabled for those objects.',
@@ -1180,18 +858,6 @@ socket_summary_by_event_name	CREATE TABLE `socket_summary_by_event_name` (
   `MIN_TIMER_MISC` bigint(20) unsigned NOT NULL COMMENT 'Minimum wait time of all miscellaneous operations that are timed.',
   `AVG_TIMER_MISC` bigint(20) unsigned NOT NULL COMMENT 'Average wait time of all miscellaneous operations that are timed.',
   `MAX_TIMER_MISC` bigint(20) unsigned NOT NULL COMMENT 'Maximum wait time of all miscellaneous operations that are timed.'
-) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
-show create table table_handles;
-Table	Create Table
-table_handles	CREATE TABLE `table_handles` (
-  `OBJECT_TYPE` varchar(64) NOT NULL COMMENT 'The table opened by a table handle.',
-  `OBJECT_SCHEMA` varchar(64) NOT NULL COMMENT 'The schema that contains the object.',
-  `OBJECT_NAME` varchar(64) NOT NULL COMMENT 'The name of the instrumented object.',
-  `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned NOT NULL COMMENT 'The table handle address in memory.',
-  `OWNER_THREAD_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'The thread owning the table handle.',
-  `OWNER_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'The event which caused the table handle to be opened.',
-  `INTERNAL_LOCK` varchar(64) DEFAULT NULL COMMENT 'The table lock used at the SQL level.',
-  `EXTERNAL_LOCK` varchar(64) DEFAULT NULL COMMENT 'The table lock used at the storage engine level.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table table_io_waits_summary_by_index_usage;
 Table	Create Table
@@ -1371,10 +1037,7 @@ threads	CREATE TABLE `threads` (
   `PROCESSLIST_INFO` longtext DEFAULT NULL COMMENT 'Statement being executed by the thread, or NULL if a statement is not being executed. If a statement results in calling other statements, such as for a stored procedure, the innermost statement from the stored procedure is shown here.',
   `PARENT_THREAD_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'THREAD_ID of the parent thread, if any. Subthreads can for example be spawned as a result of INSERT DELAYED statements.',
   `ROLE` varchar(64) DEFAULT NULL COMMENT 'Unused.',
-  `INSTRUMENTED` enum('YES','NO') NOT NULL COMMENT 'YES or NO for Whether the thread is instrumented or not. For foreground threads, the initial value is determined by whether there''s a user/host match in the setup_actors table. Subthreads are again matched, while for background threads, this will be set to YES by default. To monitor events that the thread executes, INSTRUMENTED must be YES and the thread_instrumentation consumer in the setup_consumers table must also be YES.',
-  `HISTORY` enum('YES','NO') NOT NULL COMMENT 'Whether to log historical events for the thread.',
-  `CONNECTION_TYPE` varchar(16) DEFAULT NULL COMMENT 'The protocol used to establish the connection, or NULL for background threads.',
-  `THREAD_OS_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'The thread or task identifier as defined by the underlying operating system, if there is one.'
+  `INSTRUMENTED` enum('YES','NO') NOT NULL COMMENT 'YES or NO for Whether the thread is instrumented or not. For foreground threads, the initial value is determined by whether there''s a user/host match in the setup_actors table. Subthreads are again matched, while for background threads, this will be set to YES by default. To monitor events that the thread executes, INSTRUMENTED must be YES and the thread_instrumentation consumer in the setup_consumers table must also be YES.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
 show create table users;
 Table	Create Table

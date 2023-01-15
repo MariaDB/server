@@ -35,11 +35,6 @@ while ($i)
   connection con2;
   --error ER_XAER_NOTA
   reap;
-  --echo *** Must have 'xatest' in the list
-  XA RECOVER;
-  # second time yields no error
-  --error 0,1402
-  --eval $op
   disconnect con2;
 
   connection default;

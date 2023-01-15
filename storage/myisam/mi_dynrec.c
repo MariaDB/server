@@ -43,7 +43,7 @@ static int _mi_cmp_buffer(File file, const uchar *buff, my_off_t filepos,
 /* Play it safe; We have a small stack when using threads */
 #undef my_alloca
 #undef my_afree
-#define my_alloca(A) my_malloc(PSI_NOT_INSTRUMENTED, (A),MYF(0))
+#define my_alloca(A) my_malloc((A),MYF(0))
 #define my_afree(A) my_free((A))
 
 	/* Interface function from MI_INFO */

@@ -19,34 +19,16 @@ let $insert_statement= INSERT INTO t1 VALUES (1, "Original from partition p0"), 
 
 let $crash_statement= ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-if ($do_crash)
-{
 --source suite/parts/inc/partition_crash_add.inc
-}
 let $fail_statement= $crash_statement;
-if ($do_fail)
-{
 --source suite/parts/inc/partition_fail_add.inc
-}
 let $crash_statement= ALTER TABLE t1 DROP PARTITION p10;
-if ($do_crash)
-{
 --source suite/parts/inc/partition_crash_drop.inc
-}
 let $fail_statement= $crash_statement;
-if ($do_fail)
-{
 --source suite/parts/inc/partition_fail_drop.inc
-}
 let $crash_statement= ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
  PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-if ($do_crash)
-{
 --source suite/parts/inc/partition_crash_change.inc
-}
 let $fail_statement= $crash_statement;
-if ($do_fail)
-{
 --source suite/parts/inc/partition_fail_change.inc
-}

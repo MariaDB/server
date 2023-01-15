@@ -607,7 +607,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain 
 select min(a1) from t1 where (a1 < 'KKK' or a1 > 'KKK');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	3	NULL	14	Using where; Using index
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	3	NULL	15	Using where; Using index
 explain
 select max(a3) from t1 where a2 < 2 and a3 < 'SEA';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -652,7 +652,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain
 select concat(min(t1.a1),min(t2.a4)) from t1, t2 where t2.a4 <> 'AME';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	k2	k2	4	NULL	6	Using where; Using index
+1	SIMPLE	t2	index	k2	k2	4	NULL	7	Using where; Using index
 1	SIMPLE	t1	index	NULL	PRIMARY	3	NULL	15	Using index; Using join buffer (flat, BNL join)
 drop table t1, t2;
 create table t1 (a char(10));
@@ -1926,7 +1926,7 @@ b
 EXPLAIN
 SELECT MIN(f2) FROM t1 WHERE f2 >= 'abc';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	f2	f2	4	NULL	1	Using where; Using index
+1	SIMPLE	t1	index	f2	f2	4	NULL	2	Using where; Using index
 SELECT MIN(f2) FROM t1 WHERE f2 >= 'abc';
 MIN(f2)
 b
@@ -1940,7 +1940,7 @@ b
 EXPLAIN
 SELECT MIN(f2) FROM t1 WHERE f2 BETWEEN 'abc' AND 'b' ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	f2	f2	4	NULL	1	Using where; Using index
+1	SIMPLE	t1	index	f2	f2	4	NULL	2	Using where; Using index
 SELECT MIN(f2) FROM t1 WHERE f2 BETWEEN 'abc' AND 'b' ;
 MIN(f2)
 b
@@ -2325,7 +2325,7 @@ SELECT MAX('x') << 1, CAST(MAX('x') AS DOUBLE), CAST(MAX('x') AS DECIMAL);
 MAX('x') << 1	CAST(MAX('x') AS DOUBLE)	CAST(MAX('x') AS DECIMAL)
 0	0	0
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: 'x'
+Warning	1292	Truncated incorrect INTEGER value: 'x'
 Warning	1292	Truncated incorrect DOUBLE value: 'x'
 Warning	1292	Truncated incorrect DECIMAL value: 'x'
 #

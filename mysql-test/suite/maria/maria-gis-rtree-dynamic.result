@@ -1,4 +1,4 @@
-set default_storage_engine=aria;
+set storage_engine=aria;
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (
 fid INT NOT NULL AUTO_INCREMENT PRIMARY KEY, 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -28,14 +28,11 @@
   Private interface for the server (declarations).
 */
 
-#define PFS_AUTOSCALE_VALUE (-1)
-#define PFS_AUTOSIZE_VALUE (-1)
-
 #ifndef PFS_MAX_MUTEX_CLASS
-  #define PFS_MAX_MUTEX_CLASS 210
+  #define PFS_MAX_MUTEX_CLASS 200
 #endif
 #ifndef PFS_MAX_RWLOCK_CLASS
-  #define PFS_MAX_RWLOCK_CLASS 50
+  #define PFS_MAX_RWLOCK_CLASS 40
 #endif
 #ifndef PFS_MAX_COND_CLASS
   #define PFS_MAX_COND_CLASS 90
@@ -44,7 +41,7 @@
   #define PFS_MAX_THREAD_CLASS 50
 #endif
 #ifndef PFS_MAX_FILE_CLASS
-  #define PFS_MAX_FILE_CLASS 80
+  #define PFS_MAX_FILE_CLASS 50
 #endif
 #ifndef PFS_MAX_FILE_HANDLE
   #define PFS_MAX_FILE_HANDLE 32768
@@ -52,29 +49,28 @@
 #ifndef PFS_MAX_SOCKET_CLASS
   #define PFS_MAX_SOCKET_CLASS 10
 #endif
+#ifndef PFS_MAX_SETUP_ACTOR
+  #define PFS_MAX_SETUP_ACTOR 100
+#endif
+#ifndef PFS_MAX_SETUP_OBJECT
+  #define PFS_MAX_SETUP_OBJECT 100
+#endif
 #ifndef PFS_MAX_STAGE_CLASS
   #define PFS_MAX_STAGE_CLASS 160
 #endif
 #ifndef PFS_STATEMENTS_STACK_SIZE
   #define PFS_STATEMENTS_STACK_SIZE 10
 #endif
-#ifndef PFS_MAX_MEMORY_CLASS
-  #define PFS_MAX_MEMORY_CLASS 320
+#ifndef PFS_CONNECT_ATTRS_SIZE
+  #define PFS_SESSION_CONNECT_ATTRS_SIZE 2048
 #endif
 
-/** Sizing hints, from the server configuration. */
 struct PFS_sizing_hints
 {
-  /** Value of @c Sys_table_def_size */
   long m_table_definition_cache;
-  /** Value of @c Sys_table_cache_size */
   long m_table_open_cache;
-  /** Value of @c Sys_max_connections */
   long m_max_connections;
-  /** Value of @c Sys_open_files_limit */
   long m_open_files_limit;
-  /** Value of @c Sys_max_prepared_stmt_count */
-  long m_max_prepared_stmt_count;
 };
 
 /** Performance schema global sizing parameters. */
@@ -89,9 +85,6 @@ struct PFS_global_param
   bool m_consumer_events_statements_current_enabled;
   bool m_consumer_events_statements_history_enabled;
   bool m_consumer_events_statements_history_long_enabled;
-  bool m_consumer_events_transactions_current_enabled;
-  bool m_consumer_events_transactions_history_enabled;
-  bool m_consumer_events_transactions_history_long_enabled;
   bool m_consumer_events_waits_current_enabled;
   bool m_consumer_events_waits_history_enabled;
   bool m_consumer_events_waits_history_long_enabled;
@@ -127,16 +120,6 @@ struct PFS_global_param
     @sa table_share_lost.
   */
   long m_table_share_sizing;
-  /**
-    Maximum number of lock statistics collected for tables.
-    @sa table_lock_stat_lost.
-  */
-  long m_table_lock_stat_sizing;
-  /**
-    Maximum number of index statistics collected for tables.
-    @sa table_index_lost.
-  */
-  long m_index_stat_sizing;
   /**
     Maximum number of instrumented file classes.
     @sa file_class_lost.
@@ -179,7 +162,7 @@ struct PFS_global_param
   long m_file_handle_sizing;
   /**
     Maxium number of instrumented socket instances
-    @sa socket_lost
+    @sa socket_lost  
   */
   long m_socket_sizing;
   /**
@@ -192,9 +175,9 @@ struct PFS_global_param
   /** Maximum number of rows in table EVENTS_WAITS_HISTORY_LONG. */
   long m_events_waits_history_long_sizing;
   /** Maximum number of rows in table SETUP_ACTORS. */
-  long m_setup_actor_sizing;
+  ulong m_setup_actor_sizing;
   /** Maximum number of rows in table SETUP_OBJECTS. */
-  long m_setup_object_sizing;
+  ulong m_setup_object_sizing;
   /** Maximum number of rows in table HOSTS. */
   long m_host_sizing;
   /** Maximum number of rows in table USERS. */
@@ -215,36 +198,16 @@ struct PFS_global_param
     @sa statement_class_lost.
   */
   ulong m_statement_class_sizing;
-  /** Maximum number of rows per thread in table EVENTS_STATEMENTS_HISTORY. */
+  /** Maximum number of rows per thread in table EVENTS_STATEMENT_HISTORY. */
   long m_events_statements_history_sizing;
   /** Maximum number of rows in table EVENTS_STATEMENTS_HISTORY_LONG. */
   long m_events_statements_history_long_sizing;
   /** Maximum number of digests to be captured */
   long m_digest_sizing;
-  /** Maximum number of programs to be captured */
-  long m_program_sizing;
-  /** Maximum number of prepared statements to be captured */
-  long m_prepared_stmt_sizing;
-  /** Maximum number of rows per thread in table EVENTS_TRANSACTIONS_HISTORY. */
-  long m_events_transactions_history_sizing;
-  /** Maximum number of rows in table EVENTS_TRANSACTIONS_HISTORY_LONG. */
-  long m_events_transactions_history_long_sizing;
-
   /** Maximum number of session attribute strings per thread */
   long m_session_connect_attrs_sizing;
-  /** Maximum size of statement stack */
-  ulong m_statement_stack_sizing;
-
-  /**
-    Maximum number of instrumented memory classes.
-    @sa memory_class_lost.
-  */
-  ulong m_memory_class_sizing;
-
-  long m_metadata_lock_sizing;
 
   long m_max_digest_length;
-  ulong m_max_sql_text_length;
 
   /** Sizing hints, for auto tuning. */
   PFS_sizing_hints m_hints;
@@ -257,17 +220,9 @@ struct PFS_global_param
 extern PFS_global_param pfs_param;
 
 /**
-  Null initialization.
-  Disable all instrumentation, size all internal buffers to 0.
-  This pre initialization step is needed to ensure that events can be collected
-  and discarded, until such time @c initialize_performance_schema() is called.
-*/
-void pre_initialize_performance_schema();
-
-/**
   Initialize the performance schema.
   @param param Size parameters to use.
-  @return A bootstrap handle, or NULL.
+  @return A boostrap handle, or NULL.
 */
 struct PSI_bootstrap*
 initialize_performance_schema(PFS_global_param *param);
@@ -278,17 +233,12 @@ void pfs_automated_sizing(PFS_global_param *param);
   Initialize the performance schema ACL.
   ACL is strictly enforced when the server is running in normal mode,
   to enforce that only legal operations are allowed.
-  When running in bootstrap mode, ACL restrictions are relaxed,
-  to allow the bootstrap scripts to DROP / CREATE performance schema tables.
+  When running in boostrap mode, ACL restrictions are relaxed,
+  to allow the boostrap scripts to DROP / CREATE performance schema tables.
   @sa ACL_internal_schema_registry
   @param bootstrap True if the server is starting in bootstrap mode.
 */
 void initialize_performance_schema_acl(bool bootstrap);
-
-/**
-  Reset the aggregated status counter stats.
-*/
-void reset_pfs_status_stats();
 
 /**
   Initialize the dynamic array holding individual instrument settings collected

@@ -114,7 +114,7 @@ int pthread_cancel(pthread_t thread);
 #define pthread_key_create(A,B) ((*A=TlsAlloc())==0xFFFFFFFF)
 #define pthread_key_delete(A) TlsFree(A)
 #define my_pthread_setspecific_ptr(T,V) (!TlsSetValue((T),(V)))
-#define pthread_setspecific(A,B) (!TlsSetValue((A),(LPVOID)(B)))
+#define pthread_setspecific(A,B) (!TlsSetValue((A),(B)))
 #define pthread_getspecific(A) (TlsGetValue(A))
 #define my_pthread_getspecific(T,A) ((T) TlsGetValue(A))
 #define my_pthread_getspecific_ptr(T,V) ((T) TlsGetValue(V))
@@ -311,8 +311,6 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 #endif //!defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
 #endif //HAVE_SCHED_YIELD
 
-size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize);
-
 /*
   The defines set_timespec and set_timespec_nsec should be used
   for calculating an absolute time at which
@@ -352,17 +350,31 @@ size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize);
 #endif /* !cmp_timespec */
 
 #ifndef set_timespec_time_nsec
-#define set_timespec_time_nsec(ABSTIME,NSEC) do {		\
-  ulonglong _now_= (NSEC);					\
-  (ABSTIME).MY_tv_sec=  (time_t) (_now_ / 1000000000ULL);	\
-  (ABSTIME).MY_tv_nsec= (ulong) (_now_ % 1000000000UL);		\
+#define set_timespec_time_nsec(ABSTIME,NSEC) do {    \
+  ulonglong _now_= (NSEC);                             \
+  (ABSTIME).MY_tv_sec=  (_now_ / 1000000000ULL);       \
+  (ABSTIME).MY_tv_nsec= (_now_ % 1000000000ULL);       \
 } while(0)
 #endif /* !set_timespec_time_nsec */
 
 #ifdef MYSQL_CLIENT
 #define _current_thd() NULL
+#elif defined(_WIN32)
+#ifdef __cplusplus
+extern "C"
+#endif
+MYSQL_THD _current_thd_noinline();
+#define _current_thd() _current_thd_noinline()
 #else
-MYSQL_THD _current_thd();
+/*
+  THR_THD is a key which will be used to set/get THD* for a thread,
+  using my_pthread_setspecific_ptr()/my_thread_getspecific_ptr().
+*/
+extern pthread_key(MYSQL_THD, THR_THD);
+static inline MYSQL_THD _current_thd(void)
+{
+  return my_pthread_getspecific_ptr(MYSQL_THD,THR_THD);
+}
 #endif
 
 /* safe_mutex adds checking to mutex for easier debugging */
@@ -428,16 +440,17 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
 #define MYF_NO_DEADLOCK_DETECTION 2
 
 #ifdef SAFE_MUTEX
-#define safe_mutex_is_owner(mp) ((mp)->count > 0 && \
-                                 pthread_equal(pthread_self(), (mp)->thread))
-#define safe_mutex_assert_owner(mp) DBUG_ASSERT(safe_mutex_is_owner(mp))
-#define safe_mutex_assert_not_owner(mp) DBUG_ASSERT(!safe_mutex_is_owner(mp))
+#define safe_mutex_assert_owner(mp) \
+          DBUG_ASSERT((mp)->count > 0 && \
+                      pthread_equal(pthread_self(), (mp)->thread))
+#define safe_mutex_assert_not_owner(mp) \
+          DBUG_ASSERT(! (mp)->count || \
+                      ! pthread_equal(pthread_self(), (mp)->thread))
 #define safe_mutex_setflags(mp, F)      do { (mp)->create_flags|= (F); } while (0)
 #define my_cond_timedwait(A,B,C) safe_cond_timedwait((A),(B),(C),__FILE__,__LINE__)
 #define my_cond_wait(A,B) safe_cond_wait((A), (B), __FILE__, __LINE__)
 #else
 
-#define safe_mutex_is_owner(mp) (1)
 #define safe_mutex_assert_owner(mp) do {} while (0)
 #define safe_mutex_assert_not_owner(mp) do {} while (0)
 #define safe_mutex_setflags(mp, F) do {} while (0)
@@ -567,13 +580,36 @@ extern int rw_pr_destroy(rw_pr_lock_t *);
 /**
   Implementation of Windows rwlock.
 
-  We use native (slim) rwlocks on Windows, which requires Win7
-  or later.
+  We use native (slim) rwlocks on Win7 and later, and fallback to  portable
+  implementation on earlier Windows.
+
+  slim rwlock are also available on Vista/WS2008, but we do not use it
+  ("trylock" APIs are missing on Vista)
 */
-typedef struct _my_rwlock_t
+typedef union
 {
-  SRWLOCK srwlock;             /* native reader writer lock */
-  BOOL have_exclusive_srwlock; /* used for unlock */
+  /* Native rwlock (is_srwlock == TRUE) */
+  struct 
+  {
+    SRWLOCK srwlock;             /* native reader writer lock */
+    BOOL have_exclusive_srwlock; /* used for unlock */
+  };
+
+  /*
+    Portable implementation (is_srwlock == FALSE)
+    Fields are identical with Unix my_rw_lock_t fields.
+  */
+  struct 
+  {
+    pthread_mutex_t lock;       /* lock for structure		*/
+    pthread_cond_t  readers;    /* waiting readers		*/
+    pthread_cond_t  writers;    /* waiting writers		*/
+    int state;                  /* -1:writer,0:free,>0:readers	*/
+    int waiters;                /* number of waiting writers	*/
+#ifdef SAFE_MUTEX
+    pthread_t  write_thread;
+#endif
+  };
 } my_rw_lock_t;
 
 
@@ -669,11 +705,7 @@ extern void my_mutex_end(void);
   with the current number of keys and key parts.
 */
 #if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
-#ifndef DBUG_OFF
-#define DEFAULT_THREAD_STACK	(1024*1024L)
-#else
 #define DEFAULT_THREAD_STACK	(383*1024L) /* 392192 */
-#endif
 #else
 #define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
 #endif
@@ -686,34 +718,22 @@ extern void my_mutex_end(void);
 
 #define INSTRUMENT_ME 0
 
-/*
-  Thread specific variables
-
-  Aria key cache is using the following variables for keeping track of
-  state:
-  suspend, next, prev, keycache_link, keycache_file, suspend, lock_type
-
-  MariaDB uses the following to
-  mutex, current_mutex, current_cond, abort
-*/
-
 struct st_my_thread_var
 {
   int thr_errno;
   mysql_cond_t suspend;
   mysql_mutex_t mutex;
-  struct st_my_thread_var *next,**prev;
   mysql_mutex_t * volatile current_mutex;
   mysql_cond_t * volatile current_cond;
-  void *keycache_link;
-  void *keycache_file;
-  void *stack_ends_here;
-  safe_mutex_t *mutex_in_use;
   pthread_t pthread_self;
   my_thread_id id, dbug_id;
   int volatile abort;
-  uint lock_type; /* used by conditional release the queue */
   my_bool init;
+  struct st_my_thread_var *next,**prev;
+  void *keycache_link;
+  uint  lock_type; /* used by conditional release the queue */
+  void  *stack_ends_here;
+  safe_mutex_t *mutex_in_use;
 #ifndef DBUG_OFF
   void *dbug;
   char name[THREAD_NAME_SIZE+1];
@@ -728,7 +748,18 @@ extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
 #define my_errno my_thread_var->thr_errno
 int set_mysys_var(struct st_my_thread_var *mysys_var);
+/*
+  Keep track of shutdown,signal, and main threads so that my_end() will not
+  report errors with them
+*/
 
+/* Which kind of thread library is in use */
+
+#define THD_LIB_OTHER 1
+#define THD_LIB_NPTL  2
+#define THD_LIB_LT    4
+
+extern uint thd_lib_detected;
 
 /*
   thread_safe_xxx functions are for critical statistic or counters.

@@ -1,0 +1,95 @@
+* MYSQL WON'T START OR STOP?:
+=============================
+You may never ever delete the mysql user "root". Although it has no password
+is set, the unix_auth plugin ensure that it can only be run locally as the root
+user.
+
+* WHAT TO DO AFTER UPGRADES:
+============================
+The privilege tables are automatically updated so all there is left is read
+the release notes on https://mariadb.com/kb/en/release-notes/ to see if any
+changes affect custom apps.
+
+* WHAT TO DO AFTER INSTALLATION:
+================================
+The MySQL manual describes certain steps to do at this stage in a separate
+chapter.  They are not necessary as the Debian packages does them
+automatically.
+
+The only thing that is left over for the admin is
+ - setting the passwords
+ - creating new users and databases
+ - read the rest of this text
+
+* NETWORKING:
+=============
+For security reasons, the Debian package has enabled networking only on the
+loop-back device using "bind-address" in /etc/mysql/my.cnf.  Check with
+"netstat -tlnp" where it is listening. If your connection is aborted
+immediately check your firewall rules or network routes.
+
+* WHERE IS THE DOCUMENTATION?:
+==============================
+https://mariadb.com/kb
+
+* PASSWORDS:
+============
+It is strongly recommended you create an admin users for your database
+administration needs.
+
+If your local unix account is the one you want to have local super user
+access on your database with you can create the following account that will
+only work for the local unix user connecting to the database locally.
+
+  sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO '$USER'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION"
+
+To create a local machine account username=USERNAME with a password:
+
+  sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO 'USERNAME'@'localhost' IDENTIFIED BY 'password' WITH GRANT OPTION"
+
+To create a USERNAME user with password 'password' admin user that can access
+the DB server over the network:
+
+  sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO 'USERNAME'@'%' IDENTIFIED BY 'password' WITH GRANT OPTION"
+
+Scripts should run as a user have the required grants and be authenticated via
+unix_socket.
+
+It is wise to run scripts as the "mysql" system user. Like root,
+mysql@localhost is created by default to have all privileges in MariaDB
+and to use unix_socket authentication. But scripts running under "mysql"
+won't have system-wide root so they won't be able to corrupt your system.
+
+If you are too tired to type the password in every time and unix_socket auth
+doesn't suit your needs, you can store it in the file $HOME/.my.cnf. It should
+be chmod 0600 (-rw------- username usergroup .my.cnf) to ensure that nobody else
+can read it.  Every other configuration parameter can be stored there, too.
+
+For more information in the MariaDB manual in/usr/share/doc/mariadb-doc or
+https://mariadb.com/kb/en/configuring-mariadb-with-mycnf/.
+
+* FURTHER NOTES ON REPLICATION
+===============================
+If the MySQL server is acting as a replication slave, you should not
+set --tmpdir to point to a directory on a memory-based filesystem or to
+a directory that is cleared when the server host restarts. A replication
+slave needs some of its temporary files to survive a machine restart so
+that it can replicate temporary tables or LOAD DATA INFILE operations. If
+files in the temporary file directory are lost when the server restarts,
+replication fails.
+
+* DOWNGRADING
+============================
+Unsupported. Period.
+
+You might get lucky downgrading a few minor versions without issued. Take a
+backup first. If you break it you get to keep both pieces. Do a restore from
+backup or upgrade to the previous version.
+
+If doing a major version downgrade, take a mysqldump/mydumpber consistent
+backup using the current version and reload after downgrading and purging
+existing databases.
+
+* BACKUPS
+============================
+Backups save jobs. Don't get caught without one.

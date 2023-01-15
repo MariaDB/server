@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -388,7 +387,7 @@ opt_calc_index_goodness(
 		}
 	}
 
-	if (goodness / 4 >= dict_index_get_n_unique(index)) {
+	if (goodness >= 4 * dict_index_get_n_unique(index)) {
 		goodness += 1024;
 
 		if (dict_index_is_clust(index)) {
@@ -585,8 +584,8 @@ opt_search_plan_for_table(
 			best_goodness = goodness;
 			n_fields = opt_calc_n_fields_from_goodness(goodness);
 
-			memcpy(best_index_plan, index_plan,
-			       n_fields * sizeof *index_plan);
+			ut_memcpy(best_index_plan, index_plan,
+				  n_fields * sizeof(void*));
 			best_last_op = last_op;
 		}
 
@@ -610,8 +609,8 @@ opt_search_plan_for_table(
 				pars_sym_tab_global->heap,
 				n_fields * sizeof(void*)));
 
-		memcpy(plan->tuple_exps, best_index_plan,
-		       n_fields * sizeof *best_index_plan);
+		ut_memcpy(plan->tuple_exps, best_index_plan,
+			  n_fields * sizeof(void*));
 		if (best_last_op == '='
 		    || best_last_op == PARS_LIKE_TOKEN_EXACT
                     || best_last_op == PARS_LIKE_TOKEN_PREFIX

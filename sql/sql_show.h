@@ -76,18 +76,9 @@ typedef struct system_status_var STATUS_VAR;
 #define IS_FILES_EXTRA               37
 
 typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
-
-int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
-
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name);
-
-int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
-                         const char * forced_db, const char *forced_name,
-                         String *packet,
-                         Table_specification_st *create_info_arg,
-                         enum_with_db_name with_db_name);
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
 
@@ -119,7 +110,6 @@ bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
                     const LEX_CSTRING *definer_host);
 int add_status_vars(SHOW_VAR *list);
 void remove_status_vars(SHOW_VAR *list);
-ulonglong get_status_vars_version(void);
 void init_status_vars();
 void free_status_vars();
 void reset_status_vars();
@@ -127,7 +117,9 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name);
 void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 
 void init_fill_schema_files_row(TABLE* table);
+bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
+COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table);
 
 ST_SCHEMA_TABLE *find_schema_table(THD *thd, const LEX_CSTRING *table_name,
                                    bool *in_plugin);
@@ -253,7 +245,7 @@ bool ignore_db_dirs_init();
 void ignore_db_dirs_free();
 void ignore_db_dirs_reset();
 bool ignore_db_dirs_process_additions();
-bool push_ignored_db_dir(const char *path);
+bool push_ignored_db_dir(char *path);
 extern char *opt_ignore_db_dirs;
 
 #endif /* SQL_SHOW_H */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,7 @@ Created 1/8/1996 Heikki Tuuri
 Gets the minimum number of bytes per character.
 @return minimum multi-byte char size, in bytes */
 UNIV_INLINE
-unsigned
+ulint
 dict_col_get_mbminlen(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -42,7 +42,7 @@ dict_col_get_mbminlen(
 Gets the maximum number of bytes per character.
 @return maximum multi-byte char size, in bytes */
 UNIV_INLINE
-unsigned
+ulint
 dict_col_get_mbmaxlen(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -93,7 +93,7 @@ dict_col_type_assert_equal(
 Returns the minimum size of the column.
 @return minimum size */
 UNIV_INLINE
-unsigned
+ulint
 dict_col_get_min_size(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -116,7 +116,7 @@ dict_col_get_max_size(
 Returns the size of a fixed size column, 0 if not a fixed size column.
 @return fixed size, or 0 */
 UNIV_INLINE
-unsigned
+ulint
 dict_col_get_fixed_size(
 /*====================*/
 	const dict_col_t*	col,	/*!< in: column */
@@ -130,7 +130,7 @@ Returns the ROW_FORMAT=REDUNDANT stored SQL NULL size of a column.
 For fixed length types it is the fixed length of the type, otherwise 0.
 @return SQL null storage size in ROW_FORMAT=REDUNDANT */
 UNIV_INLINE
-unsigned
+ulint
 dict_col_get_sql_null_size(
 /*=======================*/
 	const dict_col_t*	col,	/*!< in: column */
@@ -143,7 +143,7 @@ dict_col_get_sql_null_size(
 Gets the column number.
 @return col->ind, table column position (starting from 0) */
 UNIV_INLINE
-unsigned
+ulint
 dict_col_get_no(
 /*============*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -247,7 +247,7 @@ dictionary cache.
 @return number of user-defined (e.g., not ROW_ID) non-virtual
 columns of a table */
 UNIV_INLINE
-unsigned
+ulint
 dict_table_get_n_user_cols(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -264,7 +264,7 @@ Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
 @return number of non-virtual columns of a table */
 UNIV_INLINE
-unsigned
+ulint
 dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -277,7 +277,7 @@ dict_table_get_n_cols(
 @param[in]	table	the table to check
 @return number of virtual columns of a table */
 UNIV_INLINE
-unsigned
+ulint
 dict_table_get_n_v_cols(
 	const dict_table_t*	table)
 {
@@ -296,7 +296,7 @@ dict_table_has_indexed_v_cols(
 	const dict_table_t*	table)
 {
 
-	for (unsigned i = 0; i < table->n_v_cols; i++) {
+	for (ulint i = 0; i < table->n_v_cols; i++) {
 		const dict_v_col_t*     col = dict_table_get_nth_v_col(table, i);
 		if (col->m_col.ord_part) {
 			return(true);
@@ -399,7 +399,7 @@ dict_col_t*
 dict_table_get_sys_col(
 /*===================*/
 	const dict_table_t*	table,	/*!< in: table */
-	unsigned		sys)	/*!< in: DATA_ROW_ID, ... */
+	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 {
 	dict_col_t*	col;
 	col = dict_table_get_nth_col(table,
@@ -415,11 +415,11 @@ dict_table_get_sys_col(
 Gets the given system column number of a table.
 @return column number */
 UNIV_INLINE
-unsigned
+ulint
 dict_table_get_sys_col_no(
 /*======================*/
 	const dict_table_t*	table,	/*!< in: table */
-	unsigned		sys)	/*!< in: DATA_ROW_ID, ... */
+	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 {
 	ut_ad(sys < DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
@@ -705,12 +705,34 @@ dict_tf_to_sys_tables_type(
 	return(type);
 }
 
+/*********************************************************************//**
+Returns true if the particular FTS index in the table is still syncing
+in the background, false otherwise.
+@param [in] table      Table containing FTS index
+@return True if sync of fts index is still going in the background  */
+UNIV_INLINE
+bool
+dict_fts_index_syncing(
+	dict_table_t*   table)
+{
+	 dict_index_t*   index;
+
+	for (index = dict_table_get_first_index(table);
+	    index != NULL;
+	    index = dict_table_get_next_index(index)) {
+		if (index->index_fts_syncing) {
+			 return(true);
+		}
+	}
+	return(false);
+}
+
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
 @return number of fields */
 UNIV_INLINE
-uint16_t
+ulint
 dict_index_get_n_fields(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: an internal
@@ -728,7 +750,7 @@ we do not take multiversioning into account: in the B-tree use the value
 returned by dict_index_get_n_unique_in_tree.
 @return number of fields */
 UNIV_INLINE
-uint16_t
+ulint
 dict_index_get_n_unique(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -745,7 +767,7 @@ which uniquely determine the position of an index entry in the index, if
 we also take multiversioning into account.
 @return number of fields */
 UNIV_INLINE
-uint16_t
+ulint
 dict_index_get_n_unique_in_tree(
 /*============================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -770,7 +792,7 @@ include page no field.
 @param[in]	index	index
 @return number of fields */
 UNIV_INLINE
-uint16_t
+ulint
 dict_index_get_n_unique_in_tree_nonleaf(
 	const dict_index_t*	index)
 {
@@ -794,7 +816,7 @@ to make a clustered index unique, but this function returns the number of
 fields the user defined in the index as ordering fields.
 @return number of fields */
 UNIV_INLINE
-uint16_t
+ulint
 dict_index_get_n_ordering_defined_by_user(
 /*======================================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -879,25 +901,27 @@ dict_index_get_nth_col_pos(
 Returns the minimum data size of an index record.
 @return minimum data size in bytes */
 UNIV_INLINE
-unsigned
+ulint
 dict_index_get_min_size(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-  unsigned n= dict_index_get_n_fields(index);
-  unsigned size= 0;
+	ulint	n	= dict_index_get_n_fields(index);
+	ulint	size	= 0;
 
-  while (n--)
-    size+= dict_col_get_min_size(dict_index_get_nth_col(index, n));
+	while (n--) {
+		size += dict_col_get_min_size(dict_index_get_nth_col(index,
+								     n));
+	}
 
-  return size;
+	return(size);
 }
 
 /*********************************************************************//**
 Gets the page number of the root of the index tree.
 @return page number */
 UNIV_INLINE
-uint32_t
+ulint
 dict_index_get_page(
 /*================*/
 	const dict_index_t*	index)	/*!< in: index */
@@ -992,7 +1016,7 @@ dict_index_set_online_status(
 	}
 #endif /* UNIV_DEBUG */
 
-	index->online_status = status & 3;
+	index->online_status = status;
 	ut_ad(dict_index_get_online_status(index) == status);
 }
 

@@ -135,7 +135,6 @@ call mtr.add_suppression(" InnoDB: Tablespace for table `test`.`t` is set as dis
 CREATE TABLE t (a INTEGER, b INTEGER as (a) VIRTUAL,
 c INTEGER)engine=innodb;
 ALTER TABLE t DISCARD TABLESPACE;
-FLUSH TABLES;
 ALTER TABLE t DROP COLUMN b, algorithm=instant;
 Warnings:
 Warning	1814	Tablespace has been discarded for table `t`

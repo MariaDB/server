@@ -326,7 +326,6 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 
 bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab);
 bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab);
-uint get_number_of_tables_at_top_level(JOIN *join);
 
 
 /*

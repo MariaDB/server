@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
    Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify
@@ -31,7 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 /* For my_chsize */
 #include <my_sys.h>
 /* For socket api */
-#ifdef _WIN32
+#ifdef __WIN__
   #include <ws2def.h>
   #include <winsock2.h>
   #include <MSWSock.h>
@@ -46,10 +46,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
 */
 
 #include "mysql/psi/psi.h"
-
-#ifndef PSI_SOCKET_CALL
-#define PSI_SOCKET_CALL(M) PSI_DYNAMIC_CALL(M)
-#endif
 
 /**
   @defgroup Socket_instrumentation Socket Instrumentation
@@ -69,7 +65,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
     do {} while (0)
 #endif
 
-/** An instrumented socket. */
 struct st_mysql_socket
 {
   /** The real socket descriptor. */
@@ -112,8 +107,9 @@ mysql_socket_invalid()
 /**
   Set socket descriptor and address.
   @param socket nstrumented socket
+  @param fd socket descriptor
   @param addr unformatted socket address
-  @param addr_len length of socket address
+  @param adr_len length of socket address
 */
 
 static inline void
@@ -138,6 +134,7 @@ mysql_socket_set_address(
 /**
   Set socket descriptor and address.
   @param socket instrumented socket
+  @param thread instrumented owning thread
 */
 static inline void
 mysql_socket_set_thread_owner(
@@ -204,6 +201,7 @@ mysql_socket_setfd(MYSQL_SOCKET *mysql_socket, my_socket fd)
   @param STATE locker state
   @param SOCKET instrumented socket
   @param OP The socket operation to be performed
+  @param FLAGS per-socket operation flags.
   @param COUNT bytes to be written/read
   @sa MYSQL_END_SOCKET_WAIT.
 */
@@ -232,13 +230,6 @@ mysql_socket_setfd(MYSQL_SOCKET *mysql_socket, my_socket fd)
     do {} while (0)
 #endif
 
-/**
-  @def MYSQL_SOCKET_SET_STATE
-  Set the state (IDLE, ACTIVE) of an instrumented socket.
-  @param SOCKET the instrumented socket
-  @param STATE the new state
-  @sa PSI_socket_state
-*/
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   #define MYSQL_SOCKET_SET_STATE(SOCKET, STATE) \
     inline_mysql_socket_set_state(SOCKET, STATE)
@@ -334,8 +325,8 @@ inline_mysql_socket_set_state(MYSQL_SOCKET socket, enum PSI_socket_state state)
   Return port number and IP address of the local host
   @c mysql_socket_getsockname is a replacement for @c getsockname.
   @param FD Instrumented socket descriptor returned by socket()
-  @param AP  Pointer to returned address of local host in @c sockaddr structure
-  @param LP  Pointer to length of @c sockaddr structure
+  @param A  Pointer to returned address of local host in sockaddr structure
+  @param L  Pointer to length of sockaddr structure
 */
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   #define mysql_socket_getsockname(FD, AP, LP) \
@@ -439,7 +430,7 @@ inline_mysql_socket_set_state(MYSQL_SOCKET socket, enum PSI_socket_state state)
   @param N  Maximum bytes to receive
   @param FL Control flags
   @param AP Pointer to source address in sockaddr_storage structure
-  @param LP Size of sockaddr_storage structure
+  @param L  Size of sockaddr_storage structure
 */
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   #define mysql_socket_recvfrom(FD, B, N, FL, AP, LP) \
@@ -483,19 +474,6 @@ inline_mysql_socket_set_state(MYSQL_SOCKET socket, enum PSI_socket_state state)
 #else
   #define mysql_socket_setsockopt(FD, LV, ON, OP, OL) \
     inline_mysql_socket_setsockopt(FD, LV, ON, OP, OL)
-#endif
-
-/**
-  @def mysql_sock_set_nonblocking
-  Set socket to non-blocking.
-  @param FD instrumented socket descriptor
-*/
-#ifdef HAVE_PSI_SOCKET_INTERFACE
-  #define mysql_sock_set_nonblocking(FD) \
-    inline_mysql_sock_set_nonblocking(__FILE__, __LINE__, FD)
-#else
-  #define mysql_sock_set_nonblocking(FD) \
-    inline_mysql_sock_set_nonblocking(FD)
 #endif
 
 /**
@@ -994,78 +972,6 @@ inline_mysql_socket_setsockopt
   return result;
 }
 
-/** set_socket_nonblock */
-static inline int
-set_socket_nonblock(my_socket fd)
-{
-  int ret= 0;
-#ifdef _WIN32
-  {
-    u_long nonblocking= 1;
-    ret= ioctlsocket(fd, FIONBIO, &nonblocking);
-  }
-#else
-  {
-    int fd_flags;
-    fd_flags= fcntl(fd, F_GETFL, 0);
-    if (fd_flags < 0)
-      return errno;
-#if defined(O_NONBLOCK)
-    fd_flags |= O_NONBLOCK;
-#elif defined(O_NDELAY)
-    fd_flags |= O_NDELAY;
-#elif defined(O_FNDELAY)
-    fd_flags |= O_FNDELAY;
-#else
-#error "No definition of non-blocking flag found."
-#endif /* O_NONBLOCK */
-    if (fcntl(fd, F_SETFL, fd_flags) == -1)
-      ret= errno;
-  }
-#endif /* _WIN32 */
-  return ret;
-}
-
-/** mysql_socket_set_nonblocking */
-
-static inline int
-inline_mysql_sock_set_nonblocking
-(
-#ifdef HAVE_PSI_SOCKET_INTERFACE
-  const char *src_file, uint src_line,
-#endif
-  MYSQL_SOCKET mysql_socket
-)
-{
-  int result= 0;
-
-#ifdef HAVE_PSI_SOCKET_INTERFACE
-  if (mysql_socket.m_psi)
-  {
-    /* Instrumentation start */
-    PSI_socket_locker *locker;
-    PSI_socket_locker_state state;
-    locker= PSI_SOCKET_CALL(start_socket_wait)
-        (&state, mysql_socket.m_psi, PSI_SOCKET_OPT,
-         (size_t)0, src_file, src_line);
-
-    /* Instrumented code */
-    result= set_socket_nonblock(mysql_socket.fd);
-
-    /* Instrumentation end */
-    if (locker != NULL)
-      PSI_SOCKET_CALL(end_socket_wait)(locker, (size_t)0);
-
-    return result;
-  }
-#endif
-
-  /* Non instrumented code */
-  result= set_socket_nonblock(mysql_socket.fd);
-
-  return result;
-}
-
 /** mysql_socket_listen */
 
 static inline int
@@ -1118,7 +1024,8 @@ inline_mysql_socket_accept
   int flags __attribute__ ((unused));
 #endif
 
-  MYSQL_SOCKET socket_accept;
+  MYSQL_SOCKET socket_accept= MYSQL_INVALID_SOCKET;
+  socklen_t addr_length= (addr_len != NULL) ? *addr_len : 0;
 
 #ifdef HAVE_PSI_SOCKET_INTERFACE
   if (socket_listen.m_psi != NULL)
@@ -1131,9 +1038,10 @@ inline_mysql_socket_accept
 
     /* Instrumented code */
 #ifdef HAVE_ACCEPT4
-    socket_accept.fd= accept4(socket_listen.fd, addr, addr_len, SOCK_CLOEXEC);
+    socket_accept.fd= accept4(socket_listen.fd, addr, &addr_length,
+                              SOCK_CLOEXEC);
 #else
-    socket_accept.fd= accept(socket_listen.fd, addr, addr_len);
+    socket_accept.fd= accept(socket_listen.fd, addr, &addr_length);
 #ifdef FD_CLOEXEC
     if (socket_accept.fd != INVALID_SOCKET)
     {
@@ -1156,9 +1064,10 @@ inline_mysql_socket_accept
   {
     /* Non instrumented code */
 #ifdef HAVE_ACCEPT4
-    socket_accept.fd= accept4(socket_listen.fd, addr, addr_len, SOCK_CLOEXEC);
+    socket_accept.fd= accept4(socket_listen.fd, addr, &addr_length,
+                              SOCK_CLOEXEC);
 #else
-    socket_accept.fd= accept(socket_listen.fd, addr, addr_len);
+    socket_accept.fd= accept(socket_listen.fd, addr, &addr_length);
 #ifdef FD_CLOEXEC
     if (socket_accept.fd != INVALID_SOCKET)
     {
@@ -1178,7 +1087,7 @@ inline_mysql_socket_accept
   {
     /* Initialize the instrument with the new socket descriptor and address */
     socket_accept.m_psi= PSI_SOCKET_CALL(init_socket)
-      (key, (const my_socket*)&socket_accept.fd, addr, *addr_len);
+      (key, (const my_socket*)&socket_accept.fd, addr, addr_length);
   }
 #endif
 
@@ -1238,7 +1147,7 @@ inline_mysql_socket_shutdown
 {
   int result;
 
-#ifdef _WIN32
+#ifdef __WIN__
   static LPFN_DISCONNECTEX DisconnectEx = NULL;
   if (DisconnectEx == NULL)
   {
@@ -1261,7 +1170,7 @@ inline_mysql_socket_shutdown
       (&state, mysql_socket.m_psi, PSI_SOCKET_SHUTDOWN, (size_t)0, src_file, src_line);
 
     /* Instrumented code */
-#ifdef _WIN32
+#ifdef __WIN__
     if (DisconnectEx)
       result= (DisconnectEx(mysql_socket.fd, (LPOVERLAPPED) NULL,
                             (DWORD) 0, (DWORD) 0) == TRUE) ? 0 : -1;
@@ -1278,7 +1187,7 @@ inline_mysql_socket_shutdown
 #endif
 
   /* Non instrumented code */
-#ifdef _WIN32
+#ifdef __WIN__
   if (DisconnectEx)
     result= (DisconnectEx(mysql_socket.fd, (LPOVERLAPPED) NULL,
                           (DWORD) 0, (DWORD) 0) == TRUE) ? 0 : -1;

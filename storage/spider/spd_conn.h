@@ -1,5 +1,5 @@
-/* Copyright (C) 2008-2020 Kentoku Shiba
-   Copyright (C) 2019-2020 MariaDB corp
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -26,26 +26,6 @@
 #define SPIDER_SIMPLE_CHECKSUM_TABLE      4
 #endif
 
-#define SPIDER_LOP_CHK_QUEUED             (1 << 0)
-#define SPIDER_LOP_CHK_MERAGED            (1 << 1)
-#define SPIDER_LOP_CHK_IGNORED            (1 << 2)
-
-typedef struct st_spider_conn_loop_check
-{
-  uint               flag;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
-  my_hash_value_type hash_value_to;
-  my_hash_value_type hash_value_full;
-#endif
-  LEX_CSTRING        from_name;
-  LEX_CSTRING        cur_name;
-  LEX_CSTRING        to_name;
-  LEX_CSTRING        full_name;
-  LEX_CSTRING        from_value;
-  LEX_CSTRING        merged_value;
-  st_spider_conn_loop_check *next;
-} SPIDER_CONN_LOOP_CHECK;
-
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,
   size_t *length,
@@ -56,14 +36,6 @@ uchar *spider_ipport_conn_get_key(
   SPIDER_IP_PORT_CONN *ip_port,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
-);
-
-int spider_conn_init(
-  SPIDER_CONN *conn
-);
-
-void spider_conn_done(
-  SPIDER_CONN *conn
 );
 
 int spider_reset_conn_setted_parameter(
@@ -181,21 +153,6 @@ void spider_conn_queue_time_zone(
 
 void spider_conn_queue_UTC_time_zone(
   SPIDER_CONN *conn
-);
-
-int spider_conn_queue_and_merge_loop_check(
-  SPIDER_CONN *conn,
-  SPIDER_CONN_LOOP_CHECK *lcptr
-);
-
-int spider_conn_reset_queue_loop_check(
-  SPIDER_CONN *conn
-);
-
-int spider_conn_queue_loop_check(
-  SPIDER_CONN *conn,
-  ha_spider *spider,
-  int link_idx
 );
 
 void spider_conn_queue_start_transaction(

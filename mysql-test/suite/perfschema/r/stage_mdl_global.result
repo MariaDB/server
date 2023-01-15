@@ -8,12 +8,12 @@ username	event_name	sql_text
 user1	statement/sql/flush	flush tables with read lock
 username	event_name	nesting_event_type
 username	event_name	nesting_event_type
-user1	stage/sql/starting	STATEMENT
-user1	stage/sql/starting	STATEMENT
+user1	stage/sql/Init	STATEMENT
+user1	stage/sql/Init	STATEMENT
 user1	stage/sql/Query end	STATEMENT
 user1	stage/sql/Commit	STATEMENT
-user1	stage/sql/closing tables	STATEMENT
-user1	stage/sql/Commit implicit	STATEMENT
+user1	stage/sql/Closing tables	STATEMENT
+user1	stage/sql/Commit_implicit	STATEMENT
 user1	stage/sql/Starting cleanup	STATEMENT
 user1	stage/sql/Freeing items	STATEMENT
 user1	stage/sql/Reset for next command	STATEMENT
@@ -23,8 +23,8 @@ user2	statement/sql/insert	insert into test.t1 values (1), (2), (3)
 username	event_name	nesting_event_type
 user2	stage/sql/Waiting for backup lock	STATEMENT
 username	event_name	nesting_event_type
-user2	stage/sql/starting	STATEMENT
-user2	stage/sql/checking permissions	STATEMENT
+user2	stage/sql/Init	STATEMENT
+user2	stage/sql/Checking permissions	STATEMENT
 user2	stage/sql/Opening tables	STATEMENT
 connection con1;
 unlock tables;

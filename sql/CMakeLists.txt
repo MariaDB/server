@@ -1,15 +1,15 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
 # Copyright (c) 2010, 2022, MariaDB Corporation.
-#
+# 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-#
+# 
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#
+# 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
@@ -36,14 +36,7 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_plugin.cc
     service_wsrep.cc
   )
-  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
-  IF(VISIBILITY_HIDDEN_FLAG AND TARGET wsrep)
-    # wsrep_info plugin needs some wsrep symbols from inside mysqld
-    # we have to remove -fvisibility=hidden from wsrep
-    GET_TARGET_PROPERTY(f wsrep COMPILE_FLAGS)
-    STRING(REPLACE "${VISIBILITY_HIDDEN_FLAG}" "" f ${f})
-    SET_TARGET_PROPERTIES(wsrep PROPERTIES COMPILE_FLAGS "${f}")
-  ENDIF()
+  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED EXPORT_SYMBOLS LINK_LIBRARIES wsrep-lib wsrep_api_v26)
 ELSE()
   ADD_LIBRARY(wsrep STATIC wsrep_dummy.cc)
   ADD_DEPENDENCIES(wsrep GenError)
@@ -51,34 +44,22 @@ ENDIF()
 
 INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include
-${CMAKE_SOURCE_DIR}/sql
+${CMAKE_SOURCE_DIR}/sql 
 ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
-${CMAKE_SOURCE_DIR}/tpool
 )
+
+
+
+
+
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
   COMMAND gen_lex_token > lex_token.h
   DEPENDS gen_lex_token
-)
-
-FIND_PACKAGE(BISON 2.0)
-
-ADD_CUSTOM_COMMAND(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy
-         ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
-  COMMAND ${CMAKE_COMMAND} "-DVAL1=ORACLE" "-DVAL2=MARIADB"
-   "-DOUT1=${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy"
-   "-DOUT2=${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy"
-   "-DIN=${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy"
-    "-DBISON_VERSION=${BISON_VERSION}"
-   -P ${CMAKE_CURRENT_SOURCE_DIR}/gen_yy_files.cmake
-  COMMENT "Building yy_mariadb.yy and yy_oracle.yy from sql_yacc.yy"
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy
-          ${CMAKE_CURRENT_SOURCE_DIR}/gen_yy_files.cmake
 )
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)
@@ -88,8 +69,6 @@ IF(SSL_DEFINES)
 ENDIF()
 
 SET (SQL_SOURCE
-               ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
               ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../sql-common/errmsg.c
                field.cc field_conv.cc field_comp.cc
@@ -101,8 +80,7 @@ SET (SQL_SOURCE
                item_create.cc item_func.cc item_geofunc.cc item_row.cc 
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc 
                key.cc log.cc lock.cc
-               log_event.cc log_event_server.cc
-               rpl_record.cc rpl_reporting.cc
+               log_event.cc rpl_record.cc rpl_reporting.cc
                log_event_old.cc rpl_record_old.cc
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
@@ -133,17 +111,15 @@ SET (SQL_SOURCE
                rpl_tblmap.cc sql_binlog.cc event_scheduler.cc event_data_objects.cc
                event_queue.cc event_db_repository.cc 
                sql_tablespace.cc events.cc ../sql-common/my_user.c 
-               partition_info.cc rpl_utility.cc rpl_utility_server.cc
-               rpl_injector.cc sql_locale.cc
+               partition_info.cc rpl_utility.cc rpl_injector.cc sql_locale.cc
                rpl_rli.cc rpl_mi.cc sql_servers.cc sql_audit.cc
                sql_connect.cc scheduler.cc sql_partition_admin.cc
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
-               sql_reload.cc
+               sql_reload.cc item_inetfunc.cc
 
                # added in MariaDB:
-               grant.cc
                sql_explain.cc
                sql_analyze_stmt.cc
                sql_join_cache.cc
@@ -159,8 +135,6 @@ SET (SQL_SOURCE
                semisync_master_ack_receiver.cc
                sql_schema.cc
                sql_type.cc sql_mode.cc sql_type_json.cc
-               sql_type_string.cc
-               sql_type_geom.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc
@@ -171,6 +145,8 @@ SET (SQL_SOURCE
                opt_trace.cc
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc xa.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
@@ -179,8 +155,8 @@ SET (SQL_SOURCE
 
 IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
    NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
-  ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
-    ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
+  ADD_COMPILE_FLAGS(${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+    ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
     COMPILE_FLAGS "-Wno-unused-but-set-variable")
 ENDIF()
 
@@ -195,11 +171,10 @@ IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
  ENDIF()
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_generic.cc)
  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_common.cc)
- MYSQL_ADD_PLUGIN(thread_pool_info thread_pool_info.cc DEFAULT STATIC_ONLY NOT_EMBEDDED)
 ENDIF()
 
 IF(WIN32)
-  SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc nt_servc.cc)
+  SET(SQL_SOURCE ${SQL_SOURCE} handle_connections_win.cc)
 ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
@@ -208,18 +183,12 @@ MYSQL_ADD_PLUGIN(sql_sequence ha_sequence.cc STORAGE_ENGINE MANDATORY STATIC_ONL
 RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
-MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
-  mysys mysys_ssl dbug strings vio pcre2-8
-  tpool
+  mysys mysys_ssl dbug strings vio pcre
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
-
-IF(TARGET pcre2)
-  ADD_DEPENDENCIES(sql pcre2)
-ENDIF()
 
 FOREACH(se aria partition perfschema sql_sequence wsrep)
   # These engines are used directly in sql sources.
@@ -229,107 +198,145 @@ FOREACH(se aria partition perfschema sql_sequence wsrep)
 ENDFOREACH()
 
 IF(WIN32)
-  SET(MYSQLD_SOURCE main.cc  message.rc)
+  SET(MYSQLD_SOURCE main.cc nt_servc.cc message.rc)
+  TARGET_LINK_LIBRARIES(sql psapi)
 ELSE()
   SET(MYSQLD_SOURCE main.cc ${DTRACE_PROBES_ALL})
 ENDIF()
 
-IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
-  SET(libs_to_export_symbols sql mysys dbug strings)
-  # Create shared library of already compiled object
-  # Export all symbols from selected libraries, to be used
-  # by plugins
-  IF(MSVC)
-    SET(VERSIONINFO_RC ${PROJECT_BINARY_DIR}/versioninfo_dll.rc)
-  ELSE()
-    SET(VERSIONINFO_RC)
-  ENDIF()
-  ADD_LIBRARY(server SHARED
-    $<TARGET_OBJECTS:sql>
-    $<TARGET_OBJECTS:mysys>
-    $<TARGET_OBJECTS:dbug>
-    $<TARGET_OBJECTS:strings>
-    ${VERSIONINFO_RC}
-  )
 
-  # We need to add all dependencies of sql/mysys/dbug/strings
-  # to link the shared library
-  SET(all_deps)
-  FOREACH(lib ${libs_to_export_symbols})
-    GET_TARGET_PROPERTY(deps ${lib} LINK_LIBRARIES)
-    IF(deps)
-      LIST(APPEND all_deps ${deps})
+IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
+
+  # mysqld.exe must to export symbols from some specific libs.
+  # These symbols are used by dynamic plugins, that "link" to mysqld.
+  #
+  # To do that, we
+  #
+  # 1. Generate mysqld_lib.def text file with all symbols from static
+  # libraries mysys, dbug, strings, sql.
+  # 2. Then we call
+  #  lib.exe /DEF:mysqld_lib.def ...
+  #  to create import library mysqld_lib.lib and export library mysqld_lib.exp
+  # 3. mysqld.exe links with mysqld_lib.exp (exporting symbols)
+  # 4. plugins link with mysqld_lib.lib (importing symbols)
+  #
+  # We do not not regenerate .def, .lib and .exp
+  # without necessity.E.g source modifications, that do not
+  # change list of exported symbols, will not result in a relink for plugins.
+
+  SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.def)
+  SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.exp)
+  SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.lib)
+  SET(MYSQLD_CORELIBS sql mysys dbug strings)
+  FOREACH (CORELIB ${MYSQLD_CORELIBS})
+    SET (LIB_LOCATIONS ${LIB_LOCATIONS} $<TARGET_FILE:${CORELIB}>)
+  ENDFOREACH (CORELIB)
+
+  SET(_PLATFORM x86)
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    SET(_PLATFORM  x64)
+  ENDIF()
+  # Create a cmake script to generate import and export libs
+  # from a .def file
+  SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
+    IF ((mysqld_lib\${CFG}.def IS_NEWER_THAN mysqld_lib\${CFG}.lib) OR
+        (mysqld_lib\${CFG}.def IS_NEWER_THAN mysqld_lib\${CFG}.exp))
+      FILE(REMOVE mysqld_lib\${CFG}.lib mysqld_lib\${CFG}.exp)
+      SET(ENV{VS_UNICODE_OUTPUT})
+      EXECUTE_PROCESS (
+        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib\${CFG}.def\" /MACHINE:${_PLATFORM}
+        RESULT_VARIABLE ret)
+      IF(NOT ret EQUAL 0)
+        MESSAGE(FATAL_ERROR \"process failed ret=\${ret}\")
+      ENDIF()
     ENDIF()
-  ENDFOREACH()
-  LIST(REMOVE_DUPLICATES all_deps)
-  FOREACH(lib ${libs_to_export_symbols})
-    LIST(REMOVE_ITEM all_deps ${lib})
-  ENDFOREACH()
+  ")
 
-  TARGET_LINK_LIBRARIES(server PRIVATE
-   ${all_deps}
-   sql_builtins
-  )
-  IF(MSVC)
-    SET_TARGET_PROPERTIES(server PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
-  ELSE()
-    SET_TARGET_PROPERTIES(server PROPERTIES AIX_EXPORT_ALL_SYMBOLS TRUE)
+  CONFIGURE_FILE(
+    ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
+    make_mysqld_lib.cmake
+    @ONLY)
+
+  IF(CMAKE_VERSION VERSION_GREATER "3.2.0")
+    SET(MYSQLD_LIB_BYPRODUCTS  BYPRODUCTS ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP})
   ENDIF()
-  MYSQL_INSTALL_TARGETS(server DESTINATION  ${INSTALL_BINDIR} COMPONENT Server)
+
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp
+    ${MYSQLD_LIB_BYPRODUCTS}
+    COMMENT "Generating ${MYSQLD_DEF}, ${MYSQLD_LIB}, ${MYSQLD_EXP}"
+    COMMAND cscript //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
+            ${_PLATFORM} /forLib ${LIB_LOCATIONS} > ${MYSQLD_DEF}.tmp
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLD_DEF}.tmp ${MYSQLD_DEF}
+    COMMAND ${CMAKE_COMMAND} -E remove ${MYSQLD_DEF}.tmp
+    COMMAND ${CMAKE_COMMAND}  "-DCFG=${CMAKE_CFG_INTDIR}" -P make_mysqld_lib.cmake
+    COMMAND ${CMAKE_COMMAND} -E touch mysqld_lib.stamp
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${MYSQLD_CORELIBS}
+  )
+
+  ADD_CUSTOM_TARGET(gen_mysqld_lib DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp)
+  ADD_LIBRARY(mysqld_import_lib UNKNOWN IMPORTED GLOBAL)
+  SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
 ENDIF()
 
 ADD_LIBRARY(sql_builtins STATIC ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc)
 TARGET_LINK_LIBRARIES(sql_builtins ${MYSQLD_STATIC_PLUGIN_LIBS})
 
-MYSQL_ADD_EXECUTABLE(mariadbd ${MYSQLD_SOURCE} DESTINATION ${INSTALL_SBINDIR} COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(mysqld ${MYSQLD_SOURCE} DESTINATION ${INSTALL_SBINDIR} COMPONENT Server)
 
-IF(APPLE)
-  # Add CoreServices framework since some dloadable plugins may need it
-  FIND_LIBRARY(CORESERVICES NAMES CoreServices)
-  IF(CORESERVICES)
-    TARGET_LINK_LIBRARIES(mariadbd LINK_PRIVATE ${CORESERVICES})
-  ENDIF()
-ENDIF()
+IF(APPLE) 
+  # Add CoreServices framework since some dloadable plugins may need it 
+  FIND_LIBRARY(CORESERVICES NAMES CoreServices) 
+  IF(CORESERVICES) 
+    TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE ${CORESERVICES})
+  ENDIF() 
+ENDIF() 
 
 IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   IF(NOT MSVC)
-    SET_TARGET_PROPERTIES(mariadbd PROPERTIES ENABLE_EXPORTS TRUE)
+    SET_TARGET_PROPERTIES(mysqld PROPERTIES ENABLE_EXPORTS TRUE)
   ENDIF()
-  GET_TARGET_PROPERTY(mysqld_link_flags mariadbd LINK_FLAGS)
+  GET_TARGET_PROPERTY(mysqld_link_flags mysqld LINK_FLAGS)
   IF(NOT mysqld_link_flags)
     SET(mysqld_link_flags)
   ENDIF()
+  IF (MINGW OR CYGWIN)
+    SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} -Wl,--export-all-symbols")
+  ENDIF()
+  IF(MSVC)
+    SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS "${mysqld_link_flags} \"${MYSQLD_EXP}\"")
+    ADD_DEPENDENCIES(mysqld gen_mysqld_lib)
+  ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
-  TARGET_LINK_LIBRARIES(mariadbd server)
-ELSE()
-  TARGET_LINK_LIBRARIES(mariadbd LINK_PRIVATE sql sql_builtins)
-ENDIF()
+TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql sql_builtins)
+
 
 # Provide plugins with minimal set of libraries
 SET(INTERFACE_LIBS ${LIBRT})
 IF(INTERFACE_LIBS)
-  TARGET_LINK_LIBRARIES(mariadbd LINK_PUBLIC ${INTERFACE_LIBS})
+  TARGET_LINK_LIBRARIES(mysqld LINK_PUBLIC ${INTERFACE_LIBS})
 ENDIF()
 
 # On Solaris, some extra effort is required in order to get dtrace probes
 # from static libraries
-DTRACE_INSTRUMENT_STATIC_LIBS(mariadbd 
+DTRACE_INSTRUMENT_STATIC_LIBS(mysqld 
  "sql;mysys;mysys_ssl;${MYSQLD_STATIC_PLUGIN_LIBS}")
  
 
 SET(WITH_MYSQLD_LDFLAGS "" CACHE STRING "Additional linker flags for mysqld")
 MARK_AS_ADVANCED(WITH_MYSQLD_LDFLAGS)
 IF(WITH_MYSQLD_LDFLAGS)
-  GET_TARGET_PROPERTY(MYSQLD_LINK_FLAGS mariadbd LINK_FLAGS)
+  GET_TARGET_PROPERTY(MYSQLD_LINK_FLAGS mysqld LINK_FLAGS)
   IF(NOT MYSQLD_LINK_FLAGS)
     SET(MYSQLD_LINK_FLAGS) 
   ENDIF() 
-  SET_TARGET_PROPERTIES(mariadbd PROPERTIES LINK_FLAGS 
+  SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS 
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
 
+FIND_PACKAGE(BISON 2.0)
 
 
 # Handle out-of-source build from source package with possibly broken 
@@ -337,7 +344,7 @@ ENDIF()
 # there
 IF (NOT BISON_FOUND)
   IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
-    FOREACH(file yy_mariadb.cc yy_mariadb.hh yy_oracle.cc yy_oracle.hh)
+    FOREACH(file sql_yacc.cc sql_yacc.hh sql_yacc_ora.cc sql_yacc_ora.hh)
     IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file} AND (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${file}))
         CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}
         ${CMAKE_CURRENT_BINARY_DIR}/${file} COPYONLY)
@@ -345,7 +352,7 @@ IF (NOT BISON_FOUND)
     ENDFOREACH()
   ENDIF()
 
-  IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc)
+  IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc)
      # Output files are missing, bail out.
       SET(ERRMSG
          "Bison (GNU parser generator) is required to build MySQL."
@@ -360,18 +367,16 @@ IF (NOT BISON_FOUND)
       MESSAGE(FATAL_ERROR ${ERRMSG})
   ENDIF()
 ELSE()
-  CONFIGURE_FILE(myskel.m4.in myskel.m4)
-  BISON_TARGET(gen_mariadb_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy
-                                 ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
-               COMPILE_FLAGS "-p MYSQL -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4")
-  BISON_TARGET(gen_oracle_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
-                                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
-               COMPILE_FLAGS "-p ORA -S ${CMAKE_CURRENT_BINARY_DIR}/myskel.m4")
+  BISON_TARGET(gen_sql_yacc ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+             COMPILE_FLAGS "-p MYSQL")
+
+  BISON_TARGET(gen_sql_yacc_ora ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc_ora.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+             COMPILE_FLAGS "-p ORA")
 ENDIF()
 
-IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
+IF(NOT CMAKE_CROSSCOMPILING)
   ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
-   ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.hh)
+   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.hh)
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 
@@ -381,17 +386,16 @@ ADD_CUSTOM_COMMAND(
   DEPENDS gen_lex_hash
 )
 
-MYSQL_ADD_EXECUTABLE(mariadb-tzinfo-to-sql tztime.cc COMPONENT Server)
-SET_TARGET_PROPERTIES(mariadb-tzinfo-to-sql PROPERTIES COMPILE_FLAGS "-DTZINFO2SQL")
-TARGET_LINK_LIBRARIES(mariadb-tzinfo-to-sql mysys mysys_ssl)
+MYSQL_ADD_EXECUTABLE(mysql_tzinfo_to_sql tztime.cc COMPONENT Server)
+SET_TARGET_PROPERTIES(mysql_tzinfo_to_sql PROPERTIES COMPILE_FLAGS "-DTZINFO2SQL")
+TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 
-ADD_CUSTOM_TARGET(
+ADD_CUSTOM_TARGET( 
         GenServerSource
         DEPENDS
         ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
         ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
-        ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
-        ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
 )
 ADD_DEPENDENCIES(sql GenServerSource)
 
@@ -405,10 +409,10 @@ CONFIGURE_FILE(
   ${CMAKE_SOURCE_DIR}/cmake/make_dist.cmake.in
   ${CMAKE_BINARY_DIR}/make_dist.cmake @ONLY)
 
-ADD_CUSTOM_TARGET(dist
+ADD_CUSTOM_TARGET(dist 
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/make_dist.cmake
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc ${CMAKE_BINARY_DIR}/sql/yy_mariadb.hh
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/yy_oracle.cc ${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
@@ -418,9 +422,12 @@ ADD_CUSTOM_TARGET(distclean
   VERBATIM
   )
 
-# Install initial database (default on windows, optional target elsewhere)
-IF(TARGET mariadbd AND (NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR))
-  IF(GENERATOR_IS_MULTI_CONFIG)
+IF(INSTALL_LAYOUT STREQUAL "STANDALONE")
+
+# Install initial database on windows
+IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
+
+  IF(MSVC_IDE OR CMAKE_GENERATOR MATCHES "Xcode")
     SET (CONFIG_PARAM -DCONFIG=${CMAKE_CFG_INTDIR})
   ENDIF()
   MAKE_DIRECTORY(${CMAKE_CURRENT_BINARY_DIR}/data)
@@ -432,23 +439,22 @@ IF(TARGET mariadbd AND (NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING
      ${CONFIG_PARAM}
      -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
      -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
-     -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mariadbd>"
+     -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mysqld>"
      -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
      -P ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake
      COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/
-     DEPENDS mariadbd
+     DEPENDS mysqld
   )
-  IF(WIN32)
-    SET(ALL_ON_WINDOWS ALL)
-  ELSE()
-    SET(ALL_ON_WINDOWS)
-  ENDIF()
   ADD_CUSTOM_TARGET(initial_database  
-    ${ALL_ON_WINDOWS}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep	
+    ALL
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
   )
-ENDIF()
+ELSE()
+  # Not windows or cross compiling, just install an empty directory
+  INSTALL(FILES ${DUMMY_FILE} DESTINATION data/mysql COMPONENT DataFiles)
+ENDIF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
+ENDIF(INSTALL_LAYOUT STREQUAL "STANDALONE")
 
 IF(WIN32)
   SET(my_bootstrap_sql ${CMAKE_CURRENT_BINARY_DIR}/my_bootstrap.sql)
@@ -477,29 +483,25 @@ IF(WIN32)
     DEPENDS comp_sql ${my_bootstrap_sql}
   )
 
-  MYSQL_ADD_EXECUTABLE(mariadb-install-db 
+  MYSQL_ADD_EXECUTABLE(mysql_install_db 
     mysql_install_db.cc
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_bootstrap_sql.c
     COMPONENT Server
   )
-  SET_TARGET_PROPERTIES(mariadb-install-db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
-  TARGET_LINK_LIBRARIES(mariadb-install-db mysys shlwapi)
+  SET_TARGET_PROPERTIES(mysql_install_db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
+  TARGET_LINK_LIBRARIES(mysql_install_db mysys shlwapi)
 
   ADD_LIBRARY(winservice STATIC winservice.c)
   TARGET_LINK_LIBRARIES(winservice shell32)
 
-  MYSQL_ADD_EXECUTABLE(mariadb-upgrade-service
+  MYSQL_ADD_EXECUTABLE(mysql_upgrade_service
     mysql_upgrade_service.cc
     upgrade_conf_file.cc
     COMPONENT Server)
-  TARGET_LINK_LIBRARIES(mariadb-upgrade-service mysys winservice)
+  TARGET_LINK_LIBRARIES(mysql_upgrade_service mysys winservice)
 ENDIF(WIN32)
 
-IF(NOT WITH_WSREP)
-  SET(EXCL_WSREP "wsrep_[a-np-z]*.h")
-ENDIF()
 INSTALL(DIRECTORY . DESTINATION ${INSTALL_INCLUDEDIR}/server/private COMPONENT Development
   FILES_MATCHING PATTERN "*.h"
   PATTERN share EXCLUDE
-  PATTERN "${EXCL_WSREP}" EXCLUDE
   PATTERN CMakeFiles EXCLUDE)

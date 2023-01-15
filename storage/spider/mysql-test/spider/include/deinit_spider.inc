@@ -33,7 +33,6 @@ DROP FUNCTION spider_copy_tables;
 DROP FUNCTION spider_ping_table;
 DROP FUNCTION spider_bg_direct_sql;
 DROP FUNCTION spider_direct_sql;
-UNINSTALL PLUGIN spider_wrapper_protocols;
 UNINSTALL PLUGIN spider_alloc_mem;
 UNINSTALL PLUGIN spider;
 DROP TABLE IF EXISTS mysql.spider_xa;
@@ -47,10 +46,6 @@ DROP TABLE IF EXISTS mysql.spider_table_sts;
 DROP TABLE IF EXISTS mysql.spider_table_crd;
 if ($VERSION_COMPILE_OS_WIN)
 {
-  if ($MASTER_1_MYPORT)
-  {
-    DROP SERVER s_1;
-  }
   if ($CHILD2_1_MYPORT)
   {
     DROP SERVER s_2_1;
@@ -78,10 +73,6 @@ if ($VERSION_COMPILE_OS_WIN)
 }
 if (!$VERSION_COMPILE_OS_WIN)
 {
-  if ($MASTER_1_MYSOCK)
-  {
-    DROP SERVER s_1;
-  }
   if ($CHILD2_1_MYSOCK)
   {
     DROP SERVER s_2_1;

@@ -7,11 +7,7 @@ ERROR HY000: Variable 'innodb_log_optimize_ddl' is a GLOBAL variable
 Expected error 'Variable is a GLOBAL variable'
 SELECT @@GLOBAL.innodb_log_optimize_ddl INTO @innodb_log_optimize_ddl_save;
 SET @@GLOBAL.innodb_log_optimize_ddl = ON;
-Warnings:
-Warning	138	The parameter innodb_log_optimize_ddl is deprecated and has no effect.
 SET @@GLOBAL.innodb_log_optimize_ddl = OFF;
-Warnings:
-Warning	138	The parameter innodb_log_optimize_ddl is deprecated and has no effect.
 SET @@GLOBAL.innodb_log_optimize_ddl = 13;
 ERROR 42000: Variable 'innodb_log_optimize_ddl' can't be set to the value of '13'
 SET @@GLOBAL.innodb_log_optimize_ddl = 'ABC';
@@ -38,5 +34,3 @@ Expected error 'Variable is a GLOBAL variable'
 SELECT innodb_log_optimize_ddl;
 ERROR 42S22: Unknown column 'innodb_log_optimize_ddl' in 'field list'
 SET GLOBAL innodb_log_optimize_ddl = @innodb_log_optimize_ddl_save;
-Warnings:
-Warning	138	The parameter innodb_log_optimize_ddl is deprecated and has no effect.

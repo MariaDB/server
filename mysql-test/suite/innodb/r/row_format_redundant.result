@@ -75,9 +75,10 @@ DROP TABLE t1;
 Warnings:
 Warning	1932	Table 'test.t1' doesn't exist in engine
 DROP TABLE t2,t3;
-FOUND 5 /\[ERROR\] InnoDB: Table `test`\.`t1` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b/ in mysqld.1.err
+FOUND 6 /\[ERROR\] InnoDB: Table `test`\.`t1` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b/ in mysqld.1.err
 # restart
 ib_buffer_pool
 ib_logfile0
+ib_logfile1
 ibdata1
 db.opt

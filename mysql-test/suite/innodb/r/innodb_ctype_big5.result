@@ -1,4 +1,4 @@
-SET DEFAULT_STORAGE_ENGINE=InnoDB;
+SET STORAGE_ENGINE=InnoDB;
 #
 # Start of 10.2 tests
 #

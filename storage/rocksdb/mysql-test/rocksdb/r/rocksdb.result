@@ -2634,11 +2634,4 @@ DELETE t2, t1 FROM t2 LEFT JOIN t1 ON t2.id2 = t1.id2 AND t2.id1 = t1.id1 WHERE 
 SET rocksdb_bulk_load_size= @save_rocksdb_bulk_load_size;
 SET rocksdb_commit_in_the_middle=0;
 DROP TABLE t1, t2;
-#
-# MDEV-21831: Assertion `length == pack_length()' failed in Field_inet6::sort_string upon
-# INSERT into RocksDB table
-#
-CREATE TABLE t1 (a INET6 NOT NULL, KEY (a)) ENGINE=RocksDB;
-INSERT INTO t1 VALUES ('41::1'),('61::1');
-DROP TABLE t1;
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

@@ -88,7 +88,7 @@ btr_search_info_update(
 static inline void btr_search_x_lock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_x_lock(&btr_search_sys.parts[i].latch);
+		rw_lock_x_lock(btr_search_latches[i]);
 	}
 }
 
@@ -96,7 +96,7 @@ static inline void btr_search_x_lock_all()
 static inline void btr_search_x_unlock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_x_unlock(&btr_search_sys.parts[i].latch);
+		rw_lock_x_unlock(btr_search_latches[i]);
 	}
 }
 
@@ -104,7 +104,7 @@ static inline void btr_search_x_unlock_all()
 static inline void btr_search_s_lock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_s_lock(&btr_search_sys.parts[i].latch);
+		rw_lock_s_lock(btr_search_latches[i]);
 	}
 }
 
@@ -112,7 +112,7 @@ static inline void btr_search_s_lock_all()
 static inline void btr_search_s_unlock_all()
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		rw_lock_s_unlock(&btr_search_sys.parts[i].latch);
+		rw_lock_s_unlock(btr_search_latches[i]);
 	}
 }
 
@@ -124,7 +124,7 @@ static inline void btr_search_s_unlock_all()
 static inline bool btr_search_own_all(ulint mode)
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		if (!rw_lock_own(&btr_search_sys.parts[i].latch, mode)) {
+		if (!rw_lock_own(btr_search_latches[i], mode)) {
 			return(false);
 		}
 	}
@@ -138,7 +138,7 @@ static inline bool btr_search_own_all(ulint mode)
 static inline bool btr_search_own_any(ulint mode)
 {
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		if (rw_lock_own(&btr_search_sys.parts[i].latch, mode)) {
+		if (rw_lock_own(btr_search_latches[i], mode)) {
 			return(true);
 		}
 	}
@@ -149,7 +149,7 @@ static inline bool btr_search_own_any(ulint mode)
 static inline bool btr_search_own_any()
 {
 	for (ulint i = btr_ahi_parts; i--; ) {
-		if (rw_lock_own_flagged(&btr_search_sys.parts[i].latch,
+		if (rw_lock_own_flagged(btr_search_latches[i],
 					RW_LOCK_FLAG_X | RW_LOCK_FLAG_S)) {
 			return true;
 		}
@@ -157,4 +157,39 @@ static inline bool btr_search_own_any()
 	return false;
 }
 #endif /* UNIV_DEBUG */
+
+static inline rw_lock_t* btr_get_search_latch(
+  index_id_t index_id, ulint space_id)
+{
+  ulint	ifold = ut_fold_ulint_pair(ulint(index_id), space_id);
+
+  return(btr_search_latches[ifold % btr_ahi_parts]);
+}
+
+/** Get the adaptive hash search index latch for a b-tree.
+@param[in]	index	b-tree index
+@return latch */
+static inline rw_lock_t* btr_get_search_latch(const dict_index_t* index)
+{
+	ut_ad(index != NULL);
+	ut_ad(!index->table->space
+	      || index->table->space->id == index->table->space_id);
+
+	return btr_get_search_latch(index->id, index->table->space_id);
+}
+
+/** Get the hash-table based on index attributes.
+A table is selected from an array of tables using pair of index-id, space-id.
+@param[in]	index	index handler
+@return hash table */
+static inline hash_table_t* btr_get_search_table(const dict_index_t* index)
+{
+	ut_ad(index != NULL);
+	ut_ad(index->table->space->id == index->table->space_id);
+
+	ulint	ifold = ut_fold_ulint_pair(ulint(index->id),
+					   index->table->space_id);
+
+	return(btr_search_sys->hash_tables[ifold % btr_ahi_parts]);
+}
 #endif /* BTR_CUR_HASH_ADAPT */

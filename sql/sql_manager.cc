@@ -50,8 +50,7 @@ bool mysql_manager_submit(void (*action)(void *), void *data)
   cb= &cb_list;
   while (*cb)
     cb= &(*cb)->next;
-  *cb= (struct handler_cb *)my_malloc(PSI_INSTRUMENT_ME,
-                                      sizeof(struct handler_cb), MYF(MY_WME));
+  *cb= (struct handler_cb *)my_malloc(sizeof(struct handler_cb), MYF(MY_WME));
   if (!*cb)
     result= TRUE;
   else

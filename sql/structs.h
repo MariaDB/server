@@ -164,7 +164,6 @@ typedef struct st_key {
 
   double actual_rec_per_key(uint i);
 
-  bool without_overlaps;
 } KEY;
 
 
@@ -619,8 +618,6 @@ public:
     m_handler= handler;
     Lex_length_and_dec_st::operator=(length_and_dec);
   }
-  void set_handler_length_flags(const Type_handler *handler, const char *length,
-                                uint32 flags);
   void set(const Type_handler *handler, const char *length)
   {
     set(handler, length, 0);

@@ -144,5 +144,3 @@ versioning.simple
 versioning.trx_id
 period.versioning
 plugins.multiauth
-client.mariadb-conv
-innodb_i_s.innodb_sys_tables

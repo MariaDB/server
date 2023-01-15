@@ -12,9 +12,9 @@
 #    iii) On master, do one short time query and one long time query, on slave
 #         and check that slow query is logged to slow query log but fast query 
 #         is not.
-#     iv) On slave, check that slow queries go into the slow log and fast don't,
+#     iv) On slave, check that slow queries go into the slow log and fast dont,
 #         when issued through a regular client connection
-#      v) On slave, check that slow queries go into the slow log and fast don't
+#      v) On slave, check that slow queries go into the slow log and fast dont
 #         when we use SET TIMESTAMP= 1 on a regular client connection.
 #     vi) check that when setting slow_query_log= OFF in a connection 'extra2'
 #         prevents logging slow queries in a connection 'extra'

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,7 +26,7 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -35,13 +35,8 @@
 #include "pfs_instr.h"
 #include "pfs_timer.h"
 #include "pfs_visitor.h"
-#include "field.h"
 
 THR_LOCK table_ews_global_by_event_name::m_table_lock;
-PFS_engine_table_share_state
-table_ews_global_by_event_name::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_ews_global_by_event_name::m_share=
@@ -51,7 +46,8 @@ table_ews_global_by_event_name::m_share=
   table_ews_global_by_event_name::create,
   NULL, /* write_row */
   table_ews_global_by_event_name::delete_all_rows,
-  table_ews_global_by_event_name::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(pos_ews_global_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_summary_global_by_event_name("
@@ -60,10 +56,7 @@ table_ews_global_by_event_name::m_share=
                       "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the summarized events that are timed.',"
                       "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the summarized events that are timed.',"
                       "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the summarized events that are timed.',"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.')") }
 };
 
 PFS_engine_table*
@@ -80,12 +73,6 @@ table_ews_global_by_event_name::delete_all_rows(void)
   reset_table_waits_by_table();
   reset_events_waits_by_class();
   return 0;
-}
-
-ha_rows
-table_ews_global_by_event_name::get_row_count(void)
-{
-  return wait_class_max;
 }
 
 table_ews_global_by_event_name::table_ews_global_by_event_name()
@@ -182,15 +169,6 @@ int table_ews_global_by_event_name::rnd_next(void)
         return 0;
       }
       break;
-    case pos_ews_global_by_event_name::VIEW_METADATA:
-      instr_class= find_metadata_class(m_pos.m_index_2);
-      if (instr_class)
-      {
-        make_metadata_row(instr_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
-      break;
     default:
       break;
     }
@@ -246,8 +224,8 @@ table_ews_global_by_event_name::rnd_pos(const void *pos)
     }
     break;
   case pos_ews_global_by_event_name::VIEW_TABLE:
-    assert(m_pos.m_index_2 >= 1);
-    assert(m_pos.m_index_2 <= 2);
+    DBUG_ASSERT(m_pos.m_index_2 >= 1);
+    DBUG_ASSERT(m_pos.m_index_2 <= 2);
     if (m_pos.m_index_2 == 1)
       make_table_io_row(&global_table_io_class);
     else
@@ -268,17 +246,6 @@ table_ews_global_by_event_name::rnd_pos(const void *pos)
       make_idle_row(instr_class);
       return 0;
     }
-    break;
-  case pos_ews_global_by_event_name::VIEW_METADATA:
-    instr_class= find_metadata_class(m_pos.m_index_2);
-    if (instr_class)
-    {
-      make_metadata_row(instr_class);
-      return 0;
-    }
-    break;
-  default:
-    assert(false);
     break;
   }
 
@@ -357,7 +324,7 @@ void table_ews_global_by_event_name
 
   PFS_table_lock_wait_visitor visitor;
   PFS_object_iterator::visit_all_tables(& visitor);
-
+  
   get_normalizer(klass);
   m_row.m_stat.set(m_normalizer, & visitor.m_stat);
   m_row_exists= true;
@@ -384,27 +351,8 @@ void table_ews_global_by_event_name
   PFS_connection_wait_visitor visitor(klass);
   PFS_connection_iterator::visit_global(false, /* hosts */
                                         false, /* users */
-                                        false, /* accounts */
-                                        true,  /* threads */
-                                        false, /* THDs */
-                                        &visitor);
-  get_normalizer(klass);
-  m_row.m_stat.set(m_normalizer, &visitor.m_stat);
-  m_row_exists= true;
-}
-
-void table_ews_global_by_event_name
-::make_metadata_row(PFS_instr_class *klass)
-{
-  m_row.m_event_name.make_row(klass);
-
-  PFS_connection_wait_visitor visitor(klass);
-  PFS_connection_iterator::visit_global(false, /* hosts */
-                                        true,  /* users */
-                                        true,  /* accounts */
-                                        true,  /* threads */
-                                        false, /* THDs */
-                                        &visitor);
+                                        false, /* accts */
+                                        true,  /* threads */ &visitor);
   get_normalizer(klass);
   m_row.m_stat.set(m_normalizer, &visitor.m_stat);
   m_row_exists= true;
@@ -420,7 +368,7 @@ int table_ews_global_by_event_name
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 0);
+  DBUG_ASSERT(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {

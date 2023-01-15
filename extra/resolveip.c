@@ -71,11 +71,10 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(const struct my_option *opt,
-	       const char *argument __attribute__((unused)),
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument __attribute__((unused)))
 {
-  switch (opt->id) {
+  switch (optid) {
   case 'V': print_version(); exit(0);
   case 'I':
   case '?':

@@ -77,7 +77,7 @@ public:
   /**
     Constructor, used to represent a SIGNAL statement.
     @param cond the SQL condition to signal (required).
-    @param set the collection of signal information to signal.
+    @param set the collection of signal informations to signal.
   */
   Sql_cmd_signal(const sp_condition_value *cond,
                  const Set_signal_information& set)
@@ -104,7 +104,7 @@ public:
   /**
     Constructor, used to represent a RESIGNAL statement.
     @param cond the SQL condition to resignal (optional, may be NULL).
-    @param set the collection of signal information to resignal.
+    @param set the collection of signal informations to resignal.
   */
   Sql_cmd_resignal(const sp_condition_value *cond,
                    const Set_signal_information& set)

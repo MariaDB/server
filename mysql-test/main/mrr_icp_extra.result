@@ -353,7 +353,7 @@ alter table t1 add unique(v);
 ERROR 23000: Duplicate entry '{ ' for key 'v_2'
 show warnings;
 Level	Code	Message
-Error	1062	Duplicate entry 'a\0001' for key 'v_2'
+Error	1062	Duplicate entry 'a' for key 'v_2'
 alter table t1 add key(v);
 Warnings:
 Note	1831	Duplicate index `v_2`. This is deprecated and will be disallowed in a future release

@@ -256,6 +256,7 @@ CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED BINARY COMPRESSED);
 --error ER_PARSE_ERROR
 CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);
 
+
 --echo #
 --echo # MDEV-21348 - Memory leak in Storage-Engine Independent Column
 --echo #              Compression
@@ -265,32 +266,3 @@ SET column_compression_threshold=0;
 INSERT INTO t1 VALUES('aa');
 SET column_compression_threshold=DEFAULT;
 DROP TABLE t1;
-
---echo #
---echo # End of 10.3 tests
---echo #
-
-
---echo #
---echo # Start of 10.5 tests
---echo #
-
---echo #
---echo # MDEV-19727 Add Type_handler::Key_part_spec_init_ft
---echo #
-
-#
-# Indexes on COMPRESSED columns are generally prohibited, so we don't have
-# to override Type_handler_xxx_compressed::Key_part_spec_init_ft().
-# Note, we could support FULLTEXT indexes on compressed columns eventually.
-#
-
---error ER_COMPRESSED_COLUMN_USED_AS_KEY
-CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED, FULLTEXT INDEX(a));
-
---error ER_COMPRESSED_COLUMN_USED_AS_KEY
-CREATE TABLE t1 (a TEXT COMPRESSED, FULLTEXT INDEX(a));
-
---echo #
---echo # End of 10.5 tests
---echo #

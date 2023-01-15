@@ -1,5 +1,4 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (c) 2010, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,7 +32,7 @@ uchar	maria_pack_file_magic[]=
 /* Unique number for this maria instance */
 uchar   maria_uuid[MY_UUID_SIZE];
 uint	maria_quick_table_bits=9;
-ulong	__attribute__((visibility("default"))) maria_block_size= MARIA_KEY_BLOCK_LENGTH;
+ulong	maria_block_size= MARIA_KEY_BLOCK_LENGTH;
 my_bool maria_flush= 0, maria_single_user= 0;
 my_bool maria_delay_key_write= 0, maria_page_checksums= 1;
 my_bool maria_inited= FALSE;
@@ -42,7 +41,6 @@ my_bool maria_recovery_changed_data= 0, maria_recovery_verbose= 0;
 my_bool maria_assert_if_crashed_table= 0;
 my_bool maria_checkpoint_disabled= 0;
 my_bool maria_encrypt_tables= 0;
-my_bool aria_readonly= 0;
 
 mysql_mutex_t THR_LOCK_maria;
 #ifdef DONT_USE_RW_LOCKS
@@ -62,7 +60,7 @@ PAGECACHE *maria_pagecache= &maria_pagecache_var;
 PAGECACHE maria_log_pagecache_var;
 PAGECACHE *maria_log_pagecache= &maria_log_pagecache_var;
 MY_TMPDIR *maria_tmpdir;                        /* Tempdir for redo */
-const char *maria_data_root;
+char *maria_data_root;
 HASH maria_stored_state;
 int (*maria_create_trn_hook)(MARIA_HA *);
 
@@ -147,8 +145,3 @@ PSI_file_key key_file_translog, key_file_kfile, key_file_dfile,
 
 /* Note that PSI_stage_info globals must always be declared. */
 PSI_stage_info stage_waiting_for_a_resource= { 0, "Waiting for a resource", 0};
-
-#ifdef WITH_S3_STORAGE_ENGINE
-#include "s3_func.h"
-struct s3_func __attribute__((visibility("default"))) s3f;
-#endif

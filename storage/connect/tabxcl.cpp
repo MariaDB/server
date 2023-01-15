@@ -103,7 +103,7 @@ TDBXCL::TDBXCL(PXCLDEF tdp) : TDBPRX(tdp)
 	Xcolp = NULL;										// To the XCLCOL column
 	Mult = tdp->Mult;								// Multiplication factor
 	N = 0;													// The current table index
-	M = 0;                          // The occurrence rank
+	M = 0;                          // The occurence rank
 	RowFlag = 0;    								// 0: Ok, 1: Same, 2: Skip
 	New = TRUE;						          // TRUE for new line
 	Sep = tdp->Sep;                 // The Xcol separator
@@ -142,7 +142,7 @@ int TDBXCL::GetMaxSize(PGLOBAL g)
 
 /***********************************************************************/
 /*  For this table type, ROWID is the (virtual) row number,            */
-/*  while ROWNUM is be the occurrence rank in the multiple column.      */
+/*  while ROWNUM is be the occurence rank in the multiple column.      */
 /***********************************************************************/
 int TDBXCL::RowNumber(PGLOBAL, bool b)
 	{

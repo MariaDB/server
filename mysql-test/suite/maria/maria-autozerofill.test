@@ -71,7 +71,7 @@ perl;
     my $fname= "$ENV{'MYSQLTEST_VARDIR'}/tmp/autozerofill.txt";
     open(FILE, "<", $fname) or die;
     my @content= <FILE>;
-    print grep(/Status:.*/, @content);
+    print grep(/Status:.*zerofilled/, @content);
     print "create_rename_lsn has magic value\n" if grep(/create_rename \(0,0x2\)/, @content);
     close FILE;
 EOF
@@ -115,14 +115,7 @@ check table t5;
 
 # Check that if we zerofill with aria_chk, we should not get any warnings when
 # accessing the table
---error 0,1,11,139
 --exec $MARIA_CHK --ignore-control-file --zerofill $MYSQLD_DATADIR/mysqltest/t6 >$MYSQLTEST_VARDIR/tmp/autozerofill.txt 2>&1
-if ($sys_errno != 0)
-{
---cat_file $MYSQLTEST_VARDIR/tmp/autozerofill.txt
---die
-}
-
 select * from t6;
 check table t6;
 

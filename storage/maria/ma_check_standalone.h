@@ -124,7 +124,7 @@ void _ma_check_print_warning(HA_CHECK *param, const char *fmt,...)
 	      param->isam_file_name);
     param->out_flag|= O_DATA_LOST;
   }
-  param->warning_printed++;
+  param->warning_printed=1;
   va_start(args,fmt);
   fprintf(stderr,"%s: warning: ",my_progname_short);
   vfprintf(stderr, fmt, args);
@@ -149,7 +149,7 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt,...)
       fprintf(stderr,"%s: Aria file %s\n",my_progname_short,param->isam_file_name);
     param->out_flag|= O_DATA_LOST;
   }
-  param->error_printed++;
+  param->error_printed|=1;
   va_start(args,fmt);
   fprintf(stderr,"%s: error: ",my_progname_short);
   vfprintf(stderr, fmt, args);

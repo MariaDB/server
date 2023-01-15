@@ -66,6 +66,8 @@ create sql security invoker view i_sys_virtual as select * from information_sche
 create sql security definer view d_sys_virtual as select * from information_schema.innodb_sys_virtual;
 create sql security invoker view i_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
 create sql security definer view d_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
+create sql security invoker view i_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
+create sql security definer view d_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
 create sql security invoker view i_trx as select * from information_schema.innodb_trx;
 create sql security definer view d_trx as select * from information_schema.innodb_trx;
 connection select_only;
@@ -280,6 +282,13 @@ ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) 
 select count(*) > -1 from i_tablespaces_encryption;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 select count(*) > -1 from d_tablespaces_encryption;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_tablespaces_scrubbing;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+select count(*) > -1 from i_tablespaces_scrubbing;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+select count(*) > -1 from d_tablespaces_scrubbing;
 count(*) > -1
 1
 select count(*) > -1 from information_schema.innodb_trx;

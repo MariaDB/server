@@ -141,7 +141,7 @@ federatedx_io_mysql::federatedx_io_mysql(FEDERATEDX_SERVER *aserver)
   bzero(&mysql, sizeof(MYSQL));
   bzero(&savepoints, sizeof(DYNAMIC_ARRAY));
 
-  my_init_dynamic_array(PSI_INSTRUMENT_ME, &savepoints, sizeof(SAVEPT), 16, 16, MYF(0));
+  my_init_dynamic_array(&savepoints, sizeof(SAVEPT), 16, 16, MYF(0));
   
   DBUG_VOID_RETURN;
 }

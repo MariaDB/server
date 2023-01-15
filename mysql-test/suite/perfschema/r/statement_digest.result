@@ -1,4 +1,3 @@
-SET sql_mode='NO_ENGINE_SUBSTITUTION';
 ####################################
 # SETUP
 ####################################
@@ -160,4 +159,3 @@ DROP TABLE IF EXISTS t6;
 DROP TABLE IF EXISTS t11;
 DROP TABLE IF EXISTS t12;
 DROP DATABASE IF EXISTS statements_digest;
-SET sql_mode=default;

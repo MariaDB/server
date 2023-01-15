@@ -1,6 +1,5 @@
 /*
    Copyright (c) 2001, 2011, Oracle and/or its affiliates
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,11 +14,12 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include "mysys_priv.h"
+#include <my_global.h>
 #include <my_stacktrace.h>
 
 #ifndef __WIN__
 #include <signal.h>
+#include <my_pthread.h>
 #include <m_string.h>
 #ifdef HAVE_STACKTRACE
 #include <unistd.h>
@@ -34,49 +34,11 @@
 #include <execinfo.h>
 #endif
 
-/**
-   Default handler for printing stacktrace
-*/
-
-static sig_handler default_handle_fatal_signal(int sig)
-{
-  my_safe_printf_stderr("%s: Got signal %d. Attempting backtrace\n",
-                        my_progname_short, sig);
-  my_print_stacktrace(0,0,1);
-#ifndef __WIN__
-  signal(sig, SIG_DFL);
-  kill(getpid(), sig);
-#endif /* __WIN__ */
-  return;
-}
-
-
-/**
-   Initialize priting off stacktrace at signal
-*/
-
-void my_setup_stacktrace(void)
-{
-  struct sigaction sa;
-  sa.sa_flags = SA_RESETHAND | SA_NODEFER;
-  sigemptyset(&sa.sa_mask);
-  sa.sa_handler= default_handle_fatal_signal;
-  sigaction(SIGSEGV, &sa, NULL);
-  sigaction(SIGABRT, &sa, NULL);
-#ifdef SIGBUS
-  sigaction(SIGBUS, &sa, NULL);
-#endif
-  sigaction(SIGILL, &sa, NULL);
-  sigaction(SIGFPE, &sa, NULL);
-}
-
-
 /*
   Attempt to print a char * pointer as a string.
 
   SYNOPSIS
-    Prints either until the end of string ('\0'), or max_len characters have
-    been printed.
+    Prints until  max_len characters have been printed.
 
   RETURN VALUE
     0  Pointer was within the heap address space.
@@ -344,8 +306,8 @@ void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
 		      :"r"(pc));
 #endif  /* __alpha__ */
 
-  /* We are 1 frame above signal frame with NPTL */
-  sigreturn_frame_count = 1;
+  /* We are 1 frame above signal frame with NPTL and 2 frames above with LT */
+  sigreturn_frame_count = thd_lib_detected == THD_LIB_LT ? 2 : 1;
 
   while (fp < (uchar**) stack_bottom)
   {

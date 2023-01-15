@@ -55,21 +55,4 @@ count(*)
 0
 connection master;
 drop table t2,t1;
-set foreign_key_checks=1;
-#
-# MDEV-25530 Error 1451 on slave: Cannot delete or update a parent row: a foreign key constraint fails
-#
-create table t1 (id int primary key)engine=innodb;
-create table t2 (id int not null primary key auto_increment,
-id2 int default null,  key f1 (id2),
-constraint f1 foreign key (id2) references t1 (id) on delete cascade) engine=innodb;
-drop table t1,t2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-connection slave;
-show tables;
-Tables_in_test
-t1
-connection master;
-drop table t1;
-connection slave;
 include/rpl_end.inc

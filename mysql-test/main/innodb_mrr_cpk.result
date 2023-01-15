@@ -3,8 +3,8 @@ set @innodb_mrr_cpk_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set @save_join_cache_level=@@join_cache_level;
 set join_cache_level=6;
-set @save_storage_engine=@@default_storage_engine;
-set default_storage_engine=innodb;
+set @save_storage_engine=@@storage_engine;
+set storage_engine=innodb;
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1(a char(8), b char(8), filler char(100), primary key(a));
@@ -234,5 +234,5 @@ drop table t0,t1,t2;
 # This must be at the end:
 #
 set @@join_cache_level= @save_join_cache_level;
-set default_storage_engine=@save_storage_engine;
+set storage_engine=@save_storage_engine;
 set optimizer_switch=@innodb_mrr_cpk_tmp;

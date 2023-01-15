@@ -36,7 +36,6 @@ Created 9/11/1995 Heikki Tuuri
 
 #include "os0event.h"
 #include "ut0mutex.h"
-#include "ilist.h"
 
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
@@ -106,7 +105,9 @@ struct rw_lock_t;
 struct rw_lock_debug_t;
 #endif /* UNIV_DEBUG */
 
-extern ilist<rw_lock_t> rw_lock_list;
+typedef UT_LIST_BASE_NODE_T(rw_lock_t)	rw_lock_list_t;
+
+extern rw_lock_list_t			rw_lock_list;
 extern ib_mutex_t			rw_lock_list_mutex;
 
 /** Counters for RW locks. */
@@ -319,7 +320,8 @@ rw_lock_validate(
 	const rw_lock_t*	lock);	/*!< in: rw-lock */
 #endif /* UNIV_DEBUG */
 /******************************************************************//**
-Low-level function which tries to lock an rw-lock in s-mode.
+Low-level function which tries to lock an rw-lock in s-mode. Performs no
+spinning.
 @return TRUE if success */
 UNIV_INLINE
 ibool
@@ -561,14 +563,11 @@ readers, a writer may queue for x-lock by decrementing lock_word: no
 new readers will be let in while the thread waits for readers to
 exit. */
 
-struct rw_lock_t :
+struct rw_lock_t
 #ifdef UNIV_DEBUG
-	public latch_t,
+	: public latch_t
 #endif /* UNIV_DEBUG */
-	public ilist_node<>
 {
-  ut_d(bool created= false;)
-
   /** Holds the state of the lock. */
   Atomic_relaxed<int32_t> lock_word;
 
@@ -610,6 +609,9 @@ struct rw_lock_t :
 
 	/** Count of os_waits. May not be accurate */
 	uint32_t	count_os_wait;
+
+	/** All allocated rw locks are put into a list */
+	UT_LIST_NODE_T(rw_lock_t) list;
 
 #ifdef UNIV_PFS_RWLOCK
 	/** The instrumentation hook */

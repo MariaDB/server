@@ -1825,11 +1825,10 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       double total_time= op_tracker.get_time_ms();
       if (rowid_filter)
         total_time+= rowid_filter->tracker->get_time_fill_container_ms();
-      writer->add_member("r_table_time_ms").add_double(total_time);
-      writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
+      writer->add_member("r_total_time_ms").add_double(total_time);
     }
   }
-
+  
   /* `filtered` */
   if (filtered_set)
     writer->add_member("filtered").add_double(filtered);

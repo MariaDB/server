@@ -16,47 +16,36 @@ select * from mysql.user where user = 'foo';
 alter user foo;
 select * from mysql.user where user = 'foo';
 
---echo #
---echo # Test READ_ONLY privilege works correctly with a read only database.
---echo #
-
+--echo # Test super privilege works correctly with a read only database.
 SET @start_read_only = @@global.read_only;
 SET GLOBAL read_only=1;
 grant create user on *.* to foo;
 
---echo # Currently no READ_ONLY ADMIN privileges.
+--echo # Currently no super privileges.
 connect (a, localhost, foo);
 select @@global.read_only;
 
 --error ER_OPTION_PREVENTS_STATEMENT
 alter user foo;
 
---echo # Grant READ_ONLY ADMIN privilege to the user.
+--echo # Grant super privilege to the user.
 connection default;
-grant READ_ONLY ADMIN on *.* to foo;
+grant super on *.* to foo;
 
---echo # We now have READ_ONLY ADMIN privilege. We should be able to run alter user.
+--echo # We now have super privilege. We should be able to run alter user.
 connect (b, localhost, foo);
 alter user foo;
 
 connection default;
 SET GLOBAL read_only = @start_read_only;
 
-
---echo #
 --echo # Test inexistant user.
---echo #
-
 --error ER_CANNOT_USER
 alter user boo;
 --echo #--warning ER_CANNOT_USER
 alter user if exists boo;
 
-
---echo #
 --echo # Test password related altering.
---echo #
-
 alter user foo identified by 'something';
 select * from mysql.user where user = 'foo';
 
@@ -79,11 +68,7 @@ select * from mysql.user where user = 'foo';
 alter user foo identified with 'mysql_old_password' using '0123456789ABCDEF';
 select * from mysql.user where user = 'foo';
 
-
---echo #
 --echo # Test ssl related altering.
---echo #
-
 alter user foo identified by 'something' require SSL;
 select * from mysql.user where user = 'foo';
 
@@ -94,11 +79,7 @@ alter user foo identified by 'something'
 require cipher 'text' issuer 'foo_issuer' subject 'foo_subject';
 select * from mysql.user where user = 'foo';
 
-
---echo #
 --echo # Test resource limits altering.
---echo #
-
 alter user foo with MAX_QUERIES_PER_HOUR 10
                     MAX_UPDATES_PER_HOUR 20
                     MAX_CONNECTIONS_PER_HOUR 30

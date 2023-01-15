@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2014, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -21,7 +21,7 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "table_threads.h"
 #include "sql_parse.h"
 #include "pfs_instr_class.h"
@@ -29,20 +29,16 @@
 
 THR_LOCK table_threads::m_table_lock;
 
-PFS_engine_table_share_state
-table_threads::m_share_state = {
-  false /* m_checked */
-};
-
 PFS_engine_table_share
 table_threads::m_share=
 {
   { C_STRING_WITH_LEN("threads") },
   &pfs_updatable_acl,
-  table_threads::create,
+  &table_threads::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  cursor_by_thread::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE threads("
@@ -50,8 +46,8 @@ table_threads::m_share=
                       "NAME VARCHAR(128) not null comment 'Name associated with the server''s thread instrumentation code, for example thread/sql/main for the server''s main() function, and thread/sql/one_connection for a user connection.',"
                       "TYPE VARCHAR(10) not null comment 'FOREGROUND or BACKGROUND, depending on the thread type. User connection threads are FOREGROUND, internal server threads are BACKGROUND.',"
                       "PROCESSLIST_ID BIGINT unsigned comment 'The PROCESSLIST.ID value for threads displayed in the INFORMATION_SCHEMA.PROCESSLIST table, or 0 for background threads. Also corresponds with the CONNECTION_ID() return value for the thread.',"
-                      "PROCESSLIST_USER VARCHAR(" USERNAME_CHAR_LENGTH_STR ") comment 'Foreground thread user, or NULL for a background thread.',"
-                      "PROCESSLIST_HOST VARCHAR(" HOSTNAME_LENGTH_STR ") comment 'Foreground thread host, or NULL for a background thread.',"
+                      "PROCESSLIST_USER VARCHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") comment 'Foreground thread user, or NULL for a background thread.',"
+                      "PROCESSLIST_HOST VARCHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") comment 'Foreground thread host, or NULL for a background thread.',"
                       "PROCESSLIST_DB VARCHAR(64) comment 'Thread''s default database, or NULL if none exists.',"
                       "PROCESSLIST_COMMAND VARCHAR(16) comment 'Type of command executed by the thread. These correspond to the the COM_xxx client/server protocol commands, and the Com_xxx status variables. See Thread Command Values.',"
                       "PROCESSLIST_TIME BIGINT comment 'Time in seconds the thread has been in its current state.',"
@@ -59,13 +55,7 @@ table_threads::m_share=
                       "PROCESSLIST_INFO LONGTEXT comment 'Statement being executed by the thread, or NULL if a statement is not being executed. If a statement results in calling other statements, such as for a stored procedure, the innermost statement from the stored procedure is shown here.',"
                       "PARENT_THREAD_ID BIGINT unsigned comment 'THREAD_ID of the parent thread, if any. Subthreads can for example be spawned as a result of INSERT DELAYED statements.',"
                       "ROLE VARCHAR(64) comment 'Unused.',"
-                      "INSTRUMENTED ENUM ('YES', 'NO') not null comment 'YES or NO for Whether the thread is instrumented or not. For foreground threads, the initial value is determined by whether there''s a user/host match in the setup_actors table. Subthreads are again matched, while for background threads, this will be set to YES by default. To monitor events that the thread executes, INSTRUMENTED must be YES and the thread_instrumentation consumer in the setup_consumers table must also be YES.',"
-                      "HISTORY ENUM ('YES', 'NO') not null comment 'Whether to log historical events for the thread.',"
-                      "CONNECTION_TYPE VARCHAR(16) comment 'The protocol used to establish the connection, or NULL for background threads.',"
-                      "THREAD_OS_ID BIGINT unsigned comment 'The thread or task identifier as defined by the underlying operating system, if there is one.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "INSTRUMENTED ENUM ('YES', 'NO') not null comment 'YES or NO for Whether the thread is instrumented or not. For foreground threads, the initial value is determined by whether there''s a user/host match in the setup_actors table. Subthreads are again matched, while for background threads, this will be set to YES by default. To monitor events that the thread executes, INSTRUMENTED must be YES and the thread_instrumentation consumer in the setup_consumers table must also be YES.')") }
 };
 
 PFS_engine_table* table_threads::create()
@@ -80,9 +70,9 @@ table_threads::table_threads()
 
 void table_threads::make_row(PFS_thread *pfs)
 {
-  pfs_optimistic_state lock;
-  pfs_optimistic_state session_lock;
-  pfs_optimistic_state stmt_lock;
+  pfs_lock lock;
+  pfs_lock session_lock;
+  pfs_lock stmt_lock;
   PFS_stage_class *stage_class;
   PFS_thread_class *safe_class;
 
@@ -98,7 +88,6 @@ void table_threads::make_row(PFS_thread *pfs)
   m_row.m_thread_internal_id= pfs->m_thread_internal_id;
   m_row.m_parent_thread_internal_id= pfs->m_parent_thread_internal_id;
   m_row.m_processlist_id= pfs->m_processlist_id;
-  m_row.m_thread_os_id= pfs->m_thread_os_id;
   m_row.m_name= safe_class->m_name;
   m_row.m_name_length= safe_class->m_name_length;
 
@@ -176,12 +165,8 @@ void table_threads::make_row(PFS_thread *pfs)
   {
     m_row.m_processlist_state_length= 0;
   }
-  m_row.m_connection_type = pfs->m_connection_type;
 
-
-  m_row.m_enabled= pfs->m_enabled;
-  m_row.m_history= pfs->m_history;
-  m_row.m_psi= pfs;
+  m_row.m_enabled_ptr= &pfs->m_enabled;
 
   if (pfs->m_lock.end_optimistic_lock(& lock))
     m_row_exists= true;
@@ -193,14 +178,12 @@ int table_threads::read_row_values(TABLE *table,
                                    bool read_all)
 {
   Field *f;
-  const char *str= NULL;
-  size_t len= 0;
 
   if (unlikely(! m_row_exists))
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 2);
+  DBUG_ASSERT(table->s->null_bytes == 2);
   buf[0]= 0;
   buf[1]= 0;
 
@@ -267,16 +250,23 @@ int table_threads::read_row_values(TABLE *table,
           f->set_null();
         break;
       case 9: /* PROCESSLIST_STATE */
-        /* This column's datatype is declared as varchar(64). Thread's state
-           message cannot be more than 64 characters. Otherwise, we will end up
-           in 'data truncated' warning/error (depends sql_mode setting) when
-           server is updating this column for those threads. To prevent this
-           kind of issue, an assert is added.
-         */
-        assert(m_row.m_processlist_state_length <= f->char_length());
         if (m_row.m_processlist_state_length > 0)
+        {
+          /* This column's datatype is declared as varchar(64). But in current
+             code, there are few process state messages which are greater than
+             64 characters(Eg:stage_slave_has_read_all_relay_log).
+             In those cases, we will end up in 'data truncated'
+             warning/error (depends sql_mode setting) when server is updating
+             this column for those threads. Since 5.6 is GAed, neither the
+             metadata of this column can be changed, nor those state messages.
+             So server will silently truncate the state message to 64 characters
+             if it is longer. In Upper versions(5.7+), these state messages are
+             changed to less than or equal to 64 characters.
+           */
           set_field_varchar_utf8(f, m_row.m_processlist_state_ptr,
-                                 m_row.m_processlist_state_length);
+                                 MY_MIN(m_row.m_processlist_state_length,
+                                        f->char_length()));
+        }
         else
           f->set_null();
         break;
@@ -297,26 +287,10 @@ int table_threads::read_row_values(TABLE *table,
         f->set_null();
         break;
       case 13: /* INSTRUMENTED */
-        set_field_enum(f, m_row.m_enabled ? ENUM_YES : ENUM_NO);
-        break;
-      case 14: /* HISTORY */
-        set_field_enum(f, m_row.m_history ? ENUM_YES : ENUM_NO);
-        break;
-      case 15: /* CONNECTION_TYPE */
-        str= vio_type_name(m_row.m_connection_type, & len);
-        if (len > 0)
-          set_field_varchar_utf8(f, str, (uint)len);
-        else
-          f->set_null();
-        break;
-      case 16: /* THREAD_OS_ID */
-        if (m_row.m_thread_os_id > 0)
-          set_field_ulonglong(f, m_row.m_thread_os_id);
-        else
-          f->set_null();
+        set_field_enum(f, (*m_row.m_enabled_ptr) ? ENUM_YES : ENUM_NO);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
@@ -353,17 +327,10 @@ int table_threads::update_row_values(TABLE *table,
         return HA_ERR_WRONG_COMMAND;
       case 13: /* INSTRUMENTED */
         value= (enum_yes_no) get_field_enum(f);
-        m_row.m_psi->set_enabled((value == ENUM_YES) ? true : false);
+        *m_row.m_enabled_ptr= (value == ENUM_YES) ? true : false;
         break;
-      case 14: /* HISTORY */
-        value= (enum_yes_no) get_field_enum(f);
-        m_row.m_psi->set_history((value == ENUM_YES) ? true : false);
-        break;
-      case 15: /* CONNECTION_TYPE */
-      case 16: /* THREAD_OS_ID */
-        return HA_ERR_WRONG_COMMAND;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }

@@ -37,7 +37,7 @@ drop database test;
 create database test;
 use test;
 
-SET @@session.default_storage_engine=MYISAM;
+SET @@session.storage_engine=MYISAM;
 --error 0,1,1103
 CREATE TABLE t1(id INT,purchased DATE)PARTITION BY RANGE(YEAR(purchased)) SUBPARTITION BY HASH(TO_DAYS(purchased)) SUBPARTITIONS 2 (PARTITION p0 VALUES LESS THAN MAXVALUE (SUBPARTITION sp0 DATA DIRECTORY='/tmp/not-existing' INDEX DIRECTORY='/tmp/not-existing',SUBPARTITION sp1));
 drop table if exists t1;

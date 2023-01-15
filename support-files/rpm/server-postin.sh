@@ -58,7 +58,7 @@ if [ $1 = 1 ] ; then
     mkdir -p $datadir
 
     # Initiate databases
-    %{_bindir}/mariadb-install-db --rpm --user=%{mysqld_user}
+    %{_bindir}/mysql_install_db --rpm --user=%{mysqld_user}
   fi
 
   # Change permissions again to fix any new files.

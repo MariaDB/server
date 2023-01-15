@@ -67,8 +67,6 @@ lock tables t1 write;
 insert t1 values (1),(2),(1);
 set @old_dbug=@@debug_dbug;
 SET debug_dbug='+d,mi_lock_database_failure';
---error HA_ERR_CRASHED
 unlock tables;
-SHOW WARNINGS;
 SET debug_dbug=@old_dbug;
 drop table t1;

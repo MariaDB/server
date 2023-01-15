@@ -28,7 +28,7 @@ CREATE TABLE variables (
 ) DEFAULT CHARSET=utf8;
 
 INSERT INTO variables (name) VALUES ("mroonga_database_path_prefix");
-INSERT INTO variables (name) VALUES ("mroonga_default_tokenizer");
+INSERT INTO variables (name) VALUES ("mroonga_default_parser");
 INSERT INTO variables (name) VALUES ("mroonga_default_wrapper_engine");
 INSERT INTO variables (name) VALUES ("mroonga_dry_write");
 INSERT INTO variables (name) VALUES ("mroonga_enable_optimization");

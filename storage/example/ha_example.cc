@@ -215,8 +215,6 @@ static void init_example_psi_keys()
   count= array_elements(all_example_mutexes);
   mysql_mutex_register(category, all_example_mutexes, count);
 }
-#else
-static void init_example_psi_keys() { }
 #endif
 
 
@@ -254,15 +252,17 @@ static int example_init_func(void *p)
 {
   DBUG_ENTER("example_init_func");
 
+#ifdef HAVE_PSI_INTERFACE
   init_example_psi_keys();
+#endif
 
   example_hton= (handlerton *)p;
+  example_hton->state=   SHOW_OPTION_YES;
   example_hton->create=  example_create_handler;
   example_hton->flags=   HTON_CAN_RECREATE;
   example_hton->table_options= example_table_option_list;
   example_hton->field_options= example_field_option_list;
   example_hton->tablefile_extensions= ha_example_exts;
-  example_hton->drop_table= [](handlerton *, const char*) { return -1; };
 
   DBUG_RETURN(0);
 }
@@ -840,10 +840,6 @@ int ha_example::delete_table(const char *name)
   @brief
   Given a starting key and an ending key, estimate the number of rows that
   will exist between the two keys.
-  The handler can also optionally update the 'pages' parameter with the page
-  number that contains the min and max keys. This will help the optimizer
-  to know if two ranges are partly on the same pages and if the min and
-  max key are on the same page.
 
   @details
   end_key may be empty, in which case determine if start_key matches any rows.
@@ -853,10 +849,8 @@ int ha_example::delete_table(const char *name)
   @see
   check_quick_keys() in opt_range.cc
 */
-ha_rows ha_example::records_in_range(uint inx,
-                                     const key_range *min_key,
-                                     const key_range *max_key,
-                                     page_range *pages)
+ha_rows ha_example::records_in_range(uint inx, key_range *min_key,
+                                     key_range *max_key)
 {
   DBUG_ENTER("ha_example::records_in_range");
   DBUG_RETURN(10);                         // low number to force index usage
@@ -1099,6 +1093,23 @@ static struct st_mysql_show_var func_status[]=
 struct st_mysql_daemon unusable_example=
 { MYSQL_DAEMON_INTERFACE_VERSION };
 
+mysql_declare_plugin(example)
+{
+  MYSQL_STORAGE_ENGINE_PLUGIN,
+  &example_storage_engine,
+  "EXAMPLE",
+  "Brian Aker, MySQL AB",
+  "Example storage engine",
+  PLUGIN_LICENSE_GPL,
+  example_init_func,                            /* Plugin Init */
+  NULL,                                         /* Plugin Deinit */
+  0x0001 /* 0.1 */,
+  func_status,                                  /* status variables */
+  example_system_variables,                     /* system variables */
+  NULL,                                         /* config options */
+  0,                                            /* flags */
+}
+mysql_declare_plugin_end;
 maria_declare_plugin(example)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

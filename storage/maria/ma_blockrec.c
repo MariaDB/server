@@ -455,14 +455,11 @@ my_bool _ma_once_end_block_record(MARIA_SHARE *share)
       File must be synced as it is going out of the maria_open_list and so
       becoming unknown to Checkpoint.
     */
-    if (!share->s3_path)
-    {
-      if (share->now_transactional &&
-          mysql_file_sync(share->bitmap.file.file, MYF(MY_WME)))
-        res= 1;
-      if (mysql_file_close(share->bitmap.file.file, MYF(MY_WME)))
-        res= 1;
-    }
+    if (share->now_transactional &&
+        mysql_file_sync(share->bitmap.file.file, MYF(MY_WME)))
+      res= 1;
+    if (mysql_file_close(share->bitmap.file.file, MYF(MY_WME)))
+      res= 1;
     /*
       Trivial assignment to guard against multiple invocations
       (May happen if file are closed but we want to keep the maria object
@@ -492,7 +489,7 @@ my_bool _ma_init_block_record(MARIA_HA *info)
   uint default_extents;
   DBUG_ENTER("_ma_init_block_record");
 
-  if (!my_multi_malloc(PSI_INSTRUMENT_ME, flag,
+  if (!my_multi_malloc(flag,
                        &row->empty_bits, share->base.pack_bytes,
                        &row->field_lengths,
                        share->base.max_field_lengths + 2,
@@ -531,13 +528,11 @@ my_bool _ma_init_block_record(MARIA_HA *info)
                      FULL_PAGE_SIZE(share) /
                      BLOB_SEGMENT_MIN_SIZE));
 
-  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &info->bitmap_blocks,
-                            sizeof(MARIA_BITMAP_BLOCK),
+  if (my_init_dynamic_array(&info->bitmap_blocks, sizeof(MARIA_BITMAP_BLOCK),
                             default_extents, 64, flag))
     goto err;
   info->cur_row.extents_buffer_length= default_extents * ROW_EXTENT_SIZE;
-  if (!(info->cur_row.extents= my_malloc(PSI_INSTRUMENT_ME,
-                                         info->cur_row.extents_buffer_length,
+  if (!(info->cur_row.extents= my_malloc(info->cur_row.extents_buffer_length,
                                          flag)))
     goto err;
 
@@ -2460,12 +2455,11 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
     /* Compact events by removing filler and tail events */
     uchar *new_block= 0;
     uchar *end, *to, *compact_extent_info;
-    my_bool res, buff_alloced;
+    my_bool res;
     uint extents_count;
 
-    alloc_on_stack(*info->stack_end_ptr, compact_extent_info, buff_alloced,
-                   row->extents_count * ROW_EXTENT_SIZE);
-    if (!compact_extent_info)
+    if (!(compact_extent_info= my_alloca(row->extents_count *
+                                         ROW_EXTENT_SIZE)))
       DBUG_RETURN(1);
 
     to= compact_extent_info;
@@ -2504,7 +2498,7 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
         No ranges. This happens in the rear case when we have a allocated
         place for a blob on a tail page but it did fit into the main page.
       */
-      stack_alloc_free(compact_extent_info, buff_alloced);
+      my_afree(compact_extent_info);
       DBUG_RETURN(0);
     }
     extents_count= (uint) (extents_length / ROW_EXTENT_SIZE);
@@ -2519,7 +2513,7 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
                                                   extents_length),
                                TRANSLOG_INTERNAL_PARTS + 2, log_array,
                                log_data, NULL);
-    stack_alloc_free(compact_extent_info, buff_alloced);
+    my_afree(compact_extent_info);
     if (res)
       DBUG_RETURN(1);
   }
@@ -3238,7 +3232,7 @@ static my_bool write_block_record(MARIA_HA *info,
     }
     else
     {
-      if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME), &log_array,
+      if (!my_multi_malloc(MY_WME, &log_array,
                           (uint) ((bitmap_blocks->count +
                                    TRANSLOG_INTERNAL_PARTS + 2) *
                                   sizeof(*log_array)),
@@ -3684,15 +3678,6 @@ my_bool _ma_write_abort_block_record(MARIA_HA *info)
   _ma_bitmap_unlock(share);
   if (share->now_transactional)
   {
-    /*
-      Write clr to mark end of aborted row insert.
-      The above delete_head_or_tail() calls will only log redo, not undo.
-      The undo just before the row insert is stored in row->orig_undo_lsn.
-
-      When applying undo's, we can skip all undo records between current
-      lsn and row->orig_undo_lsn as logically things are as before the
-      attempted insert.
-    */
     if (_ma_write_clr(info, info->cur_row.orig_undo_lsn,
                       LOGREC_UNDO_ROW_INSERT,
                       share->calc_checksum != 0,
@@ -5207,12 +5192,13 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
   uchar *org_rec_buff, *old_record;
   size_t org_rec_buff_size;
   int error;
-  my_bool buff_alloced;
   DBUG_ENTER("_ma_cmp_block_unique");
 
-  alloc_on_stack(*info->stack_end_ptr, old_record, buff_alloced,
-                 info->s->base.reclength);
-  if (!old_record)
+  /*
+    Don't allocate more than 16K on the stack to ensure we don't get
+    stack overflow.
+  */
+  if (!(old_record= my_safe_alloca(info->s->base.reclength)))
     DBUG_RETURN(1);
 
   /* Don't let the compare destroy blobs that may be in use */
@@ -5234,7 +5220,7 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     info->rec_buff_size= org_rec_buff_size;
   }
   DBUG_PRINT("exit", ("result: %d", error));
-  stack_alloc_free(old_record, buff_alloced);
+  my_safe_afree(old_record, info->s->base.reclength);
   DBUG_RETURN(error != 0);
 }
 
@@ -5271,8 +5257,7 @@ my_bool _ma_scan_init_block_record(MARIA_HA *info)
   */
   if (!(info->scan.bitmap_buff ||
         ((info->scan.bitmap_buff=
-          (uchar *) my_malloc(PSI_INSTRUMENT_ME, share->block_size * 2,
-                              flag)))))
+          (uchar *) my_malloc(share->block_size * 2, flag)))))
     DBUG_RETURN(1);
   info->scan.page_buff= info->scan.bitmap_buff + share->block_size;
   info->scan.bitmap_end= info->scan.bitmap_buff + share->bitmap.max_total_size;
@@ -5327,8 +5312,7 @@ int _ma_scan_remember_block_record(MARIA_HA *info,
   DBUG_ENTER("_ma_scan_remember_block_record");
   if (!(info->scan_save))
   {
-    if (!(info->scan_save= my_malloc(PSI_INSTRUMENT_ME,
-                                     ALIGN_SIZE(sizeof(*info->scan_save)) +
+    if (!(info->scan_save= my_malloc(ALIGN_SIZE(sizeof(*info->scan_save)) +
                                      info->s->block_size * 2,
                                      MYF(MY_WME))))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -7152,8 +7136,7 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
     row.blob_length= ma_get_length(&header);
 
   /* We need to build up a record (without blobs) in rec_buff */
-  if (!(record= my_malloc(PSI_INSTRUMENT_ME, share->base.reclength,
-                          MYF(MY_WME))))
+  if (!(record= my_malloc(share->base.reclength, MYF(MY_WME))))
     DBUG_RETURN(1);
 
   memcpy(record, null_bits, share->base.null_bytes);
@@ -7378,8 +7361,7 @@ my_bool _ma_apply_undo_row_update(MARIA_HA *info, LSN undo_lsn,
   field_length_data_end= header;
 
   /* Allocate buffer for current row & original row */
-  if (!(current_record= my_malloc(PSI_INSTRUMENT_ME, share->base.reclength * 2,
-                                  MYF(MY_WME))))
+  if (!(current_record= my_malloc(share->base.reclength * 2, MYF(MY_WME))))
     DBUG_RETURN(1);
   orig_record= current_record+ share->base.reclength;
 

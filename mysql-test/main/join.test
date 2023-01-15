@@ -1820,18 +1820,3 @@ drop table t1,t2,t3;
 drop table t1000,t10,t03;
 
 --echo # End of 10.3 tests
-
---echo #
---echo # MDEV-30080 Wrong result with LEFT JOINs involving constant tables
---echo #
-
-CREATE TABLE t1 (a INT) ENGINE=MyISAM;
-INSERT INTO t1 VALUES (1);
-CREATE TABLE t2 (b INT) ENGINE=MyISAM;
-INSERT INTO t2 VALUES (1),(1);
-CREATE TABLE t3 (c INT PRIMARY KEY) ENGINE=MyISAM;
-SELECT * FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.b = t3.c) ON t1.a = t2.b;
-SELECT COUNT(*) FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.b = t3.c) ON t1.a = t2.b;
-DROP TABLE t1, t2, t3;
-
---echo # End of 10.5 tests

@@ -99,7 +99,6 @@ eval SELECT MASTER_GTID_WAIT('$wait_pos');
 # duplicate key error.
 --connection con_temp1
 COMMIT;
-CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 SET sql_log_bin=1;
 
 --connection server_2

@@ -60,13 +60,6 @@ static struct my_option mopts_options[]=
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-my_bool dummy_get_one_option(const struct my_option *opt __attribute__((unused)),
-                             const char *argument __attribute__((unused)),
-                             const char *filename __attribute__((unused)))
-{
-  return FALSE;
-}
-
 void run(const char *arg, ...)
 {
   va_list ap;
@@ -81,7 +74,7 @@ void run(const char *arg, ...)
   va_end(ap);
   arg_c= (int)(arg_v - arg_s);
   arg_v= arg_s;
-  res= handle_options(&arg_c, &arg_v, mopts_options, &dummy_get_one_option);
+  res= handle_options(&arg_c, &arg_v, mopts_options, 0);
 }
 
 int mopts1_argc= 4;
@@ -91,7 +84,7 @@ void test_mopts1()
   int rc;
   char **av= (char **)mopts1_argv;
 
-  rc= handle_options(&mopts1_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts1_argc, &av, mopts_options, NULL);
   ok( (rc == 0), "%s", "test_mopts1 call");
   ok( (mopts_num == 122), "%s", "test_mopts1 num");
   ok( (strncmp(mopts_str, "str", 4) == 0), "%s", "test_mopts1 str");
@@ -105,7 +98,7 @@ void test_mopts2()
   int rc;
   char **av= (char **)mopts2_argv;
 
-  rc= handle_options(&mopts2_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts2_argc, &av, mopts_options, NULL);
   ok( (rc == 0), "%s", "test_mopts2 call");
   ok( (mopts_num == 124), "%s", "test_mopts2 num");
   ok( (strncmp(mopts_str, "ddd", 4) == 0), "%s", "test_mopts2 str");
@@ -119,7 +112,7 @@ void test_mopts3()
   int rc;
   char **av= (char **)mopts3_argv;
 
-  rc= handle_options(&mopts3_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts3_argc, &av, mopts_options, NULL);
   ok( (rc == 0), "%s", "test_mopts3 call");
   ok( (mopts_num == 1000000L), "%s", "test_mopts3 num");
   ok( (strncmp(mopts_str, "ddd", 4) == 0), "%s", "test_mopts3 str");
@@ -133,7 +126,7 @@ void test_mopts4()
   int rc;
   char **av= (char **)mopts4_argv;
 
-  rc= handle_options(&mopts4_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts4_argc, &av, mopts_options, NULL);
   ok( (rc == 0), "%s", "test_mopts4 call");
   ok( (mopts_num == 1000000L), "%s", "test_mopts4 num");
   ok( (strncmp(mopts_str, "aa", 3) == 0), "%s", "test_mopts4 str");
@@ -147,7 +140,7 @@ void test_mopts5()
   int rc;
   char **av= (char **)mopts5_argv;
 
-  rc= handle_options(&mopts5_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts5_argc, &av, mopts_options, NULL);
   ok( (rc == 0), "%s", "test_mopts5 call");
   ok( (mopts_num == 1000000L), "%s", "test_mopts5 num");
   ok( (strncmp(mopts_str, "ddd", 4) == 0), "%s", "test_mopts5 str");
@@ -161,7 +154,7 @@ void test_mopts6()
   int rc;
   char **av= (char **)mopts6_argv;
 
-  rc= handle_options(&mopts6_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts6_argc, &av, mopts_options, NULL);
   ok( (rc == 0), "%s", "test_mopts6 call");
   ok( (mopts_num == 1000000L), "%s", "test_mopts6 num");
   ok( (strncmp(mopts_str, "ddd", 4) == 0), "%s", "test_mopts6 str");
@@ -175,7 +168,7 @@ void test_mopts7()
   int rc;
   char **av= (char **)mopts7_argv;
 
-  rc= handle_options(&mopts7_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts7_argc, &av, mopts_options, NULL);
   ok( (rc == 0), "%s", "test_mopts7 call");
   ok( (mopts_num == 1000000L), "%s", "test_mopts7 num");
   ok( (strncmp(mopts_str, "ddd", 4) == 0), "%s", "test_mopts7 str");
@@ -189,7 +182,7 @@ void test_mopts8()
   int rc;
   char **av= (char **)mopts8_argv;
 
-  rc= handle_options(&mopts8_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts8_argc, &av, mopts_options, NULL);
   ok( (rc == 0), "%s", "test_mopts8 call");
   ok( (mopts_num == 1000000L), "%s", "test_mopts7 num");
   ok( (strncmp(mopts_str, "ddd", 4) == 0), "%s", "test_mopts7 str");
@@ -203,7 +196,7 @@ void test_mopts9()
   int rc;
   char **av= (char **)mopts9_argv;
 
-  rc= handle_options(&mopts9_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts9_argc, &av, mopts_options, NULL);
   ok( (rc != 0), "%s", "test_mopts9 call");
 }
 
@@ -214,7 +207,7 @@ void test_mopts10()
   int rc;
   char **av= (char **)mopts10_argv;
 
-  rc= handle_options(&mopts10_argc, &av, mopts_options, &dummy_get_one_option);
+  rc= handle_options(&mopts10_argc, &av, mopts_options, NULL);
   ok( (rc != 0), "%s", "test_mopts10 call");
 }
 
@@ -234,15 +227,26 @@ static struct my_option auto_options[]=
 
 
 
-my_bool auto_get_one_option(const struct my_option *opt,
-                            const char *argument,
-                            const char *filename __attribute__((unused)))
+my_bool auto_get_one_option(int optid __attribute__((unused)),
+                            const struct my_option *opt,
+                            char *argument)
 {
   if (argument == autoset_my_option)
   {
     *((ulong*)opt->value)= 111;
   }
   return FALSE;
+}
+
+int auto1_argc= 3;
+const char *auto1_argv[]= {"auto1", "--anum=123", "--autoset-anum"};
+void test_auto1()
+{
+  int rc;
+  char **av= (char **)auto1_argv;
+
+  rc= handle_options(&auto1_argc, &av, auto_options, NULL);
+  ok( (rc == EXIT_ARGUMENT_INVALID), "%s", "test_auto1 call");
 }
 
 int auto2_argc= 3;
@@ -326,7 +330,7 @@ void test_max1()
   int rc;
   char **av= (char **)max1_argv;
 
-  rc= handle_options(&max1_argc, &av, max_options, &dummy_get_one_option);
+  rc= handle_options(&max1_argc, &av, max_options, NULL);
   ok( (rc == 0), "%s", "test_max1 call");
   ok( (mopts_num == 200), "%s", "test_max1 num");
   ok( (max_num == 1000001L), "%s", "test_max1 max_num");
@@ -338,7 +342,7 @@ void test_max2()
   int rc;
   char **av= (char **)max2_argv;
 
-  rc= handle_options(&max2_argc, &av, max_options, &dummy_get_one_option);
+  rc= handle_options(&max2_argc, &av, max_options, NULL);
   ok( (rc == 0), "%s", "test_max2 call");
   ok( (mopts_num == 200), "%s", "test_max2 num");
   ok( (max_num == 100), "%s", "test_max2 max_num");
@@ -347,7 +351,7 @@ void test_max2()
 int main(int argc __attribute__((unused)), char **argv)
 {
   MY_INIT(argv[0]);
-  plan(4*8 + 1*4 + 3*4 + 3*2 + 2);
+  plan(4*8 + 1*4 + 3*4 + 3*2 + 3);
 
   /* gcc 4.1.2 doesn't want it in the initializer, we have to do it run-time */
   mopts_options[0].def_value= (intptr)"ddd";
@@ -363,6 +367,7 @@ int main(int argc __attribute__((unused)), char **argv)
 
   test_mopts9();
   test_mopts10();
+  test_auto1();
   test_auto2();
 
   test_auto3();

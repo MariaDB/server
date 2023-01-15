@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2012, 2020, MariaDB Corporation.
+   Copyright (c) 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -242,9 +242,10 @@ static int cassandra_init_func(void *p)
 
   cassandra_hton= (handlerton *)p;
   mysql_mutex_init(ex_key_mutex_example, &cassandra_mutex, MY_MUTEX_INIT_FAST);
-  (void) my_hash_init(PSI_INSTRUMENT_ME, &cassandra_open_tables,system_charset_info,32,0,0,
+  (void) my_hash_init(&cassandra_open_tables,system_charset_info,32,0,0,
                       (my_hash_get_key) cassandra_get_key,0,0);
 
+  cassandra_hton->state=   SHOW_OPTION_YES;
   cassandra_hton->create=  cassandra_create_handler;
   /*
     Don't specify HTON_CAN_RECREATE in flags. re-create is used by TRUNCATE
@@ -297,7 +298,7 @@ static CASSANDRA_SHARE *get_share(const char *table_name, TABLE *table)
                                               length)))
   {
     if (!(share=(CASSANDRA_SHARE *)
-          my_multi_malloc(MYF(MY_WME | MY_ZEROFILL), PSI_INSTRUMENT_ME,
+          my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
                           &share, sizeof(*share),
                           &tmp_name, length+1,
                           NullS)))
@@ -865,7 +866,7 @@ static void alloc_strings_memroot(MEM_ROOT *mem_root)
       The mem_root used to allocate UUID (of length 36 + \0) so make
       appropriate allocated size
     */
-    init_alloc_root(PSI_INSTRUMENT_ME, mem_root,
+    init_alloc_root(mem_root, "cassandra",
                     (36 + 1 + ALIGN_SIZE(sizeof(USED_MEM))) * 10 +
                     ALLOC_ROOT_MIN_BLOCK_SIZE,
                     (36 + 1 + ALIGN_SIZE(sizeof(USED_MEM))) * 10 +
@@ -1104,7 +1105,7 @@ bool cassandra_to_dyncol_strUTF8(const char *cass_data,
                                  MEM_ROOT *mem_root __attribute__((unused)))
 {
   return cassandra_to_dyncol_strStr(cass_data, cass_data_len, value,
-                                    &my_charset_utf8mb3_unicode_ci);
+                                    &my_charset_utf8_unicode_ci);
 }
 
 bool dyncol_to_cassandraUTF8(DYNAMIC_COLUMN_VALUE *value,
@@ -1112,7 +1113,7 @@ bool dyncol_to_cassandraUTF8(DYNAMIC_COLUMN_VALUE *value,
                              void* buff, void **freemem)
 {
   return dyncol_to_cassandraStr(value, cass_data, cass_data_len,
-                                buff, freemem, &my_charset_utf8mb3_unicode_ci);
+                                buff, freemem, &my_charset_utf8_unicode_ci);
 }
 
 bool cassandra_to_dyncol_strUUID(const char *cass_data,
@@ -1446,7 +1447,7 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
   size_t memsize= sizeof(ColumnDataConverter*) * n_fields +
     (sizeof(LEX_STRING) + sizeof(CASSANDRA_TYPE_DEF))*
     (dyncol_set ? max_non_default_fields : 0);
-  if (!(field_converters= (ColumnDataConverter**)my_malloc(PSI_INSTRUMENT_ME, memsize, MYF(0))))
+  if (!(field_converters= (ColumnDataConverter**)my_malloc(memsize, MYF(0))))
     DBUG_RETURN(true);
   bzero(field_converters, memsize);
   n_field_converters= n_fields;
@@ -1458,12 +1459,12 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
     special_type_field_names=
       ((LEX_STRING*)(special_type_field_converters + max_non_default_fields));
 
-    if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &dynamic_values,
+    if (my_init_dynamic_array(&dynamic_values,
                            sizeof(DYNAMIC_COLUMN_VALUE),
                            DYNCOL_USUAL, DYNCOL_DELTA, MYF(0)))
       DBUG_RETURN(true);
     else
-      if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &dynamic_names,
+      if (my_init_dynamic_array(&dynamic_names,
                              sizeof(LEX_STRING),
                              DYNCOL_USUAL, DYNCOL_DELTA,MYF(0)))
       {
@@ -2170,7 +2171,7 @@ int ha_cassandra::info(uint flag)
 }
 
 
-void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
+void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
               uint key_length, bool with_zerofill);
 
 
@@ -2524,6 +2525,14 @@ THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
   }
   *to++= &lock;
   DBUG_RETURN(to);
+}
+
+
+ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
+                                       key_range *max_key)
+{
+  DBUG_ENTER("ha_cassandra::records_in_range");
+  DBUG_RETURN(HA_POS_ERROR); /* Range scans are not supported */
 }
 
 

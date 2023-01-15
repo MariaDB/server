@@ -110,12 +110,12 @@ sub main
     die "FATAL: Can't find inbox file: $ARGV[$i]\n" if (! -f $ARGV[$i]);
   }
 
-  $connect_arg = "DBI:MariaDB:";
+  $connect_arg = "DBI:mysql:";
   push @args, "database=$opt_db" if defined($opt_db);
   push @args, "host=$opt_host" if defined($opt_host);
   push @args, "port=$opt_port" if defined($opt_port);
-  push @args, "mariadb_socket=$opt_socket" if defined($opt_socket);
-  push @args, "mariadb_read_default_group=mail_to_db";
+  push @args, "mysql_socket=$opt_socket" if defined($opt_socket);
+  push @args, "mysql_read_default_group=mail_to_db";
   $connect_arg .= join ';', @args;
   $dbh = DBI->connect("$connect_arg", $opt_user, $opt_password,
 		     { PrintError => 0})

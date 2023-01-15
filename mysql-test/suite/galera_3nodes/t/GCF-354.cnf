@@ -1,5 +1,0 @@
-!include ../galera_3nodes.cnf
-
-[mysqld]
-wsrep-ignore-apply-errors=0
-wsrep_sync_wait=0

@@ -13,10 +13,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifndef MA_STATE_INCLUDED
-#define MA_STATE_INCLUDED
-C_MODE_START
-
 /* Struct to store tables in use by one transaction */
 
 typedef struct st_maria_status_info
@@ -65,14 +61,18 @@ MARIA_STATE_HISTORY *_ma_remove_not_visible_states(MARIA_STATE_HISTORY
                                                    my_bool all,
                                                    my_bool trman_is_locked);
 void _ma_reset_state(MARIA_HA *info);
-my_bool _ma_get_status(void* param, my_bool concurrent_insert);
+void _ma_get_status(void* param, my_bool concurrent_insert);
 void _ma_update_status(void* param);
 void _ma_update_status_with_lock(MARIA_HA *info);
 void _ma_restore_status(void *param);
 void _ma_copy_status(void* to, void *from);
-my_bool _ma_reset_update_flag(void *param, my_bool concurrent_insert);
+void _ma_reset_update_flag(void *param, my_bool concurrent_insert);
 my_bool _ma_start_trans(void* param);
 my_bool _ma_check_status(void *param);
+void _ma_block_get_status(void* param, my_bool concurrent_insert);
+void _ma_block_update_status(void *param);
+void _ma_block_restore_status(void *param);
+my_bool _ma_block_check_status(void *param);
 void maria_versioning(MARIA_HA *info, my_bool versioning);
 void _ma_set_share_data_file_length(struct st_maria_share *share,
                                     ulonglong new_length);
@@ -86,6 +86,3 @@ void _ma_remove_not_visible_states_with_lock(struct st_maria_share *share,
                                              my_bool all);
 void _ma_remove_table_from_trnman(MARIA_HA *info);
 void _ma_reset_history(struct st_maria_share *share);
-
-C_MODE_END
-#endif

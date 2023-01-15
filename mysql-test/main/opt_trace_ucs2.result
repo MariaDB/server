@@ -34,7 +34,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 2,
-                "cost": 2.547733708,
+                "cost": 3.7609,
                 "chosen": true
             }
         ],

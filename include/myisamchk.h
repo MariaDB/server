@@ -20,8 +20,6 @@
 #ifndef _myisamchk_h
 #define _myisamchk_h
 
-#include <my_stack_alloc.h>
-
 /*
   Flags used by xxxxchk.c or/and ha_xxxx.cc that are NOT passed
   to xxxcheck.c follows:
@@ -34,6 +32,15 @@
 /* Bits set in out_flag */
 #define O_NEW_DATA	2U
 #define O_DATA_LOST	4U
+
+typedef struct st_sort_key_blocks		/* Used when sorting */
+{
+  uchar *buff, *end_pos;
+  uchar lastkey[HA_MAX_POSSIBLE_KEY_BUFF];
+  uint last_length;
+  int inited;
+} SORT_KEY_BLOCKS;
+
 
 /* 
   MARIA/MYISAM supports several statistics collection
@@ -70,7 +77,7 @@ typedef struct st_handler_check_param
   */
   ulonglong unique_count[HA_MAX_KEY_SEG + 1];
   ulonglong notnull_count[HA_MAX_KEY_SEG + 1];
-  ulonglong max_allowed_lsn;
+
   my_off_t search_after_block;
   my_off_t new_file_pos, key_file_blocks;
   my_off_t keydata, totaldata, key_blocks, start_check_pos;
@@ -87,7 +94,7 @@ typedef struct st_handler_check_param
   /* Following is used to check if rows are visible */
   ulonglong max_trid, max_found_trid;
   ulonglong not_visible_rows_found;
-  ulonglong sort_buffer_length, orig_sort_buffer_length;
+  ulonglong sort_buffer_length;
   ulonglong use_buffers;                        /* Used as param to getopt() */
   size_t read_buffer_length, write_buffer_length, sort_key_blocks;
   time_t backup_time;                           /* To sign backup files */
@@ -96,7 +103,6 @@ typedef struct st_handler_check_param
   uint out_flag, error_printed, verbose;
   uint opt_sort_key, total_files, max_level;
   uint key_cache_block_size, pagecache_block_size;
-  uint skip_lsn_error_count;
   int tmpfile_createflag, err_count;
   myf myf_rw;
   uint16 language;
@@ -105,7 +111,6 @@ typedef struct st_handler_check_param
   my_bool retry_repair, force_sort, calc_checksum, static_row_size;
   char temp_filename[FN_REFLEN];
   IO_CACHE read_cache;
-  void **stack_end_ptr;
   enum_handler_stats_method stats_method;
   /* For reporting progress */
   uint stage, max_stage;
@@ -118,6 +123,14 @@ typedef struct st_handler_check_param
   my_bool need_print_msg_lock;
   myf malloc_flags;
 } HA_CHECK;
+
+
+typedef struct st_sort_ftbuf
+{
+  uchar *buf, *end;
+  int count;
+  uchar lastkey[HA_MAX_KEY_BUFF];
+} SORT_FT_BUF;
 
 
 typedef struct st_buffpek {

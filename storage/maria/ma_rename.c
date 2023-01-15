@@ -48,7 +48,7 @@ int maria_rename(const char *old_name, const char *new_name)
   _ma_check_table_is_closed(new_name,"rename new table2");
 #endif
   /** @todo LOCK take X-lock on table */
-  if (!(info= maria_open(old_name, O_RDWR, HA_OPEN_FOR_REPAIR, 0)))
+  if (!(info= maria_open(old_name, O_RDWR, HA_OPEN_FOR_REPAIR)))
     DBUG_RETURN(my_errno);
   share= info->s;
 #ifdef USE_RAID

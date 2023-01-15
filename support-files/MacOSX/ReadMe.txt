@@ -73,7 +73,7 @@ Note
    /usr/local/mysql-5.1.39-osx10.5-x86_64 . The installation layout
    of the directory is as shown in the following table:
    Directory       Contents of Directory
-   bin             Client programs and the mariadbd server
+   bin             Client programs and the mysqld server
    data            Log files, databases
    docs            Manual in Info format
    include         Include (header) files
@@ -285,7 +285,7 @@ Note
    Directory                   Contents of Directory
    /usr/bin                    Client programs
    /var/mysql                  Log files, databases
-   /usr/libexec                The mariadbd server
+   /usr/libexec                The mysqld server
    /usr/share/man              Unix manual pages
    /usr/share/mysql/mysql-test MySQL test suite
    /usr/share/mysql            Contains the mysql_install_db script

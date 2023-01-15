@@ -30,7 +30,7 @@ struct CSphSEStats;
 struct CSphSEThreadTable;
 
 /// Sphinx SE handler class
-class ha_sphinx final : public handler
+class ha_sphinx : public handler
 {
 protected:
 	THR_LOCK_DATA	m_tLock;				///< MySQL lock
@@ -119,7 +119,7 @@ public:
 	int				reset();
 	int				external_lock ( THD * thd, int lock_type );
 	int				delete_all_rows ();
-	ha_rows			        records_in_range ( uint inx, const key_range * min_key, const key_range * max_key,  page_range *pages);
+	ha_rows			records_in_range ( uint inx, key_range * min_key, key_range * max_key );
 
 	int				delete_table ( const char * from );
 	int				rename_table ( const char * from, const char * to );

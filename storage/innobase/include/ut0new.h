@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -128,14 +128,16 @@ InnoDB:
 #include <stdlib.h> /* malloc() */
 #include <string.h> /* strlen(), strrchr(), strncmp() */
 
-#include <my_sys.h> /* my_large_free/malloc() */
-
 #include "my_global.h" /* needed for headers from mysql/psi/ */
 
+/* JAN: TODO: missing 5.7 header */
+#ifdef HAVE_MYSQL_MEMORY_H
 #include "mysql/psi/mysql_memory.h" /* PSI_MEMORY_CALL() */
+#endif
 
 #include "mysql/psi/psi_memory.h" /* PSI_memory_key, PSI_memory_info */
 
+#include "os0proc.h" /* os_mem_alloc_large() */
 #include "os0thread.h" /* os_thread_sleep() */
 #include "ut0ut.h" /* ut_strcmp_functor, ut_basename_noext() */
 
@@ -144,14 +146,8 @@ InnoDB:
 	" operating system. Note that on most 32-bit computers the process" \
 	" memory space is limited to 2 GB or 4 GB."
 
-/** The total amount of memory currently allocated from the operating
-system with allocate_large() */
-extern Atomic_counter<ulint> os_total_large_mem_allocated;
-
 /** Maximum number of retries to allocate memory. */
 extern const size_t	alloc_max_retries;
-
-constexpr uint32_t INVALID_AUTOEVENT_IDX = 0xFFFFFFFFU;
 
 /** Keys for registering allocations with performance schema.
 Pointers to these variables are supplied to PFS code via the pfs_info[]
@@ -183,13 +179,13 @@ ut_new_boot();
 
 #ifdef UNIV_PFS_MEMORY
 
-/**
-Retrieve a memory key (registered with PFS),
-given AUTOEVENT_IDX of the caller
-
-@param[in] autoevent_idx - AUTOEVENT_IDX value of the caller
-@return registered memory key or PSI_NOT_INSTRUMENTED */
-PSI_memory_key ut_new_get_key_by_file(uint32_t autoevent_idx);
+/** Retrieve a memory key (registered with PFS), given a portion of the file
+name of the caller.
+@param[in]	file	portion of the filename - basename without an extension
+@return registered memory key or PSI_NOT_INSTRUMENTED if not found */
+PSI_memory_key
+ut_new_get_key_by_file(
+	const char*	file);
 
 #endif /* UNIV_PFS_MEMORY */
 
@@ -236,19 +232,38 @@ struct ut_new_pfx_t {
 #endif
 };
 
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
-static inline void ut_dontdump(void *ptr, size_t m_size, bool dontdump)
+static inline void ut_allocate_trace_dontdump(void *ptr, size_t	bytes,
+					      bool
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DONTDUMP)
+					      dontdump
+#endif
+					      , ut_new_pfx_t* pfx,
+					      const char*
+#ifdef UNIV_PFS_MEMORY
+					      file
+#endif
+
+					      )
 {
 	ut_a(ptr != NULL);
 
-	if (dontdump && madvise(ptr, m_size, MADV_DONTDUMP)) {
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DONTDUMP)
+	if (dontdump && madvise(ptr, bytes, MADV_DONTDUMP)) {
 		ib::warn() << "Failed to set memory to " DONTDUMP_STR ": "
 			   << strerror(errno)
 			   << " ptr " << ptr
-			   << " size " << m_size;
+			   << " size " << bytes;
+	}
+#endif
+	if (pfx != NULL) {
+#ifdef UNIV_PFS_MEMORY
+		allocate_trace(bytes, file, pfx);
+#endif /* UNIV_PFS_MEMORY */
+		pfx->m_size = bytes;
 	}
 }
 
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
 static inline void ut_dodump(void* ptr, size_t m_size)
 {
 	if (ptr && madvise(ptr, m_size, MADV_DODUMP)) {
@@ -259,7 +274,6 @@ static inline void ut_dodump(void* ptr, size_t m_size)
 	}
 }
 #else
-static inline void ut_dontdump(void *, size_t, bool) {}
 static inline void ut_dodump(void*, size_t) {}
 #endif
 
@@ -296,14 +310,10 @@ public:
 		     other
 #endif
 		     )
-	{
 #ifdef UNIV_PFS_MEMORY
-		const PSI_memory_key other_key = other.get_mem_key();
-
-		m_key = (other_key != mem_key_std)
-			? other_key
-			: PSI_NOT_INSTRUMENTED;
+		: m_key(other.m_key)
 #endif /* UNIV_PFS_MEMORY */
+	{
 	}
 
 	/** Return the maximum number of objects that can be allocated by
@@ -320,7 +330,7 @@ public:
 #endif /* UNIV_PFS_MEMORY */
 	}
 
-	pointer allocate(size_type n) { return allocate(n, NULL, INVALID_AUTOEVENT_IDX); }
+	pointer allocate(size_type n) { return allocate(n, NULL, NULL); }
 
 	/** Allocate a chunk of memory that can hold 'n_elements' objects of
 	type 'T' and trace the allocation.
@@ -338,9 +348,9 @@ public:
 	allocate(
 		size_type	n_elements,
 		const_pointer,
-		uint32_t
+		const char*
 #ifdef UNIV_PFS_MEMORY
-		autoevent_idx /* AUTOEVENT_IDX of the caller */
+		file /*!< file name of the caller */
 #endif
 		,
 		bool		set_to_zero = false,
@@ -402,7 +412,7 @@ public:
 #ifdef UNIV_PFS_MEMORY
 		ut_new_pfx_t*	pfx = static_cast<ut_new_pfx_t*>(ptr);
 
-		allocate_trace(total_bytes, autoevent_idx, pfx);
+		allocate_trace(total_bytes, file, pfx);
 
 		return(reinterpret_cast<pointer>(pfx + 1));
 #else
@@ -412,7 +422,7 @@ public:
 
 	/** Free a memory allocated by allocate() and trace the deallocation.
 	@param[in,out]	ptr		pointer to memory to free */
-	void deallocate(pointer ptr, size_type n_elements = 0)
+	void deallocate(pointer ptr, size_type)
 	{
 #ifdef UNIV_PFS_MEMORY
 		if (ptr == NULL) {
@@ -484,7 +494,7 @@ public:
 	reallocate(
 		void*		ptr,
 		size_type	n_elements,
-		uint32_t	autoevent_idx)
+		const char*	file)
 	{
 		if (n_elements == 0) {
 			deallocate(static_cast<pointer>(ptr));
@@ -492,7 +502,7 @@ public:
 		}
 
 		if (ptr == NULL) {
-			return(allocate(n_elements, NULL, autoevent_idx, false, false));
+			return(allocate(n_elements, NULL, file, false, false));
 		}
 
 		if (n_elements > max_size()) {
@@ -535,7 +545,7 @@ public:
 		deallocate_trace(pfx_new);
 
 		/* pfx_new is set here to describe the new block. */
-		allocate_trace(total_bytes, autoevent_idx, pfx_new);
+		allocate_trace(total_bytes, file, pfx_new);
 
 		return(reinterpret_cast<pointer>(pfx_new + 1));
 	}
@@ -551,10 +561,9 @@ public:
 	pointer
 	new_array(
 		size_type	n_elements,
-		uint32_t autoevent_idx
-		)
+		const char*	file)
 	{
-		T*	p = allocate(n_elements, NULL, autoevent_idx, false, false);
+		T*	p = allocate(n_elements, NULL, file, false, false);
 
 		if (p == NULL) {
 			return(NULL);
@@ -630,22 +639,13 @@ public:
 		ulint	n_bytes = n_elements * sizeof(T);
 
 		pointer	ptr = reinterpret_cast<pointer>(
-			my_large_malloc(&n_bytes, MYF(0)));
+			os_mem_alloc_large(&n_bytes));
 
 		if (ptr == NULL) {
 			return NULL;
 		}
 
-		ut_dontdump(ptr, n_bytes, dontdump);
-
-		if (pfx != NULL) {
-#ifdef UNIV_PFS_MEMORY
-			allocate_trace(n_bytes, 0, pfx);
-#endif /* UNIV_PFS_MEMORY */
-			pfx->m_size = n_bytes;
-		}
-
-		os_total_large_mem_allocated += n_bytes;
+		ut_allocate_trace_dontdump(ptr, n_bytes, dontdump, pfx, NULL);
 
 		return(ptr);
 	}
@@ -665,26 +665,40 @@ public:
 	void
 	deallocate_large(
 		pointer			ptr,
-		const ut_new_pfx_t*	pfx)
+		const ut_new_pfx_t*
+#ifdef UNIV_PFS_MEMORY
+		pfx
+#endif
+		,
+		size_t			size)
 	{
-		size_t size = pfx->m_size;
 #ifdef UNIV_PFS_MEMORY
 		if (pfx) {
 			deallocate_trace(pfx);
 		}
 #endif /* UNIV_PFS_MEMORY */
-		os_total_large_mem_allocated -= size;
 
-		my_large_free(ptr, size);
+		os_mem_free_large(ptr, size);
 	}
 
 	void
 	deallocate_large_dodump(
 		pointer			ptr,
-		const ut_new_pfx_t*	pfx)
+		const ut_new_pfx_t*
+#ifdef UNIV_PFS_MEMORY
+		pfx
+#endif
+		,
+		size_t			size)
 	{
-		ut_dodump(ptr, pfx->m_size);
-		deallocate_large(ptr, pfx);
+		ut_dodump(ptr, size);
+		deallocate_large(ptr,
+#ifdef UNIV_PFS_MEMORY
+		pfx,
+#else
+		NULL,
+#endif
+		size);
 	}
 
 #ifdef UNIV_PFS_MEMORY
@@ -693,16 +707,25 @@ public:
 	@return performance schema key */
 	PSI_memory_key
 	get_mem_key(
-		uint32_t autoevent_idx = INVALID_AUTOEVENT_IDX) const
+		const char*	file) const
 	{
 		if (m_key != PSI_NOT_INSTRUMENTED) {
 			return(m_key);
 		}
 
-		if (autoevent_idx == INVALID_AUTOEVENT_IDX) {
+		if (file == NULL) {
 			return(mem_key_std);
 		}
-		const PSI_memory_key	key = ut_new_get_key_by_file(autoevent_idx);
+
+		/* e.g. "btr0cur", derived from "/path/to/btr0cur.cc" */
+		char		keyname[FILENAME_MAX];
+		const size_t	len = ut_basename_noext(file, keyname,
+							sizeof(keyname));
+		/* If sizeof(keyname) was not enough then the output would
+		be truncated, assert that this did not happen. */
+		ut_a(len < sizeof(keyname));
+
+		const PSI_memory_key	key = ut_new_get_key_by_file(keyname);
 
 		if (key != PSI_NOT_INSTRUMENTED) {
 			return(key);
@@ -744,16 +767,16 @@ private:
 	   corresponds to "file", that will be used (see ut_new_boot())
 	4. Otherwise, the name associated with mem_key_other will be used.
 	@param[in]	size	number of bytes that were allocated
-	@param[in]	autoevent_idx	autoevent_idx of the caller
+	@param[in]	file	file name of the caller or NULL if unknown
 	@param[out]	pfx	placeholder to store the info which will be
 	needed when freeing the memory */
 	void
 	allocate_trace(
 		size_t		size,
-		const uint32_t autoevent_idx,
+		const char*	file,
 		ut_new_pfx_t*	pfx)
 	{
-		const PSI_memory_key	key = get_mem_key(autoevent_idx);
+		const PSI_memory_key	key = get_mem_key(file);
 
 		pfx->m_key = PSI_MEMORY_CALL(memory_alloc)(key, size, & pfx->m_owner);
 		pfx->m_size = size;
@@ -803,128 +826,6 @@ operator!=(
 
 #ifdef UNIV_PFS_MEMORY
 
-/*
- constexpr trickery ahead.
-
- Compute AUTOEVENT_IDX at compile time.
- (index in the auto_event_names array, corresponding to basename of __FILE__)
-
- The tricks are necessary to reduce the cost of lookup the
- PSI_memory_key for auto event.
-*/
-
-static constexpr const char* cexpr_basename_helper(const char* s, const char* last_slash)
-{
-  return
-    *s == '\0' ? last_slash :
-    *s == '/' || *s == '\\' ? cexpr_basename_helper(s + 1, s + 1) :
-    cexpr_basename_helper(s + 1, last_slash);
-}
-
-static constexpr const char* cexpr_basename(const char* filename)
-{
-  return cexpr_basename_helper(filename, filename);
-}
-
-static constexpr bool cexpr_strequal_ignore_dot(const char* a, const char* b)
-{
-  return  *a == 0 || *a == '.' ? (*b == 0 || *b == '.')
-    : *a == *b ? cexpr_strequal_ignore_dot(a + 1, b + 1) : false;
-}
-
-constexpr const char* const auto_event_names[] =
-{
-  "btr0btr",
-  "btr0buf",
-  "btr0bulk",
-  "btr0cur",
-  "btr0pcur",
-  "btr0sea",
-  "buf0buf",
-  "buf0dblwr",
-  "buf0dump",
-  "dict0dict",
-  "dict0mem",
-  "dict0stats",
-  "eval0eval",
-  "fil0crypt",
-  "fil0fil",
-  "fsp0file",
-  "fts0ast",
-  "fts0blex",
-  "fts0config",
-  "fts0file",
-  "fts0fts",
-  "fts0opt",
-  "fts0pars",
-  "fts0que",
-  "fts0sql",
-  "fts0tlex",
-  "gis0sea",
-  "ha_innodb",
-  "handler0alter",
-  "hash0hash",
-  "i_s",
-  "lexyy",
-  "lock0lock",
-  "mem0mem",
-  "os0event",
-  "os0file",
-  "pars0lex",
-  "rem0rec",
-  "row0ftsort",
-  "row0import",
-  "row0log",
-  "row0merge",
-  "row0mysql",
-  "row0sel",
-  "srv0start",
-  "sync0arr",
-  "sync0debug",
-  "sync0rw",
-  "sync0start",
-  "sync0types",
-  "trx0i_s",
-  "trx0i_s",
-  "trx0roll",
-  "trx0rseg",
-  "trx0seg",
-  "trx0trx",
-  "trx0undo",
-  "ut0list",
-  "ut0mem",
-  "ut0new",
-  "ut0pool",
-  "ut0rbt",
-  "ut0wqueue",
-  "xtrabackup",
-  nullptr
-};
-
-constexpr uint32_t cexpr_lookup_auto_event_name(const char* name, uint32_t idx = 0)
-{
-  return !auto_event_names[idx] ? INVALID_AUTOEVENT_IDX :
-    cexpr_strequal_ignore_dot(name, auto_event_names[idx]) ? idx :
-    cexpr_lookup_auto_event_name(name, idx + 1);
-}
-
-/*
- The AUTOEVENT_IDX macro.
-
- Note, that there is a static_assert that checks whether
- basename of the __FILE is not registered in the auto_event_names array.
- If you run into this assert, add the basename to the array.
-
- Weird looking lambda is used to force the evaluation at the compile time.
-*/
-#define AUTOEVENT_IDX []()\
-{\
-  constexpr auto idx = cexpr_lookup_auto_event_name(cexpr_basename(__FILE__)); \
-  static_assert(idx != INVALID_AUTOEVENT_IDX, "auto_event_names contains no entry for " __FILE__);\
-  return idx; \
-}()
-
-
 /** Allocate, trace the allocation and construct an object.
 Use this macro instead of 'new' within InnoDB.
 For example: instead of
@@ -942,7 +843,7 @@ pointer must be passed to UT_DELETE() when no longer needed.
 	object if the passed in pointer is NULL, e.g. if allocate() has
 	failed to allocate memory and has returned NULL. */ \
 	::new(ut_allocator<byte>(key).allocate( \
-		sizeof expr, NULL, AUTOEVENT_IDX, false, false)) expr
+		sizeof expr, NULL, __FILE__, false, false)) expr
 
 /** Allocate, trace the allocation and construct an object.
 Use this macro instead of 'new' within InnoDB and instead of UT_NEW()
@@ -963,7 +864,6 @@ UT_NEW() or UT_NEW_NOKEY().
 We can't instantiate ut_allocator without having the type of the object, thus
 we redirect this to a templated function. */
 #define UT_DELETE(ptr)		ut_delete(ptr)
-
 
 /** Destroy and account object created by UT_NEW() or UT_NEW_NOKEY().
 @param[in,out]	ptr	pointer to the object */
@@ -991,7 +891,7 @@ The returned pointer must be passed to UT_DELETE_ARRAY().
 @param[in]	key		performance schema memory tracing key
 @return pointer to the first allocated object or NULL */
 #define UT_NEW_ARRAY(type, n_elements, key) \
-	ut_allocator<type>(key).new_array(n_elements, AUTOEVENT_IDX)
+	ut_allocator<type>(key).new_array(n_elements, __FILE__)
 
 /** Allocate and account 'n_elements' objects of type 'type'.
 Use this macro to allocate memory within InnoDB instead of 'new[]' and
@@ -1022,34 +922,38 @@ ut_delete_array(
 
 #define ut_malloc(n_bytes, key)		static_cast<void*>( \
 	ut_allocator<byte>(key).allocate( \
-		n_bytes, NULL, AUTOEVENT_IDX, false, false))
+		n_bytes, NULL, __FILE__, false, false))
 
-#define ut_malloc_dontdump(n_bytes, key) static_cast<void*>( \
-	ut_allocator<byte>(key).allocate_large( \
-		n_bytes, NULL, true))
+#define ut_malloc_dontdump(n_bytes) static_cast<void*>( \
+	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).allocate_large( \
+		n_bytes, true))
 
 #define ut_zalloc(n_bytes, key)		static_cast<void*>( \
 	ut_allocator<byte>(key).allocate( \
-		n_bytes, NULL, AUTOEVENT_IDX, true, false))
+		n_bytes, NULL, __FILE__, true, false))
 
 #define ut_malloc_nokey(n_bytes)	static_cast<void*>( \
 	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).allocate( \
-		n_bytes, NULL, AUTOEVENT_IDX, false, false))
+		n_bytes, NULL, __FILE__, false, false))
 
 #define ut_zalloc_nokey(n_bytes)	static_cast<void*>( \
 	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).allocate( \
-		n_bytes, NULL, AUTOEVENT_IDX, true, false))
+		n_bytes, NULL, __FILE__, true, false))
 
 #define ut_zalloc_nokey_nofatal(n_bytes)	static_cast<void*>( \
 	ut_allocator<byte, false>(PSI_NOT_INSTRUMENTED).allocate( \
-		n_bytes, NULL, AUTOEVENT_IDX, true, false))
+		n_bytes, NULL, __FILE__, true, false))
 
 #define ut_realloc(ptr, n_bytes)	static_cast<void*>( \
 	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).reallocate( \
-		ptr, n_bytes, AUTOEVENT_IDX))
+		ptr, n_bytes, __FILE__))
 
 #define ut_free(ptr)	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate( \
 	reinterpret_cast<byte*>(ptr))
+
+#define ut_free_dodump(ptr, size) static_cast<void*>( \
+	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate_large( \
+		ptr, NULL, size, true))
 
 #else /* UNIV_PFS_MEMORY */
 
@@ -1073,15 +977,11 @@ ut_delete_array(
 
 #define ut_malloc_nokey(n_bytes)	::malloc(n_bytes)
 
-static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
+static inline void *ut_malloc_dontdump(size_t n_bytes)
 {
-	void *ptr = my_large_malloc(&n_bytes, MYF(0));
+	void *ptr = os_mem_alloc_large(&n_bytes);
 
-	ut_dontdump(ptr, n_bytes, true);
-
-	if (ptr) {
-		os_total_large_mem_allocated += n_bytes;
-	}
+	ut_allocate_trace_dontdump(ptr, n_bytes, true, NULL, NULL);
 	return ptr;
 }
 
@@ -1093,13 +993,12 @@ static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
 
 #define ut_free(ptr)			::free(ptr)
 
-#endif /* UNIV_PFS_MEMORY */
-
 static inline void ut_free_dodump(void *ptr, size_t size)
 {
 	ut_dodump(ptr, size);
-	os_total_large_mem_allocated -= size;
-	my_large_free(ptr, size);
+	os_mem_free_large(ptr, size);
 }
+
+#endif /* UNIV_PFS_MEMORY */
 
 #endif /* ut0new_h */

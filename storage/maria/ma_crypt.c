@@ -101,7 +101,7 @@ int
 ma_crypt_create(MARIA_SHARE* share)
 {
   MARIA_CRYPT_DATA *crypt_data=
-    (MARIA_CRYPT_DATA*)my_malloc(PSI_INSTRUMENT_ME, sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
+    (MARIA_CRYPT_DATA*)my_malloc(sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
   crypt_data->scheme.type= CRYPT_SCHEME_1;
   crypt_data->scheme.locker= crypt_data_scheme_locker;
   mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock, MY_MUTEX_INIT_FAST);
@@ -165,7 +165,7 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff)
   {
     /* opening a table */
     MARIA_CRYPT_DATA *crypt_data=
-      (MARIA_CRYPT_DATA*)my_malloc(PSI_INSTRUMENT_ME, sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
+      (MARIA_CRYPT_DATA*)my_malloc(sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
 
     crypt_data->scheme.type= type;
     mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock,
@@ -189,7 +189,7 @@ static int ma_decrypt(MARIA_SHARE *, MARIA_CRYPT_DATA *, const uchar *,
 static my_bool ma_crypt_pre_read_hook(PAGECACHE_IO_HOOK_ARGS *args)
 {
   MARIA_SHARE *share= (MARIA_SHARE*) args->data;
-  uchar *crypt_buf= my_malloc(PSI_INSTRUMENT_ME, share->block_size, MYF(0));
+  uchar *crypt_buf= my_malloc(share->block_size, MYF(0));
   if (crypt_buf == NULL)
   {
     args->crypt_buf= NULL; /* for post-hook */
@@ -260,7 +260,7 @@ static my_bool ma_crypt_data_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
   MARIA_SHARE *share= (MARIA_SHARE*) args->data;
   const uint size= share->block_size;
   uint key_version;
-  uchar *crypt_buf= my_malloc(PSI_INSTRUMENT_ME, share->block_size, MYF(0));
+  uchar *crypt_buf= my_malloc(share->block_size, MYF(0));
 
   if (crypt_buf == NULL)
   {
@@ -392,7 +392,7 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
   const uint block_size= share->block_size;
   const uint page_used= _ma_get_page_used(share, args->page);
   uint key_version;
-  uchar *crypt_buf= my_malloc(PSI_INSTRUMENT_ME, block_size, MYF(0));
+  uchar *crypt_buf= my_malloc(block_size, MYF(0));
   if (crypt_buf == NULL)
   {
     args->crypt_buf= NULL; /* for post-hook */

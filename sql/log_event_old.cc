@@ -32,8 +32,6 @@
 #include "rpl_record_old.h"
 #include "transaction.h"
 
-PSI_memory_key key_memory_log_event_old;
-
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 
 // Old implementation of do_apply_event()
@@ -901,7 +899,7 @@ int Delete_rows_log_event_old::do_before_row_operations(TABLE *table)
 
   if (table->s->keys > 0)
   {
-    m_memory= (uchar*) my_multi_malloc(key_memory_log_event_old, MYF(MY_WME),
+    m_memory= (uchar*) my_multi_malloc(MYF(MY_WME),
                                        &m_after_image,
                                        (uint) table->s->reclength,
                                        &m_key,
@@ -910,7 +908,7 @@ int Delete_rows_log_event_old::do_before_row_operations(TABLE *table)
   }
   else
   {
-    m_after_image= (uchar*) my_malloc(key_memory_log_event_old, table->s->reclength, MYF(MY_WME));
+    m_after_image= (uchar*) my_malloc(table->s->reclength, MYF(MY_WME));
     m_memory= (uchar*)m_after_image;
     m_key= NULL;
   }
@@ -999,7 +997,7 @@ int Update_rows_log_event_old::do_before_row_operations(TABLE *table)
 
   if (table->s->keys > 0)
   {
-    m_memory= (uchar*) my_multi_malloc(key_memory_log_event_old, MYF(MY_WME),
+    m_memory= (uchar*) my_multi_malloc(MYF(MY_WME),
                                        &m_after_image,
                                        (uint) table->s->reclength,
                                        &m_key,
@@ -1008,7 +1006,7 @@ int Update_rows_log_event_old::do_before_row_operations(TABLE *table)
   }
   else
   {
-    m_after_image= (uchar*) my_malloc(key_memory_log_event_old, table->s->reclength, MYF(MY_WME));
+    m_after_image= (uchar*) my_malloc(table->s->reclength, MYF(MY_WME));
     m_memory= m_after_image;
     m_key= NULL;
   }
@@ -1254,7 +1252,7 @@ Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
                      m_table_id, m_flags, m_width, data_size));
   DBUG_DUMP("rows_data", (uchar*) ptr_rows_data, data_size);
 
-  m_rows_buf= (uchar*) my_malloc(key_memory_log_event_old, data_size, MYF(MY_WME));
+  m_rows_buf= (uchar*) my_malloc(data_size, MYF(MY_WME));
   if (likely((bool)m_rows_buf))
   {
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
@@ -1328,7 +1326,7 @@ int Old_rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     my_ptrdiff_t const new_alloc= 
         block_size * ((cur_size + length + block_size - 1) / block_size);
 
-    uchar* const new_buf= (uchar*)my_realloc(key_memory_log_event_old, (uchar*)m_rows_buf, (uint) new_alloc,
+    uchar* const new_buf= (uchar*)my_realloc((uchar*)m_rows_buf, (uint) new_alloc,
                                            MYF(MY_ALLOW_ZERO_PTR|MY_WME));
     if (unlikely(!new_buf))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -2559,7 +2557,7 @@ Delete_rows_log_event_old::do_before_row_operations(const Slave_reporting_capabi
   if (m_table->s->keys > 0)
   {
     // Allocate buffer for key searches
-    m_key= (uchar*)my_malloc(key_memory_log_event_old, m_table->key_info->key_length, MYF(MY_WME));
+    m_key= (uchar*)my_malloc(m_table->key_info->key_length, MYF(MY_WME));
     if (!m_key)
       return HA_ERR_OUT_OF_MEM;
   }
@@ -2657,7 +2655,7 @@ Update_rows_log_event_old::do_before_row_operations(const Slave_reporting_capabi
   if (m_table->s->keys > 0)
   {
     // Allocate buffer for key searches
-    m_key= (uchar*)my_malloc(key_memory_log_event_old, m_table->key_info->key_length, MYF(MY_WME));
+    m_key= (uchar*)my_malloc(m_table->key_info->key_length, MYF(MY_WME));
     if (!m_key)
       return HA_ERR_OUT_OF_MEM;
   }

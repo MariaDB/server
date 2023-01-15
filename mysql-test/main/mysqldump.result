@@ -1641,22 +1641,22 @@ create table t2(a varchar(30) primary key, b int not null);
 create table t3(a varchar(30) primary key, b int not null);
 test_sequence
 ------ Testing with illegal table names ------
-mariadb-dump: Couldn't find table: "\d-2-1.sql"
-mariadb-dump: Couldn't find table: "\t1"
-mariadb-dump: Couldn't find table: "\t1"
-mariadb-dump: Couldn't find table: "\\t1"
-mariadb-dump: Couldn't find table: "t\1"
-mariadb-dump: Couldn't find table: "t\1"
-mariadb-dump: Couldn't find table: "t/1"
-mariadb-dump: Couldn't find table: "T_1"
-mariadb-dump: Couldn't find table: "T%1"
-mariadb-dump: Couldn't find table: "T'1"
-mariadb-dump: Couldn't find table: "T_1"
-mariadb-dump: Couldn't find table: "T_"
+mysqldump: Couldn't find table: "\d-2-1.sql"
+mysqldump: Couldn't find table: "\t1"
+mysqldump: Couldn't find table: "\t1"
+mysqldump: Couldn't find table: "\\t1"
+mysqldump: Couldn't find table: "t\1"
+mysqldump: Couldn't find table: "t\1"
+mysqldump: Couldn't find table: "t/1"
+mysqldump: Couldn't find table: "T_1"
+mysqldump: Couldn't find table: "T%1"
+mysqldump: Couldn't find table: "T'1"
+mysqldump: Couldn't find table: "T_1"
+mysqldump: Couldn't find table: "T_"
 test_sequence
 ------ Testing with illegal database names ------
-mariadb-dump: Got error: 1049: "Unknown database 'mysqldump_test_d'" when selecting the database
-mariadb-dump: Got error: 1049: "Unknown database 'mysqld\ump_test_db'" when selecting the database
+mysqldump: Got error: 1049: "Unknown database 'mysqldump_test_d'" when selecting the database
+mysqldump: Got error: 1049: "Unknown database 'mysqld\ump_test_db'" when selecting the database
 drop table t1, t2, t3;
 drop database mysqldump_test_db;
 use test;
@@ -1866,7 +1866,7 @@ drop table `t1`;
 create table t1(a int);
 create table t2(a int);
 create table t3(a int);
-mariadb-dump: Couldn't find table: "non_existing"
+mysqldump: Couldn't find table: "non_existing"
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -1914,8 +1914,8 @@ drop table t1, t2, t3;
 # Bug#21288 mysqldump segmentation fault when using --where
 #
 create table t1 (a int);
-mariadb-dump: Couldn't execute 'SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `t1` WHERE xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx': You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1 (1064)
-mariadb-dump: Got error: 1064: "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1" when retrieving data from server
+mysqldump: Couldn't execute 'SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `t1` WHERE xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx': You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1 (1064)
+mysqldump: Got error: 1064: "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1" when retrieving data from server
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -3444,8 +3444,8 @@ create table t1 ( id serial );
 create view v1 as select * from t1;
 drop table t1;
 mysqldump {
-mariadb-dump: Got error: 1356: "View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them" when using LOCK TABLES
-mariadb-dump: Couldn't execute 'SHOW FIELDS FROM `v1`': View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them (1356)
+mysqldump: Got error: 1356: "View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them" when using LOCK TABLES
+mysqldump: Couldn't execute 'SHOW FIELDS FROM `v1`': View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them (1356)
 
 -- failed on view `v1`: CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`t1`.`id` AS `id` from `t1`
 
@@ -3619,11 +3619,11 @@ use test;
 create user mysqltest_1@localhost;
 create table t1(a int, b varchar(34));
 reset master;
-mariadb-dump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
-mariadb-dump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
+mysqldump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
+mysqldump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
 grant RELOAD on *.* to mysqltest_1@localhost;
-mariadb-dump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation (1227)
-mariadb-dump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation (1227)
+mysqldump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, REPLICATION CLIENT privilege(s) for this operation (1227)
+mysqldump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, REPLICATION CLIENT privilege(s) for this operation (1227)
 grant REPLICATION CLIENT on *.* to mysqltest_1@localhost;
 drop table t1;
 drop user mysqltest_1@localhost;
@@ -3738,10 +3738,10 @@ DROP TABLE t1;
 #
 CREATE TABLE t1(a int);
 INSERT INTO t1 VALUES (1), (2);
-mariadb-dump: Input filename too long: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-mariadb-dump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
-mariadb-dump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
-mariadb-dump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
+mysqldump: Input filename too long: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
 DROP TABLE t1;
 CREATE TABLE t2 (a INT) ENGINE=MyISAM;
 CREATE TABLE t3 (a INT) ENGINE=MyISAM;
@@ -3835,7 +3835,7 @@ grant all privileges on mysqldump_test_db.*  to user2;
 connect  user27293,localhost,user1,,mysqldump_test_db,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection user27293;
 create procedure mysqldump_test_db.sp1() select 'hello';
-mariadb-dump: user2 has insufficient privileges to SHOW CREATE PROCEDURE `sp1`!
+mysqldump: user2 has insufficient privileges to SHOW CREATE PROCEDURE `sp1`!
 
 -- insufficient privileges to SHOW CREATE PROCEDURE `sp1`
 -- does user2 have permissions on mysql.proc?
@@ -4067,7 +4067,7 @@ UNLOCK TABLES;
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
-mariadb-dump: Got error: 1146: "Table 'test.???????????????????????' doesn't exist" when using LOCK TABLES
+mysqldump: Got error: 1146: "Table 'test.???????????????????????' doesn't exist" when using LOCK TABLES
 /*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
 /*!40103 SET TIME_ZONE='+00:00' */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
@@ -4291,7 +4291,7 @@ Abernathy
 aberrant
 aberration
 drop table words;
-mariadb-import: Error: 1146, Table 'test.words' doesn't exist, when using table: words
+mysqlimport: Error: 1146, Table 'test.words' doesn't exist, when using table: words
 drop table t1;
 drop table t2;
 drop table words2;
@@ -4613,8 +4613,8 @@ CREATE TABLE t1 (a INT, b CHAR(10) CHARSET koi8r, c CHAR(10) CHARSET latin1);
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t1 VALUES (1, 'ABC-–ê–ë–í', 'DEF-√Ç√É√Ñ'), (2, NULL, NULL);
 # error on multi-character ENCLOSED/ESCAPED BY
-mariadb-dump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
-mariadb-dump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
+mysqldump: Got error: 1083: "Field separator argument is not what is expected; check the manual" when executing 'SELECT INTO OUTFILE'
 # default '--default-charset' (binary):
 ##################################################
 1	ABC-·‚˜	DEF-¬√ƒ
@@ -5101,7 +5101,7 @@ connection conn_1;
 		<field name="c1">3</field>
 	</row>
 	</table_data>
-mariadb-dump: user1 has insufficient privileges to SHOW CREATE FUNCTION `hello1`!
+mysqldump: user1 has insufficient privileges to SHOW CREATE FUNCTION `hello1`!
 	<triggers name="t2">
 		<trigger Trigger="trig1" sql_mode="" character_set_client="latin1" collation_connection="latin1_swedish_ci" Database_Collation="latin1_swedish_ci" Created="--TIME--">
 <![CDATA[
@@ -5405,13 +5405,13 @@ ROUTINE_NAME
 proc
 one
 DROP DATABASE bug25717383;
-mariadb-dump: Got error: 2005: "Unknown MySQL server host 'unknownhost'" when trying to connect
-mariadb-dump: Couldn't execute 'SHOW SLAVE STATUS': MySQL server has gone away (2006)
-Usage: mariadb-dump [OPTIONS] database [tables]
-OR     mariadb-dump [OPTIONS] --databases DB1 [DB2 DB3...]
-OR     mariadb-dump [OPTIONS] --all-databases
-OR     mariadb-dump [OPTIONS] --system=[SYSTEMOPTIONS]]
-For more options, use mariadb-dump --help
+mysqldump: Got error: 2005: "Unknown MySQL server host 'unknownhost'" when trying to connect
+mysqldump: Couldn't execute 'SHOW SLAVE STATUS': MySQL server has gone away (2006)
+Usage: mysqldump [OPTIONS] database [tables]
+OR     mysqldump [OPTIONS] --databases DB1 [DB2 DB3...]
+OR     mysqldump [OPTIONS] --all-databases
+OR     mysqldump [OPTIONS] --system=[SYSTEMOPTIONS]]
+For more options, use mysqldump --help
 #
 # MDEV-9001 - [PATCH] Fix DB name quoting in mysqldump --routine
 #
@@ -5636,7 +5636,7 @@ t1_id int,
 CONSTRAINT fk
 FOREIGN KEY (t1_id) REFERENCES t1 (id)
 ) ENGINE = InnoDB;
-mariadb-import: Error: 1452, Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk` FOREIGN KEY (`t1_id`) REFERENCES `t1` (`id`)), when using table: t2
+mysqlimport: Error: 1452, Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk` FOREIGN KEY (`t1_id`) REFERENCES `t1` (`id`)), when using table: t2
 select count(*) from t2;
 count(*)
 1

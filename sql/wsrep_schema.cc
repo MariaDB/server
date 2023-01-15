@@ -160,25 +160,6 @@ private:
   my_bool m_wsrep_on;
 };
 
-class thd_server_status
-{
-public:
-  thd_server_status(THD* thd, uint server_status, bool condition)
-    : m_thd(thd)
-    , m_thd_server_status(thd->server_status)
-  {
-    if (condition)
-      thd->server_status= server_status;
-  }
-  ~thd_server_status()
-  {
-    m_thd->server_status= m_thd_server_status;
-  }
-private:
-  THD* m_thd;
-  uint m_thd_server_status;
-};
-
 class thd_context_switch
 {
 public:
@@ -290,14 +271,7 @@ static int open_table(THD* thd,
                         NULL, lock_type);
   thd->lex->query_tables_own_last= 0;
 
-  // No need to open table if the query was bf aborted,
-  // thd client will get ER_LOCK_DEADLOCK in the end.
-  const bool interrupted= thd->killed ||
-       (thd->is_error() &&
-       (thd->get_stmt_da()->sql_errno() == ER_QUERY_INTERRUPTED));
-
-  if (interrupted ||
-      !open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
+  if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
     close_thread_tables(thd);
     DBUG_RETURN(1);
   }
@@ -545,11 +519,12 @@ static int scan(TABLE* table, uint field, INTTYPE& val)
 
 static int scan(TABLE* table, uint field, char* strbuf, uint strbuf_len)
 {
-  uint len;
-  StringBuffer<STRING_BUFFER_USUAL_SIZE> str;
-  (void) table->field[field]->val_str(&str);
-  len= str.length();
-  strmake(strbuf, str.ptr(), MY_MIN(len, strbuf_len-1));
+  String str;
+  (void)table->field[field]->val_str(&str);
+  LEX_CSTRING tmp= str.lex_cstring();
+  uint len = tmp.length;
+  strncpy(strbuf, tmp.str, std::min(len, strbuf_len));
+  strbuf[strbuf_len - 1]= '\0';
   return 0;
 }
 
@@ -642,7 +617,7 @@ static void make_key(TABLE* table, uchar** key, key_part_map* map, int parts) {
 
   *map= make_prev_keypart_map(parts);
 
-  if (!(*key= (uchar *) my_malloc(PSI_NOT_INSTRUMENTED, prefix_length + 1, MYF(MY_WME))))
+  if (!(*key= (uchar *) my_malloc(prefix_length + 1, MYF(MY_WME))))
   {
     WSREP_ERROR("Failed to allocate memory for key prefix_length %u", prefix_length);
     assert(0);
@@ -1222,9 +1197,6 @@ int Wsrep_schema::remove_fragments(THD* thd,
   }
   else
   {
-    Wsrep_schema_impl::thd_server_status
-      thd_server_status(thd, thd->server_status | SERVER_STATUS_IN_TRANS,
-                        thd->in_multi_stmt_transaction_mode());
     Wsrep_schema_impl::finish_stmt(thd);
   }
 
@@ -1420,7 +1392,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
     goto out;
   }
 
-  while (0 == error)
+  while (true)
   {
     if ((error= Wsrep_schema_impl::next_record(frag_table)) == 0)
     {
@@ -1470,23 +1442,19 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
       }
       applier->store_globals();
       wsrep::mutable_buffer unused;
-      if ((ret= applier->apply_write_set(ws_meta, data, unused)) != 0)
-      {
-        WSREP_ERROR("SR trx recovery applying returned %d", ret);
-      }
-      else
-      {
-        applier->after_apply();
-      }
+      applier->apply_write_set(ws_meta, data, unused);
+      applier->after_apply();
       storage_service.store_globals();
     }
     else if (error == HA_ERR_END_OF_FILE)
     {
       ret= 0;
+      break;
     }
     else
     {
       WSREP_ERROR("SR table scan returned error %d", error);
+      break;
     }
   }
   Wsrep_schema_impl::end_scan(frag_table);

@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,18 +26,44 @@ Created April 08, 2011 Vasil Dimov
 #ifndef buf0dump_h
 #define buf0dump_h
 
-/** Start the buffer pool dump/load task and instructs it to start a dump. */
-void buf_dump_start();
-/** Start the buffer pool dump/load task and instructs it to start a load. */
-void buf_load_start();
+#include "univ.i"
 
-/** Abort a currently running buffer pool load. */
-void buf_load_abort();
+/*****************************************************************//**
+Wakes up the buffer pool dump/load thread and instructs it to start
+a dump. This function is called by MySQL code via buffer_pool_dump_now()
+and it should return immediately because the whole MySQL is frozen during
+its execution. */
+void
+buf_dump_start();
+/*============*/
 
-/** Start async buffer pool load, if srv_buffer_pool_load_at_startup was set.*/
-void buf_load_at_startup();
+/*****************************************************************//**
+Wakes up the buffer pool dump/load thread and instructs it to start
+a load. This function is called by MySQL code via buffer_pool_load_now()
+and it should return immediately because the whole MySQL is frozen during
+its execution. */
+void
+buf_load_start();
+/*============*/
 
-/** Wait for currently running load/dumps to finish*/
-void buf_load_dump_end();
+/*****************************************************************//**
+Aborts a currently running buffer pool load. This function is called by
+MySQL code via buffer_pool_load_abort() and it should return immediately
+because the whole MySQL is frozen during its execution. */
+void
+buf_load_abort();
+/*============*/
+
+/*****************************************************************//**
+This is the main thread for buffer pool dump/load. It waits for an
+event and when waked up either performs a dump or load and sleeps
+again.
+@return this function does not return, it calls os_thread_exit() */
+extern "C"
+os_thread_ret_t
+DECLARE_THREAD(buf_dump_thread)(
+/*============================*/
+	void*	arg);				/*!< in: a dummy parameter
+						required by os_thread_create */
 
 #endif /* buf0dump_h */

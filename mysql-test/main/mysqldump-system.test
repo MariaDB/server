@@ -94,7 +94,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 # password_last_changed date isn't saved/restored
 # root user's Priv $.access lower number on restore
 
---replace_regex /"password_last_changed":[0-9]+/"password_last_changed":NOW/ /"version_id":[0-9]+/"version_id":VERSION/
+--replace_regex /"password_last_changed":[0-9]+/"password_last_changed":NOW/
 SELECT * FROM mysql.global_priv ORDER BY User,Host;
 
 CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
@@ -126,7 +126,7 @@ DROP USER mariadb_test_restore;
 
 # successful restore?
 
---replace_regex /"password_last_changed":[0-9]+/"password_last_changed":NOW/ /"version_id":[0-9]+/"version_id":VERSION/
+--replace_regex /"password_last_changed":[0-9]+/"password_last_changed":NOW/
 SELECT * FROM mysql.global_priv ORDER BY User,Host;
 
 CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,

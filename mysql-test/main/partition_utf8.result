@@ -67,25 +67,3 @@ ERROR HY000: This partition function is not allowed
 #
 # End of 10.3 tests
 #
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-20856 Bad values in metadata views for partitions on VARBINARY
-#
-CREATE TABLE t1 (a VARBINARY(10)) CHARACTER SET utf8
-PARTITION BY LIST COLUMNS (a) (PARTITION p0 VALUES IN (0xFF));
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
- PARTITION BY LIST  COLUMNS(`a`)
-(PARTITION `p0` VALUES IN (_binary 0xff) ENGINE = MyISAM)
-SELECT PARTITION_DESCRIPTION FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE_NAME='t1';
-PARTITION_DESCRIPTION
-_binary 0xff
-DROP TABLE t1;
-#
-# End of 10.5 tests
-#

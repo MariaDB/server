@@ -88,8 +88,8 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
     DBUG_RETURN(NULL);
     } // endif status
 
-  if (!(result = (MYSQL_RES*) my_malloc(PSI_NOT_INSTRUMENTED,
-                  sizeof(*result) + sizeof(ulong) * mysql->field_count,
+  if (!(result = (MYSQL_RES*) my_malloc(sizeof(*result) +
+				          sizeof(ulong) * mysql->field_count,
 				          MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(NULL);
 
@@ -97,8 +97,8 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
   result->methods = mysql->methods;
 
   /* Ptrs: to one row */
-  if (!(result->row = (MYSQL_ROW)my_malloc(PSI_NOT_INSTRUMENTED,
-                sizeof(result->row[0]) * (mysql->field_count+1), MYF(MY_WME)))) {
+  if (!(result->row = (MYSQL_ROW)my_malloc(sizeof(result->row[0]) *
+                                (mysql->field_count+1), MYF(MY_WME)))) {
     my_free(result);
     DBUG_RETURN(NULL);
     }  // endif row
@@ -120,7 +120,7 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
 /*  of a MySQL table or view.                                           */
-/*  info = TRUE to get catalog column information.                     */
+/*  info = TRUE to get catalog column informations.                     */
 /************************************************************************/
 PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                   const char *user, const char *pwd,

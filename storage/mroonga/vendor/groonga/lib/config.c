@@ -51,7 +51,7 @@ grn_config_set(grn_ctx *ctx,
   if (value_size == -1) {
     value_size = strlen(value);
   }
-  if (value_size > (int32_t) GRN_CONFIG_MAX_VALUE_SIZE) {
+  if (value_size > GRN_CONFIG_MAX_VALUE_SIZE) {
     ERR(GRN_INVALID_ARGUMENT,
         "[config][set] too large value: max=<%" GRN_FMT_SIZE ">: <%d>",
         GRN_CONFIG_MAX_VALUE_SIZE, value_size);

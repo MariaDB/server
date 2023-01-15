@@ -9,7 +9,7 @@ connect (root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 connection root;
 
 enable_info;
-set default_storage_engine=aria;
+set storage_engine=aria;
 disable_warnings;
 drop table if exists t1, t2;
 enable_warnings;

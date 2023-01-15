@@ -1,5 +1,4 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
-   Copyright (c) 2010, 2020, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,13 +22,11 @@
 
 #include "ma_ftdefs.h"
 #include "ma_crypt.h"
-#ifdef WITH_S3_STORAGE_ENGINE
-#include "s3_func.h"
-#endif /* WITH_S3_STORAGE_ENGINE */
 
 int maria_close(register MARIA_HA *info)
 {
   int error=0,flag;
+  my_bool share_can_be_freed= FALSE;
   MARIA_SHARE *share= info->s;
   my_bool internal_table= share->internal_table;
   DBUG_ENTER("maria_close");
@@ -95,16 +92,12 @@ int maria_close(register MARIA_HA *info)
 
   if (flag)
   {
-    /* Last close of file */
+    /* Last close of file; Flush everything */
 
-    /*
-      Check that we don't have any dangling open files
-      We may still have some open transactions. In this case the share
-      will be kept around until the transaction has closed
-    */
+    /* Check that we don't have any dangling pointers from the transaction */
+    DBUG_ASSERT(share->in_trans == 0);
     DBUG_ASSERT(share->open_list == 0);
 
-    /* Flush everything */
     if (share->kfile.file >= 0)
     {
       my_bool save_global_changed= share->global_changed;
@@ -112,7 +105,6 @@ int maria_close(register MARIA_HA *info)
       /* Avoid _ma_mark_file_changed() when flushing pages */
       share->global_changed= 1;
 
-      /* Flush page cache if BLOCK format */
       if ((*share->once_end)(share))
         error= my_errno;
       /*
@@ -162,10 +154,9 @@ int maria_close(register MARIA_HA *info)
         File must be synced as it is going out of the maria_open_list and so
         becoming unknown to future Checkpoints.
       */
-      if (share->now_transactional &&
-          mysql_file_sync(share->kfile.file, MYF(MY_WME)))
+      if (share->now_transactional && mysql_file_sync(share->kfile.file, MYF(MY_WME)))
         error= my_errno;
-      if (!share->s3_path && mysql_file_close(share->kfile.file, MYF(0)))
+      if (mysql_file_close(share->kfile.file, MYF(0)))
         error= my_errno;
     }
     thr_lock_delete(&share->lock);
@@ -179,8 +170,7 @@ int maria_close(register MARIA_HA *info)
 	mysql_rwlock_destroy(&share->keyinfo[i].root_lock);
       }
     }
-    DBUG_ASSERT(share->now_transactional == share->base.born_transactional ||
-                share->internal_table);
+    DBUG_ASSERT(share->now_transactional == share->base.born_transactional);
     /*
       We assign -1 because checkpoint does not need to flush (in case we
       have concurrent checkpoint if no then we do not need it here also)
@@ -204,6 +194,8 @@ int maria_close(register MARIA_HA *info)
       /* we cannot my_free() the share, Checkpoint would see a bad pointer */
       share->in_checkpoint|= MARIA_CHECKPOINT_SHOULD_FREE_ME;
     }
+    else
+      share_can_be_freed= TRUE;
 
     if (share->state_history)
     {
@@ -218,7 +210,7 @@ int maria_close(register MARIA_HA *info)
           wrong status information.
         */
         if ((history= (MARIA_STATE_HISTORY_CLOSED *)
-             my_malloc(PSI_INSTRUMENT_ME, sizeof(*history), MYF(MY_WME))))
+             my_malloc(sizeof(*history), MYF(MY_WME))))
         {
           history->create_rename_lsn= share->state.create_rename_lsn;
           history->state_history= share->state_history;
@@ -235,14 +227,24 @@ int maria_close(register MARIA_HA *info)
   if (!internal_table)
   {
     mysql_mutex_unlock(&THR_LOCK_maria);
+    mysql_mutex_unlock(&share->intern_lock);
     mysql_mutex_unlock(&share->close_lock);
   }
-
-  /* free_maria_share will free share->internal_lock */
-  free_maria_share(share);
-
+  if (share_can_be_freed)
+  {
+    ma_crypt_free(share);
+    (void) mysql_mutex_destroy(&share->intern_lock);
+    (void) mysql_mutex_destroy(&share->close_lock);
+    (void) mysql_cond_destroy(&share->key_del_cond);
+    my_free(share);
+    /*
+      If share cannot be freed, it's because checkpoint has previously
+      recorded to include this share in the checkpoint and so is soon going to
+      look at some of its content (share->in_checkpoint/id/last_version).
+    */
+  }
   my_free(info->ftparser_param);
-  if (info->dfile.file >= 0 && ! info->s3)
+  if (info->dfile.file >= 0)
   {
     /*
       This is outside of mutex so would confuse a concurrent
@@ -253,10 +255,6 @@ int maria_close(register MARIA_HA *info)
   }
 
   delete_dynamic(&info->pinned_pages);
-#ifdef WITH_S3_STORAGE_ENGINE
-  if (info->s3)
-    s3f.deinit(info->s3);
-#endif /* WITH_S3_STORAGE_ENGINE */
   my_free(info);
 
   if (error)
@@ -266,35 +264,3 @@ int maria_close(register MARIA_HA *info)
   }
   DBUG_RETURN(0);
 } /* maria_close */
-
-
-/**
-  Free Aria table share
-
-  Note that share will not be freed a long as there are active checkpoints
-  or transactions pointing at the shared object
-*/
-
-void free_maria_share(MARIA_SHARE *share)
-{
-  if (!share->internal_table)
-    mysql_mutex_assert_owner(&share->intern_lock);
-
-  if (!share->reopen && !share->in_trans &&
-      !(share->in_checkpoint & MARIA_CHECKPOINT_SHOULD_FREE_ME))
-  {
-    /* No one can access this share anymore, time to delete it ! */
-    if (!share->internal_table)
-      mysql_mutex_unlock(&share->intern_lock);
-    ma_crypt_free(share);
-    my_free(share->s3_path);
-    (void) mysql_mutex_destroy(&share->intern_lock);
-    (void) mysql_mutex_destroy(&share->close_lock);
-    (void) mysql_cond_destroy(&share->key_del_cond);
-    my_free(share);
-    return;
-  }
-  if (!share->internal_table)
-    mysql_mutex_unlock(&share->intern_lock);
-  return;
-}

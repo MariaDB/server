@@ -4,49 +4,35 @@ SELECT @global_start_value;
 0
 '#--------------------FN_DYNVARS_046_01------------------------#'
 SET @@global.innodb_commit_concurrency = 0;
-Warnings:
-Warning	138	The parameter innodb_commit_concurrency is deprecated and has no effect.
 SET @@global.innodb_commit_concurrency = DEFAULT;
-Warnings:
-Warning	138	The parameter innodb_commit_concurrency is deprecated and has no effect.
 SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0
 '#---------------------FN_DYNVARS_046_02-------------------------#'
 SET innodb_commit_concurrency = 1;
 ERROR HY000: Variable 'innodb_commit_concurrency' is a GLOBAL variable and should be set with SET GLOBAL
-SET GLOBAL innodb_commit_concurrency = 1;
-Warnings:
-Warning	138	The parameter innodb_commit_concurrency is deprecated and has no effect.
 SELECT @@innodb_commit_concurrency;
 @@innodb_commit_concurrency
 0
 SELECT local.innodb_commit_concurrency;
 ERROR 42S02: Unknown table 'local' in field list
 SET global innodb_commit_concurrency = 0;
-Warnings:
-Warning	138	The parameter innodb_commit_concurrency is deprecated and has no effect.
 SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0
 '#--------------------FN_DYNVARS_046_03------------------------#'
 SET @@global.innodb_commit_concurrency = 0;
-Warnings:
-Warning	138	The parameter innodb_commit_concurrency is deprecated and has no effect.
 SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0
 '#--------------------FN_DYNVARS_046_04-------------------------#'
-SELECT @@global.innodb_commit_concurrency;
-@@global.innodb_commit_concurrency
-0
+SET @@global.innodb_commit_concurrency = 1;
+ERROR 42000: Variable 'innodb_commit_concurrency' can't be set to the value of '1'
 SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0
 SET @@global.innodb_commit_concurrency = -1;
-Warnings:
-Warning	1292	Truncated incorrect innodb_commit_concurrency value: '-1'
-Warning	138	The parameter innodb_commit_concurrency is deprecated and has no effect.
+ERROR 42000: Variable 'innodb_commit_concurrency' can't be set to the value of '-1'
 SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0
@@ -66,9 +52,7 @@ SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0
 SET @@global.innodb_commit_concurrency = 1001;
-Warnings:
-Warning	1292	Truncated incorrect innodb_commit_concurrency value: '1001'
-Warning	138	The parameter innodb_commit_concurrency is deprecated and has no effect.
+ERROR 42000: Variable 'innodb_commit_concurrency' can't be set to the value of '1001'
 SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0
@@ -98,8 +82,6 @@ SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0
 SET @@global.innodb_commit_concurrency = @global_start_value;
-Warnings:
-Warning	138	The parameter innodb_commit_concurrency is deprecated and has no effect.
 SELECT @@global.innodb_commit_concurrency;
 @@global.innodb_commit_concurrency
 0

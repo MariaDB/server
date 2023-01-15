@@ -221,24 +221,19 @@ file. The SQL command 'LOAD DATA INFILE' is used to import the rows.\n");
 
 
 static my_bool
-get_one_option(const struct my_option *opt, const char *argument,
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument)
 {
-  switch(opt->id) {
+  switch(optid) {
   case 'p':
     if (argument == disabled_my_option)
       argument= (char*) "";			/* Don't require password */
     if (argument)
     {
-      /*
-        One should not really change the argument, but we make an
-        exception for passwords
-      */
-      char *start= (char*) argument;
+      char *start=argument;
       my_free(opt_password);
-      opt_password=my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
-      while (*argument)
-        *(char*) argument++= 'x';               /* Destroy argument */
+      opt_password=my_strdup(argument,MYF(MY_FAE));
+      while (*argument) *argument++= 'x';		/* Destroy argument */
       if (*start)
 	start[1]=0;				/* Cut length of argument */
       tty_password= 0;
@@ -675,8 +670,9 @@ int main(int argc, char **argv)
       table_count++;
     argv= save_argv;
 
-    if (!(worker_threads= (pthread_t*) my_malloc(PSI_NOT_INSTRUMENTED,
-                               table_count * sizeof(*worker_threads), MYF(0))))
+    if (!(worker_threads= (pthread_t*) my_malloc(table_count *
+                                                 sizeof(*worker_threads),
+                                                 MYF(0))))
       return -2;
 
     for (; *argv != NULL; argv++) /* Loop through tables */

@@ -1,16 +1,16 @@
 #!/bin/sh
 # Copyright (c) 2000, 2013, Oracle and/or its affiliates.
 # Copyright (c) 2009, 2013, Monty Program Ab
-#
+# 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-#
+# 
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#
+# 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
@@ -78,7 +78,7 @@ Usage: $0 [OPTIONS]
   --force              Causes mysql_install_db to run even if DNS does not
                        work.  In that case, grant table entries that
                        normally use hostnames will use IP addresses.
-  --help               Display this help and exit.
+  --help               Display this help and exit.                     
   --ldata=path         The path to the MariaDB data directory. Same as
                        --datadir.
   --rpm                For internal use.  This option is used by RPM files
@@ -595,24 +595,24 @@ else
   echo
   echo "    shell> $0 --defaults-file=~/.my.cnf"
   echo
-  echo "You can also try to start the mariadbd daemon with:"
+  echo "You can also try to start the mysqld daemon with:"
   echo
   echo "    shell> $mysqld --skip-grant-tables --general-log &"
   echo
-  echo "and use the command line tool $bindir/mariadb"
+  echo "and use the command line tool $bindir/mysql"
   echo "to connect to the mysql database and look at the grant tables:"
   echo
-  echo "    shell> $bindir/mariadb -u root mysql"
-  echo "    MariaDB> show tables;"
+  echo "    shell> $bindir/mysql -u root mysql"
+  echo "    mysql> show tables;"
   echo
-  echo "Try '$mysqld --help' if you have problems with paths.  Using"
+  echo "Try 'mysqld --help' if you have problems with paths.  Using"
   echo "--general-log gives you a log in $ldata that may be helpful."
   link_to_help
   echo "You can find the latest source at https://downloads.mariadb.org and"
   echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
   echo
   echo "Please check all of the above before submitting a bug report"
-  echo "at https://mariadb.org/jira"
+  echo "at http://mariadb.org/jira"
   echo
   exit 1
 fi
@@ -623,8 +623,8 @@ fi
 if test "$cross_bootstrap" -eq 0 && test -z "$srcdir"
 then
   s_echo
-  s_echo "To start mariadbd at boot time you have to copy"
-  s_echo "support-files/mariadb.service to the right place for your system"
+  s_echo "To start mysqld at boot time you have to copy"
+  s_echo "support-files/mysql.server to the right place for your system"
 
   if test "$auth_root_authentication_method" = normal
   then
@@ -633,7 +633,7 @@ then
     echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
     echo "To do so, start the server, then issue the following command:"
     echo
-    echo "'$bindir/mariadb-secure-installation'"
+    echo "'$bindir/mysql_secure_installation'"
     echo
     echo "which will also give you the option of removing the test"
     echo "databases and anonymous user created by default.  This is"
@@ -651,22 +651,22 @@ then
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at https://mariadb.com/kb"
+  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb"
 
   if test "$in_rpm" -eq 0
   then
     echo
     echo "You can start the MariaDB daemon with:"
-    echo "cd '$basedir' ; $bindir/mariadb-safe --datadir='$ldata'"
+    echo "cd '$basedir' ; $bindir/mysqld_safe --datadir='$ldata'"
     echo
     echo "You can test the MariaDB daemon with mysql-test-run.pl"
-    echo "cd '$basedir/@INSTALL_MYSQLTESTDIR@' ; perl mariadb-test-run.pl"
+    echo "cd '$basedir/mysql-test' ; perl mysql-test-run.pl"
   fi
 
   echo
-  echo "Please report any problems at https://mariadb.org/jira"
+  echo "Please report any problems at http://mariadb.org/jira"
   echo
-  echo "The latest information about MariaDB is available at https://mariadb.org/."
+  echo "The latest information about MariaDB is available at http://mariadb.org/."
   echo
   echo "Consider joining MariaDB's strong and vibrant community:"
   echo "https://mariadb.org/get-involved/"

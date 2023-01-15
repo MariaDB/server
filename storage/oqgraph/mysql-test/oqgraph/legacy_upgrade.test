@@ -13,7 +13,7 @@ CREATE TABLE graph_base (
 # Backwards compatibility test
 # First we ensure the scaffolding is disabled (default situation)
 # and check we cant create a table with an integer latch
-# Assume this is the default, so don't explicity set false yet:
+# Assume this is the default, so dont explicity set false yet:
 # SET GLOBAL oqgraph_allow_create_integer_latch=false;
 --echo The next error 140 + 1005 is expected
 --error 140
@@ -32,7 +32,7 @@ CREATE TABLE graph (
 # Here we enable scaffolding to let us create a deprecated table
 # so we can check that the new code will still allow queries to be performed
 # on a legacy database
-# It should still generate a warning (1287) - but I don't know how to test for that
+# It should still generate a warning (1287) - but I dont know how to test for that
 #
 #   latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future
 #   release. Please use 'latch VARCHAR(32) NULL' instead

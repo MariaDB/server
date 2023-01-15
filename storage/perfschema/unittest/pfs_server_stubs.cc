@@ -1,5 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates. All rights
-   reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -30,7 +29,6 @@
 #include "sql_class.h"
 #include "sql_show.h"
 
-struct system_status_var global_status_var;
 struct sql_digest_storage;
 
 uint lower_case_table_names= 0;
@@ -41,17 +39,8 @@ void compute_digest_md5(const sql_digest_storage *, unsigned char *)
 {
 }
 
-void reset_status_vars()
-{
-}
-
-void sql_print_warning(const char *format, ...)
-{
-  /* Do not pollute the unit test output with annoying messages. */
-}
-
 class sys_var { public: enum where { AUTO }; };
-void set_sys_var_value_origin(void *, enum sys_var::where, const char *)
+void set_sys_var_value_origin(void *ptr, enum sys_var::where here)
 {
 }
 

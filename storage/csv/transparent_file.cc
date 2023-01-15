@@ -23,12 +23,9 @@
 #include "transparent_file.h"
 #include "my_sys.h"          // MY_WME, MY_ALLOW_ZERO_PTR, MY_SEEK_SET
 
-PSI_memory_key csv_key_memory_Transparent_file;
-
 Transparent_file::Transparent_file() : lower_bound(0), buff_size(IO_SIZE)
 { 
-  buff= (uchar *) my_malloc(csv_key_memory_Transparent_file,
-                            buff_size*sizeof(uchar),  MYF(MY_WME));
+  buff= (uchar *) my_malloc(buff_size*sizeof(uchar),  MYF(MY_WME)); 
 }
 
 Transparent_file::~Transparent_file()

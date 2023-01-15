@@ -15,9 +15,9 @@ connection default;
 # practice)
 -- source include/maria_empty_logs.inc
 
-let $default=`select @@global.default_storage_engine`;
-set global default_storage_engine=aria;
-set session default_storage_engine=aria;
+let $default=`select @@global.storage_engine`;
+set global storage_engine=aria;
+set session storage_engine=aria;
 let $def_logsize=`select @@global.aria_log_file_size`;
 let $def_checkinterval=`select @@global.aria_checkpoint_interval`;
 
@@ -111,7 +111,7 @@ drop table t1, t2;
 --disable_result_log
 --disable_query_log
 set global aria_log_purge_type=immediate;
-eval set global default_storage_engine=$default;
+eval set global storage_engine=$default;
 eval set global aria_log_file_size=$def_logsize;
 eval set global aria_checkpoint_interval=$def_checkinterval;
 --enable_result_log

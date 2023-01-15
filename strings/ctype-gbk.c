@@ -31,7 +31,6 @@
 
 #ifdef HAVE_CHARSET_gbk
 
-const char charset_name_gbk[]= "gbk";
 
 /* Support for Chinese(GBK) characters, by hewei@mail.ied.ac.cn */
 
@@ -10738,7 +10737,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_gbk,
   my_copy_fix_mb,
   my_native_to_mb_gbk,
-  my_wc_to_printable_generic
 };
 
 
@@ -10746,7 +10744,7 @@ struct charset_info_st my_charset_gbk_chinese_ci=
 {
     28,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM,	/* state      */
-    charset_name_gbk,		/* cs name    */
+    "gbk",		/* cs name    */
     "gbk_chinese_ci",	/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -10778,7 +10776,7 @@ struct charset_info_st my_charset_gbk_bin=
 {
     87,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state      */
-    charset_name_gbk,		/* cs name    */
+    "gbk",		/* cs name    */
     "gbk_bin",		/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -10811,7 +10809,7 @@ struct charset_info_st my_charset_gbk_chinese_nopad_ci=
 {
     MY_NOPAD_ID(28),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NOPAD, /* state */
-    charset_name_gbk,              /* cs name          */
+    "gbk",              /* cs name          */
     "gbk_chinese_nopad_ci",/* name          */
     "",                 /* comment          */
     NULL,               /* tailoring        */
@@ -10843,7 +10841,7 @@ struct charset_info_st my_charset_gbk_nopad_bin=
 {
     MY_NOPAD_ID(87),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    charset_name_gbk,              /* cs name          */
+    "gbk",              /* cs name          */
     "gbk_nopad_bin",    /* name             */
     "",                 /* comment          */
     NULL,               /* tailoring        */

@@ -19,7 +19,185 @@
 #include "rpl_utility.h"
 #include "log_event.h"
 
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+#include "rpl_rli.h"
+#include "sql_select.h"
 
+/**
+  Calculate display length for MySQL56 temporal data types from their metadata.
+  It contains fractional precision in the low 16-bit word.
+*/
+static uint32
+max_display_length_for_temporal2_field(uint32 int_display_length,
+                                       unsigned int metadata)
+{
+  metadata&= 0x00ff;
+  return int_display_length + metadata + (metadata ? 1 : 0);
+}
+
+
+/**
+   Compute the maximum display length of a field.
+
+   @param sql_type Type of the field
+   @param metadata The metadata from the master for the field.
+   @return Maximum length of the field in bytes.
+
+   The precise values calculated by field->max_display_length() and
+   calculated by max_display_length_for_field() can differ (by +1 or -1)
+   for integer data types (TINYINT, SMALLINT, MEDIUMINT, INT, BIGINT).
+   This slight difference is not important here, because we call
+   this function only for two *different* integer data types.
+ */
+static uint32
+max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
+{
+  DBUG_PRINT("debug", ("sql_type: %d, metadata: 0x%x", sql_type, metadata));
+  DBUG_ASSERT(metadata >> 16 == 0);
+
+  switch (sql_type) {
+  case MYSQL_TYPE_NEWDECIMAL:
+    return metadata >> 8;
+
+  case MYSQL_TYPE_FLOAT:
+    return 12;
+
+  case MYSQL_TYPE_DOUBLE:
+    return 22;
+
+  case MYSQL_TYPE_SET:
+  case MYSQL_TYPE_ENUM:
+      return metadata & 0x00ff;
+
+  case MYSQL_TYPE_STRING:
+  {
+    uchar type= metadata >> 8;
+    if (type == MYSQL_TYPE_SET || type == MYSQL_TYPE_ENUM)
+      return metadata & 0xff;
+    else
+      /* This is taken from Field_string::unpack. */
+      return (((metadata >> 4) & 0x300) ^ 0x300) + (metadata & 0x00ff);
+  }
+
+  case MYSQL_TYPE_YEAR:
+  case MYSQL_TYPE_TINY:
+    return 4;
+
+  case MYSQL_TYPE_SHORT:
+    return 6;
+
+  case MYSQL_TYPE_INT24:
+    return 9;
+
+  case MYSQL_TYPE_LONG:
+    return 11;
+
+#ifdef HAVE_LONG_LONG
+  case MYSQL_TYPE_LONGLONG:
+    return 20;
+
+#endif
+  case MYSQL_TYPE_NULL:
+    return 0;
+
+  case MYSQL_TYPE_NEWDATE:
+    return 3;
+
+  case MYSQL_TYPE_DATE:
+    return 3;
+
+  case MYSQL_TYPE_TIME:
+    return MIN_TIME_WIDTH;
+
+  case MYSQL_TYPE_TIME2:
+    return max_display_length_for_temporal2_field(MIN_TIME_WIDTH, metadata);
+
+  case MYSQL_TYPE_TIMESTAMP:
+    return MAX_DATETIME_WIDTH;
+
+  case MYSQL_TYPE_TIMESTAMP2:
+    return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
+
+  case MYSQL_TYPE_DATETIME:
+    return MAX_DATETIME_WIDTH;
+
+  case MYSQL_TYPE_DATETIME2:
+    return max_display_length_for_temporal2_field(MAX_DATETIME_WIDTH, metadata);
+
+  case MYSQL_TYPE_BIT:
+    /*
+      Decode the size of the bit field from the master.
+    */
+    DBUG_ASSERT((metadata & 0xff) <= 7);
+    return 8 * (metadata >> 8U) + (metadata & 0x00ff);
+
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_VARCHAR:
+    return metadata;
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+    return metadata - 1;
+
+    /*
+      The actual length for these types does not really matter since
+      they are used to calc_pack_length, which ignores the given
+      length for these types.
+
+      Since we want this to be accurate for other uses, we return the
+      maximum size in bytes of these BLOBs.
+    */
+
+  case MYSQL_TYPE_TINY_BLOB:
+    return (uint32)my_set_bits(1 * 8);
+
+  case MYSQL_TYPE_MEDIUM_BLOB:
+    return (uint32)my_set_bits(3 * 8);
+
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+    /*
+      For the blob type, Field::real_type() lies and say that all
+      blobs are of type MYSQL_TYPE_BLOB. In that case, we have to look
+      at the length instead to decide what the max display size is.
+     */
+    return (uint32)my_set_bits(metadata * 8);
+
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_GEOMETRY:
+    return (uint32)my_set_bits(4 * 8);
+
+  default:
+    return ~(uint32) 0;
+  }
+}
+
+
+/*
+  Compare the pack lengths of a source field (on the master) and a
+  target field (on the slave).
+
+  @param field    Target field.
+  @param type     Source field type.
+  @param metadata Source field metadata.
+
+  @retval -1 The length of the source field is smaller than the target field.
+  @retval  0 The length of the source and target fields are the same.
+  @retval  1 The length of the source field is greater than the target field.
+ */
+int compare_lengths(Field *field, enum_field_types source_type, uint16 metadata)
+{
+  DBUG_ENTER("compare_lengths");
+  size_t const source_length=
+    max_display_length_for_field(source_type, metadata);
+  size_t const target_length= field->max_display_length();
+  DBUG_PRINT("debug", ("source_length: %lu, source_type: %u,"
+                       " target_length: %lu, target_type: %u",
+                       (unsigned long) source_length, source_type,
+                       (unsigned long) target_length, field->real_type()));
+  int result= source_length < target_length ? -1 : source_length > target_length;
+  DBUG_PRINT("result", ("%d", result));
+  DBUG_RETURN(result);
+}
+#endif //MYSQL_CLIENT
 /*********************************************************************
  *                   table_def member definitions                    *
  *********************************************************************/
@@ -171,7 +349,750 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
   return length;
 }
 
-PSI_memory_key key_memory_table_def_memory;
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+/**
+ */
+void show_sql_type(enum_field_types type, uint16 metadata, String *str,
+                   bool char_with_octets)
+{
+  DBUG_ENTER("show_sql_type");
+  DBUG_PRINT("enter", ("type: %d, metadata: 0x%x", type, metadata));
+
+  switch (type)
+  {
+  case MYSQL_TYPE_TINY:
+    str->set_ascii(STRING_WITH_LEN("tinyint"));
+    break;
+
+  case MYSQL_TYPE_SHORT:
+    str->set_ascii(STRING_WITH_LEN("smallint"));
+    break;
+
+  case MYSQL_TYPE_LONG:
+    str->set_ascii(STRING_WITH_LEN("int"));
+    break;
+
+  case MYSQL_TYPE_FLOAT:
+    str->set_ascii(STRING_WITH_LEN("float"));
+    break;
+
+  case MYSQL_TYPE_DOUBLE:
+    str->set_ascii(STRING_WITH_LEN("double"));
+    break;
+
+  case MYSQL_TYPE_NULL:
+    str->set_ascii(STRING_WITH_LEN("null"));
+    break;
+
+  case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_TIMESTAMP2:
+    str->set_ascii(STRING_WITH_LEN("timestamp"));
+    break;
+
+  case MYSQL_TYPE_LONGLONG:
+    str->set_ascii(STRING_WITH_LEN("bigint"));
+    break;
+
+  case MYSQL_TYPE_INT24:
+    str->set_ascii(STRING_WITH_LEN("mediumint"));
+    break;
+
+  case MYSQL_TYPE_NEWDATE:
+  case MYSQL_TYPE_DATE:
+    str->set_ascii(STRING_WITH_LEN("date"));
+    break;
+
+  case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2:
+    str->set_ascii(STRING_WITH_LEN("time"));
+    break;
+
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_DATETIME2:
+    str->set_ascii(STRING_WITH_LEN("datetime"));
+    break;
+
+  case MYSQL_TYPE_YEAR:
+    str->set_ascii(STRING_WITH_LEN("year"));
+    break;
+
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+    {
+      CHARSET_INFO *cs= str->charset();
+      size_t length=0;
+      if (char_with_octets)
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "varchar(%u octets)", metadata);
+      else
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "varbinary(%u)", metadata);
+      str->length(length);
+    }
+    break;
+
+  case MYSQL_TYPE_BIT:
+    {
+      CHARSET_INFO *cs= str->charset();
+      int bit_length= 8 * (metadata >> 8) + (metadata & 0xFF);
+      size_t length=
+        cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                           "bit(%d)", bit_length);
+      str->length(length);
+    }
+    break;
+
+  case MYSQL_TYPE_DECIMAL:
+    {
+      CHARSET_INFO *cs= str->charset();
+      size_t length=
+        cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                           "decimal(%d,?)/*old*/", metadata);
+      str->length(length);
+    }
+    break;
+
+  case MYSQL_TYPE_NEWDECIMAL:
+    {
+      CHARSET_INFO *cs= str->charset();
+      size_t length=
+        cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                           "decimal(%d,%d)", metadata >> 8, metadata & 0xff);
+      str->length(length);
+    }
+    break;
+
+  case MYSQL_TYPE_ENUM:
+    str->set_ascii(STRING_WITH_LEN("enum"));
+    break;
+
+  case MYSQL_TYPE_SET:
+    str->set_ascii(STRING_WITH_LEN("set"));
+    break;
+
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+    /*
+      Field::real_type() lies regarding the actual type of a BLOB, so
+      it is necessary to check the pack length to figure out what kind
+      of blob it really is.
+     */
+    switch (metadata)
+    {
+    case 1:
+      str->set_ascii(STRING_WITH_LEN("tinyblob"));
+      break;
+
+    case 2:
+      str->set_ascii(STRING_WITH_LEN("blob"));
+      break;
+
+    case 3:
+      str->set_ascii(STRING_WITH_LEN("mediumblob"));
+      break;
+
+    case 4:
+      str->set_ascii(STRING_WITH_LEN("longblob"));
+      break;
+
+    default:
+      DBUG_ASSERT(0);
+      break;
+    }
+
+    if (type == MYSQL_TYPE_BLOB_COMPRESSED)
+      str->append(STRING_WITH_LEN(" compressed"));
+    break;
+
+  case MYSQL_TYPE_STRING:
+    {
+      /*
+        This is taken from Field_string::unpack.
+      */
+      CHARSET_INFO *cs= str->charset();
+      uint bytes= (((metadata >> 4) & 0x300) ^ 0x300) + (metadata & 0x00ff);
+      size_t length=0;
+      if (char_with_octets)
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "char(%u octets)", bytes);
+      else
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "binary(%u)", bytes);
+      str->length(length);
+    }
+    break;
+
+  case MYSQL_TYPE_GEOMETRY:
+    str->set_ascii(STRING_WITH_LEN("geometry"));
+    break;
+
+  default:
+    str->set_ascii(STRING_WITH_LEN("<unknown type>"));
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+   Check the order variable and print errors if the order is not
+   acceptable according to the current settings.
+
+   @param order  The computed order of the conversion needed.
+   @param rli    The relay log info data structure: for error reporting.
+ */
+bool is_conversion_ok(int order, Relay_log_info *rli)
+{
+  DBUG_ENTER("is_conversion_ok");
+  bool allow_non_lossy, allow_lossy;
+
+  allow_non_lossy = slave_type_conversions_options &
+                    (1ULL << SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY);
+  allow_lossy= slave_type_conversions_options &
+               (1ULL << SLAVE_TYPE_CONVERSIONS_ALL_LOSSY);
+
+  DBUG_PRINT("enter", ("order: %d, flags:%s%s", order,
+                       allow_non_lossy ? " ALL_NON_LOSSY" : "",
+                       allow_lossy ? " ALL_LOSSY" : ""));
+  if (order < 0 && !allow_non_lossy)
+  {
+    /* !!! Add error message saying that non-lossy conversions need to be allowed. */
+    DBUG_RETURN(false);
+  }
+
+  if (order > 0 && !allow_lossy)
+  {
+    /* !!! Add error message saying that lossy conversions need to be allowed. */
+    DBUG_RETURN(false);
+  }
+
+  DBUG_RETURN(true);
+}
+
+
+/**
+   Can a type potentially be converted to another type?
+
+   This function check if the types are convertible and what
+   conversion is required.
+
+   If conversion is not possible, and error is printed.
+
+   If conversion is possible:
+
+   - *order will be set to -1 if source type is smaller than target
+     type and a non-lossy conversion can be required. This includes
+     the case where the field types are different but types could
+     actually be converted in either direction.
+
+   - *order will be set to 0 if no conversion is required.
+
+   - *order will be set to 1 if the source type is strictly larger
+      than the target type and that conversion is potentially lossy.
+
+   @param[in] field    Target field
+   @param[in] type     Source field type
+   @param[in] metadata Source field metadata
+   @param[in] rli      Relay log info (for error reporting)
+   @param[in] mflags   Flags from the table map event
+   @param[out] order   Order between source field and target field
+
+   @return @c true if conversion is possible according to the current
+   settings, @c false if conversion is not possible according to the
+   current setting.
+ */
+static bool
+can_convert_field_to(Field *field,
+                     enum_field_types source_type, uint16 metadata,
+                     Relay_log_info *rli, uint16 mflags,
+                     int *order_var)
+{
+  DBUG_ENTER("can_convert_field_to");
+  bool same_type;
+#ifndef DBUG_OFF
+  char field_type_buf[MAX_FIELD_WIDTH];
+  String field_type(field_type_buf, sizeof(field_type_buf), &my_charset_latin1);
+  field->sql_type(field_type);
+  DBUG_PRINT("enter", ("field_type: %s, target_type: %d, source_type: %d, source_metadata: 0x%x",
+                       field_type.c_ptr_safe(), field->real_type(), source_type, metadata));
+#endif
+  /**
+    @todo
+      Implement Field_varstring_cmopressed::real_type() and
+      Field_blob_compressed::real_type() properly. All occurencies
+      of Field::real_type() have to be inspected and adjusted if needed.
+
+      Until it is not ready we have to compare source_type against
+      binlog_type() when replicating from or to compressed data types.
+
+      @sa Comment for Field::binlog_type()
+  */
+  if (source_type == MYSQL_TYPE_VARCHAR_COMPRESSED ||
+      source_type == MYSQL_TYPE_BLOB_COMPRESSED ||
+      field->binlog_type() == MYSQL_TYPE_VARCHAR_COMPRESSED ||
+      field->binlog_type() == MYSQL_TYPE_BLOB_COMPRESSED)
+    same_type= field->binlog_type() == source_type;
+  else
+    same_type= field->real_type() == source_type;
+
+  /*
+    If the real type is the same, we need to check the metadata to
+    decide if conversions are allowed.
+   */
+  if (same_type)
+  {
+    if (metadata == 0) // Metadata can only be zero if no metadata was provided
+    {
+      /*
+        If there is no metadata, we either have an old event where no
+        metadata were supplied, or a type that does not require any
+        metadata. In either case, conversion can be done but no
+        conversion table is necessary.
+       */
+      DBUG_PRINT("debug", ("Base types are identical, but there is no metadata"));
+      *order_var= 0;
+      DBUG_RETURN(true);
+    }
+
+    DBUG_PRINT("debug", ("Base types are identical, doing field size comparison"));
+    if (field->compatible_field_size(metadata, rli, mflags, order_var))
+      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+    else
+      DBUG_RETURN(false);
+  }
+  else if (
+            /*
+              Conversion from MariaDB TIMESTAMP(0), TIME(0), DATETIME(0)
+              to the corresponding MySQL56 types is non-lossy.
+            */
+           (metadata == 0 &&
+            ((field->real_type() == MYSQL_TYPE_TIMESTAMP2 &&
+              source_type == MYSQL_TYPE_TIMESTAMP) ||
+             (field->real_type() == MYSQL_TYPE_TIME2 &&
+              source_type == MYSQL_TYPE_TIME) ||
+             (field->real_type() == MYSQL_TYPE_DATETIME2 &&
+              source_type == MYSQL_TYPE_DATETIME))) ||
+            /*
+              Conversion from MySQL56 TIMESTAMP(N), TIME(N), DATETIME(N)
+              to the corresponding MariaDB or MySQL55 types is non-lossy.
+            */
+            (metadata == field->decimals() &&
+             ((field->real_type() == MYSQL_TYPE_TIMESTAMP &&
+              source_type == MYSQL_TYPE_TIMESTAMP2) ||
+             (field->real_type() == MYSQL_TYPE_TIME &&
+              source_type == MYSQL_TYPE_TIME2) ||
+             (field->real_type() == MYSQL_TYPE_DATETIME &&
+              source_type == MYSQL_TYPE_DATETIME2))))
+  {
+    /*
+      TS-TODO: conversion from FSP1>FSP2.
+    */
+    *order_var= -1;
+    DBUG_RETURN(true);
+  }
+  else if (!slave_type_conversions_options)
+    DBUG_RETURN(false);
+
+  /*
+    Here, from and to will always be different. Since the types are
+    different, we cannot use the compatible_field_size() function, but
+    have to rely on hard-coded max-sizes for fields.
+  */
+
+  DBUG_PRINT("debug", ("Base types are different, checking conversion"));
+  switch (source_type)                      // Source type (on master)
+  {
+  case MYSQL_TYPE_DECIMAL:
+  case MYSQL_TYPE_NEWDECIMAL:
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_DOUBLE:
+    switch (field->real_type())
+    {
+    case MYSQL_TYPE_NEWDECIMAL:
+      /*
+        Then the other type is either FLOAT, DOUBLE, or old style
+        DECIMAL, so we require lossy conversion.
+      */
+      *order_var= 1;
+      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      
+    case MYSQL_TYPE_DECIMAL:
+    case MYSQL_TYPE_FLOAT:
+    case MYSQL_TYPE_DOUBLE:
+    {
+      if (source_type == MYSQL_TYPE_NEWDECIMAL ||
+          source_type == MYSQL_TYPE_DECIMAL)
+        *order_var = 1;                         // Always require lossy conversions
+      else
+        *order_var= compare_lengths(field, source_type, metadata);
+      DBUG_ASSERT(*order_var != 0);
+      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+    }
+
+    default:
+      DBUG_RETURN(false);
+    }
+    break;
+
+  /*
+    The length comparison check will do the correct job of comparing
+    the field lengths (in bytes) of two integer types.
+  */
+  case MYSQL_TYPE_TINY:
+  case MYSQL_TYPE_SHORT:
+  case MYSQL_TYPE_INT24:
+  case MYSQL_TYPE_LONG:
+  case MYSQL_TYPE_LONGLONG:
+    switch (field->real_type())
+    {
+    case MYSQL_TYPE_TINY:
+    case MYSQL_TYPE_SHORT:
+    case MYSQL_TYPE_INT24:
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_LONGLONG:
+      /*
+        max_display_length_for_field() is not fully precise for the integer
+        data types. So its result cannot be compared to the result of
+        field->max_dispay_length() when the table field and the binlog field
+        are of the same type.
+        This code should eventually be rewritten not to use
+        compare_lengths(), to detect subtype/supetype relations
+        just using the type codes.
+      */
+      DBUG_ASSERT(source_type != field->real_type());
+      *order_var= compare_lengths(field, source_type, metadata);
+      DBUG_ASSERT(*order_var != 0);
+      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+
+    default:
+      DBUG_RETURN(false);
+    }
+    break;
+
+  /*
+    Since source and target type is different, and it is not possible
+    to convert bit types to anything else, this will return false.
+   */
+  case MYSQL_TYPE_BIT:
+    DBUG_RETURN(false);
+
+  /*
+    If all conversions are disabled, it is not allowed to convert
+    between these types. Since the TEXT vs. BINARY is distinguished by
+    the charset, and the charset is not replicated, we cannot
+    currently distinguish between , e.g., TEXT and BLOB.
+   */
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_BLOB_COMPRESSED:
+  case MYSQL_TYPE_STRING:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_VARCHAR_COMPRESSED:
+    switch (field->real_type())
+    {
+    case MYSQL_TYPE_TINY_BLOB:
+    case MYSQL_TYPE_MEDIUM_BLOB:
+    case MYSQL_TYPE_LONG_BLOB:
+    case MYSQL_TYPE_BLOB:
+    case MYSQL_TYPE_BLOB_COMPRESSED:
+    case MYSQL_TYPE_STRING:
+    case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_VARCHAR_COMPRESSED:
+      *order_var= compare_lengths(field, source_type, metadata);
+      /*
+        Here we know that the types are different, so if the order
+        gives that they do not require any conversion, we still need
+        to have non-lossy conversion enabled to allow conversion
+        between different (string) types of the same length.
+       */
+      if (*order_var == 0)
+        *order_var= -1;
+      DBUG_RETURN(is_conversion_ok(*order_var, rli));
+
+    default:
+      DBUG_RETURN(false);
+    }
+    break;
+
+  case MYSQL_TYPE_GEOMETRY:
+  case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_YEAR:
+  case MYSQL_TYPE_NULL:
+  case MYSQL_TYPE_ENUM:
+  case MYSQL_TYPE_SET:
+  case MYSQL_TYPE_TIMESTAMP2:
+  case MYSQL_TYPE_TIME2:
+    DBUG_RETURN(false);
+  case MYSQL_TYPE_NEWDATE:
+    {
+      if (field->real_type() == MYSQL_TYPE_DATETIME2 ||
+          field->real_type() == MYSQL_TYPE_DATETIME)
+      {
+        *order_var= -1;
+        DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      }
+      else
+      {
+        DBUG_RETURN(false);
+      }
+    }
+    break;
+
+  //case MYSQL_TYPE_DATETIME: TODO: fix MDEV-17394 and uncomment.
+  //
+  //The "old" type does not specify the fraction part size which is required
+  //for correct conversion.
+  case MYSQL_TYPE_DATETIME2:
+    {
+      if (field->real_type() == MYSQL_TYPE_NEWDATE)
+      {
+        *order_var= 1;
+        DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      }
+      else
+      {
+        DBUG_RETURN(false);
+      }
+    }
+    break;
+  }
+  DBUG_RETURN(false);                                 // To keep GCC happy
+}
+
+
+/**
+  Is the definition compatible with a table?
+
+  This function will compare the master table with an existing table
+  on the slave and see if they are compatible with respect to the
+  current settings of @c SLAVE_TYPE_CONVERSIONS.
+
+  If the tables are compatible and conversions are required, @c
+  *tmp_table_var will be set to a virtual temporary table with field
+  pointers for the fields that require conversions.  This allow simple
+  checking of whether a conversion are to be applied or not.
+
+  If tables are compatible, but no conversions are necessary, @c
+  *tmp_table_var will be set to NULL.
+
+  @param rli_arg[in]
+  Relay log info, for error reporting.
+
+  @param table[in]
+  Table to compare with
+
+  @param tmp_table_var[out]
+  Virtual temporary table for performing conversions, if necessary.
+
+  @retval true Master table is compatible with slave table.
+  @retval false Master table is not compatible with slave table.
+*/
+bool
+table_def::compatible_with(THD *thd, rpl_group_info *rgi,
+                           TABLE *table, TABLE **conv_table_var)
+  const
+{
+  /*
+    We only check the initial columns for the tables.
+  */
+  uint const cols_to_check= MY_MIN(table->s->fields, size());
+  Relay_log_info *rli= rgi->rli;
+  TABLE *tmp_table= NULL;
+
+  for (uint col= 0 ; col < cols_to_check ; ++col)
+  {
+    Field *const field= table->field[col];
+    int order;
+    if (can_convert_field_to(field, type(col), field_metadata(col), rli, m_flags, &order))
+    {
+      DBUG_PRINT("debug", ("Checking column %d -"
+                           " field '%s' can be converted - order: %d",
+                           col, field->field_name.str, order));
+      DBUG_ASSERT(order >= -1 && order <= 1);
+
+      /*
+        If order is not 0, a conversion is required, so we need to set
+        up the conversion table.
+       */
+      if (order != 0 && tmp_table == NULL)
+      {
+        /*
+          This will create the full table with all fields. This is
+          necessary to ge the correct field lengths for the record.
+        */
+        tmp_table= create_conversion_table(thd, rgi, table);
+        if (tmp_table == NULL)
+            return false;
+        /*
+          Clear all fields up to, but not including, this column.
+        */
+        for (unsigned int i= 0; i < col; ++i)
+          tmp_table->field[i]= NULL;
+      }
+
+      if (order == 0 && tmp_table != NULL)
+        tmp_table->field[col]= NULL;
+    }
+    else
+    {
+      DBUG_PRINT("debug", ("Checking column %d -"
+                           " field '%s' can not be converted",
+                           col, field->field_name.str));
+      DBUG_ASSERT(col < size() && col < table->s->fields);
+      DBUG_ASSERT(table->s->db.str && table->s->table_name.str);
+      DBUG_ASSERT(table->in_use);
+      const char *db_name= table->s->db.str;
+      const char *tbl_name= table->s->table_name.str;
+      char source_buf[MAX_FIELD_WIDTH];
+      char target_buf[MAX_FIELD_WIDTH];
+      String source_type(source_buf, sizeof(source_buf), &my_charset_latin1);
+      String target_type(target_buf, sizeof(target_buf), &my_charset_latin1);
+      THD *thd= table->in_use;
+      bool char_with_octets= field->cmp_type() == STRING_RESULT ?
+                             field->has_charset() : true;
+
+      show_sql_type(type(col), field_metadata(col), &source_type,
+                    char_with_octets);
+      field->sql_rpl_type(&target_type);
+
+      rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
+                  ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
+                  col, db_name, tbl_name,
+                  source_type.c_ptr_safe(), target_type.c_ptr_safe());
+      return false;
+    }
+  }
+
+#ifndef DBUG_OFF
+  if (tmp_table)
+  {
+    for (unsigned int col= 0; col < tmp_table->s->fields; ++col)
+      if (tmp_table->field[col])
+      {
+        char source_buf[MAX_FIELD_WIDTH];
+        char target_buf[MAX_FIELD_WIDTH];
+        String source_type(source_buf, sizeof(source_buf), &my_charset_latin1);
+        String target_type(target_buf, sizeof(target_buf), &my_charset_latin1);
+        tmp_table->field[col]->sql_type(source_type);
+        table->field[col]->sql_type(target_type);
+        DBUG_PRINT("debug", ("Field %s - conversion required."
+                             " Source type: '%s', Target type: '%s'",
+                             tmp_table->field[col]->field_name.str,
+                             source_type.c_ptr_safe(), target_type.c_ptr_safe()));
+      }
+  }
+#endif
+
+  *conv_table_var= tmp_table;
+  return true;
+}
+
+
+/**
+  A wrapper to Virtual_tmp_table, to get access to its constructor,
+  which is protected for safety purposes (against illegal use on stack).
+*/
+class Virtual_conversion_table: public Virtual_tmp_table
+{
+public:
+  Virtual_conversion_table(THD *thd) :Virtual_tmp_table(thd) { }
+  /**
+    Add a new field into the virtual table.
+    @param sql_type     - The real_type of the field.
+    @param metadata     - The RBR binary log metadata for this field.
+    @param target_field - The field from the target table, to get extra
+                          attributes from (e.g. typelib in case of ENUM).
+  */
+  bool add(enum_field_types sql_type,
+           uint16 metadata, const Field *target_field)
+  {
+    const Type_handler *handler= Type_handler::get_handler_by_real_type(sql_type);
+    if (!handler)
+    {
+      sql_print_error("In RBR mode, Slave received unknown field type field %d "
+                      " for column Name: %s.%s.%s.",
+                      (int) sql_type,
+                      target_field->table->s->db.str,
+                      target_field->table->s->table_name.str,
+                      target_field->field_name.str);
+      return true;
+    }
+    Field *tmp= handler->make_conversion_table_field(this, metadata,
+                                                     target_field);
+    if (!tmp)
+      return true;
+    Virtual_tmp_table::add(tmp);
+    DBUG_PRINT("debug", ("sql_type: %d, target_field: '%s', max_length: %d, decimals: %d,"
+                         " maybe_null: %d, unsigned_flag: %d, pack_length: %u",
+                         sql_type, target_field->field_name.str,
+                         tmp->field_length, tmp->decimals(), TRUE,
+                         tmp->flags, tmp->pack_length()));
+    return false;
+  }
+};
+
+
+/**
+  Create a conversion table.
+
+  If the function is unable to create the conversion table, an error
+  will be printed and NULL will be returned.
+
+  @return Pointer to conversion table, or NULL if unable to create
+  conversion table.
+ */
+
+TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
+                                          TABLE *target_table) const
+{
+  DBUG_ENTER("table_def::create_conversion_table");
+
+  Virtual_conversion_table *conv_table;
+  Relay_log_info *rli= rgi->rli;
+  /*
+    At slave, columns may differ. So we should create
+    MY_MIN(columns@master, columns@slave) columns in the
+    conversion table.
+  */
+  uint const cols_to_create= MY_MIN(target_table->s->fields, size());
+  if (!(conv_table= new(thd) Virtual_conversion_table(thd)) ||
+      conv_table->init(cols_to_create))
+    goto err;
+  for (uint col= 0 ; col < cols_to_create; ++col)
+  {
+    if (conv_table->add(type(col), field_metadata(col),
+                        target_table->field[col]))
+    {
+      DBUG_PRINT("debug", ("binlog_type: %d, metadata: %04X, target_field: '%s'"
+                           " make_conversion_table_field() failed",
+                           binlog_type(col), field_metadata(col),
+                           target_table->field[col]->field_name.str));
+      goto err;
+    }
+  }
+
+  if (conv_table->open())
+    goto err; // Could not allocate record buffer?
+
+  DBUG_RETURN(conv_table);
+
+err:
+  if (conv_table)
+    delete conv_table;
+  rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION, rgi->gtid_info(),
+              ER_THD(thd, ER_SLAVE_CANT_CREATE_CONVERSION),
+              target_table->s->db.str,
+              target_table->s->table_name.str);
+  DBUG_RETURN(NULL);
+}
+#endif /* MYSQL_CLIENT */
 
 table_def::table_def(unsigned char *types, ulong size,
                      uchar *field_metadata, int metadata_size,
@@ -180,7 +1101,7 @@ table_def::table_def(unsigned char *types, ulong size,
     m_field_metadata(0), m_null_bits(0), m_flags(flags),
     m_memory(NULL)
 {
-  m_memory= (uchar *)my_multi_malloc(key_memory_table_def_memory, MYF(MY_WME),
+  m_memory= (uchar *)my_multi_malloc(MYF(MY_WME),
                                      &m_type, size,
                                      &m_field_metadata,
                                      size * sizeof(uint16),
@@ -335,3 +1256,67 @@ bool event_checksum_test(uchar *event_buf, ulong event_len, enum enum_binlog_che
   }
   return res;
 }
+
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+
+Deferred_log_events::Deferred_log_events(Relay_log_info *rli) : last_added(NULL)
+{
+  my_init_dynamic_array(&array, sizeof(Log_event *), 32, 16, MYF(0));
+}
+
+Deferred_log_events::~Deferred_log_events() 
+{
+  delete_dynamic(&array);
+}
+
+int Deferred_log_events::add(Log_event *ev)
+{
+  last_added= ev;
+  insert_dynamic(&array, (uchar*) &ev);
+  return 0;
+}
+
+bool Deferred_log_events::is_empty()
+{  
+  return array.elements == 0;
+}
+
+bool Deferred_log_events::execute(rpl_group_info *rgi)
+{
+  bool res= false;
+  DBUG_ENTER("Deferred_log_events::execute");
+  DBUG_ASSERT(rgi->deferred_events_collecting);
+
+  rgi->deferred_events_collecting= false;
+  for (uint i=  0; !res && i < array.elements; i++)
+  {
+    Log_event *ev= (* (Log_event **)
+                    dynamic_array_ptr(&array, i));
+    res= ev->apply_event(rgi);
+  }
+  rgi->deferred_events_collecting= true;
+  DBUG_RETURN(res);
+}
+
+void Deferred_log_events::rewind()
+{
+  /*
+    Reset preceding Query log event events which execution was
+    deferred because of slave side filtering.
+  */
+  if (!is_empty())
+  {
+    for (uint i=  0; i < array.elements; i++)
+    {
+      Log_event *ev= *(Log_event **) dynamic_array_ptr(&array, i);
+      delete ev;
+    }
+    last_added= NULL;
+    if (array.elements > array.max_element)
+      freeze_size(&array);
+    reset_dynamic(&array);
+  }
+  last_added= NULL;
+}
+
+#endif

@@ -17,13 +17,13 @@ SET @@global.innodb_max_dirty_pages_pct = 0;
 SET @@global.innodb_max_dirty_pages_pct = DEFAULT;
 SELECT @@global.innodb_max_dirty_pages_pct;
 @@global.innodb_max_dirty_pages_pct
-90.000000
+75.000000
 '#---------------------FN_DYNVARS_046_02-------------------------#'
 SET innodb_max_dirty_pages_pct = 1;
 ERROR HY000: Variable 'innodb_max_dirty_pages_pct' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT @@innodb_max_dirty_pages_pct;
 @@innodb_max_dirty_pages_pct
-90.000000
+75.000000
 SELECT local.innodb_max_dirty_pages_pct;
 ERROR 42S02: Unknown table 'local' in field list
 SET global innodb_max_dirty_pages_pct = 0;

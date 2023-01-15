@@ -86,7 +86,7 @@ fil_page_type_validate(
 	fil_space_t*	space,
 	const byte*	page)
 {
-	const uint16_t page_type = fil_page_get_type(page);
+	ulint page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
 
 	if ((page_type & 1U << FIL_PAGE_COMPRESS_FCRC32_MARKER)
 	    && space->full_crc32()

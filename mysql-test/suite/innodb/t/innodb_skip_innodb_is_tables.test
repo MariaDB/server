@@ -32,5 +32,6 @@ select * from information_schema.innodb_sys_datafiles;
 --error 0,1109
 select * from information_schema.innodb_changed_pages;
 select * from information_schema.innodb_tablespaces_encryption;
+select * from information_schema.innodb_tablespaces_scrubbing;
 select * from information_schema.innodb_mutexes;
 select * from information_schema.innodb_sys_semaphore_waits;

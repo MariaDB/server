@@ -106,7 +106,6 @@ select json_detailed(priv) from mysql.global_priv where user='mysqltest1';
 json_detailed(priv)
 {
     "access": 0,
-    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "*7D8C3DF236D9163B6C274A9D47704BC496988460",
     "auth_or": 
@@ -152,7 +151,7 @@ CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*BFE3F4
 drop user mysqltest1;
 # switching from mysql.global_priv to mysql.user
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
-ERROR HY000: Column count of mysql.user is wrong. Expected 3, found 47. Created with MariaDB XX.YY.ZZ, now running XX.YY.ZZ. Please use mariadb-upgrade to fix this error
+ERROR HY000: Column count of mysql.user is wrong. Expected 3, found 47. Created with MariaDB XX.YY.ZZ, now running XX.YY.ZZ. Please use mysql_upgrade to fix this error
 # switching back from mysql.user to mysql.global_priv
 create user 'USER'         identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
 create user mysqltest1 identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;

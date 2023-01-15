@@ -52,9 +52,8 @@ SELECT @@global.innodb_commit_concurrency;
 #   Check if innodb_commit_concurrency can be accessed with and without @@ sign#
 ################################################################################
 
---error ER_GLOBAL_VARIABLE
+--Error ER_GLOBAL_VARIABLE
 SET innodb_commit_concurrency = 1;
-SET GLOBAL innodb_commit_concurrency = 1;
 SELECT @@innodb_commit_concurrency;
 
 
@@ -80,8 +79,14 @@ SELECT @@global.innodb_commit_concurrency;
 #    Change the value of innodb_commit_concurrency to invalid value       #
 ########################################################################### 
 
+#
+# InnoDB doesn't allow innodb_commit_concurrency to change from
+# zero to non-zero or vice versa
+#
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.innodb_commit_concurrency = 1;
 SELECT @@global.innodb_commit_concurrency;
-SELECT @@global.innodb_commit_concurrency;
+--Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.innodb_commit_concurrency = -1;
 SELECT @@global.innodb_commit_concurrency;
 --Error ER_WRONG_TYPE_FOR_VAR
@@ -93,6 +98,7 @@ SELECT @@global.innodb_commit_concurrency;
 --Error ER_WRONG_TYPE_FOR_VAR
 SET @@global.innodb_commit_concurrency = 1.1;
 SELECT @@global.innodb_commit_concurrency;
+--Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.innodb_commit_concurrency = 1001;
 SELECT @@global.innodb_commit_concurrency;
 

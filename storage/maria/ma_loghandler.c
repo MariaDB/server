@@ -1649,7 +1649,7 @@ static void translog_file_init(TRANSLOG_FILE *file, uint32 number,
 
 static my_bool translog_create_new_file()
 {
-  TRANSLOG_FILE *file= (TRANSLOG_FILE*)my_malloc(PSI_INSTRUMENT_ME, sizeof(TRANSLOG_FILE),
+  TRANSLOG_FILE *file= (TRANSLOG_FILE*)my_malloc(sizeof(TRANSLOG_FILE),
                                                  MYF(0));
 
   TRANSLOG_FILE *old= get_current_logfile();
@@ -1909,7 +1909,7 @@ static void translog_put_sector_protection(uchar *page,
 static uint32 translog_crc(uchar *area, uint length)
 {
   DBUG_ENTER("translog_crc");
-  DBUG_RETURN(my_checksum(0L, area, length));
+  DBUG_RETURN(crc32(0L, (unsigned char*) area, length));
 }
 
 
@@ -3660,9 +3660,9 @@ my_bool translog_init_with_table(const char *directory,
                       &log_descriptor.new_goal_cond, 0) ||
       mysql_rwlock_init(key_TRANSLOG_DESCRIPTOR_open_files_lock,
                         &log_descriptor.open_files_lock) ||
-      my_init_dynamic_array(PSI_INSTRUMENT_ME, &log_descriptor.open_files,
+      my_init_dynamic_array(&log_descriptor.open_files,
                             sizeof(TRANSLOG_FILE*), 10, 10, MYF(0)) ||
-      my_init_dynamic_array(PSI_INSTRUMENT_ME, &log_descriptor.unfinished_files,
+      my_init_dynamic_array(&log_descriptor.unfinished_files,
                             sizeof(struct st_file_counter),
                             10, 10, MYF(0)))
     goto err;
@@ -3814,7 +3814,7 @@ my_bool translog_init_with_table(const char *directory,
           We can't allocate all file together because they will be freed
           one by one
         */
-        TRANSLOG_FILE *file= (TRANSLOG_FILE *)my_malloc(PSI_INSTRUMENT_ME, sizeof(TRANSLOG_FILE),
+        TRANSLOG_FILE *file= (TRANSLOG_FILE *)my_malloc(sizeof(TRANSLOG_FILE),
                                                         MYF(0));
 
         compile_time_assert(MY_FILEPOS_ERROR > 0xffffffffULL);
@@ -4016,8 +4016,8 @@ my_bool translog_init_with_table(const char *directory,
                       logs_found, old_log_was_recovered));
   if (!logs_found)
   {
-    TRANSLOG_FILE *file= (TRANSLOG_FILE*)my_malloc(PSI_INSTRUMENT_ME,
-                                           sizeof(TRANSLOG_FILE), MYF(MY_WME));
+    TRANSLOG_FILE *file= (TRANSLOG_FILE*)my_malloc(sizeof(TRANSLOG_FILE),
+                                                   MYF(MY_WME));
     DBUG_PRINT("info", ("The log is not found => we will create new log"));
     if (file == NULL)
        goto err;
@@ -4084,7 +4084,7 @@ my_bool translog_init_with_table(const char *directory,
     Log records will refer to a MARIA_SHARE by a unique 2-byte id; set up
     structures for generating 2-byte ids:
   */
-  id_to_share= (MARIA_SHARE **) my_malloc(PSI_INSTRUMENT_ME, SHARE_ID_MAX * sizeof(MARIA_SHARE*),
+  id_to_share= (MARIA_SHARE **) my_malloc(SHARE_ID_MAX * sizeof(MARIA_SHARE*),
                                           MYF(MY_WME | MY_ZEROFILL));
   if (unlikely(!id_to_share))
     goto err;
@@ -5649,7 +5649,7 @@ translog_write_variable_record_mgroup(LSN *lsn,
   used_buffs_init(&cursor.buffs);
   chunk2_header[0]= TRANSLOG_CHUNK_NOHDR;
 
-  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &groups,
+  if (my_init_dynamic_array(&groups,
                             sizeof(struct st_translog_group_descriptor),
                             10, 10, MYF(0)))
   {
@@ -6994,7 +6994,7 @@ translog_variable_length_header(uchar *page, translog_size_t page_offset,
     DBUG_PRINT("info", ("multi-group"));
     grp_no= buff->groups_no= uint2korr(src + 2);
     if (!(buff->groups=
-          (TRANSLOG_GROUP*) my_malloc(PSI_INSTRUMENT_ME, sizeof(TRANSLOG_GROUP) * grp_no,
+          (TRANSLOG_GROUP*) my_malloc(sizeof(TRANSLOG_GROUP) * grp_no,
                                       MYF(0))))
       DBUG_RETURN(RECHEADER_READ_ERROR);
     DBUG_PRINT("info", ("Groups: %u", (uint) grp_no));
@@ -7925,8 +7925,7 @@ void check_skipped_lsn(MARIA_HA *info, LSN lsn, my_bool index_file,
   else
   {
     /* Give error, but don't flood the log */
-    if (skipped_lsn_err_count++ < MAX_LSN_ERRORS &&
-        ! info->s->redo_error_given++)
+    if (skipped_lsn_err_count++ < 10 && ! info->s->redo_error_given++)
     {
       eprint(tracef, "Table %s has wrong LSN: " LSN_FMT " on page: %llu",
              (index_file ? info->s->data_file_name.str :

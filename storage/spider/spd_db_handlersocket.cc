@@ -127,10 +127,7 @@ SPIDER_DBTON spider_dbton_handlersocket = {
   NULL,
   spider_handlersocket_create_conn,
   spider_handlersocket_support_direct_join,
-  &spider_db_handlersocket_utility,
-  "For communicating using the handlersocket protocol",
-  "0.1.0",
-  SPIDER_MATURITY_BETA
+  &spider_db_handlersocket_utility
 };
 
 #ifndef HANDLERSOCKET_MYSQL_UTIL
@@ -508,8 +505,8 @@ SPIDER_DB_ROW *spider_db_handlersocket_row::clone()
     DBUG_RETURN(NULL);
   }
   if (!spider_bulk_malloc(spider_current_trx, 169, MYF(MY_WME),
-    &clone_row->hs_row, (uint) (sizeof(SPIDER_HS_STRING_REF) * field_count),
-    &tmp_char, (uint) (row_size),
+    &clone_row->hs_row, sizeof(SPIDER_HS_STRING_REF) * field_count,
+    &tmp_char, row_size,
     NullS)
   ) {
     delete clone_row;
@@ -1441,7 +1438,6 @@ spider_db_result *spider_db_handlersocket::store_result(
 }
 
 spider_db_result *spider_db_handlersocket::use_result(
-  ha_spider *spider,
   st_spider_db_request_key *request_key,
   int *error_num
 ) {
@@ -5425,8 +5421,8 @@ int spider_handlersocket_handler::append_delete_all_rows_part(
 }
 
 int spider_handlersocket_handler::append_explain_select_part(
-  const key_range *start_key,
-  const key_range *end_key,
+  key_range *start_key,
+  key_range *end_key,
   ulong sql_type,
   int link_idx
 ) {
@@ -6171,8 +6167,8 @@ void spider_handlersocket_handler::minimum_select_bitmap_create()
   {
     uint field_index = (*field_p)->field_index;
     if (
-      spider_bit_is_set(spider->searched_bitmap, field_index) ||
-      bitmap_is_set(table->read_set, field_index) ||
+      spider_bit_is_set(spider->searched_bitmap, field_index) |
+      bitmap_is_set(table->read_set, field_index) |
       bitmap_is_set(table->write_set, field_index)
     ) {
       spider_set_bit(minimum_select_bitmap, field_index);

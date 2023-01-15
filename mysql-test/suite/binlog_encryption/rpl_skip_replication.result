@@ -7,7 +7,7 @@ SELECT,UPDATE ON *.* TO 'nonsuperuser'@'127.0.0.1';
 connect nonpriv, 127.0.0.1, nonsuperuser,, test, $SLAVE_MYPORT,;
 connection nonpriv;
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_MASTER;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 disconnect nonpriv;
 connection slave;
 DROP USER'nonsuperuser'@'127.0.0.1';

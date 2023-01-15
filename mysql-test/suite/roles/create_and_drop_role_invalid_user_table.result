@@ -6,7 +6,7 @@ alter table user drop column default_role;
 alter table user drop column max_statement_time;
 flush privileges;
 create role test_role;
-ERROR HY000: Column count of mysql.user is wrong. Expected 45, found 44. Created with MariaDB MYSQL_VERSION_ID, now running MYSQL_VERSION_ID. Please use mariadb-upgrade to fix this error
+ERROR HY000: Column count of mysql.user is wrong. Expected 45, found 44. Created with MariaDB MYSQL_VERSION_ID, now running MYSQL_VERSION_ID. Please use mysql_upgrade to fix this error
 drop role test_role;
 ERROR HY000: Operation DROP ROLE failed for 'test_role'
 alter table user add column is_role enum('N', 'Y') default 'N' not null

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2017, 2020, MariaDB Corporation.
+   Copyright (c) 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,7 +34,6 @@
 #include "sp_head.h" // for Stored_program_creation_ctx
 #include "set_var.h"
 #include "lock.h"   // lock_object_name
-#include "mysql/psi/mysql_sp.h"
 #include "wsrep_mysqld.h"
 
 /**
@@ -105,8 +104,8 @@ ulong Events::inited;
 int sortcmp_lex_string(const LEX_CSTRING *s, const LEX_CSTRING *t,
                        const CHARSET_INFO *cs)
 {
- return cs->strnncollsp(s->str, s->length,
-                        t->str, t->length);
+ return cs->coll->strnncollsp(cs, (uchar *) s->str, s->length,
+                                  (uchar *) t->str, t->length);
 }
 
 
@@ -622,9 +621,6 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
     /* Binlog the drop event. */
     DBUG_ASSERT(thd->query() && thd->query_length());
     ret= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-    /* Drop statistics for this stored program from performance schema. */
-    MYSQL_DROP_SP(SP_TYPE_EVENT,
-                  dbname->str, static_cast<uint>(dbname->length), name->str, static_cast<uint>(name->length));
   }
 
   thd->restore_stmt_binlog_format(save_binlog_format);
@@ -846,12 +842,13 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   */
   if (thd->lex->sql_command == SQLCOM_SHOW_EVENTS)
   {
-    LEX_CSTRING *lexdb= &thd->lex->first_select_lex()->db;
-    DBUG_ASSERT(lexdb);
-    if (!is_infoschema_db(lexdb) && !is_perfschema_db(lexdb) &&
-        check_access(thd, EVENT_ACL, lexdb->str, NULL, NULL, 0, 0))
+    DBUG_ASSERT(thd->lex->first_select_lex()->db.str);
+    if (!is_infoschema_db(&thd->lex->first_select_lex()->db) && // There is no events in I_S
+        check_access(thd, EVENT_ACL, thd->lex->first_select_lex()->db.str,
+                     NULL, NULL, 0, 0))
       DBUG_RETURN(1);
-    db= normalize_db_name(lexdb->str, db_tmp, sizeof(db_tmp));
+    db= normalize_db_name(thd->lex->first_select_lex()->db.str,
+                          db_tmp, sizeof(db_tmp));
   }
   ret= db_repository->fill_schema_events(thd, tables, db);
 
@@ -1041,19 +1038,12 @@ PSI_stage_info stage_waiting_on_empty_queue= { 0, "Waiting on empty queue", 0};
 PSI_stage_info stage_waiting_for_next_activation= { 0, "Waiting for next activation", 0};
 PSI_stage_info stage_waiting_for_scheduler_to_stop= { 0, "Waiting for the scheduler to stop", 0};
 
-PSI_memory_key key_memory_event_basic_root;
-
 #ifdef HAVE_PSI_INTERFACE
 PSI_stage_info *all_events_stages[]=
 {
   & stage_waiting_on_empty_queue,
   & stage_waiting_for_next_activation,
   & stage_waiting_for_scheduler_to_stop
-};
-
-static PSI_memory_info all_events_memory[]=
-{
-  { &key_memory_event_basic_root, "Event_basic::mem_root", PSI_FLAG_GLOBAL}
 };
 
 static void init_events_psi_keys(void)
@@ -1073,10 +1063,6 @@ static void init_events_psi_keys(void)
   count= array_elements(all_events_stages);
   mysql_stage_register(category, all_events_stages, count);
 
-  count= array_elements(all_events_memory);
-  mysql_memory_register(category, all_events_memory, count);
-
-  init_scheduler_psi_keys();
 }
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -1169,6 +1155,7 @@ Events::load_events_from_db(THD *thd)
   READ_RECORD read_record_info;
   bool ret= TRUE;
   uint count= 0;
+  ulong saved_master_access;
   DBUG_ENTER("Events::load_events_from_db");
   DBUG_PRINT("enter", ("thd: %p", thd));
 
@@ -1181,8 +1168,8 @@ Events::load_events_from_db(THD *thd)
     Temporarily reset it to read-write.
   */
 
-  privilege_t saved_master_access(thd->security_ctx->master_access);
-  thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
+  saved_master_access= thd->security_ctx->master_access;
+  thd->security_ctx->master_access |= SUPER_ACL;
   bool save_tx_read_only= thd->tx_read_only;
   thd->tx_read_only= false;
 
@@ -1251,8 +1238,14 @@ Events::load_events_from_db(THD *thd)
                       TRUE);
 
 	/* All the dmls to mysql.events tables are stmt bin-logged. */
-        table->file->row_logging= 0;
+        bool save_binlog_row_based;
+        if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+	  thd->set_current_stmt_binlog_format_stmt();
+
         (void) table->file->ha_update_row(table->record[1], table->record[0]);
+
+        if (save_binlog_row_based)
+          thd->set_current_stmt_binlog_format_row();
 
         delete et;
         continue;

@@ -7,7 +7,7 @@
 #   This routine is only useful for the partition_<feature>_<engine> tests.    #
 #                                                                              #
 # Note: There were some problems in history.                                   #
-#    It looks like a table holds information about the storage engine         #
+#    It looks like a table holds informations about the storage engine         #
 #    for                                                                       #
 #      "the whole table" -> in statement after column list before partitioning #
 #      a partition       -> in statement after definition of partition         #
@@ -262,7 +262,7 @@ DROP TABLE t1;
 --echo #------------------------------------------------------------------------
 --echo # 6 Session default engine differs from engine used within create table
 --echo #------------------------------------------------------------------------
-eval SET SESSION default_storage_engine=$engine_other;
+eval SET SESSION storage_engine=$engine_other;
 # Bug#16775 Partitions: strange effects on subpartitioned tables, mixed storage engines
 # Bug#15966 Partitions: crash if session default engine <> engine used in create table
 eval CREATE TABLE t1 (
@@ -286,4 +286,4 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template;
 --source suite/parts/inc/partition_check.inc
 DROP TABLE t1;
-eval SET SESSION default_storage_engine=$engine;
+eval SET SESSION storage_engine=$engine;

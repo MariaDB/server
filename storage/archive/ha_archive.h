@@ -61,7 +61,7 @@ public:
 */
 #define ARCHIVE_VERSION 3
 
-class ha_archive final : public handler
+class ha_archive: public handler
 {
   THR_LOCK_DATA lock;        /* MySQL lock */
   Archive_share *share;      /* Shared lock info */

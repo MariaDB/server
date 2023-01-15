@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,22 +26,15 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "pfs_setup_actor.h"
 #include "table_setup_actors.h"
 #include "pfs_global.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_setup_actors::m_table_lock;
-
-PFS_engine_table_share_state
-table_setup_actors::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_setup_actors::m_share=
@@ -52,17 +45,13 @@ table_setup_actors::m_share=
   table_setup_actors::write_row,
   table_setup_actors::delete_all_rows,
   table_setup_actors::get_row_count,
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_actors("
-                      "HOST CHAR(" HOSTNAME_LENGTH_STR ") collate utf8_bin default '%' not null comment 'Host name, either a literal, or the % wildcard representing any host.',"
-                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null comment 'User name, either a literal or the % wildcard representing any name.',"
-                      "ROLE CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null comment 'Unused',"
-                      "ENABLED ENUM('YES', 'NO') not null default 'YES' comment 'Whether to enable instrumentation for foreground threads matched by the row.',"
-                      "HISTORY ENUM('YES', 'NO') not null default 'YES' comment 'Whether to log historical events for foreground threads matched by the row.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default '%' not null comment 'Host name, either a literal, or the % wildcard representing any host.',"
+                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default '%' not null comment 'User name, either a literal or the % wildcard representing any name.',"
+                      "ROLE CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default '%' not null comment 'Unused')") }
 };
 
 PFS_engine_table* table_setup_actors::create()
@@ -74,16 +63,12 @@ int table_setup_actors::write_row(TABLE *table, const unsigned char *buf,
                                   Field **fields)
 {
   Field *f;
-  String user_data("%", 1, &my_charset_utf8mb3_bin);
-  String host_data("%", 1, &my_charset_utf8mb3_bin);
-  String role_data("%", 1, &my_charset_utf8mb3_bin);
+  String user_data("%", 1, &my_charset_utf8_bin);
+  String host_data("%", 1, &my_charset_utf8_bin);
+  String role_data("%", 1, &my_charset_utf8_bin);
   String *user= &user_data;
   String *host= &host_data;
   String *role= &role_data;
-  enum_yes_no enabled_value= ENUM_YES;
-  enum_yes_no history_value= ENUM_YES;
-  bool enabled;
-  bool history;
 
   for (; (f= *fields) ; fields++)
   {
@@ -100,34 +85,16 @@ int table_setup_actors::write_row(TABLE *table, const unsigned char *buf,
       case 2: /* ROLE */
         role= get_field_char_utf8(f, &role_data);
         break;
-      case 3: /* ENABLED */
-        enabled_value= (enum_yes_no) get_field_enum(f);
-        break;
-      case 4: /* HISTORY */
-        history_value= (enum_yes_no) get_field_enum(f);
-        break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
 
-  /* Reject illegal enum values in ENABLED */
-  if ((enabled_value != ENUM_YES) && (enabled_value != ENUM_NO))
-    return HA_ERR_NO_REFERENCED_ROW;
-
-  /* Reject illegal enum values in HISTORY */
-  if ((history_value != ENUM_YES) && (history_value != ENUM_NO))
-    return HA_ERR_NO_REFERENCED_ROW;
-
-  /* Reject if any of user/host/role is not provided */
   if (user->length() == 0 || host->length() == 0 || role->length() == 0)
     return HA_ERR_WRONG_COMMAND;
 
-  enabled= (enabled_value == ENUM_YES) ? true : false;
-  history= (history_value == ENUM_YES) ? true : false;
-
-  return insert_setup_actor(user, host, role, enabled, history);
+  return insert_setup_actor(user, host, role);
 }
 
 int table_setup_actors::delete_all_rows(void)
@@ -137,7 +104,7 @@ int table_setup_actors::delete_all_rows(void)
 
 ha_rows table_setup_actors::get_row_count(void)
 {
-  return global_setup_actor_container.get_row_count();
+  return setup_actor_count();
 }
 
 table_setup_actors::table_setup_actors()
@@ -155,14 +122,17 @@ int table_setup_actors::rnd_next()
 {
   PFS_setup_actor *pfs;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_setup_actor_iterator it= global_setup_actor_container.iterate(m_pos.m_index);
-  pfs= it.scan_next(& m_pos.m_index);
-  if (pfs != NULL)
+  for (m_pos.set_at(&m_next_pos);
+       m_pos.m_index < setup_actor_max;
+       m_pos.next())
   {
-    make_row(pfs);
-    m_next_pos.set_after(&m_pos);
-    return 0;
+    pfs= &setup_actor_array[m_pos.m_index];
+    if (pfs->m_lock.is_populated())
+    {
+      make_row(pfs);
+      m_next_pos.set_after(&m_pos);
+      return 0;
+    }
   }
 
   return HA_ERR_END_OF_FILE;
@@ -174,8 +144,9 @@ int table_setup_actors::rnd_pos(const void *pos)
 
   set_position(pos);
 
-  pfs= global_setup_actor_container.get(m_pos.m_index);
-  if (pfs != NULL)
+  DBUG_ASSERT(m_pos.m_index < setup_actor_max);
+  pfs= &setup_actor_array[m_pos.m_index];
+  if (pfs->m_lock.is_populated())
   {
     make_row(pfs);
     return 0;
@@ -186,7 +157,7 @@ int table_setup_actors::rnd_pos(const void *pos)
 
 void table_setup_actors::make_row(PFS_setup_actor *pfs)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
 
   m_row_exists= false;
 
@@ -210,9 +181,6 @@ void table_setup_actors::make_row(PFS_setup_actor *pfs)
     return;
   memcpy(m_row.m_rolename, pfs->m_rolename, m_row.m_rolename_length);
 
-  m_row.m_enabled_ptr= &pfs->m_enabled;
-  m_row.m_history_ptr= &pfs->m_history;
-
   if (pfs->m_lock.end_optimistic_lock(&lock))
     m_row_exists= true;
 }
@@ -228,7 +196,7 @@ int table_setup_actors::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
 
   for (; (f= *fields) ; fields++)
   {
@@ -245,14 +213,8 @@ int table_setup_actors::read_row_values(TABLE *table,
       case 2: /* ROLE */
         set_field_char_utf8(f, m_row.m_rolename, m_row.m_rolename_length);
         break;
-      case 3: /* ENABLED */
-        set_field_enum(f, (*m_row.m_enabled_ptr) ? ENUM_YES : ENUM_NO);
-        break;
-      case 4: /* HISTORY */
-        set_field_enum(f, (*m_row.m_history_ptr) ? ENUM_YES : ENUM_NO);
-        break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
@@ -265,9 +227,7 @@ int table_setup_actors::update_row_values(TABLE *table,
                                           const unsigned char *new_buf,
                                           Field **fields)
 {
-  int result;
   Field *f;
-  enum_yes_no value;
 
   for (; (f= *fields) ; fields++)
   {
@@ -279,37 +239,23 @@ int table_setup_actors::update_row_values(TABLE *table,
       case 1: /* USER */
       case 2: /* ROLE */
         return HA_ERR_WRONG_COMMAND;
-      case 3: /* ENABLED */
-        value= (enum_yes_no) get_field_enum(f);
-        /* Reject illegal enum values in ENABLED */
-        if ((value != ENUM_YES) && (value != ENUM_NO))
-          return HA_ERR_NO_REFERENCED_ROW;
-        *m_row.m_enabled_ptr= (value == ENUM_YES) ? true : false;
-        break;
-      case 4: /* HISTORY */
-        value= (enum_yes_no) get_field_enum(f);
-        /* Reject illegal enum values in HISTORY */
-        if ((value != ENUM_YES) && (value != ENUM_NO))
-          return HA_ERR_NO_REFERENCED_ROW;
-        *m_row.m_history_ptr= (value == ENUM_YES) ? true : false;
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
 
-  result= update_setup_actors_derived_flags();
-  return result;
+  return 0;
 }
 
 int table_setup_actors::delete_row_values(TABLE *table,
                                           const unsigned char *buf,
                                           Field **fields)
 {
-  assert(m_row_exists);
+  DBUG_ASSERT(m_row_exists);
 
-  CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
+  CHARSET_INFO *cs= &my_charset_utf8_bin;
   String user(m_row.m_username, m_row.m_username_length, cs);
   String role(m_row.m_rolename, m_row.m_rolename_length, cs);
   String host(m_row.m_hostname, m_row.m_hostname_length, cs);

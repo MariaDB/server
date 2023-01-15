@@ -342,7 +342,7 @@ drop table if exists t1,t2,s1,s2;
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
---error ER_NOT_SEQUENCE2
+--error ER_UNKNOWN_SEQUENCES
 drop sequence t1,t2,s1,s2;
 drop table if exists t1,t2;
 
@@ -489,7 +489,7 @@ drop table s;
 create temporary sequence s;
 drop temporary table s;
 create temporary table s (i int);
---error ER_UNKNOWN_SEQUENCES
+--error ER_NOT_SEQUENCE2
 drop temporary sequence s;
 drop table s;
 
@@ -536,7 +536,7 @@ CREATE SEQUENCE seq1 START WITH 1 cache -1;
 
 --echo # Task 4:
 CREATE TEMPORARY TABLE s1 (s1 INT);
---error ER_UNKNOWN_SEQUENCES
+--error ER_NOT_SEQUENCE2
 DROP TEMPORARY SEQUENCE s1;
 DROP TEMPORARY TABLE s1;
 

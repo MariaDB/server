@@ -1,5 +1,5 @@
 /* Copyright (c) 2001, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009-2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -89,35 +89,56 @@ extern void bitmap_lock_clear_bit(MY_BITMAP *map, uint bitmap_bit);
 #define no_bytes_in_map(map) (((map)->n_bits + 7)/8)
 #define no_words_in_map(map) (((map)->n_bits + 31)/32)
 #define bytes_word_aligned(bytes) (4*((bytes + 3)/4))
-/* The following functions must be compatible with create_last_word_mask()! */
+#define _bitmap_set_bit(MAP, BIT) (((uchar*)(MAP)->bitmap)[(BIT) / 8] \
+                                  |= (1 << ((BIT) & 7)))
+#define _bitmap_flip_bit(MAP, BIT) (((uchar*)(MAP)->bitmap)[(BIT) / 8] \
+                                  ^= (1 << ((BIT) & 7)))
+#define _bitmap_clear_bit(MAP, BIT) (((uchar*)(MAP)->bitmap)[(BIT) / 8] \
+                                  &= ~ (1 << ((BIT) & 7)))
+#define _bitmap_is_set(MAP, BIT) (uint) (((uchar*)(MAP)->bitmap)[(BIT) / 8] \
+                                         & (1 << ((BIT) & 7)))
+/*
+  WARNING!
+
+  The below symbols are inline functions in DEBUG builds and macros in
+  non-DEBUG builds. The latter evaluate their 'bit' argument twice.
+
+  NEVER use an increment/decrement operator with the 'bit' argument.
+  It would work with DEBUG builds, but fails later in production builds!
+
+  FORBIDDEN: bitmap_set_bit($my_bitmap, (field++)->field_index);
+*/
+#ifndef DBUG_OFF
 static inline void
 bitmap_set_bit(MY_BITMAP *map,uint bit)
 {
-  uchar *b= (uchar*) map->bitmap + bit / 8;
-  DBUG_ASSERT(bit < map->n_bits);
-  *b= (uchar) (*b | 1U << (bit & 7));
+  DBUG_ASSERT(bit < (map)->n_bits);
+  _bitmap_set_bit(map,bit);
 }
 static inline void
 bitmap_flip_bit(MY_BITMAP *map,uint bit)
 {
-  uchar *b= (uchar*) map->bitmap + bit / 8;
-  DBUG_ASSERT(bit < map->n_bits);
-  *b= (uchar) (*b ^ 1U << (bit & 7));
+  DBUG_ASSERT(bit < (map)->n_bits);
+  _bitmap_flip_bit(map,bit);
 }
 static inline void
 bitmap_clear_bit(MY_BITMAP *map,uint bit)
 {
-  uchar *b= (uchar*) map->bitmap + bit / 8;
-  DBUG_ASSERT(bit < map->n_bits);
-  *b= (uchar) (*b & ~(1U << (bit & 7)));
+  DBUG_ASSERT(bit < (map)->n_bits);
+  _bitmap_clear_bit(map,bit);
 }
 static inline uint
 bitmap_is_set(const MY_BITMAP *map,uint bit)
 {
-  const uchar *b= (const uchar*) map->bitmap + bit / 8;
-  DBUG_ASSERT(bit < map->n_bits);
-  return !!(*b & (1U << (bit & 7)));
+  DBUG_ASSERT(bit < (map)->n_bits);
+  return _bitmap_is_set(map,bit);
 }
+#else
+#define bitmap_set_bit(MAP, BIT) _bitmap_set_bit(MAP, BIT)
+#define bitmap_flip_bit(MAP, BIT) _bitmap_flip_bit(MAP, BIT)
+#define bitmap_clear_bit(MAP, BIT) _bitmap_clear_bit(MAP, BIT)
+#define bitmap_is_set(MAP, BIT) _bitmap_is_set(MAP, BIT)
+#endif
 
 static inline my_bool bitmap_cmp(const MY_BITMAP *map1, const MY_BITMAP *map2)
 {

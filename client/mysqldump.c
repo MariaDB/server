@@ -90,7 +90,6 @@
 #define IGNORE_DATA 0x01 /* don't dump data for this table */
 #define IGNORE_INSERT_DELAYED 0x02 /* table doesn't support INSERT DELAYED */
 #define IGNORE_SEQUENCE_TABLE 0x04 /* catch the SEQUENCE*/
-#define IGNORE_S3_TABLE 0x08
 
 /* Chars needed to store LONGLONG, excluding trailing '\0'. */
 #define LONGLONG_LEN 20
@@ -114,7 +113,6 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 quick= 1, extended_insert= 1,
                 lock_tables=1,ignore_errors=0,flush_logs=0,flush_privileges=0,
                 opt_drop=1,opt_keywords=0,opt_lock=1,opt_compress=0,
-                opt_copy_s3_tables=0,
                 opt_delayed=0,create_options=1,opt_quoted=0,opt_databases=0,
                 opt_alldbs=0,opt_create_db=0,opt_lock_all_tables=0,
                 opt_set_charset=0, opt_dump_date=1,
@@ -155,9 +153,9 @@ static char  *opt_password=0,*current_user=0,
              *current_host=0,*path=0,*fields_terminated=0,
              *lines_terminated=0, *enclosed=0, *opt_enclosed=0, *escaped=0,
              *where=0, *order_by=0,
+             *opt_compatible_mode_str= 0,
              *err_ptr= 0,
              *log_error_file= NULL;
-static const char *opt_compatible_mode_str= 0;
 static char **defaults_argv= 0;
 static char compatible_mode_normal_str[255];
 /* Server supports character_set_results session variable? */
@@ -217,7 +215,7 @@ static const char *mysql_universal_client_charset=
   MYSQL_UNIVERSAL_CLIENT_CHARSET;
 static char *default_charset;
 static CHARSET_INFO *charset_info= &my_charset_latin1;
-const char *default_dbug_option="d:t:o,/tmp/mariadb-dump.trace";
+const char *default_dbug_option="d:t:o,/tmp/mysqldump.trace";
 /* have we seen any VIEWs during table scanning? */
 my_bool seen_views= 0;
 const char *compatible_mode_names[]=
@@ -291,7 +289,7 @@ static struct my_option my_long_options[] =
    "no_table_options, no_field_options. One can use several modes separated "
    "by commas. Note: Requires MariaDB server version 4.1.0 or higher. "
    "This option is ignored with earlier server versions.",
-   (char**) &opt_compatible_mode_str, (char**) &opt_compatible_mode_str, 0,
+   &opt_compatible_mode_str, &opt_compatible_mode_str, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"compact", OPT_COMPACT,
    "Give less verbose output (useful for debugging). Disables structure "
@@ -304,11 +302,6 @@ static struct my_option my_long_options[] =
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"compress", 'C', "Use compression in server/client protocol.",
    &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
-  {"copy_s3_tables", OPT_COPY_S3_TABLES,
-   "If 'no' S3 tables will be ignored, otherwise S3 tables will be copied as "
-   " Aria tables and then altered to S3",
-   &opt_copy_s3_tables, &opt_copy_s3_tables, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"create-options", 'a',
    "Include all MariaDB specific create options.",
@@ -864,25 +857,19 @@ uchar* get_table_key(const char *entry, size_t *length,
 
 
 static my_bool
-get_one_option(const struct my_option *opt,
-               const char *argument,
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+               char *argument)
 {
-  switch (opt->id) {
+  switch (optid) {
   case 'p':
     if (argument == disabled_my_option)
       argument= (char*) "";                     /* Don't require password */
     if (argument)
     {
-      /*
-        One should not really change the argument, but we make an
-        exception for passwords
-      */
-      char *start= (char*) argument;
+      char *start=argument;
       my_free(opt_password);
-      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
-      while (*argument)
-        *(char*) argument++= 'x';               /* Destroy argument */
+      opt_password=my_strdup(argument,MYF(MY_FAE));
+      while (*argument) *argument++= 'x';               /* Destroy argument */
       if (*start)
         start[1]=0;                             /* Cut length of argument */
       tty_password= 0;
@@ -963,8 +950,7 @@ get_one_option(const struct my_option *opt,
     opt_databases=0;
     break;
   case (int) OPT_IGNORE_DATABASE:
-    if (my_hash_insert(&ignore_database,
-                   (uchar*) my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(0))))
+    if (my_hash_insert(&ignore_database, (uchar*) my_strdup(argument, MYF(0))))
       exit(EX_EOM);
     break;
   case (int) OPT_IGNORE_DATA:
@@ -975,8 +961,7 @@ get_one_option(const struct my_option *opt,
               "Illegal use of option --ignore-table-data=<database>.<table>\n");
       exit(1);
     }
-    if (my_hash_insert(&ignore_data, (uchar*)my_strdup(PSI_NOT_INSTRUMENTED,
-                                                       argument, MYF(0))))
+    if (my_hash_insert(&ignore_data, (uchar*)my_strdup(argument, MYF(0))))
       exit(EX_EOM);
     break;
   }
@@ -987,8 +972,7 @@ get_one_option(const struct my_option *opt,
       fprintf(stderr, "Illegal use of option --ignore-table=<database>.<table>\n");
       exit(1);
     }
-    if (my_hash_insert(&ignore_table,
-                    (uchar*)my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(0))))
+    if (my_hash_insert(&ignore_table, (uchar*)my_strdup(argument, MYF(0))))
       exit(EX_EOM);
     break;
   }
@@ -1069,26 +1053,26 @@ static int get_options(int *argc, char ***argv)
   load_defaults_or_exit("my", load_default_groups, argc, argv);
   defaults_argv= *argv;
 
-  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_database, charset_info, 16, 0, 0,
-        (my_hash_get_key) get_table_key, my_free, 0))
+  if (my_hash_init(&ignore_database, charset_info, 16, 0, 0,
+                   (my_hash_get_key) get_table_key, my_free, 0))
     return(EX_EOM);
-  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_table, charset_info, 16, 0, 0,
-        (my_hash_get_key) get_table_key, my_free, 0))
+  if (my_hash_init(&ignore_table, charset_info, 16, 0, 0,
+                   (my_hash_get_key) get_table_key, my_free, 0))
     return(EX_EOM);
   /* Don't copy internal log tables */
-  if (my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-                                        "mysql.apply_status", MYF(MY_WME))) ||
-      my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-                                              "mysql.schema", MYF(MY_WME))) ||
-      my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-                                         "mysql.general_log", MYF(MY_WME))) ||
-      my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-                                            "mysql.slow_log", MYF(MY_WME))) ||
-      my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-                                "mysql.transaction_registry", MYF(MY_WME))))
+  if (my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.apply_status", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.schema", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.general_log", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.slow_log", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.transaction_registry", MYF(MY_WME))))
     return(EX_EOM);
 
-  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_data, charset_info, 16, 0, 0,
+  if (my_hash_init(&ignore_data, charset_info, 16, 0, 0,
                    (my_hash_get_key) get_table_key, my_free, 0))
     return(EX_EOM);
 
@@ -1103,11 +1087,9 @@ static int get_options(int *argc, char ***argv)
   if (!(opt_system & OPT_SYSTEM_STATS) && !(opt_ignore || opt_replace_into))
   {
     if (my_hash_insert(&ignore_data,
-                       (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-                                          "mysql.innodb_index_stats", MYF(MY_WME))) ||
+                       (uchar*) my_strdup("mysql.innodb_index_stats", MYF(MY_WME))) ||
         my_hash_insert(&ignore_data,
-                       (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-                                          "mysql.innodb_table_stats", MYF(MY_WME))))
+                       (uchar*) my_strdup("mysql.innodb_table_stats", MYF(MY_WME))))
       return(EX_EOM);
   }
 
@@ -1116,93 +1098,69 @@ static int get_options(int *argc, char ***argv)
 
   if (opt_system & OPT_SYSTEM_USERS &&
       (my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.db", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.db", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.global_priv", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.global_priv", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.tables_priv", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.tables_priv", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.columns_priv", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.columns_priv", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.procs_priv", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.procs_priv", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.user", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.user", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.host", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.host", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.proxies_priv", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.proxies_priv", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.roles_mapping", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.roles_mapping", MYF(MY_WME))) ||
       /* and MySQL-8.0 role tables (role_edges and default_roles) as well */
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.role_edges", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.role_edges", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.default_roles", MYF(MY_WME)))))
+                     (uchar*) my_strdup("mysql.default_roles", MYF(MY_WME)))))
     return(EX_EOM);
 
   if (opt_system & OPT_SYSTEM_PLUGINS &&
      my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.plugin", MYF(MY_WME))))
+                     (uchar*) my_strdup("mysql.plugin", MYF(MY_WME))))
     return(EX_EOM);
 
   if (opt_system & OPT_SYSTEM_UDFS &&
      my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.func", MYF(MY_WME))))
+                     (uchar*) my_strdup("mysql.func", MYF(MY_WME))))
     return(EX_EOM);
 
   if (opt_system & OPT_SYSTEM_SERVERS &&
      my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.servers", MYF(MY_WME))))
+                     (uchar*) my_strdup("mysql.servers", MYF(MY_WME))))
     return(EX_EOM);
 
   if (opt_system & OPT_SYSTEM_STATS &&
      (my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.column_stats", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.column_stats", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.index_stats", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.index_stats", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.table_stats", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.table_stats", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.innodb_table_stats", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.innodb_table_stats", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.innodb_index_stats", MYF(MY_WME)))))
+                     (uchar*) my_strdup("mysql.innodb_index_stats", MYF(MY_WME)))))
     return(EX_EOM);
 
   if (opt_system & OPT_SYSTEM_TIMEZONES &&
      (my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.time_zone", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.time_zone", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.time_zone_leap_second", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.time_zone_leap_second", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.time_zone_name", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.time_zone_name", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.time_zone_transition", MYF(MY_WME))) ||
+                     (uchar*) my_strdup("mysql.time_zone_transition", MYF(MY_WME))) ||
       my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
-					"mysql.time_zone_transition_type", MYF(MY_WME)))))
+                     (uchar*) my_strdup("mysql.time_zone_transition_type", MYF(MY_WME)))))
     return(EX_EOM);
 
   *mysql_params->p_max_allowed_packet= opt_max_allowed_packet;
@@ -1557,10 +1515,10 @@ static char *my_case_str(const char *str,
 {
   my_match_t match;
 
-  uint status= my_ci_instr(&my_charset_latin1,
-                           str, str_len,
-                           token, token_len,
-                           &match, 1);
+  uint status= my_charset_latin1.coll->instr(&my_charset_latin1,
+                                             str, str_len,
+                                             token, token_len,
+                                             &match, 1);
 
   return status ? (char *) str + match.end : NULL;
 }
@@ -1978,7 +1936,7 @@ static void unescape(FILE *file,char *pos, size_t length)
 {
   char *tmp;
   DBUG_ENTER("unescape");
-  if (!(tmp=(char*) my_malloc(PSI_NOT_INSTRUMENTED, length*2+1, MYF(MY_WME))))
+  if (!(tmp=(char*) my_malloc(length*2+1, MYF(MY_WME))))
     die(EX_MYSQLERR, "Couldn't allocate memory");
 
   mysql_real_escape_string(&mysql_connection, tmp, pos, (ulong)length);
@@ -2339,12 +2297,7 @@ static void print_xml_row(FILE *xml_file, const char *row_name,
         fputc(' ', xml_file);
         print_quoted_xml(xml_file, field->name, field->name_length, 1);
         fputs("=\"", xml_file);
-        if (opt_copy_s3_tables &&
-            !strcmp(field->name, "Engine") &&
-            !strcmp((*row)[i], "S3"))
-          print_quoted_xml(xml_file, "Aria", sizeof("Aria") - 1, 0);
-        else
-          print_quoted_xml(xml_file, (*row)[i], lengths[i], 0);
+        print_quoted_xml(xml_file, (*row)[i], lengths[i], 0);
         fputc('"', xml_file);
         check_io(xml_file);
       }
@@ -3001,17 +2954,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   my_bool    is_log_table;
   MYSQL_RES  *result;
   MYSQL_ROW  row;
-  const char *s3_engine_ptr;
-  DYNAMIC_STRING create_table_str;
-  static const char s3_engine_token[]= " ENGINE=S3 ";
-  static const char aria_engine_token[]= " ENGINE=Aria ";
   DBUG_ENTER("get_table_structure");
   DBUG_PRINT("enter", ("db: %s  table: %s", db, table));
 
   *ignore_flag= check_if_ignore_table(table, table_type);
-
-  if (!opt_copy_s3_tables && *ignore_flag == IGNORE_S3_TABLE)
-    DBUG_RETURN(0);
 
   delayed= opt_delayed;
   if (delayed && (*ignore_flag & IGNORE_INSERT_DELAYED))
@@ -3121,7 +3067,7 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
 
         /* save "show create" statement for later */
         if ((row= mysql_fetch_row(result)) && (scv_buff=row[1]))
-          scv_buff= my_strdup(PSI_NOT_INSTRUMENTED, scv_buff, MYF(0));
+          scv_buff= my_strdup(scv_buff, MYF(0));
 
         mysql_free_result(result);
 
@@ -3224,22 +3170,11 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       is_log_table= general_log_or_slow_log_tables(db, table);
       if (is_log_table)
         row[1]+= 13; /* strlen("CREATE TABLE ")= 13 */
-      create_table_str.str= row[1];
-      if (opt_copy_s3_tables && (*ignore_flag & IGNORE_S3_TABLE) &&
-          (s3_engine_ptr= strstr(row[1], s3_engine_token)))
-      {
-        init_dynamic_string_checked(&create_table_str, "", 1024, 1024);
-        dynstr_append_mem_checked(&create_table_str, row[1],
-          (uint)(s3_engine_ptr - row[1]));
-        dynstr_append_checked(&create_table_str, aria_engine_token);
-        dynstr_append_checked(&create_table_str,
-          s3_engine_ptr + sizeof(s3_engine_token) - 1);
-      }
       if (opt_compatible_mode & 3)
       {
         fprintf(sql_file,
                 is_log_table ? "CREATE TABLE IF NOT EXISTS %s;\n" : "%s;\n",
-                create_table_str.str);
+                row[1]);
       }
       else
       {
@@ -3249,12 +3184,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
                 "%s%s;\n"
                 "/*!40101 SET character_set_client = @saved_cs_client */;\n",
                 is_log_table ? "CREATE TABLE IF NOT EXISTS " : "",
-                create_table_str.str);
+                row[1]);
       }
 
       check_io(sql_file);
-      if (create_table_str.str != row[1])
-        dynstr_free(&create_table_str);
       mysql_free_result(result);
     }
     my_snprintf(query_buff, sizeof(query_buff), "show fields from %s",
@@ -3901,7 +3834,7 @@ static char *alloc_query_str(size_t size)
 {
   char *query;
 
-  if (!(query= (char*) my_malloc(PSI_NOT_INSTRUMENTED, size, MYF(MY_WME))))
+  if (!(query= (char*) my_malloc(size, MYF(MY_WME))))
     die(EX_MYSQLERR, "Couldn't allocate a query string.");
 
   return query;
@@ -3952,14 +3885,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
   */
   if (strcmp(table_type, "VIEW") == 0)
     DBUG_VOID_RETURN;
-
-  if (!opt_copy_s3_tables && (ignore_flag & IGNORE_S3_TABLE))
-  {
-    verbose_msg("-- Skipping dump data for table '%s', "
-                " this is S3 table and --copy-s3-tables=0\n",
-                table);
-    DBUG_VOID_RETURN;
-  }
 
   /* Check --no-data flag */
   if (opt_no_data || (hash_key && ignore_table_data(hash_key, len)))
@@ -4388,15 +4313,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
         fputs("\t</table_data>\n", md_result_file);
     else if (extended_insert && row_break)
       fputs(";\n", md_result_file);             /* If not empty table */
-    if (!opt_xml && opt_copy_s3_tables && (ignore_flag & IGNORE_S3_TABLE))
-    {
-      DYNAMIC_STRING alter_string;
-      init_dynamic_string_checked(&alter_string, "ALTER TABLE ", 1024, 1024);
-      dynstr_append_checked(&alter_string, opt_quoted_table);
-      dynstr_append_checked(&alter_string, " ENGINE=S3;\n");
-      fputs(alter_string.str, md_result_file);
-      dynstr_free(&alter_string);
-    }
     fflush(md_result_file);
     check_io(md_result_file);
     if (mysql_errno(mysql))
@@ -5797,7 +5713,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   if (init_dumping(db, init_dumping_tables))
     DBUG_RETURN(1);
 
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 8192, 0, MYF(0));
+  init_alloc_root(&glob_root, "glob_root", 8192, 0, MYF(0));
   if (!(dump_tables= pos= (char**) alloc_root(&glob_root,
                                               tables * sizeof(char *))))
      die(EX_EOM, "alloc_root failure.");
@@ -6483,10 +6399,6 @@ char check_if_ignore_table(const char *table_name, char *table_type)
     }
     if (!strcmp(row[1],"SEQUENCE"))
       result|= IGNORE_SEQUENCE_TABLE;
-
-    if (!strcmp(table_type, "S3"))
-       result|= IGNORE_S3_TABLE;
-
     /*
       If these two types, we do want to skip dumping the table
     */
@@ -6564,7 +6476,7 @@ static char *primary_key_fields(const char *table_name)
   {
     char *end;
     /* result (terminating \0 is already in result_length) */
-    result= my_malloc(PSI_NOT_INSTRUMENTED, result_length + 10, MYF(MY_WME));
+    result= my_malloc(result_length + 10, MYF(MY_WME));
     if (!result)
     {
       fprintf(stderr, "Error: Not enough memory to store ORDER BY clause\n");

@@ -1,8 +1,8 @@
-install plugin example soname 'ha_example';
+install plugin example soname 'ha_example.so';
 create table t1(a int) engine=example;
 drop table t1;
 alter table mysql.plugin engine=innodb;
-  --example[=name]    Enable or disable EXAMPLE plugin. One of: ON, OFF, FORCE
+restart
 # restart
 create table t1(a int) engine=example;
 select * from t1;

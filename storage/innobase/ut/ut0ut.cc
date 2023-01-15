@@ -62,39 +62,42 @@ ut_print_timestamp(
 /*===============*/
 	FILE*  file) /*!< in: file where to print */
 {
+	ulint thread_id = 0;
+
+#ifndef UNIV_INNOCHECKSUM
+	thread_id = os_thread_pf(os_thread_get_curr_id());
+#endif /* !UNIV_INNOCHECKSUM */
+
 #ifdef _WIN32
 	SYSTEMTIME cal_tm;
+
 	GetLocalTime(&cal_tm);
+
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#zx",
+		(int) cal_tm.wYear,
+		(int) cal_tm.wMonth,
+		(int) cal_tm.wDay,
+		(int) cal_tm.wHour,
+		(int) cal_tm.wMinute,
+		(int) cal_tm.wSecond,
+		thread_id);
 #else
+	struct tm* cal_tm_ptr;
 	time_t	   tm;
+
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
+	cal_tm_ptr = &cal_tm;
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#zx",
+		cal_tm_ptr->tm_year + 1900,
+		cal_tm_ptr->tm_mon + 1,
+		cal_tm_ptr->tm_mday,
+		cal_tm_ptr->tm_hour,
+		cal_tm_ptr->tm_min,
+		cal_tm_ptr->tm_sec,
+		thread_id);
 #endif
-	fprintf(file,
-		IF_WIN("%u-%02u-%02u %02u:%02u:%02u %#zx",
-		       "%d-%02d-%02d %02d:%02d:%02d %#zx"),
-#ifdef _WIN32
-		cal_tm.wYear,
-		cal_tm.wMonth,
-		cal_tm.wDay,
-		cal_tm.wHour,
-		cal_tm.wMinute,
-		cal_tm.wSecond,
-#else
-		cal_tm.tm_year + 1900,
-		cal_tm.tm_mon + 1,
-		cal_tm.tm_mday,
-		cal_tm.tm_hour,
-		cal_tm.tm_min,
-		cal_tm.tm_sec,
-#endif
-#ifdef UNIV_INNOCHECKSUM
-		ulint{0}
-#else
-		ulint(os_thread_get_curr_id())
-#endif
-		);
 }
 
 #ifndef UNIV_INNOCHECKSUM
@@ -108,27 +111,31 @@ ut_sprintf_timestamp(
 {
 #ifdef _WIN32
 	SYSTEMTIME cal_tm;
+
 	GetLocalTime(&cal_tm);
 
-	sprintf(buf, "%02u%02u%02u %2u:%02u:%02u",
-		cal_tm.wYear % 100,
-		cal_tm.wMonth,
-		cal_tm.wDay,
-		cal_tm.wHour,
-		cal_tm.wMinute,
-		cal_tm.wSecond);
+	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
+		(int) cal_tm.wYear % 100,
+		(int) cal_tm.wMonth,
+		(int) cal_tm.wDay,
+		(int) cal_tm.wHour,
+		(int) cal_tm.wMinute,
+		(int) cal_tm.wSecond);
 #else
+	struct tm* cal_tm_ptr;
 	time_t	   tm;
+
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
+	cal_tm_ptr = &cal_tm;
 	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
-		cal_tm.tm_year % 100,
-		cal_tm.tm_mon + 1,
-		cal_tm.tm_mday,
-		cal_tm.tm_hour,
-		cal_tm.tm_min,
-		cal_tm.tm_sec);
+		cal_tm_ptr->tm_year % 100,
+		cal_tm_ptr->tm_mon + 1,
+		cal_tm_ptr->tm_mday,
+		cal_tm_ptr->tm_hour,
+		cal_tm_ptr->tm_min,
+		cal_tm_ptr->tm_sec);
 #endif
 }
 
@@ -206,6 +213,27 @@ ut_print_buf(
 	}
 
 	ut_print_buf_hex(o, buf, len);
+}
+
+/*************************************************************//**
+Calculates fast the number rounded up to the nearest power of 2.
+@return first power of 2 which is >= n */
+ulint
+ut_2_power_up(
+/*==========*/
+	ulint	n)	/*!< in: number != 0 */
+{
+	ulint	res;
+
+	res = 1;
+
+	ut_ad(n > 0);
+
+	while (res < n) {
+		res = res * 2;
+	}
+
+	return(res);
 }
 
 /** Get a fixed-length string, quoted as an SQL identifier.

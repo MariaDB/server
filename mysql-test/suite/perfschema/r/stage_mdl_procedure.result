@@ -21,13 +21,23 @@ username	event_name	sql_text
 user1	statement/sql/select	select test.f1()
 username	event_name	nesting_event_type
 username	event_name	nesting_event_type
+user1	stage/sql/Closing tables	STATEMENT
+user1	stage/sql/End of update loop	STATEMENT
+user1	stage/sql/Query end	STATEMENT
+user1	stage/sql/Commit	STATEMENT
+user1	stage/sql/Closing tables	STATEMENT
+user1	stage/sql/Unlocking tables	STATEMENT
+user1	stage/sql/Closing tables	STATEMENT
+user1	stage/sql/Starting cleanup	STATEMENT
+user1	stage/sql/Freeing items	STATEMENT
+user1	stage/sql/Reset for next command	STATEMENT
 call dump_one_thread('user2');
 username	event_name	sql_text
 user2	statement/sql/drop_procedure	drop procedure test.p1
 username	event_name	nesting_event_type
 user2	stage/sql/Waiting for stored procedure metadata lock	STATEMENT
 username	event_name	nesting_event_type
-user2	stage/sql/starting	STATEMENT
+user2	stage/sql/Init	STATEMENT
 connection con1;
 select test.f1();
 test.f1()

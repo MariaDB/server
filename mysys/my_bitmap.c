@@ -173,8 +173,7 @@ my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
       size_in_bytes= ALIGN_SIZE(size_in_bytes);
       extra= sizeof(mysql_mutex_t);
     }
-    if (!(buf= (my_bitmap_map*) my_malloc(key_memory_MY_BITMAP_bitmap,
-                                          size_in_bytes+extra, MYF(MY_WME))))
+    if (!(buf= (my_bitmap_map*) my_malloc(size_in_bytes+extra, MYF(MY_WME))))
       DBUG_RETURN(1);
     if (thread_safe)
     {

@@ -92,20 +92,6 @@ object_schema	object_name	index_name	count_fetch	count_insert	count_update	count
 test	t_60905	i	2	0	0	1
 test	t_60905	NULL	5	5	0	1
 DROP TABLE t_60905;
-show global variables like "performance_schema_max_thread_instances";
-Variable_name	Value
-performance_schema_max_thread_instances	200
-explain select * from performance_schema.threads;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	threads	ALL	NULL	NULL	NULL	NULL	256	
-use performance_schema;
-show events;
-Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-show events from performance_schema;
-Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-show events where Db= 'performance_schema';
-Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-use test;
 use test;
 truncate performance_schema.events_statements_history;
 truncate performance_schema.events_statements_history_long;
@@ -116,7 +102,7 @@ select mysql_errno, returned_sqlstate, message_text, errors, warnings
 from performance_schema.events_statements_history where errors > 0;
 mysql_errno	returned_sqlstate	message_text	errors	warnings
 1146	42S02	Table 'test.t1' doesn't exist	1	0
-#
+
 select mysql_errno, returned_sqlstate, message_text, errors, warnings from 
 performance_schema.events_statements_history_long where errors > 0;
 mysql_errno	returned_sqlstate	message_text	errors	warnings
@@ -164,13 +150,3 @@ Warnings:
 Note	1051	Unknown table 'test.t0'
 FLUSH TABLE t0;
 DROP TABLE t0;
-#
-# MDEV-24364 Alter rename table does not remove PFS share
-#
-create or replace table yt4 (x int) engine innodb;
-alter table yt4 rename to t1, algorithm=copy;
-drop tables t1;
-select object_type, object_schema, object_name
-from performance_schema.objects_summary_global_by_type
-where object_schema="test";
-object_type	object_schema	object_name

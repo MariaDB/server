@@ -18,4 +18,3 @@
   Creates new (THD) connections..
 */
 extern void handle_connections_win();
-extern void network_init_win();

@@ -485,7 +485,7 @@ set names utf8;
 --echo # Start of 5.5 tests
 --echo #
 #
-# Test like_range and contractions
+# Test my_like_range and contractions
 #
 SET collation_connection=utf8_czech_ci;
 --source include/ctype_czech.inc

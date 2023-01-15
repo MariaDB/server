@@ -82,7 +82,7 @@ if (!$mysql_errname)
 # Use the engine as default
 
 --source mask_engine.inc
-eval SET default_storage_engine = $storage_engine;
+eval SET storage_engine = $storage_engine;
 
 --let $tbl_opts = $default_tbl_opts
 --let $create_definition = a $int_col

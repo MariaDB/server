@@ -14,9 +14,6 @@ innodb_fil_make_page_dirty_debug	0
 show variables like 'innodb_saved_page_number_debug';
 Variable_name	Value
 innodb_saved_page_number_debug	0
-connect  stop_purge,localhost,root,,;
-START TRANSACTION WITH CONSISTENT SNAPSHOT;
-connection default;
 create table t1 (f1 int primary key, f2 blob) engine=innodb;
 start transaction;
 insert into t1 values(1, repeat('#',12));
@@ -32,17 +29,17 @@ select space from information_schema.innodb_sys_tables
 where name = 'test/t1' into @space_id;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+# Ensure that dirty pages of table t1 is flushed.
+flush tables t1 for export;
+unlock tables;
 begin;
 insert into t1 values (6, repeat('%', 12));
-# Ensure that dirty pages of table t1 are flushed.
-set global innodb_buf_flush_list_now = 1;
 # Make the first page dirty for table t1
 set global innodb_saved_page_number_debug = 0;
 set global innodb_fil_make_page_dirty_debug = @space_id;
 # Ensure that dirty pages of table t1 are flushed.
 set global innodb_buf_flush_list_now = 1;
 # Kill the server
-disconnect stop_purge;
 # Make the first page (page_no=0) of the user tablespace
 # full of zeroes.
 #

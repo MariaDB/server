@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -184,12 +184,12 @@ fts_select_index_by_hash(
 	char_len = my_mbcharlen_ptr(cs, reinterpret_cast<const char*>(str),
 				    reinterpret_cast<const char*>(str + len));
 	*/
-	size_t char_len = size_t(cs->charlen(str, str + len));
+	size_t char_len = size_t(cs->cset->charlen(cs, str, str + len));
 
 	ut_ad(char_len <= len);
 
 	/* Get collation hash code */
-	my_ci_hash_sort(cs, str, char_len, &nr1, &nr2);
+	cs->coll->hash_sort(cs, str, char_len, &nr1, &nr2);
 
 	return(nr1 % FTS_NUM_AUX_INDEX);
 }

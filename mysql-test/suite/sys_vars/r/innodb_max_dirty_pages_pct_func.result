@@ -1,28 +1,26 @@
-SET @innodb_max_dirty_pages_pct_lwm = @@global.innodb_max_dirty_pages_pct_lwm;
 SET @innodb_max_dirty_pages_pct = @@global.innodb_max_dirty_pages_pct;
 '#--------------------FN_DYNVARS_044_02-------------------------#'
-SET @@global.innodb_max_dirty_pages_pct_lwm = 0;
 SET @@global.innodb_max_dirty_pages_pct = 80;
-SET @@global.innodb_max_dirty_pages_pct_lwm = 80;
+'connect (con1,localhost,root,,,,)'
 connect  con1,localhost,root,,,,;
+'connection con1'
 connection con1;
 SELECT @@global.innodb_max_dirty_pages_pct;
 @@global.innodb_max_dirty_pages_pct
 80.000000
 SET @@global.innodb_max_dirty_pages_pct = 70;
-Warnings:
-Warning	1210	innodb_max_dirty_pages_pct cannot be set lower than innodb_max_dirty_pages_pct_lwm.
-Warning	1210	Lowering innodb_max_dirty_page_pct_lwm to 70.000000
-SELECT @@global.innodb_max_dirty_pages_pct_lwm;
-@@global.innodb_max_dirty_pages_pct_lwm
-70.000000
+'connect (con2,localhost,root,,,,)'
 connect  con2,localhost,root,,,,;
+'connection con2'
 connection con2;
 SELECT @@global.innodb_max_dirty_pages_pct;
 @@global.innodb_max_dirty_pages_pct
 70.000000
+'connection default'
 connection default;
+'disconnect con2'
 disconnect con2;
+'disconnect con1'
 disconnect con1;
 SET @@global.innodb_max_dirty_pages_pct = @innodb_max_dirty_pages_pct;
 '#--------------------FN_DYNVARS_044_02-------------------------#'
@@ -87,22 +85,6 @@ b CHAR(200)
 ) ENGINE = INNODB;
 '---Check when innodb_max_dirty_pages_pct is 10---'
 SET @@global.innodb_max_dirty_pages_pct = 10;
-Warnings:
-Warning	1210	innodb_max_dirty_pages_pct cannot be set lower than innodb_max_dirty_pages_pct_lwm.
-Warning	1210	Lowering innodb_max_dirty_page_pct_lwm to 10.000000
-SELECT @@global.innodb_max_dirty_pages_pct_lwm;
-@@global.innodb_max_dirty_pages_pct_lwm
-10.000000
-SET GLOBAL innodb_max_dirty_pages_pct_lwm = 15;
-Warnings:
-Warning	1210	innodb_max_dirty_pages_pct_lwm cannot be set higher than innodb_max_dirty_pages_pct.
-Warning	1210	Setting innodb_max_dirty_page_pct_lwm to 10.000000
-SELECT @@global.innodb_max_dirty_pages_pct_lwm;
-@@global.innodb_max_dirty_pages_pct_lwm
-10.000000
-SELECT @@global.innodb_max_dirty_pages_pct;
-@@global.innodb_max_dirty_pages_pct
-10.000000
 FLUSH STATUS;
 CALL add_until(10);
 FLUSH TABLES;
@@ -116,6 +98,4 @@ DROP PROCEDURE add_until;
 DROP PROCEDURE check_pct;
 DROP FUNCTION dirty_pct;
 DROP TABLE t1;
-SET GLOBAL innodb_max_dirty_pages_pct_lwm = 0;
 SET @@global.innodb_max_dirty_pages_pct = @innodb_max_dirty_pages_pct;
-SET @@global.innodb_max_dirty_pages_pct_lwm = @innodb_max_dirty_pages_pct_lwm;

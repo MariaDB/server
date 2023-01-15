@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -93,7 +93,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	  keyinfo->seg[j].flag|= HA_SWAP_KEY;
           break;
         case HA_KEYTYPE_VARBINARY1:
-          /* Case-insensitiveness is handled in hash_sort */
+          /* Case-insensitiveness is handled in coll->hash_sort */
           keyinfo->seg[j].type= HA_KEYTYPE_VARTEXT1;
           /* fall through */
         case HA_KEYTYPE_VARTEXT1:
@@ -110,7 +110,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
           keyinfo->seg[j].bit_start= 1;
           break;
         case HA_KEYTYPE_VARBINARY2:
-          /* Case-insensitiveness is handled in hash_sort */
+          /* Case-insensitiveness is handled in coll->hash_sort */
           /* fall_through */
         case HA_KEYTYPE_VARTEXT2:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
@@ -159,8 +159,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
           keyinfo->get_key_length= hp_rb_key_length;
       }
     }
-    if (!(share= (HP_SHARE*) my_malloc(hp_key_memory_HP_SHARE,
-                                       sizeof(HP_SHARE)+
+    if (!(share= (HP_SHARE*) my_malloc((uint) sizeof(HP_SHARE)+
 				       keys*sizeof(HP_KEYDEF)+
 				       key_segs*sizeof(HA_KEYSEG),
 				       MYF(MY_ZEROFILL |
@@ -223,7 +222,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->create_time= (long) time((time_t*) 0);
     share->internal= create_info->internal_table;
     /* Must be allocated separately for rename to work */
-    if (!(share->name= my_strdup(hp_key_memory_HP_SHARE, name, MYF(0))))
+    if (!(share->name= my_strdup(name,MYF(0))))
     {
       my_free(share);
       goto err;
@@ -232,6 +231,8 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     if (!create_info->internal_table)
     {
       thr_lock_init(&share->lock);
+      mysql_mutex_init(hp_key_mutex_HP_SHARE_intern_lock,
+                       &share->intern_lock, MY_MUTEX_INIT_FAST);
       share->open_list.data= (void*) share;
       heap_share_list= list_add(heap_share_list,&share->open_list);
     }
@@ -360,6 +361,7 @@ void hp_free(HP_SHARE *share)
   {
     heap_share_list= list_delete(heap_share_list, &share->open_list);
     thr_lock_delete(&share->lock);
+    mysql_mutex_destroy(&share->intern_lock);
   }
   hp_clear(share);			/* Remove blocks from memory */
   my_free(share->name);

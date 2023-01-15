@@ -33,7 +33,7 @@ current_user()
 root@santa.claus.ipv6.example.com
 disconnect con2;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES
@@ -70,7 +70,7 @@ current_user()
 root@santa.claus.ipv6.example.com
 disconnect con3;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	2001:db8::6:6
 HOST	santa.claus.ipv6.example.com
 HOST_VALIDATED	YES

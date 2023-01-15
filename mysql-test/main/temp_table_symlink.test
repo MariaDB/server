@@ -10,12 +10,12 @@ create temporary table t1 (a int);
 perl;
 chdir "$ENV{MYSQL_TMP_DIR}/mysqld.1/";
 for (<#sql*.MYI>) {
-  /^(#sql-temptable-[0-9a-f]+)(-[0-9a-f]+-)([0-9a-f]+)\.MYI$/ or die $_;
-  symlink "$ENV{datadir}/test/d1.MYI", sprintf "$1$2%x.MYI", hex($3)+1;
-  symlink "$ENV{datadir}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+2;
-  symlink "$ENV{datadir}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+3;
-  symlink "$ENV{datadir}/test/d1.MYI", sprintf "$1$2%x.MAI", hex($3)+4;
-  symlink "$ENV{datadir}/test/d1.MYI", "$1-0.MAI";
+  /^#sql(.*)_([0-9a-f]+_)([0-9a-f]+)\.MYI$/ or die;
+  symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MYI", hex($3)+1;
+  symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MAI", hex($3)+1;
+  symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MAI", hex($3)+2;
+  symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MAI", hex($3)+3;
+  symlink "$ENV{datadir}/test/d1.MYI", "#sql_$1_0.MAI";
 }
 EOF
 

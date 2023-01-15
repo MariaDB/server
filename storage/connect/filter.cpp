@@ -856,7 +856,7 @@ PFIL FILTER::LinkFilter(PGLOBAL g, PFIL fp2)
 
 /***********************************************************************/
 /*  Checks whether filter contains reference to a previous table that  */
-/*  is not logically joined to the currently opened table, or whether */
+/*  is not logically joined to the currently openned table, or whether */
 /*  it is a Sub-Select filter.  In any case, local is set to FALSE.    */
 /*  Note: This function is now applied to de-linearized filters.       */
 /***********************************************************************/
@@ -1220,8 +1220,7 @@ bool FILTER::Eval(PGLOBAL g)
   int     i; // n = 0;
 //PSUBQ   subp = NULL;
   PARRAY  ap = NULL;
-
-  (void) PlgGetUser(g);
+  PDBUSER dup __attribute__((unused)) = PlgGetUser(g);
 
   if (Opc <= OP_XX)
   {

@@ -2,11 +2,6 @@
 # Wrapper for CPackRPM.cmake
 #
 
-IF(NOT DEFINED RPM_RECOMMENDS)
-  EXECUTE_PROCESS(COMMAND rpm --recommends ERROR_QUIET RESULT_VARIABLE RPM_RECOMMENDS)
-  MESSAGE("CPackRPM:Debug: Testing rpm --recommends: ${RPM_RECOMMENDS}")
-ENDIF()
-
 #
 # Support for per-component LICENSE and VENDOR
 #
@@ -31,7 +26,6 @@ endforeach()
 
 set_from_component(LICENSE)
 set_from_component(VENDOR)
-set_from_component(VERSION)
 
 #
 # Support for the %posttrans scriptlet
@@ -62,20 +56,6 @@ if(CMAKE_VERSION VERSION_LESS 3.18)
   endif()
 endif(CMAKE_VERSION VERSION_LESS 3.18)
 
-#
-# Support for the Recommends: tag.
-# We don't use Suggests: so here he hijack Suggests: variable
-# to implement Recommends:
-#
-IF (CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_RECOMMENDS)
-  IF (RPM_RECOMMENDS EQUAL 0) # exit code 0 means ok
-    SET(TMP_RPM_SUGGESTS "Recommends: ${CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_RECOMMENDS}")
-  ELSE() # rpm is too old to recommend
-    SET(CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_REQUIRES
-     "${CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_REQUIRES} ${CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_RECOMMENDS}")
-  ENDIF()
-ENDIF()
-
 # load the original CPackRPM.cmake
 set(orig_CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH})
 unset(CMAKE_MODULE_PATH)
@@ -88,7 +68,6 @@ set(CMAKE_MODULE_PATH ${orig_CMAKE_MODULE_PATH})
 
 restore(LICENSE)
 restore(VENDOR)
-restore(VERSION)
 if(${orig_${base_var}})
   set(${base_var} ${orig_${base_var}})
 endif()

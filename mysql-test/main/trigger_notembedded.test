@@ -255,7 +255,7 @@ CREATE DEFINER='mysqltest_inv'@'localhost'
 
 use mysqltest_db1;
 
-GRANT SET USER ON *.* TO mysqltest_dfn@localhost;
+GRANT SUPER ON *.* TO mysqltest_dfn@localhost;
 
 --disconnect wl2818_definer_con
 --connect (wl2818_definer_con,localhost,mysqltest_dfn,,mysqltest_db1)

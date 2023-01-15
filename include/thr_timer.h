@@ -23,7 +23,6 @@ extern "C" {
 
 typedef struct st_timer {
   struct timespec expire_time;
-  ulonglong period;
   my_bool expired;
   uint index_in_queue;
   void (*func)(void*);
@@ -37,7 +36,6 @@ void end_thr_timer();
 /* Functions for handling one timer */
 void thr_timer_init(thr_timer_t *timer_data, void(*function)(void*),
                     void *arg);
-void thr_timer_set_period(thr_timer_t* timer_data, ulonglong microseconds);
 my_bool thr_timer_settime(thr_timer_t *timer_data, ulonglong microseconds);
 void    thr_timer_end(thr_timer_t *timer_data);
 

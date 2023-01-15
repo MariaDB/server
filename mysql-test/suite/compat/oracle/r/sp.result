@@ -2148,7 +2148,11 @@ BEGIN
 RETURN 0;
 END;
 $$
-ERROR HY000: Unknown data type: 't1'
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 't1.a%TYPE
+AS
+BEGIN
+RETURN 0;
+END' at line 1
 #
 # End of MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
 #

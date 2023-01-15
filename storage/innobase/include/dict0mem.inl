@@ -54,13 +54,13 @@ dict_mem_fill_index_struct(
 		index->fields = NULL;
 	}
 
-	index->type = type & ((1U << DICT_IT_BITS) - 1);
+	/* Assign a ulint to a 4-bit-mapped field.
+	Only the low-order 4 bits are assigned. */
+	index->type = unsigned(type);
 	index->page = FIL_NULL;
 	index->merge_threshold = DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
-	index->n_fields = static_cast<unsigned>(n_fields)
-		& index->MAX_N_FIELDS;
-	index->n_core_fields = static_cast<unsigned>(n_fields)
-		& index->MAX_N_FIELDS;
+	index->n_fields = (unsigned int) n_fields;
+	index->n_core_fields = (unsigned int) n_fields;
 	/* The '1 +' above prevents allocation
 	of an empty mem block */
 	index->nulls_equal = false;

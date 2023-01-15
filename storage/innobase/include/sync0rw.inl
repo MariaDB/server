@@ -220,22 +220,13 @@ rw_lock_lock_word_decr(
 
 			return(true);
 		}
-
-		/* Note that lock_copy was reloaded above. We will
-		keep trying if a spurious conflict occurred, typically
-		caused by concurrent executions of
-		rw_lock_s_lock(). */
-
-		/* Note: unlike this implementation, rw_lock::read_lock()
-		allows concurrent calls without a spin loop */
 	}
-
-	/* A real conflict was detected. */
 	return(false);
 }
 
 /******************************************************************//**
-Low-level function which tries to lock an rw-lock in s-mode.
+Low-level function which tries to lock an rw-lock in s-mode. Performs no
+spinning.
 @return TRUE if success */
 UNIV_INLINE
 ibool
@@ -342,7 +333,7 @@ rw_lock_x_lock_func_nowait(
 	ut_d(rw_lock_add_debug_info(lock, 0, RW_LOCK_X, file_name, line));
 
 	lock->last_x_file_name = file_name;
-	lock->last_x_line = line & ((1 << 14) - 1);
+	lock->last_x_line = line;
 
 	ut_ad(rw_lock_validate(lock));
 
@@ -538,6 +529,8 @@ pfs_rw_lock_x_lock_func(
 
 		/* Record the acquisition of a read-write lock in exclusive
 		mode in performance schema */
+/* MySQL 5.7 New PSI */
+#define PSI_RWLOCK_EXCLUSIVELOCK PSI_RWLOCK_WRITELOCK
 
 		locker = PSI_RWLOCK_CALL(start_rwlock_wrwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_EXCLUSIVELOCK,
@@ -577,6 +570,7 @@ pfs_rw_lock_x_lock_func_nowait(
 		/* Record the acquisition of a read-write trylock in exclusive
 		mode in performance schema */
 
+#define PSI_RWLOCK_TRYEXCLUSIVELOCK PSI_RWLOCK_TRYWRITELOCK
 		locker = PSI_RWLOCK_CALL(start_rwlock_wrwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_TRYEXCLUSIVELOCK,
 			file_name, static_cast<uint>(line));
@@ -630,6 +624,7 @@ pfs_rw_lock_s_lock_func(
 		PSI_rwlock_locker*	locker;
 		PSI_rwlock_locker_state	state;
 
+#define  PSI_RWLOCK_SHAREDLOCK  PSI_RWLOCK_READLOCK
 		/* Instrumented to inform we are aquiring a shared rwlock */
 		locker = PSI_RWLOCK_CALL(start_rwlock_rdwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_SHAREDLOCK,
@@ -664,6 +659,7 @@ pfs_rw_lock_sx_lock_func(
 		PSI_rwlock_locker*	locker;
 		PSI_rwlock_locker_state	state;
 
+#define PSI_RWLOCK_SHAREDEXCLUSIVELOCK PSI_RWLOCK_WRITELOCK
 		/* Instrumented to inform we are aquiring a shared rwlock */
 		locker = PSI_RWLOCK_CALL(start_rwlock_wrwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK,
@@ -700,6 +696,7 @@ pfs_rw_lock_s_lock_low(
 		PSI_rwlock_locker*	locker;
 		PSI_rwlock_locker_state	state;
 
+#define PSI_RWLOCK_TRYSHAREDLOCK PSI_RWLOCK_TRYREADLOCK
 		/* Instrumented to inform we are aquiring a shared rwlock */
 		locker = PSI_RWLOCK_CALL(start_rwlock_rdwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_TRYSHAREDLOCK,
@@ -739,6 +736,7 @@ pfs_rw_lock_sx_lock_low(
 		PSI_rwlock_locker*	locker;
 		PSI_rwlock_locker_state	state;
 
+#define PSI_RWLOCK_TRYSHAREDEXCLUSIVELOCK PSI_RWLOCK_TRYWRITELOCK
 		/* Instrumented to inform we are aquiring a shared
 		exclusive rwlock */
 		locker = PSI_RWLOCK_CALL(start_rwlock_rdwait)(

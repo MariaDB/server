@@ -1,4 +1,4 @@
-# Testing mysql_upgrade with TABLE performance_schema.user_table
+"Testing mysql_upgrade with TABLE performance_schema.user_table"
 create table test.user_table(a int);
 use performance_schema;
 show tables like "user_table";

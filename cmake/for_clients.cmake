@@ -70,5 +70,5 @@ REPLACE_FOR_CLIENTS(CFLAGS "[DU]DBUG_OFF" "[DU]SAFE_MUTEX" "[DU]NDEBUG"
 
 # Same for --libs
 REPLACE_FOR_CLIENTS(LIBS "Wl,[^ ]*" lmtmalloc static-libcxa i-static static-intel)
-REPLACE_FOR_CLIENTS(EMB_LIBS lmtmalloc static-libcxa i-static static-intel ltpool)
+REPLACE_FOR_CLIENTS(EMB_LIBS lmtmalloc static-libcxa i-static static-intel)
 

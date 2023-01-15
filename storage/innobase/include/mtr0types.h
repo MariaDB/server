@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,8 +29,6 @@ Created 11/26/1995 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 #include "sync0rw.h"
-#else
-#include "univ.i"
 #endif /* UNIV_INNOCHECKSUM */
 
 struct mtr_t;
@@ -41,276 +39,224 @@ enum mtr_log_t {
 	MTR_LOG_ALL = 0,
 
 	/** Log no operations and dirty pages are not added to the flush list.
-	Set for attempting modification of a ROW_FORMAT=COMPRESSED page. */
+	Set when applying log in crash recovery or when a modification of a
+	ROW_FORMAT=COMPRESSED page is attempted. */
 	MTR_LOG_NONE,
 
 	/** Don't generate REDO log but add dirty pages to flush list */
-	MTR_LOG_NO_REDO
+	MTR_LOG_NO_REDO,
+
+	/** Inserts are logged in a shorter form */
+	MTR_LOG_SHORT_INSERTS
 };
 
-/*
-A mini-transaction is a stream of records that is always terminated by
-a NUL byte. The first byte of a mini-transaction record is never NUL,
-but NUL bytes can occur within mini-transaction records. The first
-bytes of each record will explicitly encode the length of the record.
-NUL bytes also acts as padding in log blocks, that is, there can be
-multiple sucessive NUL bytes between mini-transactions in a redo log
-block.
+/** @name Log item types
+The log items are declared 'byte' so that the compiler can warn if val
+and type parameters are switched in a call to mlog_write_ulint. NOTE!
+For 1 - 8 bytes, the flag value must give the length also! @{ */
+enum mlog_id_t {
+	/** if the mtr contains only one log record for one page,
+	i.e., write_initial_log_record has been called only once,
+	this flag is ORed to the type of that first log record */
+	MLOG_SINGLE_REC_FLAG = 128,
 
-The first byte of the record would contain a record type, flags, and a
-part of length. The optional second byte of the record will contain
-more length. (Not needed for short records.)
+	/** one byte is written */
+	MLOG_1BYTE = 1,
 
-Bit 7 of the first byte of a redo log record is the same_page flag.
-If same_page=1, the record is referring to the same page as the
-previous record. Records that do not refer to data pages but to file
-operations are identified by setting the same_page=1 in the very first
-record(s) of the mini-transaction. A mini-transaction record that
-carries same_page=0 must only be followed by page-oriented records.
+	/** 2 bytes ... */
+	MLOG_2BYTES = 2,
 
-Bits 6..4 of the first byte of a redo log record identify the redo log
-type. The following record types refer to data pages:
+	/** 4 bytes ... */
+	MLOG_4BYTES = 4,
 
-    FREE_PAGE (0): corresponds to MLOG_INIT_FREE_PAGE
-    INIT_PAGE (1): corresponds to MLOG_INIT_FILE_PAGE2
-    EXTENDED (2): extended record; followed by subtype code @see mrec_ext_t
-    WRITE (3): replaces MLOG_nBYTES, MLOG_WRITE_STRING, MLOG_ZIP_*
-    MEMSET (4): extends the 10.4 MLOG_MEMSET record
-    MEMMOVE (5): copy data within the page (avoids logging redundant data)
-    RESERVED (6): reserved for future use; a subtype code
-    (encoded immediately after the length) would be written
-    to reserve code space for further extensions
-    OPTION (7): optional record that may be ignored; a subtype code
-    (encoded immediately after the length) would distinguish actual
-    usage, such as:
-     * MDEV-18976 page checksum record
-     * binlog record
-     * SQL statement (at the start of statement)
+	/** 8 bytes ... */
+	MLOG_8BYTES = 8,
 
-Bits 3..0 indicate the redo log record length, excluding the first
-byte, but including additional length bytes and any other bytes,
-such as the optional tablespace identifier and page number.
-Values 1..15 represent lengths of 1 to 15 bytes. The special value 0
-indicates that 1 to 3 length bytes will follow to encode the remaining
-length that exceeds 16 bytes.
+	/** Record insert */
+	MLOG_REC_INSERT = 9,
 
-Additional length bytes if length>16: 0 to 3 bytes
-0xxxxxxx                   for 0 to 127 (total: 16 to 143 bytes)
-10xxxxxx xxxxxxxx          for 128 to 16511 (total: 144 to 16527)
-110xxxxx xxxxxxxx xxxxxxxx for 16512 to 2113663 (total: 16528 to 2113679)
-111xxxxx                   reserved (corrupted record, and file!)
+	/** Mark clustered index record deleted */
+	MLOG_REC_CLUST_DELETE_MARK = 10,
 
-If same_page=0, the tablespace identifier and page number will use
-similar 1-to-5-byte variable-length encoding:
-0xxxxxxx                                     for 0 to 127
-10xxxxxx xxxxxxxx                            for 128 to 16,511
-110xxxxx xxxxxxxx xxxxxxxx                   for 16,512 to 2,113,663
-1110xxxx xxxxxxxx xxxxxxxx xxxxxxxx          for 2,113,664 to 270,549,119
-11110xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx for 270,549,120 to 34,630,287,487
-11111xxx                                     reserved (corrupted record)
-Note: Some 5-byte values are reserved, because the tablespace identifier
-and page number can only be up to 4,294,967,295.
+	/** Mark secondary index record deleted */
+	MLOG_REC_SEC_DELETE_MARK = 11,
 
-If same_page=1 is set in a record that follows a same_page=0 record
-in a mini-transaction, the tablespace identifier and page number
-fields will be omitted.
+	/** update of a record, preserves record field sizes */
+	MLOG_REC_UPDATE_IN_PLACE = 13,
 
-For FILE_ records (if same_page=1 for the first record
-of a mini-transaction), we will write a tablespace identifier and
-a page number (always 0) using the same 1-to-5-byte encoding.
+	/*!< Delete a record from a page */
+	MLOG_REC_DELETE = 14,
 
-For FREE_PAGE or INIT_PAGE, if same_page=1, the record will be treated
-as corrupted (or reserved for future extension).  The type code must
-be followed by 1+1 to 5+5 bytes (to encode the tablespace identifier
-and page number). If the record length does not match the encoded
-lengths of the tablespace identifier and page number, the record will
-be treated as corrupted. This allows future expansion of the format.
+	/** Delete record list end on index page */
+	MLOG_LIST_END_DELETE = 15,
 
-If there is a FREE_PAGE record in a mini-transaction, it must be the
-only record for that page in the mini-transaction. If there is an
-INIT_PAGE record for a page in a mini-transaction, it must be the
-first record for that page in the mini-transaction.
+	/** Delete record list start on index page */
+	MLOG_LIST_START_DELETE = 16,
 
-An EXTENDED record must be followed by 1+1 to 5+5 bytes for the page
-identifier (unless the same_page flag is set) and a subtype; @see mrec_ext_t
+	/** Copy record list end to a new created index page */
+	MLOG_LIST_END_COPY_CREATED = 17,
 
-For WRITE, MEMSET, MEMMOVE, the next 1 to 3 bytes are the byte offset
-on the page, relative from the previous offset. If same_page=0, the
-"previous offset" is 0. If same_page=1, the "previous offset" is where
-the previous operation ended (FIL_PAGE_TYPE for INIT_PAGE).
-0xxxxxxx                                     for 0 to 127
-10xxxxxx xxxxxxxx                            for 128 to 16,511
-110xxxxx xxxxxxxx xxxxxxxx                   for 16,512 to 2,113,663
-111xxxxx                                     reserved (corrupted record)
-If the sum of the "previous offset" and the current offset exceeds the
-page size, the record is treated as corrupted. Negative relative offsets
-cannot be written. Instead, a record with same_page=0 can be written.
+	/** Reorganize an index page in ROW_FORMAT=REDUNDANT */
+	MLOG_PAGE_REORGANIZE = 18,
 
-For MEMSET and MEMMOVE, the target length will follow, encoded in 1 to
-3 bytes.  If the length+offset exceeds the page size, the record will
-be treated as corrupted.
+	/** Create an index page */
+	MLOG_PAGE_CREATE = 19,
 
-For MEMMOVE, the source offset will follow, encoded in 1 to 3 bytes,
-relative to the current offset. The offset 0 is not possible, and
-the sign bit is the least significant bit. That is,
-+x is encoded as (x-1)<<1 (+1,+2,+3,... is 0,2,4,...) and
--x is encoded as (x-1)<<1|1 (-1,-2,-3,... is 1,3,5,...).
-The source offset must be within the page size, or else the record
-will be treated as corrupted.
+	/** insert an undo log record */
+	MLOG_UNDO_INSERT = 20,
 
-For MEMSET or WRITE, the byte(s) to be written will follow. For
-MEMSET, it usually is a single byte, but it could also be a multi-byte
-string, which would be copied over and over until the target length is
-reached. The length of the remaining bytes is implied by the length
-bytes at the start of the record.
+	/** erase an undo log page end (used in MariaDB 10.2) */
+	MLOG_UNDO_ERASE_END = 21,
 
-For MEMMOVE, if any bytes follow, the record is treated as corrupted
-(future expansion).
+	/** initialize a page in an undo log */
+	MLOG_UNDO_INIT = 22,
 
-As mentioned at the start of this comment, the type byte 0 would be
-special, marking the end of a mini-transaction. We could use the
-corresponding value 0x80 (with same_page=1) for something special,
-such as a future extension when more type codes are needed, or for
-encoding rarely needed redo log records.
+	/** reuse an insert undo log header (used in MariaDB 10.2) */
+	MLOG_UNDO_HDR_REUSE = 24,
 
-Examples:
+	/** create an undo log header */
+	MLOG_UNDO_HDR_CREATE = 25,
 
-INIT could be logged as 0x12 0x34 0x56, meaning "type code 1 (INIT), 2
-bytes to follow" and "tablespace ID 0x34", "page number 0x56".
-The first byte must be between 0x12 and 0x1a, and the total length of
-the record must match the lengths of the encoded tablespace ID and
-page number.
+	/** mark an index record as the predefined minimum record */
+	MLOG_REC_MIN_MARK = 26,
 
-WRITE could be logged as 0x36 0x40 0x57 0x60 0x12 0x34 0x56, meaning
-"type code 3 (WRITE), 6 bytes to follow" and "tablespace ID 0x40",
-"page number 0x57", "byte offset 0x60", data 0x34,0x56.
+	/** initialize an ibuf bitmap page (used in MariaDB 10.2 and 10.3) */
+	MLOG_IBUF_BITMAP_INIT = 27,
 
-A subsequent WRITE to the same page could be logged 0xb5 0x7f 0x23
-0x34 0x56 0x78, meaning "same page, type code 3 (WRITE), 5 bytes to
-follow", "byte offset 0x7f"+0x60+2, bytes 0x23,0x34,0x56,0x78.
+#ifdef UNIV_LOG_LSN_DEBUG
+	/** Current LSN */
+	MLOG_LSN = 28,
+#endif /* UNIV_LOG_LSN_DEBUG */
 
-The end of the mini-transaction would be indicated by a NUL byte.
-*/
+	/** write a string to a page */
+	MLOG_WRITE_STRING = 30,
 
-/** Redo log record types. These bit patterns (3 bits) will be written
-to the redo log file, so the existing codes or their interpretation on
-crash recovery must not be changed. */
-enum mrec_type_t
-{
-  /** Free a page. On recovery, it is unnecessary to read the page.
-  The next record for the page (if any) must be INIT_PAGE.
-  After this record has been written, the page may be
-  overwritten with zeros, or discarded or trimmed. */
-  FREE_PAGE= 0,
-  /** Zero-initialize a page. The current byte offset (for subsequent
-  records) will be reset to FIL_PAGE_TYPE. */
-  INIT_PAGE= 0x10,
-  /** Extended record; @see mrec_ext_t */
-  EXTENDED= 0x20,
-  /** Write a string of bytes. Followed by the byte offset (unsigned,
-  relative to the current byte offset, encoded in 1 to 3 bytes) and
-  the bytes to write (at least one). The current byte offset will be
-  set after the last byte written. */
-  WRITE= 0x30,
-  /** Like WRITE, but before the bytes to write, the data_length-1
-  (encoded in 1 to 3 bytes) will be encoded, and it must be more
-  than the length of the following data bytes to write.
-  The data byte(s) will be repeatedly copied to the output until
-  the data_length is reached. */
-  MEMSET= 0x40,
-  /** Like MEMSET, but instead of the bytes to write, a source byte
-  offset (signed, nonzero, relative to the target byte offset, encoded
-  in 1 to 3 bytes, with the sign bit in the least significant bit)
-  will be written.
-  That is, +x is encoded as (x-1)<<1 (+1,+2,+3,... is 0,2,4,...)
-  and -x is encoded as (x-1)<<1|1 (-1,-2,-3,... is 1,3,5,...).
-  The source offset and data_length must be within the page size, or
-  else the record will be treated as corrupted. The data will be
-  copied from the page as it was at the start of the
-  mini-transaction. */
-  MEMMOVE= 0x50,
-  /** Reserved for future use. */
-  RESERVED= 0x60,
-  /** Optional record that may be ignored in crash recovery.
-  A subtype code will be encoded immediately after the length.
-  Possible subtypes would include a MDEV-18976 page checksum record,
-  a binlog record, or an SQL statement. */
-  OPTION= 0x70
+	/** If a single mtr writes several log records, this log
+	record ends the sequence of these records */
+	MLOG_MULTI_REC_END = 31,
+
+	/** dummy log record used to pad a log block full */
+	MLOG_DUMMY_RECORD = 32,
+
+	/** log record about an .ibd file creation */
+	//MLOG_FILE_CREATE = 33,
+
+	/** rename databasename/tablename (no .ibd file name suffix) */
+	//MLOG_FILE_RENAME = 34,
+
+	/** delete a tablespace file that starts with (space_id,page_no) */
+	MLOG_FILE_DELETE = 35,
+
+	/** mark a compact index record as the predefined minimum record */
+	MLOG_COMP_REC_MIN_MARK = 36,
+
+	/** create a compact index page */
+	MLOG_COMP_PAGE_CREATE = 37,
+
+	/** compact record insert */
+	MLOG_COMP_REC_INSERT = 38,
+
+	/** mark compact clustered index record deleted */
+	MLOG_COMP_REC_CLUST_DELETE_MARK = 39,
+
+	/** update of a compact record, preserves record field sizes */
+	MLOG_COMP_REC_UPDATE_IN_PLACE = 41,
+
+	/** delete a compact record from a page */
+	MLOG_COMP_REC_DELETE = 42,
+
+	/** delete compact record list end on index page */
+	MLOG_COMP_LIST_END_DELETE = 43,
+
+	/*** delete compact record list start on index page */
+	MLOG_COMP_LIST_START_DELETE = 44,
+
+	/** copy compact record list end to a new created index page */
+	MLOG_COMP_LIST_END_COPY_CREATED = 45,
+
+	/** reorganize an index page */
+	MLOG_COMP_PAGE_REORGANIZE = 46,
+
+	/** log record about creating an .ibd file, with format */
+	MLOG_FILE_CREATE2 = 47,
+
+	/** write the node pointer of a record on a compressed
+	non-leaf B-tree page */
+	MLOG_ZIP_WRITE_NODE_PTR = 48,
+
+	/** write the BLOB pointer of an externally stored column
+	on a compressed page */
+	MLOG_ZIP_WRITE_BLOB_PTR = 49,
+
+	/** write to compressed page header */
+	MLOG_ZIP_WRITE_HEADER = 50,
+
+	/** compress an index page */
+	MLOG_ZIP_PAGE_COMPRESS = 51,
+
+	/** compress an index page without logging it's image */
+	MLOG_ZIP_PAGE_COMPRESS_NO_DATA = 52,
+
+	/** reorganize a compressed page */
+	MLOG_ZIP_PAGE_REORGANIZE = 53,
+
+	/** rename a tablespace file that starts with (space_id,page_no) */
+	MLOG_FILE_RENAME2 = 54,
+
+	/** note the first use of a tablespace file since checkpoint */
+	MLOG_FILE_NAME = 55,
+
+	/** note that all buffered log was written since a checkpoint */
+	MLOG_CHECKPOINT = 56,
+
+	/** Create a R-Tree index page */
+	MLOG_PAGE_CREATE_RTREE = 57,
+
+	/** create a R-tree compact page */
+	MLOG_COMP_PAGE_CREATE_RTREE = 58,
+
+	/** initialize a file page */
+	MLOG_INIT_FILE_PAGE2 = 59,
+
+	/** Table is being truncated. (Was used in 10.2 and 10.3;
+	not supported for crash-upgrade to 10.4 or later.) */
+	MLOG_TRUNCATE = 60,
+
+	/** notify that an index tree is being loaded without writing
+	redo log about individual pages */
+	MLOG_INDEX_LOAD = 61,
+
+	/** write DB_TRX_ID,DB_ROLL_PTR to a clustered index leaf page
+	of a ROW_FORMAT=COMPRESSED table */
+	MLOG_ZIP_WRITE_TRX_ID = 62,
+
+	/** initialize a page with a string of identical bytes */
+	MLOG_MEMSET = 63,
+
+	/** Zero-fill a page that is not allocated. */
+	MLOG_INIT_FREE_PAGE = 64,
+
+	/** biggest value (used in assertions) */
+	MLOG_BIGGEST_TYPE = MLOG_INIT_FREE_PAGE,
+
+	/** log record for writing/updating crypt data of
+	a tablespace */
+	MLOG_FILE_WRITE_CRYPT_DATA = 100,
 };
 
+/* @} */
 
-/** Supported EXTENDED record subtypes. */
-enum mrec_ext_t
-{
-  /** Partly initialize a ROW_FORMAT=REDUNDANT B-tree or R-tree index page,
-  including writing the "infimum" and "supremum" pseudo-records.
-  The current byte offset will be reset to FIL_PAGE_TYPE. */
-  INIT_ROW_FORMAT_REDUNDANT= 0,
-  /** Partly initialize a ROW_FORMAT=COMPACT or DYNAMIC index page,
-  including writing the "infimum" and "supremum" pseudo-records.
-  The current byte offset will be reset to FIL_PAGE_TYPE. */
-  INIT_ROW_FORMAT_DYNAMIC= 1,
-  /** Initialize an undo log page.
-  This is roughly (not exactly) equivalent to the old MLOG_UNDO_INIT record.
-  The current byte offset will be reset to FIL_PAGE_TYPE. */
-  UNDO_INIT= 2,
-  /** Append a record to an undo log page.
-  This is equivalent to the old MLOG_UNDO_INSERT record.
-  The current byte offset will be reset to FIL_PAGE_TYPE. */
-  UNDO_APPEND= 3,
-  /** Insert a ROW_FORMAT=REDUNDANT record, extending PAGE_HEAP_TOP.
-  The current byte offset will be reset to FIL_PAGE_TYPE. */
-  INSERT_HEAP_REDUNDANT= 4,
-  /** Insert a ROW_FORMAT=REDUNDANT record, reusing PAGE_FREE.
-  The current byte offset will be reset to FIL_PAGE_TYPE. */
-  INSERT_REUSE_REDUNDANT= 5,
-  /** Insert a ROW_FORMAT=COMPACT or DYNAMIC record, extending PAGE_HEAP_TOP.
-  The current byte offset will be reset to FIL_PAGE_TYPE. */
-  INSERT_HEAP_DYNAMIC= 6,
-  /** Insert a ROW_FORMAT=COMPACT or DYNAMIC record, reusing PAGE_FREE.
-  The current byte offset will be reset to FIL_PAGE_TYPE. */
-  INSERT_REUSE_DYNAMIC= 7,
-  /** Delete a record on a ROW_FORMAT=REDUNDANT page.
-  We point to the precedessor of the record to be deleted.
-  The current byte offset will be reset to FIL_PAGE_TYPE.
-  This is similar to the old MLOG_REC_DELETE record. */
-  DELETE_ROW_FORMAT_REDUNDANT= 8,
-  /** Delete a record on a ROW_FORMAT=COMPACT or DYNAMIC page.
-  We point to the precedessor of the record to be deleted
-  and include the total size of the record being deleted.
-  The current byte offset will be reset to FIL_PAGE_TYPE.
-  This is similar to the old MLOG_COMP_REC_DELETE record. */
-  DELETE_ROW_FORMAT_DYNAMIC= 9,
-  /** Truncate a data file. */
-  TRIM_PAGES= 10
-};
+#define EXTRA_CHECK_MLOG_NUMBER(x) \
+  ((x) == MLOG_FILE_WRITE_CRYPT_DATA)
 
-
-/** Redo log record types for file-level operations. These bit
-patterns will be written to redo log files, so the existing codes or
-their interpretation on crash recovery must not be changed. */
-enum mfile_type_t
-{
-  /** Create a file. Followed by tablespace ID and the file name. */
-  FILE_CREATE = 0x80,
-  /** Delete a file. Followed by tablespace ID and the file name.  */
-  FILE_DELETE = 0x90,
-  /** Rename a file. Followed by tablespace ID and the old file name,
-  NUL, and the new file name.  */
-  FILE_RENAME = 0xa0,
-  /** Modify a file. Followed by tablespace ID and the file name. */
-  FILE_MODIFY = 0xb0,
-  /** End-of-checkpoint marker. Followed by 2 dummy bytes of page identifier,
-  8 bytes of LSN, and padded with a NUL; @see SIZE_OF_FILE_CHECKPOINT. */
-  FILE_CHECKPOINT = 0xf0
-};
-
-/** Size of a FILE_CHECKPOINT record, including the trailing byte to
-terminate the mini-transaction. */
-constexpr byte SIZE_OF_FILE_CHECKPOINT= 3/*type,page_id*/ + 8/*LSN*/ + 1;
+/** Size of a MLOG_CHECKPOINT record in bytes.
+The record consists of a MLOG_CHECKPOINT byte followed by
+mach_write_to_8(checkpoint_lsn). */
+#define SIZE_OF_MLOG_CHECKPOINT	9
 
 #ifndef UNIV_INNOCHECKSUM
-/** Types for the mlock objects to store in the mtr_t::m_memo */
+/** Types for the mlock objects to store in the mtr memo; NOTE that the
+first 3 values must be RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH */
 enum mtr_memo_type_t {
 	MTR_MEMO_PAGE_S_FIX = RW_S_LATCH,
 
@@ -320,10 +266,9 @@ enum mtr_memo_type_t {
 
 	MTR_MEMO_BUF_FIX = RW_NO_LATCH,
 
+#ifdef UNIV_DEBUG
 	MTR_MEMO_MODIFY = 16,
-
-	MTR_MEMO_PAGE_X_MODIFY = MTR_MEMO_PAGE_X_FIX | MTR_MEMO_MODIFY,
-	MTR_MEMO_PAGE_SX_MODIFY = MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_MODIFY,
+#endif /* UNIV_DEBUG */
 
 	MTR_MEMO_S_LOCK = RW_S_LATCH << 5,
 
@@ -335,5 +280,11 @@ enum mtr_memo_type_t {
 	MTR_MEMO_SPACE_X_LOCK = MTR_MEMO_SX_LOCK << 1
 };
 #endif /* !UNIV_CHECKSUM */
+
+enum mtr_state_t {
+	MTR_STATE_INIT = 0,
+	MTR_STATE_ACTIVE,
+	MTR_STATE_COMMITTED
+};
 
 #endif /* mtr0types_h */

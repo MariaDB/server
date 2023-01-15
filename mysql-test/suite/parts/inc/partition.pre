@@ -179,7 +179,7 @@ if (0)
 #              That means statements which
 #              - are most time of low interest and do auxiliary stuff
 #                like generating the next SQL statement to be executed
-#              - additional statements giving information about table
+#              - additional statements giving informations about table
 #                contents or the value of some variables
 #                You will get huge differences, because the file with the
 #                expected results was created with $debug = 0 .
@@ -221,7 +221,7 @@ if (0)
 #     $ls= 1 (default)
 #          --> Display the table related directory content via
 #                "ls $MYSQLTEST_VARDIR/mysqld.1/data/test/t1*"
-#              if these information were collected.
+#              if these informations were collected.
 #              This is probably not portable to some OS.
 #     $ls= 0
 #          --> Omit displaying the directory

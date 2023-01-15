@@ -6387,7 +6387,7 @@ int ha_tokudb::create_txn(THD* thd, tokudb_trx_data* trx) {
             "created master %p",
             trx->all);
         trx->sp_level = trx->all;
-        trans_register_ha(thd, true, tokudb_hton, 0);
+        trans_register_ha(thd, true, tokudb_hton);
     }
     DBUG_PRINT("trans", ("starting transaction stmt"));
     if (trx->stmt) { 
@@ -6429,7 +6429,7 @@ int ha_tokudb::create_txn(THD* thd, tokudb_trx_data* trx) {
         trx->sp_level,
         trx->stmt);
     reset_stmt_progress(&trx->stmt_progress);
-    trans_register_ha(thd, false, tokudb_hton, 0);
+    trans_register_ha(thd, false, tokudb_hton);
 cleanup:
     return error;
 }
@@ -6594,7 +6594,7 @@ int ha_tokudb::start_stmt(THD* thd, thr_lock_type lock_type) {
         share->rows_from_locked_table = added_rows - deleted_rows;
     }
     transaction = trx->sub_sp_level;
-    trans_register_ha(thd, false, tokudb_hton, 0);
+    trans_register_ha(thd, false, tokudb_hton);
 cleanup:
     TOKUDB_HANDLER_DBUG_RETURN(error);
 }
@@ -7793,6 +7793,11 @@ double ha_tokudb::scan_time() {
     DBUG_RETURN(ret_val);
 }
 
+bool ha_tokudb::is_clustering_key(uint index)
+{
+    return index == primary_key || key_is_clustering(&table->key_info[index]);
+}
+
 double ha_tokudb::keyread_time(uint index, uint ranges, ha_rows rows)
 {
     TOKUDB_HANDLER_DBUG_ENTER("%u %u %" PRIu64, index, ranges, (uint64_t) rows);
@@ -7894,9 +7899,7 @@ double ha_tokudb::index_only_read_time(uint keynr, double records) {
 //      number > 0 - There are approximately number matching rows in the range
 //      HA_POS_ERROR - Something is wrong with the index tree
 //
-ha_rows ha_tokudb::records_in_range(uint keynr, const key_range* start_key,
-                                    const key_range* end_key,
-                                    page_range *pages) {
+ha_rows ha_tokudb::records_in_range(uint keynr, key_range* start_key, key_range* end_key) {
     TOKUDB_HANDLER_DBUG_ENTER("%d %p %p", keynr, start_key, end_key);
     DBT *pleft_key, *pright_key;
     DBT left_key, right_key;

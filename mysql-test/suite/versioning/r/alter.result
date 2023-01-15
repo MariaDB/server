@@ -786,27 +786,3 @@ with system versioning,
 modify row_start varchar(8);
 ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `row_start` and `row_end`
 drop table t1;
-#
-# MDEV-21941 RENAME doesn't work for system time or period fields
-#
-create or replace table t1 (a int) with system versioning;
-alter table t1 rename column row_start to x;
-ERROR 42S22: Unknown column 'row_start' in 't1'
-create or replace table t1 (
-a int,
-row_start timestamp(6) as row start invisible,
-row_end timestamp(6) as row end invisible,
-period for system_time (row_start, row_end)
-) with system versioning;
-alter table t1 rename column row_start to x;
-alter table t1 rename column row_end to y;
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `x` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
-  `y` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
-  PERIOD FOR SYSTEM_TIME (`x`, `y`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
-drop table t1;
-# End of 10.5 tests

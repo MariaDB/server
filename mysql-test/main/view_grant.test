@@ -987,27 +987,13 @@ connection def;
 CREATE VIEW v1 AS SELECT * FROM t1;
 
 connection root;
-GRANT SELECT ON db17254.v1 TO inv_17254@localhost;
 DROP USER def_17254@localhost;
 
 connect (inv,localhost,inv_17254,,db17254);
 connection inv;
---echo for a user without SET USER
---error ER_ACCESS_DENIED_ERROR
+--echo for a user
+--error ER_TABLEACCESS_DENIED_ERROR
 SELECT * FROM v1;
-disconnect inv;
-
-connection root;
-GRANT SET USER ON *.* TO inv_17254@localhost;
-
-connect (inv2,localhost,inv_17254,,db17254);
-connection inv2;
-SHOW GRANTS;
-SELECT CURRENT_USER, SYSTEM_USER(), USER();
---echo for a user with SET USER
---error ER_NO_SUCH_USER
-SELECT * FROM v1;
-disconnect inv2;
 
 connection root;
 --echo for a superuser
@@ -1016,6 +1002,7 @@ SELECT * FROM v1;
 DROP USER inv_17254@localhost;
 DROP DATABASE db17254;
 disconnect def;
+disconnect inv;
 
 
 #

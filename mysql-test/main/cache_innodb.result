@@ -1,6 +1,6 @@
 SET global query_cache_type=ON;
 SET local query_cache_type=ON;
-SET SESSION DEFAULT_STORAGE_ENGINE = InnoDB;
+SET SESSION STORAGE_ENGINE = InnoDB;
 drop table if exists t1,t2,t3;
 set @save_query_cache_size = @@global.query_cache_size;
 set GLOBAL query_cache_size = 1355776;
@@ -132,7 +132,7 @@ id	a
 1	me
 drop table t3,t2,t1;
 connect  connection1,localhost,root,,;
-SET SESSION DEFAULT_STORAGE_ENGINE = InnoDB;
+SET SESSION STORAGE_ENGINE = InnoDB;
 SET @@autocommit=1;
 connection default;
 SHOW VARIABLES LIKE 'have_query_cache';
@@ -141,7 +141,7 @@ have_query_cache	YES
 SET GLOBAL query_cache_size = 204800;
 flush status;
 SET @@autocommit=1;
-SET SESSION DEFAULT_STORAGE_ENGINE = InnoDB;
+SET SESSION STORAGE_ENGINE = InnoDB;
 CREATE TABLE t2 (s1 int, s2 varchar(1000), key(s1));
 INSERT INTO t2 VALUES (1,repeat('a',10)),(2,repeat('a',10)),(3,repeat('a',10)),(4,repeat('a',10));
 COMMIT;

@@ -35,13 +35,13 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0vec.h"
 #include "fts0fts.h"
 #include "read0types.h"
-#include "ilist.h"
 
 #include <vector>
 #include <set>
 
 // Forward declaration
 struct mtr_t;
+class FlushObserver;
 struct rw_trx_hash_element_t;
 
 /******************************************************************//**
@@ -233,7 +233,8 @@ trx_commit_step(
 	que_thr_t*	thr);	/*!< in: query thread */
 
 /**********************************************************************//**
-Prints info about a transaction. */
+Prints info about a transaction.
+Caller must hold trx_sys.mutex. */
 void
 trx_print_low(
 /*==========*/
@@ -253,6 +254,7 @@ trx_print_low(
 
 /**********************************************************************//**
 Prints info about a transaction.
+The caller must hold lock_sys.mutex and trx_sys.mutex.
 When possible, use trx_print() instead. */
 void
 trx_print_latched(
@@ -294,7 +296,7 @@ trx_set_dict_operation(
 
 /**********************************************************************//**
 Determines if a transaction is in the given state.
-The caller must hold trx->mutex, or it must be the thread
+The caller must hold trx_sys.mutex, or it must be the thread
 that is serving a running transaction.
 A running RW transaction must be in trx_sys.rw_trx_hash.
 @return TRUE if trx->state == state */
@@ -418,11 +420,8 @@ code and no mutex is required when the query thread is no longer waiting. */
 /** The locks and state of an active transaction. Protected by
 lock_sys.mutex, trx->mutex or both. */
 struct trx_lock_t {
-#ifdef UNIV_DEBUG
-	/** number of active query threads; at most 1, except for the
-	dummy transaction in trx_purge() */
-	ulint n_active_thrs;
-#endif
+	ulint		n_active_thrs;	/*!< number of active query threads */
+
 	trx_que_t	que_state;	/*!< valid when trx->state
 					== TRX_STATE_ACTIVE: TRX_QUE_RUNNING,
 					TRX_QUE_LOCK_WAIT, ... */
@@ -643,22 +642,17 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
-struct trx_t : ilist_node<> {
+struct trx_t {
 private:
   /**
-    Least significant 31 bits is count of references.
+    Count of references.
 
     We can't release the locks nor commit the transaction until this reference
     is 0. We can change the state to TRX_STATE_COMMITTED_IN_MEMORY to signify
     that it is no longer "active".
-
-    If the most significant bit is set this transaction should stop inheriting
-    (GAP)locks. Generally set to true during transaction prepare for RC or lower
-    isolation, if requested. Needed for replication replay where
-    we don't want to get blocked on GAP locks taken for protecting
-    concurrent unique insert or replace operation.
   */
-  Atomic_relaxed<uint32_t> skip_lock_inheritance_and_n_ref;
+
+  Atomic_counter<int32_t> n_ref;
 
 
 public:
@@ -668,6 +662,14 @@ public:
 					lock_sys.mutex) */
 
 	trx_id_t	id;		/*!< transaction id */
+
+	trx_id_t	no;		/*!< transaction serialization number:
+					max trx id shortly before the
+					transaction is moved to
+					COMMITTED_IN_MEMORY state.
+					Protected by trx_sys_t::mutex
+					when trx is in rw_trx_hash. Initially
+					set to TRX_ID_MAX. */
 
 	/** State of the trx from the point of view of concurrency control
 	and the valid state transitions.
@@ -708,7 +710,7 @@ public:
 	XA (2PC) transactions are always treated as non-autocommit.
 
 	Transitions to ACTIVE or NOT_STARTED occur when transaction
-	is not in rw_trx_hash.
+	is not in rw_trx_hash (no trx_sys.mutex needed).
 
 	Autocommit non-locking read-only transactions move between states
 	without holding any mutex. They are not in rw_trx_hash.
@@ -724,7 +726,7 @@ public:
 	in rw_trx_hash.
 
 	ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
-	The transition ACTIVE->PREPARED is protected by trx->mutex.
+	The transition ACTIVE->PREPARED is protected by trx_sys.mutex.
 
 	ACTIVE->COMMITTED is possible when the transaction is in
 	rw_trx_hash.
@@ -762,7 +764,7 @@ public:
 	const char*	op_info;	/*!< English text describing the
 					current operation, or an empty
 					string */
-	uint		isolation_level;/*!< TRX_ISO_REPEATABLE_READ, ... */
+	ulint		isolation_level;/*!< TRX_ISO_REPEATABLE_READ, ... */
 	bool		check_foreigns;	/*!< normally TRUE, but if the user
 					wants to suppress foreign key checks,
 					(in table imports, for example) we
@@ -802,6 +804,17 @@ public:
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
+	/* Fields protected by the srv_conc_mutex. */
+	bool		declared_to_be_inside_innodb;
+					/*!< this is TRUE if we have declared
+					this transaction in
+					srv_conc_enter_innodb to be inside the
+					InnoDB engine */
+	ib_uint32_t	n_tickets_to_enter_innodb;
+					/*!< this can be > 0 only when
+					declared_to_... is TRUE; when we come
+					to srv_conc_innodb_enter, if the value
+					here is > 0, we decrement this by 1 */
 	ib_uint32_t	dict_operation_lock_mode;
 					/*!< 0, RW_S_LATCH, or RW_X_LATCH:
 					the latch mode trx currently holds
@@ -837,6 +850,10 @@ public:
 					/*!< how many tables the current SQL
 					statement uses, except those
 					in consistent read */
+	/*------------------------------*/
+	UT_LIST_NODE_T(trx_t) trx_list;	/*!< list of all transactions;
+					protected by trx_sys.mutex */
+	/*------------------------------*/
 	dberr_t		error_state;	/*!< 0 if no error, otherwise error
 					number; NOTE That ONLY the thread
 					doing the transaction is allowed to
@@ -930,6 +947,15 @@ public:
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */
+private:
+	/** flush observer used to track flushing of non-redo logged pages
+	during bulk create index */
+	FlushObserver*	flush_observer;
+public:
+#ifdef WITH_WSREP
+	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
+#endif /* WITH_WSREP */
+
 	rw_trx_hash_element_t *rw_trx_hash_element;
 	LF_PINS *rw_trx_hash_pins;
 	ulint		magic_n;
@@ -957,6 +983,20 @@ public:
 		return(assign_temp_rseg());
 	}
 
+	/** Set the innodb_log_optimize_ddl page flush observer
+	@param[in,out]	space	tablespace
+	@param[in,out]	stage	performance_schema accounting */
+	void set_flush_observer(fil_space_t* space, ut_stage_alter_t* stage);
+
+	/** Remove the flush observer */
+	void remove_flush_observer();
+
+	/** @return the flush observer */
+	FlushObserver* get_flush_observer() const
+	{
+		return flush_observer;
+	}
+
   /** Transition to committed state, to release implicit locks. */
   inline void commit_state();
 
@@ -967,68 +1007,39 @@ public:
   @param[in]	table_id	table identifier */
   void evict_table(table_id_t table_id);
 
-  /** Initiate rollback.
-  @param savept     savepoint to which to roll back
-  @return error code or DB_SUCCESS */
-  dberr_t rollback(trx_savept_t *savept= nullptr);
-  /** Roll back an active transaction.
-  @param savept     savepoint to which to roll back */
-  inline void rollback_low(trx_savept_t *savept= nullptr);
-  /** Finish rollback.
-  @return whether the rollback was completed normally
-  @retval false if the rollback was aborted by shutdown */
-  inline bool rollback_finish();
 private:
   /** Mark a transaction committed in the main memory data structures. */
   inline void commit_in_memory(const mtr_t *mtr);
-  /** Commit the transaction in a mini-transaction.
-  @param mtr  mini-transaction (if there are any persistent modifications) */
-  void commit_low(mtr_t *mtr= nullptr);
 public:
   /** Commit the transaction. */
   void commit();
 
-  bool is_referenced() const
-  {
-    return (skip_lock_inheritance_and_n_ref & ~(1U << 31)) > 0;
-  }
+  /** Commit the transaction in a mini-transaction.
+  @param mtr  mini-transaction (if there are any persistent modifications) */
+  void commit_low(mtr_t *mtr= nullptr);
+
+
+
+  bool is_referenced() const { return n_ref > 0; }
+
 
   void reference()
   {
-    ut_d(auto old_n_ref =)
-    skip_lock_inheritance_and_n_ref.fetch_add(1);
-    ut_ad(int32_t(old_n_ref << 1) >= 0);
+#ifdef UNIV_DEBUG
+    auto old_n_ref=
+#endif
+    n_ref++;
+    ut_ad(old_n_ref >= 0);
   }
+
 
   void release_reference()
   {
-    ut_d(auto old_n_ref =)
-    skip_lock_inheritance_and_n_ref.fetch_sub(1);
-    ut_ad(int32_t(old_n_ref << 1) > 0);
-  }
-
-  bool is_not_inheriting_locks() const
-  {
-    return skip_lock_inheritance_and_n_ref >> 31;
-  }
-
-  void set_skip_lock_inheritance()
-  {
-    ut_d(auto old_n_ref=) skip_lock_inheritance_and_n_ref.fetch_add(1U << 31);
-    ut_ad(!(old_n_ref >> 31));
-  }
-
-  void reset_skip_lock_inheritance()
-  {
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    __asm__("lock btrl $31, %0" : : "m"(skip_lock_inheritance_and_n_ref));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    _interlockedbittestandreset(
-        reinterpret_cast<volatile long *>(&skip_lock_inheritance_and_n_ref),
-        31);
-#else
-    skip_lock_inheritance_and_n_ref.fetch_and(~1U << 31);
+#ifdef UNIV_DEBUG
+    auto old_n_ref=
 #endif
+    n_ref--;
+    ut_ad(old_n_ref > 0);
   }
 
   /** @return whether the table has lock on
@@ -1056,8 +1067,8 @@ public:
     ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(dict_operation == TRX_DICT_OP_NONE);
-    ut_ad(!is_not_inheriting_locks());
   }
+
 
   /** @return whether this is a non-locking autocommit transaction */
   bool is_autocommit_non_locking() const { return auto_commit && !will_lock; }

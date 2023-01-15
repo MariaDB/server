@@ -20,8 +20,6 @@
 #ifndef _my_alloc_h
 #define _my_alloc_h
 
-#include <mysql/psi/psi_memory.h>
-
 #define ALLOC_MAX_BLOCK_TO_DROP			4096
 #define ALLOC_MAX_BLOCK_USAGE_BEFORE_DROP	10
 
@@ -45,6 +43,7 @@ typedef struct st_mem_root
   /* if block have less memory it will be put in 'used' list */
   size_t min_malloc;
   size_t block_size;               /* initial block size */
+  size_t total_alloc;
   unsigned int block_num;          /* allocated blocks counter */
   /* 
      first free block in queue test counter (if it exceed 
@@ -53,8 +52,7 @@ typedef struct st_mem_root
   unsigned int first_block_usage;
 
   void (*error_handler)(void);
-
-  PSI_memory_key m_psi_key;
+  const char *name;
 } MEM_ROOT;
 
 #ifdef  __cplusplus

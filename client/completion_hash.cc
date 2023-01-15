@@ -41,15 +41,15 @@ uint hashpjw(const char *arKey, uint nKeyLength)
 
 int completion_hash_init(HashTable *ht, uint nSize)
 {
-  ht->arBuckets = (Bucket **) my_malloc(PSI_NOT_INSTRUMENTED,
-                        nSize* sizeof(Bucket *), MYF(MY_ZEROFILL | MY_WME));
+  ht->arBuckets = (Bucket **) my_malloc(nSize* sizeof(Bucket *),
+					MYF(MY_ZEROFILL | MY_WME));
 
   if (!ht->arBuckets)
   {
     ht->initialized = 0;
     return FAILURE;
   }
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &ht->mem_root, 8192, 0, MYF(0));
+  init_alloc_root(&ht->mem_root, "completion_hash", 8192, 0, MYF(0));
   ht->pHashFunction = hashpjw;
   ht->nTableSize = nSize;
   ht->initialized = 1;

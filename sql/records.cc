@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2022, MariaDB Corporation.
+   Copyright (c) 2009, 2017, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,8 +38,8 @@
 static int rr_quick(READ_RECORD *info);
 int rr_sequential(READ_RECORD *info);
 static int rr_from_tempfile(READ_RECORD *info);
-template<bool> static int rr_unpack_from_tempfile(READ_RECORD *info);
-template<bool,bool> static int rr_unpack_from_buffer(READ_RECORD *info);
+static int rr_unpack_from_tempfile(READ_RECORD *info);
+static int rr_unpack_from_buffer(READ_RECORD *info);
 int rr_from_pointers(READ_RECORD *info);
 static int rr_from_cache(READ_RECORD *info);
 static int init_rr_cache(THD *thd, READ_RECORD *info);
@@ -187,24 +187,23 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
                       bool disable_rr_cache)
 {
   IO_CACHE *tempfile;
+  SORT_ADDON_FIELD *addon_field= filesort ? filesort->addon_field : 0;
   DBUG_ENTER("init_read_record");
-
-  const bool using_addon_fields= filesort && filesort->using_addon_fields();
-  bool using_packed_sortkeys= filesort && filesort->using_packed_sortkeys();
 
   bzero((char*) info,sizeof(*info));
   info->thd=thd;
   info->table=table;
-  info->sort_info= filesort;
+  info->addon_field= addon_field;
   
   if ((table->s->tmp_table == INTERNAL_TMP_TABLE) &&
-      !using_addon_fields)
+      !addon_field)
     (void) table->file->extra(HA_EXTRA_MMAP);
   
-  if (using_addon_fields)
+  if (addon_field)
   {
-    info->rec_buf=    filesort->addon_fields->get_addon_buf();
-    info->ref_length= filesort->addon_fields->get_addon_buf_length();
+    info->rec_buf=    (uchar*) filesort->addon_buf.str;
+    info->ref_length= (uint)filesort->addon_buf.length;
+    info->unpack=     filesort->unpack;
   }
   else
   {
@@ -224,20 +223,9 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 
   if (tempfile && !(select && select->quick))
   {
-    if (using_addon_fields)
-    {
-      DBUG_PRINT("info",("using rr_from_tempfile"));
-      if (filesort->addon_fields->using_packed_addons())
-        info->read_record_func= rr_unpack_from_tempfile<true>;
-      else
-        info->read_record_func= rr_unpack_from_tempfile<false>;
-    }
-    else
-    {
-      DBUG_PRINT("info",("using rr_from_tempfile"));
-      info->read_record_func= rr_from_tempfile;
-    }
-
+    DBUG_PRINT("info",("using rr_from_tempfile"));
+    info->read_record_func=
+        addon_field ? rr_unpack_from_tempfile : rr_from_tempfile;
     info->io_cache= tempfile;
     reinit_io_cache(info->io_cache,READ_CACHE,0L,0,0);
     info->ref_pos=table->file->ref;
@@ -251,7 +239,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
       and filesort->io_cache is read sequentially
     */
     if (!disable_rr_cache &&
-        !using_addon_fields &&
+        !addon_field &&
 	thd->variables.read_rnd_buff_size &&
 	!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
 	(table->db_stat & HA_READ_ONLY ||
@@ -276,38 +264,16 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
     DBUG_PRINT("info",("using rr_quick"));
     info->read_record_func= rr_quick;
   }
-  else if (filesort && filesort->has_filesort_result_in_memory())
+  else if (filesort && filesort->record_pointers)
   {
     DBUG_PRINT("info",("using record_pointers"));
     if (unlikely(table->file->ha_rnd_init_with_error(0)))
       DBUG_RETURN(1);
-
     info->cache_pos= filesort->record_pointers;
-    if (using_addon_fields)
-    {
-      DBUG_PRINT("info",("using rr_unpack_from_buffer"));
-      DBUG_ASSERT(filesort->sorted_result_in_fsbuf);
-      info->unpack_counter= 0;
-
-      if (filesort->using_packed_addons())
-      {
-        info->read_record_func= using_packed_sortkeys ?
-                                rr_unpack_from_buffer<true, true> :
-                                rr_unpack_from_buffer<true, false>;
-      }
-      else
-      {
-        info->read_record_func= using_packed_sortkeys ?
-                                rr_unpack_from_buffer<false, true> :
-                                rr_unpack_from_buffer<false, false>;
-      }
-    }
-    else
-    {
-      info->cache_end= (info->cache_pos+
-                        filesort->return_rows * info->ref_length);
-      info->read_record_func= rr_from_pointers;
-    }
+    info->cache_end= (info->cache_pos+ 
+                      filesort->return_rows * info->ref_length);
+    info->read_record_func=
+        addon_field ? rr_unpack_from_buffer : rr_from_pointers;
   }
   else if (table->file->keyread_enabled())
   {
@@ -552,11 +518,7 @@ static int rr_from_tempfile(READ_RECORD *info)
   the fields values use in the result set from this buffer into their
   positions in the regular record buffer.
 
-  @param info                 Reference to the context including record
-                              descriptors
-  @param Packed_addon_fields  Are the addon fields packed?
-                              This is a compile-time constant, to
-                              avoid if (....) tests during execution.
+  @param info          Reference to the context including record descriptors
 
   @retval
     0   Record successfully read.
@@ -564,38 +526,12 @@ static int rr_from_tempfile(READ_RECORD *info)
     -1   There is no record to be read anymore.
 */
 
-template<bool Packed_addon_fields>
 static int rr_unpack_from_tempfile(READ_RECORD *info)
 {
-  uchar *destination= info->rec_buf;
-#ifdef DBUG_TRACE
-  my_off_t where= my_b_tell(info->io_cache);
-#endif
-  if (Packed_addon_fields)
-  {
-    const uint len_sz= Addon_fields::size_of_length_field;
-
-    // First read length of the record.
-    if (my_b_read(info->io_cache, destination, len_sz))
-      return -1;
-    uint res_length= Addon_fields::read_addon_length(destination);
-    DBUG_PRINT("info", ("rr_unpack from %llu to %p sz %u",
-                        static_cast<ulonglong>(where),
-                        destination, res_length));
-    DBUG_ASSERT(res_length > len_sz);
-    DBUG_ASSERT(info->sort_info->using_addon_fields());
-
-    // Then read the rest of the record.
-    if (my_b_read(info->io_cache, destination + len_sz, res_length - len_sz))
-      return -1;                                /* purecov: inspected */
-  }
-  else
-  {
-    if (my_b_read(info->io_cache, destination, info->ref_length))
-      return -1;
-  }
-
-  info->sort_info->unpack_addon_fields<Packed_addon_fields>(destination);
+  if (my_b_read(info->io_cache, info->rec_buf, info->ref_length))
+    return -1;
+  (*info->unpack)(info->addon_field, info->rec_buf,
+                  info->rec_buf + info->ref_length);
 
   return 0;
 }
@@ -632,11 +568,7 @@ int rr_from_pointers(READ_RECORD *info)
   the fields values use in the result set from this buffer into their
   positions in the regular record buffer.
 
-  @param info                 Reference to the context including record
-                              descriptors
-  @param Packed_addon_fields  Are the addon fields packed?
-                              This is a compile-time constant, to
-                              avoid if (....) tests during execution.
+  @param info          Reference to the context including record descriptors
 
   @retval
     0   Record successfully read.
@@ -644,22 +576,13 @@ int rr_from_pointers(READ_RECORD *info)
     -1   There is no record to be read anymore.
 */
 
-template<bool Packed_addon_fields, bool Packed_sort_keys>
 static int rr_unpack_from_buffer(READ_RECORD *info)
 {
-  if (info->unpack_counter == info->sort_info->return_rows)
+  if (info->cache_pos == info->cache_end)
     return -1;                      /* End of buffer */
-
-  uchar *record= info->sort_info->get_sorted_record(
-    static_cast<uint>(info->unpack_counter));
-
-  uint sort_length= Packed_sort_keys ?
-                    Sort_keys::read_sortkey_length(record):
-                    info->sort_info->get_sort_length();
-
-  uchar *plen= record + sort_length;
-  info->sort_info->unpack_addon_fields<Packed_addon_fields>(plen);
-  info->unpack_counter++;
+  (*info->unpack)(info->addon_field, info->cache_pos,
+                  info->cache_end);
+  info->cache_pos+= info->ref_length;
   return 0;
 }
 	/* cacheing of records from a database */
@@ -793,40 +716,4 @@ static int rr_cmp(uchar *a,uchar *b)
     return (int) a[6] - (int) b[6];
   return (int) a[7] - (int) b[7];
 #endif
-}
-
-
-/**
-  Copy (unpack) values appended to sorted fields from a buffer back to
-  their regular positions specified by the Field::ptr pointers.
-
-  @param addon_field     Array of descriptors for appended fields
-  @param buff            Buffer which to unpack the value from
-
-  @note
-    The function is supposed to be used only as a callback function
-    when getting field values for the sorted result set.
-
-*/
-template<bool Packed_addon_fields>
-inline void SORT_INFO::unpack_addon_fields(uchar *buff)
-{
-  SORT_ADDON_FIELD *addonf= addon_fields->begin();
-  uchar *buff_end= buff + sort_buffer_size();
-  const uchar *start_of_record= buff + addonf->offset;
-
-  for ( ; addonf != addon_fields->end() ; addonf++)
-  {
-    Field *field= addonf->field;
-    if (addonf->null_bit && (addonf->null_bit & buff[addonf->null_offset]))
-    {
-      field->set_null();
-      continue;
-    }
-    field->set_notnull();
-    if (Packed_addon_fields)
-      start_of_record= field->unpack(field->ptr, start_of_record, buff_end, 0);
-    else
-      field->unpack(field->ptr, buff + addonf->offset, buff_end, 0);
-  }
 }

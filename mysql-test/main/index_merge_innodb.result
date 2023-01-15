@@ -2,7 +2,7 @@ connect disable_purge,localhost,root,,;
 # Disable the purge of InnoDB history, to make the test run faster.
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
-SET DEFAULT_STORAGE_ENGINE = InnoDB;
+SET STORAGE_ENGINE = InnoDB;
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=off';
 set optimizer_switch='rowid_filter=off';

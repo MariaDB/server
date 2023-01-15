@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, 2022, MariaDB
+/* Copyright (c) 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,37 +22,6 @@
 #include "sql_explain.h"
 #include "sql_parse.h"
 #include "sql_cte.h"
-#include "my_json_writer.h"
-
-
-/**
-  @brief
-    Walk through all VALUES items.
-  @param
-     @param processor      - the processor to call for each Item
-     @param walk_qubquery  - if should dive into subquery items
-     @param argument       - the argument to pass recursively
-  @retval
-    true   on error
-    false  on success
-*/
-bool table_value_constr::walk_values(Item_processor processor,
-                                     bool walk_subquery,
-                                     void *argument)
-{
-  List_iterator_fast<List_item> list_item_it(lists_of_values);
-  while (List_item *list= list_item_it++)
-  {
-    List_iterator_fast<Item> item_it(*list);
-    while (Item *item= item_it++)
-    {
-       if (item->walk(&Item::unknown_splocal_processor, false, argument))
-         return true;
-    }
-  }
-  return false;
-}
-
 
 /**
   @brief
@@ -438,10 +407,9 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   while ((elem= li++))
   {
     THD *cur_thd= sl->parent_lex->thd;
-    if (send_records >= sl->master_unit()->lim.get_select_limit())
+    if (send_records >= sl->master_unit()->select_limit_cnt)
       break;
-    int rc=
-      result->send_data_with_check(*elem, sl->master_unit(), send_records);
+    int rc= result->send_data(*elem);
     cur_thd->get_stmt_da()->inc_current_row_for_warning();
     if (!rc)
       send_records++;
@@ -714,7 +682,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
 
   lex->current_select= wrapper_sl;
   item= new (thd->mem_root) Item_field(thd, &wrapper_sl->context,
-                                       star_clex_str);
+                                       NULL, NULL, &star_clex_str);
   if (item == NULL || add_item_to_list(thd, item))
     goto err;
   (wrapper_sl->with_wild)++;
@@ -823,7 +791,6 @@ st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
   {
     wrapper_sl->master_unit()->union_distinct= wrapper_sl;
   }
-  wrapper_sl->distinct= tvc_sl->distinct;
   thd->lex->current_select= wrapper_sl;
   return wrapper_sl;
 }
@@ -932,11 +899,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
 {
   if (!transform_into_subq)
     return this;
-
-  Json_writer_object trace_wrapper(thd);
-  Json_writer_object trace_conv(thd, "in_to_subquery_conversion");
-  trace_conv.add("item", this);
-
+  
   List<List_item> values;
 
   LEX *lex= thd->lex;
@@ -954,29 +917,13 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   uint32 length= max_length_of_left_expr();
   if (!length  || length > tmp_table_max_key_length() ||
       args[0]->cols() > tmp_table_max_key_parts())
-  {
-    trace_conv.add("done", false);
-    trace_conv.add("reason", "key is too long");
     return this;
-  }
-
+  
   for (uint i=1; i < arg_count; i++)
   {
-    if (!args[i]->const_item())
-    {
-      trace_conv.add("done", false);
-      trace_conv.add("reason", "non-constant element in the IN-list");
+    if (!args[i]->const_item() || cmp_row_types(args[i], args[0]))
       return this;
-    }
-
-    if (cmp_row_types(args[i], args[0]))
-    {
-      trace_conv.add("done", false);
-      trace_conv.add("reason", "type mismatch");
-      return this;
-    }
   }
-  Json_writer_array trace_nested_obj(thd, "conversion");
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -993,7 +940,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   sq_select= lex->current_select;
   sq_select->parsing_place= SELECT_LIST;
   item= new (thd->mem_root) Item_field(thd, &sq_select->context,
-                                       star_clex_str);
+                                       NULL, NULL, &star_clex_str);
   if (item == NULL || add_item_to_list(thd, item))
     goto err;
   (sq_select->with_wild)++;
@@ -1069,7 +1016,6 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
     goto err;
 
   parent_select->curr_tvc_name++;
-
   return sq;
 
 err:

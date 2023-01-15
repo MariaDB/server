@@ -30,19 +30,19 @@ truncate table performance_schema.events_waits_history_long;
 update performance_schema.setup_consumers set enabled='YES';
 # Printing of 100 inserts per table is suppressed
 update performance_schema.setup_consumers set enabled='NO';
-select SUM(NUMBER_OF_BYTES)
+select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
 and object_name =  'no_index_tab';
-SUM(NUMBER_OF_BYTES)
+COUNT(*)
 100
-select SUM(NUMBER_OF_BYTES)
+select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
 and object_name =  'index_tab';
-SUM(NUMBER_OF_BYTES)
+COUNT(*)
 100
 select count(*) from test.no_index_tab;
 count(*)
@@ -56,75 +56,75 @@ select avg(a) from test.no_index_tab;
 avg(a)
 50.5000
 update performance_schema.setup_consumers set enabled='NO';
-select SUM(NUMBER_OF_BYTES)
+select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
 and object_name =  'no_index_tab';
-SUM(NUMBER_OF_BYTES)
-100
+COUNT(*)
+101
 truncate table performance_schema.events_waits_history_long;
 update performance_schema.setup_consumers set enabled='YES';
 select avg(a) from test.index_tab;
 avg(a)
 50.5000
 update performance_schema.setup_consumers set enabled='NO';
-select SUM(NUMBER_OF_BYTES)
+select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
 and object_name =  'index_tab';
-SUM(NUMBER_OF_BYTES)
-100
+COUNT(*)
+101
 truncate table performance_schema.events_waits_history_long;
 update performance_schema.setup_consumers set enabled='YES';
 select 1 as my_column from test.no_index_tab where a = 50;
 my_column
 1
 update performance_schema.setup_consumers set enabled='NO';
-select SUM(NUMBER_OF_BYTES)
+select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
 and object_name =  'no_index_tab';
-SUM(NUMBER_OF_BYTES)
-100
+COUNT(*)
+101
 truncate table performance_schema.events_waits_history_long;
 update performance_schema.setup_consumers set enabled='YES';
 select 1 as my_column from test.index_tab where a = 50;
 my_column
 1
 update performance_schema.setup_consumers set enabled='NO';
-select SUM(NUMBER_OF_BYTES)
+select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
 and object_name =  'index_tab';
-SUM(NUMBER_OF_BYTES)
+COUNT(*)
 1
 truncate table performance_schema.events_waits_history_long;
 update performance_schema.setup_consumers set enabled='YES';
 delete from test.no_index_tab where a = 51;
 update performance_schema.setup_consumers set enabled='NO';
-select SUM(NUMBER_OF_BYTES)
+select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
 and object_name =  'no_index_tab';
-SUM(NUMBER_OF_BYTES)
+COUNT(*)
 102
 truncate table performance_schema.events_waits_history_long;
 update performance_schema.setup_consumers set enabled='YES';
 delete from test.index_tab where a = 51;
 update performance_schema.setup_consumers set enabled='NO';
-select SUM(NUMBER_OF_BYTES)
+select COUNT(*)
 from performance_schema.events_waits_history_long
 where event_name like 'wait/io/table/%'
 and object_schema = 'test'
 and object_name =  'index_tab';
-SUM(NUMBER_OF_BYTES)
+COUNT(*)
 2
-show global status like 'performance_schema_%';
+show status like 'performance_schema_%';
 Variable_name	Value
 Performance_schema_accounts_lost	0
 Performance_schema_cond_classes_lost	0
@@ -134,15 +134,9 @@ Performance_schema_file_classes_lost	0
 Performance_schema_file_handles_lost	0
 Performance_schema_file_instances_lost	0
 Performance_schema_hosts_lost	0
-Performance_schema_index_stat_lost	0
 Performance_schema_locker_lost	0
-Performance_schema_memory_classes_lost	0
-Performance_schema_metadata_lock_lost	0
 Performance_schema_mutex_classes_lost	0
 Performance_schema_mutex_instances_lost	0
-Performance_schema_nested_statement_lost	0
-Performance_schema_prepared_statements_lost	0
-Performance_schema_program_lost	0
 Performance_schema_rwlock_classes_lost	0
 Performance_schema_rwlock_instances_lost	0
 Performance_schema_session_connect_attrs_lost	0
@@ -152,7 +146,6 @@ Performance_schema_stage_classes_lost	0
 Performance_schema_statement_classes_lost	0
 Performance_schema_table_handles_lost	0
 Performance_schema_table_instances_lost	0
-Performance_schema_table_lock_stat_lost	0
 Performance_schema_thread_classes_lost	0
 Performance_schema_thread_instances_lost	0
 Performance_schema_users_lost	0

@@ -38,8 +38,7 @@ SELECT * FROM t1;
 SELECT * FROM v1;
 
 connection master;
-RENAME TABLE v1 TO v2;
-DROP VIEW v2;
+DROP VIEW v1;
 DROP TABLE t1;
 
 --error ER_UNKNOWN_VIEW

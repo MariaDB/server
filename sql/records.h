@@ -59,23 +59,13 @@ struct READ_RECORD
   THD *thd;
   SQL_SELECT *select;
   uint ref_length, reclength, rec_cache_size, error_offset;
-
-  /**
-    Counting records when reading result from filesort().
-    Used when filesort leaves the result in the filesort buffer.
-   */
-  ha_rows unpack_counter;
-
   uchar *ref_pos;				/* pointer to form->refpos */
   uchar *rec_buf;                /* to read field values  after filesort */
   uchar	*cache,*cache_pos,*cache_end,*read_positions;
-
-  /*
-    Structure storing information about sorting
-  */
-  SORT_INFO *sort_info;
+  struct st_sort_addon_field *addon_field;     /* Pointer to the fields info */
   struct st_io_cache *io_cache;
   bool print_error;
+  void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *);
 
   int read_record() { return read_record_func(this); }
   uchar *record() const { return table->record[0]; }

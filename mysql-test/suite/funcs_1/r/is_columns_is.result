@@ -24,11 +24,10 @@ def	information_schema	CHARACTER_SETS	CHARACTER_SET_NAME	1	NULL	NO	varchar	32	96
 def	information_schema	CHARACTER_SETS	DEFAULT_COLLATE_NAME	2	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select		NEVER	NULL
 def	information_schema	CHARACTER_SETS	DESCRIPTION	3	NULL	NO	varchar	60	180	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(60)			select		NEVER	NULL
 def	information_schema	CHARACTER_SETS	MAXLEN	4	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(3)			select		NEVER	NULL
-def	information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE	6	NULL	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8	utf8_general_ci	longtext			select		NEVER	NULL
+def	information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE	5	NULL	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8	utf8_general_ci	longtext			select		NEVER	NULL
 def	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_CATALOG	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_NAME	4	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
-def	information_schema	CHECK_CONSTRAINTS	LEVEL	5	NULL	NO	varchar	6	18	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(6)			select		NEVER	NULL
 def	information_schema	CHECK_CONSTRAINTS	TABLE_NAME	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	CLIENT_STATISTICS	ACCESS_DENIED	22	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL
 def	information_schema	CLIENT_STATISTICS	BINLOG_BYTES_WRITTEN	9	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL
@@ -328,7 +327,6 @@ def	information_schema	ROUTINES	SQL_PATH	22	NULL	YES	varchar	64	192	NULL	NULL	NU
 def	information_schema	SCHEMATA	CATALOG_NAME	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	SCHEMATA	DEFAULT_CHARACTER_SET_NAME	3	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select		NEVER	NULL
 def	information_schema	SCHEMATA	DEFAULT_COLLATION_NAME	4	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select		NEVER	NULL
-def	information_schema	SCHEMATA	SCHEMA_COMMENT	6	NULL	NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select		NEVER	NULL
 def	information_schema	SCHEMATA	SCHEMA_NAME	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	SCHEMATA	SQL_PATH	5	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	SCHEMA_PRIVILEGES	GRANTEE	1	NULL	NO	varchar	190	570	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(190)			select		NEVER	NULL
@@ -366,7 +364,6 @@ def	information_schema	SYSTEM_VARIABLES	DEFAULT_VALUE	5	NULL	YES	varchar	2048	61
 def	information_schema	SYSTEM_VARIABLES	ENUM_VALUE_LIST	12	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8	utf8_general_ci	longtext			select		NEVER	NULL
 def	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE	3	NULL	YES	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)			select		NEVER	NULL
 def	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE_ORIGIN	4	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
-def	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE_PATH	15	NULL	YES	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)			select		NEVER	NULL
 def	information_schema	SYSTEM_VARIABLES	NUMERIC_BLOCK_SIZE	11	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select		NEVER	NULL
 def	information_schema	SYSTEM_VARIABLES	NUMERIC_MAX_VALUE	10	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select		NEVER	NULL
 def	information_schema	SYSTEM_VARIABLES	NUMERIC_MIN_VALUE	9	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select		NEVER	NULL
@@ -575,7 +572,6 @@ NULL	information_schema	CHARACTER_SETS	MAXLEN	bigint	NULL	NULL	NULL	NULL	bigint(
 3.0000	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	CHECK_CONSTRAINTS	TABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-3.0000	information_schema	CHECK_CONSTRAINTS	LEVEL	varchar	6	18	utf8	utf8_general_ci	varchar(6)
 1.0000	information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE	longtext	4294967295	4294967295	utf8	utf8_general_ci	longtext
 3.0000	information_schema	CLIENT_STATISTICS	CLIENT	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 NULL	information_schema	CLIENT_STATISTICS	TOTAL_CONNECTIONS	bigint	NULL	NULL	NULL	NULL	bigint(21)
@@ -877,7 +873,6 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	SCHEMATA	DEFAULT_CHARACTER_SET_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	SCHEMATA	DEFAULT_COLLATION_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	SCHEMATA	SQL_PATH	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
-3.0000	information_schema	SCHEMATA	SCHEMA_COMMENT	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
 3.0000	information_schema	SCHEMA_PRIVILEGES	GRANTEE	varchar	190	570	utf8	utf8_general_ci	varchar(190)
 3.0000	information_schema	SCHEMA_PRIVILEGES	TABLE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
@@ -922,7 +917,6 @@ NULL	information_schema	STATISTICS	SUB_PART	bigint	NULL	NULL	NULL	NULL	bigint(3)
 1.0000	information_schema	SYSTEM_VARIABLES	ENUM_VALUE_LIST	longtext	4294967295	4294967295	utf8	utf8_general_ci	longtext
 3.0000	information_schema	SYSTEM_VARIABLES	READ_ONLY	varchar	3	9	utf8	utf8_general_ci	varchar(3)
 3.0000	information_schema	SYSTEM_VARIABLES	COMMAND_LINE_ARGUMENT	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-3.0000	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE_PATH	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	TABLES	TABLE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	TABLES	TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	TABLES	TABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)

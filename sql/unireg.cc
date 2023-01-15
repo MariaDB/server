@@ -80,13 +80,6 @@ static uchar* extra2_write_str(uchar *pos, const LEX_CSTRING &str)
   return pos + str.length;
 }
 
-static uchar* extra2_write_str(uchar *pos, const Binary_string *str)
-{
-  pos= extra2_write_len(pos, str->length());
-  memcpy(pos, str->ptr(), str->length());
-  return pos + str->length();
-}
-
 static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
                            const LEX_CSTRING &str)
 {
@@ -155,78 +148,10 @@ bool has_extra2_field_flags(List<Create_field> &create_fields)
   return false;
 }
 
-static uint gis_field_options_image(uchar *buff,
-                                    List<Create_field> &create_fields)
+static size_t extra2_str_size(size_t len)
 {
-  uint image_size= 0;
-  List_iterator<Create_field> it(create_fields);
-  Create_field *field;
-  while ((field= it++))
-  {
-    if (field->real_field_type() != MYSQL_TYPE_GEOMETRY)
-      continue;
-    uchar *cbuf= buff ? buff + image_size : NULL;
-    image_size+= field->type_handler()->
-                   Column_definition_gis_options_image(cbuf, *field);
-  }
-  return image_size;
+  return (len > 255 ? 3 : 1) + len;
 }
-
-
-class Field_data_type_info_image: public BinaryStringBuffer<512>
-{
-  static uchar *store_length(uchar *pos, ulonglong length)
-  {
-    return net_store_length(pos, length);
-  }
-  static uchar *store_string(uchar *pos, const Binary_string *str)
-  {
-    pos= store_length(pos, str->length());
-    memcpy(pos, str->ptr(), str->length());
-    return pos + str->length();
-  }
-  static uint store_length_required_length(ulonglong length)
-  {
-    return net_length_size(length);
-  }
-public:
-  Field_data_type_info_image() { }
-  bool append(uint fieldnr, const Column_definition &def)
-  {
-    BinaryStringBuffer<64> type_info;
-    if (def.type_handler()->
-              Column_definition_data_type_info_image(&type_info, def) ||
-        type_info.length() > 0xFFFF/*Some reasonable limit*/)
-      return true; // Error
-    if (!type_info.length())
-      return false;
-    size_t need_length= store_length_required_length(fieldnr) +
-                        store_length_required_length(type_info.length()) +
-                        type_info.length();
-    if (reserve(need_length))
-      return true; // Error
-    uchar *pos= (uchar *) end();
-    pos= store_length(pos, fieldnr);
-    pos= store_string(pos, &type_info);
-    size_t new_length= (const char *) pos - ptr();
-    DBUG_ASSERT(new_length < alloced_length());
-    length((uint32) new_length);
-    return false;
-  }
-  bool append(List<Create_field> &fields)
-  {
-    uint fieldnr= 0;
-    Create_field *field;
-    List_iterator<Create_field> it(fields);
-    for (field= it++; field; field= it++, fieldnr++)
-    {
-      if (append(fieldnr, *field))
-        return true; // Error
-    }
-    return false;
-  }
-};
-
 
 /**
   Create a frm (table definition) file
@@ -260,7 +185,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                             + extra2_str_size(create_info->period_info.constr->name.length)
                             + 2 * frm_fieldno_size
                           : 0;
-  size_t without_overlaps_len= frm_keyno_size * (create_info->period_info.unique_keys + 1);
   uint e_unique_hash_extra_parts= 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
@@ -268,7 +192,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
   StringBuffer<MAX_FIELD_WIDTH> vcols;
-  Field_data_type_info_image field_data_type_info_image;
   DBUG_ENTER("build_frm_image");
 
  /* If fixed row records, we need one bit to check for deleted rows */
@@ -319,24 +242,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   options_len= engine_table_options_frm_length(create_info->option_list,
                                                create_fields,
                                                keys, key_info);
+#ifdef HAVE_SPATIAL
   gis_extra2_len= gis_field_options_image(NULL, create_fields);
+#endif /*HAVE_SPATIAL*/
   DBUG_PRINT("info", ("Options length: %u", options_len));
-
-  if (field_data_type_info_image.append(create_fields))
-  {
-    my_printf_error(ER_CANT_CREATE_TABLE,
-                    "Cannot create table %`s: "
-                    "Building the field data type info image failed.",
-                    MYF(0), table.str);
-    DBUG_RETURN(frm);
-  }
-  DBUG_PRINT("info", ("Field data type info length: %u",
-                      (uint) field_data_type_info_image.length()));
-  DBUG_EXECUTE_IF("frm_data_type_info",
-                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                  ER_UNKNOWN_ERROR,
-                  "build_frm_image: Field data type info length: %u",
-                  (uint) field_data_type_info_image.length()););
 
   if (validate_comment_length(thd, &create_info->comment, TABLE_COMMENT_MAXLEN,
                               ER_TOO_LONG_TABLE_COMMENT, table.str))
@@ -383,9 +292,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   if (gis_extra2_len)
     extra2_size+= 1 + extra2_str_size(gis_extra2_len);
 
-  if (field_data_type_info_image.length())
-    extra2_size+= 1 + extra2_str_size(field_data_type_info_image.length());
-
   if (create_info->versioned())
   {
     extra2_size+= 1 + extra2_str_size(2 * frm_fieldno_size);
@@ -393,8 +299,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (create_info->period_info.name)
   {
-    extra2_size+= 2 + extra2_str_size(period_info_len)
-                    + extra2_str_size(without_overlaps_len);
+    extra2_size+= 1 + extra2_str_size(period_info_len);
   }
 
   bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
@@ -429,8 +334,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     DBUG_RETURN(frm);
   }
 
-  frm_ptr= (uchar*) my_malloc(PSI_INSTRUMENT_ME, frm.length,
-                              MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
+  frm_ptr= (uchar*) my_malloc(frm.length, MYF(MY_WME | MY_ZEROFILL |
+                                              MY_THREAD_SPECIFIC));
   if (!frm_ptr)
     DBUG_RETURN(frm);
 
@@ -452,28 +357,14 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                                         create_fields, keys, key_info);
   }
 
+#ifdef HAVE_SPATIAL
   if (gis_extra2_len)
   {
     *pos= EXTRA2_GIS;
     pos= extra2_write_len(pos+1, gis_extra2_len);
     pos+= gis_field_options_image(pos, create_fields);
   }
-
-  if (field_data_type_info_image.length())
-  {
-    if (field_data_type_info_image.length() > 0xFFFF)
-    {
-      my_printf_error(ER_CANT_CREATE_TABLE,
-                      "Cannot create table %`s: "
-                      "field data type info image is too large. "
-                      "Decrease the number of columns with "
-                      "extended data types.",
-                      MYF(0), table.str);
-      goto err;
-    }
-    *pos= EXTRA2_FIELD_DATA_TYPE_INFO;
-    pos= extra2_write_str(pos + 1, &field_data_type_info_image);
-  }
+#endif /*HAVE_SPATIAL*/
 
   // PERIOD
   if (create_info->period_info.is_set())
@@ -489,19 +380,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     store_frm_fieldno(pos, get_fieldno_by_name(create_info, create_fields,
                                        create_info->period_info.period.end));
     pos+= frm_fieldno_size;
-
-    *pos++= EXTRA2_PERIOD_WITHOUT_OVERLAPS;
-    pos= extra2_write_len(pos, without_overlaps_len);
-    store_frm_keyno(pos, create_info->period_info.unique_keys);
-    pos+= frm_keyno_size;
-    for (uint key= 0; key < keys; key++)
-    {
-      if (key_info[key].without_overlaps)
-      {
-        store_frm_keyno(pos, key);
-        pos+= frm_keyno_size;
-      }
-    }
   }
 
   if (create_info->versioned())
@@ -858,7 +736,6 @@ static bool pack_header(THD *thd, uchar *forminfo,
 
       if (field->charset->mbminlen > 1)
       {
-        TYPELIB *tmpint;
         /* 
           Escape UCS2 intervals using HEX notation to avoid
           problems with delimiters between enum elements.
@@ -867,17 +744,16 @@ static bool pack_header(THD *thd, uchar *forminfo,
           filled with default values it is saved in save_interval
           The HEX representation is created from this copy.
         */
-        uint count= field->interval->count;
         field->save_interval= field->interval;
-        field->interval= tmpint= (TYPELIB*) thd->alloc(sizeof(TYPELIB));
-        *tmpint= *field->save_interval;
-        tmpint->type_names=
-          (const char **) thd->alloc(sizeof(char*) *
-                                     (count + 1));
-        tmpint->type_lengths= (uint *) thd->alloc(sizeof(uint) * (count + 1));
-        tmpint->type_names[count]= 0;
-        tmpint->type_lengths[count]= 0;
-
+        field->interval= (TYPELIB*) thd->alloc(sizeof(TYPELIB));
+        *field->interval= *field->save_interval; 
+        field->interval->type_names= 
+          (const char **) thd->alloc(sizeof(char*) * 
+                                     (field->interval->count+1));
+        field->interval->type_names[field->interval->count]= 0;
+        field->interval->type_lengths=
+          (uint *) thd->alloc(sizeof(uint) * field->interval->count);
+ 
         for (uint pos= 0; pos < field->interval->count; pos++)
         {
           char *dst;
@@ -885,8 +761,9 @@ static bool pack_header(THD *thd, uchar *forminfo,
           size_t hex_length;
           length= field->save_interval->type_lengths[pos];
           hex_length= length * 2;
-          tmpint->type_lengths[pos]= (uint) hex_length;
-          tmpint->type_names[pos]= dst= (char*) thd->alloc(hex_length + 1);
+          field->interval->type_lengths[pos]= (uint)hex_length;
+          field->interval->type_names[pos]= dst=
+            (char*) thd->alloc(hex_length + 1);
           octet2hex(dst, src, length);
         }
       }
@@ -949,7 +826,7 @@ static uint get_interval_id(uint *int_count,List<Create_field> &create_fields,
 {
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
-  const TYPELIB *interval= last_field->interval;
+  TYPELIB *interval=last_field->interval;
 
   while ((field=it++) != last_field)
   {

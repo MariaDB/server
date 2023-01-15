@@ -3,11 +3,9 @@
 
 [strict_crc32]
 --innodb-checksum-algorithm=strict_crc32
---innodb-flush-sync=OFF
 
 [full_crc32]
 --innodb-checksum-algorithm=full_crc32
 
 [strict_full_crc32]
 --innodb-checksum-algorithm=strict_full_crc32
---innodb-flush-sync=OFF

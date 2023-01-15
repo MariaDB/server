@@ -29,6 +29,8 @@
 #define SCHED_POLICY SCHED_OTHER
 #endif
 
+uint thd_lib_detected= 0;
+
 /*
   Some functions for RTS threads, AIX, Siemens Unix and UnixWare 7
   (and DEC OSF/1 3.2 too)
@@ -401,67 +403,4 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex)
 int pthread_dummy(int ret)
 {
   return ret;
-}
-
-
-/*
-  pthread_attr_setstacksize() without so much platform-dependency
-
-  Return: The actual stack size if possible.
-*/
-
-size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize)
-{
-  size_t guard_size __attribute__((unused))= 0;
-
-#if defined(__ia64__) || defined(__ia64)
-  /*
-    On IA64, half of the requested stack size is used for "normal stack"
-    and half for "register stack".  The space measured by check_stack_overrun
-    is the "normal stack", so double the request to make sure we have the
-    caller-expected amount of normal stack.
-
-    NOTE: there is no guarantee that the register stack can't grow faster
-    than normal stack, so it's very unclear that we won't dump core due to
-    stack overrun despite check_stack_overrun's efforts.  Experimentation
-    shows that in the execution_constants test, the register stack grows
-    less than half as fast as normal stack, but perhaps other scenarios are
-    less forgiving.  If it turns out that more space is needed for the
-    register stack, that could be forced (rather inefficiently) by using a
-    multiplier higher than 2 here.
-  */
-  stacksize *= 2;
-#endif
-
-  /*
-    On many machines, the "guard space" is subtracted from the requested
-    stack size, and that space is quite large on some platforms.  So add
-    it to our request, if we can find out what it is.
-  */
-#ifdef HAVE_PTHREAD_ATTR_GETGUARDSIZE
-  if (pthread_attr_getguardsize(attr, &guard_size))
-    guard_size = 0;		/* if can't find it out, treat as 0 */
-#endif /* HAVE_PTHREAD_ATTR_GETGUARDSIZE */
-
-  pthread_attr_setstacksize(attr, stacksize + guard_size);
-
-  /* Retrieve actual stack size if possible */
-#ifdef HAVE_PTHREAD_ATTR_GETSTACKSIZE
-  {
-    size_t real_stack_size= 0;
-    /* We must ignore real_stack_size = 0 as Solaris 2.9 can return 0 here */
-    if (pthread_attr_getstacksize(attr, &real_stack_size) == 0 &&
-	real_stack_size > guard_size)
-    {
-      real_stack_size -= guard_size;
-      if (real_stack_size < stacksize)
-	stacksize= real_stack_size;
-    }
-  }
-#endif /* HAVE_PTHREAD_ATTR_GETSTACKSIZE */
-
-#if defined(__ia64__) || defined(__ia64)
-  stacksize /= 2;
-#endif
-  return stacksize;
 }

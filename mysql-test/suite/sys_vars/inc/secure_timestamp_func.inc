@@ -7,40 +7,13 @@ source include/master-slave.inc;
 connection slave;
 select @@secure_timestamp;
 
---echo ### ALL PRIVILEGES
-disable_abort_on_error;
-set timestamp=1234567890.101112;
-enable_abort_on_error;
-select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'ALL PRIVILEGES';
-set timestamp=default;
-
---echo ### SUPER
-create user foo@127.0.0.1;
-grant super on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
+### SUPER
 disable_abort_on_error;
 set timestamp=1234567890.101112;
 enable_abort_on_error;
 select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'SUPER';
-disconnect con2;
-connection slave;
-drop user foo@127.0.0.1;
-set timestamp=default;
 
---echo ### BINLOG REPLAY
-create user foo@127.0.0.1;
-grant binlog replay on *.* TO `foo`@`127.0.0.1`;
-connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
-disable_abort_on_error;
-set timestamp=1234567890.101112;
-enable_abort_on_error;
-select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'BINLOG REPLAY';
-disconnect con2;
-connection slave;
-drop user foo@127.0.0.1;
-set timestamp=default;
-
---echo ### non-privileged user
+### non-privileged user
 create user foo@127.0.0.1;
 connect con2,127.0.0.1,foo,,test,$SLAVE_MYPORT;
 disable_abort_on_error;
@@ -50,7 +23,6 @@ select if(now(6) > 20100101, 'READONLY', 'EDITABLE') as 'non-privileged';
 disconnect con2;
 connection slave;
 drop user foo@127.0.0.1;
-set timestamp=default;
 
 ### replication
 connection master;

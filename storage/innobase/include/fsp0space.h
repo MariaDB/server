@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -163,9 +163,9 @@ public:
 	void shutdown();
 
 	/** @return the sum of the file sizes of each Datafile */
-	uint32_t get_sum_of_sizes() const
+	ulint get_sum_of_sizes() const
 	{
-		uint32_t sum = 0;
+		ulint	sum = 0;
 
 		for (const_iterator it = begin(); it != end(); ++it) {
 			sum += it->m_size;

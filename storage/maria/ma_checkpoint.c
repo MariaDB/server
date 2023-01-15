@@ -153,10 +153,8 @@ end:
 static int really_execute_checkpoint(void)
 {
   uint i, error= 0;
-  int error_errno= 0;
   /** @brief checkpoint_start_log_horizon will be stored there */
   char *ptr;
-  const char *error_place= 0;
   LEX_STRING record_pieces[4]; /**< only malloc-ed pieces */
   LSN min_page_rec_lsn, min_trn_rec_lsn, min_first_undo_lsn;
   TRANSLOG_ADDRESS checkpoint_start_log_horizon;
@@ -193,19 +191,13 @@ static int really_execute_checkpoint(void)
                                            &record_pieces[1],
                                            &min_trn_rec_lsn,
                                            &min_first_undo_lsn)))
-  {
-    error_place= "trnman_collect_transaction";
     goto err;
-  }
 
 
   /* STEP 3: fetch information about table files */
   if (unlikely(collect_tables(&record_pieces[2],
                               checkpoint_start_log_horizon)))
-  {
-    error_place= "collect_tables";
     goto err;
-  }
 
 
   /* STEP 4: fetch information about dirty pages */
@@ -219,10 +211,7 @@ static int really_execute_checkpoint(void)
   if (unlikely(pagecache_collect_changed_blocks_with_lsn(maria_pagecache,
                                                          &record_pieces[3],
                                                          &min_page_rec_lsn)))
-  {
-    error_place= "collect_pages";
     goto err;
-  }
 
 
   /* LAST STEP: now write the checkpoint log record */
@@ -251,10 +240,7 @@ static int really_execute_checkpoint(void)
                                        sizeof(log_array)/sizeof(log_array[0]),
                                        log_array, NULL, NULL) ||
                  translog_flush(lsn)))
-    {
-      error_place= "translog_write_record";
       goto err;
-    }
     translog_lock();
     /*
       This cannot be done as a inwrite_rec_hook of LOGREC_CHECKPOINT, because
@@ -265,8 +251,6 @@ static int really_execute_checkpoint(void)
                                                  max_trid_in_control_file,
                                                  recovery_failures)))
     {
-      error_place= "ma_control_file_write";
-      error_errno= my_errno;
       translog_unlock();
       goto err;
     }
@@ -303,9 +287,7 @@ static int really_execute_checkpoint(void)
 
 err:
   error= 1;
-  my_printf_error(HA_ERR_GENERIC, "Aria engine: checkpoint failed at %s with "
-                  "error %d", MYF(ME_ERROR_LOG),
-                  error_place, (error_errno ? error_errno : my_errno));
+  ma_message_no_user(0, "checkpoint failed");
   /* we were possibly not able to determine what pages to flush */
   pages_to_flush_before_next_checkpoint= 0;
 
@@ -580,7 +562,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   DBUG_PRINT("info",("Maria background checkpoint thread starts"));
   DBUG_ASSERT(interval > 0);
 
-  PSI_CALL_set_thread_account(0,0,0,0);
+  PSI_CALL_set_thread_user_host(0,0,0,0);
 
   /*
     Recovery ended with all tables closed and a checkpoint: no need to take
@@ -808,7 +790,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
     }
   }
   if (unlikely((distinct_shares=
-                (MARIA_SHARE **)my_malloc(PSI_INSTRUMENT_ME, nb * sizeof(MARIA_SHARE *),
+                (MARIA_SHARE **)my_malloc(nb * sizeof(MARIA_SHARE *),
                                           MYF(MY_WME))) == NULL))
     goto err;
   for (total_names_length= 0, i= 0, pos= maria_open_list; pos; pos= pos->next)
@@ -841,7 +823,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
      LSN_STORE_SIZE + /* first_log_write_at_lsn */
      1                /* end-of-name 0 */
      ) * nb + total_names_length;
-  if (unlikely((str->str= my_malloc(PSI_INSTRUMENT_ME, str->length, MYF(MY_WME))) == NULL))
+  if (unlikely((str->str= my_malloc(str->length, MYF(MY_WME))) == NULL))
     goto err;
 
   ptr= str->str;
@@ -871,12 +853,12 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
   */
 #define STATE_COPIES 1024
   state_copies= (struct st_state_copy *)
-    my_malloc(PSI_INSTRUMENT_ME, STATE_COPIES * sizeof(struct st_state_copy), MYF(MY_WME));
-  dfiles= (PAGECACHE_FILE *)my_realloc(PSI_INSTRUMENT_ME, (uchar *)dfiles,
+    my_malloc(STATE_COPIES * sizeof(struct st_state_copy), MYF(MY_WME));
+  dfiles= (PAGECACHE_FILE *)my_realloc((uchar *)dfiles,
                                        /* avoid size of 0 for my_realloc */
                                        MY_MAX(1, nb) * sizeof(PAGECACHE_FILE),
                                        MYF(MY_WME | MY_ALLOW_ZERO_PTR));
-  kfiles= (PAGECACHE_FILE *)my_realloc(PSI_INSTRUMENT_ME, (uchar *)kfiles,
+  kfiles= (PAGECACHE_FILE *)my_realloc((uchar *)kfiles,
                                        /* avoid size of 0 for my_realloc */
                                        MY_MAX(1, nb) * sizeof(PAGECACHE_FILE),
                                        MYF(MY_WME | MY_ALLOW_ZERO_PTR));
@@ -1236,9 +1218,10 @@ err:
       MARIA_SHARE *share= distinct_shares[i];
       if (share->in_checkpoint & MARIA_CHECKPOINT_SHOULD_FREE_ME)
       {
-        share->in_checkpoint&= ~MARIA_CHECKPOINT_SHOULD_FREE_ME;
         /* maria_close() left us to free the share */
-        free_maria_share(share);
+        mysql_mutex_destroy(&share->intern_lock);
+        ma_crypt_free(share);
+        my_free(share);
       }
       else
       {

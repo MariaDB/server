@@ -1,37 +1,38 @@
 connection node_2;
 connection node_1;
-SELECT WSREP_LAST_WRITTEN_GTID();
-WSREP_LAST_WRITTEN_GTID()
-100-1-0
-connection node_1;
+SELECT WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1';
+WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1'
+1
+wsrep_last_committed_id_match
+1
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
-connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;;
+connection node_1;
+SELECT WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1';
+WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1'
+1
 connection node_1a;
-SELECT WSREP_LAST_WRITTEN_GTID() != '100-1-2' AS wsrep_written_does_not_match_different_conn;
-wsrep_written_does_not_match_different_conn
-1
-connection node_2;
-SELECT WSREP_LAST_WRITTEN_GTID() != '100-1-2' AS wsrep_written_does_not_match_different_nodes;
-wsrep_written_does_not_match_different_nodes
-1
-connection node_1;
 INSERT INTO t1 VALUES (1);
-connection node_2;
-wsrep_last_written_seen_id_match
-1
 connection node_1;
+wsrep_last_committed_id_match
+1
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
-INSERT INTO t1 VALUES (1);
-WSREP_LAST_SEEN_GTID() = '100-1-3'
+SELECT WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1';
+WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1'
 1
-wsrep_last_written_id_match
+INSERT INTO t1 VALUES (1);
+SELECT WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1';
+WSREP_LAST_WRITTEN_GTID() = '00000000-0000-0000-0000-000000000000:-1'
+1
+wsrep_last_committed_id_match
 1
 COMMIT;
-wsrep_last_written_id_advanced
+wsrep_last_committed_id_advanced
+1
+wsrep_last_committed_id_advanced
 1
 SET AUTOCOMMIT=ON;
 DROP TABLE t1;
-connection node_2;
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

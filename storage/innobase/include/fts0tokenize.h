@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -92,7 +91,7 @@ fts_get_word(
 	while (doc < end) {
 		for (; doc < end;
 		     doc += (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1))) {
-			mbl = cs->ctype(&ctype, doc, end);
+			mbl = cs->cset->ctype(cs, &ctype, doc, end);
 
 			if (true_word_char(ctype, *doc)) {
 				break;
@@ -154,7 +153,7 @@ fts_get_word(
 		for (word->pos = doc;
 		     doc < end;
 		     length++, doc += (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1))) {
-			mbl = cs->ctype(&ctype, doc, end);
+			mbl = cs->cset->ctype(cs, &ctype, doc, end);
 
 			if (true_word_char(ctype, *doc)) {
 				mwc = 0;

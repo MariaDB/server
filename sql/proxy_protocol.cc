@@ -364,8 +364,7 @@ static int parse_networks(const char *subnets_str, subnet **out_subnets, size_t 
   }
 
   max_subnets= MY_MAX(3,strlen(subnets_str)/2);
-  subnets= (subnet *)my_malloc(PSI_INSTRUMENT_ME,
-                               max_subnets * sizeof(subnet), MY_ZEROFILL);
+  subnets= (subnet *)my_malloc(max_subnets * sizeof(subnet),MY_ZEROFILL);
 
   /* Check for special case '*'. */
   if (strcmp(subnets_str, "*") == 0)

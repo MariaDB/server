@@ -28,7 +28,7 @@
 ##### Storage engine to be tested
 # Set the session storage engine
 --source include/have_innodb.inc
-SET @@session.default_storage_engine = 'InnoDB';
+SET @@session.storage_engine = 'InnoDB';
 
 #------------------------------------------------------------------------------#
 # Cleanup

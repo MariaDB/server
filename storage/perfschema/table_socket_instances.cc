@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,31 +26,25 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_socket_instances.h"
 #include "pfs_global.h"
-#include "pfs_buffer_container.h"
-#include "field.h"
 
 THR_LOCK table_socket_instances::m_table_lock;
-
-PFS_engine_table_share_state
-table_socket_instances::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_socket_instances::m_share=
 {
   { C_STRING_WITH_LEN("socket_instances") },
   &pfs_readonly_acl,
-  table_socket_instances::create,
+  &table_socket_instances::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  table_socket_instances::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE socket_instances("
@@ -60,21 +54,12 @@ table_socket_instances::m_share=
                       "SOCKET_ID INTEGER not null comment 'The socket''s internal file handle.',"
                       "IP VARCHAR(64) not null comment 'Client IP address. Blank for Unix socket file, otherwise an IPv4 or IPv6 address. Together with the PORT identifies the connection.',"
                       "PORT INTEGER not null comment 'TCP/IP port number, from 0 to 65535. Together with the IP identifies the connection.',"
-                      "STATE ENUM('IDLE','ACTIVE') not null comment 'Socket status, either IDLE if waiting to receive a request from a client, or ACTIVE')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "STATE ENUM('IDLE','ACTIVE') not null comment 'Socket status, either IDLE if waiting to receive a request from a client, or ACTIVE')") }
 };
 
 PFS_engine_table* table_socket_instances::create(void)
 {
   return new table_socket_instances();
-}
-
-ha_rows
-table_socket_instances::get_row_count(void)
-{
-  return global_socket_container.get_row_count();
 }
 
 table_socket_instances::table_socket_instances()
@@ -92,14 +77,17 @@ int table_socket_instances::rnd_next(void)
 {
   PFS_socket *pfs;
 
-  m_pos.set_at(&m_next_pos);
-  PFS_socket_iterator it= global_socket_container.iterate(m_pos.m_index);
-  pfs= it.scan_next(& m_pos.m_index);
-  if (pfs != NULL)
+  for (m_pos.set_at(&m_next_pos);
+       m_pos.m_index < socket_max;
+       m_pos.next())
   {
-    make_row(pfs);
-    m_next_pos.set_after(&m_pos);
-    return 0;
+    pfs= &socket_array[m_pos.m_index];
+    if (pfs->m_lock.is_populated())
+    {
+      make_row(pfs);
+      m_next_pos.set_after(&m_pos);
+      return 0;
+    }
   }
 
   return HA_ERR_END_OF_FILE;
@@ -110,20 +98,19 @@ int table_socket_instances::rnd_pos(const void *pos)
   PFS_socket *pfs;
 
   set_position(pos);
+  DBUG_ASSERT(m_pos.m_index < socket_max);
+  pfs= &socket_array[m_pos.m_index];
 
-  pfs= global_socket_container.get(m_pos.m_index);
-  if (pfs != NULL)
-  {
-    make_row(pfs);
-    return 0;
-  }
+  if (! pfs->m_lock.is_populated())
+    return HA_ERR_RECORD_DELETED;
 
-  return HA_ERR_RECORD_DELETED;
+  make_row(pfs);
+  return 0;
 }
 
 void table_socket_instances::make_row(PFS_socket *pfs)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   PFS_socket_class *safe_class;
 
   m_row_exists= false;
@@ -171,7 +158,7 @@ int table_socket_instances::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -205,7 +192,7 @@ int table_socket_instances::read_row_values(TABLE *table,
         set_field_enum(f, m_row.m_state);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }

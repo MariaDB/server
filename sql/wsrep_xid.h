@@ -20,16 +20,15 @@
 
 #ifdef WITH_WSREP
 
-#include "wsrep_mysqld.h"
 #include "wsrep/gtid.hpp"
 #include "handler.h" // XID typedef
 
-void wsrep_xid_init(xid_t*, const wsrep::gtid&, const wsrep_server_gtid_t&);
+void wsrep_xid_init(xid_t*, const wsrep::gtid&);
 const wsrep::id& wsrep_xid_uuid(const XID&);
 wsrep::seqno wsrep_xid_seqno(const XID&);
 
-template<typename T> T wsrep_get_SE_checkpoint();
-bool wsrep_set_SE_checkpoint(const wsrep::gtid& gtid, const wsrep_server_gtid_t&);
+wsrep::gtid wsrep_get_SE_checkpoint();
+bool wsrep_set_SE_checkpoint(const wsrep::gtid& gtid);
 //void wsrep_get_SE_checkpoint(XID&);             /* uncomment if needed */
 //void wsrep_set_SE_checkpoint(XID&);             /* uncomment if needed */
 

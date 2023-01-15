@@ -2,6 +2,7 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/not_threadpool.inc
 
 
 # Setup : in this main thread
@@ -19,17 +20,14 @@ truncate table performance_schema.events_waits_current;
 truncate table performance_schema.events_waits_history;
 truncate table performance_schema.events_waits_history_long;
 
-show global variables like "thread_handling";
-
-# Make sure no thread instrumentation is lost
-show status like "Performance_schema_thread_instances_lost";
+show variables like "thread_handling";
 
 # Code to test : in this main thread
 
 create table test.t1(a int) engine=MYISAM;
 
-show global variables like "performance_schema";
-show global variables like "performance_schema_max_thread%";
+show variables like "performance_schema";
+show variables like "performance_schema_max_thread%";
 
 # Verification : in this main thread
 

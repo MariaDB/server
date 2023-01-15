@@ -594,7 +594,7 @@ CREATE USER mysqltest_1@localhost;
 GRANT ALL PRIVILEGES ON mysqltest.* TO mysqltest_1@localhost;
 
 CREATE USER mysqltest_2@localhost;
-GRANT SET USER ON *.* TO mysqltest_2@localhost;
+GRANT SUPER ON *.* TO mysqltest_2@localhost;
 GRANT ALL PRIVILEGES ON mysqltest.* TO mysqltest_2@localhost;
 
 --connect (mysqltest_2_con,localhost,mysqltest_2,,mysqltest)
@@ -1078,30 +1078,3 @@ DROP DATABASE u1;
 DROP USER u1@localhost;
 
 set @@global.character_set_server=@save_character_set_server;
-
-
---echo #
---echo # Start of 10.5 tests
---echo #
-
---echo #
---echo # MDEV-20366 Server crashes in get_current_user upon SET PASSWORD via SP
---echo #
-
-# Testing without the user
-CREATE PROCEDURE p1() SET PASSWORD FOR foo@localhost=PASSWORD('x');
---error ER_PASSWORD_NO_MATCH
-CALL p1();
-DROP PROCEDURE p1;
-
-# Testing with the user
-CREATE USER foo@localhost;
-CREATE  PROCEDURE p1() SET PASSWORD FOR foo@localhost=PASSWORD('x');
-CALL p1();
-DROP PROCEDURE p1;
-DROP USER foo@localhost;
-
-
---echo #
---echo # End of 10.5 tests
---echo #

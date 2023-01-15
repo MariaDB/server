@@ -342,7 +342,7 @@ struct sel_node_t{
 	ibool		set_x_locks;	/*!< TRUE if the cursor is for update or
 					delete, which means that a row x-lock
 					should be placed on the cursor row */
-	lock_mode	row_lock_mode;	/*!< LOCK_X or LOCK_S */
+	ulint		row_lock_mode;	/*!< LOCK_X or LOCK_S */
 	ulint		n_tables;	/*!< number of tables */
 	ulint		fetch_table;	/*!< number of the next table to access
 					in the join */

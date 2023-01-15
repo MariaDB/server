@@ -58,7 +58,7 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   connection_name.length= cmp_connection_name.length=
     connection_name_arg->length;
   if ((connection_name.str= tmp= (char*)
-       my_malloc(PSI_INSTRUMENT_ME, connection_name_arg->length*2+2, MYF(MY_WME))))
+       my_malloc(connection_name_arg->length*2+2, MYF(MY_WME))))
   {
     strmake(tmp, connection_name_arg->str, connection_name.length);
     tmp+= connection_name_arg->length+1;
@@ -77,7 +77,7 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
 
   parallel_mode= rpl_filter->get_parallel_mode();
 
-  my_init_dynamic_array(PSI_INSTRUMENT_ME, &ignore_server_ids,
+  my_init_dynamic_array(&ignore_server_ids,
                         sizeof(global_system_variables.server_id), 16, 16,
                         MYF(0));
   bzero((char*) &file, sizeof(file));
@@ -744,8 +744,7 @@ int flush_master_info(Master_info* mi,
   char* ignore_server_ids_buf;
   {
     ignore_server_ids_buf=
-      (char *) my_malloc(PSI_INSTRUMENT_ME,
-                         (sizeof(global_system_variables.server_id) * 3 + 1) *
+      (char *) my_malloc((sizeof(global_system_variables.server_id) * 3 + 1) *
                          (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
     if (!ignore_server_ids_buf)
       DBUG_RETURN(1);                           /* error */
@@ -1101,7 +1100,7 @@ bool Master_info_index::init_all_master_info()
   }
 
   /* Initialize Master_info Hash Table */
-  if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash, system_charset_info, 
+  if (my_hash_init(&master_info_hash, system_charset_info, 
                    MAX_REPLICATION_THREAD, 0, 0, 
                    (my_hash_get_key) get_key_master_info, 
                    (my_hash_free_key)free_key_master_info, HASH_UNIQUE))
@@ -1573,8 +1572,6 @@ uint any_slave_sql_running(bool already_locked)
 
   if (!already_locked)
     mysql_mutex_lock(&LOCK_active_mi);
-  else
-    mysql_mutex_assert_owner(&LOCK_active_mi);
   if (unlikely(abort_loop || !master_info_index))
     count= 1;
   else
@@ -1744,8 +1741,7 @@ Domain_id_filter::Domain_id_filter() : m_filter(false)
 {
   for (int i= DO_DOMAIN_IDS; i <= IGNORE_DOMAIN_IDS; i ++)
   {
-    my_init_dynamic_array(PSI_INSTRUMENT_ME, &m_domain_ids[i], sizeof(ulong),
-                          16, 16, MYF(0));
+    my_init_dynamic_array(&m_domain_ids[i], sizeof(ulong), 16, 16, MYF(0));
   }
 }
 
@@ -1914,7 +1910,7 @@ char *Domain_id_filter::as_string(enum_list_type type)
 
   sz= (sizeof(ulong) * 3 + 1) * (1 + ids->elements);
 
-  if (!(buf= (char *) my_malloc(PSI_INSTRUMENT_ME, sz, MYF(MY_WME))))
+  if (!(buf= (char *) my_malloc(sz, MYF(MY_WME))))
     return NULL;
 
   // Store the total number of elements followed by the individual elements.

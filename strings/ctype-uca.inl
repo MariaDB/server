@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2018, 2020, MariaDB Corporation
+  Copyright (c) 2018 MariaDB Corporation
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -500,7 +500,7 @@ MY_FUNCTION_NAME(strnncollsp_nchars_multilevel)(CHARSET_INFO *cs,
     This functions is used for one-level and for multi-level collations.
     We intentionally use only primary level in multi-level collations.
     This helps to have PARTITION BY KEY put primarily equal records
-    into the same partition. E.g. in utf8mb3_thai_520_ci records that differ
+    into the same partition. E.g. in utf8_thai_520_ci records that differ
     only in tone marks go into the same partition.
 
   RETURN
@@ -739,7 +739,7 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
   */
 
   if (flags & MY_STRXFRM_PAD_WITH_SPACE)
-    srclen= my_ci_lengthsp(cs, (const char*) src, srclen);
+    srclen= cs->cset->lengthsp(cs, (const char*) src, srclen);
   dst= MY_FUNCTION_NAME(strnxfrm_onelevel)(cs, &cs->uca->level[0],
                                            dst, de, nweights,
                                            src, srclen, flags);

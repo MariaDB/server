@@ -24,6 +24,10 @@ call mtr.add_suppression("Cannot add field .* in table .* because after adding i
 call mtr.add_suppression("\\[ERROR\\] InnoDB: in ALTER TABLE `test`.`t1`");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: in RENAME TABLE table `test`.`t1`");
 
+SET @innodb_thread_sleep_delay_orig = @@innodb_thread_sleep_delay;
+
+SET @innodb_thread_concurrency_orig = @@innodb_thread_concurrency;
+
 --disable_warnings
 SET @innodb_rows_deleted_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_deleted');
 SET @innodb_rows_inserted_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_inserted');
@@ -1335,8 +1339,8 @@ SELECT variable_value - @innodb_row_lock_time_avg_orig FROM information_schema.g
 # Test varchar
 #
 
-let $default=`select @@default_storage_engine`;
-set default_storage_engine=INNODB;
+let $default=`select @@storage_engine`;
+set storage_engine=INNODB;
 source include/varchar.inc;
 
 #
@@ -2498,6 +2502,9 @@ DROP TABLE bug35537;
 
 DISCONNECT c1;
 CONNECTION default;
+
+SET GLOBAL innodb_thread_sleep_delay = @innodb_thread_sleep_delay_orig;
+SET GLOBAL innodb_thread_concurrency = @innodb_thread_concurrency_orig;
 
 -- enable_query_log
 

@@ -972,7 +972,7 @@ avgcost_deinit( UDF_INIT* initid )
 }
 
 
-/* This is only for MySQL 4.0 compatibility */
+/* This is only for MySQL 4.0 compability */
 void
 avgcost_reset(UDF_INIT* initid, UDF_ARGS* args, char* is_null, char* message)
 {
@@ -1119,7 +1119,7 @@ avg2_deinit( UDF_INIT* initid )
 }
 
 
-/* This is only for MySQL 4.0 compatibility */
+/* This is only for MySQL 4.0 compability */
 void
 avg2_reset(UDF_INIT* initid, UDF_ARGS* args, char* is_null, char* message)
 {

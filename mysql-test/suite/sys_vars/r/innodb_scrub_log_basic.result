@@ -45,4 +45,4 @@ SELECT @@GLOBAL.innodb_scrub_log;
 0 Expected
 SELECT innodb_scrub_log;
 ERROR 42S22: Unknown column 'innodb_scrub_log' in 'field list'
-Expected error 'Unknown column in field list'
+Expected error 'Unknow column in field list'

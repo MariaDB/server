@@ -3,10 +3,9 @@
 # embedded does not support restart
 -- source include/not_embedded.inc
 
-call mtr.add_suppression("mariadbd.*: File ");
-call mtr.add_suppression("Plugin 'file_key_management' ");
-call mtr.add_suppression("InnoDB: Recovery cannot access file");
-call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("mysqld: File .*");
+call mtr.add_suppression("Plugin 'file_key_management' .*");
+call mtr.add_suppression("InnoDB: cannot enable encryption, encryption plugin is not available");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error\\.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[0-9]+, page number=[0-9]+\\] in file '.*test.t[1-4]\\.ibd' cannot be decrypted\\.");
@@ -18,9 +17,9 @@ call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]
 SET GLOBAL innodb_file_per_table = ON;
 
 create table t1(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes encryption_key_id=20;
-create table t2(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes;
+create table t2(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed;
 create table t3(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb encrypted=yes encryption_key_id=20;
-create table t4(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb encrypted=yes;
+create table t4(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb;
 
 begin;
 --disable_query_log
@@ -46,7 +45,6 @@ commit;
 # happens, InnoDB refuses to start as used
 # encryption key is not found.
 #
-CREATE TABLE t5 (a VARCHAR(8)) ENGINE=InnoDB ENCRYPTED=YES;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 begin;
 update t1 set c = repeat('secret3', 20);
@@ -57,19 +55,12 @@ insert into t1 (c,b) values (repeat('secret5',20), repeat('secret6',6000));
 insert into t2 (c,b) values (repeat('secret7',20), repeat('secret8',6000));
 insert into t3 (c,b) values (repeat('secret9',20), repeat('secre10',6000));
 insert into t4 (c,b) values (repeat('secre11',20), repeat('secre12',6000));
-INSERT INTO t5 VALUES ('foo'),('bar');
 COMMIT;
-
-let $cleanup= drop table t1,t2,t3,t4,t5;
+let $cleanup= drop table t1,t2,t3,t4;
 --let CLEANUP_IF_CHECKPOINT= $cleanup;
 --source ../../suite/innodb/include/no_checkpoint_end.inc
 
--- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys-not-found.txt
 -- source include/start_mysqld.inc
-SELECT * FROM INFORMATION_SCHEMA.ENGINES
-WHERE engine = 'innodb'
-AND support IN ('YES', 'DEFAULT', 'ENABLED');
-
 #
 # In above server does start but InnoDB refuses to start
 # thus we need to restart server with correct key file
@@ -77,4 +68,4 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 -- source include/restart_mysqld.inc
 
-drop table t1,t2,t3,t4,t5;
+drop table t1, t2,t3,t4;

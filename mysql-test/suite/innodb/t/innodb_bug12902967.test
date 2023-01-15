@@ -19,7 +19,7 @@ create table t1 (f1 integer primary key) engine innodb;
 # The below statement should produce error message in error log.
 # This error message should mention problem with foreign keys
 # rather than with data dictionary.
---replace_regex /'\.\/test\/#sql-alter-[0-9a-f_\-]*'/'#sql-alter'/
+--replace_regex /'\.\/test\/#sql-[0-9a-f_]*'/'#sql-temporary'/
 --error ER_ERROR_ON_RENAME
 alter table t1 add constraint c1 foreign key (f1) references t1(f1);
 drop table t1;

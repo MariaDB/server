@@ -57,50 +57,9 @@ IF (HAVE_XUCRED)
   SET(ok 1)
 ELSE()
 
-# illumos, is that you?
-CHECK_CXX_SOURCE_COMPILES(
-"#include <ucred.h>
-int main() {
-  ucred_t *cred = NULL;
-  getpeerucred(0, &cred);
-  }" HAVE_GETPEERUCRED)
-
-# Depending on the flags set in the compilation environment, illumos will have
-# either the POSIX.1c draft 6 or POSIX.1c final implementation of getpwuid_r()
-# Check that defining _POSIX_PTHREAD_SEMANTICS provides the final standard
-# version.
-
-CHECK_CXX_SOURCE_COMPILES(
-"#define _POSIX_PTHREAD_SEMANTICS
-#include <pwd.h>
-int main() {
-  getpwuid_r(0, NULL, NULL, 0, NULL);
-  }" HAVE_GETPWUID_POSIX_FINAL)
-
-IF (HAVE_GETPEERUCRED AND HAVE_GETPWUID_POSIX_FINAL)
-  ADD_DEFINITIONS(-DHAVE_GETPEERUCRED)
-  ADD_DEFINITIONS(-D_POSIX_PTHREAD_SEMANTICS)
-  SET(ok 1)
-ELSE()
-
-# AIX also!
-CHECK_CXX_SOURCE_COMPILES(
-"#include <sys/socket.h>
-int main() {
-  struct peercred_struct cred;
-  getsockopt(0, SOL_SOCKET, SO_PEERID, &cred, 0);
-  }" HAVE_PEERCRED_STRUCT)
-
-IF (HAVE_PEERCRED_STRUCT)
-  ADD_DEFINITIONS(-DHAVE_PEERCRED_STRUCT)
-  SET(ok 1)
-ELSE()
-
 # Who else? Anyone?
 # C'mon, show your creativity, be different! ifdef's are fun, aren't they?
 
-ENDIF()
-ENDIF()
 ENDIF()
 ENDIF()
 ENDIF()

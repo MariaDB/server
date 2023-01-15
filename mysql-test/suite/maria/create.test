@@ -86,42 +86,12 @@ flush tables;
 --error 1,ER_TABLE_EXISTS_ERROR
 --eval CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = '$MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;
 DROP TABLE t1;
+--disable_warnings
+--remove_file $mysqld_datadir/test/MDEV_23222.MAD
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--remove_file $MYSQL_TMP_DIR/MDEV_23222.MAD
+--enable_warnings
 
 --echo #
 --echo # End of 10.3 tests
 --echo #
-
-#
-# MDEV-22686 # Assertion `trn' failed in ha_maria::start_stmt
-# ASAN heap-after-free in maria_status
-#
-
-CREATE TABLE t1 (a INT) ENGINE=Aria;
-INSERT INTO t1 VALUES (1);
-CREATE TABLE t2 (b INT);
-CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
-SELECT * from t1;
-SELECT * from t2;
-
-# Check also BEGIN/COMMIT
-
-BEGIN;
-CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
-SELECT * from t2;
-COMMIT;
-
-# Check also LOCK TABLES
-
-LOCK TABLES t1 read, t2 write;
-CREATE OR REPLACE TABLE t2 AS SELECT * FROM t1;
-SELECT * from t2;
-UNLOCK TABLES;
-
-# Check with 3 tables
-CREATE TABLE t3 (a INT) engine=Aria;
-INSERT INTO t3 values(2);
-
-CREATE OR REPLACE TABLE t2 AS SELECT t1.a,t3.a as b FROM t1,t3;
-SELECT * from t2;
-
-DROP TABLE t1, t2, t3;

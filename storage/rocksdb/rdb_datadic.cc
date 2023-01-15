@@ -1,6 +1,5 @@
 /*
    Copyright (c) 2012,2013 Monty Program Ab
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -368,14 +367,14 @@ Rdb_key_def::Rdb_key_def(const Rdb_key_def &k)
                   m_total_index_flags_length == 0);
   if (k.m_pack_info) {
     const size_t size = sizeof(Rdb_field_packing) * k.m_key_parts;
-    void *pack_info= my_malloc(PSI_INSTRUMENT_ME, size, MYF(0));
+    void *pack_info= my_malloc(size, MYF(0));
     memcpy(pack_info, k.m_pack_info, size);
     m_pack_info = reinterpret_cast<Rdb_field_packing *>(pack_info);
   }
 
   if (k.m_pk_part_no) {
     const size_t size = sizeof(uint) * m_key_parts;
-    m_pk_part_no = reinterpret_cast<uint *>(my_malloc(PSI_INSTRUMENT_ME, size, MYF(0)));
+    m_pk_part_no = reinterpret_cast<uint *>(my_malloc(size, MYF(0)));
     memcpy(m_pk_part_no, k.m_pk_part_no, size);
   }
 }
@@ -449,14 +448,14 @@ void Rdb_key_def::setup(const TABLE *const tbl,
 
     if (secondary_key) {
       m_pk_part_no = reinterpret_cast<uint *>(
-          my_malloc(PSI_INSTRUMENT_ME, sizeof(uint) * m_key_parts, MYF(0)));
+          my_malloc(sizeof(uint) * m_key_parts, MYF(0)));
     } else {
       m_pk_part_no = nullptr;
     }
 
     const size_t size = sizeof(Rdb_field_packing) * m_key_parts;
     m_pack_info =
-        reinterpret_cast<Rdb_field_packing *>(my_malloc(PSI_INSTRUMENT_ME, size, MYF(0)));
+        reinterpret_cast<Rdb_field_packing *>(my_malloc(size, MYF(0)));
 
     /*
       Guaranteed not to error here as checks have been made already during
@@ -987,7 +986,7 @@ uint Rdb_key_def::get_memcmp_sk_parts(const TABLE *table,
   Convert index tuple into storage (i.e. mem-comparable) format
 
   @detail
-    Currently this is done by unpacking into record_buffer and then
+    Currently this is done by unpacking into table->record[0] and then
     packing index columns into storage format.
 
   @param pack_buffer Temporary area for packing varchar columns. Its
@@ -996,7 +995,6 @@ uint Rdb_key_def::get_memcmp_sk_parts(const TABLE *table,
 
 uint Rdb_key_def::pack_index_tuple(TABLE *const tbl, uchar *const pack_buffer,
                                    uchar *const packed_tuple,
-                                   uchar *const record_buffer,
                                    const uchar *const key_tuple,
                                    const key_part_map &keypart_map) const {
   DBUG_ASSERT(tbl != nullptr);
@@ -1006,13 +1004,13 @@ uint Rdb_key_def::pack_index_tuple(TABLE *const tbl, uchar *const pack_buffer,
 
   /* We were given a record in KeyTupleFormat. First, save it to record */
   const uint key_len = calculate_key_len(tbl, m_keyno, key_tuple, keypart_map);
-  key_restore(record_buffer, key_tuple, &tbl->key_info[m_keyno], key_len);
+  key_restore(tbl->record[0], key_tuple, &tbl->key_info[m_keyno], key_len);
 
   uint n_used_parts = my_count_bits(keypart_map);
   if (keypart_map == HA_WHOLE_KEY) n_used_parts = 0;  // Full key is used
 
   /* Then, convert the record into a mem-comparable form */
-  return pack_record(tbl, pack_buffer, record_buffer, packed_tuple, nullptr,
+  return pack_record(tbl, pack_buffer, tbl->record[0], packed_tuple, nullptr,
                      false, 0, n_used_parts);
 }
 
@@ -1433,10 +1431,9 @@ uint Rdb_key_def::pack_record(const TABLE *const tbl, uchar *const pack_buffer,
     // ha_rocksdb::convert_record_to_storage_format
     //
     if (should_store_row_debug_checksums) {
-      const uint32_t key_crc32 =
-          my_checksum(0, packed_tuple, tuple - packed_tuple);
+      const uint32_t key_crc32 = crc32(0, packed_tuple, tuple - packed_tuple);
       const uint32_t val_crc32 =
-          my_checksum(0, unpack_info->ptr(), unpack_info->get_current_pos());
+          crc32(0, unpack_info->ptr(), unpack_info->get_current_pos());
 
       unpack_info->write_uint8(RDB_CHECKSUM_DATA_TAG);
       unpack_info->write_uint32(key_crc32);
@@ -1692,9 +1689,9 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
           (const uchar *)unp_reader.read(RDB_CHECKSUM_SIZE));
 
       const uint32_t computed_key_chksum =
-          my_checksum(0, packed_key->data(), packed_key->size());
+          crc32(0, (const uchar *)packed_key->data(), packed_key->size());
       const uint32_t computed_val_chksum =
-          my_checksum(0, unpack_info->data(),
+          crc32(0, (const uchar *)unpack_info->data(),
                 unpack_info->size() - RDB_CHECKSUM_CHUNK_SIZE);
 
       DBUG_EXECUTE_IF("myrocks_simulate_bad_key_checksum1",
@@ -2126,14 +2123,14 @@ int Rdb_key_def::unpack_utf8_str(
   while (src < src_end) {
     my_wc_t wc = (src[0] << 8) | src[1];
     src += 2;
-    int res = cset->wc_mb(wc, dst, dst_end);
+    int res = cset->cset->wc_mb(cset, wc, dst, dst_end);
     DBUG_ASSERT(res > 0 && res <= 3);
     if (res < 0) return UNPACK_FAILURE;
     dst += res;
   }
 
-  cset->fill(reinterpret_cast<char *>(dst), dst_end - dst,
-             cset->pad_char);
+  cset->cset->fill(cset, reinterpret_cast<char *>(dst), dst_end - dst,
+                   cset->pad_char);
   return UNPACK_SUCCESS;
 }
 
@@ -2256,8 +2253,8 @@ void Rdb_key_def::pack_with_varchar_encoding(
   const size_t value_length = (field_var->length_bytes == 1)
                                   ? (uint)*field->ptr
                                   : uint2korr(field->ptr);
-  size_t xfrm_len = charset->strnxfrm(
-      buf, fpi->m_max_image_len, field_var->char_length(),
+  size_t xfrm_len = charset->coll->strnxfrm(
+      charset, buf, fpi->m_max_image_len, field_var->char_length(),
       field_var->ptr + field_var->length_bytes, value_length, 0);
 
   /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
@@ -2368,11 +2365,11 @@ void Rdb_key_def::pack_with_varchar_space_pad(
                                   ? (uint)*field->ptr
                                   : uint2korr(field->ptr);
 
-  const size_t trimmed_len = charset->lengthsp(
-      (const char *)field_var->ptr + field_var->length_bytes,
+  const size_t trimmed_len = charset->cset->lengthsp(
+      charset, (const char *)field_var->ptr + field_var->length_bytes,
       value_length);
-  const size_t xfrm_len = charset->strnxfrm(
-      buf, fpi->m_max_image_len, field_var->char_length(),
+  const size_t xfrm_len = charset->coll->strnxfrm(
+      charset, buf, fpi->m_max_image_len, field_var->char_length(),
       field_var->ptr + field_var->length_bytes, trimmed_len, 0);
 
   /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
@@ -2504,7 +2501,7 @@ static int unpack_charset(
 
   for (uint ii = 0; ii < src_len; ii += 2) {
     my_wc_t wc = (src[ii] << 8) | src[ii + 1];
-    int res = cset->wc_mb(wc, dst + used, dst_end);
+    int res = cset->cset->wc_mb(cset, wc, dst + used, dst_end);
     DBUG_ASSERT(res > 0 && res <= 3);
     if (res < 0) {
       return UNPACK_FAILURE;
@@ -2660,7 +2657,7 @@ int Rdb_key_def::unpack_binary_or_utf8_varchar_space_pad(
         my_wc_t wc = (src[0] << 8) | src[1];
         src += 2;
         const CHARSET_INFO *cset = fpi->m_varchar_charset;
-        int res = cset->wc_mb(wc, dst, dst_end);
+        int res = cset->cset->wc_mb(cset, wc, dst, dst_end);
         DBUG_ASSERT(res <= 3);
         if (res <= 0) return UNPACK_FAILURE;
         dst += res;
@@ -3058,14 +3055,14 @@ static void rdb_get_mem_comparable_space(const CHARSET_INFO *const cs,
       // multi-byte form of the ' ' (space) character
       uchar space_mb[MAX_MULTI_BYTE_CHAR_SIZE];
 
-      const size_t space_mb_len = cs->wc_mb(
-          (my_wc_t)cs->pad_char, space_mb, space_mb + sizeof(space_mb));
+      const size_t space_mb_len = cs->cset->wc_mb(
+          cs, (my_wc_t)cs->pad_char, space_mb, space_mb + sizeof(space_mb));
 
       // mem-comparable image of the space character
       std::array<uchar, 20> space;
 
-      const size_t space_len = cs->strnxfrm(
-          space.data(), sizeof(space), 1, space_mb, space_mb_len, 0);
+      const size_t space_len = cs->coll->strnxfrm(
+          cs, space.data(), sizeof(space), 1, space_mb, space_mb_len, 0);
       Rdb_charset_space_info *const info = new Rdb_charset_space_info;
       info->space_xfrm_len = space_len;
       info->space_mb_len = space_mb_len;
@@ -3123,7 +3120,7 @@ static const Rdb_collation_codec *rdb_init_collation_mapping(
           for (uint idx = 0; idx < p.second.size(); idx++) {
             uchar src = p.second[idx];
             uchar bits =
-                my_bit_log2_uint32(my_round_up_to_next_power(p.second.size()));
+                my_bit_log2(my_round_up_to_next_power(p.second.size()));
             cur->m_enc_idx[src] = idx;
             cur->m_enc_size[src] = bits;
             cur->m_dec_size[dst] = bits;
@@ -3317,9 +3314,7 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
       field->field_length = field->char_length() * cs->mbmaxlen.
     */
     const CHARSET_INFO *cs = field->charset();
-    m_max_image_len = cs->strnxfrmlen(type == MYSQL_TYPE_STRING ?
-                                      field->pack_length() :
-                                      field->field_length);
+    m_max_image_len = cs->coll->strnxfrmlen(cs, field->field_length);
   }
   const bool is_varchar = (type == MYSQL_TYPE_VARCHAR);
   const CHARSET_INFO *cs = field->charset();
@@ -3793,7 +3788,8 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
   */
   char eng_type_buf[NAME_CHAR_LEN+1];
   LEX_CSTRING eng_type_str = {eng_type_buf, 0}; 
-  enum Table_type type = dd_frm_type(nullptr, fullfilename.c_ptr(), &eng_type_str);
+  bool is_sequence;
+  enum Table_type type = dd_frm_type(nullptr, fullfilename.c_ptr(), &eng_type_str, &is_sequence);
   if (type == TABLE_TYPE_UNKNOWN) {
     // NO_LINT_DEBUG
     sql_print_warning("RocksDB: Failed to open/read .from file: %s",

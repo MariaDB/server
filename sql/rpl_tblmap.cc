@@ -34,12 +34,6 @@
 table_mapping::table_mapping()
   : m_free(0)
 {
-#ifdef MYSQL_CLIENT
-  PSI_memory_key psi_key= PSI_NOT_INSTRUMENTED;
-#else
-  PSI_memory_key psi_key= key_memory_table_mapping_root;
-#endif
-
   DBUG_ENTER("table_mapping::table_mapping");
   /*
     No "free_element" function for entries passed here, as the entries are
@@ -48,11 +42,12 @@ table_mapping::table_mapping()
     Note that below we don't test if my_hash_init() succeeded. This
     constructor is called at startup only.
   */
-  (void) my_hash_init(psi_key, &m_table_ids,&my_charset_bin,TABLE_ID_HASH_SIZE,
+  (void) my_hash_init(&m_table_ids,&my_charset_bin,TABLE_ID_HASH_SIZE,
                       offsetof(entry,table_id),sizeof(ulonglong),
-                      0,0,0);
+		   0,0,0);
   /* We don't preallocate any block, this is consistent with m_free=0 above */
-  init_alloc_root(psi_key, &m_mem_root, TABLE_ID_HASH_SIZE*sizeof(entry), 0, MYF(0));
+  init_alloc_root(&m_mem_root, "table_mapping",
+                  TABLE_ID_HASH_SIZE*sizeof(entry), 0, MYF(0));
   DBUG_VOID_RETURN;
 }
 

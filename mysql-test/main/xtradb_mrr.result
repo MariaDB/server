@@ -1,6 +1,6 @@
 drop table if exists t1,t2,t3,t4;
-set @save_storage_engine= @@default_storage_engine;
-set default_storage_engine=InnoDB;
+set @save_storage_engine= @@storage_engine;
+set storage_engine=InnoDB;
 set @innodb_mrr_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 create table t1(a int);
@@ -296,7 +296,7 @@ NULL	7	0
 NULL	9	0
 NULL	9	0
 drop table t1, t2;
-set default_storage_engine= @save_storage_engine;
+set storage_engine= @save_storage_engine;
 set @mrr_buffer_size_save= @@mrr_buffer_size;
 set mrr_buffer_size=64;
 Warnings:

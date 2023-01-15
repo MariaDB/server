@@ -19,7 +19,7 @@
 
 #include <my_global.h>
 #include <mysql/plugin.h>
-#include <sql_i_s.h>                            /* ST_SCHEMA_TABLE */
+#include <table.h>                              /* ST_SCHEMA_TABLE */
 #include <sql_show.h>
 #include <sql_acl.h>                            /* check_global_access() */
 #include <wsrep_mysqld.h>
@@ -55,31 +55,34 @@
 /* Application protocol version */
 #define COLUMN_WSREP_STATUS_PROTO_VERSION 7
 
-namespace Show {
 
 static ST_FIELD_INFO wsrep_memb_fields[]=
 {
-  Column("INDEX",   SLong(),                        NOT_NULL, "Index"),
-  Column("UUID",    Varchar(WSREP_UUID_STR_LEN),    NOT_NULL, "Uuid"),
-  Column("NAME",    Varchar(WSREP_MEMBER_NAME_LEN), NOT_NULL, "Name"),
-  Column("ADDRESS", Varchar(WSREP_INCOMING_LEN),    NOT_NULL, "Address"),
-  CEnd()
+  {"INDEX", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, "Index", 0},
+  {"UUID", WSREP_UUID_STR_LEN, MYSQL_TYPE_STRING, 0, 0, "Uuid", 0},
+  {"NAME", WSREP_MEMBER_NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Name", 0},
+  {"ADDRESS", WSREP_INCOMING_LEN, MYSQL_TYPE_STRING, 0, 0, "Address", 0},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
 
 static ST_FIELD_INFO wsrep_status_fields[]=
 {
-  Column("NODE_INDEX",          SLong(),     NOT_NULL, "Node_Index"),
-  Column("NODE_STATUS",         Varchar(16), NOT_NULL, "Node_Status"),
-  Column("CLUSTER_STATUS",      Varchar(16), NOT_NULL, "Cluster_Status"),
-  Column("CLUSTER_SIZE",        SLong(),     NOT_NULL, "Cluster_Size"),
-  Column("CLUSTER_STATE_UUID",  Varchar(WSREP_UUID_STR_LEN), NOT_NULL),
-  Column("CLUSTER_STATE_SEQNO", SLonglong(), NOT_NULL),
-  Column("CLUSTER_CONF_ID",     SLonglong(), NOT_NULL),
-  Column("PROTOCOL_VERSION",    SLong(),     NOT_NULL),
-  CEnd()
+  {"NODE_INDEX", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,
+    0, 0, "Node_Index", 0},
+  {"NODE_STATUS", 16, MYSQL_TYPE_STRING, 0, 0, "Node_Status", 0},
+  {"CLUSTER_STATUS", 16, MYSQL_TYPE_STRING, 0, 0, "Cluster_Status", 0},
+  {"CLUSTER_SIZE", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,
+    0, 0, "Cluster_Size", 0},
+  {"CLUSTER_STATE_UUID", WSREP_UUID_STR_LEN, MYSQL_TYPE_STRING,
+    0, 0, 0, 0},
+  {"CLUSTER_STATE_SEQNO", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG,
+    0, 0, 0, 0},
+  {"CLUSTER_CONF_ID", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG,
+    0, 0, 0, 0},
+  {"PROTOCOL_VERSION", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,
+    0, 0, 0, 0},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
-
-} // namespace Show
 
 static int wsrep_memb_fill_table(THD *thd, TABLE_LIST *tables, COND *cond)
 {
@@ -128,7 +131,7 @@ static int wsrep_memb_plugin_init(void *p)
 {
   ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
 
-  schema->fields_info= Show::wsrep_memb_fields;
+  schema->fields_info= wsrep_memb_fields;
   schema->fill_table= wsrep_memb_fill_table;
 
   return 0;
@@ -186,7 +189,7 @@ static int wsrep_status_plugin_init(void *p)
 {
   ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
 
-  schema->fields_info= Show::wsrep_status_fields;
+  schema->fields_info= wsrep_status_fields;
   schema->fill_table= wsrep_status_fill_table;
 
   return 0;

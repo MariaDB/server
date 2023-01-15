@@ -1,0 +1,29 @@
+
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--source include/have_64bit.inc
+--source include/not_valgrind.inc
+--source ../include/have_aligned_memory.inc
+
+#SELECT @@open_files_limit, @@table_open_cache, @@table_definition_cache, @@max_connections;
+#exit;
+
+# Skip test if not defaults is used.
+if (`SELECT @@open_files_limit < 1024`)
+{
+  skip Need open_files_limit to be at least 1024;
+}
+if (`SELECT @@table_open_cache != 421`)
+{
+  skip Need table_open_cache to be exactly 421;
+}
+if (`SELECT @@table_definition_cache != 400`)
+{
+  skip Need table_definition_cache to be exactly 400;
+}
+if (`SELECT @@max_connections != 151`)
+{
+  skip Need max_connections to be exactly 151;
+}
+
+--source ../include/sizing_auto.inc

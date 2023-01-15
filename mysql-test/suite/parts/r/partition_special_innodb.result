@@ -236,7 +236,6 @@ DROP TABLE t1;
 connect  con1,localhost,root,,;
 CREATE TABLE t1 ( i INT NOT NULL AUTO_INCREMENT PRIMARY KEY, f INT )
 ENGINE = InnoDB PARTITION BY HASH(i) PARTITIONS 2;
-INSERT INTO t1 VALUES (2, 2), (3, 3), (4, 4), (5, 5);
 connect  con2,localhost,root,,;
 SET lock_wait_timeout = 2;
 connection con1;
@@ -250,19 +249,6 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 # Second attempt: says that partition already exists
 ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-# Check that we only can select, not insert/update/delete.
-INSERT INTO t1 VALUES (NULL, 6), (NULL, 7), (10, 10), (11, 11);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-UPDATE t1 SET i = 5 WHERE f = 2;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-DELETE FROM t1 WHERE i = 10;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-SELECT * FROM t1;
-i	f
-2	2
-3	3
-4	4
-5	5
 connection con1;
 # Connection 1 unlocks the table and locks it again:
 UNLOCK TABLES;
@@ -349,30 +335,3 @@ PARTITION BY RANGE(f1) (PARTITION p1 VALUES LESS THAN(10),
 PARTITION p2 VALUES LESS THAN (100));
 ALTER TABLE t1 convert to charset ascii collate ascii_bin, ALGORITHM=INSTANT;
 DROP TABLE t1;
-# Test WRITE LOCK.
-connect  con1,localhost,root,,;
-CREATE TABLE t1 ( i INT NOT NULL AUTO_INCREMENT PRIMARY KEY, f INT )
-ENGINE = InnoDB PARTITION BY HASH(i) PARTITIONS 2;
-INSERT INTO t1 VALUES (3, 3), (4, 4);
-connect  con2,localhost,root,,;
-SET lock_wait_timeout = 2;
-connection con1;
-#Connection 1 locks the table
-LOCK TABLE t1 WRITE;
-connection con2;
-# Check that we still can SELECT, but not insert/update/delete.
-# Check that we only can select, not insert/update/delete.
-INSERT INTO t1 VALUES (NULL, 1), (NULL, 2), (10, 10), (11, 11);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-UPDATE t1 SET i = 5 WHERE f = 2;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-DELETE FROM t1 WHERE i = 10;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-SELECT * FROM t1;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-connection con1;
-UNLOCK TABLES;
-connection con2;
-DROP TABLE t1;
-disconnect con1;
-connection default;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -201,6 +201,63 @@ pfs_os_file_close_func(
 	return(result);
 }
 
+/** NOTE! Please use the corresponding macro os_aio(), not directly this
+function!
+Performance schema wrapper function of os_aio() which requests
+an asynchronous i/o operation.
+@param[in,type]	type		IO request context
+@param[in]	mode		IO mode
+@param[in]	name		Name of the file or path as NUL terminated
+				string
+@param[in]	file		Open file handle
+@param[out]	buf		buffer where to read
+@param[in]	offset		file offset where to read
+@param[in]	n		number of bytes to read
+@param[in]	read_only	if true read only mode checks are enforced
+@param[in,out]	m1		Message for the AIO handler, (can be used to
+				identify a completed AIO operation); ignored
+				if mode is OS_AIO_SYNC
+@param[in,out]	m2		message for the AIO handler (can be used to
+				identify a completed AIO operation); ignored
+				if mode is OS_AIO_SYNC
+@param[in]	src_file	file name where func invoked
+@param[in]	src_line	line where the func invoked
+@return DB_SUCCESS if request was queued successfully, FALSE if fail */
+UNIV_INLINE
+dberr_t
+pfs_os_aio_func(
+	IORequest&	type,
+	ulint		mode,
+	const char*	name,
+	pfs_os_file_t	file,
+	void*		buf,
+	os_offset_t	offset,
+	ulint		n,
+	bool		read_only,
+	fil_node_t*	m1,
+	void*		m2,
+	const char*	src_file,
+	uint		src_line)
+{
+	PSI_file_locker_state	state;
+	struct PSI_file_locker*	locker = NULL;
+
+	ut_ad(type.validate());
+
+	/* Register the read or write I/O depending on "type" */
+	register_pfs_file_io_begin(
+		&state, locker, file, n,
+		type.is_write() ? PSI_FILE_WRITE : PSI_FILE_READ,
+		src_file, src_line);
+
+	dberr_t	result = os_aio_func(
+		type, mode, name, file, buf, offset, n, read_only, m1, m2);
+
+	register_pfs_file_io_end(locker, n);
+
+	return(result);
+}
+
 /** NOTE! Please use the corresponding macro os_file_read(), not directly
 this function!
 This is the performance schema instrumented wrapper function for
@@ -226,6 +283,8 @@ pfs_os_file_read_func(
 {
 	PSI_file_locker_state	state;
 	struct PSI_file_locker*	locker = NULL;
+
+	ut_ad(type.validate());
 
 	register_pfs_file_io_begin(
 		&state, locker, file, n, PSI_FILE_READ, src_file, src_line);
@@ -374,13 +433,13 @@ pfs_os_file_rename_func(
 	PSI_file_locker_state	state;
 	struct PSI_file_locker*	locker = NULL;
 
-	register_pfs_file_rename_begin(
+	register_pfs_file_open_begin(
 		&state, locker, key, PSI_FILE_RENAME, newpath,
 		src_file, src_line);
 
 	bool	result = os_file_rename_func(oldpath, newpath);
 
-	register_pfs_file_rename_end(locker, oldpath, newpath, !result);
+	register_pfs_file_rename_end(locker, 0);
 
 	return(result);
 }

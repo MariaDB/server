@@ -75,9 +75,9 @@ local_init(const char *root)
 		return NULL;
 	}
 
-	ctxt = (ds_ctxt_t *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(ds_ctxt_t), MYF(MY_FAE));
+	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t), MYF(MY_FAE));
 
-	ctxt->root = my_strdup(PSI_NOT_INSTRUMENTED, root, MYF(MY_FAE));
+	ctxt->root = my_strdup(root, MYF(MY_FAE));
 
 	return ctxt;
 }
@@ -115,7 +115,7 @@ local_open(ds_ctxt_t *ctxt, const char *path,
 
 	path_len = strlen(fullpath) + 1; /* terminating '\0' */
 
-	file = (ds_file_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(ds_file_t) +
+	file = (ds_file_t *) my_malloc(sizeof(ds_file_t) +
 				       sizeof(ds_local_file_t) +
 				       path_len,
 				       MYF(MY_FAE));

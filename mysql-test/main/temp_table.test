@@ -9,6 +9,11 @@
 # Test of temporary tables
 #
 
+--disable_warnings
+drop table if exists t1,t2;
+drop view if exists v1;
+--enable_warnings
+
 --echo #
 --echo # test basic creation of temporary tables together with normal table
 --echo #
@@ -656,31 +661,3 @@ DROP TEMPORARY TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
-
-#
-# DROP TEMPORARY TABLE fails in the middle
-#
-delimiter $$;
-create function f1() returns int
-begin
-  drop temporary table t1, t2;
-  return 1;
-end;
-$$
-delimiter ;$$
-
-create temporary table t1 (a int);
-create temporary table t2 (a int);
-insert t1 values (2);
-insert t2 values (3);
---error ER_CANT_REOPEN_TABLE
-select a,f1() from t1;
-drop function f1;
-drop temporary table t1;
---error ER_BAD_TABLE_ERROR
-drop temporary table t2;
-
---echo #
---echo # End of 10.5 tests
---echo #
-

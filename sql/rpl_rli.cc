@@ -35,7 +35,7 @@
 #include "sql_table.h"
 
 static int count_relay_log_space(Relay_log_info* rli);
-bool xa_trans_force_rollback(THD *thd);
+
 /**
    Current replication state (hash of last GTID executed, per replication
    domain).
@@ -46,8 +46,8 @@ gtid_waiting rpl_global_gtid_waiting;
 
 const char *const Relay_log_info::state_delaying_string = "Waiting until MASTER_DELAY seconds after master executed event";
 
-Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
-  :Slave_reporting_capability(thread_name),
+Relay_log_info::Relay_log_info(bool is_slave_recovery)
+  :Slave_reporting_capability("SQL"),
    replicate_same_server_id(::replicate_same_server_id),
    info_fd(-1), cur_log_fd(-1), relay_log(&sync_relaylog_period),
    sync_counter(0), is_relay_log_recovery(is_slave_recovery),
@@ -74,9 +74,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
                          key_RELAYLOG_COND_relay_log_updated,
                          key_RELAYLOG_COND_bin_log_updated,
                          key_file_relaylog,
-                         key_file_relaylog_cache,
                          key_file_relaylog_index,
-                         key_file_relaylog_index_cache,
                          key_RELAYLOG_COND_queue_busy,
                          key_LOCK_relaylog_end_pos);
 #endif
@@ -240,7 +238,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     */
     mysql_mutex_lock(log_lock);
     if (relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
-        relay_log.open(ln, 0, 0, SEQ_READ_APPEND,
+        relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
                        (ulong)max_relay_log_size, 1, TRUE))
     {
       mysql_mutex_unlock(log_lock);
@@ -268,7 +266,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       msg= current_thd->get_stmt_da()->message();
       goto err;
     }
-    if (init_io_cache(&info_file, info_fd, LOG_BIN_IO_SIZE, READ_CACHE, 0L,0,
+    if (init_io_cache(&info_file, info_fd, IO_SIZE*2, READ_CACHE, 0L,0,
                       MYF(MY_WME)))
     {
       sql_print_error("Failed to create a cache on relay log info file '%s'",
@@ -303,7 +301,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
         error= 1;
       }
       else if (init_io_cache(&info_file, info_fd,
-                             LOG_BIN_IO_SIZE, READ_CACHE, 0L, 0, MYF(MY_WME)))
+                             IO_SIZE*2, READ_CACHE, 0L, 0, MYF(MY_WME)))
       {
         sql_print_error("Failed to create a cache on relay log info file '%s'",
                         fname);
@@ -1182,7 +1180,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
         DBUG_RETURN(1);
       }
       mysql_mutex_lock(rli->relay_log.get_log_lock());
-      if (rli->relay_log.open(ln, 0, 0, SEQ_READ_APPEND,
+      if (rli->relay_log.open(ln, LOG_BIN, 0, 0, SEQ_READ_APPEND,
                              (ulong)(rli->max_relay_log_size ? rli->max_relay_log_size :
                               max_binlog_size), 1, TRUE))
       {
@@ -1495,8 +1493,8 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
   rpl_gtid *gtid_list;
 
   gtid_count= relay_log_state.count();
-  if (!(gtid_list= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
-                                 sizeof(*gtid_list)*gtid_count, MYF(MY_WME))))
+  if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(*gtid_list)*gtid_count,
+                                         MYF(MY_WME))))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gtid_list)*gtid_count);
     return 1;
@@ -1644,8 +1642,8 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     }
     else
     {
-      if (!(entry= (struct gtid_pos_element *)my_malloc(PSI_INSTRUMENT_ME,
-                                                sizeof(*entry), MYF(MY_WME))))
+      if (!(entry= (struct gtid_pos_element *)my_malloc(sizeof(*entry),
+                                                        MYF(MY_WME))))
       {
         my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*entry));
         err= 1;
@@ -1677,7 +1675,7 @@ end:
   {
     *out_hton= table->s->db_type();
     close_thread_tables(thd);
-    thd->release_transactional_locks();
+    thd->mdl_context.release_transactional_locks(thd);
   }
   return err;
 }
@@ -1886,11 +1884,10 @@ rpl_load_gtid_slave_state(THD *thd)
 
   cb_data.table_list= NULL;
   cb_data.default_entry= NULL;
-  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
+  my_hash_init(&hash, &my_charset_bin, 32,
                offsetof(gtid_pos_element, gtid) + offsetof(rpl_gtid, domain_id),
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
-  if ((err= my_init_dynamic_array(PSI_INSTRUMENT_ME, &array,
-                                  sizeof(gtid_pos_element), 0, 0, MYF(0))))
+  if ((err= my_init_dynamic_array(&array, sizeof(gtid_pos_element), 0, 0, MYF(0))))
     goto end;
   array_inited= true;
 
@@ -2285,13 +2282,6 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
 
   if (unlikely(error))
   {
-    /*
-      trans_rollback above does not rollback XA transactions
-      (todo/fixme consider to do so.
-    */
-    if (thd->transaction->xid_state.is_explicit_XA())
-      xa_trans_force_rollback(thd);
-
     thd->release_transactional_locks();
 
     if (thd == rli->sql_driver_thd)

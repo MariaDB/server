@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,30 +26,25 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_events_waits_summary.h"
 #include "pfs_global.h"
-#include "field.h"
 
 THR_LOCK table_events_waits_summary_by_instance::m_table_lock;
-
-PFS_engine_table_share_state
-table_events_waits_summary_by_instance::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_events_waits_summary_by_instance::m_share=
 {
   { C_STRING_WITH_LEN("events_waits_summary_by_instance") },
   &pfs_truncatable_acl,
-  table_events_waits_summary_by_instance::create,
+  &table_events_waits_summary_by_instance::create,
   NULL, /* write_row */
-  table_events_waits_summary_by_instance::delete_all_rows,
-  table_all_instr::get_row_count,
+  &table_events_waits_summary_by_instance::delete_all_rows,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(pos_all_instr),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_summary_by_instance("
@@ -59,10 +54,7 @@ table_events_waits_summary_by_instance::m_share=
                       "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the summarized events that are timed.',"
                       "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the summarized events that are timed.',"
                       "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the summarized events that are timed.',"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.')") }
 };
 
 PFS_engine_table* table_events_waits_summary_by_instance::create(void)
@@ -86,7 +78,7 @@ void table_events_waits_summary_by_instance
                  const void *object_instance_begin,
                  PFS_single_stat *pfs_stat)
 {
-  pfs_optimistic_state lock;
+  pfs_lock lock;
   m_row_exists= false;
 
   /*
@@ -203,7 +195,7 @@ int table_events_waits_summary_by_instance
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 0);
+  DBUG_ASSERT(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {
@@ -233,7 +225,7 @@ int table_events_waits_summary_by_instance
         set_field_ulonglong(f, m_row.m_stat.m_max);
         break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }

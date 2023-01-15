@@ -257,7 +257,7 @@ page_cur_tuple_insert(
 	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 {
 	rec_t*		rec;
 	ulint		size = rec_get_converted_size(index, tuple, n_ext);
@@ -278,14 +278,45 @@ page_cur_tuple_insert(
 				   ULINT_UNDEFINED, heap);
 	ut_ad(size == rec_offs_size(*offsets));
 
-	if (is_buf_block_get_page_zip(cursor->block)) {
+	if (buf_block_get_page_zip(cursor->block)) {
 		rec = page_cur_insert_rec_zip(
 			cursor, index, rec, *offsets, mtr);
 	} else {
-		rec = page_cur_insert_rec_low(cursor,
+		rec = page_cur_insert_rec_low(cursor->rec,
 					      index, rec, *offsets, mtr);
 	}
 
 	ut_ad(!rec || !cmp_dtuple_rec(tuple, rec, *offsets));
 	return(rec);
+}
+
+/***********************************************************//**
+Inserts a record next to page cursor. Returns pointer to inserted record if
+succeed, i.e., enough space available, NULL otherwise. The cursor stays at
+the same logical position, but the physical position may change if it is
+pointing to a compressed page that was reorganized.
+
+IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
+if this is a compressed leaf page in a secondary index.
+This has to be done either within the same mini-transaction,
+or by invoking ibuf_reset_free_bits() before mtr_commit().
+
+@return pointer to record if succeed, NULL otherwise */
+UNIV_INLINE
+rec_t*
+page_cur_rec_insert(
+/*================*/
+	page_cur_t*	cursor,	/*!< in/out: a page cursor */
+	const rec_t*	rec,	/*!< in: record to insert */
+	dict_index_t*	index,	/*!< in: record descriptor */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
+{
+	if (buf_block_get_page_zip(cursor->block)) {
+		return(page_cur_insert_rec_zip(
+			       cursor, index, rec, offsets, mtr));
+	} else {
+		return(page_cur_insert_rec_low(cursor->rec,
+					       index, rec, offsets, mtr));
+	}
 }

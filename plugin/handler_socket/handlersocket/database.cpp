@@ -298,11 +298,11 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
       thd->options |= OPTION_BIN_LOG;
       #endif
       safeFree((char*) thd->db.str);
-      thd->db.str= my_strdup(PSI_NOT_INSTRUMENTED, "handlersocket", MYF(0));
+      thd->db.str= my_strdup("handlersocket", MYF(0));
       thd->db.length= sizeof("handlersocket")-1;
     }
     thd->variables.option_bits |= OPTION_TABLE_LOCK;
-    set_current_thd(thd);
+    my_pthread_setspecific_ptr(THR_THD, thd);
     DBG_THR(fprintf(stderr, "HNDSOCK x0 %p\n", thd));
   }
   {
@@ -339,7 +339,7 @@ dbcontext::term_thread()
 {
   DBG_THR(fprintf(stderr, "HNDSOCK thread end %p\n", thd));
   close_tables_if();
-  set_current_thd(nullptr);
+  my_pthread_setspecific_ptr(THR_THD, 0);
   {
     delete thd;
     thd = 0;
@@ -1004,7 +1004,7 @@ dbcontext::cmd_open(dbcallback_i& cb, const cmd_open_args& arg)
     LEX_CSTRING db_name=  { arg.dbn, strlen(arg.dbn) };
     LEX_CSTRING tbl_name= { arg.tbl, strlen(arg.tbl) };
     tables.init_one_table(&db_name, &tbl_name, 0, lock_type);
-    MDL_REQUEST_INIT(&tables.mdl_request, MDL_key::TABLE, arg.dbn, arg.tbl,
+    tables.mdl_request.init(MDL_key::TABLE, arg.dbn, arg.tbl,
       for_write_flag ? MDL_SHARED_WRITE : MDL_SHARED_READ, MDL_TRANSACTION);
     Open_table_context ot_act(thd, 0);
     if (!open_table(thd, &tables, &ot_act)) {

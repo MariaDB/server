@@ -8,23 +8,3 @@ create view v1 as select * from t1 where f2 = 1;
 select distinct f1 from v1;
 drop view v1;
 drop table t1;
-
-#
-# MDEV-22062 Assertion `!table->file->keyread_enabled()' failed in
-# close_thread_table
-#
-
-CREATE TABLE t1 (a INT NOT NULL, UNIQUE(a)) ENGINE=InnoDB;
-INSERT INTO t1 VALUES (1),(2);
-DELETE FROM t1 ORDER BY a LIMIT 1;
-SELECT * FROM t1;
-DROP TABLE t1;
-
-#
-# MDEV-22237 Assertion `!table->file->keyread_enabled()' failed in
-# handler::ha_reset on DELETE
-#
-
-CREATE TABLE t1 (a CHAR KEY,b BLOB) ENGINE=InnoDB;
-DELETE FROM t1 ORDER BY a LIMIT 1;
-DROP TABLE t1;

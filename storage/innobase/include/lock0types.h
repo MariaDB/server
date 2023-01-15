@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,7 +25,6 @@ Created 5/7/1996 Heikki Tuuri
 *******************************************************/
 
 #include "dict0types.h"
-#include "buf0types.h"
 #include "ut0lst.h"
 
 #ifndef lock0types_h
@@ -90,8 +89,8 @@ struct lock_table_t {
 
 /** Record lock for a page */
 struct lock_rec_t {
-	/** page identifier */
-	page_id_t	page_id;
+	ib_uint32_t	space;		/*!< space id */
+	ib_uint32_t	page_no;	/*!< page number */
 	ib_uint32_t	n_bits;		/*!< number of bits in the lock
 					bitmap; NOTE: the lock bitmap is
 					placed immediately after the
@@ -106,12 +105,12 @@ struct lock_rec_t {
 /** Print the record lock into the given output stream
 @param[in,out]	out	the output stream
 @return the given output stream. */
-inline std::ostream &lock_rec_t::print(std::ostream &out) const
+inline
+std::ostream& lock_rec_t::print(std::ostream& out) const
 {
-  out << "[lock_rec_t: space=" << page_id.space()
-      << ", page_no=" << page_id.page_no()
-      << ", n_bits=" << n_bits << "]";
-  return out;
+	out << "[lock_rec_t: space=" << space << ", page_no=" << page_no
+		<< ", n_bits=" << n_bits << "]";
+	return(out);
 }
 
 inline

@@ -443,7 +443,9 @@ create procedure nodb.bug3339() begin end|
 ERROR 42000: Unknown database 'nodb'
 create procedure bug2653_1(a int, out b int)
 set b = aa|
-ERROR 42000: Undeclared variable: aa
+call bug2653_1(1, @b)|
+ERROR 42S22: Unknown column 'aa' in 'field list'
+drop procedure bug2653_1|
 create procedure bug2653_2(a int, out b int)
 begin
 if aa < 0 then
@@ -1203,7 +1205,9 @@ set selectstr = concat(selectstr,
 c.operatorid,
 'in (',conditionstr, ')');
 end|
-ERROR 42000: Undeclared variable: c
+call bug15091();
+ERROR 42S02: Unknown table 'c' in field list
+drop procedure bug15091;
 drop function if exists bug16896;
 create aggregate function bug16896() returns int return 1;
 ERROR HY000: Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function
@@ -2242,7 +2246,7 @@ H2
 Warnings:
 Warning	1642	Unhandled user-defined warning condition
 
-# -- Check that handlers are chosen properly in case of deep stack and
+# -- Check that handlers are choosen properly in case of deep stack and
 # -- nested SQL-blocks.
 
 CREATE PROCEDURE p10()

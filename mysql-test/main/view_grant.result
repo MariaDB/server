@@ -22,7 +22,7 @@ grant create view,select on test.* to mysqltest_1@localhost;
 connect  user1,localhost,mysqltest_1,,test;
 connection user1;
 create definer=root@localhost view v1 as select * from mysqltest.t1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 create view v1 as select * from mysqltest.t1;
 alter view v1 as select * from mysqltest.t1;
 ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table `test`.`v1`
@@ -833,30 +833,12 @@ connect  def,localhost,def_17254,,db17254;
 connection def;
 CREATE VIEW v1 AS SELECT * FROM t1;
 connection root;
-GRANT SELECT ON db17254.v1 TO inv_17254@localhost;
 DROP USER def_17254@localhost;
 connect  inv,localhost,inv_17254,,db17254;
 connection inv;
-for a user without SET USER
+for a user
 SELECT * FROM v1;
-ERROR 28000: Access denied for user 'inv_17254'@'localhost' (using password: NO)
-disconnect inv;
-connection root;
-GRANT SET USER ON *.* TO inv_17254@localhost;
-connect  inv2,localhost,inv_17254,,db17254;
-connection inv2;
-SHOW GRANTS;
-Grants for inv_17254@localhost
-GRANT SET USER ON *.* TO `inv_17254`@`localhost`
-GRANT SELECT ON `db17254`.`v1` TO `inv_17254`@`localhost`
-GRANT SELECT ON `db17254`.`t1` TO `inv_17254`@`localhost`
-SELECT CURRENT_USER, SYSTEM_USER(), USER();
-CURRENT_USER	SYSTEM_USER()	USER()
-inv_17254@localhost	inv_17254@localhost	inv_17254@localhost
-for a user with SET USER
-SELECT * FROM v1;
-ERROR HY000: The user specified as a definer ('def_17254'@'localhost') does not exist
-disconnect inv2;
+ERROR 42000: SELECT command denied to user 'inv_17254'@'localhost' for table `db17254`.`v1`
 connection root;
 for a superuser
 SELECT * FROM v1;
@@ -864,6 +846,7 @@ ERROR HY000: The user specified as a definer ('def_17254'@'localhost') does not 
 DROP USER inv_17254@localhost;
 DROP DATABASE db17254;
 disconnect def;
+disconnect inv;
 DROP DATABASE IF EXISTS mysqltest_db1;
 DROP DATABASE IF EXISTS mysqltest_db2;
 DROP USER mysqltest_u1;
@@ -932,7 +915,7 @@ ERROR 42000: CREATE VIEW command denied to user 'u26813'@'localhost' for table `
 ALTER VIEW v2 AS SELECT f2 FROM t1;
 ERROR 42000: DROP command denied to user 'u26813'@'localhost' for table `db26813`.`v2`
 ALTER VIEW v3 AS SELECT f2 FROM t1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 connection root;
 SHOW CREATE VIEW v3;
 View	Create View	character_set_client	collation_connection
@@ -960,9 +943,9 @@ GRANT SELECT, DROP, CREATE VIEW, SHOW VIEW ON mysqltest_29908.v2 TO u29908_2@loc
 GRANT SELECT ON mysqltest_29908.t1 TO u29908_2@localhost;
 connect  u2,localhost,u29908_2,,mysqltest_29908;
 ALTER VIEW v1 AS SELECT f2 FROM t1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 ALTER VIEW v2 AS SELECT f2 FROM t1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
 SHOW CREATE VIEW v2;
 View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=UNDEFINED DEFINER=`u29908_1`@`localhost` SQL SECURITY INVOKER VIEW `v2` AS select `t1`.`f1` AS `f1` from `t1`	latin1	latin1_swedish_ci

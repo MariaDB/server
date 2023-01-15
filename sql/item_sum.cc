@@ -42,9 +42,8 @@
 
 size_t Item_sum::ram_limitation(THD *thd)
 {
-  return MY_MAX(1024,
-           (size_t)MY_MIN(thd->variables.tmp_memory_table_size,
-                          thd->variables.max_heap_table_size));
+  return (size_t)MY_MIN(thd->variables.tmp_memory_table_size,
+                thd->variables.max_heap_table_size);
 }
 
 
@@ -1283,22 +1282,21 @@ void Item_sum_min_max::setup_hybrid(THD *thd, Item *item, Item *value_arg)
 }
 
 
-Field *Item_sum_min_max::create_tmp_field(MEM_ROOT *root,
-                                          bool group, TABLE *table)
+Field *Item_sum_min_max::create_tmp_field(bool group, TABLE *table)
 {
   DBUG_ENTER("Item_sum_min_max::create_tmp_field");
 
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     Field *field= ((Item_field*) args[0])->field;
-    if ((field= field->create_tmp_field(root, table, true)))
+    if ((field= field->create_tmp_field(table->in_use->mem_root, table, true)))
     {
       DBUG_ASSERT((field->flags & NOT_NULL_FLAG) == 0);
       field->field_name= name;
     }
     DBUG_RETURN(field);
   }
-  DBUG_RETURN(tmp_table_field_from_field_type(root, table));
+  DBUG_RETURN(tmp_table_field_from_field_type(table));
 }
 
 /***********************************************************************
@@ -1993,7 +1991,7 @@ Item *Item_sum_avg::copy_or_same(THD* thd)
 }
 
 
-Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
+Field *Item_sum_avg::create_tmp_field(bool group, TABLE *table)
 {
 
   if (group)
@@ -2003,7 +2001,7 @@ Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    Field *field= new (root)
+    Field *field= new (table->in_use->mem_root)
       Field_string(((result_type() == DECIMAL_RESULT) ?
                    dec_bin_size : sizeof(double)) + sizeof(longlong),
                    0, &name, &my_charset_bin);
@@ -2011,7 +2009,7 @@ Field *Item_sum_avg::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
       field->init(table);
     return field;
   }
-  return tmp_table_field_from_field_type(root, table);
+  return tmp_table_field_from_field_type(table);
 }
 
 
@@ -2235,8 +2233,7 @@ Item *Item_sum_variance::copy_or_same(THD* thd)
   If we're grouping, then we need some space to serialize variables into, to
   pass around.
 */
-Field *Item_sum_variance::create_tmp_field(MEM_ROOT *root,
-                                           bool group, TABLE *table)
+Field *Item_sum_variance::create_tmp_field(bool group, TABLE *table)
 {
   Field *field;
   if (group)
@@ -2246,12 +2243,11 @@ Field *Item_sum_variance::create_tmp_field(MEM_ROOT *root,
       The easiest way is to do this is to store both value in a string
       and unpack on access.
     */
-    field= new (root) Field_string(Stddev::binary_size(), 0,
-                                   &name, &my_charset_bin);
+    field= new Field_string(Stddev::binary_size(), 0, &name, &my_charset_bin);
   }
   else
-    field= new (root) Field_double(max_length, maybe_null, &name, decimals,
-                                   TRUE);
+    field= new Field_double(max_length, maybe_null, &name, decimals,
+                            TRUE);
 
   if (field != NULL)
     field->init(table);
@@ -2361,15 +2357,8 @@ Item *Item_sum_variance::result_item(THD *thd, Field *field)
 void Item_sum_min_max::clear()
 {
   DBUG_ENTER("Item_sum_min_max::clear");
-  /*
-    We should not clear const items (from SELECT MIN(key) from t1) as then we would loose the
-    value cached in opt_sum_query() where we replace MIN/MAX/COUNT with constants.
-  */
-  if (!const_item())
-  {
-    value->clear();
-    null_value= 1;
-  }
+  value->clear();
+  null_value= 1;
   DBUG_VOID_RETURN;
 }
 
@@ -2482,12 +2471,9 @@ void Item_sum_min_max::no_rows_in_result()
   /* We may be called here twice in case of ref field in function */
   if (was_values)
   {
-    bool org_const_item_cache= const_item_cache;
     was_values= FALSE;
     was_null_value= value->null_value;
-    const_item_cache= 0;             // Ensure that clear works on const items
     clear();
-    const_item_cache= org_const_item_cache;
   }
   DBUG_VOID_RETURN;
 }
@@ -3535,7 +3521,7 @@ String *Item_sum_udf_str::val_str(String *str)
 */
 
 extern "C"
-int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
+int group_concat_key_cmp_with_distinct(void* arg, const void* key1, 
                                        const void* key2)
 {
   Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
@@ -3565,63 +3551,6 @@ int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
     if (res)
       return res;
   }
-  return 0;
-}
-
-
-/*
-  @brief
-    Comparator function for DISTINCT clause taking into account NULL values.
-
-  @note
-    Used for JSON_ARRAYAGG function
-*/
-
-int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
-                                                  const void* key1_arg,
-                                                  const void* key2_arg)
-{
-  Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
-
-  uchar *key1= (uchar*)key1_arg + item_func->table->s->null_bytes;
-  uchar *key2= (uchar*)key2_arg + item_func->table->s->null_bytes;
-
-  /*
-    JSON_ARRAYAGG function only accepts one argument.
-  */
-
-  Item *item= item_func->args[0];
-  /*
-    If item is a const item then either get_tmp_table_field returns 0
-    or it is an item over a const table.
-  */
-  if (item->const_item())
-    return 0;
-  /*
-    We have to use get_tmp_table_field() instead of
-    real_item()->get_tmp_table_field() because we want the field in
-    the temporary table, not the original field
-  */
-  Field *field= item->get_tmp_table_field();
-
-  if (!field)
-    return 0;
-
-  if (field->is_null_in_record((uchar*)key1_arg) &&
-      field->is_null_in_record((uchar*)key2_arg))
-    return 0;
-
-  if (field->is_null_in_record((uchar*)key1_arg))
-    return -1;
-
-  if (field->is_null_in_record((uchar*)key2_arg))
-    return 1;
-
-  uint offset= (field->offset(field->table->record[0]) -
-                field->table->s->null_bytes);
-  int res= field->cmp(key1 + offset, key2 + offset);
-  if (res)
-    return res;
   return 0;
 }
 
@@ -3682,106 +3611,6 @@ int group_concat_key_cmp_with_order(void* arg, const void* key1,
 }
 
 
-/*
-  @brief
-    Comparator function for ORDER BY clause taking into account NULL values.
-
-  @note
-    Used for JSON_ARRAYAGG function
-*/
-
-int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1_arg,
-                                               const void *key2_arg)
-{
-  Item_func_group_concat* grp_item= (Item_func_group_concat*) arg;
-  ORDER **order_item, **end;
-
-  uchar *key1= (uchar*)key1_arg + grp_item->table->s->null_bytes;
-  uchar *key2= (uchar*)key2_arg + grp_item->table->s->null_bytes;
-
-  for (order_item= grp_item->order, end=order_item+ grp_item->arg_count_order;
-       order_item < end;
-       order_item++)
-  {
-    Item *item= *(*order_item)->item;
-    /*
-      If field_item is a const item then either get_tmp_table_field returns 0
-      or it is an item over a const table.
-    */
-    if (item->const_item())
-      continue;
-    /*
-      We have to use get_tmp_table_field() instead of
-      real_item()->get_tmp_table_field() because we want the field in
-      the temporary table, not the original field
-
-      Note that for the case of ROLLUP, field may point to another table
-      tham grp_item->table. This is however ok as the table definitions are
-      the same.
-    */
-    Field *field= item->get_tmp_table_field();
-    if (!field)
-      continue;
-
-    if (field->is_null_in_record((uchar*)key1_arg) &&
-        field->is_null_in_record((uchar*)key2_arg))
-      continue;
-
-    if (field->is_null_in_record((uchar*)key1_arg))
-      return ((*order_item)->direction == ORDER::ORDER_ASC) ?  -1 : 1;
-
-    if (field->is_null_in_record((uchar*)key2_arg))
-      return ((*order_item)->direction == ORDER::ORDER_ASC) ?  1 :  -1;
-
-    uint offset= (field->offset(field->table->record[0]) -
-                  field->table->s->null_bytes);
-    int res= field->cmp((uchar*)key1 + offset, (uchar*)key2 + offset);
-    if (res)
-      return ((*order_item)->direction == ORDER::ORDER_ASC) ? res : -res;
-  }
-  /*
-    We can't return 0 because in that case the tree class would remove this
-    item as double value. This would cause problems for case-changes and
-    if the returned values are not the same we do the sort on.
-  */
-  return 1;
-}
-
-
-static void report_cut_value_error(THD *thd, uint row_count, const char *fname)
-{
-  size_t fn_len= strlen(fname);
-  char *fname_upper= (char *) my_alloca(fn_len + 1);
-  if (!fname_upper)
-    fname_upper= (char*) fname;                 // Out of memory
-  else
-    memcpy(fname_upper, fname, fn_len+1);
-  my_caseup_str(&my_charset_latin1, fname_upper);
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_CUT_VALUE_GROUP_CONCAT,
-                      ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
-                      row_count, fname_upper);
-  my_afree(fname_upper);
-}
-
-
-void Item_func_group_concat::cut_max_length(String *result,
-        uint old_length, uint max_length) const
-{
-  const char *ptr= result->ptr();
-  /*
-    It's ok to use item->result.length() as the fourth argument
-    as this is never used to limit the length of the data.
-    Cut is done with the third argument.
-  */
-  size_t add_length= Well_formed_prefix(collation.collation,
-                                      ptr + old_length,
-                                      ptr + max_length,
-                                      result->length()).length();
-  result->length(old_length + add_length);
-}
-
-
 /**
   Append data from current leaf to item->result.
 */
@@ -3834,7 +3663,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       because it contains both order and arg list fields.
      */
     if ((*arg)->const_item())
-      res= item->get_str_from_item(*arg, &tmp);
+      res= (*arg)->val_str(&tmp);
     else
     {
       Field *field= (*arg)->get_tmp_table_field();
@@ -3843,13 +3672,11 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
         uint offset= (field->offset(field->table->record[0]) -
                       table->s->null_bytes);
         DBUG_ASSERT(offset < table->s->reclength);
-        res= item->get_str_from_field(*arg, field, &tmp, key,
-                                      offset + item->get_null_bytes());
+        res= field->val_str(&tmp, key + offset);
       }
       else
-        res= item->get_str_from_item(*arg, &tmp);
+        res= (*arg)->val_str(&tmp);
     }
-
     if (res)
       result->append(*res);
   }
@@ -3861,10 +3688,24 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   /* stop if length of result more than max_length */
   if (result->length() > max_length)
   {
+    CHARSET_INFO *cs= item->collation.collation;
+    const char *ptr= result->ptr();
     THD *thd= current_thd;
-    item->cut_max_length(result, old_length, max_length);
+    /*
+      It's ok to use item->result.length() as the fourth argument
+      as this is never used to limit the length of the data.
+      Cut is done with the third argument.
+    */
+    size_t add_length= Well_formed_prefix(cs,
+                                        ptr + old_length,
+                                        ptr + max_length,
+                                        result->length()).length();
+    result->length(old_length + add_length);
     item->warning_for_row= TRUE;
-    report_cut_value_error(thd, item->row_count, item->func_name());
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_CUT_VALUE_GROUP_CONCAT,
+                        ER_THD(thd, ER_CUT_VALUE_GROUP_CONCAT),
+                        item->row_count);
 
     /**
        To avoid duplicated warnings in Item_func_group_concat::val_str()
@@ -4066,7 +3907,7 @@ void Item_func_group_concat::clear()
   result.copy();
   null_value= TRUE;
   warning_for_row= FALSE;
-  result_finalized= false;
+  result_finalized= FALSE;
   if (offset_limit)
     copy_offset_limit= offset_limit->val_int();
   if (row_limit)
@@ -4116,7 +3957,7 @@ bool Item_func_group_concat::repack_tree(THD *thd)
 
   init_tree(&st.tree, (size_t) MY_MIN(thd->variables.max_heap_table_size,
                                       thd->variables.sortbuff_size/16), 0,
-            size, get_comparator_function_for_order_by(), NULL,
+            size, group_concat_key_cmp_with_order, NULL,
             (void*) this, MYF(MY_THREAD_SPECIFIC));
   DBUG_ASSERT(tree->size_of_element == st.tree.size_of_element);
   st.table= table;
@@ -4134,7 +3975,6 @@ bool Item_func_group_concat::repack_tree(THD *thd)
   return 0;
 }
 
-
 /*
   Repacking the tree is expensive. But it keeps the tree small, and
   inserting into an unnecessary large tree is also waste of time.
@@ -4145,9 +3985,9 @@ bool Item_func_group_concat::repack_tree(THD *thd)
 */
 #define GCONCAT_REPACK_FACTOR 10
 
-bool Item_func_group_concat::add(bool exclude_nulls)
+bool Item_func_group_concat::add()
 {
-  if (always_null && exclude_nulls)
+  if (always_null)
     return 0;
   copy_fields(tmp_table_param);
   if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
@@ -4165,19 +4005,10 @@ bool Item_func_group_concat::add(bool exclude_nulls)
     Field *field= show_item->get_tmp_table_field();
     if (field)
     {
-      if (field->is_null_in_record((const uchar*) table->record[0]) &&
-          exclude_nulls)
+      if (field->is_null_in_record((const uchar*) table->record[0]))
         return 0;                    // Skip row if it contains null
       if (tree && (res= field->val_str(&buf)))
         row_str_len+= res->length();
-    }
-    else
-    {
-      /*
-        should not reach here, we create temp table for all the arguments of
-        the group_concat function
-      */
-      DBUG_ASSERT(0);
     }
   }
 
@@ -4188,7 +4019,7 @@ bool Item_func_group_concat::add(bool exclude_nulls)
   {
     /* Filter out duplicate rows. */
     uint count= unique_filter->elements_in_tree();
-    unique_filter->unique_add(get_record_pointer());
+    unique_filter->unique_add(table->record[0] + table->s->null_bytes);
     if (count == unique_filter->elements_in_tree())
       row_eligible= FALSE;
   }
@@ -4202,7 +4033,8 @@ bool Item_func_group_concat::add(bool exclude_nulls)
         && tree->elements_in_tree > 1)
       if (repack_tree(thd))
         return 1;
-    el= tree_insert(tree, get_record_pointer(), 0, tree->custom_arg);
+    el= tree_insert(tree, table->record[0] + table->s->null_bytes, 0,
+                    tree->custom_arg);
     /* check if there was enough memory to insert the row */
     if (!el)
       return 1;
@@ -4214,7 +4046,7 @@ bool Item_func_group_concat::add(bool exclude_nulls)
     row to the output buffer here. That will be done in val_str.
   */
   if (row_eligible && !warning_for_row && (!tree && !distinct))
-    dump_leaf_key(get_record_pointer(), 1, this);
+    dump_leaf_key(table->record[0] + table->s->null_bytes, 1, this);
 
   return 0;
 }
@@ -4252,9 +4084,9 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
-  max_length= (uint32) MY_MIN((ulonglong) thd->variables.group_concat_max_len
-                              / collation.collation->mbminlen
-                              * collation.collation->mbmaxlen, UINT_MAX32);
+  max_length= (uint32)MY_MIN(thd->variables.group_concat_max_len
+                             / collation.collation->mbminlen
+                             * collation.collation->mbmaxlen, UINT_MAX32);
 
   uint32 offset;
   if (separator->needs_conversion(separator->length(), separator->charset(),
@@ -4309,10 +4141,13 @@ bool Item_func_group_concat::setup(THD *thd)
     Item *item= args[i];
     if (list.push_back(item, thd->mem_root))
       DBUG_RETURN(TRUE);
-    if (item->const_item() && item->is_null() && skip_nulls())
+    if (item->const_item())
     {
-      always_null= 1;
-      DBUG_RETURN(FALSE);
+      if (item->is_null())
+      {
+        always_null= 1;
+        DBUG_RETURN(FALSE);
+      }
     }
   }
 
@@ -4407,16 +4242,16 @@ bool Item_func_group_concat::setup(THD *thd)
     */
     init_tree(tree, (size_t)MY_MIN(thd->variables.max_heap_table_size,
                                    thd->variables.sortbuff_size/16), 0,
-              tree_key_length + get_null_bytes(),
-              get_comparator_function_for_order_by(), NULL, (void*) this,
+              tree_key_length,
+              group_concat_key_cmp_with_order, NULL, (void*) this,
               MYF(MY_THREAD_SPECIFIC));
     tree_len= 0;
   }
 
   if (distinct)
-    unique_filter= new Unique(get_comparator_function_for_distinct(),
+    unique_filter= new Unique(group_concat_key_cmp_with_distinct,
                               (void*)this,
-                              tree_key_length + get_null_bytes(),
+                              tree_key_length,
                               ram_limitation(thd));
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
       (offset_limit && offset_limit->cmp_type() != INT_RESULT))
@@ -4463,76 +4298,18 @@ String* Item_func_group_concat::val_str(String* str)
       table->blob_storage->is_truncated_value())
   {
     warning_for_row= true;
-    report_cut_value_error(current_thd, row_count, func_name());
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_CUT_VALUE_GROUP_CONCAT, ER(ER_CUT_VALUE_GROUP_CONCAT),
+                        row_count);
   }
 
   return &result;
 }
 
 
-/*
-  @brief
-    Get the comparator function for DISTINT clause
-*/
-
-qsort_cmp2 Item_func_group_concat::get_comparator_function_for_distinct()
-{
-  return skip_nulls() ?
-         group_concat_key_cmp_with_distinct :
-         group_concat_key_cmp_with_distinct_with_nulls;
-}
-
-
-/*
-  @brief
-    Get the comparator function for ORDER BY clause
-*/
-
-qsort_cmp2 Item_func_group_concat::get_comparator_function_for_order_by()
-{
-  return skip_nulls() ?
-         group_concat_key_cmp_with_order :
-         group_concat_key_cmp_with_order_with_nulls;
-}
-
-
-/*
-
-  @brief
-    Get the record pointer of the current row of the table
-
-  @details
-    look at the comments for Item_func_group_concat::get_null_bytes
-*/
-
-uchar* Item_func_group_concat::get_record_pointer()
-{
-  return skip_nulls() ?
-         table->record[0] + table->s->null_bytes :
-         table->record[0];
-}
-
-
-/*
-  @brief
-    Get the null bytes for the table if required.
-
-  @details
-    This function is used for GROUP_CONCAT (or JSON_ARRAYAGG) implementation
-    where the Unique tree or the ORDER BY tree may store the null values,
-    in such case we also store the null bytes inside each node of the tree.
-
-*/
-
-uint Item_func_group_concat::get_null_bytes()
-{
-  return skip_nulls() ? 0 : table->s->null_bytes;
-}
-
-
 void Item_func_group_concat::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(STRING_WITH_LEN("group_concat("));
   if (distinct)
     str->append(STRING_WITH_LEN("distinct "));
   for (uint i= 0; i < arg_count_field; i++)
@@ -4555,13 +4332,9 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" DESC"));
     }
   }
-
-  if (sum_func() == GROUP_CONCAT_FUNC)
-  {
-    str->append(STRING_WITH_LEN(" separator \'"));
-    str->append_for_single_quote(separator->ptr(), separator->length());
-    str->append(STRING_WITH_LEN("\'"));
-  }
+  str->append(STRING_WITH_LEN(" separator \'"));
+  str->append_for_single_quote(separator->ptr(), separator->length());
+  str->append(STRING_WITH_LEN("\'"));
 
   if (limit_clause)
   {

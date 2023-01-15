@@ -82,8 +82,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             }
@@ -101,8 +100,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             }
@@ -125,8 +123,7 @@ ANALYZE
       "r_loops": 1,
       "rows": 2,
       "r_rows": 1,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "materialized": {
@@ -148,8 +145,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 2,
                     "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -167,8 +163,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 2,
                     "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -314,8 +309,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             },
@@ -326,8 +320,7 @@ ANALYZE
                 "r_loops": 1,
                 "rows": 2,
                 "r_rows": 2,
-                "r_table_time_ms": "REPLACED",
-                "r_other_time_ms": "REPLACED",
+                "r_total_time_ms": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 100
               },
@@ -350,8 +343,7 @@ ANALYZE
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
+              "r_total_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             },
@@ -362,8 +354,7 @@ ANALYZE
                 "r_loops": 1,
                 "rows": 2,
                 "r_rows": 2,
-                "r_table_time_ms": "REPLACED",
-                "r_other_time_ms": "REPLACED",
+                "r_total_time_ms": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 100
               },
@@ -392,8 +383,7 @@ ANALYZE
       "r_loops": 1,
       "rows": 4,
       "r_rows": 3,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
+      "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "materialized": {
@@ -415,8 +405,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 2,
                     "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   },
@@ -427,8 +416,7 @@ ANALYZE
                       "r_loops": 1,
                       "rows": 2,
                       "r_rows": 2,
-                      "r_table_time_ms": "REPLACED",
-                      "r_other_time_ms": "REPLACED",
+                      "r_total_time_ms": "REPLACED",
                       "filtered": 100,
                       "r_filtered": 100
                     },
@@ -451,8 +439,7 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 2,
                     "r_rows": 2,
-                    "r_table_time_ms": "REPLACED",
-                    "r_other_time_ms": "REPLACED",
+                    "r_total_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   },
@@ -463,8 +450,7 @@ ANALYZE
                       "r_loops": 1,
                       "rows": 2,
                       "r_rows": 2,
-                      "r_table_time_ms": "REPLACED",
-                      "r_other_time_ms": "REPLACED",
+                      "r_total_time_ms": "REPLACED",
                       "filtered": 100,
                       "r_filtered": 100
                     },
@@ -522,6 +508,8 @@ select 1 as a from dual union all select 1 from dual;
 a
 1
 1
+select 1 from dual except all select 1 from dual;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'all select 1 from dual' at line 1
 create table t1 (a int, b blob, a1 int, b1 blob) engine=MyISAM;
 create table t2 (c int, d blob, c1 int, d1 blob) engine=MyISAM;
 insert into t1 values (1,"ddd", 1, "sdfrrwwww"),(2, "fgh", 2, "dffggtt");

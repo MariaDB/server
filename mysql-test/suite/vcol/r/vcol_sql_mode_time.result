@@ -40,21 +40,30 @@ d TIME,
 v TIME(3) AS (t) VIRTUAL,
 KEY(v,d)
 );
-ERROR HY000: Function or expression '`t`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warnings:
+Warning	1901	Function or expression '`t`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+DROP TABLE t1;
 CREATE TABLE t1 (
 t TIME(4),
 d TIME,
 v TIME(3) AS (COALESCE(t)) VIRTUAL,
 KEY(v,d)
 );
-ERROR HY000: Function or expression 'coalesce(`t`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warnings:
+Warning	1901	Function or expression 'coalesce(`t`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+DROP TABLE t1;
 CREATE TABLE t1 (
 t TIME(4),
 d TIME,
 v TIME(3) AS ('2001-01-01 10:20:30.1234') VIRTUAL,
 KEY(v,d)
 );
-ERROR HY000: Function or expression ''2001-01-01 10:20:30.1234'' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warnings:
+Warning	1901	Function or expression ''2001-01-01 10:20:30.1234'' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+DROP TABLE t1;
 # OK: lower FSP + ROUND + virtual index
 SET sql_mode=DEFAULT;
 CREATE TABLE t1 (
@@ -95,7 +104,10 @@ a TIME(6),
 v VARCHAR(30) GENERATED ALWAYS AS (CAST(a AS TIME(3))) VIRTUAL,
 KEY (v)
 );
-ERROR HY000: Function or expression 'cast(`a` as time(3))' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warnings:
+Warning	1901	Function or expression 'cast(`a` as time(3))' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+DROP TABLE t1;
 CREATE TABLE t1 (
 a TIME(6),
 v VARCHAR(30) GENERATED ALWAYS AS (TRUNCATE(a,3)) VIRTUAL,

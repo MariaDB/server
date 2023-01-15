@@ -1963,7 +1963,7 @@ DROP TABLE t1;
 --echo # %TYPE in function RETURN clause is not supported yet
 --echo #
 DELIMITER $$;
---error ER_UNKNOWN_DATA_TYPE
+--error ER_PARSE_ERROR
 CREATE FUNCTION f1 RETURN t1.a%TYPE
 AS
 BEGIN

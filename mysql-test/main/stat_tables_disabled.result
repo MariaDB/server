@@ -3,7 +3,7 @@ set @innodb_stats_persistent_sample_pages_save=
 @@innodb_stats_persistent_sample_pages;
 set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
-SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+SET SESSION STORAGE_ENGINE='InnoDB';
 select @@global.use_stat_tables;
 @@global.use_stat_tables
 PREFERABLY
@@ -73,7 +73,7 @@ set optimizer_switch=@save_optimizer_switch;
 DROP DATABASE dbt3_s001;
 use test;
 set use_stat_tables=@save_use_stat_tables;
-SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
+SET SESSION STORAGE_ENGINE=DEFAULT;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;

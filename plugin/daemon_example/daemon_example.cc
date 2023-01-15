@@ -98,7 +98,7 @@ static int daemon_example_plugin_init(void *p __attribute__ ((unused)))
   struct st_plugin_int *plugin= (struct st_plugin_int *)p;
 
   con= (struct mysql_heartbeat_context *)
-    my_malloc(PSI_NOT_INSTRUMENTED, sizeof(struct mysql_heartbeat_context), MYF(0));
+    my_malloc(sizeof(struct mysql_heartbeat_context), MYF(0)); 
 
   fn_format(heartbeat_filename, "mysql-heartbeat", "", ".log",
             MY_REPLACE_EXT | MY_UNPACK_FILENAME);

@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,9 +23,19 @@ The database buffer pool flush algorithm
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#include "assume_aligned.h"
 #include "buf0buf.h"
+#include "mtr0mtr.h"
 #include "srv0srv.h"
+#include "fsp0types.h"
+
+/********************************************************************//**
+Inserts a modified block into the flush list. */
+void
+buf_flush_insert_into_flush_list(
+/*=============================*/
+	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
+	buf_block_t*	block,		/*!< in/out: block which is modified */
+	lsn_t		lsn);		/*!< in: oldest modification */
 
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
@@ -39,28 +48,33 @@ buf_flush_note_modification(
 	buf_block_t*	block,		/*!< in: block which is modified */
 	lsn_t		start_lsn,	/*!< in: start lsn of the mtr that
 					modified this block */
-	lsn_t		end_lsn)	/*!< in: end lsn of the mtr that
+	lsn_t		end_lsn,	/*!< in: end lsn of the mtr that
 					modified this block */
+	FlushObserver*	observer)	/*!< in: flush observer */
 {
-	ut_ad(!srv_read_only_mode);
-	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
-	ut_ad(block->page.buf_fix_count());
-	ut_ad(mach_read_from_8(block->frame + FIL_PAGE_LSN) <= end_lsn);
-	mach_write_to_8(block->frame + FIL_PAGE_LSN, end_lsn);
-	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-		memcpy_aligned<8>(FIL_PAGE_LSN + block->page.zip.data,
-				  FIL_PAGE_LSN + block->frame, 8);
-	}
+	mutex_enter(&block->mutex);
+	ut_ad(!srv_read_only_mode
+	      || fsp_is_system_temporary(block->page.id.space()));
+	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+	ut_ad(block->page.buf_fix_count > 0);
+	ut_ad(block->page.newest_modification <= end_lsn);
+	block->page.newest_modification = end_lsn;
 
-	const lsn_t oldest_modification = block->page.oldest_modification();
+	/* Don't allow to set flush observer from non-null to null,
+	or from one observer to another. */
+	ut_ad(block->page.flush_observer == NULL
+	      || block->page.flush_observer == observer);
+	block->page.flush_observer = observer;
 
-	if (oldest_modification > 1) {
-		ut_ad(oldest_modification <= start_lsn);
-	} else if (fsp_is_system_temporary(block->page.id().space())) {
-		block->page.set_temp_modified();
+	if (block->page.oldest_modification == 0) {
+		buf_pool_t*	buf_pool = buf_pool_from_block(block);
+
+		buf_flush_insert_into_flush_list(buf_pool, block, start_lsn);
 	} else {
-		buf_pool.insert_into_flush_list(block, start_lsn);
+		ut_ad(block->page.oldest_modification <= start_lsn);
 	}
+
+	mutex_exit(&block->mutex);
 
 	srv_stats.buf_pool_write_requests.inc();
 }

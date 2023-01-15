@@ -1111,8 +1111,8 @@ drop function f1;
 --echo #
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
-analyze table t1 persistent for all;
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
 
 --echo # Check what info the optimizer has about selectivities
 explain extended select * from t1 use index () where a in (17,51,5);
@@ -1248,8 +1248,6 @@ insert into t1 select seq,seq from seq_1_to_100;
 
 create table t2 (id int, a int, b int, PRIMARY KEY(id), key(a), key(b));
 insert into t2 select seq,seq,seq from seq_1_to_100;
-
-analyze table t1,t2 persistent for all;
 
 set optimizer_switch='exists_to_in=off';
 set optimizer_use_condition_selectivity=2;

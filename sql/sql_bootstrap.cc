@@ -29,7 +29,6 @@ int read_bootstrap_query(char *query, int *query_length,
   int fgets_error= 0;
   *error= 0;
 
-  *query_length= 0;
   for ( ; ; )
   {
     line= (*fgets_fn)(line_buffer, sizeof(line_buffer), input, &fgets_error);

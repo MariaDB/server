@@ -1,0 +1,100 @@
+--source include/have_innodb.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
+
+SET @saved_page_cleaners = @@GLOBAL.innodb_page_cleaners;
+
+create table t1 (a int not null primary key auto_increment,
+b bigint,
+c varchar(200),
+d int,
+key b (b),
+key d (d)) engine=INNODB;
+
+let $rows = 15000;
+--disable_query_log
+begin;
+while ($rows)
+{
+    eval insert into t1 values(NULL, $rows, 'testing...', $rows+1000);
+    dec $rows;
+}
+commit;
+--enable_query_log
+
+#
+# We want 4 connections: (1) - (3) to create dirty pages
+# and default to modify the number of page cleaner threads
+#
+
+set GLOBAL innodb_page_cleaners = 4;
+
+connect (con1,localhost,root,,);
+connection con1;
+send update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+
+connect (con2,localhost,root,,);
+connection con2;
+send update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+
+
+connect (con3,localhost,root,,);
+connection con3;
+send update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+
+#
+# Page cleaners are increased
+#
+
+connection default;
+set GLOBAL innodb_page_cleaners = 2;
+set GLOBAL innodb_page_cleaners = 4;
+set GLOBAL innodb_page_cleaners = 6;
+
+connection con1;
+reap;
+
+connection con2;
+reap;
+
+connection con3;
+reap;
+
+connection default;
+set GLOBAL innodb_page_cleaners = 4;
+
+#
+# Page cleaners are decreased
+#
+
+connection con1;
+send update t1 set b = b + 5, d = d + 1 where a between 1 and 2000;
+
+connection con2;
+send update t1 set b = b + 5, d = d + 1 where a between 3000 and 5000;
+
+connection con3;
+send update t1 set b = b + 5, d = d + 1 where a between 8000 and 12000;
+
+connection default;
+set GLOBAL innodb_page_cleaners = 3;
+set GLOBAL innodb_page_cleaners = 2;
+set GLOBAL innodb_page_cleaners = 1;
+
+connection con1;
+reap;
+
+connection con2;
+reap;
+
+connection con3;
+reap;
+
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+
+DROP TABLE t1;
+
+SET GLOBAL innodb_page_cleaners=@saved_page_cleaners;

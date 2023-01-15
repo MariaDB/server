@@ -338,11 +338,9 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     have invalid db or table name.
     Instead THD::open_tables() should be used.
   */
-  DBUG_ASSERT(!tl->derived);
-  DBUG_ASSERT(!tl->schema_table);
-  DBUG_ASSERT(has_temporary_tables());
+  DBUG_ASSERT(!tl->derived && !tl->schema_table);
 
-  if (tl->open_type == OT_BASE_ONLY)
+  if (tl->open_type == OT_BASE_ONLY || !has_temporary_tables())
   {
     DBUG_PRINT("info", ("skip_temporary is set or no temporary tables"));
     DBUG_RETURN(false);
@@ -454,13 +452,10 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
 */
 bool THD::open_temporary_tables(TABLE_LIST *tl)
 {
-  TABLE_LIST *first_not_own;
   DBUG_ENTER("THD::open_temporary_tables");
 
-  if (!has_temporary_tables())
-    DBUG_RETURN(0);
+  TABLE_LIST *first_not_own= lex->first_not_own_table();
 
-  first_not_own= lex->first_not_own_table();
   for (TABLE_LIST *table= tl; table && table != first_not_own;
        table= table->next_global)
   {
@@ -625,10 +620,6 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   DBUG_PRINT("tmptable", ("Dropping table: '%s'.'%s'",
                           table->s->db.str, table->s->table_name.str));
 
-  // close all handlers in case it is statement abort and some can be left
-  if (is_error())
-    table->file->ha_reset();
-
   locked= lock_temporary_tables();
 
   share= tmp_table_share(table);
@@ -698,21 +689,24 @@ bool THD::rm_temporary_table(handlerton *base, const char *path)
   DBUG_ENTER("THD::rm_temporary_table");
 
   bool error= false;
+  handler *file;
   char frm_path[FN_REFLEN + 1];
 
   strxnmov(frm_path, sizeof(frm_path) - 1, path, reg_ext, NullS);
 
-  if (base->drop_table(base, path) > 0)
+  file= get_new_handler((TABLE_SHARE*) 0, mem_root, base);
+  if (file && file->ha_delete_table(path))
   {
     error= true;
     sql_print_warning("Could not remove temporary table: '%s', error: %d",
                       path, my_errno);
   }
+  delete file;
 
-  if (mysql_file_delete(key_file_frm, frm_path,
-                        MYF(MY_WME | MY_IGNORE_ENOENT)))
+  if (mysql_file_delete(key_file_frm, frm_path, MYF(0)))
+  {
     error= true;
-
+  }
   DBUG_RETURN(error);
 }
 
@@ -755,7 +749,11 @@ void THD::mark_tmp_tables_as_free_for_reuse()
     while ((table= tables_it++))
     {
       if ((table->query_id == query_id) && !table->open_by_handler)
+      {
+        if (table->update_handler)
+          table->delete_update_handler();
         mark_tmp_table_as_free_for_reuse(table);
+      }
     }
   }
 
@@ -960,8 +958,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
   /* Create the table definition key for the temporary table. */
   key_length= create_tmp_table_def_key(key_cache, db, table_name);
 
-  if (!(share= (TMP_TABLE_SHARE *) my_malloc(key_memory_table_share,
-                                             sizeof(TMP_TABLE_SHARE) +
+  if (!(share= (TMP_TABLE_SHARE *) my_malloc(sizeof(TMP_TABLE_SHARE) +
                                              strlen(path) + 1 + key_length,
                                              MYF(MY_WME))))
   {
@@ -1008,8 +1005,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
   if (!temporary_tables)
   {
     if ((temporary_tables=
-         (All_tmp_tables_list *) my_malloc(key_memory_table_share,
-                                           sizeof(All_tmp_tables_list),
+         (All_tmp_tables_list *) my_malloc(sizeof(All_tmp_tables_list),
                                            MYF(MY_WME))))
     {
       temporary_tables->empty();
@@ -1114,8 +1110,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   DBUG_ENTER("THD::open_temporary_table");
 
 
-  if (!(table= (TABLE *) my_malloc(key_memory_TABLE, sizeof(TABLE),
-                                   MYF(MY_WME))))
+  if (!(table= (TABLE *) my_malloc(sizeof(TABLE), MYF(MY_WME))))
   {
     DBUG_RETURN(NULL);                          /* Out of memory */
   }
@@ -1133,10 +1128,12 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
 
   table->reginfo.lock_type= TL_WRITE;           /* Simulate locked */
   table->grant.privilege= TMP_TABLE_ACLS;
-  table->query_id= query_id;
   share->tmp_table= (table->file->has_transaction_manager() ?
                      TRANSACTIONAL_TMP_TABLE : NON_TRANSACTIONAL_TMP_TABLE);
   share->not_usable_by_query_cache= 1;
+
+  table->pos_in_table_list= 0;
+  table->query_id= query_id;
 
   /* Add table to the head of table list. */
   share->all_tmp_tables.push_front(table);
@@ -1406,7 +1403,7 @@ bool THD::log_events_and_free_tmp_shares()
         variables.character_set_client= cs_save;
 
         get_stmt_da()->set_overwrite_status(true);
-        transaction->stmt.mark_dropped_temp_table();
+        transaction.stmt.mark_dropped_temp_table();
         bool error2= mysql_bin_log.write(&qinfo);
         if (unlikely(error|= error2))
         {

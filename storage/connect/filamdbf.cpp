@@ -337,7 +337,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, PTOS topt, bool info)
           hp->Encryptflag, hp->Mdxflag, hp->Language);
     htrc("%hd records, last changed %02d/%02d/%d\n",
           hp->Records(), hp->Filedate[1], hp->Filedate[2],
-          hp->Filedate[0] + ((hp->Filedate[0] <= 30) ? 2000 : 1900));
+          hp->Filedate[0] + (hp->Filedate[0] <= 30) ? 2000 : 1900);
     htrc("Field    Type  Offset  Len  Dec  Set  Mdx\n");
     } // endif trace
 
@@ -949,7 +949,7 @@ int DBFFAM::DeleteRecords(PGLOBAL g, int irc)
     }
     *Tdbp->GetLine() = '*';
     Modif++;                         // Modified line in Delete mode
-  } // endif irc
+    } // endif irc
 
   return RC_OK;
   } // end of DeleteRecords

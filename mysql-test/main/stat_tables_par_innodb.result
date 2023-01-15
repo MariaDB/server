@@ -1,5 +1,4 @@
-# restart
-SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+SET SESSION STORAGE_ENGINE='InnoDB';
 set @save_optimizer_switch_for_stat_tables_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 set @save_use_stat_tables=@@use_stat_tables;
@@ -316,4 +315,4 @@ drop table t1;
 set global use_stat_tables=@save_global_use_stat_tables;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
-SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
+SET SESSION STORAGE_ENGINE=DEFAULT;

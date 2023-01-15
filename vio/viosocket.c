@@ -645,26 +645,6 @@ enum enum_vio_type vio_type(Vio* vio)
   return vio->type;
 }
 
-static const LEX_CSTRING vio_type_names[] =
-{
-  { STRING_WITH_LEN("") }, // internal threads
-  { STRING_WITH_LEN("TCP/IP") },
-  { STRING_WITH_LEN("Socket") },
-  { STRING_WITH_LEN("Named Pipe") },
-  { STRING_WITH_LEN("SSL/TLS") },
-  { STRING_WITH_LEN("Shared Memory") }
-};
-
-const char *vio_type_name(enum enum_vio_type vio_type, size_t *len)
-{
-  int index= vio_type >= FIRST_VIO_TYPE && vio_type <= LAST_VIO_TYPE
-             ?  vio_type : 0;
-
-  *len= vio_type_names[index].length;
-  return vio_type_names[index].str;
-}
-
-
 my_socket vio_fd(Vio* vio)
 {
   return mysql_socket_getfd(vio->mysql_socket);

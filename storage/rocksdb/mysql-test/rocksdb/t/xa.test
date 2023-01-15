@@ -1,7 +1,6 @@
+--echo # 
+--echo # MDEV-13155: XA recovery not supported for RocksDB (Just a testcase)
 --echo #
---echo # MDEV-742 fixes
---echo #   MDEV-13155: XA recovery not supported for RocksDB
---echo # as well.
  
 call mtr.add_suppression("Found .* prepared XA transactions");
 
@@ -23,51 +22,17 @@ INSERT INTO t1 (a) VALUES (3);
 INSERT INTO t1 (a) VALUES (4);
 XA END 'xa2';
 XA PREPARE 'xa2';
-
---connect (con3,localhost,root,,test)
-XA START 'xa3';
-INSERT INTO t1 (a) VALUES (5);
-INSERT INTO t1 (a) VALUES (6);
-XA END 'xa3';
-XA PREPARE 'xa3';
---disconnect con3
-
+ 
 --connection default
 SELECT * FROM t1;
-
---echo Must be all three XA:s in
-XA RECOVER;
 
 --let $shutdown_timeout= 0
 --source include/restart_mysqld.inc
  
 --connect (con3,localhost,root,,test)
 --disable_abort_on_error
-XA RECOVER; # like above
+XA RECOVER;
 XA ROLLBACK 'xa1';
 XA COMMIT 'xa2';
-XA ROLLBACK 'xa3';
 SELECT a FROM t1;
-
---connect (con4,localhost,root,,test)
-XA START 'xa4';
-INSERT INTO t1 (a) VALUES (7);
-INSERT INTO t1 (a) VALUES (8);
-XA END 'xa4';
-XA PREPARE 'xa4';
-
---connection default
---echo # Now restart through graceful shutdown
---source include/restart_mysqld.inc
-
-
---connect (con5,localhost,root,,test)
---disable_abort_on_error
-
---echo Must have 'xa4'
-XA RECOVER;
-XA COMMIT 'xa4';
-
-SELECT a FROM t1;
-
 DROP TABLE t1;

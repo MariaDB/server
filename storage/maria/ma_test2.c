@@ -69,14 +69,13 @@ int main(int argc, char *argv[])
   char *blob_buffer;
   MARIA_CREATE_INFO create_info;
   char filename[FN_REFLEN];
-  page_range pages;
 
 #ifdef SAFE_MUTEX
   safe_mutex_deadlock_detector= 1;
 #endif
   MY_INIT(argv[0]);
 
-  maria_data_root= ".";
+  maria_data_root= (char *)".";
   get_options(argc,argv);
   fn_format(filename, "test2", maria_data_root, "", MYF(0));
 
@@ -90,7 +89,7 @@ int main(int argc, char *argv[])
   if (maria_init() ||
       (init_pagecache(maria_pagecache, pagecache_size, 0, 0,
 		      maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE, TRUE) ||
+      ma_control_file_open(TRUE, TRUE) ||
       (init_pagecache(maria_log_pagecache,
 		      TRANSLOG_PAGECACHE_SIZE, 0, 0,
 		      TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
@@ -236,7 +235,7 @@ int main(int argc, char *argv[])
 		0,(MARIA_UNIQUEDEF*) 0,
 		&create_info,create_flag))
     goto err;
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
     goto err;
   maria_begin(file);
   if (opt_versioning)
@@ -723,8 +722,7 @@ int main(int argc, char *argv[])
     max_key.keypart_map= HA_WHOLE_KEY;
     max_key.flag= HA_READ_AFTER_KEY;
 
-    range_records= maria_records_in_range(file,(int) i, &min_key, &max_key,
-                                          &pages);
+    range_records= maria_records_in_range(file,(int) i, &min_key, &max_key);
     if (range_records < info.records*8/10 ||
 	range_records > info.records*12/10)
     {
@@ -758,8 +756,7 @@ int main(int argc, char *argv[])
       max_key.key= key2;
       max_key.keypart_map= HA_WHOLE_KEY;
       max_key.flag= HA_READ_BEFORE_KEY;
-      range_records= maria_records_in_range(file, 0, &min_key, &max_key,
-                                            &pages);
+      range_records= maria_records_in_range(file, 0, &min_key, &max_key);
       records=0;
       for (j++ ; j < k ; j++)
 	records+=key1[j];
@@ -1218,7 +1215,7 @@ static void put_blob_in_record(uchar *blob_pos, char **blob_buffer,
   if (use_blob)
   {
     if (! *blob_buffer &&
-        !(*blob_buffer=my_malloc(PSI_NOT_INSTRUMENTED, (uint) use_blob,MYF(MY_WME))))
+        !(*blob_buffer=my_malloc((uint) use_blob,MYF(MY_WME))))
     {
       use_blob= 0;
       return;

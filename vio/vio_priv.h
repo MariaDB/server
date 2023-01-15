@@ -26,10 +26,6 @@
 #include <m_string.h>
 #include <violite.h>
 
-extern PSI_memory_key key_memory_vio;
-extern PSI_memory_key key_memory_vio_read_buffer;
-extern PSI_memory_key key_memory_vio_ssl_fd;
-
 #ifdef _WIN32
 size_t vio_read_pipe(Vio *vio, uchar * buf, size_t size);
 size_t vio_write_pipe(Vio *vio, const uchar * buf, size_t size);

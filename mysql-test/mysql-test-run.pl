@@ -2,7 +2,7 @@
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2022, MariaDB Corporation
+# Copyright (c) 2009, 2020, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -77,6 +77,7 @@ BEGIN {
 use lib "lib";
 
 use Cwd ;
+use Cwd 'realpath';
 use POSIX ":sys_wait_h";
 use Getopt::Long qw(:config bundling);
 use My::File::Path; # Patched version of File::Path
@@ -102,8 +103,6 @@ use mtr_results;
 use IO::Socket::INET;
 use IO::Select;
 use Time::HiRes qw(gettimeofday);
-
-sub realpath($) { (IS_WINDOWS) ? $_[0] : Cwd::realpath($_[0]) }
 
 require "mtr_process.pl";
 require "mtr_io.pl";
@@ -134,7 +133,7 @@ our $default_vardir;
 our $opt_vardir;                # Path to use for var/ dir
 our $plugindir;
 our $opt_xml_report;            # XML output
-our $client_plugindir;
+
 my $path_vardir_trace;          # unix formatted opt_vardir for trace files
 my $opt_tmpdir;                 # Path to use for tmp/ dir
 my $opt_tmpdir_pid;
@@ -179,7 +178,6 @@ my @DEFAULT_SUITES= qw(
     archive-
     binlog-
     binlog_encryption-
-    client-
     csv-
     compat/oracle-
     compat/mssql-
@@ -194,7 +192,6 @@ my @DEFAULT_SUITES= qw(
     innodb-
     innodb_fts-
     innodb_gis-
-    innodb_i_s-
     innodb_zip-
     json-
     maria-
@@ -224,7 +221,6 @@ our $exe_mysqladmin;
 our $exe_mysqltest;
 our $exe_libtool;
 our $exe_mysql_embedded;
-our $exe_mariadb_conv;
 
 our $opt_big_test= 0;
 our $opt_staging_run= 0;
@@ -1443,7 +1439,7 @@ sub command_line_setup {
   my $vardir_location= (defined $ENV{MTR_BINDIR} 
                           ? "$ENV{MTR_BINDIR}/mysql-test" 
                           : $glob_mysql_test_dir);
-  $vardir_location= realpath $vardir_location;
+  $vardir_location= realpath $vardir_location unless IS_WINDOWS;
   $default_vardir= "$vardir_location/var";
 
   if ( ! $opt_vardir )
@@ -1543,20 +1539,6 @@ sub command_line_setup {
   {
     mtr_error("Coverage test needs the source - please use source dist");
   }
-
-  $ENV{ASAN_OPTIONS}= "abort_on_error=1:" . ($ENV{ASAN_OPTIONS} || '');
-  $ENV{ASAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/asan.supp:" .
-    $ENV{ASAN_OPTIONS}
-    if -f "$glob_mysql_test_dir/asan.supp" and not IS_WINDOWS;
-  # The following can be useful when a test fails without any asan report
-  # on stderr like with openssl_1.test
-  # $ENV{ASAN_OPTIONS}= "log_path=${opt_vardir}/log/asan:" . $ENV{ASAN_OPTIONS};
-
-  # Add leak suppressions
-  $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp:print_suppressions=0"
-    if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
-
-  mtr_verbose("ASAN_OPTIONS=$ENV{ASAN_OPTIONS}");
 
   # --------------------------------------------------------------------------
   # Modified behavior with --start options
@@ -1815,7 +1797,7 @@ sub find_mysqld {
 
   my ($mysqld_basedir)= $ENV{MTR_BINDIR_FORCED} || $ENV{MTR_BINDIR} || @_;
 
-  my @mysqld_names= ("mariadbd", "mysqld", "mysqld-max-nt", "mysqld-max",
+  my @mysqld_names= ("mysqld", "mysqld-max-nt", "mysqld-max",
 		     "mysqld-nt");
 
   if ( $opt_debug_server ){
@@ -1835,10 +1817,9 @@ sub executable_setup () {
   $exe_patch='patch' if `patch -v`;
 
   # Look for the client binaries
-  $exe_mysqladmin=     mtr_exe_exists("$path_client_bindir/mariadb-admin");
-  $exe_mysql=          mtr_exe_exists("$path_client_bindir/mariadb");
-  $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mariadb-plugin");
-  $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
+  $exe_mysqladmin=     mtr_exe_exists("$path_client_bindir/mysqladmin");
+  $exe_mysql=          mtr_exe_exists("$path_client_bindir/mysql");
+  $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mysql_plugin");
 
   $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mysql_embedded");
 
@@ -1860,7 +1841,7 @@ sub executable_setup () {
     }
     else
     {
-      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mariadb-test");
+      $exe_mysqltest= mtr_exe_exists("$path_client_bindir/mysqltest");
     }
   }
 
@@ -1871,7 +1852,7 @@ sub client_debug_arg($$) {
   my ($args, $client_name)= @_;
 
   # Workaround for Bug #50627: drop any debug opt
-  return if $client_name =~ /^mariadb-binlog/;
+  return if $client_name =~ /^mysqlbinlog/;
 
   if ( $opt_debug ) {
     mtr_add_arg($args,
@@ -1902,7 +1883,7 @@ sub client_arguments ($;$) {
 
 
 sub mysqlbinlog_arguments () {
-  my $exe= mtr_exe_exists("$path_client_bindir/mariadb-binlog");
+  my $exe= mtr_exe_exists("$path_client_bindir/mysqlbinlog");
 
   my $args;
   mtr_init_args(\$args);
@@ -1914,14 +1895,14 @@ sub mysqlbinlog_arguments () {
 
 
 sub mysqlslap_arguments () {
-  my $exe= mtr_exe_maybe_exists("$path_client_bindir/mariadb-slap");
+  my $exe= mtr_exe_maybe_exists("$path_client_bindir/mysqlslap");
   if ( $exe eq "" ) {
     # mysqlap was not found
 
     if (defined $mysql_version_id and $mysql_version_id >= 50100 ) {
-      mtr_error("Could not find the mariadb-slap binary");
+      mtr_error("Could not find the mysqlslap binary");
     }
-    return ""; # Don't care about mariadb-slap
+    return ""; # Don't care about mysqlslap
   }
 
   my $args;
@@ -1934,7 +1915,7 @@ sub mysqlslap_arguments () {
 
 sub mysqldump_arguments ($) {
   my($group_suffix) = @_;
-  my $exe= mtr_exe_exists("$path_client_bindir/mariadb-dump");
+  my $exe= mtr_exe_exists("$path_client_bindir/mysqldump");
 
   my $args;
   mtr_init_args(\$args);
@@ -2083,7 +2064,6 @@ sub environment_setup {
   $ENV{'DEFAULT_MASTER_PORT'}= $mysqld_variables{'port'};
   $ENV{'MYSQL_TMP_DIR'}=      $opt_tmpdir;
   $ENV{'MYSQLTEST_VARDIR'}=   $opt_vardir;
-  $ENV{'MYSQLTEST_REAL_VARDIR'}= realpath $opt_vardir;
   $ENV{'MYSQL_BINDIR'}=       $bindir;
   $ENV{'MYSQL_SHAREDIR'}=     $path_language;
   $ENV{'MYSQL_CHARSETSDIR'}=  $path_charsetsdir;
@@ -2109,26 +2089,25 @@ sub environment_setup {
   # ----------------------------------------------------
   # mysql clients
   # ----------------------------------------------------
-  $ENV{'MYSQL_CHECK'}=              client_arguments("mariadb-check");
+  $ENV{'MYSQL_CHECK'}=              client_arguments("mysqlcheck");
   $ENV{'MYSQL_DUMP'}=               mysqldump_arguments(".1");
   $ENV{'MYSQL_DUMP_SLAVE'}=         mysqldump_arguments(".2");
   $ENV{'MYSQL_SLAP'}=               mysqlslap_arguments();
-  $ENV{'MYSQL_IMPORT'}=             client_arguments("mariadb-import");
-  $ENV{'MYSQL_SHOW'}=               client_arguments("mariadb-show");
+  $ENV{'MYSQL_IMPORT'}=             client_arguments("mysqlimport");
+  $ENV{'MYSQL_SHOW'}=               client_arguments("mysqlshow");
   $ENV{'MYSQL_BINLOG'}=             mysqlbinlog_arguments();
-  $ENV{'MYSQL'}=                    client_arguments("mariadb");
-  $ENV{'MYSQL_SLAVE'}=              client_arguments("mariadb", ".2");
-  $ENV{'MYSQL_UPGRADE'}=            client_arguments("mariadb-upgrade");
-  $ENV{'MYSQLADMIN'}=               client_arguments("mariadb-admin");
+  $ENV{'MYSQL'}=                    client_arguments("mysql");
+  $ENV{'MYSQL_SLAVE'}=              client_arguments("mysql", ".2");
+  $ENV{'MYSQL_UPGRADE'}=            client_arguments("mysql_upgrade");
+  $ENV{'MYSQLADMIN'}=               client_arguments("mysqladmin");
   $ENV{'MYSQL_CLIENT_TEST'}=        mysql_client_test_arguments();
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
-  $ENV{'MARIADB_CONV'}=             $exe_mariadb_conv;
   if(IS_WINDOWS)
   {
-     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mariadb-install-db",
-       "$bindir/bin/mariadb-install-db");
+     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mysql_install_db",
+       "$bindir/bin/mysql_install_db");
   }
 
   my $client_config_exe=
@@ -2211,9 +2190,9 @@ sub environment_setup {
   # ----------------------------------------------------
   # mysql_tzinfo_to_sql
   # ----------------------------------------------------
-  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$multiconfig/mariadb-tzinfo-to-sql",
-                                 "$path_client_bindir/mariadb-tzinfo-to-sql",
-                                 "$bindir/sql$multiconfig/mariadb-tzinfo-to-sql");
+  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$multiconfig/mysql_tzinfo_to_sql",
+                                 "$path_client_bindir/mysql_tzinfo_to_sql",
+                                 "$bindir/sql$multiconfig/mysql_tzinfo_to_sql");
   $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
 
   # ----------------------------------------------------
@@ -2421,15 +2400,12 @@ sub setup_vardir() {
   # and make them world readable
   copytree("$glob_mysql_test_dir/std_data", "$opt_vardir/std_data", "0022");
 
+  # create a plugin dir and copy or symlink plugins into it
   unless($plugindir)
   {
-    # create a plugin dir and copy or symlink plugins into it
     if ($source_dist)
     {
       $plugindir="$opt_vardir/plugins";
-      # Source builds collect both client plugins and server plugins in the
-      # same directory.
-      $client_plugindir= $plugindir;
       mkpath($plugindir);
       if (IS_WINDOWS)
       {
@@ -2484,18 +2460,10 @@ sub setup_vardir() {
            <$bindir/lib/plugin/*.so>,             # bintar
            <$bindir/lib/plugin/*.dll>)
       {
-        my $pname= basename($_);
+        my $pname=basename($_);
         set_plugin_var($pname);
-        $plugindir= dirname($_) unless $plugindir;
+        $plugindir=dirname($_) unless $plugindir;
       }
-
-      # Note: client plugins can be installed separately from server plugins,
-      #       as is the case for Debian packaging.
-      for (<$bindir/lib/*/libmariadb3/plugin>)
-      {
-        $client_plugindir= $_ if <$_/*.so>;
-      }
-      $client_plugindir= $plugindir unless $client_plugindir;
     }
   }
 
@@ -3009,7 +2977,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--loose-skip-plugin-$_") for @optional_plugins;
   # starting from 10.0 bootstrap scripts require InnoDB
   mtr_add_arg($args, "--loose-innodb");
-  mtr_add_arg($args, "--loose-innodb-log-file-size=10M");
+  mtr_add_arg($args, "--loose-innodb-log-file-size=5M");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
@@ -4337,7 +4305,7 @@ sub extract_warning_lines ($$) {
 
   my @patterns =
     (
-     qr/^Warning|(mysqld|mariadbd): Warning|\[Warning\]/,
+     qr/^Warning|mysqld: Warning|\[Warning\]/,
      qr/^Error:|\[ERROR\]/,
      qr/^==\d+==\s+\S/, # valgrind errors
      qr/InnoDB: Warning|InnoDB: Error/,
@@ -4412,7 +4380,7 @@ sub extract_warning_lines ($$) {
      qr|Access denied for user|,
      qr|Aborted connection|,
      qr|table.*is full|,
-     qr/\[ERROR\] (mysqld|mariadbd): \Z/,  # Warning from Aria recovery
+     qr|\[ERROR\] mysqld: \Z|,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
      qr|InnoDB: io_setup\(\) attempt|,
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,
@@ -4446,8 +4414,6 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: User stopword table .* does not exist./,
      qr/Dump thread [0-9]+ last sent to server [0-9]+ binlog file:pos .+/,
      qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/,
-     qr/WSREP: Failed to guess base node address/,
-     qr/WSREP: Guessing address for incoming client/,
 
      # for UBSAN
      qr/decimal\.c.*: runtime error: signed integer overflow/,

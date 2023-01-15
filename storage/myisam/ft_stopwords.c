@@ -59,8 +59,7 @@ int ft_init_stopwords()
   DBUG_ENTER("ft_init_stopwords");
   if (!stopwords3)
   {
-    if (!(stopwords3=(TREE *)my_malloc(mi_key_memory_ft_stopwords,
-                                       sizeof(TREE), MYF(0))))
+    if (!(stopwords3=(TREE *)my_malloc(sizeof(TREE),MYF(0))))
       DBUG_RETURN(-1);
     init_tree(stopwords3,0,0,sizeof(FT_STOPWORD),(qsort_cmp2)&FT_STOPWORD_cmp,
               (ft_stopword_file ? (tree_element_free)&FT_STOPWORD_free : 0),
@@ -90,15 +89,13 @@ int ft_init_stopwords()
       DBUG_RETURN(-1);
     len=(size_t)my_seek(fd, 0L, MY_SEEK_END, MYF(0));
     my_seek(fd, 0L, MY_SEEK_SET, MYF(0));
-    if (!(start= buffer= my_malloc(mi_key_memory_ft_stopwords, len+1,
-                                   MYF(MY_WME))))
+    if (!(start=buffer=my_malloc(len+1, MYF(MY_WME))))
       goto err0;
     len=my_read(fd, buffer, len, MYF(MY_WME));
     end=start+len;
     while (ft_simple_get_word(ft_stopword_cs, &start, end, &w, TRUE))
     {
-      if (ft_add_stopword(my_strndup(mi_key_memory_ft_stopwords,
-                                     (char*) w.pos, w.len, MYF(0))))
+      if (ft_add_stopword(my_strndup((char*) w.pos, w.len, MYF(0))))
         goto err1;
     }
     error=0;

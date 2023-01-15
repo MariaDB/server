@@ -66,7 +66,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #ifdef HAVE_CHARSET_utf8mb4
 #define DYNCOL_UTF (&my_charset_utf8mb4_general_ci)
 #else
-#define DYNCOL_UTF (&my_charset_utf8mb3_general_ci)
+#define DYNCOL_UTF (&my_charset_utf8_general_ci)
 #endif
 
 /* escape json strings */

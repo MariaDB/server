@@ -24,9 +24,9 @@ EXPLAIN (select a,b from t1) intersect (select c,d from t2) intersect (select e,
 EXPLAIN extended (select a,b from t1) intersect (select c,d from t2) intersect (select e,f from t3);
 EXPLAIN extended select * from ((select a,b from t1) intersect (select c,d from t2) intersect (select e,f from t3)) a;
 EXPLAIN format=json (select a,b from t1) intersect (select c,d from t2) intersect (select e,f from t3);
---source include/analyze-format.inc
+--replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json (select a,b from t1) intersect (select c,d from t2) intersect (select e,f from t3);
---source include/analyze-format.inc
+--replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json select * from ((select a,b from t1) intersect (select c,d from t2) intersect (select e,f from t3)) a;
 select * from ((select a,b from t1) intersect (select c,d from t2) intersect (select e,f from t3)) a;
 
@@ -44,9 +44,9 @@ EXPLAIN extended (select a,b from t1) intersect (select c,e from t2,t3);
 EXPLAIN extended select * from ((select a,b from t1) intersect (select c,e from t2,t3)) a;
 set @@optimizer_switch='optimize_join_buffer_size=off';
 EXPLAIN format=json (select a,b from t1) intersect (select c,e from t2,t3);
---source include/analyze-format.inc
+--replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json (select a,b from t1) intersect (select c,e from t2,t3);
---source include/analyze-format.inc
+--replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json select * from ((select a,b from t1) intersect (select c,e from t2,t3)) a;
 set @@optimizer_switch=@save_optimizer_switch;
 select * from ((select a,b from t1) intersect (select c,e from t2,t3)) a;
@@ -71,6 +71,8 @@ select 1 as a from dual intersect select 1 from dual;
 select 1 from dual ORDER BY 1 intersect select 1 from dual;
 
 select 1 as a from dual union all select 1 from dual;
+--error ER_PARSE_ERROR
+select 1 from dual intersect all select 1 from dual;
 
 
 
@@ -151,6 +153,12 @@ insert into t3 values (1,1),(3,3);
 (select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
 explain extended
 (select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
+set SQL_MODE=ORACLE;
+--sorted_result
+(select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
+explain extended
+(select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
+set SQL_MODE=default;
 
 
 # test result of linear mix operation 
@@ -158,6 +166,12 @@ explain extended
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
 explain extended
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
+set SQL_MODE=ORACLE;
+--sorted_result
+(select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
+explain extended
+(select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
+set SQL_MODE=default;
 
 --sorted_result
 (/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) union /* select#3 */ select `__3`.`c` AS `c`,`__3`.`d` AS `d` from ((/* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`) intersect (/* select#4 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`)) `__3` union (/* select#5 */ select 4 AS `4`,4 AS `4`);
@@ -302,9 +316,16 @@ create table t234(c1 int);
 insert into t234 values(2);
 insert into t234 values(3);
 insert into t234 values(4);
-
+ 
+#enable view protocol in 10.5
+--disable_view_protocol
+set SQL_MODE=oracle;
 --sorted_result
 select * from t13 union select * from t234 intersect select * from t12;
+set SQL_MODE=default;
+--sorted_result
+select * from t13 union select * from t234 intersect select * from t12;
+--enable_view_protocol
 
 drop table t12,t13,t234;
 
@@ -321,7 +342,7 @@ insert into t2 values (4), (5), (9), (1), (8), (9);
 create table t3 (a int);
 insert into t3 values (8), (1), (8), (2), (3), (7), (2);
 
---sorted_result
+
 select * from t1 where a > 4
 union all 
 select * from t2 where a < 5

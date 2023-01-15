@@ -69,6 +69,7 @@ struct btr_latch_leaves_t {
 
 #include "que0types.h"
 #include "row0types.h"
+#include "ha0ha.h"
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
@@ -340,22 +341,6 @@ btr_cur_update_alloc_zip_func(
 # define btr_cur_update_alloc_zip(page_zip,cursor,index,offsets,len,cr,mtr) \
 	btr_cur_update_alloc_zip_func(page_zip,cursor,index,len,cr,mtr)
 #endif /* UNIV_DEBUG */
-
-/** Apply an update vector to a record. No field size changes are allowed.
-
-This is usually invoked on a clustered index. The only use case for a
-secondary index is row_ins_sec_index_entry_by_modify() or its
-counterpart in ibuf_insert_to_index_page().
-@param[in,out]  rec     index record
-@param[in]      index   the index of the record
-@param[in]      offsets rec_get_offsets(rec, index)
-@param[in]      update  update vector
-@param[in,out]  block   index page
-@param[in,out]  mtr     mini-transaction */
-void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
-                              const rec_offs *offsets, const upd_t *update,
-                              buf_block_t *block, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
 /*************************************************************//**
 Updates a record when the update causes no size changes in its fields.
 @return locking or undo log related error code, or
@@ -380,6 +365,19 @@ btr_cur_update_in_place(
 				mtr_commit(mtr) before latching any
 				further pages */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
+/***********************************************************//**
+Writes a redo log record of updating a record in-place. */
+void
+btr_cur_update_in_place_log(
+/*========================*/
+	ulint		flags,		/*!< in: flags */
+	const rec_t*	rec,		/*!< in: record */
+	dict_index_t*	index,		/*!< in: index of the record */
+	const upd_t*	update,		/*!< in: update vector */
+	trx_id_t	trx_id,		/*!< in: transaction id */
+	roll_ptr_t	roll_ptr,	/*!< in: roll ptr */
+	mtr_t*		mtr)		/*!< in: mtr */
+	MY_ATTRIBUTE((nonnull));
 /*************************************************************//**
 Tries to update a record on a page in an index tree. It is assumed that mtr
 holds an x-latch on the page. The operation does not succeed if there is too
@@ -460,6 +458,18 @@ btr_cur_del_mark_set_clust_rec(
 	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec) */
 	que_thr_t*	thr,	/*!< in: query thread */
 	const dtuple_t*	entry,	/*!< in: dtuple for the deleting record */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+/***********************************************************//**
+Sets a secondary index record delete mark to TRUE or FALSE.
+@return DB_SUCCESS, DB_LOCK_WAIT, or error number */
+dberr_t
+btr_cur_del_mark_set_sec_rec(
+/*=========================*/
+	ulint		flags,	/*!< in: locking flag */
+	btr_cur_t*	cursor,	/*!< in: cursor */
+	ibool		val,	/*!< in: value to set */
+	que_thr_t*	thr,	/*!< in: query thread */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*************************************************************//**
@@ -550,30 +560,44 @@ btr_cur_parse_update_in_place(
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
 	dict_index_t*	index);	/*!< in: index corresponding to page */
-/** Arguments to btr_estimate_n_rows_in_range */
-struct btr_pos_t
-{
-  btr_pos_t(dtuple_t *arg_tuple,
-            page_cur_mode_t arg_mode,
-            page_id_t arg_page_id)
-  :tuple(arg_tuple), mode(arg_mode), page_id(arg_page_id)
-  {}
-
-  dtuple_t*       tuple;       /* Range start or end. May be NULL */
-  page_cur_mode_t mode;        /* search mode for range */
-  page_id_t       page_id;     /* Out: Page where we found the tuple */
-};
+/****************************************************************//**
+Parses the redo log record for delete marking or unmarking of a clustered
+index record.
+@return end of log record or NULL */
+byte*
+btr_cur_parse_del_mark_set_clust_rec(
+/*=================================*/
+	byte*		ptr,	/*!< in: buffer */
+	byte*		end_ptr,/*!< in: buffer end */
+	page_t*		page,	/*!< in/out: page or NULL */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	dict_index_t*	index);	/*!< in: index corresponding to page */
+/****************************************************************//**
+Parses the redo log record for delete marking or unmarking of a secondary
+index record.
+@return end of log record or NULL */
+byte*
+btr_cur_parse_del_mark_set_sec_rec(
+/*===============================*/
+	byte*		ptr,	/*!< in: buffer */
+	byte*		end_ptr,/*!< in: buffer end */
+	page_t*		page,	/*!< in/out: page or NULL */
+	page_zip_des_t*	page_zip);/*!< in/out: compressed page, or NULL */
 
 /** Estimates the number of rows in a given index range.
 @param[in]	index	index
-@param[in/out]	range_start
-@param[in/out]	range_ end
+@param[in]	tuple1	range start, may also be empty tuple
+@param[in]	mode1	search mode for range start
+@param[in]	tuple2	range end, may also be empty tuple
+@param[in]	mode2	search mode for range end
 @return estimated number of rows */
 ha_rows
 btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
-        btr_pos_t*      range_start,
-        btr_pos_t*      range_end);
+	const dtuple_t*	tuple1,
+	page_cur_mode_t	mode1,
+	const dtuple_t*	tuple2,
+	page_cur_mode_t	mode2);
 
 
 /** Statistics for one field of an index. */
@@ -623,7 +647,8 @@ to free the field. */
 void
 btr_cur_disown_inherited_fields(
 /*============================*/
-	buf_block_t*	block,	/*!< in/out: index page */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose uncompressed
+				part will be updated, or NULL */
 	rec_t*		rec,	/*!< in/out: record in a clustered index */
 	dict_index_t*	index,	/*!< in: index of the page */
 	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
@@ -662,7 +687,9 @@ file segment of the index tree.
 dberr_t
 btr_store_big_rec_extern_fields(
 /*============================*/
-	btr_pcur_t*	pcur,		/*!< in: a persistent cursor */
+	btr_pcur_t*	pcur,		/*!< in/out: a persistent cursor. if
+					btr_mtr is restarted, then this can
+					be repositioned. */
 	rec_offs*	offsets,	/*!< in/out: rec_get_offsets() on
 					pcur. the "external storage" flags
 					in offsets will correctly correspond
@@ -673,7 +700,7 @@ btr_store_big_rec_extern_fields(
 					latches to the clustered index. can be
 					committed and restarted. */
 	enum blob_op	op)		/*! in: operation code */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*******************************************************************//**
 Frees the space in an externally stored field to the file space
@@ -696,12 +723,12 @@ btr_free_externally_stored_field(
 					page_zip_write_blob_ptr(), or NULL */
 	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec, index),
 					or NULL */
-	buf_block_t*	block,		/*!< in/out: page of field_ref */
+	page_zip_des_t*	page_zip,	/*!< in: compressed page corresponding
+					to rec, or NULL if rec == NULL */
 	ulint		i,		/*!< in: field number of field_ref;
 					ignored if rec == NULL */
 	bool		rollback,	/*!< in: performing rollback? */
-	mtr_t*		local_mtr)	/*!< in: mtr containing the latch */
-	MY_ATTRIBUTE((nonnull(1,2,5,8)));
+	mtr_t*		local_mtr);	/*!< in: mtr containing the latch */
 
 /** Copies the prefix of an externally stored field of a record.
 The clustered index record must be protected by a lock or a page latch.
@@ -758,8 +785,33 @@ btr_rec_copy_externally_stored_field(
 	ulint*			len,
 	mem_heap_t*		heap);
 
+/***********************************************************//**
+Sets a secondary index record's delete mark to the given value. This
+function is only used by the insert buffer merge mechanism. */
+void
+btr_cur_set_deleted_flag_for_ibuf(
+/*==============================*/
+	rec_t*		rec,		/*!< in/out: record */
+	page_zip_des_t*	page_zip,	/*!< in/out: compressed page
+					corresponding to rec, or NULL
+					when the tablespace is uncompressed */
+	ibool		val,		/*!< in: value to set */
+	mtr_t*		mtr);		/*!< in/out: mini-transaction */
+
+/******************************************************//**
+The following function is used to set the deleted bit of a record. */
+UNIV_INLINE
+void
+btr_rec_set_deleted_flag(
+/*=====================*/
+	rec_t*		rec,	/*!< in/out: physical record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page (or NULL) */
+	ulint		flag);	/*!< in: nonzero if delete marked */
+
 /** Latches the leaf page or pages requested.
 @param[in]	block		leaf page where the search converged
+@param[in]	page_id		page id of the leaf
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[in]	cursor		cursor
 @param[in]	mtr		mini-transaction
@@ -767,6 +819,8 @@ btr_rec_copy_externally_stored_field(
 btr_latch_leaves_t
 btr_cur_latch_leaves(
 	buf_block_t*		block,
+	const page_id_t		page_id,
+	ulint			zip_size,
 	ulint			latch_mode,
 	btr_cur_t*		cursor,
 	mtr_t*			mtr);
@@ -797,7 +851,7 @@ struct btr_path_t {
 	ulint	n_recs;
 
 	/** Number of the page containing the record. */
-	uint32_t page_no;
+	ulint	page_no;
 
 	/** Level of the page. If later we fetch the page under page_no
 	and it is no different level then we know that the tree has been
@@ -918,14 +972,15 @@ struct btr_cur_t {
 	}
 };
 
-/** Modify the delete-mark flag of a record.
-@tparam         flag    the value of the delete-mark flag
-@param[in,out]  block   buffer block
-@param[in,out]  rec     record on a physical index page
-@param[in,out]  mtr     mini-transaction  */
-template<bool flag>
-void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
+/******************************************************//**
+The following function is used to set the deleted bit of a record. */
+UNIV_INLINE
+void
+btr_rec_set_deleted_flag(
+/*=====================*/
+	rec_t*		rec,	/*!< in/out: physical record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page (or NULL) */
+	ulint		flag);	/*!< in: nonzero if delete marked */
 
 /** If pessimistic delete fails because of lack of file space, there
 is still a good change of success a little later.  Try this many

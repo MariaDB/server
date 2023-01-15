@@ -161,6 +161,16 @@ but it will never be dereferenced, because the purge view is older
 than any active transaction.
 
 For details see: row_vers_old_has_index_entry() and row_purge_poss_sec()
+
+Some additional issues:
+
+What if trx_sys.view_list == NULL and some transaction T1 and Purge both
+try to open read_view at same time. Only one can acquire trx_sys.mutex.
+In which order will the views be opened? Should it matter? If no, why?
+
+The order does not matter. No new transactions can be created and no running
+RW transaction can commit or rollback (or free views). AC-NL-RO transactions
+will mark their views as closed but not actually free their views.
 */
 
 
@@ -170,7 +180,7 @@ For details see: row_vers_old_has_index_entry() and row_purge_poss_sec()
 
   @param[in,out] trx transaction
 */
-inline void ReadViewBase::snapshot(trx_t *trx)
+inline void ReadView::snapshot(trx_t *trx)
 {
   trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
   std::sort(m_ids.begin(), m_ids.end());
@@ -186,52 +196,74 @@ inline void ReadViewBase::snapshot(trx_t *trx)
   View becomes visible to purge thread.
 
   @param[in,out] trx transaction
-
-  Reuses closed view if there were no read-write transactions since (and at)
-  its creation time.
-
-  Original comment states: there is an inherent race here between purge
-  and this thread.
-
-  To avoid this race we should've checked trx_sys.get_max_trx_id() and
-  set m_open atomically under ReadView::m_mutex protection. But we're cutting
-  edges to achieve greater performance.
-
-  There're at least two types of concurrent threads interested in this
-  value: purge coordinator thread (see trx_sys_t::clone_oldest_view()) and
-  InnoDB monitor thread (see lock_trx_print_wait_and_mvcc_state()).
-
-  What bad things can happen because we allow this race?
-
-  Speculative execution may reorder state change before get_max_trx_id().
-  In this case purge thread has short gap to clone outdated view. Which is
-  probably not that bad: it just won't be able to purge things that it was
-  actually allowed to purge for a short while.
-
-  This thread may as well get suspended after trx_sys.get_max_trx_id() and
-  before m_open is set. New read-write transaction may get started, committed
-  and purged meanwhile. It is acceptable as well, since this view doesn't see
-  it.
 */
 void ReadView::open(trx_t *trx)
 {
   ut_ad(this == &trx->read_view);
-  if (is_open())
-    ut_ad(!srv_read_only_mode);
-  else if (likely(!srv_read_only_mode))
+  switch (state())
   {
-    m_creator_trx_id= trx->id;
-    if (trx->is_autocommit_non_locking() && empty() &&
-        low_limit_id() == trx_sys.get_max_trx_id())
-      m_open.store(true, std::memory_order_relaxed);
-    else
-    {
-      mutex_enter(&m_mutex);
-      snapshot(trx);
-      m_open.store(true, std::memory_order_relaxed);
-      mutex_exit(&m_mutex);
-    }
+  case READ_VIEW_STATE_OPEN:
+    ut_ad(!srv_read_only_mode);
+    return;
+  case READ_VIEW_STATE_CLOSED:
+    if (srv_read_only_mode)
+      return;
+    /*
+      Reuse closed view if there were no read-write transactions since (and at)
+      its creation time.
+
+      Original comment states: there is an inherent race here between purge
+      and this thread.
+
+      To avoid this race we should've checked trx_sys.get_max_trx_id() and
+      set state to READ_VIEW_STATE_OPEN atomically under trx_sys.mutex
+      protection. But we're cutting edges to achieve great scalability.
+
+      There're at least two types of concurrent threads interested in this
+      value: purge coordinator thread (see trx_sys_t::clone_oldest_view()) and
+      InnoDB monitor thread (see lock_trx_print_wait_and_mvcc_state()).
+
+      What bad things can happen because we allow this race?
+
+      Speculative execution may reorder state change before get_max_trx_id().
+      In this case purge thread has short gap to clone outdated view. Which is
+      probably not that bad: it just won't be able to purge things that it was
+      actually allowed to purge for a short while.
+
+      This thread may as well get suspended after trx_sys.get_max_trx_id() and
+      before state is set to READ_VIEW_STATE_OPEN. New read-write transaction
+      may get started, committed and purged meanwhile. It is acceptable as
+      well, since this view doesn't see it.
+    */
+    if (trx->is_autocommit_non_locking() && m_ids.empty() &&
+        m_low_limit_id == trx_sys.get_max_trx_id())
+      goto reopen;
+
+    /*
+      Can't reuse view, take new snapshot.
+
+      Alas this empty critical section is simplest way to make sure concurrent
+      purge thread completed snapshot copy. Of course purge thread may come
+      again and try to copy once again after we release this mutex, but in
+      this case it is guaranteed to see READ_VIEW_STATE_REGISTERED and thus
+      it'll skip this view.
+
+      This critical section can be replaced with new state, which purge thread
+      would set to inform us to wait until it completes snapshot. However it'd
+      complicate m_state even further.
+    */
+    mutex_enter(&trx_sys.mutex);
+    mutex_exit(&trx_sys.mutex);
+    m_state.store(READ_VIEW_STATE_SNAPSHOT, std::memory_order_relaxed);
+    break;
+  default:
+    ut_ad(0);
   }
+
+  snapshot(trx);
+reopen:
+  m_creator_trx_id= trx->id;
+  m_state.store(READ_VIEW_STATE_OPEN, std::memory_order_release);
 }
 
 
@@ -242,11 +274,21 @@ void ReadView::open(trx_t *trx)
   in. This function is called by purge thread to determine whether it should
   purge the delete marked record or not.
 */
-void trx_sys_t::clone_oldest_view(ReadViewBase *view) const
+void trx_sys_t::clone_oldest_view()
 {
-  view->snapshot(nullptr);
+  purge_sys.view.snapshot(0);
+  mutex_enter(&mutex);
   /* Find oldest view. */
-  trx_list.for_each([view](const trx_t &trx) {
-                      trx.read_view.append_to(view);
-		    });
+  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
+  {
+    uint32_t state;
+
+    while ((state= trx->read_view.get_state()) == READ_VIEW_STATE_SNAPSHOT)
+      ut_delay(1);
+
+    if (state == READ_VIEW_STATE_OPEN)
+      purge_sys.view.copy(trx->read_view);
+  }
+  mutex_exit(&mutex);
 }

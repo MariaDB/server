@@ -49,7 +49,6 @@ set local sql_mode="";
 # used in this test in order to be able to 
 # check that DDL statements on temporary tables
 # are compatible with FTRWL. 
-call mtr.add_suppression("BINLOG_BASE64_EVENT: Error executing row event.*error code: 1223");
 drop tables if exists t1_base, t2_base, t3_trans;
 drop tables if exists tm_base, tm_base_temp;
 drop database if exists mysqltest1;
@@ -439,6 +438,7 @@ Success: Was able to run 'execute stmt1' under FTWRL.
 Success: Was able to run 'execute stmt1' with FTWRL active in another connection.
 Success: Was able to run FTWRL while 'execute stmt1' was active in another connection.
 deallocate prepare stmt1;
+call mtr.add_suppression("Slave SQL.*Can.t execute the query because you have a conflicting read lock., error.* 1223");
 #
 # 9.2.b) EXECUTE for statement which is incompatible with FTWRL
 #        should be also incompatible.
@@ -1310,8 +1310,6 @@ unlock tables;
 # Check that XA non-COMMIT statements are not and COMMIT is
 # blocked by active FTWRL in another connection
 #
-# XA COMMIT, XA ROLLBACK and XA PREPARE does take COMMIT lock to ensure
-# that nothing is written to bin log and redo log under FTWRL mode.
 connection con1;
 flush tables with read lock;
 connection default;
@@ -1324,101 +1322,24 @@ connection con1;
 flush tables with read lock;
 connection default;
 xa end 'test1';
-xa prepare 'test1';;
-connection con1;
-unlock tables;
-# Switching to connection 'default'.
-connection default;
-# Reap XA PREPARE.
-# Switching to connection 'con1'.
-connection con1;
-flush tables with read lock;
-# Switching to connection 'default'.
-connection default;
-# Send XA ROLLBACK 'test1'
-xa rollback 'test1';
-# Switching to connection 'con1'.
-connection con1;
-# Wait until XA ROLLBACK is blocked.
-unlock tables;
-connection default;
-# Reap XA ROLLBACK
-xa start 'test1';
-insert into t3_trans values (1);
-connection con1;
-flush tables with read lock;
-connection default;
-connection default;
-xa end 'test1';
-# Send XA PREPARE 'test1'
 xa prepare 'test1';
-# Switching to connection 'con1'.
+xa rollback 'test1';
 connection con1;
-# Wait until XA PREPARE is blocked.
 unlock tables;
-# Switching to connection 'default'.
 connection default;
-# Reap XA PREPARE.
-# Switching to connection 'con1'.
+xa start 'test1';
+insert into t3_trans values (1);
 connection con1;
 flush tables with read lock;
-# Switching to connection 'default'.
 connection default;
+connection default;
+xa end 'test1';
+xa prepare 'test1';
 # Send:
 xa commit 'test1';;
 connection con1;
 # Wait until XA COMMIT is blocked.
 unlock tables;
-connection default;
-# Reap XA COMMIT.
-delete from t3_trans;
-#
-# Check that XA COMMIT / ROLLBACK for prepared transaction from a
-# disconnected session is blocked by active FTWRL in another connection.
-#
-# Create temporary connection for XA transaction.
-connect  con_tmp,localhost,root,,;
-xa start 'test1';
-insert into t3_trans values (1);
-xa end 'test1';
-xa prepare 'test1';
-# Disconnect temporary connection
-set debug_sync='thread_end SIGNAL test1_prepare';
-disconnect con_tmp;
-connection con1;
-set debug_sync='now WAIT_FOR test1_prepare';
-# Create temporary connection for XA transaction.
-connect  con_tmp1,localhost,root,,;
-xa start 'test2';
-insert into t3_trans values (2);
-xa end 'test2';
-xa prepare 'test2';
-# Disconnect temporary connection
-set debug_sync='thread_end SIGNAL test2_prepare';
-disconnect con_tmp1;
-# Switching to connection 'con1'.
-connection con1;
-set debug_sync='now WAIT_FOR test2_prepare';
-flush tables with read lock;
-# Switching to connection 'default'.
-connection default;
-# Send XA ROLLBACK 'test1'
-xa rollback 'test1';
-# Switching to connection 'con1'.
-connection con1;
-# Wait until XA ROLLBACK is blocked.
-unlock tables;
-flush tables with read lock;
-# Switching to connection 'default'.
-connection default;
-# Reap XA ROLLBACK
-# Send XA COMMIT
-xa commit 'test2';;
-# Switching to connection 'con1'.
-connection con1;
-# Wait until XA COMMIT is blocked.
-unlock tables;
-# Switching to connection 'default'.
 connection default;
 # Reap XA COMMIT.
 delete from t3_trans;

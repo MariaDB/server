@@ -146,7 +146,7 @@ typedef class ha_connect *PHC;
 /** @brief
   Class definition for the storage engine
 */
-class ha_connect final : public handler
+class ha_connect: public handler
 {
   THR_LOCK_DATA lock;      ///< MySQL lock
   CONNECT_SHARE *share;        ///< Shared lock info
@@ -463,8 +463,8 @@ int index_prev(uchar *buf);
   int start_stmt(THD *thd, thr_lock_type lock_type);
   int external_lock(THD *thd, int lock_type);                   ///< required
   int delete_all_rows(void);
-  ha_rows records_in_range(uint inx, const key_range *start_key,
-                           const key_range *end_key, page_range *pages);
+  ha_rows records_in_range(uint inx, key_range *min_key,
+                           key_range *max_key);
   /**
     These methods can be overridden, but their default implementation
     provide useful functionality.

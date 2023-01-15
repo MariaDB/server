@@ -256,3 +256,32 @@ fts_get_select_columns_str(
 
 	return(str);
 }
+
+/******************************************************************//**
+Commit a transaction.
+@return DB_SUCCESS or error code */
+dberr_t
+fts_sql_commit(
+/*===========*/
+	trx_t*		trx)		/*!< in: transaction */
+{
+	dberr_t	error;
+
+	error = trx_commit_for_mysql(trx);
+
+	/* Commit should always succeed */
+	ut_a(error == DB_SUCCESS);
+
+	return(DB_SUCCESS);
+}
+
+/******************************************************************//**
+Rollback a transaction.
+@return DB_SUCCESS or error code */
+dberr_t
+fts_sql_rollback(
+/*=============*/
+	trx_t*		trx)		/*!< in: transaction */
+{
+	return(trx_rollback_to_savepoint(trx, NULL));
+}

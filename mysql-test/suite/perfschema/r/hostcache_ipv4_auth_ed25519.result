@@ -22,7 +22,7 @@ set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddr
 connect(127.0.0.1,plug1,foo,test,PORT,SOCKET);
 connect con1, 127.0.0.1, plug1,foo,,$MASTER_MYPORT;
 ERROR 28000: Access denied for user 'plug1'@'santa.claus.ipv4.example.com' (using password: YES)
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -53,7 +53,7 @@ LAST_ERROR_SEEN	set
 connect(127.0.0.1,plug2,bar,test,PORT,SOCKET);
 connect con1, 127.0.0.1, plug2,bar,,$MASTER_MYPORT;
 ERROR 28000: Access denied for user 'plug2'@'santa.claus.ipv4.example.com' (using password: YES)
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -87,7 +87,7 @@ current_user()
 plug2@santa.claus.ipv4.example.com
 disconnect con1;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES

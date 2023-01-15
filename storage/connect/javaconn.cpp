@@ -349,7 +349,7 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 /***********************************************************************/
 bool JAVAConn::Open(PGLOBAL g)
 {
-         bool		 brc = true;
+	bool		 brc = true, err = false;
 	jboolean jt = (trace(1));
 
 	// Link or check whether jvm library was linked

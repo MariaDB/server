@@ -10,14 +10,14 @@ SELECT @@character_set_database;
 latin1
 SET @@character_set_database="latin1";
 SELECT COUNT(*) FROM t1;
-ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+test.t1	check	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
 test.t1	check	error	Corrupt
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+test.t1	repair	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
 test.t1	repair	error	Corrupt
 REPAIR TABLE t1 USE_FRM;
 Table	Op	Msg_type	Msg_text
@@ -64,7 +64,7 @@ SELECT @@character_set_database, 'taken from db.opt' AS comment;
 @@character_set_database	comment
 latin1	taken from db.opt
 SELECT COUNT(*) FROM t1;
-ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
 REPAIR TABLE t1 USE_FRM;
 Table	Op	Msg_type	Msg_text
 db1.t1	repair	status	OK

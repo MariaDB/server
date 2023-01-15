@@ -1,5 +1,4 @@
-/* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -638,9 +637,9 @@ SPIDER_CONN_HOLDER *spider_fields::create_conn_holder(
   DBUG_PRINT("info",("spider this=%p", this));
   return_conn_holder = (SPIDER_CONN_HOLDER *)
     spider_bulk_malloc(spider_current_trx, 252, MYF(MY_WME | MY_ZEROFILL),
-      &return_conn_holder, (uint) (sizeof(SPIDER_CONN_HOLDER)),
+      &return_conn_holder, sizeof(SPIDER_CONN_HOLDER),
       &table_link_idx_holder,
-        (uint) (table_count * sizeof(SPIDER_TABLE_LINK_IDX_HOLDER)),
+        table_count * sizeof(SPIDER_TABLE_LINK_IDX_HOLDER),
       NullS
     );
   if (!return_conn_holder)
@@ -795,7 +794,7 @@ void spider_fields::choose_a_conn(
   SPIDER_CONN_HOLDER *conn_holder;
   longlong balance_total = 0, balance_val;
   double rand_val;
-  THD *thd = table_holder[0].spider->wide_handler->trx->thd;
+  THD *thd = table_holder[0].spider->trx->thd;
   DBUG_ENTER("spider_fields::choose_a_conn");
   DBUG_PRINT("info",("spider this=%p", this));
   for (current_conn_holder = first_conn_holder; current_conn_holder;
@@ -1147,8 +1146,8 @@ int spider_fields::ping_table_mon_from_table(
     if (tmp_share->monitoring_kind[tmp_link_idx])
     {
       error_num_buf = spider_ping_table_mon_from_table(
-          tmp_spider->wide_handler->trx,
-          tmp_spider->wide_handler->trx->thd,
+          tmp_spider->trx,
+          tmp_spider->trx->thd,
           tmp_share,
           tmp_link_idx,
           (uint32) tmp_share->monitoring_sid[tmp_link_idx],
@@ -1181,7 +1180,7 @@ spider_group_by_handler::spider_group_by_handler(
   fields->set_pos_to_first_table_holder();
   SPIDER_TABLE_HOLDER *table_holder = fields->get_next_table_holder();
   spider = table_holder->spider;
-  trx = spider->wide_handler->trx;
+  trx = spider->trx;
   DBUG_VOID_RETURN;
 }
 
@@ -1941,12 +1940,6 @@ group_by_handler *spider_create_group_by_handler(
     delete fields;
     DBUG_RETURN(NULL);
   }
-  if (spider->dml_init())
-  {
-    DBUG_PRINT("info",("spider can not init for dml"));
-    delete fields;
-    DBUG_RETURN(NULL);
-  }
   for (
     roop_count = spider_conn_link_idx_next(share->link_statuses,
       spider->conn_link_idx, -1, share->link_count,
@@ -2029,12 +2022,6 @@ group_by_handler *spider_create_group_by_handler(
     }
     DBUG_PRINT("info",("spider s->db=%s", from->table->s->db.str));
     DBUG_PRINT("info",("spider s->table_name=%s", from->table->s->table_name.str));
-    if (spider->dml_init())
-    {
-      DBUG_PRINT("info",("spider can not init for dml"));
-      delete fields;
-      DBUG_RETURN(NULL);
-    }
     for (
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         spider->conn_link_idx, -1, share->link_count,

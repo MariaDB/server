@@ -5,7 +5,7 @@
 
 #include <tunables/global>
 
-/usr/sbin/mariadbd flags=(complain) {
+/usr/sbin/mysqld flags=(complain) {
   #include <abstractions/base>
   #include <abstractions/mysql>
   #include <abstractions/nameservice>
@@ -46,7 +46,7 @@
   /tmp/** rw,
   /usr/lib/mysql/plugin/ r,
   /usr/lib/mysql/plugin/*.so* mr,
-  /usr/sbin/mariadbd mr,
+  /usr/sbin/mysqld mr,
   /usr/share/mysql/** r,
   /var/lib/mysql/ r,
   /var/lib/mysql/** rwk,
@@ -54,8 +54,8 @@
   /var/log/mysql.log rw,
   /var/log/mysql/ r,
   /var/log/mysql/* rw,
-  /run/mysqld/mysqld.pid w,
-  /run/mysqld/mysqld.sock w,
+  /var/run/mysqld/mysqld.pid w,
+  /var/run/mysqld/mysqld.sock w,
 
 
   profile /bin/dash flags=(complain) {
@@ -147,5 +147,5 @@
     /usr/bin/xbstream rix,
   }
   # Site-specific additions and overrides. See local/README for details.
-  #include <local/usr.sbin.mariadbd>
+  #include <local/usr.sbin.mysqld>
 }

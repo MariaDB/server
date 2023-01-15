@@ -1,4 +1,4 @@
-SET DEFAULT_STORAGE_ENGINE = MyISAM;
+SET STORAGE_ENGINE = MyISAM;
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='rowid_filter=off';
 set optimizer_switch='index_merge_sort_intersection=off';
@@ -227,7 +227,7 @@ alter table t2 add index i321(key3, key2, key1);
 explain select key3 from t2 where key1 = 100 or key2 = 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index_merge	i1_3,i2_3	i1_3,i2_3	4,4	NULL	2	Using sort_union(i1_3,i2_3); Using where
-explain select key3 from t2 where key1 < 600 or key2 < 600;
+explain select key3 from t2 where key1 < 500 or key2 < 500;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	i1_3,i2_3	i321	12	NULL	1024	Using where; Using index
 explain select key7 from t2 where key1 <100 or key2 < 100;
@@ -1487,7 +1487,7 @@ EXPLAIN SELECT t1.f1 FROM t1
 WHERE (SELECT COUNT(*) FROM t2 WHERE t2.f3 = 'h' AND t2.f2 = t1.f1) = 0 AND t1.f1 = 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	
-2	SUBQUERY	t2	ref	f2,f3	f3	2	const	2	Using index condition; Using where
+2	SUBQUERY	t2	ref	f2,f3	f2	5	const	2	Using where
 DROP TABLE t1,t2;
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);

@@ -58,6 +58,7 @@ Created 12/14/1997 Heikki Tuuri
 #include "pars0grm.h"
 #include "pars0sym.h"
 #include "mem0mem.h"
+#include "os0proc.h"
 
 #define malloc(A)	ut_malloc_nokey(A)
 #define free(A)		ut_free(A)
@@ -475,14 +476,14 @@ In the state 'id', only two actions are possible (defined below). */
 {ID}		{
 			yylval = sym_tab_add_id(pars_sym_tab_global,
 							(byte*) yytext,
-							strlen(yytext));
+							ut_strlen(yytext));
 			return(PARS_ID_TOKEN);
 }
 
 {TABLE_NAME}	{
 			yylval = sym_tab_add_id(pars_sym_tab_global,
 							(byte*) yytext,
-							strlen(yytext));
+							ut_strlen(yytext));
 			return(PARS_TABLE_NAME_TOKEN);
 }
 

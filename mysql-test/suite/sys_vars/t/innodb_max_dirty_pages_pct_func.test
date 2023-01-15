@@ -25,7 +25,6 @@
 --source include/have_innodb.inc
 
 # safe initial value
-SET @innodb_max_dirty_pages_pct_lwm = @@global.innodb_max_dirty_pages_pct_lwm;
 SET @innodb_max_dirty_pages_pct = @@global.innodb_max_dirty_pages_pct;
 
 --echo '#--------------------FN_DYNVARS_044_02-------------------------#'
@@ -33,19 +32,23 @@ SET @innodb_max_dirty_pages_pct = @@global.innodb_max_dirty_pages_pct;
 # Check if setting innodb_max_dirty_pages_pct is changed in new connection #
 ############################################################################
 
-SET @@global.innodb_max_dirty_pages_pct_lwm = 0;
 SET @@global.innodb_max_dirty_pages_pct = 80;
-SET @@global.innodb_max_dirty_pages_pct_lwm = 80;
+--echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
+--echo 'connection con1'
 connection con1;
 SELECT @@global.innodb_max_dirty_pages_pct;
 SET @@global.innodb_max_dirty_pages_pct = 70;
-SELECT @@global.innodb_max_dirty_pages_pct_lwm;
+--echo 'connect (con2,localhost,root,,,,)'
 connect (con2,localhost,root,,,,);
+--echo 'connection con2'
 connection con2;
 SELECT @@global.innodb_max_dirty_pages_pct;
+--echo 'connection default'
 connection default;
+--echo 'disconnect con2'
 disconnect con2;
+--echo 'disconnect con1'
 disconnect con1;
 # restore initial value
 SET @@global.innodb_max_dirty_pages_pct = @innodb_max_dirty_pages_pct;
@@ -135,10 +138,6 @@ b CHAR(200)
 #==========================================================
 
 SET @@global.innodb_max_dirty_pages_pct = 10;
-SELECT @@global.innodb_max_dirty_pages_pct_lwm;
-SET GLOBAL innodb_max_dirty_pages_pct_lwm = 15;
-SELECT @@global.innodb_max_dirty_pages_pct_lwm;
-SELECT @@global.innodb_max_dirty_pages_pct;
 
 FLUSH STATUS;
 
@@ -165,9 +164,7 @@ DROP FUNCTION dirty_pct;
 DROP TABLE t1;
 
 # restore initial value
-SET GLOBAL innodb_max_dirty_pages_pct_lwm = 0;
 SET @@global.innodb_max_dirty_pages_pct = @innodb_max_dirty_pages_pct;
-SET @@global.innodb_max_dirty_pages_pct_lwm = @innodb_max_dirty_pages_pct_lwm;
 
 ##################################################################
 # End of functionality Testing for innodb_max_dirty_pages_pct    #

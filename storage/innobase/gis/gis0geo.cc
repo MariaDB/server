@@ -580,71 +580,193 @@ split_rtree_node(
 	return(first_rec_group);
 }
 
-/** Compare two minimum bounding rectangles.
-@param mode   comparison operator
+/*************************************************************//**
+Compares two keys a and b depending on nextflag
+nextflag can contain these flags:
    MBR_INTERSECT(a,b)  a overlaps b
    MBR_CONTAIN(a,b)    a contains b
    MBR_DISJOINT(a,b)   a disjoint b
    MBR_WITHIN(a,b)     a within   b
    MBR_EQUAL(a,b)      All coordinates of MBRs are equal
-   MBR_DATA(a,b)       Data reference is the same
-@param b first MBR
-@param a second MBR
-@retval 0 if the predicate holds
-@retval 1 if the precidate does not hold */
-int rtree_key_cmp(page_cur_mode_t mode, const void *b, const void *a)
+Return 0 on success, otherwise 1. */
+int
+rtree_key_cmp(
+/*==========*/
+	page_cur_mode_t	mode,	/*!< in: compare method. */
+	const uchar*	b,	/*!< in: first key. */
+	int,
+	const uchar*	a,	/*!< in: second key. */
+	int		a_len)	/*!< in: second key len. */
 {
-  const byte *b_= static_cast<const byte*>(b);
-  const byte *a_= static_cast<const byte*>(a);
+	double		amin, amax, bmin, bmax;
+	int		key_len;
+	int		keyseg_len;
 
-  static_assert(DATA_MBR_LEN == SPDIMS * 2 * sizeof(double), "compatibility");
+	keyseg_len = 2 * sizeof(double);
+	for (key_len = a_len; key_len > 0; key_len -= keyseg_len) {
+		amin = mach_double_read(a);
+		bmin = mach_double_read(b);
+		amax = mach_double_read(a + sizeof(double));
+		bmax = mach_double_read(b + sizeof(double));
 
-  for (auto i = SPDIMS; i--; )
-  {
-    double amin= mach_double_read(a_);
-    double bmin= mach_double_read(b_);
-    a_+= sizeof(double);
-    b_+= sizeof(double);
-    double amax= mach_double_read(a_);
-    double bmax= mach_double_read(b_);
-    a_+= sizeof(double);
-    b_+= sizeof(double);
+		switch (mode) {
+		case PAGE_CUR_INTERSECT:
+			if (INTERSECT_CMP(amin, amax, bmin, bmax)) {
+				return(1);
+			}
+			break;
+		case PAGE_CUR_CONTAIN:
+			if (CONTAIN_CMP(amin, amax, bmin, bmax)) {
+				return(1);
+			}
+			break;
+		case PAGE_CUR_WITHIN:
+			if (WITHIN_CMP(amin, amax, bmin, bmax)) {
+				return(1);
+			}
+			break;
+		case PAGE_CUR_MBR_EQUAL:
+			if (EQUAL_CMP(amin, amax, bmin, bmax)) {
+				return(1);
+			}
+			break;
+		case PAGE_CUR_DISJOINT:
+			int result;
 
-    switch (mode) {
-    case PAGE_CUR_INTERSECT:
-      if (INTERSECT_CMP(amin, amax, bmin, bmax))
-        return 1;
-      continue;
-    case PAGE_CUR_CONTAIN:
-      if (CONTAIN_CMP(amin, amax, bmin, bmax))
-        return 1;
-      continue;
-    case PAGE_CUR_WITHIN:
-      if (WITHIN_CMP(amin, amax, bmin, bmax))
-        return 1;
-      continue;
-    case PAGE_CUR_MBR_EQUAL:
-      if (EQUAL_CMP(amin, amax, bmin, bmax))
-        return 1;
-      continue;
-    case PAGE_CUR_DISJOINT:
-      if (!DISJOINT_CMP(amin, amax, bmin, bmax))
-        return 0;
-      if (!i)
-        return 1;
-      continue;
-    case PAGE_CUR_UNSUPP:
-    case PAGE_CUR_G:
-    case PAGE_CUR_GE:
-    case PAGE_CUR_L:
-    case PAGE_CUR_LE:
-    case PAGE_CUR_RTREE_LOCATE:
-    case PAGE_CUR_RTREE_GET_FATHER:
-    case PAGE_CUR_RTREE_INSERT:
-      break;
-    }
-    ut_ad("unknown comparison operator" == 0);
-  }
+			result = DISJOINT_CMP(amin, amax, bmin, bmax);
+			if (result == 0) {
+				return(0);
+			}
 
-  return 0;
+			if (key_len - keyseg_len <= 0) {
+				return(1);
+			}
+
+			break;
+		default:
+			/* if unknown comparison operator */
+			ut_ad(0);
+		}
+
+		a += keyseg_len;
+		b += keyseg_len;
+	}
+
+	return(0);
+}
+
+/*************************************************************//**
+Calculates MBR_AREA(a+b) - MBR_AREA(a)
+Note: when 'a' and 'b' objects are far from each other,
+the area increase can be really big, so this function
+can return 'inf' as a result.
+Return the area increaed. */
+double
+rtree_area_increase(
+	const uchar*	a,		/*!< in: original mbr. */
+	const uchar*	b,		/*!< in: new mbr. */
+	int		mbr_len,	/*!< in: mbr length of a and b. */
+	double*		ab_area)	/*!< out: increased area. */
+{
+	double		a_area = 1.0;
+	double		loc_ab_area = 1.0;
+	double		amin, amax, bmin, bmax;
+	int		key_len;
+	int		keyseg_len;
+	double		data_round = 1.0;
+
+	keyseg_len = 2 * sizeof(double);
+
+	for (key_len = mbr_len; key_len > 0; key_len -= keyseg_len) {
+		double	area;
+
+		amin = mach_double_read(a);
+		bmin = mach_double_read(b);
+		amax = mach_double_read(a + sizeof(double));
+		bmax = mach_double_read(b + sizeof(double));
+
+		area = amax - amin;
+		if (area == 0) {
+			a_area *= LINE_MBR_WEIGHTS;
+		} else {
+			a_area *= area;
+		}
+
+		area = (double)std::max(amax, bmax) -
+		       (double)std::min(amin, bmin);
+		if (area == 0) {
+			loc_ab_area *= LINE_MBR_WEIGHTS;
+		} else {
+			loc_ab_area *= area;
+		}
+
+		/* Value of amax or bmin can be so large that small difference
+		are ignored. For example: 3.2884281489988079e+284 - 100 =
+		3.2884281489988079e+284. This results some area difference
+		are not detected */
+		if (loc_ab_area == a_area) {
+			if (bmin < amin || bmax > amax) {
+				data_round *= ((double)std::max(amax, bmax)
+					       - amax
+					       + (amin - (double)std::min(
+								amin, bmin)));
+			} else {
+				data_round *= area;
+			}
+		}
+
+		a += keyseg_len;
+		b += keyseg_len;
+	}
+
+	*ab_area = loc_ab_area;
+
+	if (loc_ab_area == a_area && data_round != 1.0) {
+		return(data_round);
+	}
+
+	return(loc_ab_area - a_area);
+}
+
+/** Calculates overlapping area
+@param[in]	a	mbr a
+@param[in]	b	mbr b
+@param[in]	mbr_len	mbr length
+@return overlapping area */
+double
+rtree_area_overlapping(
+	const uchar*	a,
+	const uchar*	b,
+	int		mbr_len)
+{
+	double	area = 1.0;
+	double	amin;
+	double	amax;
+	double	bmin;
+	double	bmax;
+	int	key_len;
+	int	keyseg_len;
+
+	keyseg_len = 2 * sizeof(double);
+
+	for (key_len = mbr_len; key_len > 0; key_len -= keyseg_len) {
+		amin = mach_double_read(a);
+		bmin = mach_double_read(b);
+		amax = mach_double_read(a + sizeof(double));
+		bmax = mach_double_read(b + sizeof(double));
+
+		amin = std::max(amin, bmin);
+		amax = std::min(amax, bmax);
+
+		if (amin > amax) {
+			return(0);
+		} else {
+			area *= (amax - amin);
+		}
+
+		a += keyseg_len;
+		b += keyseg_len;
+	}
+
+	return(area);
 }

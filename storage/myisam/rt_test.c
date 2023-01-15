@@ -112,7 +112,6 @@ static int run_test(const char *filename)
   uchar read_record[MAX_REC_LENGTH];
   int upd= 10;
   ha_rows hrows;
-  page_range pages;
 
   bzero(&uniquedef, sizeof(uniquedef));
   bzero(&create_info, sizeof(create_info));
@@ -333,7 +332,7 @@ static int run_test(const char *filename)
   range.key= record+1;
   range.length= 1000;                           /* Big enough */
   range.flag= HA_READ_MBR_INTERSECT;
-  hrows= mi_records_in_range(file, 0, &range, (key_range*) 0, &pages);
+  hrows= mi_records_in_range(file, 0, &range, (key_range*) 0);
   printf("     %ld rows\n", (long) hrows);
 
   if (mi_close(file)) goto err;

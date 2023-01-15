@@ -62,26 +62,20 @@
 extern "C" unsigned char *mysql_net_store_length(unsigned char *packet, size_t length);
 #define net_store_length mysql_net_store_length
 
-#define key_memory_TABLE_RULE_ENT 0
-#define key_memory_rpl_filter 0
-
 Rpl_filter *binlog_filter= 0;
 
 #define BIN_LOG_HEADER_SIZE	4
 #define PROBE_HEADER_LEN	(EVENT_LEN_OFFSET+4)
 
 /* Needed for Rpl_filter */
-CHARSET_INFO* system_charset_info= &my_charset_utf8mb3_general_ci;
+CHARSET_INFO* system_charset_info= &my_charset_utf8_general_ci;
 
 /* Needed for Flashback */
 DYNAMIC_ARRAY binlog_events; // Storing the events output string
 DYNAMIC_ARRAY events_in_stmt; // Storing the events that in one statement
 String stop_event_string; // Storing the STOP_EVENT output string
 
-extern "C" {
 char server_version[SERVER_VERSION_LENGTH];
-}
-
 ulong server_id = 0;
 
 // needed by net_serv.c
@@ -95,11 +89,9 @@ static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
 static const char *output_prefix= "";
-static char **defaults_argv= 0;
-static MEM_ROOT glob_root;
 
 #ifndef DBUG_OFF
-static const char *default_dbug_option = "d:t:o,/tmp/mariadb-binlog.trace";
+static const char *default_dbug_option = "d:t:o,/tmp/mysqlbinlog.trace";
 const char *current_dbug_option= default_dbug_option;
 #endif
 static const char *load_groups[]=
@@ -112,7 +104,7 @@ static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 static bool one_database=0, one_table=0, to_last_remote_log= 0, disable_log_bin= 0;
 static bool opt_hexdump= 0, opt_version= 0;
 const char *base64_output_mode_names[]=
-{"NEVER", "AUTO", "UNSPEC", "DECODE-ROWS", NullS};
+{"NEVER", "AUTO", "ALWAYS", "UNSPEC", "DECODE-ROWS", NullS};
 TYPELIB base64_output_mode_typelib=
   { array_elements(base64_output_mode_names) - 1, "",
     base64_output_mode_names, NULL };
@@ -153,7 +145,6 @@ static const char* dirname_for_local_load= 0;
 static bool opt_skip_annotate_row_events= 0;
 
 static my_bool opt_flashback;
-static bool opt_print_table_metadata;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
 static my_bool opt_flashback_review;
 static char *flashback_review_dbname, *flashback_review_tablename;
@@ -205,7 +196,7 @@ Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
   uchar *event_buf;
   Log_event* event;
 
-  if (!(event_buf= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED, event_len + 1, MYF(MY_WME))))
+  if (!(event_buf= (uchar*) my_malloc(event_len + 1, MYF(MY_WME))))
   {
     error("Out of memory");
     return 0;
@@ -317,7 +308,7 @@ public:
 
   int init()
   {
-    return my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &file_names, sizeof(File_name_record),
+    return my_init_dynamic_array(&file_names, sizeof(File_name_record),
                                  100, 100, MYF(0));
   }
 
@@ -552,7 +543,7 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   File_name_record rec;
   DBUG_ENTER("Load_log_processor::process_first_event");
 
-  if (!(fname= (char*) my_malloc(PSI_NOT_INSTRUMENTED, full_len,MYF(MY_WME))))
+  if (!(fname= (char*) my_malloc(full_len,MYF(MY_WME))))
   {
     error("Out of memory.");
     delete ce;
@@ -834,6 +825,53 @@ static bool shall_skip_table(const char *log_tblname)
          strcmp(log_tblname, table);
 }
 
+
+/**
+  Prints the given event in base64 format.
+
+  The header is printed to the head cache and the body is printed to
+  the body cache of the print_event_info structure.  This allows all
+  base64 events corresponding to the same statement to be joined into
+  one BINLOG statement.
+
+  @param[in] ev Log_event to print.
+  @param[in,out] result_file FILE to which the output will be written.
+  @param[in,out] print_event_info Parameters and context state
+  determining how to print.
+
+  @retval ERROR_STOP An error occurred - the program should terminate.
+  @retval OK_CONTINUE No error, the program should continue.
+*/
+static Exit_status
+write_event_header_and_base64(Log_event *ev, FILE *result_file,
+                              PRINT_EVENT_INFO *print_event_info)
+{
+  IO_CACHE *head= &print_event_info->head_cache;
+  IO_CACHE *body= &print_event_info->body_cache;
+  DBUG_ENTER("write_event_header_and_base64");
+
+  /* Write header and base64 output to cache */
+  if (ev->print_header(head, print_event_info, FALSE))
+    DBUG_RETURN(ERROR_STOP);
+
+  DBUG_ASSERT(print_event_info->base64_output_mode == BASE64_OUTPUT_ALWAYS);
+
+  if (ev->print_base64(body, print_event_info,
+                       print_event_info->base64_output_mode !=
+                       BASE64_OUTPUT_DECODE_ROWS))
+    DBUG_RETURN(ERROR_STOP);
+
+  /* Read data from cache and write to result file */
+  if (copy_event_cache_to_file_and_reinit(head, result_file) ||
+      copy_event_cache_to_file_and_reinit(body, result_file))
+  {
+    error("Error writing event to file.");
+    DBUG_RETURN(ERROR_STOP);
+  }
+  DBUG_RETURN(OK_CONTINUE);
+}
+
+
 static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
 {
   /*
@@ -1062,7 +1100,6 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       print_event_info->hexdump_from= pos;
 
     print_event_info->base64_output_mode= opt_base64_output_mode;
-    print_event_info->print_table_metadata= opt_print_table_metadata;
 
     DBUG_PRINT("debug", ("event_type: %s", ev->get_type_str()));
 
@@ -1085,9 +1122,19 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         qe->flags|= LOG_EVENT_SUPPRESS_USE_F;
       }
       print_use_stmt(print_event_info, qe);
-      print_skip_replication_statement(print_event_info, ev);
-      if (ev->print(result_file, print_event_info))
-        goto err;
+      if (opt_base64_output_mode == BASE64_OUTPUT_ALWAYS)
+      {
+        if ((retval= write_event_header_and_base64(ev, result_file,
+                                                   print_event_info)) !=
+            OK_CONTINUE)
+          goto end;
+      }
+      else
+      {
+        print_skip_replication_statement(print_event_info, ev);
+        if (ev->print(result_file, print_event_info))
+          goto err;
+      }
       if (head->error == -1)
         goto err;
       break;
@@ -1111,9 +1158,19 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
 	filename and use LOCAL), prepared in the 'case EXEC_LOAD_EVENT' 
 	below.
       */
-      print_skip_replication_statement(print_event_info, ev);
-      if (ce->print(result_file, print_event_info, TRUE))
-        goto err;
+      if (opt_base64_output_mode == BASE64_OUTPUT_ALWAYS)
+      {
+        if ((retval= write_event_header_and_base64(ce, result_file,
+                                                   print_event_info)) !=
+            OK_CONTINUE)
+          goto end;
+      }
+      else
+      {
+        print_skip_replication_statement(print_event_info, ev);
+        if (ce->print(result_file, print_event_info, TRUE))
+          goto err;
+      }
       // If this binlog is not 3.23 ; why this test??
       if (glob_description_event->binlog_version >= 3)
       {
@@ -1520,10 +1577,12 @@ static struct my_option my_options[] =
    "--verbose option is also given; "
    "'auto' prints base64 only when necessary (i.e., for row-based events and "
    "format description events); "
-   "If no --base64-output=name option is given at all, the default is "
-   "'auto'.",
+   "'always' prints base64 whenever possible. "
+   "--base64-output with no 'name' argument is equivalent to "
+   "--base64-output=always and is also deprecated.  If no "
+   "--base64-output[=name] option is given at all, the default is 'auto'.",
    &opt_base64_output_mode_str, &opt_base64_output_mode_str,
-   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
   /*
     mysqlbinlog needs charsets knowledge, to be able to convert a charset
     number found in binlog to a charset name (to be able to print things
@@ -1734,10 +1793,6 @@ Example: rewrite-db='from->to'.",
    (uchar**) &opt_skip_annotate_row_events,
    (uchar**) &opt_skip_annotate_row_events,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"print-table-metadata", OPT_PRINT_TABLE_METADATA,
-   "Print metadata stored in Table_map_log_event",
-   &opt_print_table_metadata, &opt_print_table_metadata, 0,
-   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -1821,32 +1876,18 @@ static void cleanup()
   my_free(const_cast<char*>(dirname_for_local_load));
   my_free(start_datetime_str);
   my_free(stop_datetime_str);
-  free_root(&glob_root, MYF(0));
 
   delete binlog_filter;
   delete glob_description_event;
   if (mysql)
     mysql_close(mysql);
-  free_defaults(defaults_argv);
-  free_annotate_event();
-  my_free_open_file_info();
-  load_processor.destroy();
-  mysql_server_end();
   DBUG_VOID_RETURN;
-}
-
-
-static void die()
-{
-  cleanup();
-  my_end(MY_DONT_FREE_DBUG);
-  exit(1);
 }
 
 
 static void print_version()
 {
-  printf("%s Ver 3.5 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s Ver 3.4 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 
@@ -1877,7 +1918,7 @@ static my_time_t convert_str_to_timestamp(const char* str)
       l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
   {
     error("Incorrect date and time argument: %s", str);
-    die();
+    exit(1);
   }
   /*
     Note that Feb 30th, Apr 31st cause no error messages and are mapped to
@@ -1890,10 +1931,11 @@ static my_time_t convert_str_to_timestamp(const char* str)
 
 
 extern "C" my_bool
-get_one_option(const struct my_option *opt, const char *argument, const char *)
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument)
 {
   bool tty_password=0;
-  switch (opt->id) {
+  switch (optid) {
 #ifndef DBUG_OFF
   case '#':
     if (!argument)
@@ -1914,15 +1956,10 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
       argument= (char*) "";                     // Don't require password
     if (argument)
     {
-      /*
-        One should not really change the argument, but we make an
-        exception for passwords
-      */
       my_free(pass);
-      char *start= (char*) argument;
-      pass= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
-      while (*argument)
-        *(char*)argument++= 'x';		/* Destroy argument */
+      char *start=argument;
+      pass= my_strdup(argument,MYF(MY_FAE));
+      while (*argument) *argument++= 'x';		/* Destroy argument */
       if (*start)
         start[1]=0;				/* Cut length of argument */
     }
@@ -1940,7 +1977,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
                                               opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
-      die();
+      exit(1);
     }
     break;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
@@ -1955,59 +1992,64 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
     stop_datetime= convert_str_to_timestamp(stop_datetime_str);
     break;
   case OPT_BASE64_OUTPUT_MODE:
-    int val;
-
-    if ((val= find_type_with_warning(argument, &base64_output_mode_typelib,
-                                     opt->name)) <= 0)
+    if (argument == NULL)
+      opt_base64_output_mode= BASE64_OUTPUT_ALWAYS;
+    else
     {
-      sf_leaking_memory= 1; /* no memory leak reports here */
-      die();
+      int val;
+
+      if ((val= find_type_with_warning(argument, &base64_output_mode_typelib,
+                                       opt->name)) <= 0)
+      {
+        sf_leaking_memory= 1; /* no memory leak reports here */
+        exit(1);
+      }
+      opt_base64_output_mode= (enum_base64_output_mode) (val - 1);
     }
-    opt_base64_output_mode= (enum_base64_output_mode)(val - 1);
     break;
   case OPT_REWRITE_DB:    // db_from->db_to
   {
     /* See also handling of OPT_REPLICATE_REWRITE_DB in sql/mysqld.cc */
-    const char* ptr;
-    const char* key= argument;  // db-from
-    const char* val;            // db-to
+    char* ptr;
+    char* key= argument;  // db-from
+    char* val;            // db-to
 
-    // Skipp pre-space in key
+    // Where key begins
     while (*key && my_isspace(&my_charset_latin1, *key))
       key++;
 
     // Where val begins
-    if (!(ptr= strstr(key, "->")))
+    if (!(ptr= strstr(argument, "->")))
     {
-      sql_print_error("Bad syntax in rewrite-db: missing '->'\n");
+      sql_print_error("Bad syntax in rewrite-db: missing '->'!\n");
       return 1;
     }
     val= ptr + 2;
-
-    // Skip blanks at the end of key
-    while (ptr > key && my_isspace(&my_charset_latin1, ptr[-1]))
-      ptr--;
-
-    if (ptr == key)
-    {
-      sql_print_error("Bad syntax in rewrite-db: empty FROM db\n");
-      return 1;
-    }
-    key= strmake_root(&glob_root, key, (size_t) (ptr-key));
-
-    /* Skipp pre space in value */
     while (*val && my_isspace(&my_charset_latin1, *val))
       val++;
 
-    // Value ends with \0 or space
-    for (ptr= val; *ptr && !my_isspace(&my_charset_latin1, *ptr) ; ptr++)
-    {}
-    if (ptr == val)
+    // Write \0 and skip blanks at the end of key
+    *ptr-- = 0;
+    while (my_isspace(&my_charset_latin1, *ptr) && ptr > argument)
+      *ptr-- = 0;
+
+    if (!*key)
     {
-      sql_print_error("Bad syntax in rewrite-db: empty TO db\n");
+      sql_print_error("Bad syntax in rewrite-db: empty db-from!\n");
       return 1;
     }
-    val= strmake_root(&glob_root, val, (size_t) (ptr-val));
+
+    // Skip blanks at the end of val
+    ptr= val;
+    while (*ptr && !my_isspace(&my_charset_latin1, *ptr))
+      ptr++;
+    *ptr= 0;
+
+    if (!*val)
+    {
+      sql_print_error("Bad syntax in rewrite-db: empty db-to!\n");
+      return 1;
+    }
 
     binlog_filter->add_db_rewrite(key, val);
     break;
@@ -2045,9 +2087,7 @@ static int parse_args(int *argc, char*** argv)
   int ho_error;
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
-  {
-    die();
-  }
+    exit(ho_error);
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   else if (debug_check_flag)
@@ -2782,7 +2822,8 @@ static Exit_status check_header(IO_CACHE* file,
                 (ulonglong)tmp_pos);
           return ERROR_STOP;
         }
-        if (opt_base64_output_mode == BASE64_OUTPUT_AUTO)
+        if (opt_base64_output_mode == BASE64_OUTPUT_AUTO
+            || opt_base64_output_mode == BASE64_OUTPUT_ALWAYS)
         {
           /*
             process_event will delete *description_event and set it to
@@ -2966,6 +3007,7 @@ end:
 
 int main(int argc, char** argv)
 {
+  char **defaults_argv;
   Exit_status retval= OK_CONTINUE;
   ulonglong save_stop_position;
   MY_INIT(argv[0]);
@@ -2977,8 +3019,6 @@ int main(int argc, char** argv)
 
   load_defaults_or_exit("my", load_groups, &argc, &argv);
   defaults_argv= argv;
-
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 1024, 0, MYF(0));
 
   if (!(binlog_filter= new Rpl_filter))
   {
@@ -3005,10 +3045,10 @@ int main(int argc, char** argv)
 
   if (opt_flashback)
   {
-    my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &binlog_events,
-                          sizeof(LEX_STRING), 1024, 1024, MYF(0));
-    my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &events_in_stmt,
-                          sizeof(Rows_log_event*), 1024, 1024, MYF(0));
+    my_init_dynamic_array(&binlog_events, sizeof(LEX_STRING), 1024, 1024,
+                          MYF(0));
+    my_init_dynamic_array(&events_in_stmt, sizeof(Rows_log_event*), 1024, 1024,
+                          MYF(0));
   }
   if (opt_stop_never)
     to_last_remote_log= TRUE;
@@ -3018,7 +3058,7 @@ int main(int argc, char** argv)
     if (!remote_opt)
     {
       error("The --raw mode only works with --read-from-remote-server");
-      die();
+      exit(1);
     }
     if (one_database)
       warning("The --database option is ignored in raw mode");
@@ -3040,7 +3080,7 @@ int main(int argc, char** argv)
                                   O_WRONLY | O_BINARY, MYF(MY_WME))))
       {
         error("Could not create log file '%s'", result_file_name);
-        die();
+        exit(1);
       }
     }
     else
@@ -3056,7 +3096,7 @@ int main(int argc, char** argv)
       retval= ERROR_STOP;
       goto err;
     }
-    dirname_for_local_load= my_strdup(PSI_NOT_INSTRUMENTED, my_tmpdir(&tmpdir), MY_WME);
+    dirname_for_local_load= my_strdup(my_tmpdir(&tmpdir), MY_WME);
   }
 
   if (load_processor.init())
@@ -3161,6 +3201,11 @@ int main(int argc, char** argv)
   if (result_file && result_file != stdout)
     my_fclose(result_file, MYF(0));
   cleanup();
+  free_annotate_event();
+  free_defaults(defaults_argv);
+  my_free_open_file_info();
+  load_processor.destroy();
+  mysql_server_end();
   /* We cannot free DBUG, it is used in global destructors after exit(). */
   my_end(my_end_arg | MY_DONT_FREE_DBUG);
 
@@ -3170,6 +3215,7 @@ int main(int argc, char** argv)
 
 err:
   cleanup();
+  free_defaults(defaults_argv);
   my_end(my_end_arg);
   exit(retval == ERROR_STOP ? 1 : 0);
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
@@ -3208,7 +3254,6 @@ struct encryption_service_st encryption_handler=
 #include "../sql-common/my_time.c"
 #include "password.c"
 #include "log_event.cc"
-#include "log_event_client.cc"
 #include "log_event_old.cc"
 #include "rpl_utility.cc"
 #include "sql_string.cc"

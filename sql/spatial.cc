@@ -241,8 +241,9 @@ Geometry::Class_info *Geometry::find_class(const char *name, size_t len)
   {
     if (*cur_rt &&
 	((*cur_rt)->m_name.length == len) &&
-	(my_charset_latin1.strnncoll((*cur_rt)->m_name.str, len,
-		                     name, len) == 0))
+	(my_strnncoll(&my_charset_latin1,
+		      (const uchar*) (*cur_rt)->m_name.str, len,
+		      (const uchar*) name, len) == 0))
       return *cur_rt;
   }
   return 0;
@@ -273,33 +274,6 @@ Geometry *Geometry::construct(Geometry_buffer *buffer,
   result->m_data= data+ SRID_SIZE + WKB_HEADER_SIZE;
   result->m_data_end= data + data_len;
   return result;
-}
-
-
-uint Geometry::get_key_image_itMBR(LEX_CSTRING &src, uchar *buff, uint length)
-{
-  const char *dummy;
-  MBR mbr;
-  Geometry_buffer buffer;
-  Geometry *gobj;
-  const uint image_length= SIZEOF_STORED_DOUBLE*4;
-
-  if (src.length < SRID_SIZE)
-  {
-    bzero(buff, image_length);
-    return image_length;
-  }
-  gobj= Geometry::construct(&buffer, (char*) src.str, (uint32) src.length);
-  if (!gobj || gobj->get_mbr(&mbr, &dummy))
-    bzero(buff, image_length);
-  else
-  {
-    float8store(buff,    mbr.xmin);
-    float8store(buff+8,  mbr.xmax);
-    float8store(buff+16, mbr.ymin);
-    float8store(buff+24, mbr.ymax);
-  }
-  return image_length;
 }
 
 
@@ -546,8 +520,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
             goto create_geom;
         }
         else if (je->value_len == feature_coll_type_len &&
-            my_charset_latin1.strnncoll(je->value, je->value_len,
-		                        feature_coll_type, feature_coll_type_len) == 0)
+            my_strnncoll(&my_charset_latin1, je->value, je->value_len,
+		         feature_coll_type, feature_coll_type_len) == 0)
         {
           /*
             'FeatureCollection' type found. Handle the 'Featurecollection'/'features'
@@ -558,8 +532,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
           fcoll_type_found= 1;
         }
         else if (je->value_len == feature_type_len &&
-                 my_charset_latin1.strnncoll(je->value, je->value_len,
-		                             feature_type, feature_type_len) == 0)
+                 my_strnncoll(&my_charset_latin1, je->value, je->value_len,
+		              feature_type, feature_type_len) == 0)
         {
           if (geometry_start)
             goto handle_geometry_key;
@@ -959,7 +933,8 @@ static int read_point_from_json(json_engine_t *je, bool er_on_3D,
       goto bad_coordinates;
 
     d= (n_coord == 0) ? x : ((n_coord == 1) ? y : &tmp);
-    *d= je->s.cs->strntod((char *) je->value, je->value_len, &endptr, &err);
+    *d= my_strntod(je->s.cs, (char *) je->value,
+                   je->value_len, &endptr, &err);
     if (err)
       goto bad_coordinates;
     n_coord++;
@@ -3296,7 +3271,9 @@ bool Gis_geometry_collection::init_from_wkt(Gis_read_stream *trs, String *wkb)
       return 1;
 
     if (next_word.length != 5 ||
-	(my_charset_latin1.strnncoll("empty", 5, next_word.str, 5) != 0))
+	(my_strnncoll(&my_charset_latin1,
+		      (const uchar*) "empty", 5,
+		      (const uchar*) next_word.str, 5) != 0))
     {
       for (;;)
       {

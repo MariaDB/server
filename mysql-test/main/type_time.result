@@ -1374,7 +1374,7 @@ CREATE TABLE t1 (f TIME, KEY(f));
 INSERT INTO t1 VALUES ('10:10:10'),('20:20:20');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '23:59:59';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	f	f	4	NULL	1	100.00	Using where; Using index
+1	SIMPLE	t1	index	f	f	4	NULL	2	50.00	Using where; Using index
 Warnings:
 Warning	1292	Truncated incorrect time value: '1995.0000000'
 Note	1003	select `test`.`t1`.`f` AS `f` from `test`.`t1` where '00:00:00.000000' between `test`.`t1`.`f` and <cache>('23:59:59')

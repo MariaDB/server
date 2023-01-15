@@ -34,8 +34,8 @@
 
   SYNOPSIS
     init_alloc_root()
-      key            - key to register instrumented memory
       mem_root       - memory root to initialize
+      name           - name of memroot (for debugging)
       block_size     - size of chunks (blocks) used for memory allocation
                        (It is external size of chunk i.e. it should include
                         memory required for internal structures, thus it
@@ -55,32 +55,35 @@
     Because of this, we store in MY_THREAD_SPECIFIC as bit 1 in block_size
 */
 
-void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root, size_t block_size,
+void init_alloc_root(MEM_ROOT *mem_root, const char *name, size_t block_size,
 		     size_t pre_alloc_size __attribute__((unused)),
                      myf my_flags)
 {
   DBUG_ENTER("init_alloc_root");
-  DBUG_PRINT("enter",("root: %p  prealloc: %zu", mem_root, pre_alloc_size));
+  DBUG_PRINT("enter",("root: %p  name: %s  prealloc: %zu", mem_root,
+                      name, pre_alloc_size));
 
   mem_root->free= mem_root->used= mem_root->pre_alloc= 0;
   mem_root->min_malloc= 32;
   mem_root->block_size= (block_size - ALLOC_ROOT_MIN_BLOCK_SIZE) & ~1;
-  if (my_flags & MY_THREAD_SPECIFIC)
+  if (MY_TEST(my_flags & MY_THREAD_SPECIFIC))
     mem_root->block_size|= 1;
 
   mem_root->error_handler= 0;
   mem_root->block_num= 4;			/* We shift this with >>2 */
   mem_root->first_block_usage= 0;
-  mem_root->m_psi_key= key;
+  mem_root->total_alloc= 0;
+  mem_root->name= name;
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   if (pre_alloc_size)
   {
-    size_t size= pre_alloc_size + ALIGN_SIZE(sizeof(USED_MEM));
     if ((mem_root->free= mem_root->pre_alloc=
-         (USED_MEM*) my_malloc(key, size, MYF(my_flags))))
+         (USED_MEM*) my_malloc(pre_alloc_size + ALIGN_SIZE(sizeof(USED_MEM)),
+                               MYF(my_flags))))
     {
-      mem_root->free->size= size;
+      mem_root->free->size= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
+      mem_root->total_alloc= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->free->left= pre_alloc_size;
       mem_root->free->next= 0;
       TRASH_MEM(mem_root->free);
@@ -139,17 +142,19 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
         {
           /* remove block from the list and free it */
           *prev= mem->next;
+          mem_root->total_alloc-= mem->size;
           my_free(mem);
         }
         else
           prev= &mem->next;
       }
       /* Allocate new prealloc block and add it to the end of free list */
-      if ((mem= (USED_MEM *) my_malloc(mem_root->m_psi_key, size,
+      if ((mem= (USED_MEM *) my_malloc(size,
                                        MYF(MALLOC_FLAG(mem_root->
                                                        block_size)))))
       {
         mem->size= size; 
+        mem_root->total_alloc+= size;
         mem->left= pre_alloc_size;
         mem->next= *prev;
         *prev= mem_root->pre_alloc= mem;
@@ -174,7 +179,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 #if defined(HAVE_valgrind) && defined(EXTRA_DEBUG)
   reg1 USED_MEM *next;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p", mem_root));
+  DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
 
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
@@ -187,7 +192,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
                   });
 
   length+=ALIGN_SIZE(sizeof(USED_MEM));
-  if (!(next = (USED_MEM*) my_malloc(mem_root->m_psi_key, length,
+  if (!(next = (USED_MEM*) my_malloc(length,
                                      MYF(MY_WME | ME_FATAL |
                                          MALLOC_FLAG(mem_root->block_size)))))
   {
@@ -199,8 +204,10 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   next->left= 0;
   next->size= length;
   mem_root->used= next;
-  DBUG_PRINT("exit",("ptr: %p", (((char*)next)+ALIGN_SIZE(sizeof(USED_MEM)))));
-  DBUG_RETURN((((uchar*) next)+ALIGN_SIZE(sizeof(USED_MEM))));
+  mem_root->total_alloc+= length;
+  DBUG_PRINT("exit",("ptr: %p", (((char*) next)+
+                                 ALIGN_SIZE(sizeof(USED_MEM)))));
+  DBUG_RETURN((uchar*) (((char*) next)+ALIGN_SIZE(sizeof(USED_MEM))));
 #else
   size_t get_size, block_size;
   uchar* point;
@@ -208,7 +215,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   reg2 USED_MEM **prev;
   size_t original_length __attribute__((unused)) = length;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p", mem_root));
+  DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
@@ -241,7 +248,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     get_size= length+ALIGN_SIZE(sizeof(USED_MEM));
     get_size= MY_MAX(get_size, block_size);
 
-    if (!(next = (USED_MEM*) my_malloc(mem_root->m_psi_key, get_size,
+    if (!(next = (USED_MEM*) my_malloc(get_size,
                                        MYF(MY_WME | ME_FATAL |
                                            MALLOC_FLAG(mem_root->
                                                        block_size)))))
@@ -251,6 +258,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
       DBUG_RETURN((void*) 0);                      /* purecov: inspected */
     }
     mem_root->block_num++;
+    mem_root->total_alloc+= get_size;
     next->next= *prev;
     next->size= get_size;
     next->left= get_size-ALIGN_SIZE(sizeof(USED_MEM));
@@ -387,7 +395,8 @@ void free_root(MEM_ROOT *root, myf MyFlags)
 {
   reg1 USED_MEM *next,*old;
   DBUG_ENTER("free_root");
-  DBUG_PRINT("enter",("root: %p  flags: %lu", root, MyFlags));
+  DBUG_PRINT("enter",("root: %p  name: %s  flags: %u", root, root->name,
+                      (uint) MyFlags));
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   /*
@@ -407,13 +416,19 @@ void free_root(MEM_ROOT *root, myf MyFlags)
   {
     old=next; next= next->next ;
     if (old != root->pre_alloc)
+    {
+      root->total_alloc-= old->size;
       my_free(old);
+    }
   }
   for (next=root->free ; next ;)
   {
     old=next; next= next->next;
     if (old != root->pre_alloc)
+    {
+      root->total_alloc-= old->size;
       my_free(old);
+    }
   }
   root->used=root->free=0;
   if (root->pre_alloc)

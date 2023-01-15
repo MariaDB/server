@@ -53,7 +53,6 @@ static my_bool upgrade_from_mysql;
 
 static DYNAMIC_STRING ds_args;
 static DYNAMIC_STRING conn_args;
-static DYNAMIC_STRING ds_plugin_data_types;
 
 static char *opt_password= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
@@ -65,7 +64,7 @@ static my_bool tty_password= 0;
 static char opt_tmpdir[FN_REFLEN] = "";
 
 #ifndef DBUG_OFF
-static char *default_dbug_option= (char*) "d:t:O,/tmp/mariadb-upgrade.trace";
+static char *default_dbug_option= (char*) "d:t:O,/tmp/mysql_upgrade.trace";
 #endif
 
 static char **defaults_argv;
@@ -192,7 +191,6 @@ static void free_used_memory(void)
 
   dynstr_free(&ds_args);
   dynstr_free(&conn_args);
-  dynstr_free(&ds_plugin_data_types);
   if (cnf_file_path)
     my_delete(cnf_file_path, MYF(MY_WME));
   if (info_file >= 0)
@@ -288,12 +286,12 @@ static void add_one_option_cnf_file(DYNAMIC_STRING *ds,
 
 
 static my_bool
-get_one_option(const struct my_option *opt, const char *argument,
-               const char *filename __attribute__((unused)))
+get_one_option(int optid, const struct my_option *opt,
+               char *argument)
 {
   my_bool add_option= TRUE;
 
-  switch (opt->id) {
+  switch (optid) {
 
   case '?':
     printf("%s  Ver %s Distrib %s, for %s (%s)\n",
@@ -319,17 +317,10 @@ get_one_option(const struct my_option *opt, const char *argument,
     add_option= FALSE;
     if (argument)
     {
-      /*
-        One should not really change the argument, but we make an
-        exception for passwords
-      */
-      char *start= (char*) argument;
       /* Add password to ds_args before overwriting the arg with x's */
       add_one_option_cnf_file(&ds_args, opt->name, argument);
       while (*argument)
-        *(char*)argument++= 'x';                /* Destroy argument */
-      if (*start)
-        start[1]= 0;
+        *argument++= 'x';                       /* Destroy argument */
       tty_password= 0;
     }
     else
@@ -344,7 +335,7 @@ get_one_option(const struct my_option *opt, const char *argument,
   case 'b': /* --basedir   */
   case 'd': /* --datadir   */
     fprintf(stderr, "%s: the '--%s' option is always ignored\n",
-            my_progname, opt->id == 'b' ? "basedir" : "datadir");
+            my_progname, optid == 'b' ? "basedir" : "datadir");
     /* FALLTHROUGH */
 
   case 'k':                                     /* --version-check */
@@ -428,20 +419,11 @@ static int run_command(char* cmd,
   if (opt_verbose >= 4)
     puts(cmd);
 
-  if (!(res_file= my_popen(cmd, "r")))
+  if (!(res_file= my_popen(cmd, IF_WIN("rt","r"))))
     die("popen(\"%s\", \"r\") failed", cmd);
 
   while (fgets(buf, sizeof(buf), res_file))
   {
-#ifdef _WIN32
-    /* Strip '\r' off newlines. */
-    size_t len = strlen(buf);
-    if (len > 1 && buf[len - 2] == '\r' && buf[len - 1] == '\n')
-    {
-      buf[len - 2] = '\n';
-      buf[len - 1] = 0;
-    }
-#endif
     DBUG_PRINT("info", ("buf: %s", buf));
     if(ds_res)
     {
@@ -935,7 +917,7 @@ static int run_mysqlcheck_upgrade(my_bool mysql_db_only)
     return 0;
   }
   verbose("Phase %d/%d: Checking and upgrading %s", ++phase, phases_total, what);
-  print_conn_args("mariadb-check");
+  print_conn_args("mysqlcheck");
   retch= run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
                   defaults_file,
@@ -1116,73 +1098,6 @@ static my_bool from_before_10_1()
 }
 
 
-static void uninstall_plugins(void)
-{
-  if (ds_plugin_data_types.length)
-  {
-    char *plugins= ds_plugin_data_types.str;
-    char *next= get_line(plugins);
-    char buff[512];
-    while(*plugins)
-    {
-      if (next[-1] == '\n')
-        next[-1]= 0;
-      verbose("uninstalling plugin for %s data type", plugins);
-      strxnmov(buff, sizeof(buff)-1, "UNINSTALL SONAME ", plugins,"", NULL);
-      run_query(buff, NULL, TRUE);
-      plugins= next;
-      next= get_line(next);
-    }
-  }
-}
-/**
-  @brief     Install plugins for missing data types
-  @details   Check for entries with "Unknown data type" in I_S.TABLES,
-             try to load plugins for these tables if available (MDEV-24093)
-
-  @return    Operation status
-    @retval  TRUE  - error
-    @retval  FALSE - success
-*/
-static int install_used_plugin_data_types(void)
-{
-  DYNAMIC_STRING ds_result;
-  const char *query = "SELECT table_comment FROM information_schema.tables"
-                      " WHERE table_comment LIKE 'Unknown data type: %'";
-  if (init_dynamic_string(&ds_result, "", 512, 512))
-    die("Out of memory");
-  run_query(query, &ds_result, TRUE);
-
-  if (ds_result.length)
-  {
-    char *line= ds_result.str;
-    char *next= get_line(line);
-    while(*line)
-    {
-      if (next[-1] == '\n')
-        next[-1]= 0;
-      if (strstr(line, "'MYSQL_JSON'"))
-      {
-        verbose("installing plugin for MYSQL_JSON data type");
-        if(!run_query("INSTALL SONAME 'type_mysql_json'", NULL, TRUE))
-        {
-          dynstr_append(&ds_plugin_data_types, "'type_mysql_json'");
-          dynstr_append(&ds_plugin_data_types, "\n");
-          break;
-        }
-        else
-        {
-          fprintf(stderr, "... can't %s\n", "INSTALL SONAME 'type_mysql_json'");
-          return 1;
-        }
-      }
-      line= next;
-      next= get_line(next);
-    }
-  }
-  dynstr_free(&ds_result);
-  return 0;
-}
 /*
   Check for entries with "Unknown storage engine" in I_S.TABLES,
   try to load plugins for these tables if available (MDEV-11942)
@@ -1419,8 +1334,7 @@ int main(int argc, char **argv)
   }
 
   if (init_dynamic_string(&ds_args, "", 512, 256) ||
-      init_dynamic_string(&conn_args, "", 512, 256) ||
-      init_dynamic_string(&ds_plugin_data_types, "", 512, 256))
+      init_dynamic_string(&conn_args, "", 512, 256))
     die("Out of memory");
 
   if (handle_options(&argc, &argv, my_long_options, get_one_option))
@@ -1451,7 +1365,7 @@ int main(int argc, char **argv)
   }
 
   /* Find mysql */
-  find_tool(mysql_path, IF_WIN("mariadb.exe", "mariadb"), self_name);
+  find_tool(mysql_path, IF_WIN("mysql.exe", "mysql"), self_name);
 
   open_mysql_upgrade_file();
 
@@ -1459,7 +1373,7 @@ int main(int argc, char **argv)
     exit(upgrade_already_done(0) == 0);
 
   /* Find mysqlcheck */
-  find_tool(mysqlcheck_path, IF_WIN("mariadb-check.exe", "mariadb-check"), self_name);
+  find_tool(mysqlcheck_path, IF_WIN("mysqlcheck.exe", "mysqlcheck"), self_name);
 
   if (opt_systables_only && !opt_silent)
     printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");
@@ -1481,7 +1395,6 @@ int main(int argc, char **argv)
   */
   if (run_mysqlcheck_upgrade(TRUE) ||
       install_used_engines() ||
-      install_used_plugin_data_types() ||
       run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
       run_mysqlcheck_fixnames() ||
@@ -1489,7 +1402,6 @@ int main(int argc, char **argv)
       check_slave_repositories())
     die("Upgrade failed" );
 
-  uninstall_plugins();
   verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
   if (run_query("FLUSH PRIVILEGES", NULL, TRUE))
     die("Upgrade failed" );

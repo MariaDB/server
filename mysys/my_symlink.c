@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2011, Oracle and/or its affiliates
-   Copyright (c) 2010, 2022, MariaDB
+   Copyright (c) 2010, 2017, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -113,10 +113,7 @@ int my_is_symlink(const char *filename __attribute__((unused)))
 {
 #if defined (HAVE_LSTAT) && defined (S_ISLNK)
   struct stat stat_buff;
-  if (lstat(filename, &stat_buff))
-    return 0;
-  MSAN_STAT_WORKAROUND(&stat_buff);
-  return !!S_ISLNK(stat_buff.st_mode);
+  return !lstat(filename, &stat_buff) && S_ISLNK(stat_buff.st_mode);
 #elif defined (_WIN32)
   DWORD dwAttr = GetFileAttributes(filename);
   return (dwAttr != INVALID_FILE_ATTRIBUTES) &&
@@ -157,8 +154,7 @@ int my_realpath(char *to, const char *filename, myf MyFlags)
       original name but will at least be able to resolve paths that starts
       with '.'.
     */
-    if (MyFlags)
-      DBUG_PRINT("error",("realpath failed with errno: %d", errno));
+    DBUG_PRINT("error",("realpath failed with errno: %d", errno));
     my_errno=errno;
     if (MyFlags & MY_WME)
       my_error(EE_REALPATH, MYF(0), filename, my_errno);

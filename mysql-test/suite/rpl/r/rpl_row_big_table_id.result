@@ -1,7 +1,9 @@
 include/master-slave.inc
 [connection master]
-SET @old_debug_dbug= @@debug_dbug;
-SET @@debug_dbug="+d,simulate_big_table_id";
+connection master;
+include/rpl_restart_server.inc [server_number=1]
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET @@debug_dbug="d,simulate_big_table_id";
 CREATE TABLE t (a int);
 INSERT INTO t SET a= 0;
 ALTER TABLE t comment '';
@@ -12,35 +14,35 @@ ALTER TABLE t comment '';
 INSERT INTO t SET a= 3;
 show binlog events in <file> from  <pos>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 0
-master-bin.000001	#	Table_map	1	#	table_id: 4294967294 (test.t)
-master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967294 flags: STMT_END_F
-master-bin.000001	#	Query	1	#	COMMIT
-master-bin.000001	#	Gtid	1	#	GTID #-#-#
-master-bin.000001	#	Query	1	#	use `test`; ALTER TABLE t comment ''
-master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 1
-master-bin.000001	#	Table_map	1	#	table_id: 4294967295 (test.t)
-master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967295 flags: STMT_END_F
-master-bin.000001	#	Query	1	#	COMMIT
-master-bin.000001	#	Gtid	1	#	GTID #-#-#
-master-bin.000001	#	Query	1	#	use `test`; ALTER TABLE t comment ''
-master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 2
-master-bin.000001	#	Table_map	1	#	table_id: 4294967296 (test.t)
-master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967296 flags: STMT_END_F
-master-bin.000001	#	Query	1	#	COMMIT
-master-bin.000001	#	Gtid	1	#	GTID #-#-#
-master-bin.000001	#	Query	1	#	use `test`; ALTER TABLE t comment ''
-master-bin.000001	#	Gtid	1	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	1	#	INSERT INTO t SET a= 3
-master-bin.000001	#	Table_map	1	#	table_id: 4294967297 (test.t)
-master-bin.000001	#	Write_rows_v1	1	#	table_id: 4294967297 flags: STMT_END_F
-master-bin.000001	#	Query	1	#	COMMIT
+master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	1	#	INSERT INTO t SET a= 0
+master-bin.000002	#	Table_map	1	#	table_id: 4294967294 (test.t)
+master-bin.000002	#	Write_rows_v1	1	#	table_id: 4294967294 flags: STMT_END_F
+master-bin.000002	#	Query	1	#	COMMIT
+master-bin.000002	#	Gtid	1	#	GTID #-#-#
+master-bin.000002	#	Query	1	#	use `test`; ALTER TABLE t comment ''
+master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	1	#	INSERT INTO t SET a= 1
+master-bin.000002	#	Table_map	1	#	table_id: 4294967298 (test.t)
+master-bin.000002	#	Write_rows_v1	1	#	table_id: 4294967298 flags: STMT_END_F
+master-bin.000002	#	Query	1	#	COMMIT
+master-bin.000002	#	Gtid	1	#	GTID #-#-#
+master-bin.000002	#	Query	1	#	use `test`; ALTER TABLE t comment ''
+master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	1	#	INSERT INTO t SET a= 2
+master-bin.000002	#	Table_map	1	#	table_id: 4294967299 (test.t)
+master-bin.000002	#	Write_rows_v1	1	#	table_id: 4294967299 flags: STMT_END_F
+master-bin.000002	#	Query	1	#	COMMIT
+master-bin.000002	#	Gtid	1	#	GTID #-#-#
+master-bin.000002	#	Query	1	#	use `test`; ALTER TABLE t comment ''
+master-bin.000002	#	Gtid	1	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	1	#	INSERT INTO t SET a= 3
+master-bin.000002	#	Table_map	1	#	table_id: 4294967300 (test.t)
+master-bin.000002	#	Write_rows_v1	1	#	table_id: 4294967300 flags: STMT_END_F
+master-bin.000002	#	Query	1	#	COMMIT
 connection slave;
 connection master;
-SET debug_dbug=@old_debug_dbug;
 DROP TABLE t;
+SET debug_dbug= @saved_dbug;
 connection slave;
 include/rpl_end.inc

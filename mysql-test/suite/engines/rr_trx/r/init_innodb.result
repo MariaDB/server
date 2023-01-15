@@ -1,5 +1,5 @@
-SET @@default_storage_engine = 'InnoDB';
-SHOW VARIABLES LIKE 'default_storage_engine';
+SET @@storage_engine = 'InnoDB';
+SHOW VARIABLES LIKE 'storage_engine';
 Variable_name	Value
 storage_engine	InnoDB
 SHOW VARIABLES LIKE 'tx_isolation';

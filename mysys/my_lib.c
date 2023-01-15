@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2008, 2022, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -128,17 +128,16 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
     goto err_open;
   }
 
-  if (!(dirh= my_malloc(key_memory_MY_DIR, sizeof(*dirh),
-                        MYF(MyFlags | MY_ZEROFILL))))
+  if (!(dirh= my_malloc(sizeof(*dirh), MyFlags | MY_ZEROFILL)))
     goto err_alloc;
   
-  if (my_init_dynamic_array(key_memory_MY_DIR, &dirh->array, sizeof(FILEINFO),
+  if (my_init_dynamic_array(&dirh->array, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
                             MYF(MyFlags)))
     goto error;
   
-  init_alloc_root(key_memory_MY_DIR, &dirh->root, NAMES_START_SIZE,
-                  NAMES_START_SIZE, MYF(MyFlags));
+  init_alloc_root(&dirh->root, "dir", NAMES_START_SIZE, NAMES_START_SIZE,
+                  MYF(MyFlags));
 
   dp= (struct dirent*) dirent_tmp;
   
@@ -232,15 +231,15 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   tmp_file[2]='*';
   tmp_file[3]='\0';
 
-  if (!(dirh= my_malloc(PSI_INSTRUMENT_ME, sizeof(*dirh), MyFlags | MY_ZEROFILL)))
+  if (!(dirh= my_malloc(sizeof(*dirh), MyFlags | MY_ZEROFILL)))
     goto error;
   
-  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &dirh->array, sizeof(FILEINFO),
+  if (my_init_dynamic_array(&dirh->array, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
                             MYF(MyFlags)))
     goto error;
 
-  init_alloc_root(PSI_INSTRUMENT_ME, &dirh->root, NAMES_START_SIZE, NAMES_START_SIZE,
+  init_alloc_root(&dirh->root, "dir", NAMES_START_SIZE, NAMES_START_SIZE,
                   MYF(MyFlags));
 
   if ((handle=_findfirst(tmp_path,&find)) == -1L)
@@ -332,13 +331,6 @@ int my_fstat(File Filedes, MY_STAT *stat_area,
   DBUG_PRINT("my",("fd: %d  MyFlags: %lu", Filedes, MyFlags));
 #ifdef _WIN32
   DBUG_RETURN(my_win_fstat(Filedes, stat_area));
-#elif defined HAVE_valgrind
-  {
-    int s= fstat(Filedes, stat_area);
-    if (!s)
-      MSAN_STAT_WORKAROUND(stat_area);
-    DBUG_RETURN(s);
-  }
 #else
   DBUG_RETURN(fstat(Filedes, (struct stat *) stat_area));
 #endif
@@ -353,18 +345,14 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
                     stat_area, my_flags));
 
   if ((m_used= (stat_area == NULL)))
-    if (!(stat_area= (MY_STAT *) my_malloc(key_memory_MY_STAT, sizeof(MY_STAT),
-                                           my_flags)))
+    if (!(stat_area= (MY_STAT *) my_malloc(sizeof(MY_STAT), my_flags)))
       goto error;
 #ifndef _WIN32
-  if (!stat((char *) path, (struct stat *) stat_area))
-  {
-    MSAN_STAT_WORKAROUND(stat_area);
-    DBUG_RETURN(stat_area);
-  }
+    if (! stat((char *) path, (struct stat *) stat_area) )
+      DBUG_RETURN(stat_area);
 #else
-  if (!my_win_stat(path, stat_area))
-    DBUG_RETURN(stat_area);
+    if (! my_win_stat(path, stat_area) )
+      DBUG_RETURN(stat_area);
 #endif
   DBUG_PRINT("error",("Got errno: %d from stat", errno));
   my_errno= errno;

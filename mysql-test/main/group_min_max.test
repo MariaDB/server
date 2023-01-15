@@ -5,7 +5,7 @@
 
 --source include/no_valgrind_without_big.inc
 --source include/default_optimizer_switch.inc
---source include/have_innodb.inc
+
 #
 # TODO:
 # Add queries with:
@@ -54,8 +54,6 @@ insert into t1 (a1, a2, b, c, d) values
 ('d','a','b','e412','xy1'),('d','a','b','f412','xy2'),('d','a','b','g412','xy3'),('d','a','b','h412','xy4'),
 ('d','b','a','i421','xy1'),('d','b','a','j421','xy2'),('d','b','a','k421','xy3'),('d','b','a','l421','xy4'),
 ('d','b','b','m422','xy1'),('d','b','b','n422','xy2'),('d','b','b','o422','xy3'),('d','b','b','p422','xy4');
-insert into t1 select * from t1;
-insert into t1 select * from t1;
 
 create index idx_t1_0 on t1 (a1);
 create index idx_t1_1 on t1 (a1,a2,b,c);
@@ -1689,54 +1687,4 @@ drop table t1;
 
 --echo #
 --echo # End of 10.1 tests
---echo #
-
---echo #
---echo # MDEV-27442 Wrong result upon query with DISTINCT and EXISTS subquery
---echo #
-
-CREATE TABLE t1 (a int, b int, KEY b (b,a)) ENGINE=MyISAM;
-INSERT INTO t1 VALUES (0,100),(2,100),(2,101),(3,102);
---echo # Must not use Using index for group-by
-explain SELECT DISTINCT b FROM t1 WHERE EXISTS ( SELECT 1 FROM DUAL WHERE a > 1 );
-SELECT DISTINCT b FROM t1 WHERE EXISTS ( SELECT 1 FROM DUAL WHERE a > 1 );
-DROP TABLE t1;
-
---echo #
---echo # MDEV-26585 Wrong query results when `using index for group-by`
---echo #
-
-CREATE TABLE `t1` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `owner_id` int(11) DEFAULT NULL,
-  `foo` tinyint(1) DEFAULT 0,
-  `whatever` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `index_t1_on_owner_id_and_foo` (`owner_id`,`foo`)
-) engine=InnoDB DEFAULT CHARSET=utf8;
-
-INSERT INTO t1 (owner_id, foo, whatever)
-VALUES (1, TRUE, "yello"), (1, FALSE, "yello"), (2, TRUE, "yello"),
-       (2, TRUE, "yello"), (2, FALSE, "yello");
---replace_column 9 #
-EXPLAIN 
-SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
-SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
-DROP TABLE t1;
-
---echo #
---echo # MDEV-30240 Wrong result upon aggregate function with SQL_BUFFER_RESULT
---echo #
-
-drop table if exists t1,t2;
-CREATE TABLE t1 (pk INT PRIMARY KEY);
-INSERT INTO t1 VALUES (1),(2);
-CREATE TABLE t2 (a INT);
-INSERT INTO t2 VALUES (1),(2);
-SELECT SQL_BUFFER_RESULT MIN(pk) FROM t1, t2;
-SELECT MIN(pk) FROM t1, t2;
-DROP TABLE t1, t2;
-
---echo #
---echo # End of 10.5 tests
 --echo #

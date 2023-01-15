@@ -1,0 +1,105 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
+
+# zlib
+set global innodb_compression_algorithm = 1;
+
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_compressed=1;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_compressed=1;
+--error 1005
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed page_compressed=1;
+show warnings;
+show create table innodb_compact;
+show create table innodb_dynamic;
+
+# MDEV-7133: InnoDB: Assertion failure in thread 140737091569408 in file dict0mem.cc line 74 
+# InnoDB: Failing assertion: dict_tf_is_valid(flags)
+--error 1005
+create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant page_compressed=1;
+show warnings;
+create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
+show create table innodb_redundant;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+alter table innodb_redundant page_compressed=1;
+show warnings;
+show create table innodb_redundant;
+alter table innodb_redundant row_format=compact page_compressed=1;
+show create table innodb_redundant;
+drop table innodb_redundant;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into innodb_normal values(current_num, substring(MD5(RAND()), -64));
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(5000);
+commit;
+set autocommit=1;
+
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+select count(*) from innodb_dynamic where c1 < 1500000;
+
+--source include/restart_mysqld.inc
+
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+select count(*) from innodb_dynamic where c1 < 1500000;
+
+# none
+set global innodb_compression_algorithm = 0;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table innodb_compact page_compressed=DEFAULT, algorithm=instant;
+alter table innodb_compact page_compressed=DEFAULT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table innodb_dynamic page_compressed=DEFAULT, algorithm=instant;
+alter table innodb_dynamic page_compressed=DEFAULT;
+show create table innodb_compact;
+show create table innodb_dynamic;
+
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+select count(*) from innodb_dynamic where c1 < 1500000;
+
+drop procedure innodb_insert_proc;
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_dynamic;
+
+# MDEV-9820 introducing variable for having page compression turned on by default on InnoDB tables
+# test that innodb_compression_default works as expected, i.e. if it has a value of 1 (ON) tables are by default created with page_compressed=1;
+CREATE TABLE no_compression (id INT NOT NULL, name VARCHAR(200)) ENGINE=InnoDB;
+SET SESSION innodb_compression_default = 1;
+CREATE TABLE default_compression (id INT NOT NULL, name VARCHAR(200)) ENGINE=InnoDB;
+CREATE TABLE explicit_no_compression (id INT NOT NULL, name VARCHAR(200)) ENGINE=InnoDB PAGE_COMPRESSED=0;
+SHOW CREATE TABLE no_compression;
+SHOW CREATE TABLE default_compression;
+SHOW CREATE TABLE explicit_no_compression;
+DROP TABLE no_compression;
+DROP TABLE default_compression;
+DROP TABLE explicit_no_compression;
+SET SESSION innodb_compression_default = 0;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
+--enable_query_log

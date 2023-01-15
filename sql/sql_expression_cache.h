@@ -157,7 +157,7 @@ private:
   Item *val;
   /* hit/miss counters */
   ulong hit, miss;
-  /* Set on if the object has been successfully initialized with init() */
+  /* Set on if the object has been succesfully initialized with init() */
   bool inited;
 };
 

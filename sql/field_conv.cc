@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation
+   Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 #include "sql_class.h"                          // THD
 #include <m_ctype.h>
 
-void Field::do_field_eq(Copy_field *copy)
+static void do_field_eq(Copy_field *copy)
 {
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
 }
@@ -168,7 +168,7 @@ int convert_null_to_field_value_or_error(Field *field)
 {
   if (field->type() == MYSQL_TYPE_TIMESTAMP)
   {
-    field->set_time();
+    ((Field_timestamp*) field)->set_time();
     return 0;
   }
 
@@ -315,7 +315,7 @@ static void do_copy_timestamp(Copy_field *copy)
   if (*copy->from_null_ptr & copy->from_bit)
   {
     /* Same as in set_field_to_null_with_conversions() */
-    copy->to_field->set_time();
+    ((Field_timestamp*) copy->to_field)->set_time();
   }
   else
     (copy->do_copy2)(copy);
@@ -465,9 +465,10 @@ static void do_cut_string(Copy_field *copy)
   memcpy(copy->to_ptr,copy->from_ptr,copy->to_length);
 
   /* Check if we loosed any important characters */
-  if (cs->scan((char*) copy->from_ptr + copy->to_length,
-               (char*) copy->from_ptr + copy->from_length,
-               MY_SEQ_SPACES) < copy->from_length - copy->to_length)
+  if (cs->cset->scan(cs,
+                     (char*) copy->from_ptr + copy->to_length,
+                     (char*) copy->from_ptr + copy->from_length,
+                     MY_SEQ_SPACES) < copy->from_length - copy->to_length)
   {
     copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                 WARN_DATA_TRUNCATED, 1);
@@ -495,9 +496,9 @@ static void do_cut_string_complex(Copy_field *copy)
 
   /* Check if we lost any important characters */
   if (unlikely(prefix.well_formed_error_pos() ||
-               cs->scan((char*) copy->from_ptr + copy_length,
-                        (char*) from_end,
-                        MY_SEQ_SPACES) <
+               cs->cset->scan(cs, (char*) copy->from_ptr + copy_length,
+                              (char*) from_end,
+                              MY_SEQ_SPACES) <
                (copy->from_length - copy_length)))
   {
     copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
@@ -505,8 +506,8 @@ static void do_cut_string_complex(Copy_field *copy)
   }
 
   if (copy_length < copy->to_length)
-    cs->fill((char*) copy->to_ptr + copy_length,
-             copy->to_length - copy_length, ' ');
+    cs->cset->fill(cs, (char*) copy->to_ptr + copy_length,
+                   copy->to_length - copy_length, ' ');
 }
 
 
@@ -516,8 +517,8 @@ static void do_expand_binary(Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
-  cs->fill((char*) copy->to_ptr+copy->from_length,
-           copy->to_length-copy->from_length, '\0');
+  cs->cset->fill(cs, (char*) copy->to_ptr+copy->from_length,
+                     copy->to_length-copy->from_length, '\0');
 }
 
 
@@ -526,8 +527,8 @@ static void do_expand_string(Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
-  cs->fill((char*) copy->to_ptr+copy->from_length,
-           copy->to_length-copy->from_length, ' ');
+  cs->cset->fill(cs, (char*) copy->to_ptr+copy->from_length,
+                     copy->to_length-copy->from_length, ' ');
 }
 
 
@@ -637,7 +638,7 @@ void Copy_field::set(uchar *to,Field *from)
   else
   { 
     to_null_ptr=  0;				// For easy debugging
-    do_copy= Field::do_field_eq;
+    do_copy= do_field_eq;
   }
 }
 
@@ -718,7 +719,7 @@ void Copy_field::set(Field *to,Field *from,bool save)
   if ((to->flags & BLOB_FLAG) && save)
     do_copy2= do_save_blob;
   else
-    do_copy2= from->get_copy_func_to(to);
+    do_copy2= to->get_copy_func(from);
   if (!do_copy)					// Not null
     do_copy=do_copy2;
 }
@@ -785,7 +786,7 @@ Field::Copy_func *Field_string::get_copy_func(const Field *from) const
 {
   if (from->type() == MYSQL_TYPE_BIT)
     return do_field_int;
-  if (Field_string::type_handler() != from->type_handler() ||
+  if (Field_string::real_type() != from->real_type() ||
       Field_string::charset() != from->charset())
     return do_field_string;
   if (Field_string::pack_length() < from->pack_length())

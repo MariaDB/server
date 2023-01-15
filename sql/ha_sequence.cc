@@ -19,13 +19,13 @@
 #include "mariadb.h"
 #include "sql_list.h"
 #include "table.h"
-#include "sql_table.h"
 #include "sql_sequence.h"
 #include "ha_sequence.h"
 #include "sql_plugin.h"
 #include "mysql/plugin.h"
 #include "sql_priv.h"
 #include "sql_parse.h"
+#include "sql_table.h"
 #include "sql_update.h"
 #include "sql_base.h"
 #include "log_event.h"
@@ -105,19 +105,15 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       ha_open() sets the following for us. We have to set this for the
       underlying handler
     */
-    file->cached_table_flags= (file->table_flags() | HA_REUSES_FILE_NAMES);
+    file->cached_table_flags= file->table_flags();
 
     file->reset_statistics();
     internal_tmp_table= file->internal_tmp_table=
       MY_TEST(flags & HA_OPEN_INTERNAL_TABLE);
     reset_statistics();
 
-    /*
-      Don't try to read the initial row if the call is part of CREATE, REPAIR
-      or FLUSH
-    */
-    if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR |
-                   HA_OPEN_FOR_FLUSH)))
+    /* Don't try to read the initial row the call is part of create code */
+    if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR)))
     {
       if (unlikely((error= table->s->sequence->read_initial_values(table))))
         file->ha_close();
@@ -129,8 +125,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       The following is needed to fix comparison of rows in
       ha_update_first_row() for InnoDB
     */
-    if (!error)
-      memcpy(table->record[1], table->s->default_values, table->s->reclength);
+    memcpy(table->record[1], table->s->default_values, table->s->reclength);
   }
   DBUG_RETURN(error);
 }
@@ -212,11 +207,7 @@ int ha_sequence::write_row(const uchar *buf)
   DBUG_ENTER("ha_sequence::write_row");
   DBUG_ASSERT(table->record[0] == buf);
 
-  /*
-    Log to binary log even if this function has been called before
-    (The function ends by setting row_logging to 0)
-  */
-  row_logging= row_logging_init;
+  row_already_logged= 0;
   if (unlikely(sequence->initialized == SEQUENCE::SEQ_IN_PREPARE))
   {
     /* This calls is from ha_open() as part of create table */
@@ -232,7 +223,6 @@ int ha_sequence::write_row(const uchar *buf)
     sequence->copy(&tmp_seq);
     if (likely(!(error= file->write_row(buf))))
       sequence->initialized= SEQUENCE::SEQ_READY_TO_USE;
-    row_logging= 0;
     DBUG_RETURN(error);
   }
   if (unlikely(sequence->initialized != SEQUENCE::SEQ_READY_TO_USE))
@@ -285,12 +275,10 @@ int ha_sequence::write_row(const uchar *buf)
       sequence->copy(&tmp_seq);
     rows_changed++;
     /* We have to do the logging while we hold the sequence mutex */
-    if (row_logging)
-      error= binlog_log_row(table, 0, buf, log_func);
+    error= binlog_log_row(table, 0, buf, log_func);
+    row_already_logged= 1;
   }
 
-  /* Row is already logged, don't log it again in ha_write_row() */
-  row_logging= 0;
   sequence->all_values_used= 0;
   if (!sequence_locked)
     sequence->write_unlock(table);
@@ -398,13 +386,6 @@ static handler *sequence_create_handler(handlerton *hton,
                                         MEM_ROOT *mem_root)
 {
   DBUG_ENTER("sequence_create_handler");
-  if (unlikely(!share))
-  {
-    /*
-      This can happen if we call get_new_handler with a non existing share
-    */
-    DBUG_RETURN(0);
-  }
   DBUG_RETURN(new (mem_root) ha_sequence(hton, share));
 }
 
@@ -445,6 +426,7 @@ static int sequence_initialize(void *p)
   handlerton *local_sequence_hton= (handlerton *)p;
   DBUG_ENTER("sequence_initialize");
 
+  local_sequence_hton->state= SHOW_OPTION_YES;
   local_sequence_hton->db_type= DB_TYPE_SEQUENCE;
   local_sequence_hton->create= sequence_create_handler;
   local_sequence_hton->panic= sequence_end;

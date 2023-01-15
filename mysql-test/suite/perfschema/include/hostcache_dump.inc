@@ -1,6 +1,6 @@
 # Helper for hostcache_*.test
 
---echo # Dumping performance_schema.host_cache
+--echo "Dumping performance_schema.host_cache"
 
 --disable_query_log
 --vertical_results

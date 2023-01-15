@@ -1,4 +1,4 @@
-/* Copyright (C) 2018, 2020 MariaDB Corporation Ab
+/* Copyright (C) 2018 MariaDB corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,8 +20,10 @@
 #include "ma_checkpoint.h"
 #include <aria_backup.h>
 
+static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base);
+
 /**
-  @brief Get capabilities for an Aria table
+  @brief Get capabilites for an Aria table
 
   @param kfile   key file (.MAI)
   @param cap     Capabilities are stored here
@@ -30,7 +32,6 @@
   @return X      errno
 */
 
-int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)__attribute__((visibility("default"))) ;
 int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
 {
   MARIA_SHARE share;
@@ -58,7 +59,7 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
     Allocate space for header information and for data that is too
     big to keep on stack
   */
-  if (!(disc_cache= my_malloc(PSI_NOT_INSTRUMENTED, info_length, MYF(MY_WME))))
+  if (!(disc_cache= my_malloc(info_length, MYF(MY_WME))))
     DBUG_RETURN(ENOMEM);
 
   if (my_pread(kfile, disc_cache, info_length, 0L, MYF(MY_NABP)))
@@ -76,11 +77,6 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
                          0) + KEYPAGE_KEYID_SIZE + KEYPAGE_FLAG_SIZE +
                         KEYPAGE_USED_SIZE);
   cap->block_size= share.base.block_size;
-  cap->data_file_type= share.state.header.data_file_type;
-  cap->s3_block_size=  share.base.s3_block_size;
-  cap->compression=    share.base.compression_algorithm;
-  cap->encrypted=      MY_TEST(share.base.extra_options &
-                               MA_EXTRA_OPTIONS_ENCRYPTED);
 
   if (share.state.header.data_file_type == BLOCK_RECORD)
   {
@@ -101,13 +97,21 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
 err:
   my_free(disc_cache);
   DBUG_RETURN(error);
-} /* aria_get_capabilities */
+} /* maria_get_capabilities */
 
-/****************************************************************************
-**  store MARIA_BASE_INFO
-****************************************************************************/
 
-uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
+/*
+  This is a copy of my_base_info_read from ma_open().
+  The base information will never change (something may be added
+  last, but not relevant for maria_get_capabilities), so it's safe to
+  copy it here.
+
+  The copy is done to avoid linking in the fill Aria library just
+  because maria_backup uses maria_get_capabilities()
+*/
+
+
+static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
 {
   bmove(base->uuid, ptr, MY_UUID_SIZE);                 ptr+= MY_UUID_SIZE;
   base->keystart= mi_sizekorr(ptr);			ptr+= 8;
@@ -138,15 +142,14 @@ uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
   base->keys=	       *ptr++;
   base->auto_key=      *ptr++;
   base->born_transactional= *ptr++;
-  base->compression_algorithm= *ptr++;
+  ptr++;
   base->pack_bytes= mi_uint2korr(ptr);			ptr+= 2;
   base->blobs= mi_uint2korr(ptr);			ptr+= 2;
   base->max_key_block_length= mi_uint2korr(ptr);	ptr+= 2;
   base->max_key_length= mi_uint2korr(ptr);		ptr+= 2;
   base->extra_alloc_bytes= mi_uint2korr(ptr);		ptr+= 2;
   base->extra_alloc_procent= *ptr++;
-  base->s3_block_size= mi_uint3korr(ptr);               ptr+= 3;
-  ptr+= 13;
+  ptr+= 16;
   return ptr;
 }
 

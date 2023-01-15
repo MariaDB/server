@@ -398,6 +398,7 @@ row_vers_impl_x_locked(
 	dict_index_t*	clust_index;
 
 	ut_ad(!lock_mutex_own());
+	ut_ad(!mutex_own(&trx_sys.mutex));
 
 	mtr_start(&mtr);
 
@@ -442,14 +443,18 @@ row_vers_impl_x_locked(
 @param[in,out]	row		the cluster index row in dtuple form
 @param[in]	clust_index	clustered index
 @param[in]	index		the secondary index
-@param[in]	heap		heap used to build virtual dtuple. */
+@param[in]	heap		heap used to build virtual dtuple
+@param[in,out]	vcol_info	virtual column information.
+@return		true in case of success
+		false if virtual column computation fails */
 static
 bool
 row_vers_build_clust_v_col(
 	dtuple_t*		row,
 	dict_index_t*		clust_index,
 	dict_index_t*		index,
-	mem_heap_t*		heap)
+	mem_heap_t*		heap,
+	purge_vcol_info_t*	vcol_info)
 {
 	THD*		thd= current_thd;
 	TABLE*		maria_table= 0;
@@ -457,32 +462,42 @@ row_vers_build_clust_v_col(
 	ut_ad(dict_index_has_virtual(index));
 	ut_ad(index->table == clust_index->table);
 
+	if (vcol_info != NULL) {
+		vcol_info->set_used();
+		maria_table = vcol_info->table();
+	}
 	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
-	ib_vcol_row vc(nullptr);
+	ib_vcol_row vc(NULL);
 	byte *record = vc.record(thd, index, &maria_table);
 
-	ut_ad(maria_table);
+	if (vcol_info && !vcol_info->table()) {
+		vcol_info->set_table(maria_table);
+		// wait for second fetch
+		return true;
+	}
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-		const dict_col_t* c = dict_index_get_nth_col(index, i);
+		const dict_field_t* ind_field = dict_index_get_nth_field(
+				index, i);
 
-		if (c->is_virtual()) {
-			const dict_v_col_t* col
-				= reinterpret_cast<const dict_v_col_t*>(c);
+		if (ind_field->col->is_virtual()) {
+			const dict_v_col_t*       col;
+
+			col = reinterpret_cast<const dict_v_col_t*>(
+				ind_field->col);
 
 			dfield_t *vfield = innobase_get_computed_value(
 				row, col, clust_index, &vc.heap,
 				heap, NULL, thd, maria_table, record, NULL,
 				NULL);
-			if (!vfield) {
+			if (vfield == NULL) {
 				innobase_report_computed_value_failed(row);
 				ut_ad(0);
 				return false;
 			}
 		}
 	}
-
 	return true;
 }
 
@@ -565,8 +580,9 @@ row_vers_build_cur_vrow_low(
 		all_filled = true;
 
 		for (i = 0; i < entry_len; i++) {
-			const dict_col_t* col
-				= dict_index_get_nth_col(index, i);
+			const dict_field_t*	ind_field
+				 = dict_index_get_nth_field(index, i);
+			const dict_col_t*	col = ind_field->col;
 
 			if (!col->is_virtual()) {
 				continue;
@@ -780,6 +796,7 @@ func_exit:
 @param[in,out]	heap		heap memory
 @param[in,out]	v_heap		heap memory to keep virtual colum dtuple
 @param[in]	mtr		mtr holding the latch on rec
+@param[in,out]	vcol_info	virtual column information for purge thread
 @return dtuple contains virtual column data */
 static
 dtuple_t*
@@ -793,7 +810,8 @@ row_vers_build_cur_vrow(
 	trx_id_t		trx_id,
 	mem_heap_t*		heap,
 	mem_heap_t*		v_heap,
-	mtr_t*			mtr)
+	mtr_t*			mtr,
+	purge_vcol_info_t*	vcol_info)
 {
 	dtuple_t* cur_vrow = NULL;
 
@@ -813,9 +831,18 @@ row_vers_build_cur_vrow(
 					  rec, *clust_offsets,
 					  NULL, NULL, NULL, NULL, heap);
 
-		if (!row_vers_build_clust_v_col(row, clust_index, index,
-						heap)) {
-			return nullptr;
+		if (vcol_info && !vcol_info->is_used()) {
+			mtr->commit();
+		}
+
+		bool res = row_vers_build_clust_v_col(
+			row, clust_index, index, heap, vcol_info);
+		if (!res) {
+			return NULL;
+		}
+
+		if (vcol_info != NULL && vcol_info->is_first_fetch()) {
+			return NULL;
 		}
 
 		cur_vrow = dtuple_copy(row, v_heap);
@@ -849,6 +876,7 @@ this case we return TRUE.
 @param[in]	ientry		secondary index entry
 @param[in]	roll_ptr	roll_ptr for the purge record
 @param[in]	trx_id		transaction ID on the purging record
+@param[in,out]	vcol_info	virtual column information for purge thread.
 @return TRUE if earlier version should have */
 bool
 row_vers_old_has_index_entry(
@@ -858,7 +886,8 @@ row_vers_old_has_index_entry(
 	dict_index_t*		index,
 	const dtuple_t*		ientry,
 	roll_ptr_t		roll_ptr,
-	trx_id_t		trx_id)
+	trx_id_t		trx_id,
+	purge_vcol_info_t*	vcol_info)
 {
 	const rec_t*	version;
 	rec_t*		prev_version;
@@ -873,8 +902,11 @@ row_vers_old_has_index_entry(
 	mem_heap_t*	v_heap = NULL;
 	dtuple_t*	cur_vrow = NULL;
 
-	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
-					      | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(!rw_lock_own(&purge_sys.latch, RW_LOCK_S));
+	ut_ad(also_curr || !vcol_info);
+
 	clust_index = dict_table_get_first_index(index->table);
 
 	comp = page_rec_is_comp(rec);
@@ -926,8 +958,19 @@ row_vers_old_has_index_entry(
 			if (trx_undo_roll_ptr_is_insert(t_roll_ptr)
 			    || dbug_v_purge) {
 
-				if (!row_vers_build_clust_v_col(
-					    row, clust_index, index, heap)) {
+				if (vcol_info && !vcol_info->is_used()) {
+					mtr->commit();
+				}
+
+				bool res = row_vers_build_clust_v_col(
+					row, clust_index, index, heap,
+					vcol_info);
+
+				if (!res) {
+					goto unsafe_to_purge;
+				}
+
+				if (vcol_info && vcol_info->is_first_fetch()) {
 					goto unsafe_to_purge;
 				}
 
@@ -1006,7 +1049,11 @@ unsafe_to_purge:
 
 		cur_vrow = row_vers_build_cur_vrow(
 			also_curr, rec, clust_index, &clust_offsets,
-			index, roll_ptr, trx_id, heap, v_heap, mtr);
+			index, roll_ptr, trx_id, heap, v_heap, mtr, vcol_info);
+
+		if (vcol_info && vcol_info->is_first_fetch()) {
+			goto unsafe_to_purge;
+		}
 	}
 
 	version = rec;
@@ -1131,9 +1178,9 @@ row_vers_build_for_consistent_read(
 	byte*		buf;
 	dberr_t		err;
 
-	ut_ad(index->is_primary());
-	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
-					      | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	ut_ad(rec_offs_validate(rec, index, *offsets));
@@ -1244,9 +1291,9 @@ row_vers_build_for_semi_consistent_read(
 	byte*		buf;
 	trx_id_t	rec_trx_id	= 0;
 
-	ut_ad(index->is_primary());
-	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
-					      | MTR_MEMO_PAGE_S_FIX));
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
+					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
 
 	ut_ad(rec_offs_validate(rec, index, *offsets));

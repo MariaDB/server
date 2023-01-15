@@ -20,8 +20,8 @@
 
 set sql_mode='';
 
-set @orig_storage_engine=@@default_storage_engine;
-set default_storage_engine=Aria;
+set @orig_storage_engine=@@storage_engine;
+set storage_engine=Aria;
 
 set system_versioning_alter_history=keep;
 
@@ -330,7 +330,7 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
-set default_storage_engine=@orig_storage_engine;
+set storage_engine=@orig_storage_engine;
 
 --
 -- Drop some tables not used anymore in MariaDB

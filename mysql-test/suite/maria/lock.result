@@ -1,6 +1,7 @@
 drop table if exists t1,t2;
 Warnings:
-Note	1051	Unknown table 'test.t1,test.t2'
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
 CREATE TABLE t1 (i INT) ENGINE=Aria;
 CREATE TABLE t2 (i INT) ENGINE=Aria;
 LOCK TABLE t1 WRITE, t2 WRITE;
@@ -165,15 +166,4 @@ Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
 disconnect con1;
 connection default;
-DROP TABLE t1, t2;
-#
-# MDEV-22829 SIGSEGV in _ma_reset_history on LOCK
-#
-CREATE TABLE t1 (f1 INT) ENGINE=Aria;
-CREATE TABLE t2 (f2 INT) ENGINE=Aria;
-LOCK TABLES t2 WRITE, t1 WRITE;
-INSERT INTO t1 VALUES (1);
-CREATE TRIGGER ai AFTER INSERT ON t1 FOR EACH ROW UPDATE t1 SET v=1 WHERE b=new.a;
-ERROR 42S22: Unknown column 'a' in 'NEW'
-UNLOCK TABLES;
 DROP TABLE t1, t2;

@@ -738,7 +738,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `C2` int(11) DEFAULT NULL,
   KEY `c2` (`C2`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`C2`) REFERENCES `t1` (`C1`)
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c2`) REFERENCES `t1` (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 CHANGE COLUMN C1 c5 INT;
 ALTER TABLE t2 CHANGE COLUMN C2 c6 INT;
@@ -785,7 +785,7 @@ SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
 INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
 WHERE T.NAME='test/t1';
 NAME
-A
+a
 b
 DROP TABLE t1;
 # different FOREIGN KEY cases
@@ -842,27 +842,27 @@ t2	CREATE TABLE `t2` (
   KEY `bb` (`BB`),
   KEY `CC` (`CC`),
   KEY `DD` (`DD`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`),
-  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`BB`) REFERENCES `t1` (`B`),
-  CONSTRAINT `t2_ibfk_3` FOREIGN KEY (`CC`) REFERENCES `t1` (`C`),
-  CONSTRAINT `t2_ibfk_4` FOREIGN KEY (`DD`) REFERENCES `t1` (`D`)
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`bb`) REFERENCES `t1` (`b`),
+  CONSTRAINT `t2_ibfk_3` FOREIGN KEY (`cc`) REFERENCES `t1` (`c`),
+  CONSTRAINT `t2_ibfk_4` FOREIGN KEY (`dd`) REFERENCES `t1` (`d`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DELETE FROM t1 WHERE a=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE A=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE b=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE B=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE c=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE C=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE d=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DELETE FROM t1 WHERE D=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
 DROP TABLE t2, t1;
 # virtual columns case too
 CREATE TABLE t1 (a INT, b INT GENERATED ALWAYS AS (a) VIRTUAL) ENGINE = InnoDB;
@@ -877,7 +877,7 @@ SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
 INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
 WHERE T.NAME='test/t1';
 NAME
-A
+a
 b
 DROP TABLE t1;
 # and an MDEV-18041 regression related to indexes prefixes

@@ -307,16 +307,16 @@ protected:
   String m_cursor_name;
 
   Sql_condition_items()
-   :m_class_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_constraint_schema((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_constraint_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_catalog_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_schema_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_table_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_column_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_cursor_name((const char*) NULL, 0, & my_charset_utf8mb3_bin)
+   :m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_schema((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_catalog_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_schema_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_table_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin)
   { }
 
   void clear()
@@ -967,8 +967,6 @@ public:
     DA_EOF,
     /** Set whenever one calls my_ok() in PS bulk mode. */
     DA_OK_BULK,
-    /** Set whenever one calls my_eof() in PS bulk mode. */
-    DA_EOF_BULK,
     /** Set whenever one calls my_error() or my_message(). */
     DA_ERROR,
     /** Set in case of a custom response, such as one from COM_STMT_PREPARE. */
@@ -1028,11 +1026,8 @@ public:
   enum_diagnostics_status status() const { return m_status; }
 
   const char *message() const
-  {
-    DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK ||
-                m_status == DA_OK_BULK || m_status == DA_EOF_BULK);
-    return m_message;
-  }
+  { DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK ||
+                m_status == DA_OK_BULK); return m_message; }
 
   bool skip_flush() const
   {
@@ -1067,7 +1062,7 @@ public:
   uint statement_warn_count() const
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK ||
-                m_status == DA_EOF ||m_status == DA_EOF_BULK );
+                m_status == DA_EOF);
     return m_statement_warn_count;
   }
 
@@ -1275,7 +1270,6 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////
 
-void convert_error_to_warning(THD *thd);
 
 void push_warning(THD *thd, Sql_condition::enum_warning_level level,
                   uint code, const char *msg);

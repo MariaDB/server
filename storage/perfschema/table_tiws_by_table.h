@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -55,12 +55,10 @@ struct row_tiws_by_table
 class table_tiws_by_table : public PFS_engine_table
 {
 public:
-  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
-  static ha_rows get_row_count();
 
   virtual int rnd_init(bool scan);
   virtual int rnd_next();

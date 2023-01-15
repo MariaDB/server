@@ -1,40 +1,38 @@
 SET @start_global_value = @@global.innodb_thread_sleep_delay;
 SELECT @start_global_value;
 @start_global_value
-0
+10000
 Valid values are zero or above
 select @@global.innodb_thread_sleep_delay >=0;
 @@global.innodb_thread_sleep_delay >=0
 1
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
-0
+10000
 select @@session.innodb_thread_sleep_delay;
 ERROR HY000: Variable 'innodb_thread_sleep_delay' is a GLOBAL variable
 show global variables like 'innodb_thread_sleep_delay';
 Variable_name	Value
-innodb_thread_sleep_delay	0
+innodb_thread_sleep_delay	10000
 show session variables like 'innodb_thread_sleep_delay';
 Variable_name	Value
-innodb_thread_sleep_delay	0
+innodb_thread_sleep_delay	10000
 select * from information_schema.global_variables where variable_name='innodb_thread_sleep_delay';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_THREAD_SLEEP_DELAY	0
+INNODB_THREAD_SLEEP_DELAY	10000
 select * from information_schema.session_variables where variable_name='innodb_thread_sleep_delay';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_THREAD_SLEEP_DELAY	0
+INNODB_THREAD_SLEEP_DELAY	10000
 set global innodb_thread_sleep_delay=10;
-Warnings:
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
-0
+10
 select * from information_schema.global_variables where variable_name='innodb_thread_sleep_delay';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_THREAD_SLEEP_DELAY	0
+INNODB_THREAD_SLEEP_DELAY	10
 select * from information_schema.session_variables where variable_name='innodb_thread_sleep_delay';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_THREAD_SLEEP_DELAY	0
+INNODB_THREAD_SLEEP_DELAY	10
 set session innodb_thread_sleep_delay=1;
 ERROR HY000: Variable 'innodb_thread_sleep_delay' is a GLOBAL variable and should be set with SET GLOBAL
 set global innodb_thread_sleep_delay=1.1;
@@ -47,11 +45,9 @@ set global innodb_thread_sleep_delay=18446744073709551616;
 Warnings:
 Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
 Warning	1292	Truncated incorrect innodb_thread_sleep_delay value: '9223372036854775807'
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 set global innodb_thread_sleep_delay=-7;
 Warnings:
 Warning	1292	Truncated incorrect innodb_thread_sleep_delay value: '-7'
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
 0
@@ -59,46 +55,34 @@ select * from information_schema.global_variables where variable_name='innodb_th
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_THREAD_SLEEP_DELAY	0
 set global innodb_thread_sleep_delay=0;
-Warnings:
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
 0
 set global innodb_thread_sleep_delay=1000;
-Warnings:
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
-0
+1000
 set global innodb_thread_sleep_delay=1000000;
-Warnings:
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
-0
+1000000
 set global innodb_thread_sleep_delay=1000001;
 Warnings:
 Warning	1292	Truncated incorrect innodb_thread_sleep_delay value: '1000001'
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
-0
+1000000
 set global innodb_thread_sleep_delay=4294967295;
 Warnings:
 Warning	1292	Truncated incorrect innodb_thread_sleep_delay value: '4294967295'
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
-0
+1000000
 set global innodb_thread_sleep_delay=555;
-Warnings:
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 select @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
-0
+555
 SET @@global.innodb_thread_sleep_delay = @start_global_value;
-Warnings:
-Warning	138	The parameter innodb_thread_sleep_delay is deprecated and has no effect.
 SELECT @@global.innodb_thread_sleep_delay;
 @@global.innodb_thread_sleep_delay
-0
+10000

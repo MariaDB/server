@@ -1,1 +1,1 @@
---loose-thread-handling=pool-of-threads --loose-thread-pool-mode=generic
+--loose-thread-handling=pool-of-threads

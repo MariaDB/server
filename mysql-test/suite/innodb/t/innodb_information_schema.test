@@ -15,7 +15,7 @@
 -- disable_query_log
 -- disable_result_log
 
-SET default_storage_engine=InnoDB;
+SET storage_engine=InnoDB;
 
 -- disable_warnings
 DROP TABLE IF EXISTS t_min, t_max;

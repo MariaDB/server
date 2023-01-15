@@ -267,7 +267,7 @@ t1	CREATE TABLE `t1` (
   `c30` varchar(317) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
   `c31` varchar(192) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
   `c32` char(0) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
-  `c33` varchar(6) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
+  `c33` varchar(3) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
   `c34` varchar(3) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
   `c35` varchar(3) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,
   `c36` varchar(3) CHARACTER SET latin2 COLLATE latin2_general_ci DEFAULT NULL,

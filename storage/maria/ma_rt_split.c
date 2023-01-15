@@ -378,7 +378,7 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
   double *next_coord;
   int n_dim;
   uchar *source_cur, *cur1, *cur2;
-  uchar *new_page_buff= 0, *log_internal_copy, *log_internal_copy_ptr,
+  uchar *new_page_buff, *log_internal_copy, *log_internal_copy_ptr,
     *log_key_copy= NULL;
   int err_code= 0;
   uint new_page_length;
@@ -390,17 +390,15 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
   int max_keys= ((org_length - share->keypage_header) / (full_length));
   MARIA_PINNED_PAGE tmp_page_link, *page_link= &tmp_page_link;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
-  my_bool new_page_buff_alloced= 0, coord_buf_alloced= 0;
   DBUG_ENTER("maria_rtree_split_page");
   DBUG_PRINT("rtree", ("splitting block"));
 
   n_dim= keyinfo->keysegs / 2;
 
-  alloc_on_stack(*info->stack_end_ptr, coord_buf, coord_buf_alloced,
-                 (n_dim * 2 * sizeof(double) * (max_keys + 1 + 4) +
-                  sizeof(SplitStruct) * (max_keys + 1)));
-  if (!coord_buf)
-    DBUG_RETURN(-1);
+  if (!(coord_buf= (double*) my_alloca(n_dim * 2 * sizeof(double) *
+                                       (max_keys + 1 + 4) +
+                                       sizeof(SplitStruct) * (max_keys + 1))))
+    DBUG_RETURN(-1); /* purecov: inspected */
 
   task= (SplitStruct *)(coord_buf + n_dim * 2 * (max_keys + 1 + 4));
 
@@ -435,15 +433,14 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
   }
 
   /* Allocate buffer for new page and piece of log record */
-  alloc_on_stack(*info->stack_end_ptr, new_page_buff, new_page_buff_alloced,
-                  (keyinfo->block_length +
-                    (transactional ? max_keys * (2 + 2) + 1 + 2 + 1 + 2 : 0)));
-  if (!new_page_buff)
+  if (!(new_page_buff= (uchar*) my_alloca((uint)keyinfo->block_length +
+                                          (transactional ?
+                                           (max_keys * (2 + 2) +
+                                            1 + 2 + 1 + 2) : 0))))
   {
     err_code= -1;
     goto split_err;
   }
-
   log_internal_copy= log_internal_copy_ptr= new_page_buff +
     keyinfo->block_length;
   bzero(new_page_buff, share->block_size);
@@ -541,9 +538,9 @@ int maria_rtree_split_page(const MARIA_KEY *key, MARIA_PAGE *page,
   }
   DBUG_PRINT("rtree", ("split new block: %lu", (ulong) *new_page_offs));
 
+  my_afree(new_page_buff);
 split_err:
-  stack_alloc_free(new_page_buff, new_page_buff_alloced);
-  stack_alloc_free(coord_buf, coord_buf_alloced);
+  my_afree(coord_buf);
   DBUG_RETURN(err_code);
 }
 

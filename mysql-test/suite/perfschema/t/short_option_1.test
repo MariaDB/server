@@ -1,5 +1,3 @@
-# Work around MDEV-29508
-
 # Tests for PERFORMANCE_SCHEMA
 # Check server start for short server start options
 
@@ -8,13 +6,13 @@ select 'Ok, the server started' as result;
 # See the associated -master.opt file.
 
 select @@SQL_MODE;
-show global variables like 'sql_mode';
+show variables like 'sql_mode';
 
 select @@character_set_server;
-show global variables like 'character_set_system';
+show variables like 'character_set_system';
 
-show global variables like 'general_log';
+show variables like 'general_log';
 
-show global variables like 'new';
+show variables like 'new';
 
-show global variables like 'log_warnings';
+show variables like 'log_warnings';

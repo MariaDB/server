@@ -13,7 +13,6 @@ c INT,
 INDEX(b))
 ENGINE=InnoDB STATS_PERSISTENT=0;
 SET GLOBAL innodb_change_buffering_debug = 1;
-SET GLOBAL innodb_change_buffering = all;
 INSERT INTO t1 SELECT 0,'x',1 FROM seq_1_to_8192;
 BEGIN;
 SELECT b FROM t1 LIMIT 3;
@@ -51,5 +50,5 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 SHOW ENGINE INNODB STATUS;
 Type	Name	Status
-InnoDB		
+InnoDB		insert 79, delete mark 1
 DROP TABLE t1;

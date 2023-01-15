@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -373,12 +373,13 @@ public:
     {}
   void cleanup()
   {
-    DBUG_ENTER("Item_func_regexp_replace::cleanup");
+    DBUG_ENTER("Item_func_regex::cleanup");
     Item_str_func::cleanup();
     re.cleanup();
     DBUG_VOID_RETURN;
   }
   String *val_str(String *str);
+  bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp_replace"; }
   Item *get_copy(THD *thd) { return 0;}
@@ -394,12 +395,13 @@ public:
     {}
   void cleanup()
   {
-    DBUG_ENTER("Item_func_regexp_substr::cleanup");
+    DBUG_ENTER("Item_func_regex::cleanup");
     Item_str_func::cleanup();
     re.cleanup();
     DBUG_VOID_RETURN;
   }
   String *val_str(String *str);
+  bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp_substr"; }
   Item *get_copy(THD *thd) { return 0; }
@@ -1454,6 +1456,7 @@ public:
               (cs->mbmaxlen > 1 || !(cs->state & MY_CS_NONASCII))));
     }
   }
+  bool is_json_type() { return args[0]->is_json_type(); }
   String *val_str(String *);
   longlong val_int()
   {
@@ -1673,7 +1676,8 @@ public:
   Item_func_uuid(THD *thd): Item_str_func(thd) {}
   bool fix_length_and_dec()
   {
-    collation.set(DTCollation_numeric());
+    collation.set(system_charset_info,
+                  DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     fix_char_length(MY_UUID_STRING_LENGTH);
     return FALSE;
   }
@@ -1811,8 +1815,8 @@ public:
   TABLE *table;
   Item_temptable_rowid(TABLE *table_arg);
   const Type_handler *type_handler() const { return &type_handler_string; }
-  Field *create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
-  { return create_table_field_from_handler(root, table); }
+  Field *create_tmp_field(bool group, TABLE *table)
+  { return create_table_field_from_handler(table); }
   String *val_str(String *str);
   enum Functype functype() const { return  TEMPTABLE_ROWID; }
   const char *func_name() const { return "<rowid>"; }

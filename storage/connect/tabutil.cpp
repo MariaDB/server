@@ -536,7 +536,7 @@ int TDBPRX::GetMaxSize(PGLOBAL g)
 
 /***********************************************************************/
 /*  In this sample, ROWID will be the (virtual) row number,            */
-/*  while ROWNUM will be the occurrence rank in the multiple column.    */
+/*  while ROWNUM will be the occurence rank in the multiple column.    */
 /***********************************************************************/
 int TDBPRX::RowNumber(PGLOBAL g, bool b)
 	{
@@ -686,7 +686,7 @@ char *PRXCOL::Decode(PGLOBAL g, const char *cnm)
   uint32 len= copy_and_convert(buf, strlen(cnm) + 1,
                                &my_charset_latin1,
                                cnm, strlen(cnm),
-                               &my_charset_utf8mb3_general_ci,
+                               &my_charset_utf8_general_ci,
                                &dummy_errors);
   buf[len]= '\0';
   return buf;

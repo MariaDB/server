@@ -104,11 +104,10 @@ static void usage()
 
 
 static my_bool
-get_one_option(const struct my_option *opt __attribute__((unused)),
-	       const char *argument __attribute__((unused)),
-               const char *filename)
+get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
+	       char *argument __attribute__((unused)))
 {
-  switch (opt->id) {
+  switch (optid) {
     case 'c':
       opt_defaults_file_used= 1;
       break;
@@ -141,49 +140,29 @@ static int get_options(int *argc,char ***argv)
   return 0;
 }
 
-static char *make_args(const char *s1, const char *s2)
-{
-  char *s= malloc(strlen(s1) + strlen(s2) + 1);
-  strmov(strmov(s, s1), s2);
-  return s;
-}
 
 int main(int argc, char **argv)
 {
-  int count= 0, error, no_defaults= 0;
+  int count, error, args_used;
   char **load_default_groups= 0, *tmp_arguments[6];
   char **argument, **arguments, **org_argv;
+  char *defaults, *extra_defaults, *group_suffix;
   int nargs, i= 0;
   MY_INIT(argv[0]);
 
   org_argv= argv;
-  if (*argv && !strcmp(*argv, "--no-defaults"))
-  {
-    argv++;
-    ++count;
-    no_defaults= 1;
-  }
-  /* Copy program name and --no-defaults if present*/
+  args_used= get_defaults_options(argc, argv, &defaults, &extra_defaults,
+                                  &group_suffix);
+
+  /* Copy defaults-xxx arguments & program name */
+  count=args_used+1;
   arguments= tmp_arguments;
-  memcpy((char*) arguments, (char*) org_argv, (++count)*sizeof(*org_argv));
+  memcpy((char*) arguments, (char*) org_argv, count * sizeof(*org_argv));
   arguments[count]= 0;
 
   /* Check out the args */
   if (get_options(&argc,&argv))
     cleanup_and_exit(1);
-
-  if (!no_defaults)
-  {
-    if (opt_defaults_file_used)
-     arguments[count++]= make_args("--defaults-file=", config_file);
-    if (my_defaults_extra_file)
-      arguments[count++]= make_args("--defaults-extra-file=",
-                                  my_defaults_extra_file);
-    if (my_defaults_group_suffix)
-      arguments[count++]= make_args("--defaults-group-suffix=",
-                                  my_defaults_group_suffix);
-    arguments[count]= 0;
-  }
 
   nargs= argc + 1;
   if (opt_mysqld)
@@ -192,8 +171,7 @@ int main(int argc, char **argv)
   if (nargs < 2)
     usage();
 
-  load_default_groups=(char**) my_malloc(PSI_NOT_INSTRUMENTED,
-                                         nargs*sizeof(char*), MYF(MY_WME));
+  load_default_groups=(char**) my_malloc(nargs*sizeof(char*), MYF(MY_WME));
   if (!load_default_groups)
     exit(1);
   if (opt_mysqld)
@@ -222,7 +200,8 @@ int main(int argc, char **argv)
   }
 
   for (argument= arguments+1 ; *argument ; argument++)
-    puts(*argument);
+    if (!my_getopt_is_args_separator(*argument))           /* skip arguments separator */
+      puts(*argument);
   my_free(load_default_groups);
   free_defaults(arguments);
   my_end(0);

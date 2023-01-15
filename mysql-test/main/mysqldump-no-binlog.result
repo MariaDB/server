@@ -1,1 +1,1 @@
-mariadb-dump: Error: Binlogging on server not active
+mysqldump: Error: Binlogging on server not active

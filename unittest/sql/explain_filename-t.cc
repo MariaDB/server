@@ -31,7 +31,7 @@ static const char **error_messages[1]= { error_messages_txt };
 
 int setup()
 {
-  system_charset_info    = &my_charset_utf8mb3_bin;
+  system_charset_info    = &my_charset_utf8_bin;
   my_default_lc_messages = &my_locale_en_US;
 
   /* Populate the necessary error messages */

@@ -16,13 +16,14 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
 # Scenario 1: Block INSERT after commit order release after queued for
 # group commit. Verify that
 #
-# - wsrep_last_committed is not advanced before commit finishes
+# - WSREP_LAST_SEEN_GTID is not advanced before commit finishes
 # - The INSERT does not become visible before commit finishes
 
-# Turn off sync wait to avoid blocking and use wsrep_last_committed
+# Turn off sync wait to avoid blocking and use WSREP_LAST_SEEN_GTID()
 # to observe gtid position.
 SET SESSION wsrep_sync_wait = 0;
---let $last_seen_gtid_prev = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--let $last_seen_gtid_prev = `SELECT WSREP_LAST_SEEN_GTID()`
+
 --connection node_1
 SET SESSION wsrep_sync_wait = 0;
 # Set up sync points
@@ -37,7 +38,7 @@ SET DEBUG_SYNC = "after_group_after_commit SIGNAL after_group_reached WAIT_FOR a
 # committed in memory.
 SET DEBUG_SYNC = "now WAIT_FOR bcol_reached";
 --disable_query_log
---eval SELECT VARIABLE_VALUE = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
 --enable_query_log
 SELECT * FROM t1;
 SET DEBUG_SYNC = "now SIGNAL bcol_continue";
@@ -45,14 +46,14 @@ SET DEBUG_SYNC = "now SIGNAL bcol_continue";
 # SE commit finished but wsrep_after_commit() has not called yet.
 SET DEBUG_SYNC = "now WAIT_FOR acol_reached";
 --disable_query_log
---eval SELECT VARIABLE_VALUE = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
 --enable_query_log
 SELECT * FROM t1;
 SET DEBUG_SYNC = "now SIGNAL acol_continue";
 
 SET DEBUG_SYNC = "now WAIT_FOR after_group_reached";
 --disable_query_log
---eval SELECT VARIABLE_VALUE != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_do_not_match FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--eval SELECT WSREP_LAST_SEEN_GTID() != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_do_not_match
 --enable_query_log
 SET DEBUG_SYNC = "now SIGNAL after_group_continue";
 
@@ -69,7 +70,7 @@ SET DEBUG_SYNC = "now SIGNAL after_group_continue";
 SET SESSION wsrep_sync_wait = 0;
 
 --connection ctrl
---let $last_seen_gtid_prev = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--let $last_seen_gtid_prev = `SELECT WSREP_LAST_SEEN_GTID()`
 
 --connection node_1
 SET DEBUG_SYNC = "wsrep_before_commit_order_leave SIGNAL bcol_reached_1 WAIT_FOR bcol_continue_1";
@@ -80,7 +81,7 @@ SET DEBUG_SYNC = "after_group_after_commit SIGNAL agac_reached_1 WAIT_FOR agac_c
 SET DEBUG_SYNC = "now WAIT_FOR bcol_reached_1";
 
 --disable_query_log
---eval SELECT VARIABLE_VALUE = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
 --enable_query_log
 
 --connection node_1a
@@ -97,14 +98,14 @@ SET DEBUG_SYNC = "now WAIT_FOR acol_reached_1";
 SET DEBUG_SYNC = "now WAIT_FOR bcol_reached_2";
 
 --disable_query_log
---eval SELECT VARIABLE_VALUE = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
 --enable_query_log
 
 SET DEBUG_SYNC = "now SIGNAL bcol_continue_2";
 SET DEBUG_SYNC = "now WAIT_FOR acol_reached_2";
 
 --disable_query_log
---eval SELECT VARIABLE_VALUE = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--eval SELECT WSREP_LAST_SEEN_GTID() = '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_match
 --enable_query_log
 
 # Last seen GTIDs are incremented one by one once after_group_after_commit
@@ -113,14 +114,14 @@ SET DEBUG_SYNC = "now SIGNAL acol_continue_1";
 SET DEBUG_SYNC = "now WAIT_FOR agac_reached_1";
 
 --disable_query_log
---eval SELECT VARIABLE_VALUE != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_no_match FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--eval SELECT WSREP_LAST_SEEN_GTID() != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_no_match
 --enable_query_log
 
---let $last_seen_gtid_prev = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--let $last_seen_gtid_prev = `SELECT WSREP_LAST_SEEN_GTID()`
 SET DEBUG_SYNC = "now SIGNAL acol_continue_2";
 SET DEBUG_SYNC = "now WAIT_FOR agac_reached_2";
 --disable_query_log
---eval SELECT VARIABLE_VALUE != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_no_match FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--eval SELECT WSREP_LAST_SEEN_GTID() != '$last_seen_gtid_prev' AS wsrep_last_seen_gtid_no_match
 --enable_query_log
 
 SET DEBUG_SYNC = "now SIGNAL agac_continue_1";

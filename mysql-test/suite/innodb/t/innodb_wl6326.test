@@ -59,7 +59,6 @@ SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME
 # (above t1 definition is already adjusted)
 SET GLOBAL innodb_limit_optimistic_insert_debug = 7;
 
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('aa');
 INSERT INTO t1 (a00) VALUES ('ab');
 INSERT INTO t1 (a00) VALUES ('ac');
@@ -68,25 +67,21 @@ INSERT INTO t1 (a00) VALUES ('ae');
 INSERT INTO t1 (a00) VALUES ('af');
 INSERT INTO t1 (a00) VALUES ('ag');
 INSERT INTO t1 (a00) VALUES ('ah');
-COMMIT;
 # Raise root (1-2)
 # (aa,ad)
 # (aa,ab,ac)(ad,ae,af,ag,ah)
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('ai');
 INSERT INTO t1 (a00) VALUES ('aj');
 INSERT INTO t1 (a00) VALUES ('ak');
-COMMIT;
 # Split leaf (1-3)
 # (aa,ad,ak)
 # (aa,ab,ac)(ad,ae,af,ag,ah,ai,aj)(ak)
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('al');
 INSERT INTO t1 (a00) VALUES ('am');
 INSERT INTO t1 (a00) VALUES ('an');
@@ -94,14 +89,12 @@ INSERT INTO t1 (a00) VALUES ('ao');
 INSERT INTO t1 (a00) VALUES ('ap');
 INSERT INTO t1 (a00) VALUES ('aq');
 INSERT INTO t1 (a00) VALUES ('ar');
-COMMIT;
 # Split leaf (1-4)
 # (aa,ad,ak,ar)
 # (aa,ab,ac)(ad,ae,af,ag,ah,ai,aj)(ak,al,am,an,ao,ap,aq)(ar)
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('as');
 INSERT INTO t1 (a00) VALUES ('at');
 INSERT INTO t1 (a00) VALUES ('au');
@@ -109,14 +102,12 @@ INSERT INTO t1 (a00) VALUES ('av');
 INSERT INTO t1 (a00) VALUES ('aw');
 INSERT INTO t1 (a00) VALUES ('ax');
 INSERT INTO t1 (a00) VALUES ('ay');
-COMMIT;
 # Split leaf (1-5)
 # (aa,ad,ak,ar,ay)
 # (aa,ab,ac)(ad,ae,af,ag,ah,ai,aj)(ak,al,am,an,ao,ap,aq)(ar,as,at,au,av,aw,ax)(ay)
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('az');
 INSERT INTO t1 (a00) VALUES ('ba');
 INSERT INTO t1 (a00) VALUES ('bb');
@@ -124,14 +115,13 @@ INSERT INTO t1 (a00) VALUES ('bc');
 INSERT INTO t1 (a00) VALUES ('bd');
 INSERT INTO t1 (a00) VALUES ('be');
 INSERT INTO t1 (a00) VALUES ('bf');
-COMMIT;
 # Split leaf (1-6)
 # (aa,ad,ak,ar,ay,bf)
 # (aa,ab,ac)(ad..)(ak..)(ar,as,at,au,av,aw,ax)(ay,az,ba,bb,bc,bd,be)(bf)
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
+
 INSERT INTO t1 (a00) VALUES ('bg');
 INSERT INTO t1 (a00) VALUES ('bh');
 INSERT INTO t1 (a00) VALUES ('bi');
@@ -139,14 +129,12 @@ INSERT INTO t1 (a00) VALUES ('bj');
 INSERT INTO t1 (a00) VALUES ('bk');
 INSERT INTO t1 (a00) VALUES ('bl');
 INSERT INTO t1 (a00) VALUES ('bm');
-COMMIT;
 # Split leaf (1-7)
 # (aa,ad,ak,ar,ay,bf,bm)
 # (aa,ab,ac)(ad..)(ak..)(ar..)(ay,az,ba,bb,bc,bd,be)(bf,bg,bh,bi,bj,bk,bl)(bm)
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('bn');
 INSERT INTO t1 (a00) VALUES ('bo');
 INSERT INTO t1 (a00) VALUES ('bp');
@@ -154,7 +142,6 @@ INSERT INTO t1 (a00) VALUES ('bq');
 INSERT INTO t1 (a00) VALUES ('br');
 INSERT INTO t1 (a00) VALUES ('bs');
 INSERT INTO t1 (a00) VALUES ('bt');
-COMMIT;
 # Raise root (1-2-8)
 # (aa,ar)
 # (aa,ad,ak)            (ar,ay,bf,bm,bt)
@@ -162,7 +149,7 @@ COMMIT;
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
+
 INSERT INTO t1 (a00) VALUES ('bu');
 INSERT INTO t1 (a00) VALUES ('bv');
 INSERT INTO t1 (a00) VALUES ('bw');
@@ -186,7 +173,6 @@ INSERT INTO t1 (a00) VALUES ('cl');
 INSERT INTO t1 (a00) VALUES ('cm');
 INSERT INTO t1 (a00) VALUES ('cn');
 INSERT INTO t1 (a00) VALUES ('co');
-COMMIT;
 # Split also at level 1 (1-3-11)
 # (aa,ar,co)
 # (aa,ad,ak)            (ar,ay,bf,bm,bt,ca,ch)                    (co)
@@ -194,7 +180,7 @@ COMMIT;
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
+
 INSERT INTO t1 (a00) VALUES ('cp');
 INSERT INTO t1 (a00) VALUES ('cq');
 INSERT INTO t1 (a00) VALUES ('cr');
@@ -250,7 +236,6 @@ INSERT INTO t1 (a00) VALUES ('ei');
 INSERT INTO t1 (a00) VALUES ('ej');
 INSERT INTO t1 (a00) VALUES ('ek');
 INSERT INTO t1 (a00) VALUES ('el');
-COMMIT;
 # Split also at level 1 (1-4-18)
 # (aa,ar,co,el)
 # (aa,ad,ak)            (ar,ay,bf,bm,bt,ca,ch)                    (co,cv,dc,dj,dq,dx,ee)                    (el)
@@ -258,7 +243,6 @@ COMMIT;
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
-BEGIN;
 INSERT INTO t1 (a00) VALUES ('em');
 INSERT INTO t1 (a00) VALUES ('en');
 INSERT INTO t1 (a00) VALUES ('eo');
@@ -313,7 +297,7 @@ INSERT INTO t1 (a00) VALUES ('ge');
 INSERT INTO t1 (a00) VALUES ('gf');
 INSERT INTO t1 (a00) VALUES ('gg');
 INSERT INTO t1 (a00) VALUES ('gh');
-COMMIT;
+
 
 # Current tree form (1-4-24)
 # (aa,ar,co,el)
@@ -322,8 +306,11 @@ COMMIT;
 ANALYZE TABLE t1;
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 
+
+
 # Insert the rest of records normally
 SET GLOBAL innodb_limit_optimistic_insert_debug = 0;
+
 
 --echo # Test start
 

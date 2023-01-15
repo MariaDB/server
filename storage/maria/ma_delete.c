@@ -158,19 +158,13 @@ my_bool _ma_ck_delete(MARIA_HA *info, MARIA_KEY *key)
 {
   MARIA_SHARE *share= info->s;
   int res;
-  my_bool buff_alloced;
   LSN lsn= LSN_IMPOSSIBLE;
   my_off_t new_root= share->state.key_root[key->keyinfo->key_nr];
-  uchar *key_buff, *save_key_data;
+  uchar key_buff[MARIA_MAX_KEY_BUFF], *save_key_data;
   MARIA_KEY org_key;
   DBUG_ENTER("_ma_ck_delete");
 
   LINT_INIT_STRUCT(org_key);
-
-  alloc_on_stack(*info->stack_end_ptr, key_buff, buff_alloced,
-                 key->keyinfo->max_store_length);
-  if (!key_buff)
-    DBUG_RETURN(1);
 
   save_key_data= key->data;
   if (share->now_transactional)
@@ -196,8 +190,6 @@ my_bool _ma_ck_delete(MARIA_HA *info, MARIA_KEY *key)
     _ma_fast_unlock_key_del(info);
   }
   _ma_unpin_all_pages_and_finalize_row(info, lsn);
-
-  stack_alloc_free(key_buff, buff_alloced);
   DBUG_RETURN(res != 0);
 } /* _ma_ck_delete */
 
@@ -206,7 +198,7 @@ my_bool _ma_ck_real_delete(register MARIA_HA *info, MARIA_KEY *key,
                            my_off_t *root)
 {
   int error;
-  my_bool result= 0, buff_alloced;
+  my_bool result= 0;
   my_off_t old_root;
   uchar *root_buff;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
@@ -218,12 +210,13 @@ my_bool _ma_ck_real_delete(register MARIA_HA *info, MARIA_KEY *key,
     _ma_set_fatal_error(info->s, HA_ERR_CRASHED);
     DBUG_RETURN(1);
   }
-
-  alloc_on_stack(*info->stack_end_ptr, root_buff, buff_alloced,
-                 (keyinfo->block_length + keyinfo->max_store_length*2));
-  if (!root_buff)
+  if (!(root_buff= (uchar*)  my_alloca((uint) keyinfo->block_length+
+                                       MARIA_MAX_KEY_BUFF*2)))
+  {
+    DBUG_PRINT("error",("Couldn't allocate memory"));
+    my_errno=ENOMEM;
     DBUG_RETURN(1);
-
+  }
   DBUG_PRINT("info",("root_page: %lu",
                      (ulong) (old_root / keyinfo->block_length)));
   if (_ma_fetch_keypage(&page, info, keyinfo, old_root,
@@ -268,7 +261,7 @@ my_bool _ma_ck_real_delete(register MARIA_HA *info, MARIA_KEY *key,
     }
   }
 err:
-  stack_alloc_free(root_buff, buff_alloced);
+  my_afree(root_buff);
   DBUG_PRINT("exit",("Return: %d",result));
   DBUG_RETURN(result);
 } /* _ma_ck_real_delete */
@@ -291,8 +284,9 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
 {
   int flag,ret_value,save_flag;
   uint nod_flag, page_flag;
-  my_bool last_key, buff_alloced= 0, lastkey_alloced;
-  uchar *leaf_buff=0, *keypos, *lastkey;
+  my_bool last_key;
+  uchar *leaf_buff,*keypos;
+  uchar lastkey[MARIA_MAX_KEY_BUFF];
   MARIA_KEY_PARAM s_temp;
   MARIA_SHARE *share= info->s;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
@@ -300,17 +294,12 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
   DBUG_ENTER("d_search");
   DBUG_DUMP("page", anc_page->buff, anc_page->size);
 
-  alloc_on_stack(*info->stack_end_ptr, lastkey, lastkey_alloced,
-                 keyinfo->max_store_length);
-  if (!lastkey)
-    DBUG_RETURN(1);
-
   flag=(*keyinfo->bin_search)(key, anc_page, comp_flag, &keypos, lastkey,
                               &last_key);
   if (flag == MARIA_FOUND_WRONG_KEY)
   {
     DBUG_PRINT("error",("Found wrong key"));
-    goto err;
+    DBUG_RETURN(-1);
   }
   page_flag= anc_page->flag;
   nod_flag=  anc_page->node;
@@ -355,14 +344,14 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
                                                &kpos)))
       {
         _ma_set_fatal_error(share, HA_ERR_CRASHED);
-        goto err;
+        DBUG_RETURN(-1);
       }
       root= _ma_row_pos_from_key(&tmp_key);
       if (subkeys == -1)
       {
         /* the last entry in sub-tree */
         if (_ma_dispose(info, root, 1))
-          goto err;
+          DBUG_RETURN(-1);
         /* fall through to normal delete */
       }
       else
@@ -389,20 +378,23 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
                                        PAGECACHE_LOCK_LEFT_WRITELOCKED,
                                        DFLT_INIT_HITS);
         }
-        goto end;
+        DBUG_PRINT("exit",("Return: %d",ret_value));
+        DBUG_RETURN(ret_value);
       }
     }
   }
+  leaf_buff=0;
   if (nod_flag)
   {
     /* Read left child page */
     leaf_page.pos= _ma_kpos(nod_flag,keypos);
-
-    alloc_on_stack(*info->stack_end_ptr, leaf_buff, buff_alloced,
-                   (keyinfo->block_length + keyinfo->max_store_length*2));
-    if (!leaf_buff)
-      goto err;
-
+    if (!(leaf_buff= (uchar*) my_alloca((uint) keyinfo->block_length+
+                                       MARIA_MAX_KEY_BUFF*2)))
+    {
+      DBUG_PRINT("error", ("Couldn't allocate memory"));
+      my_errno=ENOMEM;
+      DBUG_RETURN(-1);
+    }
     if (_ma_fetch_keypage(&leaf_page, info,keyinfo, leaf_page.pos,
                           PAGECACHE_LOCK_WRITE, DFLT_INIT_HITS, leaf_buff,
                           0))
@@ -447,7 +439,7 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
         _ma_log_delete(anc_page, s_temp.key_pos,
                        s_temp.changed_length, s_temp.move_length,
                        0, KEY_OP_DEBUG_LOG_DEL_CHANGE_1))
-      goto err;
+      DBUG_RETURN(-1);
 
     if (!nod_flag)
     {						/* On leaf page */
@@ -456,15 +448,12 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
                               (uint) keyinfo->underflow_block_length))
       {
         /* Page will be written by caller if we return 1 */
-        ret_value= 1;
-        goto end;
+        DBUG_RETURN(1);
       }
       if (_ma_write_keypage(anc_page,
                             PAGECACHE_LOCK_LEFT_WRITELOCKED, DFLT_INIT_HITS))
-	goto err;
-
-      ret_value= 0;                             /* Return ok */
-      goto end;
+	DBUG_RETURN(-1);
+      DBUG_RETURN(0);
     }
     save_flag=1;                         /* Mark that anc_buff is changed */
     ret_value= del(info, key, anc_page, &leaf_page,
@@ -517,16 +506,12 @@ static int d_search(MARIA_HA *info, MARIA_KEY *key, uint32 comp_flag,
   {
     DBUG_DUMP("page", anc_page->buff, anc_page->size);
   }
-
-end:
-  stack_alloc_free(leaf_buff, buff_alloced);
-  stack_alloc_free(lastkey, lastkey_alloced);
+  my_afree(leaf_buff);
   DBUG_PRINT("exit",("Return: %d",ret_value));
   DBUG_RETURN(ret_value);
 
 err:
-  stack_alloc_free(leaf_buff, buff_alloced);
-  stack_alloc_free(lastkey, lastkey_alloced);
+  my_afree(leaf_buff);
   DBUG_PRINT("exit",("Error: %d",my_errno));
   DBUG_RETURN (-1);
 } /* d_search */
@@ -565,9 +550,8 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
 {
   int ret_value,length;
   uint a_length, page_flag, nod_flag, leaf_length, new_leaf_length;
-  uchar *keybuff,*endpos,*next_buff,*key_start, *prev_key;
+  uchar keybuff[MARIA_MAX_KEY_BUFF],*endpos,*next_buff,*key_start, *prev_key;
   uchar *anc_buff;
-  my_bool buff_alloced= 0, keybuff_alloced;
   MARIA_KEY_PARAM s_temp;
   MARIA_KEY tmp_key;
   MARIA_SHARE *share= info->s;
@@ -580,11 +564,6 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
 		      keypos));
   DBUG_DUMP("leaf_buff", leaf_page->buff, leaf_page->size);
 
-  alloc_on_stack(*info->stack_end_ptr, keybuff, keybuff_alloced,
-                 keyinfo->max_store_length);
-  if (!keybuff)
-    DBUG_RETURN(1);
-
   page_flag=   leaf_page->flag;
   leaf_length= leaf_page->size;
   nod_flag=    leaf_page->node;
@@ -595,17 +574,14 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
   next_buff= 0;
 
   if (!(key_start= _ma_get_last_key(&tmp_key, leaf_page, endpos)))
-    goto err;
+    DBUG_RETURN(-1);
 
   if (nod_flag)
   {
     next_page.pos= _ma_kpos(nod_flag,endpos);
-
-    alloc_on_stack(*info->stack_end_ptr, next_buff, buff_alloced,
-                   (keyinfo->block_length + keyinfo->max_store_length*2));
-    if (!next_buff)
-      goto err;
-
+    if (!(next_buff= (uchar*) my_alloca((uint) keyinfo->block_length+
+					MARIA_MAX_KEY_BUFF*2)))
+      DBUG_RETURN(-1);
     if (_ma_fetch_keypage(&next_page, info, keyinfo, next_page.pos,
                           PAGECACHE_LOCK_WRITE, DFLT_INIT_HITS, next_buff, 0))
       ret_value= -1;
@@ -658,8 +634,7 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
                                               DFLT_INIT_HITS))
 	goto err;
     }
-    stack_alloc_free(next_buff, buff_alloced);
-    stack_alloc_free(keybuff, keybuff_alloced);
+    my_afree(next_buff);
     DBUG_ASSERT(leaf_page->size <= share->max_index_block_size);
     DBUG_RETURN(ret_value);
   }
@@ -737,15 +712,13 @@ static int del(MARIA_HA *info, MARIA_KEY *key,
     goto err;
 
   DBUG_ASSERT(leaf_page->size <= share->max_index_block_size);
-  stack_alloc_free(next_buff, buff_alloced);
-  stack_alloc_free(keybuff, keybuff_alloced);
   DBUG_RETURN(new_leaf_length <=
               (info->quick_mode ? MARIA_MIN_KEYBLOCK_LENGTH :
                (uint) keyinfo->underflow_block_length));
-
 err:
-  stack_alloc_free(next_buff, buff_alloced);
-  stack_alloc_free(keybuff, keybuff_alloced);
+  if (next_buff)
+    my_afree(next_buff);
+
   DBUG_RETURN(-1);
 } /* del */
 
@@ -788,13 +761,13 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   uint next_buff_length, new_buff_length, key_reflength;
   uint unchanged_leaf_length, new_leaf_length, new_anc_length;
   uint anc_page_flag, page_flag;
-  uchar *anc_key_buff, *leaf_key_buff;
+  uchar anc_key_buff[MARIA_MAX_KEY_BUFF], leaf_key_buff[MARIA_MAX_KEY_BUFF];
   uchar *endpos, *next_keypos, *anc_pos, *half_pos, *prev_key;
   uchar *anc_buff, *leaf_buff;
   uchar *after_key, *anc_end_pos;
   MARIA_KEY_PARAM key_deleted, key_inserted;
   MARIA_SHARE *share= info->s;
-  my_bool first_key, buff_alloced;
+  my_bool first_key;
   MARIA_KEY tmp_key, anc_key, leaf_key;
   MARIA_PAGE next_page;
   DBUG_ENTER("underflow");
@@ -803,13 +776,6 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
 		      keypos));
   DBUG_DUMP("anc_buff", anc_page->buff,  anc_page->size);
   DBUG_DUMP("leaf_buff", leaf_page->buff, leaf_page->size);
-
-  alloc_on_stack(*info->stack_end_ptr, anc_key_buff, buff_alloced,
-                 keyinfo->max_store_length*2);
-  if (!anc_key_buff)
-    DBUG_RETURN(1);
-
-  leaf_key_buff= anc_key_buff+ keyinfo->max_store_length;
 
   anc_page_flag= anc_page->flag;
   anc_buff= anc_page->buff;
@@ -1069,7 +1035,6 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
     if (_ma_write_keypage(leaf_page,
                           PAGECACHE_LOCK_LEFT_WRITELOCKED, DFLT_INIT_HITS))
       goto err;
-    stack_alloc_free(anc_key_buff, buff_alloced);
     DBUG_RETURN(new_anc_length <=
                 ((info->quick_mode ? MARIA_MIN_KEYBLOCK_LENGTH :
                   (uint) keyinfo->underflow_block_length)));
@@ -1299,13 +1264,11 @@ static int underflow(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
                         PAGECACHE_LOCK_LEFT_WRITELOCKED, DFLT_INIT_HITS))
     goto err;
 
-  stack_alloc_free(anc_key_buff, buff_alloced);
   DBUG_RETURN(new_anc_length <=
               ((info->quick_mode ? MARIA_MIN_KEYBLOCK_LENGTH :
                 (uint) keyinfo->underflow_block_length)));
 
 err:
-  stack_alloc_free(anc_key_buff, buff_alloced);
   DBUG_RETURN(-1);
 } /* underflow */
 

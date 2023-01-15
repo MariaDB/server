@@ -22,6 +22,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 CREATE TABLE t2 (f1 int not null)engine=innodb;
 let $restart_parameters="--debug=d,ib_log_checkpoint_avoid";
 --source include/restart_mysqld.inc
+SET GLOBAL innodb_log_checkpoint_now=TRUE;
 
 # Stop the purge
 connect(con1,localhost,root,,,);
@@ -55,6 +56,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 disconnect con1;
 let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
+SET GLOBAL innodb_log_checkpoint_now=TRUE;
 
 drop table t1, t2;
 
@@ -74,6 +76,7 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_
 
 CREATE TABLE t2 (f1 int not null)engine=innodb;
 --source include/restart_mysqld.inc
+SET GLOBAL innodb_log_checkpoint_now=TRUE;
 
 # Stop the purge
 connect(con1,localhost,root,,,);
@@ -97,6 +100,7 @@ alter table t1 drop index idx_1;
 
 disconnect con1;
 --source include/restart_mysqld.inc
+SET GLOBAL innodb_log_checkpoint_now=TRUE;
 
 # Stop the purge
 connect(con1,localhost,root,,,);

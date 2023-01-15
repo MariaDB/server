@@ -1,4 +1,4 @@
-SET @@session.default_storage_engine = 'CSV';
+SET @@session.storage_engine = 'CSV';
 create table t1 (a int, b int as (a+1));
 ERROR HY000: CSV storage engine does not support generated columns
 create table t1 (a int not null);

@@ -346,7 +346,7 @@ class Explain_union : public Explain_node
 {
 public:
   Explain_union(MEM_ROOT *root, bool is_analyze) : 
-    Explain_node(root), union_members(PSI_INSTRUMENT_MEM),
+    Explain_node(root),
     is_recursive_cte(false),
     fake_select_lex_explain(root, is_analyze)
   {}
@@ -839,8 +839,6 @@ public:
   /* Tracker for reading the table */
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
-  Gap_time_tracker extra_time_tracker;
-
   Table_access_tracker jbuf_tracker;
   
   Explain_rowid_filter *rowid_filter;

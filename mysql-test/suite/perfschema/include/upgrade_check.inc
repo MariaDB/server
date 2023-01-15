@@ -13,3 +13,4 @@
 --remove_file $MYSQLTEST_VARDIR/tmp/out_file
 --remove_file $MYSQLTEST_VARDIR/tmp/err_file
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+

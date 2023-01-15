@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -135,6 +135,13 @@
 
 #endif /* _WIN32*/
 
+
+/* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
+#if defined(_AIX) && defined(_LARGE_FILE_API)
+#undef _LARGE_FILE_API
+#undef __GNUG__
+#endif
+
 /*
   The macros below are used to allow build of Universal/fat binaries of
   MySQL and MySQL applications under darwin. 
@@ -152,7 +159,7 @@
 #  if defined(__i386__) || defined(__ppc__)
 #    define SIZEOF_CHARP 4
 #    define SIZEOF_LONG 4
-#  elif defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__) || defined(__arm64__)
+#  elif defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__)
 #    define SIZEOF_CHARP 8
 #    define SIZEOF_LONG 8
 #  else
@@ -263,6 +270,22 @@ C_MODE_END
 #endif
 #endif /* !defined(__WIN__) */
 
+/* Go around some bugs in different OS and compilers */
+#ifdef _AIX			/* By soren@t.dk */
+#define _H_STRINGS
+#define _SYS_STREAM_H
+/* #define _AIX32_CURSES */	/* XXX: this breaks AIX 4.3.3 (others?). */
+#define ulonglong2double(A) my_ulonglong2double(A)
+#define my_off_t2double(A)  my_ulonglong2double(A)
+C_MODE_START
+inline double my_ulonglong2double(unsigned long long A) { return (double)A; }
+C_MODE_END
+#endif /* _AIX */
+
+#ifdef UNDEF_HAVE_INITGROUPS			/* For AIX 4.3 */
+#undef HAVE_INITGROUPS
+#endif
+
 /* gcc/egcs issues */
 
 #if defined(__GNUC) && defined(__EXCEPTIONS)
@@ -272,6 +295,16 @@ C_MODE_END
 #if defined(_lint) && !defined(lint)
 #define lint
 #endif
+#if SIZEOF_LONG_LONG > 4 && !defined(_LONG_LONG)
+#define _LONG_LONG 1		/* For AIX string library */
+#endif
+
+/* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
+#if defined(_AIX) && defined(_LARGE_FILE_API)
+#undef _LARGE_FILE_API
+#undef __GNUG__
+#endif
+
 
 #ifndef stdin
 #include <stdio.h>
@@ -298,6 +331,13 @@ C_MODE_END
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+
+/* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
+#if defined(_AIX) && defined(_LARGE_FILE_API)
+#undef _LARGE_FILE_API
+#undef __GNUG__
+#endif
+
 
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
@@ -756,8 +796,6 @@ inline unsigned long long my_double2ulonglong(double d)
 #define LONGLONG_MIN	((long long) 0x8000000000000000LL)
 #define LONGLONG_MAX	((long long) 0x7FFFFFFFFFFFFFFFLL)
 #endif
-/* Max length needed for a buffer to hold a longlong or ulonglong + end \0 */
-#define LONGLONG_BUFFER_SIZE 21
 
 #if defined(HAVE_LONG_LONG) && !defined(ULONGLONG_MAX)
 /* First check for ANSI C99 definition: */
@@ -1031,8 +1069,8 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 
 #ifdef HAVE_CHARSET_utf8mb4
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8mb4"
-#elif defined(HAVE_CHARSET_utf8mb3)
-#define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8mb3"
+#elif defined(HAVE_CHARSET_utf8)
+#define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8"
 #else
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET MYSQL_DEFAULT_CHARSET_NAME
 #endif
@@ -1156,6 +1194,12 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #define HAVE_REPLICATION
 #define HAVE_EXTERNAL_CLIENT
 #endif /* EMBEDDED_LIBRARY */
+
+/* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
+#if defined(_AIX) && defined(_LARGE_FILE_API)
+#undef _LARGE_FILE_API
+#undef __GNUG__
+#endif
 
 /*
   Provide defaults for the CPU cache line size, if it has not been detected by

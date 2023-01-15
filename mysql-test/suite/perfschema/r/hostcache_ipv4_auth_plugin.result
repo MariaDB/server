@@ -29,7 +29,7 @@ set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddr
 uninstall plugin test_plugin_server;
 ERROR HY000: Plugin 'test_plugin_server' is not loaded
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -59,7 +59,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR HY000: Plugin 'test_plugin_server' is not loaded
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -90,7 +90,7 @@ LAST_ERROR_SEEN	set
 install plugin test_plugin_server soname 'PLUGIN_AUTH';
 ERROR 28000: Access denied for user 'plug'@'santa.claus.ipv4.example.com' (using password: YES)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -120,7 +120,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 28000: Access denied for user 'plug'@'santa.claus.ipv4.example.com' (using password: YES)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -162,7 +162,7 @@ current_user()
 plug_dest@santa.claus.ipv4.example.com
 disconnect con4;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES

@@ -1,5 +1,5 @@
 --echo #
---echo # Testing strtoll10()
+--echo # Testing cs->cset->strtoll10()
 --echo #
 
 SELECT @@character_set_connection;

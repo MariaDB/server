@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,7 +31,6 @@
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
 #include "rpl_mi.h" // For Multi-Source Replication
 #include "debug_sync.h"
-#include "sql_acl.h"    // check_global_access()
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable
@@ -98,47 +97,10 @@
       exit(255);                                                        \
     }
 
+enum charset_enum {IN_SYSTEM_CHARSET, IN_FS_CHARSET};
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
 TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
-
-
-template<class BASE, privilege_t GLOBAL_PRIV, privilege_t SESSION_PRIV>
-class Sys_var_on_access: public BASE
-{
-  using BASE::BASE;
-  bool on_check_access_global(THD *thd) const override
-  {
-    return check_global_access(thd, GLOBAL_PRIV);
-  }
-  bool on_check_access_session(THD *thd) const override
-  {
-    return check_global_access(thd, SESSION_PRIV);
-  }
-};
-
-
-template<class BASE, privilege_t GLOBAL_PRIV>
-class Sys_var_on_access_global: public BASE
-{
-  using BASE::BASE;
-  bool on_check_access_global(THD *thd) const override
-  {
-    return check_global_access(thd, GLOBAL_PRIV);
-  }
-};
-
-
-template<class BASE, privilege_t SESSION_PRIV>
-class Sys_var_on_access_session: public BASE
-{
-  using BASE::BASE;
-  bool on_check_access_session(THD *thd) const override
-  {
-    return check_global_access(thd, SESSION_PRIV);
-  }
-};
-
 
 /**
   A small wrapper class to pass getopt arguments as a pair
@@ -487,6 +449,9 @@ public:
   or not. The state of the initial value is specified in the constructor,
   after that it's managed automatically. The value of NULL is supported.
 
+  Class specific constructor arguments:
+    enum charset_enum is_os_charset_arg
+
   Backing store: char*
 
   @note
@@ -500,6 +465,7 @@ public:
   Sys_var_charptr_base(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
+          enum charset_enum is_os_charset_arg,
           const char *def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
@@ -510,6 +476,7 @@ public:
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   {
+    is_os_charset= is_os_charset_arg == IN_FS_CHARSET;
     /*
      use GET_STR_ALLOC - if ALLOCATED it must be *always* allocated,
      otherwise (GET_STR) you'll never know whether to free it or not.
@@ -565,8 +532,7 @@ public:
     size_t len=var->save_result.string_value.length;
     if (ptr)
     {
-      new_val= (char*)my_memdup(key_memory_Sys_var_charptr_value,
-                                ptr, len+1, MYF(MY_WME));
+      new_val= (char*)my_memdup(ptr, len+1, MYF(MY_WME));
       if (!new_val) return 0;
       new_val[len]=0;
     }
@@ -602,13 +568,14 @@ public:
   Sys_var_charptr(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
+          enum charset_enum is_os_charset_arg,
           const char *def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
           const char *substitute=0) :
     Sys_var_charptr_base(name_arg, comment, flag_args, off, size, getopt,
-                         def_val, lock, binlog_status_arg,
+                         is_os_charset_arg, def_val, lock, binlog_status_arg,
                          on_check_func, on_update_func, substitute)
   {
     SYSVAR_ASSERT(scope() == GLOBAL);
@@ -624,18 +591,6 @@ public:
   { DBUG_ASSERT(FALSE); }
 };
 
-
-class Sys_var_charptr_fscs: public Sys_var_charptr
-{
-  using Sys_var_charptr::Sys_var_charptr;
-public:
-  CHARSET_INFO *charset(THD *thd) const override
-  {
-    return thd->variables.character_set_filesystem;
-  }
-};
-
-
 #ifndef EMBEDDED_LIBRARY
 class Sys_var_sesvartrack: public Sys_var_charptr_base
 {
@@ -643,10 +598,11 @@ public:
   Sys_var_sesvartrack(const char *name_arg,
                       const char *comment,
                       CMD_LINE getopt,
+                      enum charset_enum is_os_charset_arg,
                       const char *def_val, PolyLock *lock= 0) :
     Sys_var_charptr_base(name_arg, comment,
                          SESSION_VAR(session_track_system_variables),
-                         getopt, def_val, lock,
+                         getopt, is_os_charset_arg, def_val, lock,
                          VARIABLE_NOT_IN_BINLOG, 0, 0, 0)
     {}
   bool do_check(THD *thd, set_var *var)
@@ -695,12 +651,14 @@ public:
 class Sys_var_proxy_user: public sys_var
 {
 public:
-  Sys_var_proxy_user(const char *name_arg, const char *comment)
+  Sys_var_proxy_user(const char *name_arg,
+          const char *comment, enum charset_enum is_os_charset_arg)
     : sys_var(&all_sys_vars, name_arg, comment,
               sys_var::READONLY+sys_var::ONLY_SESSION, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
+    is_os_charset= is_os_charset_arg == IN_FS_CHARSET;
     option.var_type|= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
@@ -733,8 +691,9 @@ protected:
 class Sys_var_external_user : public Sys_var_proxy_user
 {
 public:
-  Sys_var_external_user(const char *name_arg, const char *comment_arg)
-    : Sys_var_proxy_user (name_arg, comment_arg)
+  Sys_var_external_user(const char *name_arg, const char *comment_arg, 
+          enum charset_enum is_os_charset_arg) 
+    : Sys_var_proxy_user (name_arg, comment_arg, is_os_charset_arg)
   {}
 
 protected:
@@ -749,55 +708,49 @@ class Sys_var_rpl_filter: public sys_var
 {
 private:
   int opt_id;
-  privilege_t m_access_global;
 
 public:
-  Sys_var_rpl_filter(const char *name, int getopt_id, const char *comment,
-                     privilege_t access_global)
+  Sys_var_rpl_filter(const char *name, int getopt_id, const char *comment)
     : sys_var(&all_sys_vars, name, comment, sys_var::GLOBAL, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
-              NULL, NULL, NULL), opt_id(getopt_id),
-      m_access_global(access_global)
+              NULL, NULL, NULL), opt_id(getopt_id)
   {
     option.var_type|= GET_STR | GET_ASK_ADDR;
   }
 
-  bool do_check(THD *thd, set_var *var) override
+  bool do_check(THD *thd, set_var *var)
   {
     return Sys_var_charptr::do_string_check(thd, var, charset(thd));
   }
-  void session_save_default(THD *, set_var *) override
+  void session_save_default(THD *thd, set_var *var)
   { DBUG_ASSERT(FALSE); }
 
-  void global_save_default(THD *thd, set_var *var) override
+  void global_save_default(THD *thd, set_var *var)
   {
     char *ptr= (char*)(intptr)option.def_value;
     var->save_result.string_value.str= ptr;
     var->save_result.string_value.length= ptr ? strlen(ptr) : 0;
   }
 
-  bool session_update(THD *, set_var *) override
+  bool session_update(THD *thd, set_var *var)
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
 
-  bool global_update(THD *thd, set_var *var) override;
-
-  bool on_check_access_global(THD *thd) const override
-  {
-    return check_global_access(thd, m_access_global);
-  }
+  bool global_update(THD *thd, set_var *var);
 
 protected:
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
-    const override;
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   bool set_filter_value(const char *value, Master_info *mi);
 };
 
 /**
   The class for string variables. Useful for strings that aren't necessarily
   \0-terminated. Otherwise the same as Sys_var_charptr.
+
+  Class specific constructor arguments:
+    enum charset_enum is_os_charset_arg
 
   Backing store: LEX_CSTRING
 
@@ -810,13 +763,14 @@ public:
   Sys_var_lexstring(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
+          enum charset_enum is_os_charset_arg,
           const char *def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
           const char *substitute=0)
     : Sys_var_charptr(name_arg, comment, flag_args, off, sizeof(char*),
-              getopt, def_val, lock, binlog_status_arg,
+              getopt, is_os_charset_arg, def_val, lock, binlog_status_arg,
               on_check_func, on_update_func, substitute)
   {
     global_var(LEX_CSTRING).length= strlen(def_val);
@@ -845,6 +799,7 @@ public:
   Sys_var_session_lexstring(const char *name_arg,
                             const char *comment, int flag_args,
                             ptrdiff_t off, size_t size, CMD_LINE getopt,
+                            enum charset_enum is_os_charset_arg,
                             const char *def_val, size_t max_length_arg,
                             on_check_function on_check_func=0,
                             on_update_function on_update_func=0)
@@ -2023,7 +1978,6 @@ public:
     thd->sys_var_tmp.double_value= 0;
     return (uchar*) &thd->sys_var_tmp.double_value;
   }
-  bool on_check_access_session(THD *thd) const;
 };
 
 
@@ -2562,10 +2516,6 @@ public:
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   const uchar *default_value_ptr(THD *thd) const
   { return 0; }
-  bool on_check_access_global(THD *thd) const
-  {
-    return check_global_access(thd, PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_SLAVE_POS);
-  }
 };
 
 
@@ -2608,11 +2558,6 @@ public:
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
   const uchar *default_value_ptr(THD *thd) const
   { return 0; }
-  bool on_check_access_global(THD *thd) const
-  {
-    return
-      check_global_access(thd, PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_BINLOG_STATE);
-  }
 };
 
 

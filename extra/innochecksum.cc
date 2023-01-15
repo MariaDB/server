@@ -49,6 +49,7 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
 #include "ut0crc32.h"            /* ut_crc32_init() */
+#include "fsp0pagecompress.h"    /* fil_get_compression_alg_name */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 
 #include <string.h>
@@ -102,9 +103,6 @@ char*				log_filename = NULL;
 FILE*				log_file = NULL;
 /* Enabled for log write option. */
 static bool			is_log_enabled = false;
-
-static byte field_ref_zero_buf[UNIV_PAGE_SIZE_MAX];
-const byte *field_ref_zero = field_ref_zero_buf;
 
 #ifndef _WIN32
 /* advisory lock for non-window system. */
@@ -473,7 +471,7 @@ is_page_corrupted(
 	/* use to store LSN values. */
 	uint32_t logseq;
 	uint32_t logseqfield;
-	const uint16_t page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+	ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
 	uint32_t key_version = buf_page_get_key_version(buf, flags);
 	uint32_t space_id = mach_read_from_4(
 		buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -818,7 +816,7 @@ static inline bool is_page_free(const byte *xdes, ulint physical_page_size,
   const byte *des=
       xdes + XDES_ARR_OFFSET +
       XDES_SIZE * ((page_no & (physical_page_size - 1)) / FSP_EXTENT_SIZE);
-  return xdes_is_free(des, page_no % FSP_EXTENT_SIZE);
+  return xdes_get_bit(des, XDES_FREE_BIT, page_no % FSP_EXTENT_SIZE);
 }
 
 /*
@@ -851,7 +849,7 @@ parse_page(
 		strcpy(str, "-");
 	}
 
-	switch (fil_page_get_type(page)) {
+	switch (mach_read_from_2(page + FIL_PAGE_TYPE)) {
 
 	case FIL_PAGE_INDEX: {
 		uint32_t key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
@@ -902,7 +900,8 @@ parse_page(
 			/* update per-index statistics */
 			{
 				per_index_stats &index = index_ids[id];
-				if (is_page_free(xdes, physical_page_size, page_no)) {
+				if (is_page_free(xdes, physical_page_size,
+						 page_no)) {
 					index.free_pages++;
 					return;
 				}
@@ -1310,11 +1309,11 @@ static void usage(void)
 
 extern "C" my_bool
 innochecksum_get_one_option(
-	const struct my_option	*opt,
-	const char		*argument MY_ATTRIBUTE((unused)),
-        const char *)
+	int			optid,
+	const struct my_option	*opt MY_ATTRIBUTE((unused)),
+	char			*argument MY_ATTRIBUTE((unused)))
 {
-	switch (opt->id) {
+	switch (optid) {
 #ifndef DBUG_OFF
 	case '#':
 		dbug_setting = argument
@@ -1529,6 +1528,8 @@ int main(
 	/* our input filename. */
 	char*		filename;
 	/* Buffer to store pages read. */
+	byte*		buf_ptr = NULL;
+	byte*		xdes_ptr = NULL;
 	byte*		buf = NULL;
 	byte*		xdes = NULL;
 	/* bytes read count */
@@ -1562,6 +1563,7 @@ int main(
 	/* enable when space_id of given file is zero. */
 	bool		is_system_tablespace = false;
 
+	ut_crc32_init();
 	MY_INIT(argv[0]);
 	DBUG_ENTER("main");
 	DBUG_PROCESS(argv[0]);
@@ -1607,10 +1609,10 @@ int main(
 	}
 
 
-	buf = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE_MAX,
-						UNIV_PAGE_SIZE_MAX));
-	xdes = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE_MAX,
-						 UNIV_PAGE_SIZE_MAX));
+	buf_ptr = (byte*) malloc(UNIV_PAGE_SIZE_MAX * 2);
+	xdes_ptr = (byte*)malloc(UNIV_PAGE_SIZE_MAX * 2);
+	buf = (byte *) ut_align(buf_ptr, UNIV_PAGE_SIZE_MAX);
+	xdes = (byte *) ut_align(xdes_ptr, UNIV_PAGE_SIZE_MAX);
 
 	/* The file name is not optional. */
 	for (int i = 0; i < argc; ++i) {
@@ -1893,18 +1895,6 @@ unexpected_eof:
 			}
 
 			if (ferror(fil_in)) {
-#ifdef _AIX
-				/*
-				  AIX fseeko can go past eof without error.
-				  the error occurs on read, hence output the
-				  same error here as would show up on other
-				  platforms. This shows up in the mtr test
-				  innodb_zip.innochecksum_3-4k,crc32,innodb
-				*/
-				if (errno == EFBIG) {
-					goto unexpected_eof;
-				}
-#endif
 				fprintf(stderr, "Error reading " ULINTPF " bytes",
 					physical_page_size);
 				perror(" ");
@@ -1929,7 +1919,7 @@ first_non_zero:
 				skip_page = false;
 			}
 
-			const uint16_t cur_page_type = fil_page_get_type(buf);
+			ulint cur_page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
 
 			/* FIXME: Page compressed or Page compressed and encrypted
 			pages do not contain checksum. */
@@ -1942,7 +1932,8 @@ first_non_zero:
 			checksum verification.*/
 			if (!no_check
 			    && !skip_page
-			    && !is_page_free(xdes, physical_page_size, cur_page_num)
+			    && !is_page_free(xdes, physical_page_size,
+					     cur_page_num)
 			    && (exit_status = verify_checksum(
 						buf, is_encrypted,
 						&mismatch_count, flags))) {
@@ -2012,9 +2003,21 @@ first_non_zero:
 		fclose(log_file);
 	}
 
-	goto common_exit;
+	free(buf_ptr);
+	free(xdes_ptr);
+
+	my_end(exit_status);
+	DBUG_RETURN(exit_status);
 
 my_exit:
+	if (buf_ptr) {
+		free(buf_ptr);
+	}
+
+	if (xdes_ptr) {
+		free(xdes_ptr);
+	}
+
 	if (!read_from_stdin && fil_in) {
 		fclose(fil_in);
 	}
@@ -2023,9 +2026,6 @@ my_exit:
 		fclose(log_file);
 	}
 
-common_exit:
-	aligned_free(buf);
-	aligned_free(xdes);
 	my_end(exit_status);
 	DBUG_RETURN(exit_status);
 }

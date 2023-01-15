@@ -34,11 +34,8 @@ wait/synch/rwlock/sql/MDL_context::LOCK_waiting_for	YES	YES
 select * from performance_schema.setup_instruments
 where name like 'Wait/Synch/Cond/sql/%'
   and name not in (
-'wait/synch/cond/sql/COND_open',
 'wait/synch/cond/sql/COND_handler_count',
-'wait/synch/cond/sql/DEBUG_SYNC::cond',
-'wait/synch/cond/sql/COND_socket_listener_active',
-'wait/synch/cond/sql/COND_start_signal_handler')
+'wait/synch/cond/sql/DEBUG_SYNC::cond')
 order by name limit 10;
 NAME	ENABLED	TIMED
 wait/synch/cond/sql/Ack_receiver::cond	YES	YES
@@ -77,14 +74,12 @@ LOCK TABLES performance_schema.setup_instruments READ;
 UNLOCK TABLES;
 LOCK TABLES performance_schema.setup_instruments WRITE;
 UNLOCK TABLES;
-#
+
 # Bug#13813193 ASSERTION `TABLE->READ_SET ==
 # &TABLE->DEF_READ_SET' FAILED / MYSQL_UPDATE
-#
+
 UPDATE performance_schema.setup_instruments SET timed='NO'
 ORDER BY RAND();
-update performance_schema.setup_instruments
-set enabled='YES', TIMED='YES';
 #
 # MDEV-25325 column_comment for performance_schema tables
 #

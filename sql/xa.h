@@ -1,5 +1,3 @@
-#ifndef XA_INCLUDED
-#define XA_INCLUDED
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2019, MariaDB Corporation.
@@ -18,15 +16,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 */
 
+
 class XID_cache_element;
-enum xa_states
-{
-  XA_ACTIVE= 0,
-  XA_IDLE,
-  XA_PREPARED,
-  XA_ROLLBACK_ONLY,
-  XA_NO_STATE
-};
 
 struct XID_STATE {
   XID_cache_element *xid_cache_element;
@@ -36,7 +27,6 @@ struct XID_STATE {
   void set_error(uint error);
   void er_xaer_rmfail() const;
   XID *get_xid() const;
-  enum xa_states get_state_code() const;
 };
 
 void xid_cache_init(void);
@@ -52,5 +42,3 @@ bool trans_xa_commit(THD *thd);
 bool trans_xa_rollback(THD *thd);
 bool trans_xa_detach(THD *thd);
 bool mysql_xa_recover(THD *thd);
-
-#endif /* XA_INCLUDED */

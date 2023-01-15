@@ -5,45 +5,26 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-# Save original auto_increment_offset values.
---let $node_1=node_1
---let $node_2=node_2
---source include/auto_increment_offset_save.inc
-
 --connection node_2
 --exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log
-let $restore_wsrep_ignore_apply_errors = `SELECT @@GLOBAL.wsrep_ignore_apply_errors`;
-SET GLOBAL wsrep_ignore_apply_errors=0;
 
 # Create applier failure
+
 SET SESSION wsrep_on=OFF;
 CREATE TABLE t1 (f1 INTEGER);
 
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER);
 
-# node 2 should detect an error and leave the cluster
---let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
---source include/wait_condition.inc
-
 --connection node_2
---let $wait_condition = SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
---source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+SELECT COUNT(*) = 0 FROM t1;
 
 # Make sure the GRA file produced is readable and contains the failure
 
 --replace_regex /SET TIMESTAMP=[0-9]+/SET TIMESTAMP=<TIMESTAMP>/ /pseudo_thread_id=[0-9]+/pseudo_thread_id=<PSEUDO_THREAD_ID>/
 --exec $MYSQL_BINLOG --short-form $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log
 
-# restart and reconnect node_2
---source include/kill_galera.inc
---source include/wait_until_disconnected.inc
---source include/start_mysqld.inc
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query");
 
---eval SET GLOBAL wsrep_ignore_apply_errors = $restore_wsrep_ignore_apply_errors
 DROP TABLE t1;
-
-CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on");
-
-# Restore original auto_increment_offset values.
---source include/auto_increment_offset_restore.inc

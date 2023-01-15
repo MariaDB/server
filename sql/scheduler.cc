@@ -24,10 +24,25 @@
 
 #include "mariadb.h"
 #include "mysqld.h"
+#include "sql_connect.h"         // init_new_connection_handler_thread
 #include "scheduler.h"
 #include "sql_class.h"
 #include "sql_callback.h"
 #include <violite.h>
+
+/*
+  End connection, in case when we are using 'no-threads'
+*/
+
+static bool no_threads_end(THD *thd, bool put_in_cache)
+{
+  if (thd)
+  {
+    unlink_thd(thd);
+    delete thd;
+  }
+  return 1;                                     // Abort handle_one_connection
+}
 
 /** @internal
   Helper functions to allow mysys to call the thread scheduler when
@@ -112,16 +127,22 @@ void post_kill_notification(THD *thd)
 
 void one_thread_per_connection_scheduler(scheduler_functions *func,
     ulong *arg_max_connections,
-    Atomic_counter<uint> *arg_connection_count)
+    uint *arg_connection_count)
 {
   scheduler_init();
   func->max_threads= *arg_max_connections + 1;
   func->max_connections= arg_max_connections;
   func->connection_count= arg_connection_count;
+  func->init_new_connection_thread= init_new_connection_handler_thread;
   func->add_connection= create_thread_to_handle_connection;
+  func->end_thread= one_thread_per_connection_end;
   func->post_kill_notification= post_kill_notification;
 }
 #else
+bool init_new_connection_handler_thread()
+{
+  return 0;
+}
 void handle_connection_in_main_thread(CONNECT *connect)
 {
 }
@@ -137,5 +158,7 @@ void one_thread_scheduler(scheduler_functions *func)
   func->max_threads= 1;
   func->max_connections= &max_connections;
   func->connection_count= &connection_count;
+  func->init_new_connection_thread= init_new_connection_handler_thread;
   func->add_connection= handle_connection_in_main_thread;
+  func->end_thread= no_threads_end;
 }

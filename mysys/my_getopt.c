@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2013, Oracle and/or its affiliates
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2015, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,15 +15,15 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
-#include <mysys_priv.h>
+#include <my_global.h>
 #include <my_default.h>
 #include <m_string.h>
 #include <stdlib.h>
+#include <my_sys.h>
 #include <mysys_err.h>
 #include <my_getopt.h>
 #include <errno.h>
 
-my_bool is_file_marker(const char* arg);
 typedef void (*init_func_p)(const struct my_option *option, void *variable,
                             longlong value);
 
@@ -31,7 +31,7 @@ static void default_reporter(enum loglevel level, const char *format, ...);
 my_error_reporter my_getopt_error_reporter= &default_reporter;
 
 static int findopt(char *, uint, const struct my_option **, const char **);
-static my_bool getopt_compare_strings(const char *, const char *, uint);
+my_bool getopt_compare_strings(const char *, const char *, uint);
 static longlong getopt_ll(char *arg, const struct my_option *optp, int *err);
 static ulonglong getopt_ull(char *, const struct my_option *, int *);
 static double getopt_double(char *arg, const struct my_option *optp, int *err);
@@ -85,9 +85,8 @@ my_bool my_getopt_prefix_matching= 1;
 */
 my_bool my_handle_options_init_variables = 1;
 
-my_getopt_value my_getopt_get_addr= 0;
-
-static void default_reporter(enum loglevel level, const char *format, ...)
+static void default_reporter(enum loglevel level,
+                             const char *format, ...)
 {
   va_list args;
   DBUG_ENTER("default_reporter");
@@ -102,6 +101,13 @@ static void default_reporter(enum loglevel level, const char *format, ...)
   fputc('\n', stderr);
   fflush(stderr);
   DBUG_VOID_RETURN;
+}
+
+static my_getopt_value getopt_get_addr;
+
+void my_getopt_register_get_addr(my_getopt_value func_addr)
+{
+  getopt_get_addr= func_addr;
 }
 
 union ull_dbl
@@ -140,7 +146,7 @@ double getopt_ulonglong2double(ulonglong v)
   or until the end of argv. Parse options, check that the given option
   matches with one of the options in struct 'my_option'.
   Check that option was given an argument if it requires one
-  Call the 'get_one_option()' function once for each option.
+  Call the optional 'get_one_option()' function once for each option.
 
   Note that handle_options() can be invoked multiple times to
   parse a command line in several steps.
@@ -187,18 +193,19 @@ double getopt_ulonglong2double(ulonglong v)
   @param [in, out] argc      command line options (count)
   @param [in, out] argv      command line options (values)
   @param [in] longopts       descriptor of all valid options
-  @param [in] get_one_option callback function to process each option
+  @param [in] get_one_option optional callback function to process each option,
+                            can be NULL.
   @return error in case of ambiguous or unknown options,
           0 on success.
 */
-int handle_options(int *argc, char ***argv, const struct my_option *longopts,
+int handle_options(int *argc, char ***argv, 
+		   const struct my_option *longopts,
                    my_get_one_option get_one_option)
 {
   uint UNINIT_VAR(opt_found), argvpos= 0, length;
   my_bool end_of_options= 0, must_be_var, set_maximum_value,
           option_is_loose, option_is_autoset;
   char **pos, **pos_end, *optend, *opt_str, key_name[FN_REFLEN];
-  char *filename= (char*)"";
   const char *UNINIT_VAR(prev_found);
   const struct my_option *optp;
   void *value;
@@ -207,36 +214,41 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
   DBUG_ENTER("handle_options");
 
   /* handle_options() assumes arg0 (program name) always exists */
-  DBUG_ASSERT(*argc >= 1);
-  DBUG_ASSERT(*argv);
+  DBUG_ASSERT(argc && *argc >= 1);
+  DBUG_ASSERT(argv && *argv);
   (*argc)--; /* Skip the program name */
   (*argv)++; /*      --- || ----      */
   if (my_handle_options_init_variables)
     init_variables(longopts, init_one_value);
 
-  is_cmdline_arg= !is_file_marker(**argv);
+  /*
+    Search for args_separator, if found, then the first part of the
+    arguments are loaded from configs
+  */
+  for (pos= *argv, pos_end=pos+ *argc; pos != pos_end ; pos++)
+  {
+    if (my_getopt_is_args_separator(*pos))
+    {
+      is_cmdline_arg= 0;
+      break;
+    }
+  }
 
   for (pos= *argv, pos_end=pos+ *argc; pos != pos_end ; pos++)
   {
     char **first= pos;
     char *cur_arg= *pos;
     opt_found= 0;
-    if (!is_cmdline_arg)
+    if (!is_cmdline_arg && (my_getopt_is_args_separator(cur_arg)))
     {
-      if (is_file_marker(cur_arg))
-      {
-        pos++;
-        filename= *pos;
-        is_cmdline_arg= *filename == 0; /* empty file name = command line */
-        if (my_getopt_skip_unknown)
-        {
-          (*argv)[argvpos++]= cur_arg;
-          (*argv)[argvpos++]= filename;
-        }
-        else
-          (*argc)-= 2;
-        continue;
-      }
+      is_cmdline_arg= 1;
+
+      /* save the separator too if skip unknown options  */
+      if (my_getopt_skip_unknown)
+        (*argv)[argvpos++]= cur_arg;
+      else
+        (*argc)--;
+      continue;
     }
     if (cur_arg[0] == '-' && cur_arg[1] && !end_of_options) /* must be opt */
     {
@@ -403,9 +415,9 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	  DBUG_RETURN(EXIT_OPTION_DISABLED);
 	}
         error= 0;
-	value= optp->var_type & GET_ASK_ADDR
-          ? (*my_getopt_get_addr)(key_name, (uint)strlen(key_name), optp, &error)
-          : optp->value;
+	value= optp->var_type & GET_ASK_ADDR ?
+	  (*getopt_get_addr)(key_name, (uint) strlen(key_name), optp, &error) :
+          optp->value;
         if (error)
           DBUG_RETURN(error);
 
@@ -448,9 +460,9 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 				       my_progname, optp->name, optend);
 	      continue;
 	    }
-            if (get_one_option(optp, *((my_bool*) value) ?
-                               enabled_my_option : disabled_my_option,
-                               filename))
+            if (get_one_option && get_one_option(optp->id, optp,
+                               *((my_bool*) value) ?
+                               enabled_my_option : disabled_my_option))
               DBUG_RETURN(EXIT_ARGUMENT_INVALID);
 	    continue;
 	  }
@@ -467,7 +479,12 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 
 	    DBUG_RETURN(EXIT_NO_ARGUMENT_ALLOWED);
 	  }
-	  if (!(optp->var_type & GET_AUTO))
+	  /*
+	    We support automatic setup only via get_one_option and only for
+	    marked options.
+	  */
+	  if (!get_one_option ||
+	      !(optp->var_type & GET_AUTO))
 	  {
 	    my_getopt_error_reporter(option_is_loose ?
 				     WARNING_LEVEL : ERROR_LEVEL,
@@ -483,11 +500,10 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	}
 	else if (optp->arg_type == REQUIRED_ARG && !optend)
 	{
-          /*
-            Check if there are more arguments after this one,
-            Note: options loaded from config file that requires value
-            should always be in the form '--option=value'.
-          */
+	  /* Check if there are more arguments after this one,
+       Note: options loaded from config file that requires value
+       should always be in the form '--option=value'.
+    */
 	  if (!is_cmdline_arg || !*++pos)
 	  {
 	    if (my_getopt_print_errors)
@@ -525,7 +541,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		  optp->arg_type == NO_ARG)
 	      {
 		*((my_bool*) optp->value)= (my_bool) 1;
-                if (get_one_option(optp, argument, filename))
+                if (get_one_option && get_one_option(optp->id, optp, argument))
                   DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 		continue;
 	      }
@@ -545,7 +561,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                   {
                     if (optp->var_type == GET_BOOL)
                       *((my_bool*) optp->value)= (my_bool) 1;
-                    if (get_one_option(optp, argument, filename))
+                    if (get_one_option && get_one_option(optp->id, optp, argument))
                       DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
                     continue;
                   }
@@ -566,7 +582,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	      if ((error= setval(optp, optp->value, argument,
 				 set_maximum_value)))
 		DBUG_RETURN(error);
-              if (get_one_option(optp, argument, filename))
+              if (get_one_option && get_one_option(optp->id, optp, argument))
                 DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 	      break;
 	    }
@@ -613,7 +629,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	  ((error= setval(optp, value, argument, set_maximum_value))) &&
           !option_is_loose)
 	DBUG_RETURN(error);
-      if (get_one_option(optp, argument, filename))
+      if (get_one_option && get_one_option(optp->id, optp, argument))
         DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 
       (*argc)--; /* option handled (long), decrease argument count */
@@ -760,8 +776,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       break;
     case GET_STR_ALLOC:
       my_free(*((char**) value));
-      if (!(*((char**) value)= my_strdup(key_memory_defaults,
-                                         argument == enabled_my_option ? "" :
+      if (!(*((char**) value)= my_strdup(argument == enabled_my_option ? "" :
                                          argument, MYF(MY_WME))))
       {
         res= EXIT_OUT_OF_MEMORY;
@@ -1350,7 +1365,7 @@ static void init_one_value(const struct my_option *option, void *variable,
     {
       char **pstr= (char **) variable;
       my_free(*pstr);
-      *pstr= my_strdup(key_memory_defaults, (char*) (intptr) value, MYF(MY_WME));
+      *pstr= my_strdup((char*) (intptr) value, MYF(MY_WME));
     }
     break;
   default: /* dummy default to avoid compiler warnings */
@@ -1422,8 +1437,8 @@ static void init_variables(const struct my_option *options,
     */
     if (options->u_max_value)
       func_init_one_value(options, options->u_max_value, options->max_value);
-    value= options->var_type & GET_ASK_ADDR ?
-		  (*my_getopt_get_addr)("", 0, options, 0) : options->value;
+    value= (options->var_type & GET_ASK_ADDR ?
+		  (*getopt_get_addr)("", 0, options, 0) : options->value);
     if (value)
       func_init_one_value(options, value, options->def_value);
   }
@@ -1583,8 +1598,7 @@ void my_print_help(const struct my_option *options)
       }
     }
     putchar('\n');
-    if ((optp->var_type & GET_TYPE_MASK) == GET_BOOL ||
-        (optp->var_type & GET_TYPE_MASK) == GET_BIT)
+    if ((optp->var_type & GET_TYPE_MASK) == GET_BOOL)
     {
       if (optp->def_value != 0)
       {
@@ -1628,8 +1642,8 @@ void my_print_variables(const struct my_option *options)
   
   for (optp= options; optp->name; optp++)
   {
-    void *value= optp->var_type & GET_ASK_ADDR ?
-		  (*my_getopt_get_addr)("", 0, optp, 0) : optp->value;
+    void *value= (optp->var_type & GET_ASK_ADDR ?
+		  (*getopt_get_addr)("", 0, optp, 0) : optp->value);
     if (value)
     {
       length= print_name(optp);

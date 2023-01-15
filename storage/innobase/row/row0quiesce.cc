@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -538,30 +538,29 @@ row_quiesce_table_start(
 	}
 
 	for (ulint count = 0;
-	     ibuf_merge_space(table->space_id);
+	     ibuf_merge_space(table->space_id) != 0
+	     && !trx_is_interrupted(trx);
 	     ++count) {
-		if (trx_is_interrupted(trx)) {
-			goto aborted;
-		}
 		if (!(count % 20)) {
 			ib::info() << "Merging change buffer entries for "
 				<< table->name;
 		}
 	}
 
-	while (buf_flush_list_space(table->space)) {
-		if (trx_is_interrupted(trx)) {
-			goto aborted;
-		}
-	}
-
 	if (!trx_is_interrupted(trx)) {
-		/* Ensure that all asynchronous IO is completed. */
-		os_aio_wait_until_no_pending_writes();
-		table->space->flush<false>();
+		{
+			FlushObserver observer(table->space, trx, NULL);
+			buf_LRU_flush_or_remove_pages(table->space_id,
+						      &observer);
+		}
 
-		if (row_quiesce_write_cfg(table, trx->mysql_thd)
-		    != DB_SUCCESS) {
+		if (trx_is_interrupted(trx)) {
+
+			ib::warn() << "Quiesce aborted!";
+
+		} else if (row_quiesce_write_cfg(table, trx->mysql_thd)
+			   != DB_SUCCESS) {
+
 			ib::warn() << "There was an error writing to the"
 				" meta data file";
 		} else {
@@ -569,7 +568,6 @@ row_quiesce_table_start(
 				<< " flushed to disk";
 		}
 	} else {
-aborted:
 		ib::warn() << "Quiesce aborted!";
 	}
 

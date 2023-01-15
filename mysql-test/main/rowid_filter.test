@@ -220,7 +220,7 @@ eval $with_filter EXPLAIN $q7;
 eval $with_filter EXPLAIN FORMAT=JSON $q7;
 --replace_column 11 #
 eval $with_filter ANALYZE $q7;
---replace_regex /("(r_(total|table|other)_time_ms|r_buffer_size|r_filling_time_ms|filtered)": )[^, \n]*/\1"REPLACED"/
+--replace_regex /("(r_total_time_ms|r_buffer_size|r_filling_time_ms|filtered)": )[^, \n]*/\1"REPLACED"/
 eval $with_filter ANALYZE FORMAT=JSON $q7;
 --sorted_result
 eval $with_filter $q7;
@@ -230,7 +230,7 @@ eval $without_filter EXPLAIN $q7;
 eval $without_filter EXPLAIN FORMAT=JSON $q7;
 --replace_column 11 #
 eval $without_filter ANALYZE $q7;
---replace_regex /("(r_(total|table|other)_time_ms|r_buffer_size|r_filling_time_ms|filtered)": )[^, \n]*/\1"REPLACED"/
+--replace_regex /("(r_total_time_ms|r_buffer_size|r_filling_time_ms|filtered)": )[^, \n]*/\1"REPLACED"/
 eval $without_filter ANALYZE FORMAT=JSON $q7;
 --sorted_result
 eval $without_filter $q7;
@@ -548,7 +548,7 @@ drop table t1;
 
 create table t1 (
   pk int primary key auto_increment,
-  nm char(255),
+  nm varchar(32),
   fl1 tinyint default 0,
   fl2 int default 0,
   index idx1(nm, fl1),

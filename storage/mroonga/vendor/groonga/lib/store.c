@@ -349,7 +349,7 @@ static grn_ja *
 _grn_ja_create(grn_ctx *ctx, grn_ja *ja, const char *path,
                unsigned int max_element_size, uint32_t flags)
 {
-  unsigned int i;
+  int i;
   grn_io *io;
   struct grn_ja_header *header;
   struct grn_ja_header_v2 *header_v2;
@@ -689,7 +689,7 @@ grn_ja_replace(grn_ctx *ctx, grn_ja *ja, grn_id id,
     return ctx->rc;
   }
   if (*pseg == JA_ESEG_VOID) {
-    unsigned int i = 0;
+    int i = 0;
     while (SEGMENTS_AT(ja, i)) {
       if (++i >= JA_N_DSEGMENTS) {
         ERR(GRN_NOT_ENOUGH_SPACE, "grn_ja file (%s) is full", ja->io->path);
@@ -750,9 +750,8 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
   iw->tiny_p = 0;
   if (grn_io_lock(ctx, ja->io, grn_lock_timeout)) { return ctx->rc; }
   if (element_size + sizeof(grn_id) > JA_SEGMENT_SIZE) {
-    uint i;
-    int j, n = (element_size + JA_SEGMENT_SIZE - 1) >> GRN_JA_W_SEGMENT;
-    for (i = 0, j = -1;  i < JA_N_DSEGMENTS; i++) {
+    int i, j, n = (element_size + JA_SEGMENT_SIZE - 1) >> GRN_JA_W_SEGMENT;
+    for (i = 0, j = -1; i < JA_N_DSEGMENTS; i++) {
       if (SEGMENTS_AT(ja, i)) {
         j = i;
       } else {

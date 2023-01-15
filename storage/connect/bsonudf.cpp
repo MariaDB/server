@@ -88,7 +88,6 @@ static PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp)
 /*********************************************************************************/
 /*  SubAlloc a new BJNX class with protection against memory exhaustion.         */
 /*********************************************************************************/
-#ifdef NOT_USED
 static PBJNX BjnxNew(PGLOBAL g, PBVAL vlp, int type, int len)
 {
 	PBJNX bjnx;
@@ -105,7 +104,7 @@ static PBJNX BjnxNew(PGLOBAL g, PBVAL vlp, int type, int len)
 
 	return bjnx;
 } /* end of BjnxNew */
-#endif
+
 /* ----------------------------------- BSNX ------------------------------------ */
 
 /*********************************************************************************/
@@ -499,8 +498,7 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 			break;
 		case TYPE_NULL:
 			vp->SetNull(true);
-                        /* fall through */
-                default:
+		default:
 			vp->Reset();
 		} // endswitch Type
 
@@ -2903,7 +2901,7 @@ my_bool bson_array_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		return true;
 
 	PGLOBAL g = (PGLOBAL)initid->ptr;
-	(void) new(g) BJNX(g);
+	PBJNX   bxp = new(g) BJNX(g);
 
 	JsonMemSave(g);
 	return false;
@@ -2976,7 +2974,7 @@ my_bool bson_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		return true;
 
 	PGLOBAL g = (PGLOBAL)initid->ptr;
-	(void) new(g) BJNX(g);
+	PBJNX   bxp = new(g) BJNX(g);
 
 	JsonMemSave(g);
 	return false;
@@ -4691,7 +4689,7 @@ char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(g->Message[0] != '\0' ? g->Message : "Unexpected error");
+		PUSH_WARNING(*g->Message ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -4814,7 +4812,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (g->Message[0] != '\0')
+		if (*g->Message)
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");

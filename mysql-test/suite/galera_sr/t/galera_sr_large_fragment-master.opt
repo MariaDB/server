@@ -1,1 +1,1 @@
---innodb_log_file_size=2G --binlog-row-event-max-size=100M
+--innodb_log_file_size=1G --binlog-row-event-max-size=100M

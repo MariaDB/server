@@ -10,7 +10,7 @@
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
---source ../../galera/include/auto_increment_offset_save.inc
+--source suite/galera/include/auto_increment_offset_save.inc
 
 --connection node_1
 CREATE TABLE ten (f1 INTEGER);
@@ -84,5 +84,4 @@ SET SESSION wsrep_trx_fragment_size=0;
 --source suite/galera/include/galera_sst_restore.inc
 
 # Restore original auto_increment_offset values.
---source ../galera/include/auto_increment_offset_restore.inc
-
+--source suite/galera/include/auto_increment_offset_restore.inc

@@ -35,7 +35,7 @@ let $check_yes_innodb=SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine='innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
---let $ibp=--innodb-log-group-home-dir=$bugdir
+--let $ibp=--innodb-log-files-in-group=3 --innodb-log-group-home-dir=$bugdir
 --let $ibp=$ibp --innodb-data-home-dir=$bugdir --innodb-undo-directory=$bugdir
 --let $ibp=$ibp --innodb-undo-logs=20 --innodb-undo-tablespaces=3
 --let $ibp=$ibp --innodb-data-file-path=ibdata1:16M;ibdata2:10M:autoextend
@@ -50,11 +50,13 @@ eval $check_no_innodb;
 let SEARCH_PATTERN=\[ERROR\] InnoDB: Could not create undo tablespace '.*undo002';
 --source include/search_pattern_in_file.inc
 
---echo # Remove  undo001,undo002,ibdata1,ibdata2,ib_logfile101
+--echo # Remove  undo001,undo002,ibdata1,ibdata2,ib_logfile1,ib_logfile2,ib_logfile101
 --remove_file $bugdir/undo001
 --rmdir $bugdir/undo002
 --remove_file $bugdir/ibdata1
 --remove_file $bugdir/ibdata2
+--remove_file $bugdir/ib_logfile1
+--remove_file $bugdir/ib_logfile2
 --remove_file $bugdir/ib_logfile101
 --list_files $bugdir
 
@@ -78,6 +80,8 @@ eval $check_yes_innodb;
 --copy_file $bugdir/ibdata1 $bugdir/bak_ibdata1
 --copy_file $bugdir/ibdata2 $bugdir/bak_ibdata2
 --copy_file $bugdir/ib_logfile0 $bugdir/bak_ib_logfile0
+--copy_file $bugdir/ib_logfile1 $bugdir/bak_ib_logfile1
+--copy_file $bugdir/ib_logfile2 $bugdir/bak_ib_logfile2
 --copy_file $bugdir/undo001 $bugdir/bak_undo001
 --copy_file $bugdir/undo002 $bugdir/bak_undo002
 --copy_file $bugdir/undo003 $bugdir/bak_undo003
@@ -165,7 +169,7 @@ let SEARCH_PATTERN=undo tablespace .*undo003.* exists\. Creating system tablespa
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Expected to open innodb_undo_tablespaces=3 but was able to find only 1;
+let SEARCH_PATTERN=InnoDB: Unable to open undo tablespace.*undo002;
 --source include/search_pattern_in_file.inc
 # clean up & Restore
 --source ../include/log_file_cleanup.inc
@@ -177,20 +181,21 @@ let SEARCH_PATTERN=InnoDB: Expected to open innodb_undo_tablespaces=3 but was ab
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Expected to open innodb_undo_tablespaces=3 but was able to find only 0;
+let SEARCH_PATTERN=InnoDB: Unable to open undo tablespace.*undo001;
 --source include/search_pattern_in_file.inc
 
 # clean up & Restore
 --source ../include/log_file_cleanup.inc
 
---echo # 9. Without ibdata*, without undo*
+--echo # 9. Without ibdata*, without undo*, Without ib_logfile1 and with ib_logfile2
 --remove_files_wildcard $bugdir ibdata*
 --remove_files_wildcard $bugdir undo00*
+--remove_file $bugdir/ib_logfile1
 --list_files $bugdir
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=redo log file .*ib_logfile0.* exists\. Creating system tablespace with existing redo log file is not recommended\. Please delete redo log file before creating new system tablespace\.;
+let SEARCH_PATTERN=redo log file .*ib_logfile0.* exists\. Creating system tablespace with existing redo log files is not recommended\. Please delete all redo log files before creating new system tablespace\.;
 --source include/search_pattern_in_file.inc
 
 # clean up & Restore
@@ -205,7 +210,8 @@ eval $check_no_innodb;
 
 --source ../include/log_file_cleanup.inc
 
---echo # 11. With ibdata*
+--echo # 11. With ibdata*, without ib_logfile1
+--remove_file $bugdir/ib_logfile1
 --list_files $bugdir
 --source include/start_mysqld.inc
 eval $check_yes_innodb;

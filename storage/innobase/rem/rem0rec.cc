@@ -167,7 +167,7 @@ rec_get_n_extern_new(
 	ulint		i;
 
 	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(!index->table->supports_instant());
+	ut_ad(!index->table->supports_instant() || index->is_dummy);
 	ut_ad(!index->is_instant());
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
 	      || rec_get_status(rec) == REC_STATUS_INSTANT);
@@ -293,8 +293,8 @@ rec_init_offsets_comp_ordinary(
 		   : index->n_core_null_bytes);
 
 	if (mblob) {
-		ut_ad(index->table->instant);
-		ut_ad(index->is_instant());
+		ut_ad(index->is_dummy || index->table->instant);
+		ut_ad(index->is_dummy || index->is_instant());
 		ut_ad(rec_offs_n_fields(offsets)
 		      <= ulint(index->n_fields) + 1);
 		ut_ad(!def_val);
@@ -361,8 +361,7 @@ start:
 	do {
 		if (mblob) {
 			if (i == index->first_user_field()) {
-				offs = static_cast<rec_offs>(offs
-							     + FIELD_REF_SIZE);
+				offs += FIELD_REF_SIZE;
 				len = combine(offs, STORED_OFFPAGE);
 				any |= REC_OFFS_EXTERNAL;
 				field--;
@@ -435,12 +434,12 @@ start:
 			more, or when the field is stored externally. */
 			if ((len & 0x80) && DATA_BIG_COL(col)) {
 				/* 1exxxxxxx xxxxxxxx */
-				len = static_cast<rec_offs>(len << 8
-							    | *lens--);
-				offs = static_cast<rec_offs>(offs
-							     + get_value(len));
+				len <<= 8;
+				len |= *lens--;
+
+				offs += get_value(len);
 				if (UNIV_UNLIKELY(len & 0x4000)) {
-					ut_ad(index->is_primary());
+					ut_ad(dict_index_is_clust(index));
 					any |= REC_OFFS_EXTERNAL;
 					len = combine(offs, STORED_OFFPAGE);
 				} else {
@@ -450,17 +449,15 @@ start:
 				continue;
 			}
 
-			len = offs = static_cast<rec_offs>(offs + len);
+			len = offs += len;
 		} else {
-			len = offs = static_cast<rec_offs>(offs
-							   + field->fixed_len);
+			len = offs += field->fixed_len;
 		}
 	} while (field++, rec_offs_base(offsets)[++i] = len,
 		 i < rec_offs_n_fields(offsets));
 
-	*rec_offs_base(offsets) = static_cast<rec_offs>((rec - (lens + 1))
-							| REC_OFFS_COMPACT
-							| any);
+	*rec_offs_base(offsets)
+		= static_cast<rec_offs>(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
 }
 
 #ifdef UNIV_DEBUG
@@ -479,12 +476,11 @@ rec_offs_make_valid(
 	const bool is_alter_metadata = leaf
 		&& rec_is_alter_metadata(rec, *index);
 	ut_ad(is_alter_metadata
-	      || index->is_dummy || index->is_ibuf()
-	      || (leaf
-		  ? rec_offs_n_fields(offsets)
-		  <= dict_index_get_n_fields(index)
-		  : rec_offs_n_fields(offsets) - 1
-		  <= dict_index_get_n_unique_in_tree_nonleaf(index)));
+	      || rec_offs_n_fields(offsets)
+	      <= (leaf
+		  ? dict_index_get_n_fields(index)
+		  : dict_index_get_n_unique_in_tree_nonleaf(index) + 1)
+	      || index->is_dummy || dict_index_is_ibuf(index));
 	const bool is_user_rec = (dict_table_is_comp(index->table)
 				  ? rec_get_heap_no_new(rec)
 				  : rec_get_heap_no_old(rec))
@@ -540,7 +536,7 @@ rec_offs_validate(
 	}
 	if (index) {
 		ut_ad(!memcmp(&index, &offsets[INDEX_OFFSET], sizeof(index)));
-		ulint max_n_fields = std::max<ulint>(
+		ulint max_n_fields = std::max(
 			dict_index_get_n_fields(index),
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
@@ -678,8 +674,7 @@ rec_init_offsets(
 		do {
 			rec_offs len;
 			if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
-				len = offs = static_cast<rec_offs>(
-					offs + REC_NODE_PTR_SIZE);
+				len = offs += REC_NODE_PTR_SIZE;
 				goto resolved;
 			}
 
@@ -722,34 +717,33 @@ rec_init_offsets(
 				if (DATA_BIG_COL(col)) {
 					if (len & 0x80) {
 						/* 1exxxxxxx xxxxxxxx */
-						len = static_cast<rec_offs>(
-							len << 8 | *lens--);
+
+						len <<= 8;
+						len |= *lens--;
 
 						/* B-tree node pointers
 						must not contain externally
 						stored columns.  Thus
 						the "e" flag must be 0. */
 						ut_a(!(len & 0x4000));
-						offs = static_cast<rec_offs>(
-							offs + get_value(len));
+						offs += get_value(len);
 						len = offs;
 
 						goto resolved;
 					}
 				}
 
-				len = offs = static_cast<rec_offs>(offs + len);
+				len = offs += len;
 			} else {
-				len = offs = static_cast<rec_offs>(
-					offs + field->fixed_len);
+				len = offs += field->fixed_len;
 			}
 resolved:
 			rec_offs_base(offsets)[i + 1] = len;
 		} while (++i < rec_offs_n_fields(offsets));
 
 		*rec_offs_base(offsets)
-			= static_cast<rec_offs>((rec - (lens + 1))
-						| REC_OFFS_COMPACT);
+			= static_cast<rec_offs>(rec - (lens + 1))
+			  | REC_OFFS_COMPACT;
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
@@ -758,32 +752,29 @@ resolved:
 		rec_offs any;
 
 		if (rec_get_1byte_offs_flag(rec)) {
-			offs = static_cast<rec_offs>(offs + n_fields);
+			offs += static_cast<rec_offs>(n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_1_get_field_end_info(rec, i);
 				if (offs & REC_1BYTE_SQL_NULL_MASK) {
-					offs &= static_cast<rec_offs>(
-						~REC_1BYTE_SQL_NULL_MASK);
+					offs &= ~REC_1BYTE_SQL_NULL_MASK;
 					set_type(offs, SQL_NULL);
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
 			} while (++i < n);
 		} else {
-			offs = static_cast<rec_offs>(offs + 2 * n_fields);
+			offs += 2 * static_cast<rec_offs>(n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_2_get_field_end_info(rec, i);
 				if (offs & REC_2BYTE_SQL_NULL_MASK) {
-					offs &= static_cast<rec_offs>(
-						~REC_2BYTE_SQL_NULL_MASK);
+					offs &= ~REC_2BYTE_SQL_NULL_MASK;
 					set_type(offs, SQL_NULL);
 				}
 				if (offs & REC_2BYTE_EXTERN_MASK) {
-					offs &= static_cast<rec_offs>(
-						~REC_2BYTE_EXTERN_MASK);
+					offs &= ~REC_2BYTE_EXTERN_MASK;
 					set_type(offs, STORED_OFFPAGE);
 					any |= REC_OFFS_EXTERNAL;
 				}
@@ -892,8 +883,8 @@ rec_get_offsets_func(
 		ut_ad(!is_user_rec || n_core || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* dict_stats_analyze_index_level() */
-		      || n - 1
-		      == dict_index_get_n_unique_in_tree_nonleaf(index));
+		      || n
+		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
 		ut_ad(!is_user_rec || !n_core || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
@@ -936,8 +927,8 @@ rec_get_offsets_func(
 		memcpy(&offsets[INDEX_OFFSET], &index, sizeof index);
 #endif /* UNIV_DEBUG */
 		ut_ad(n_core);
-		ut_ad(index->table->instant);
-		ut_ad(index->is_instant());
+		ut_ad(index->is_dummy || index->table->instant);
+		ut_ad(index->is_dummy || index->is_instant());
 		ut_ad(rec_offs_n_fields(offsets)
 		      <= ulint(index->n_fields) + 1);
 		rec_init_offsets_comp_ordinary<true>(rec, index, offsets,
@@ -1000,8 +991,7 @@ rec_get_offsets_reverse(
 	do {
 		rec_offs len;
 		if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
-			len = offs = static_cast<rec_offs>(
-				offs + REC_NODE_PTR_SIZE);
+			len = offs += REC_NODE_PTR_SIZE;
 			goto resolved;
 		}
 
@@ -1041,11 +1031,10 @@ rec_get_offsets_reverse(
 			if (DATA_BIG_COL(col)) {
 				if (len & 0x80) {
 					/* 1exxxxxxx xxxxxxxx */
-					len = static_cast<rec_offs>(
-						len << 8 | *lens++);
+					len <<= 8;
+					len |= *lens++;
 
-					offs = static_cast<rec_offs>(
-						offs + get_value(len));
+					offs += get_value(len);
 					if (UNIV_UNLIKELY(len & 0x4000)) {
 						any_ext = REC_OFFS_EXTERNAL;
 						len = combine(offs,
@@ -1058,10 +1047,9 @@ rec_get_offsets_reverse(
 				}
 			}
 
-			len = offs = static_cast<rec_offs>(offs + len);
+			len = offs += len;
 		} else {
-			len = offs = static_cast<rec_offs>(offs
-							   + field->fixed_len);
+			len = offs += static_cast<rec_offs>(field->fixed_len);
 		}
 resolved:
 		rec_offs_base(offsets)[i + 1] = len;
@@ -1148,7 +1136,7 @@ rec_get_converted_size_comp_prefix_low(
 {
 	ulint	extra_size = temp ? 0 : REC_N_NEW_EXTRA_BYTES;
 	ut_ad(n_fields > 0);
-	ut_ad(n_fields - mblob <= dict_index_get_n_fields(index));
+	ut_ad(n_fields <= dict_index_get_n_fields(index) + mblob);
 	ut_d(ulint n_null = index->n_nullable);
 	ut_ad(status == REC_STATUS_ORDINARY || status == REC_STATUS_NODE_PTR
 	      || status == REC_STATUS_INSTANT);
@@ -1358,6 +1346,61 @@ rec_get_converted_size_comp(
 	return(ULINT_UNDEFINED);
 }
 
+/***********************************************************//**
+Sets the value of the ith field SQL null bit of an old-style record. */
+void
+rec_set_nth_field_null_bit(
+/*=======================*/
+	rec_t*	rec,	/*!< in: record */
+	ulint	i,	/*!< in: ith field */
+	ibool	val)	/*!< in: value to set */
+{
+	ulint	info;
+
+	if (rec_get_1byte_offs_flag(rec)) {
+
+		info = rec_1_get_field_end_info(rec, i);
+
+		if (val) {
+			info = info | REC_1BYTE_SQL_NULL_MASK;
+		} else {
+			info = info & ~REC_1BYTE_SQL_NULL_MASK;
+		}
+
+		rec_1_set_field_end_info(rec, i, info);
+
+		return;
+	}
+
+	info = rec_2_get_field_end_info(rec, i);
+
+	if (val) {
+		info = info | REC_2BYTE_SQL_NULL_MASK;
+	} else {
+		info = info & ~REC_2BYTE_SQL_NULL_MASK;
+	}
+
+	rec_2_set_field_end_info(rec, i, info);
+}
+
+/***********************************************************//**
+Sets an old-style record field to SQL null.
+The physical size of the field is not changed. */
+void
+rec_set_nth_field_sql_null(
+/*=======================*/
+	rec_t*	rec,	/*!< in: record */
+	ulint	n)	/*!< in: index of the field */
+{
+	ulint	offset;
+
+	offset = rec_get_field_start_offs(rec, n);
+
+	data_write_sql_null(rec + offset, rec_get_nth_field_size(rec, n));
+
+	rec_set_nth_field_null_bit(rec, n, TRUE);
+}
+
 /*********************************************************//**
 Builds an old-style physical record out of a data tuple and
 stores it beginning from the start of the given buffer.
@@ -1395,12 +1438,9 @@ rec_convert_dtuple_to_rec_old(
 	rec_set_n_fields_old(rec, n_fields);
 
 	/* Set the info bits of the record */
-	rec_set_bit_field_1(rec,
-			    dtuple_get_info_bits(dtuple) & REC_INFO_BITS_MASK,
-			    REC_OLD_INFO_BITS,
-			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
-	rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW, REC_OLD_HEAP_NO,
-			    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
+	rec_set_info_bits_old(rec, dtuple_get_info_bits(dtuple)
+			      & REC_INFO_BITS_MASK);
+	rec_set_heap_no_old(rec, PAGE_HEAP_NO_USER_LOW);
 
 	/* Store the data and the offsets */
 
@@ -1517,9 +1557,7 @@ rec_convert_dtuple_to_rec_comp(
 		ut_ad(status == REC_STATUS_INSTANT);
 		ut_ad(n_fields == ulint(index->n_fields) + 1);
 		rec_set_n_add_field(nulls, n_fields - 1 - n_core_fields);
-		rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW,
-				    REC_NEW_HEAP_NO, REC_HEAP_NO_MASK,
-				    REC_HEAP_NO_SHIFT);
+		rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
 		rec_set_status(rec, REC_STATUS_INSTANT);
 		n_node_ptr_field = ULINT_UNDEFINED;
 		lens = nulls - UT_BITS_IN_BYTES(index->n_nullable);
@@ -1534,9 +1572,7 @@ rec_convert_dtuple_to_rec_comp(
 	case REC_STATUS_ORDINARY:
 		ut_ad(n_fields <= dict_index_get_n_fields(index));
 		if (!temp) {
-			rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW,
-					    REC_NEW_HEAP_NO, REC_HEAP_NO_MASK,
-					    REC_HEAP_NO_SHIFT);
+			rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
 			rec_set_status(rec, n_fields == n_core_fields
 				       ? REC_STATUS_ORDINARY
 				       : REC_STATUS_INSTANT);
@@ -1558,12 +1594,10 @@ rec_convert_dtuple_to_rec_comp(
 		break;
 	case REC_STATUS_NODE_PTR:
 		ut_ad(!temp);
-		rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW,
-				    REC_NEW_HEAP_NO, REC_HEAP_NO_MASK,
-				    REC_HEAP_NO_SHIFT);
+		rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
 		rec_set_status(rec, status);
-		ut_ad(n_fields - 1
-		      == dict_index_get_n_unique_in_tree_nonleaf(index));
+		ut_ad(n_fields
+		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
 		ut_d(n_null = std::min<uint>(index->n_core_null_bytes * 8U,
 					     index->n_nullable));
 		n_node_ptr_field = n_fields - 1;
@@ -1618,14 +1652,7 @@ start:
 
 			/* set the null flag if necessary */
 			if (dfield_is_null(field)) {
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wconversion" /* GCC 5 may need this here */
-#endif
-				*nulls |= static_cast<byte>(null_mask);
-#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
-# pragma GCC diagnostic pop
-#endif
+				*nulls |= null_mask;
 				null_mask <<= 1;
 				continue;
 			}
@@ -1660,20 +1687,21 @@ start:
 			ut_ad(DATA_BIG_COL(ifield->col));
 			ut_ad(len <= REC_ANTELOPE_MAX_INDEX_COL_LEN
 					+ BTR_EXTERN_FIELD_REF_SIZE);
-			*lens-- = static_cast<byte>(len >> 8 | 0xc0);
-			*lens-- = static_cast<byte>(len);
+			*lens-- = (byte) (len >> 8) | 0xc0;
+			*lens-- = (byte) len;
 		} else {
 			ut_ad(len <= field->type.len
 			      || DATA_LARGE_MTYPE(field->type.mtype)
 			      || !strcmp(index->name,
 					 FTS_INDEX_TABLE_IND_NAME));
 			if (len < 128 || !DATA_BIG_LEN_MTYPE(
-				    field->type.len, field->type.mtype)) {
-				*lens-- = static_cast<byte>(len);
+				field->type.len, field->type.mtype)) {
+
+				*lens-- = (byte) len;
 			} else {
 				ut_ad(len < 16384);
-				*lens-- = static_cast<byte>(len >> 8 | 0x80);
-				*lens-- = static_cast<byte>(len);
+				*lens-- = (byte) (len >> 8) | 0x80;
+				*lens-- = (byte) len;
 			}
 		}
 
@@ -1729,9 +1757,7 @@ rec_convert_dtuple_to_rec_new(
 			status, false);
 	}
 
-	rec_set_bit_field_1(buf, dtuple->info_bits & ~REC_NEW_STATUS_MASK,
-			    REC_NEW_INFO_BITS,
-			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
+	rec_set_info_bits_new(buf, dtuple->info_bits & ~REC_NEW_STATUS_MASK);
 	return buf;
 }
 
@@ -1906,8 +1932,8 @@ rec_copy_prefix_to_dtuple(
 	rec_offs_init(offsets_);
 
 	ut_ad(n_core <= index->n_core_fields);
-	ut_ad(n_core || n_fields - 1
-	      <= dict_index_get_n_unique_in_tree_nonleaf(index));
+	ut_ad(n_core || n_fields
+	      <= dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
 
 	offsets = rec_get_offsets(rec, index, offsets, n_core,
 				  n_fields, &heap);
@@ -1969,7 +1995,7 @@ rec_copy_prefix_to_buf_old(
 		*buf = static_cast<byte*>(ut_malloc_nokey(prefix_len));
 	}
 
-	memcpy(*buf, rec - area_start, prefix_len);
+	ut_memcpy(*buf, rec - area_start, prefix_len);
 
 	copy_rec = *buf + area_start;
 
@@ -2268,7 +2294,7 @@ rec_print_old(
 	n = rec_get_n_fields_old(rec);
 
 	fprintf(file, "PHYSICAL RECORD: n_fields " ULINTPF ";"
-		" %u-byte offsets; info bits %u\n",
+		" %u-byte offsets; info bits " ULINTPF "\n",
 		n,
 		rec_get_1byte_offs_flag(rec) ? 1 : 2,
 		rec_get_info_bits(rec, FALSE));
@@ -2522,7 +2548,7 @@ rec_print_new(
 	}
 
 	fprintf(file, "PHYSICAL RECORD: n_fields " ULINTPF ";"
-		" compact format; info bits %u\n",
+		" compact format; info bits " ULINTPF "\n",
 		rec_offs_n_fields(offsets),
 		rec_get_info_bits(rec, TRUE));
 
@@ -2760,9 +2786,8 @@ wsrep_rec_get_foreign_key(
 			memcpy(buf, data, len);
 			*buf_len = wsrep_innobase_mysql_sort(
 				(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
-				dtype_get_charset_coll(col_f->prtype),
-				buf, static_cast<uint>(len),
-				static_cast<uint>(*buf_len));
+				(uint)dtype_get_charset_coll(col_f->prtype),
+				buf, len, *buf_len);
 		} else { /* new protocol */
 			if (!(col_r->prtype & DATA_NOT_NULL)) {
 				*buf++ = 0;
@@ -2779,7 +2804,7 @@ wsrep_rec_get_foreign_key(
 					}
 					data++;
 				}
-
+		
 				if (!(col_f->prtype & DATA_UNSIGNED)) {
 					buf[len-1] = (byte) (buf[len-1] ^ 128);
 				}
@@ -2791,10 +2816,11 @@ wsrep_rec_get_foreign_key(
 			case DATA_CHAR:
 			case DATA_MYSQL:
 				/* Copy the actual data */
-				memcpy(buf, data, len);
+				ut_memcpy(buf, data, len);
 				len = wsrep_innobase_mysql_sort(
 					(int)
 					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
+					(uint)
 					dtype_get_charset_coll(col_f->prtype),
 					buf, len, *buf_len);
 				break;

@@ -16,9 +16,9 @@ select * from information_schema.columns where table_schema="performance_schema"
 
 # Count the number of NUMBER_OF_BYTES columns.
 
-select count(*) into @count_byte_columns from information_schema.columns
+select count(*) from information_schema.columns
    where table_schema="performance_schema" and data_type = "bigint"
-   and column_name like "%number_of_bytes";
+   and column_name like "%number_of_bytes" into @count_byte_columns;
 
 # Confirm that at least one column was found.
 
@@ -26,10 +26,10 @@ select @count_byte_columns > 0;
 
 # Confirm that all NUMBER_OF_BYTES columns are BIGINT signed.
 
-select count(*) into @count_byte_signed from information_schema.columns
+select count(*) from information_schema.columns
    where table_schema="performance_schema" and data_type="bigint"
    and column_name like "%number_of_bytes"
-   and column_type not like "%unsigned";
+   and column_type not like "%unsigned" into @count_byte_signed;
 
 select (@count_byte_columns - @count_byte_signed) = 0;
 
@@ -38,9 +38,9 @@ select (@count_byte_columns - @count_byte_signed) = 0;
 #
 # Count the number of OBJECT_INSTANCE_BEGIN columns.
 
-select count(*) into @count_object_columns from information_schema.columns
+select count(*) from information_schema.columns
    where table_schema="performance_schema" and data_type = "bigint"
-   and column_name like "%object_instance_begin";
+   and column_name like "%object_instance_begin" into @count_object_columns;
 
 # Confirm that at least one column was found.
 
@@ -48,10 +48,10 @@ select @count_object_columns > 0;
 
 # Confirm that all OBJECT_INSTANCE_BEGIN columns are BIGINT unsigned.
 
-select count(*) into @count_object_unsigned from information_schema.columns
+select count(*) from information_schema.columns
    where table_schema="performance_schema" and data_type="bigint"
    and column_name like "%object_instance_begin"
-   and column_type like "%unsigned";
+   and column_type like "%unsigned" into @count_object_unsigned;
 
 select (@count_object_columns - @count_object_unsigned) = 0;
 

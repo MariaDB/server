@@ -43,10 +43,10 @@ sub check_wsrep_support() {
   mtr_error("No SST scripts") unless $spath;
   $ENV{PATH}="$spath:$ENV{PATH}";
 
-  # ADD mariadb client to path so that wsrep_notify_cmd can find mariadb
-  # client for loading the tables. (Don't assume each machine has mariadb installed)
-  my ($cpath) = grep { -f "$_/mariadb"; } "$::bindir/scripts", $::path_client_bindir;
-  mtr_error("No mariadb client found") unless $cpath;
+  # ADD mysql client library path to path so that wsrep_notify_cmd can find mysql
+  # client for loading the tables. (Don't assume each machine has mysql install)
+  my ($cpath) = grep { -f "$_/mysql"; } "$::bindir/scripts", $::path_client_bindir;
+  mtr_error("No scritps") unless $cpath;
   $ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
 
   # ADD my_print_defaults script path to path so that SST scripts can find it

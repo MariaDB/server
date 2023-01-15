@@ -1,5 +1,4 @@
 --source include/innodb_page_size_small.inc
---source include/no_valgrind_without_big.inc
 
 let $have_debug_sync=`select count(*) = 1 from information_schema.session_variables where variable_name = 'debug_sync' and variable_value like 'on %'`;
 

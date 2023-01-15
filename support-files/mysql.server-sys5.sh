@@ -30,7 +30,7 @@ EOF
 
 
 do_start() {
-    nohup ./bin/mariadbd --defaults-file="$MY_CFG" &
+    nohup ./bin/mysqld --defaults-file="$MY_CFG" &
 }
 
 do_stop() {
@@ -45,7 +45,7 @@ do_kill_all() {
 }
 
 do_kill() {
-    MY_PIDFILE=`read_mysql_config "$MY_CFG" "mariadbd" "pidfile" `
+    MY_PIDFILE=`read_mysql_config "$MY_CFG" "mysqld" "pidfile" `
     read MY_PID < "$MY_PIDFILE"
     kill "$MY_PID"
     sleep 2
@@ -60,14 +60,14 @@ do_admin() {
 }
 
 do_repair() {
-    MY_DATADIR=`read_mysql_config "$MY_CFG" "mariadbd" "datadir" `
+    MY_DATADIR=`read_mysql_config "$MY_CFG" "mysqld" "datadir" `
     ./bin/isamchk --defaults-file="$MY_CFG" --repair "$MY_DATADIR/$1"
     shift
 }
 
 
 do_repair_all() {
-    MY_DATADIR=`read_mysql_config "$MY_CFG" "mariadbd" "datadir" `
+    MY_DATADIR=`read_mysql_config "$MY_CFG" "mysqld" "datadir" `
     for i in `find "$MY_DATADIR" -name "*.ISM"`
     do
         ./bin/isamchk --defaults-file="$MY_CFG" --repair "$MY_DATADIR/$i"
@@ -76,7 +76,7 @@ do_repair_all() {
 
 
 
-MY_BASEDIR=`read_mysql_config "$MY_CFG" "mariadbd" "basedir"`
+MY_BASEDIR=`read_mysql_config "$MY_CFG" "mysqld" "basedir"`
 cd "$MY_BASEDIR" || exit 1
 while test $# -gt 0
 do

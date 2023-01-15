@@ -1,5 +1,5 @@
-/* Copyright (C) 2008-2020 Kentoku Shiba
-   Copyright (C) 2019-2020 MariaDB corp
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -39,10 +39,6 @@
 #define SPIDER_SQL_OPEN_PAREN_LEN (sizeof(SPIDER_SQL_OPEN_PAREN_STR) - 1)
 #define SPIDER_SQL_CLOSE_PAREN_STR ")"
 #define SPIDER_SQL_CLOSE_PAREN_LEN (sizeof(SPIDER_SQL_CLOSE_PAREN_STR) - 1)
-#define SPIDER_SQL_OPEN_BRACE_STR "{"
-#define SPIDER_SQL_OPEN_BRACE_LEN (sizeof(SPIDER_SQL_OPEN_BRACE_STR) - 1)
-#define SPIDER_SQL_CLOSE_BRACE_STR "}"
-#define SPIDER_SQL_CLOSE_BRACE_LEN (sizeof(SPIDER_SQL_CLOSE_BRACE_STR) - 1)
 #define SPIDER_SQL_COMMA_STR ","
 #define SPIDER_SQL_COMMA_LEN (sizeof(SPIDER_SQL_COMMA_STR) - 1)
 #define SPIDER_SQL_UNION_ALL_STR ")union all("
@@ -618,12 +614,6 @@ int spider_db_store_result(
   TABLE *table
 );
 
-int spider_db_store_result_for_reuse_cursor(
-  ha_spider *spider,
-  int link_idx,
-  TABLE *table
-);
-
 void spider_db_discard_result(
   ha_spider *spider,
   int link_idx,
@@ -748,8 +738,8 @@ int spider_db_show_index(
 );
 
 ha_rows spider_db_explain_select(
-  const key_range *start_key,
-  const key_range *end_key,
+  key_range *start_key,
+  key_range *end_key,
   ha_spider *spider,
   int link_idx
 );
@@ -1065,13 +1055,6 @@ int spider_db_append_update_columns(
   uint dbton_id,
   bool use_fields,
   spider_fields *fields
-);
-#endif
-
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
-bool spider_db_check_select_colum_in_group(
-  st_select_lex *select_lex,
-  Field *field
 );
 #endif
 

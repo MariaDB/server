@@ -1,6 +1,5 @@
 set global innodb_monitor_disable = All;
-select name, if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics;
+select name, status from information_schema.innodb_metrics;
 name	status
 metadata_table_handles_opened	disabled
 metadata_table_handles_closed	disabled
@@ -53,8 +52,16 @@ buffer_flush_neighbor	disabled
 buffer_flush_neighbor_pages	disabled
 buffer_flush_n_to_flush_requested	disabled
 buffer_flush_n_to_flush_by_age	disabled
-buffer_flush_adaptive_avg_time	disabled
+buffer_flush_adaptive_avg_time_slot	disabled
+buffer_LRU_batch_flush_avg_time_slot	disabled
+buffer_flush_adaptive_avg_time_thread	disabled
+buffer_LRU_batch_flush_avg_time_thread	disabled
+buffer_flush_adaptive_avg_time_est	disabled
+buffer_LRU_batch_flush_avg_time_est	disabled
+buffer_flush_avg_time	disabled
 buffer_flush_adaptive_avg_pass	disabled
+buffer_LRU_batch_flush_avg_pass	disabled
+buffer_flush_avg_pass	disabled
 buffer_LRU_get_free_loops	disabled
 buffer_LRU_get_free_waits	disabled
 buffer_flush_avg_page_rate	disabled
@@ -80,6 +87,9 @@ buffer_LRU_batch_flush_pages	disabled
 buffer_LRU_batch_evict_total_pages	disabled
 buffer_LRU_batches_evict	disabled
 buffer_LRU_batch_evict_pages	disabled
+buffer_LRU_single_flush_scanned	disabled
+buffer_LRU_single_flush_num_scan	disabled
+buffer_LRU_single_flush_scanned_per_call	disabled
 buffer_LRU_single_flush_failure_count	disabled
 buffer_LRU_get_free_search	disabled
 buffer_LRU_search_scanned	disabled
@@ -154,6 +164,7 @@ log_lsn_current	disabled
 log_lsn_checkpoint_age	disabled
 log_lsn_buf_pool_oldest	disabled
 log_max_modified_age_async	disabled
+log_max_modified_age_sync	disabled
 log_pending_log_flushes	disabled
 log_pending_checkpoint_writes	disabled
 log_num_log_io	disabled
@@ -200,10 +211,14 @@ innodb_activity_count	disabled
 innodb_master_active_loops	disabled
 innodb_master_idle_loops	disabled
 innodb_background_drop_table_usec	disabled
+innodb_ibuf_merge_usec	disabled
 innodb_log_flush_usec	disabled
+innodb_mem_validate_usec	disabled
+innodb_master_purge_usec	disabled
 innodb_dict_lru_usec	disabled
 innodb_dict_lru_count_active	disabled
 innodb_dict_lru_count_idle	disabled
+innodb_checkpoint_usec	disabled
 innodb_dblwr_writes	disabled
 innodb_dblwr_pages_written	disabled
 innodb_page_size	disabled
@@ -235,23 +250,22 @@ icp_no_match	disabled
 icp_out_of_range	disabled
 icp_match	disabled
 set global innodb_monitor_enable = all;
-select name from information_schema.innodb_metrics where not enabled;
+select name from information_schema.innodb_metrics where status!='enabled';
 name
 set global innodb_monitor_enable = aaa;
 ERROR 42000: Variable 'innodb_monitor_enable' can't be set to the value of 'aaa'
 set global innodb_monitor_disable = All;
-select name from information_schema.innodb_metrics where enabled;
+select name from information_schema.innodb_metrics where status!='disabled';
 name
 set global innodb_monitor_reset_all = all;
 select name from information_schema.innodb_metrics where count!=0;
 name
 set  global innodb_monitor_enable = "%lock%";
 select name from information_schema.innodb_metrics
-where enabled != (name like "%lock%");
+where status != IF(name like "%lock%", 'enabled', 'disabled');
 name
 set  global innodb_monitor_disable = "%lock%";
-select name, if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
+select name, status from information_schema.innodb_metrics
 where name like "%lock%";
 name	status
 lock_deadlocks	disabled
@@ -282,25 +296,24 @@ innodb_rwlock_sx_os_waits	disabled
 set global innodb_monitor_enable = "%lock*";
 ERROR 42000: Variable 'innodb_monitor_enable' can't be set to the value of '%lock*'
 set global innodb_monitor_enable="%%%%%%%%%%%%%%%%%%%%%%%%%%%";
-select name from information_schema.innodb_metrics where not enabled;
+select name from information_schema.innodb_metrics where status!='enabled';
 name
 set global innodb_monitor_disable="%%%%%";
-select name from information_schema.innodb_metrics where enabled;
+select name from information_schema.innodb_metrics where status!='disabled';
 name
 set global innodb_monitor_enable="%";
-select name from information_schema.innodb_metrics where not enabled;
+select name from information_schema.innodb_metrics where status!='enabled';
 name
 set global innodb_monitor_disable="%_%";
-select name from information_schema.innodb_metrics where enabled;
+select name from information_schema.innodb_metrics where status!='disabled';
 name
 set global innodb_monitor_enable="log%%%%";
 select name from information_schema.innodb_metrics
-where enabled != (name like "log%");
+where status != IF(name like "log%", 'enabled', 'disabled');
 name
 set global innodb_monitor_enable="os_%a_fs_ncs";
 set global innodb_monitor_enable="os%pending%";
-select name, if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
+select name, status from information_schema.innodb_metrics
 where name like "os%";
 name	status
 os_data_reads	disabled
@@ -323,16 +336,14 @@ create table monitor_test(col int) engine = innodb;
 select * from monitor_test;
 col
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_opened";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
 metadata_table_handles_opened	1	NULL	1	1	NULL	1	enabled
 set global innodb_monitor_reset = metadata_table_handles_opened;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_opened";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -342,16 +353,14 @@ create table monitor_test(col int) engine = innodb;
 select * from monitor_test;
 col
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_opened";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
 metadata_table_handles_opened	2	NULL	2	1	NULL	1	enabled
 set global innodb_monitor_reset_all = metadata_table_handles_opened;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_opened";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -359,8 +368,7 @@ metadata_table_handles_opened	2	NULL	2	1	NULL	1	enabled
 set global innodb_monitor_disable = metadata_table_handles_opened;
 set global innodb_monitor_reset = metadata_table_handles_opened;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_opened";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -370,16 +378,14 @@ create table monitor_test(col int) engine = innodb;
 select * from monitor_test;
 col
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_opened";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
 metadata_table_handles_opened	2	NULL	2	NULL	NULL	0	disabled
 set global innodb_monitor_reset_all = metadata_table_handles_opened;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_opened";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -390,8 +396,7 @@ create table monitor_test(col int) engine = innodb stats_persistent=0;
 select * from monitor_test;
 col
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_opened";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -399,36 +404,32 @@ metadata_table_handles_opened	1	NULL	1	1	NULL	1	enabled
 set global innodb_monitor_enable = metadata_table_handles_closed;
 create index idx on monitor_test(col);
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name = "metadata_table_handles_closed";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
 metadata_table_handles_closed	1	NULL	1	1	NULL	1	enabled
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "metadata%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-metadata_table_handles_opened	1	NULL	1	1	NULL	1	enabled
+metadata_table_handles_opened	2	NULL	2	2	NULL	2	enabled
 metadata_table_handles_closed	1	NULL	1	1	NULL	1	enabled
 metadata_table_reference_count	NULL	NULL	0	NULL	NULL	0	disabled
 set global innodb_monitor_disable = module_metadata;
 set global innodb_monitor_reset = module_metadata;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "metadata%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-metadata_table_handles_opened	1	NULL	1	NULL	NULL	0	disabled
+metadata_table_handles_opened	2	NULL	2	NULL	NULL	0	disabled
 metadata_table_handles_closed	1	NULL	1	NULL	NULL	0	disabled
 metadata_table_reference_count	NULL	NULL	0	NULL	NULL	0	disabled
 set global innodb_monitor_reset_all = module_metadata;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "metadata%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -443,8 +444,7 @@ begin;
 insert into monitor_test values(9);
 rollback;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "trx_rollbacks" or name like "trx_active_transactions";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -455,12 +455,11 @@ set global innodb_monitor_enable = module_dml;
 insert into monitor_test values(9);
 update monitor_test set col = 10 where col = 9;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	4	NULL	4	4	NULL	4	enabled
+dml_reads	2	NULL	2	2	NULL	2	enabled
 dml_inserts	1	NULL	1	1	NULL	1	enabled
 dml_deletes	0	NULL	0	0	NULL	0	enabled
 dml_updates	2	NULL	2	2	NULL	2	enabled
@@ -470,12 +469,11 @@ dml_system_deletes	0	NULL	0	0	NULL	0	enabled
 dml_system_updates	0	NULL	0	0	NULL	0	enabled
 delete from monitor_test;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	6	NULL	6	6	NULL	6	enabled
+dml_reads	4	NULL	4	4	NULL	4	enabled
 dml_inserts	1	NULL	1	1	NULL	1	enabled
 dml_deletes	2	NULL	2	2	NULL	2	enabled
 dml_updates	2	NULL	2	2	NULL	2	enabled
@@ -485,12 +483,11 @@ dml_system_deletes	0	NULL	0	0	NULL	0	enabled
 dml_system_updates	0	NULL	0	0	NULL	0	enabled
 set global innodb_monitor_reset =  module_dml;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	6	NULL	6	0	NULL	0	enabled
+dml_reads	4	NULL	4	0	NULL	0	enabled
 dml_inserts	1	NULL	1	0	NULL	0	enabled
 dml_deletes	2	NULL	2	0	NULL	0	enabled
 dml_updates	2	NULL	2	0	NULL	0	enabled
@@ -502,12 +499,11 @@ insert into monitor_test values(9);
 insert into monitor_test values(1);
 delete from monitor_test;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	8	NULL	8	2	NULL	2	enabled
+dml_reads	6	NULL	6	2	NULL	2	enabled
 dml_inserts	3	NULL	3	2	NULL	2	enabled
 dml_deletes	4	NULL	4	2	NULL	2	enabled
 dml_updates	2	NULL	2	0	NULL	0	enabled
@@ -517,12 +513,11 @@ dml_system_deletes	0	NULL	0	0	NULL	0	enabled
 dml_system_updates	0	NULL	0	0	NULL	0	enabled
 set global innodb_monitor_reset_all  =  module_dml;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	8	NULL	8	2	NULL	2	enabled
+dml_reads	6	NULL	6	2	NULL	2	enabled
 dml_inserts	3	NULL	3	2	NULL	2	enabled
 dml_deletes	4	NULL	4	2	NULL	2	enabled
 dml_updates	2	NULL	2	0	NULL	0	enabled
@@ -532,12 +527,11 @@ dml_system_deletes	0	NULL	0	0	NULL	0	enabled
 dml_system_updates	0	NULL	0	0	NULL	0	enabled
 set global innodb_monitor_disable = module_dml;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
-dml_reads	8	NULL	8	2	NULL	2	disabled
+dml_reads	6	NULL	6	2	NULL	2	disabled
 dml_inserts	3	NULL	3	2	NULL	2	disabled
 dml_deletes	4	NULL	4	2	NULL	2	disabled
 dml_updates	2	NULL	2	0	NULL	0	disabled
@@ -547,8 +541,7 @@ dml_system_deletes	0	NULL	0	0	NULL	0	disabled
 dml_system_updates	0	NULL	0	0	NULL	0	disabled
 set global innodb_monitor_reset_all  = module_dml;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -565,8 +558,7 @@ insert into monitor_test values(9);
 insert into monitor_test values(1);
 delete from monitor_test;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "dml%";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -582,8 +574,7 @@ set global innodb_monitor_disable = module_dml;
 drop table monitor_test;
 set global innodb_monitor_enable = file_num_open_files;
 select name, max_count, min_count, count,
-max_count_reset, min_count_reset, count_reset,
-if(enabled,'enabled','disabled') status
+max_count_reset, min_count_reset, count_reset, status
 from information_schema.innodb_metrics
 where name like "file_num_open_files";
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
@@ -668,28 +659,6 @@ LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	1
 DROP TABLE t1;
-CREATE TABLE fl0 (
-id INT NOT NULL PRIMARY KEY
-) ENGINE = InnoDB;
-CREATE TABLE fl1 (
-id INT NOT NULL PRIMARY KEY,
-fl0_id INT,
-CONSTRAINT `fkl0`
-    FOREIGN KEY (fl0_id) REFERENCES fl0 (id)
-ON DELETE CASCADE
-ON UPDATE RESTRICT
-) ENGINE = InnoDB;
-CREATE TABLE fl2 (
-id INT NOT NULL PRIMARY KEY,
-fl1_id INT,
-CONSTRAINT `fkl1`
-    FOREIGN KEY (fl1_id) REFERENCES fl1 (id)
-ON DELETE CASCADE
-ON UPDATE SET NULL
-) ENGINE = InnoDB;
-INSERT INTO fl0 VALUES (1000);
-INSERT INTO fl1 VALUES (500, 1000), (1500, 1000);
-INSERT INTO fl2 VALUES (200, 500), (800, 500), (1200, 1500), (1800, 1500);
 CREATE TABLE t1(id INT PRIMARY KEY, a INT, b CHAR(1), UNIQUE KEY u(a,b))
 ENGINE=InnoDB;
 SET @start = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
@@ -703,96 +672,7 @@ SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 SELECT @end - @start;
 @end - @start
 1
-# Records must not be S/X-locked if a table is X-locked.
-SET @start = @end;
-SET autocommit = 0;
-BEGIN;
-LOCK TABLE t1 WRITE;
-SELECT * FROM t1;
-id	a	b
-1	1	a
-4	4	d
-3	10000	c
-SELECT * FROM t1 WHERE a>=10000;
-id	a	b
-3	10000	c
-SELECT * FROM t1 FOR UPDATE;
-id	a	b
-1	1	a
-4	4	d
-3	10000	c
-SELECT * FROM t1 WHERE a>=10000 FOR UPDATE;
-id	a	b
-3	10000	c
-UPDATE t1 SET b = 'b' WHERE id = 4;
-UPDATE t1 SET b = 'b' WHERE a = 10000;
-REPLACE INTO t1 VALUES (4,3,'a');
-INSERT INTO t1 VALUES (3,1,'e') ON DUPLICATE KEY UPDATE b = 'b';
-INSERT INTO t1 VALUES (5,5,'e');
-DELETE FROM t1 WHERE a = 1 AND b='a';
-DELETE FROM t1;
-COMMIT;
-UNLOCK TABLES;
-SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
-SELECT @end - @start;
-@end - @start
-0
-# Records must not be S-locked if a table is S-locked.
-SET @start = @end;
-BEGIN;
-LOCK TABLE t1 WRITE;
-INSERT INTO t1 VALUES(1,1,'a'),(2,9999,'b'),(3,10000,'c'),(4,4,'d');
-DELETE FROM t1 WHERE a = 9999 AND b='b';
-COMMIT;
-UNLOCK TABLES;
-BEGIN;
-LOCK TABLE t1 READ;
-SELECT * FROM t1 LOCK IN SHARE MODE;
-id	a	b
-1	1	a
-4	4	d
-3	10000	c
-SELECT * FROM t1 WHERE a>=10000 LOCK IN SHARE MODE;
-id	a	b
-3	10000	c
-COMMIT;
-UNLOCK TABLES;
-SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
-SELECT @end - @start;
-@end - @start
-0
-# Records must not be S-locked for foreign keys enforcement
-SET @start = @end;
-BEGIN;
-LOCK TABLE fl0 READ, fl1 READ, fl2 WRITE;
-INSERT INTO fl2 VALUES (300, 500), (700, 500), (1300, 1500), (1700, 1500);
-SELECT * FROM fl1 LOCK IN SHARE MODE;
-id	fl0_id
-500	1000
-1500	1000
-COMMIT;
-UNLOCK TABLES;
-SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
-SELECT @end - @start;
-@end - @start
-0
-# Records must not be X-locked for foreign keys cascade
-SET @start = @end;
-BEGIN;
-LOCK TABLE fl0 READ, fl1 WRITE, fl2 WRITE;
-DELETE FROM fl1 WHERE id = 1500;
-UPDATE fl1 SET id = 2500 WHERE id = 500;
-COMMIT;
-UNLOCK TABLES;
-SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME = 'lock_rec_lock_created');
-SELECT @end - @start;
-@end - @start
-0
-SET autocommit = default;
 DROP TABLE t1;
-DROP TABLE fl2;
-DROP TABLE fl1;
-DROP TABLE fl0;
 SET GLOBAL innodb_monitor_enable=default;
 SET GLOBAL innodb_monitor_disable=default;
 SET GLOBAL innodb_monitor_reset_all=default;

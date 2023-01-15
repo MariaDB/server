@@ -9,7 +9,7 @@ SELECT @@default_regex_flags;
 --error ER_WRONG_VALUE_FOR_VAR
 SET default_regex_flags='UNKNOWN';
 --error ER_WRONG_VALUE_FOR_VAR
-SET default_regex_flags=325;
+SET default_regex_flags=123;
 --error ER_WRONG_TYPE_FOR_VAR
 SET default_regex_flags=123.0;
 --error ER_WRONG_TYPE_FOR_VAR

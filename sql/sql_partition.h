@@ -98,6 +98,12 @@ void get_partition_set(const TABLE *table, uchar *buf, const uint index,
                        const key_range *key_spec,
                        part_id_range *part_spec);
 uint get_partition_field_store_length(Field *field);
+int get_cs_converted_part_value_from_string(THD *thd,
+                                            Item *item,
+                                            String *input_str,
+                                            String *output_str,
+                                            CHARSET_INFO *cs,
+                                            bool use_hex);
 void get_full_part_id_from_key(const TABLE *table, uchar *buf,
                                KEY *key_info,
                                const key_range *key_spec,
@@ -262,6 +268,7 @@ bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
                     enum partition_state part_state);
 uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info,
+                           Alter_table_ctx *alter_ctx,
                            bool *partition_changed,
                            bool *fast_alter_table);
 char *generate_partition_syntax(THD *thd, partition_info *part_info,

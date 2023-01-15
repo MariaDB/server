@@ -454,8 +454,6 @@ info: Records: 0  Duplicates: 0  Warnings: 0
 #table copy when the old_alter_table enabled.
 SET SESSION old_alter_table= TRUE;
 affected rows: 0
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
 ALTER TABLE t1 FORCE;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
@@ -480,8 +478,6 @@ SET DEBUG_SYNC= 'RESET';
 affected rows: 0
 SET SESSION old_alter_table= FALSE;
 affected rows: 0
-Warnings:
-Warning	1287	'@@old_alter_table' is deprecated and will be removed in a future release. Please use '@@alter_algorithm' instead
 #ALTER TABLE FORCE and ALTER TABLE ENGINE uses table copy
 #when ALGORITHM COPY is used.
 ALTER TABLE t1 FORCE, ALGORITHM= COPY;

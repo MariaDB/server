@@ -193,17 +193,17 @@ drop table if exists t1;
 #
 # Test default table type
 #
-SET SESSION default_storage_engine="heap";
-SELECT @@default_storage_engine;
+SET SESSION storage_engine="heap";
+SELECT @@storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
 drop table t1;
 --error ER_UNKNOWN_STORAGE_ENGINE
-SET SESSION default_storage_engine="gemini";
-SELECT @@default_storage_engine;
+SET SESSION storage_engine="gemini";
+SELECT @@storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
-SET SESSION default_storage_engine=default;
+SET SESSION storage_engine=default;
 drop table t1;
 
 
@@ -353,17 +353,17 @@ drop tables t1, t2;
 #
 # Test default table type
 #
-SET SESSION default_storage_engine="heap";
-SELECT @@default_storage_engine;
+SET SESSION storage_engine="heap";
+SELECT @@storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
 drop table t1;
 --error ER_UNKNOWN_STORAGE_ENGINE
-SET SESSION default_storage_engine="gemini";
-SELECT @@default_storage_engine;
+SET SESSION storage_engine="gemini";
+SELECT @@storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
-SET SESSION default_storage_engine=default;
+SET SESSION storage_engine=default;
 drop table t1;
 
 #
@@ -1927,12 +1927,3 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
-
-#
-# MDEV-22199 Add VISIBLE option for indexes in create table
-#
-
-CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
-drop table t1;
-
---echo # End of 10.5 Test

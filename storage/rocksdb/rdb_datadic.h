@@ -252,8 +252,7 @@ class Rdb_key_def {
  public:
   /* Convert a key from KeyTupleFormat to mem-comparable form */
   uint pack_index_tuple(TABLE *const tbl, uchar *const pack_buffer,
-                        uchar *const packed_tuple, uchar *const record_buffer,
-                        const uchar *const key_tuple,
+                        uchar *const packed_tuple, const uchar *const key_tuple,
                         const key_part_map &keypart_map) const;
 
   uchar *pack_field(Field *const field, Rdb_field_packing *pack_info,

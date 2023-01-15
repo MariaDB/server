@@ -42,7 +42,5 @@ SOURCE	Name and line number of the source file containing the instrumented code 
 TIMER_START	Value in picoseconds when the event timing started or NULL if timing is not collected.
 TIMER_END	Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.
 TIMER_WAIT	Value in picoseconds of the event's duration or NULL if the event has not ended or timing is not collected.
-WORK_COMPLETED	The number of work units completed for the stage. NULL if the stage event progress is not instrumented.
-WORK_ESTIMATED	The number of work units expected for the stage. NULL if the stage event progress is not instrumented.
 NESTING_EVENT_ID	EVENT_ID of event within which this event nests.
-NESTING_EVENT_TYPE	Nesting event type. Either transaction, statement, stage or wait.
+NESTING_EVENT_TYPE	Nesting event type. Either statement, stage or wait.

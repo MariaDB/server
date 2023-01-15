@@ -1,8 +1,6 @@
 --source include/have_innodb.inc
 --source include/big_test.inc
 --source include/not_embedded.inc
-# Valgrind is to slow for this test
---source include/not_valgrind.inc
 
 set global innodb_defragment_stats_accuracy = 80;
 

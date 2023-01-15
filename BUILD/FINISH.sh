@@ -42,15 +42,7 @@ cd ./libmariadb
 git submodule update
 cd ../storage/rocksdb/rocksdb
 git submodule update
-cd ../../maria/libmarias3
-git submodule update
-cd ../../..
-cd storage/columnstore/columnstore
-git submodule update
-cd ../../..
-cd wsrep-lib
-git submodule update
-cd .."
+cd ../../.."
 fi
 commands="$commands
 path=`dirname $0`

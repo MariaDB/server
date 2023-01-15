@@ -212,7 +212,6 @@ call mtr.add_suppression(" InnoDB: Tablespace for table `test`.`t` is set as dis
 CREATE TABLE t (a INTEGER, b INTEGER as (a) VIRTUAL,
                 c INTEGER)engine=innodb;
 ALTER TABLE t DISCARD TABLESPACE;
-FLUSH TABLES;
 # Table does reload
 ALTER TABLE t DROP COLUMN b, algorithm=instant;
 ALTER TABLE t DROP COLUMN c, algorithm=instant;

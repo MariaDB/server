@@ -414,6 +414,9 @@ flush tables t1 with read lock;
 --error ER_LOCK_OR_ACTIVE_TRANSACTION
 handler t1 read a next;
 unlock tables;
+--echo #
+--echo # Sic: lost handler position.
+--echo #
 handler t1 read a next;
 handler t1 close;
 drop table t1;
@@ -673,9 +676,3 @@ UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1;
 --enable_service_connection
---echo #
---echo # Test FLUSH THREADS
---echo #
-
-flush threads;
-show status like "Threads_cached";

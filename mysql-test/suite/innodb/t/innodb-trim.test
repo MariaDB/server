@@ -33,6 +33,18 @@ commit;
 set autocommit=1;
 
 
+let $success= `SELECT variable_value FROM information_schema.global_status WHERE variable_name = 'innodb_num_page_compressed_trim_op'`;
+
+if (!$success) {
+--disable_query_log
+--disable_result_log
+    DROP PROCEDURE innodb_insert_proc;
+    DROP TABLE innodb_page_compressed;
+--enable_query_log
+--enable_result_log
+    --skip "Test requires TRIM";
+}
+
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE innodb_page_compressed;
 

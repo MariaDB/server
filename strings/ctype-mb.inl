@@ -167,7 +167,7 @@ MY_FUNCTION_NAME(well_formed_char_length)(CHARSET_INFO *cs __attribute__((unused
 /**
   Returns well formed length of a string 
   measured in characters (rather than in bytes).
-  Version for character sets that define CHARLEN(), e.g. utf8mb3.
+  Version for character sets that define CHARLEN(), e.g. utf8.
   CHARLEN(cs,b,e) must use the same return code convension that mb_wc() does:
   - a positive number in the range [1-mbmaxlen] if a valid
     single-byte or multi-byte character was found

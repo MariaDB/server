@@ -22,7 +22,6 @@
 
 #ifdef HAVE_CHARSET_sjis
 
-const char charset_name_sjis[]= "sjis";
 
 /*
  * This comment is parsed by configure to create ctype.c,
@@ -34005,15 +34004,6 @@ size_t my_numcells_sjis(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static int
-my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
-                        uchar *str, uchar *end)
-{
-  return my_wc_to_printable_ex(cs, wc, str, end,
-                               '\\', 2, 1);
-}
-
-
 /*
   sjis_chinese_ci and sjis_bin sort character blocks in this order:
   1. [00..7F]                - 7BIT characters (ASCII)
@@ -34149,7 +34139,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_sjis,
   my_copy_fix_mb,
   my_native_to_mb_sjis,
-  my_wc_to_printable_sjis
 };
 
 
@@ -34157,7 +34146,7 @@ struct charset_info_st my_charset_sjis_japanese_ci=
 {
     13,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_NONASCII,	/* state */
-    charset_name_sjis,		/* cs name    */
+    "sjis",		/* cs name    */
     "sjis_japanese_ci",	/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -34189,7 +34178,7 @@ struct charset_info_st my_charset_sjis_bin=
 {
     88,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII, /* state  */
-    charset_name_sjis,		/* cs name    */
+    "sjis",		/* cs name    */
     "sjis_bin",		/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -34222,7 +34211,7 @@ struct charset_info_st my_charset_sjis_japanese_nopad_ci=
 {
     MY_NOPAD_ID(13),0,0, /* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NONASCII|MY_CS_NOPAD, /* state */
-    charset_name_sjis,              /* cs name          */
+    "sjis",              /* cs name          */
     "sjis_japanese_nopad_ci", /* name        */
     "",                  /* comment          */
     NULL,                /* tailoring        */
@@ -34254,7 +34243,7 @@ struct charset_info_st my_charset_sjis_nopad_bin=
 {
     MY_NOPAD_ID(88),0,0, /* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII|MY_CS_NOPAD, /* state */
-    charset_name_sjis,              /* cs name          */
+    "sjis",              /* cs name          */
     "sjis_nopad_bin",    /* name             */
     "",                  /* comment          */
     NULL,                /* tailoring        */

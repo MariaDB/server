@@ -59,6 +59,10 @@ extern uint	page_zip_level;
 /** 'deleted' flag */
 #define PAGE_ZIP_DIR_SLOT_DEL		0x8000U
 
+/* Whether or not to log compressed page images to avoid possible
+compression algorithm changes in zlib. */
+extern my_bool	page_zip_log_pages;
+
 /**********************************************************************//**
 Determine the size of a compressed page in bytes.
 @return size in bytes */
@@ -124,16 +128,22 @@ page_zip_set_alloc(
 	void*		stream,		/*!< in/out: zlib stream */
 	mem_heap_t*	heap);		/*!< in: memory heap to use */
 
-/** Attempt to compress a ROW_FORMAT=COMPRESSED page.
-@retval true on success
-@retval false on failure; block->page.zip will be left intact. */
-bool
+/**********************************************************************//**
+Compress a page.
+@return TRUE on success, FALSE on failure; page_zip will be left
+intact on failure. */
+ibool
 page_zip_compress(
-	buf_block_t*		block,	/*!< in/out: buffer block */
-	dict_index_t*		index,	/*!< in: index of the B-tree node */
-	ulint			level,	/*!< in: commpression level */
-	mtr_t*			mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
+/*==============*/
+	page_zip_des_t*		page_zip,	/*!< in: size; out: data,
+						n_blobs, m_start, m_end,
+						m_nonempty */
+	const page_t*		page,		/*!< in: uncompressed page */
+	dict_index_t*		index,		/*!< in: index of the B-tree
+						node */
+	ulint			level,		/*!< in: commpression level */
+	mtr_t*			mtr);		/*!< in/out: mini-transaction,
+						or NULL */
 
 /**********************************************************************//**
 Write the index information for the compressed page.
@@ -230,18 +240,42 @@ page_zip_available(
 					the heap */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Write an entire record to the ROW_FORMAT=COMPRESSED page.
-The data must already have been written to the uncompressed page.
-@param[in,out]	block		ROW_FORMAT=COMPRESSED page
-@param[in]	rec		record in the uncompressed page
-@param[in]	index		the index that the page belongs to
-@param[in]	offsets		rec_get_offsets(rec, index)
-@param[in]	create		nonzero=insert, zero=update
-@param[in,out]	mtr		mini-transaction */
-void page_zip_write_rec(buf_block_t *block, const byte *rec,
-                        const dict_index_t *index, const rec_offs *offsets,
-                        ulint create, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
+/**********************************************************************//**
+Write data to the uncompressed header portion of a page.  The data must
+already have been written to the uncompressed page. */
+UNIV_INLINE
+void
+page_zip_write_header(
+/*==================*/
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	const byte*	str,	/*!< in: address on the uncompressed page */
+	ulint		length,	/*!< in: length of the data */
+	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
+	MY_ATTRIBUTE((nonnull(1,2)));
+
+/**********************************************************************//**
+Write an entire record on the compressed page.  The data must already
+have been written to the uncompressed page. */
+void
+page_zip_write_rec(
+/*===============*/
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	const byte*	rec,	/*!< in: record being written */
+	dict_index_t*	index,	/*!< in: the index the record belongs to */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	ulint		create)	/*!< in: nonzero=insert, zero=update */
+	MY_ATTRIBUTE((nonnull));
+
+/***********************************************************//**
+Parses a log record of writing a BLOB pointer of a record.
+@return end of log record or NULL */
+byte*
+page_zip_parse_write_blob_ptr(
+/*==========================*/
+	byte*		ptr,	/*!< in: redo log buffer */
+	byte*		end_ptr,/*!< in: redo log buffer end */
+	page_t*		page,	/*!< in/out: uncompressed page */
+	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
 
 /**********************************************************************//**
 Write a BLOB pointer of a record on the leaf page of a clustered index.
@@ -249,101 +283,174 @@ The information must already have been updated on the uncompressed page. */
 void
 page_zip_write_blob_ptr(
 /*====================*/
-	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	const byte*	rec,	/*!< in/out: record whose data is being
 				written */
 	dict_index_t*	index,	/*!< in: index of the page */
 	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		n,	/*!< in: column index */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
+	mtr_t*		mtr);	/*!< in: mini-transaction handle,
+				or NULL if no logging is needed */
+
+/***********************************************************//**
+Parses a log record of writing the node pointer of a record.
+@return end of log record or NULL */
+byte*
+page_zip_parse_write_node_ptr(
+/*==========================*/
+	byte*		ptr,	/*!< in: redo log buffer */
+	byte*		end_ptr,/*!< in: redo log buffer end */
+	page_t*		page,	/*!< in/out: uncompressed page */
+	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
 
 /**********************************************************************//**
 Write the node pointer of a record on a non-leaf compressed page. */
 void
 page_zip_write_node_ptr(
 /*====================*/
-	buf_block_t*	block,	/*!< in/out: compressed page */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	byte*		rec,	/*!< in/out: record */
 	ulint		size,	/*!< in: data size of rec */
 	ulint		ptr,	/*!< in: node pointer */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
+	mtr_t*		mtr);	/*!< in: mini-transaction, or NULL */
 
 /** Write the DB_TRX_ID,DB_ROLL_PTR into a clustered index leaf page record.
-@param[in,out]	block		ROW_FORMAT=COMPRESSED page
+@param[in,out]	page_zip	compressed page
 @param[in,out]	rec		record
 @param[in]	offsets		rec_get_offsets(rec, index)
 @param[in]	trx_id_field	field number of DB_TRX_ID (number of PK fields)
 @param[in]	trx_id		DB_TRX_ID value (transaction identifier)
 @param[in]	roll_ptr	DB_ROLL_PTR value (undo log pointer)
-@param[in,out]	mtr		mini-transaction */
+@param[in,out]	mtr		mini-transaction, or NULL to skip logging */
 void
 page_zip_write_trx_id_and_roll_ptr(
-	buf_block_t*	block,
+	page_zip_des_t*	page_zip,
 	byte*		rec,
 	const rec_offs*	offsets,
 	ulint		trx_id_col,
 	trx_id_t	trx_id,
 	roll_ptr_t	roll_ptr,
-	mtr_t*		mtr)
+	mtr_t*		mtr = NULL)
+	MY_ATTRIBUTE((nonnull(1,2,3)));
+
+/** Parse a MLOG_ZIP_WRITE_TRX_ID record.
+@param[in]	ptr		redo log buffer
+@param[in]	end_ptr		end of redo log buffer
+@param[in,out]	page		uncompressed page
+@param[in,out]	page_zip	compressed page
+@return end of log record
+@retval	NULL	if the log record is incomplete */
+byte*
+page_zip_parse_write_trx_id(
+	byte*		ptr,
+	byte*		end_ptr,
+	page_t*		page,
+	page_zip_des_t*	page_zip)
+	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
+/**********************************************************************//**
+Write the "deleted" flag of a record on a compressed page.  The flag must
+already have been written on the uncompressed page. */
+void
+page_zip_rec_set_deleted(
+/*=====================*/
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	const byte*	rec,	/*!< in: record on the uncompressed page */
+	ulint		flag)	/*!< in: the deleted flag (nonzero=TRUE) */
 	MY_ATTRIBUTE((nonnull));
 
-/** Modify the delete-mark flag of a ROW_FORMAT=COMPRESSED record.
-@param[in,out]  block   buffer block
-@param[in,out]  rec     record on a physical index page
-@param[in]      flag    the value of the delete-mark flag
-@param[in,out]  mtr     mini-transaction  */
-void page_zip_rec_set_deleted(buf_block_t *block, rec_t *rec, bool flag,
-                              mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull));
+/**********************************************************************//**
+Write the "owned" flag of a record on a compressed page.  The n_owned field
+must already have been written on the uncompressed page. */
+void
+page_zip_rec_set_owned(
+/*===================*/
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	const byte*	rec,	/*!< in: record on the uncompressed page */
+	ulint		flag)	/*!< in: the owned flag (nonzero=TRUE) */
+	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Insert a record to the dense page directory. */
 void
 page_zip_dir_insert(
 /*================*/
-	page_cur_t*	cursor,	/*!< in/out: page cursor */
-	uint16_t	free_rec,/*!< in: record from which rec was
-				allocated, or 0 */
-	byte*		rec,	/*!< in: record to insert */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull(1,3,4)));
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	const byte*	prev_rec,/*!< in: record after which to insert */
+	const byte*	free_rec,/*!< in: record from which rec was
+				allocated, or NULL */
+	byte*		rec);	/*!< in: record to insert */
 
-/** Shift the dense page directory and the array of BLOB pointers
-when a record is deleted.
-@param[in,out]  block   index page
-@param[in,out]  rec     record being deleted
-@param[in]      index   the index that the page belongs to
-@param[in]      offsets rec_get_offsets(rec, index)
-@param[in]	free	previous start of the free list
-@param[in,out]  mtr     mini-transaction */
-void page_zip_dir_delete(buf_block_t *block, byte *rec,
-                         const dict_index_t *index, const rec_offs *offsets,
-                         const byte *free, mtr_t *mtr)
-  MY_ATTRIBUTE((nonnull(1,2,3,4,6)));
+/**********************************************************************//**
+Shift the dense page directory and the array of BLOB pointers
+when a record is deleted. */
+void
+page_zip_dir_delete(
+/*================*/
+	page_zip_des_t*		page_zip,	/*!< in/out: compressed page */
+	byte*			rec,		/*!< in: deleted record */
+	const dict_index_t*	index,		/*!< in: index of rec */
+	const rec_offs*		offsets,	/*!< in: rec_get_offsets(rec) */
+	const byte*		free)		/*!< in: previous start of
+						the free list */
+	MY_ATTRIBUTE((nonnull(1,2,3,4)));
+
+/**********************************************************************//**
+Add a slot to the dense page directory. */
+void
+page_zip_dir_add_slot(
+/*==================*/
+	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
+	ulint		is_clustered)	/*!< in: nonzero for clustered index,
+					zero for others */
+	MY_ATTRIBUTE((nonnull));
+
+/***********************************************************//**
+Parses a log record of writing to the header of a page.
+@return end of log record or NULL */
+byte*
+page_zip_parse_write_header(
+/*========================*/
+	byte*		ptr,	/*!< in: redo log buffer */
+	byte*		end_ptr,/*!< in: redo log buffer end */
+	page_t*		page,	/*!< in/out: uncompressed page */
+	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
+
+/**********************************************************************//**
+Write data to the uncompressed header portion of a page.  The data must
+already have been written to the uncompressed page.
+However, the data portion of the uncompressed page may differ from
+the compressed page when a record is being inserted in
+page_cur_insert_rec_low(). */
+UNIV_INLINE
+void
+page_zip_write_header(
+/*==================*/
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	const byte*	str,	/*!< in: address on the uncompressed page */
+	ulint		length,	/*!< in: length of the data */
+	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
+	MY_ATTRIBUTE((nonnull(1,2)));
 
 /**********************************************************************//**
 Reorganize and compress a page.  This is a low-level operation for
 compressed pages, to be used when page_zip_compress() fails.
-On success, redo log will be written.
+On success, a redo log entry MLOG_ZIP_PAGE_COMPRESS will be written.
 The function btr_page_reorganize() should be preferred whenever possible.
 IMPORTANT: if page_zip_reorganize() is invoked on a leaf page of a
 non-clustered index, the caller must update the insert buffer free
 bits in the same mini-transaction in such a way that the modification
 will be redo-logged.
-@retval true on success
-@retval false on failure; the block_zip will be left intact */
-bool
+@return TRUE on success, FALSE on failure; page_zip will be left
+intact on failure, but page will be overwritten. */
+ibool
 page_zip_reorganize(
+/*================*/
 	buf_block_t*	block,	/*!< in/out: page with compressed page;
 				on the compressed page, in: size;
 				out: data, n_blobs,
 				m_start, m_end, m_nonempty */
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
-	ulint		z_level,/*!< in: compression level */
-	mtr_t*		mtr,	/*!< in: mini-transaction */
-	bool		restore = false)/*!< whether to restore on failure */
+	mtr_t*		mtr)	/*!< in: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
@@ -353,11 +460,25 @@ related to the storage of records.  Also copy PAGE_MAX_TRX_ID.
 NOTE: The caller must update the lock table and the adaptive hash index. */
 void
 page_zip_copy_recs(
-	buf_block_t*		block,		/*!< in/out: buffer block */
+/*===============*/
+	page_zip_des_t*		page_zip,	/*!< out: copy of src_zip
+						(n_blobs, m_start, m_end,
+						m_nonempty, data[0..size-1]) */
+	page_t*			page,		/*!< out: copy of src */
 	const page_zip_des_t*	src_zip,	/*!< in: compressed page */
 	const page_t*		src,		/*!< in: page */
 	dict_index_t*		index,		/*!< in: index of the B-tree */
 	mtr_t*			mtr);		/*!< in: mini-transaction */
+
+/** Parse and optionally apply MLOG_ZIP_PAGE_COMPRESS.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log
+@param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
+			      buf_block_t* block);
+
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Calculate the compressed page checksum.
@@ -378,6 +499,30 @@ page_zip_calc_checksum(
 bool page_zip_verify_checksum(const byte *data, size_t size);
 
 #ifndef UNIV_INNOCHECKSUM
+/**********************************************************************//**
+Write a log record of compressing an index page without the data on the page. */
+UNIV_INLINE
+void
+page_zip_compress_write_log_no_data(
+/*================================*/
+	ulint		level,	/*!< in: compression level */
+	const page_t*	page,	/*!< in: page that is compressed */
+	dict_index_t*	index,	/*!< in: index */
+	mtr_t*		mtr);	/*!< in: mtr */
+/**********************************************************************//**
+Parses a log record of compressing an index page without the data.
+@return end of log record or NULL */
+UNIV_INLINE
+byte*
+page_zip_parse_compress_no_data(
+/*============================*/
+	byte*		ptr,		/*!< in: buffer */
+	byte*		end_ptr,	/*!< in: buffer end */
+	page_t*		page,		/*!< in: uncompressed page */
+	page_zip_des_t*	page_zip,	/*!< out: compressed page */
+	dict_index_t*	index)		/*!< in: index */
+	MY_ATTRIBUTE((nonnull(1,2)));
+
 /**********************************************************************//**
 Reset the counters used for filling
 INFORMATION_SCHEMA.innodb_cmp_per_index. */

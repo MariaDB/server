@@ -19,12 +19,12 @@ INSERT INTO t1 VALUES(2);
 INSERT INTO t1 VALUES(3);
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
-1-1-2,2-3-4
+0-2-2,2-3-4
 connection node_1;
 INSERT INTO t1 VALUES(4);
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
-1-1-3,2-3-4
+1-1-1,2-3-4,2-2-6
 connection node_3;
 DROP TABLE t1,t2;
 connection node_2;
@@ -41,5 +41,3 @@ reset master;
 SET GLOBAL wsrep_on=ON;
 connection node_3;
 reset master;
-connection node_2;
-CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

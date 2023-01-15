@@ -58,10 +58,11 @@ extern "C" {
   }
 }
 
-void init_sql_alloc(PSI_memory_key key, MEM_ROOT *mem_root, uint block_size,
-                    uint pre_alloc, myf my_flags)
+void init_sql_alloc(MEM_ROOT *mem_root,
+                    const char *area_name __attribute__((unused)),
+                    uint block_size, uint pre_alloc, myf my_flags)
 {
-  init_alloc_root(key, mem_root, block_size, pre_alloc, my_flags);
+  init_alloc_root(mem_root, area_name, block_size, pre_alloc, my_flags);
   mem_root->error_handler=sql_alloc_error_handler;
 }
 

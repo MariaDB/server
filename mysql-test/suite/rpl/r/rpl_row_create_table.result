@@ -222,7 +222,7 @@ DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9;
 connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
-SET GLOBAL default_storage_engine=@@default_storage_engine;
+SET GLOBAL storage_engine=@storage_engine;
 START SLAVE;
 include/wait_for_slave_to_start.inc
 ================ BUG#22864 ================

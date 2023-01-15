@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2020, 2022, MariaDB Corporation.
 
@@ -36,7 +35,9 @@ Created 9/5/1995 Heikki Tuuri
 #include "sync0sync.h"
 
 #ifdef UNIV_PFS_MUTEX
+mysql_pfs_key_t	buffer_block_mutex_key;
 mysql_pfs_key_t	buf_pool_mutex_key;
+mysql_pfs_key_t	buf_pool_zip_mutex_key;
 mysql_pfs_key_t	dict_foreign_err_mutex_key;
 mysql_pfs_key_t	dict_sys_mutex_key;
 mysql_pfs_key_t	fil_system_mutex_key;
@@ -44,14 +45,19 @@ mysql_pfs_key_t	flush_list_mutex_key;
 mysql_pfs_key_t	fts_delete_mutex_key;
 mysql_pfs_key_t	fts_doc_id_mutex_key;
 mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
+mysql_pfs_key_t	hash_table_mutex_key;
 mysql_pfs_key_t	ibuf_mutex_key;
 mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
 mysql_pfs_key_t	log_sys_mutex_key;
+mysql_pfs_key_t	log_sys_write_mutex_key;
 mysql_pfs_key_t	log_cmdq_mutex_key;
 mysql_pfs_key_t	log_flush_order_mutex_key;
+mysql_pfs_key_t	mutex_list_mutex_key;
 mysql_pfs_key_t	recalc_pool_mutex_key;
+mysql_pfs_key_t	page_cleaner_mutex_key;
 mysql_pfs_key_t	purge_sys_pq_mutex_key;
 mysql_pfs_key_t	recv_sys_mutex_key;
+mysql_pfs_key_t	recv_writer_mutex_key;
 mysql_pfs_key_t	redo_rseg_mutex_key;
 mysql_pfs_key_t	noredo_rseg_mutex_key;
 mysql_pfs_key_t page_zip_stat_per_index_mutex_key;
@@ -62,6 +68,7 @@ mysql_pfs_key_t rtr_active_mutex_key;
 mysql_pfs_key_t	rtr_match_mutex_key;
 mysql_pfs_key_t	rtr_path_mutex_key;
 mysql_pfs_key_t	rw_lock_list_mutex_key;
+mysql_pfs_key_t	rw_lock_mutex_key;
 mysql_pfs_key_t	srv_innodb_monitor_mutex_key;
 mysql_pfs_key_t	srv_misc_tmpfile_mutex_key;
 mysql_pfs_key_t	srv_monitor_file_mutex_key;
@@ -72,16 +79,24 @@ mysql_pfs_key_t	trx_pool_manager_mutex_key;
 mysql_pfs_key_t	lock_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
+mysql_pfs_key_t	srv_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
+mysql_pfs_key_t	event_mutex_key;
+mysql_pfs_key_t	event_manager_mutex_key;
 mysql_pfs_key_t	sync_array_mutex_key;
 mysql_pfs_key_t	thread_mutex_key;
 mysql_pfs_key_t row_drop_list_mutex_key;
 mysql_pfs_key_t	rw_trx_hash_element_mutex_key;
-mysql_pfs_key_t	read_view_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 #ifdef UNIV_PFS_RWLOCK
 mysql_pfs_key_t	btr_search_latch_key;
+mysql_pfs_key_t	buf_block_lock_key;
+# ifdef UNIV_DEBUG
+mysql_pfs_key_t	buf_block_debug_latch_key;
+# endif /* UNIV_DEBUG */
+mysql_pfs_key_t	checkpoint_lock_key;
 mysql_pfs_key_t	dict_operation_lock_key;
+mysql_pfs_key_t	hash_table_locks_key;
 mysql_pfs_key_t	index_tree_rw_lock_key;
 mysql_pfs_key_t	index_online_log_key;
 mysql_pfs_key_t	fil_space_latch_key;
@@ -121,18 +136,15 @@ sync_print_wait_info(FILE* file)
 	fprintf(file,
 		"Spin rounds per wait: %.2f RW-shared,"
 		" %.2f RW-excl, %.2f RW-sx\n",
-		rw_lock_stats.rw_s_spin_wait_count
-		? static_cast<double>(rw_lock_stats.rw_s_spin_round_count) /
-		static_cast<double>(rw_lock_stats.rw_s_spin_wait_count)
-		: static_cast<double>(rw_lock_stats.rw_s_spin_round_count),
-		rw_lock_stats.rw_x_spin_wait_count
-		? static_cast<double>(rw_lock_stats.rw_x_spin_round_count) /
-		static_cast<double>(rw_lock_stats.rw_x_spin_wait_count)
-		: static_cast<double>(rw_lock_stats.rw_x_spin_round_count),
-		rw_lock_stats.rw_sx_spin_wait_count
-		? static_cast<double>(rw_lock_stats.rw_sx_spin_round_count) /
-		static_cast<double>(rw_lock_stats.rw_sx_spin_wait_count)
-		: static_cast<double>(rw_lock_stats.rw_sx_spin_round_count));
+		(double) rw_lock_stats.rw_s_spin_round_count /
+		(rw_lock_stats.rw_s_spin_wait_count
+		 ? rw_lock_stats.rw_s_spin_wait_count : 1LL),
+		(double) rw_lock_stats.rw_x_spin_round_count /
+		(rw_lock_stats.rw_x_spin_wait_count
+		 ? rw_lock_stats.rw_x_spin_wait_count : 1LL),
+		(double) rw_lock_stats.rw_sx_spin_round_count /
+		(rw_lock_stats.rw_sx_spin_wait_count
+		 ? rw_lock_stats.rw_sx_spin_wait_count : 1LL));
 }
 
 /**
@@ -237,8 +249,11 @@ MutexMonitor::reset()
 
 	mutex_enter(&rw_lock_list_mutex);
 
-	for (rw_lock_t& rw_lock : rw_lock_list) {
-		rw_lock.count_os_wait = 0;
+	for (rw_lock_t* rw_lock = UT_LIST_GET_FIRST(rw_lock_list);
+	     rw_lock != NULL;
+	     rw_lock = UT_LIST_GET_NEXT(list, rw_lock)) {
+
+		rw_lock->count_os_wait = 0;
 	}
 
 	mutex_exit(&rw_lock_list_mutex);

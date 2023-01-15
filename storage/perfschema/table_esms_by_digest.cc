@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2016, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,7 +26,7 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -37,14 +37,8 @@
 #include "pfs_visitor.h"
 #include "table_esms_by_digest.h"
 #include "pfs_digest.h"
-#include "field.h"
 
 THR_LOCK table_esms_by_digest::m_table_lock;
-
-PFS_engine_table_share_state
-table_esms_by_digest::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_esms_by_digest::m_share=
@@ -54,7 +48,8 @@ table_esms_by_digest::m_share=
   table_esms_by_digest::create,
   NULL, /* write_row */
   table_esms_by_digest::delete_all_rows,
-  table_esms_by_digest::get_row_count,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_summary_by_digest("
@@ -86,10 +81,7 @@ table_esms_by_digest::m_share=
                       "SUM_NO_INDEX_USED BIGINT unsigned not null comment 'Sum of the NO_INDEX_USED column in the events_statements_current table.',"
                       "SUM_NO_GOOD_INDEX_USED BIGINT unsigned not null comment 'Sum of the NO_GOOD_INDEX_USED column in the events_statements_current table.',"
                       "FIRST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Time at which the digest was first seen.',"
-                      "LAST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Time at which the digest was most recently seen.')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "LAST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Time at which the digest was most recently seen.')") }
 };
 
 PFS_engine_table*
@@ -103,12 +95,6 @@ table_esms_by_digest::delete_all_rows(void)
 {
   reset_esms_by_digest();
   return 0;
-}
-
-ha_rows
-table_esms_by_digest::get_row_count(void)
-{
-  return digest_max;
 }
 
 table_esms_by_digest::table_esms_by_digest()
@@ -197,11 +183,11 @@ int table_esms_by_digest
   if (unlikely(! m_row_exists))
     return HA_ERR_RECORD_DELETED;
 
-  /*
+  /* 
     Set the null bits. It indicates how many fields could be null
     in the table.
   */
-  assert(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)

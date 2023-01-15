@@ -2,7 +2,6 @@
 #define PROTOCOL_INCLUDED
 
 /* Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,25 +49,18 @@ protected:
   }
 #endif
   uint field_count;
+#ifndef EMBEDDED_LIBRARY
+  bool net_store_data(const uchar *from, size_t length);
+  bool net_store_data_cs(const uchar *from, size_t length,
+                      CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+#else
   virtual bool net_store_data(const uchar *from, size_t length);
   virtual bool net_store_data_cs(const uchar *from, size_t length,
                       CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
-  virtual bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                           bool, bool);
-  virtual bool net_send_error_packet(THD *, uint, const char *, const char *);
-#ifdef EMBEDDED_LIBRARY
   char **next_field;
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
 #endif
-  bool needs_conversion(CHARSET_INFO *fromcs,
-                        CHARSET_INFO *tocs) const
-  {
-    // 'tocs' is set 0 when client issues SET character_set_results=NULL
-    return tocs && !my_charset_same(fromcs, tocs) &&
-           fromcs != &my_charset_bin &&
-           tocs != &my_charset_bin;
-  }
   /* 
     The following two are low-level functions that are invoked from
     higher-level store_xxx() funcs.  The data is stored into this->packet.
@@ -85,8 +77,6 @@ protected:
   virtual bool send_error(uint sql_errno, const char *err_msg,
                           const char *sql_state);
 
-  CHARSET_INFO *character_set_results() const;
-
 public:
   THD	 *thd;
   Protocol(THD *thd_arg) { init(thd_arg); }
@@ -100,7 +90,6 @@ public:
 
   bool store(I_List<i_string> *str_list);
   bool store(const char *from, CHARSET_INFO *cs);
-  bool store_warning(const char *from, size_t length);
   String *storage_packet() { return packet; }
   inline void free() { packet->free(); }
   virtual bool write();
@@ -114,10 +103,6 @@ public:
   { return store_longlong((longlong) from, 1); }
   inline bool store(String *str)
   { return store((char*) str->ptr(), str->length(), str->charset()); }
-  inline bool store(const LEX_CSTRING *from, CHARSET_INFO *cs)
-  {
-    return store(from->str, from->length, cs);
-  }
 
   virtual bool prepare_for_send(uint num_columns)
   {
@@ -134,36 +119,24 @@ public:
   virtual bool store_long(longlong from)=0;
   virtual bool store_longlong(longlong from, bool unsigned_flag)=0;
   virtual bool store_decimal(const my_decimal *)=0;
-  virtual bool store_str(const char *from, size_t length,
-                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
-  virtual bool store_float(float from, uint32 decimals)=0;
-  virtual bool store_double(double from, uint32 decimals)=0;
+  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)=0;
+  virtual bool store(const char *from, size_t length, 
+  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
+  bool store_str(const char *s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+  {
+    DBUG_ASSERT(s);
+    return store(s, (uint) strlen(s), fromcs, tocs);
+  }
+  bool store_str(const LEX_CSTRING &s, CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+  {
+    return store(s.str, (uint) s.length, fromcs, tocs);
+  }
+  virtual bool store(float from, uint32 decimals, String *buffer)=0;
+  virtual bool store(double from, uint32 decimals, String *buffer)=0;
   virtual bool store(MYSQL_TIME *time, int decimals)=0;
   virtual bool store_date(MYSQL_TIME *time)=0;
   virtual bool store_time(MYSQL_TIME *time, int decimals)=0;
   virtual bool store(Field *field)=0;
-
-  // Various useful wrappers for the virtual store*() methods.
-  // Backward wrapper for store_str()
-  bool store(const char *from, size_t length, CHARSET_INFO *cs)
-  {
-    return store_str(from, length, cs, character_set_results());
-  }
-  bool store_lex_cstring(const LEX_CSTRING &s,
-                         CHARSET_INFO *fromcs,
-                         CHARSET_INFO *tocs)
-  {
-    return store_str(s.str, (uint) s.length, fromcs, tocs);
-  }
-  bool store_binary_string(const char *str, size_t length)
-  {
-    return store_str(str, (uint) length, &my_charset_bin, &my_charset_bin);
-  }
-  bool store_ident(const LEX_CSTRING &s)
-  {
-    return store_lex_cstring(s, system_charset_info, character_set_results());
-  }
-  // End of wrappers
 
   virtual bool send_out_parameters(List<Item_param> *sp_params)=0;
 #ifdef EMBEDDED_LIBRARY
@@ -179,14 +152,10 @@ public:
       Before adding a new type, please make sure
       there is enough storage for it in Query_cache_query_flags.
     */
-    PROTOCOL_TEXT= 0, PROTOCOL_BINARY= 1, PROTOCOL_LOCAL= 2,
-    PROTOCOL_DISCARD= 3 /* Should be last, not used by Query_cache */
+    PROTOCOL_TEXT= 0, PROTOCOL_BINARY= 1, PROTOCOL_LOCAL= 2
   };
   virtual enum enum_protocol_type type()= 0;
 
-  virtual bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
-  bool net_send_error(THD *thd, uint sql_errno, const char *err,
-                      const char* sqlstate);
   void end_statement();
 
   friend int send_answer_1(Protocol *protocol, String *s1, String *s2,
@@ -199,8 +168,6 @@ public:
 
 class Protocol_text :public Protocol
 {
-  StringBuffer<FLOATING_POINT_BUFFER> buffer;
-  bool store_numeric_string_aux(const char *from, size_t length);
 public:
   Protocol_text(THD *thd_arg, ulong prealloc= 0)
    :Protocol(thd_arg)
@@ -208,73 +175,71 @@ public:
     if (prealloc)
       packet->alloc(prealloc);
   }
-  void prepare_for_resend() override;
-  bool store_null() override;
-  bool store_tiny(longlong from) override;
-  bool store_short(longlong from) override;
-  bool store_long(longlong from) override;
-  bool store_longlong(longlong from, bool unsigned_flag) override;
-  bool store_decimal(const my_decimal *) override;
-  bool store_str(const char *from, size_t length,
-                 CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
-  bool store(MYSQL_TIME *time, int decimals) override;
-  bool store_date(MYSQL_TIME *time) override;
-  bool store_time(MYSQL_TIME *time, int decimals) override;
-  bool store_float(float nr, uint32 decimals) override;
-  bool store_double(double from, uint32 decimals) override;
-  bool store(Field *field) override;
+  virtual void prepare_for_resend();
+  virtual bool store_null();
+  virtual bool store_tiny(longlong from);
+  virtual bool store_short(longlong from);
+  virtual bool store_long(longlong from);
+  virtual bool store_longlong(longlong from, bool unsigned_flag);
+  virtual bool store_decimal(const my_decimal *);
+  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs);
+  virtual bool store(const char *from, size_t length,
+  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+  virtual bool store(MYSQL_TIME *time, int decimals);
+  virtual bool store_date(MYSQL_TIME *time);
+  virtual bool store_time(MYSQL_TIME *time, int decimals);
+  virtual bool store(float nr, uint32 decimals, String *buffer);
+  virtual bool store(double from, uint32 decimals, String *buffer);
+  virtual bool store(Field *field);
 
-  bool send_out_parameters(List<Item_param> *sp_params) override;
-
-  bool store_numeric_zerofill_str(const char *from, size_t length,
-                                  protocol_send_type_t send_type);
-
+  virtual bool send_out_parameters(List<Item_param> *sp_params);
 #ifdef EMBEDDED_LIBRARY
-  void remove_last_row() override;
+  void remove_last_row();
 #endif
-  virtual bool store_field_metadata(const THD *thd, const Send_field &field,
-                                    CHARSET_INFO *charset_for_protocol,
-                                    uint pos);
-  bool store_item_metadata(THD *thd, Item *item, uint pos);
+  bool store_field_metadata(const THD *thd, const Send_field &field,
+                            CHARSET_INFO *charset_for_protocol,
+                            uint pos);
+  bool store_field_metadata(THD *thd, Item *item, uint pos);
   bool store_field_metadata_for_list_fields(const THD *thd, Field *field,
                                             const TABLE_LIST *table_list,
                                             uint pos);
-  enum enum_protocol_type type() override { return PROTOCOL_TEXT; };
+  virtual enum enum_protocol_type type() { return PROTOCOL_TEXT; };
 };
 
 
-class Protocol_binary final :public Protocol
+class Protocol_binary :public Protocol
 {
 private:
   uint bit_fields;
 public:
   Protocol_binary(THD *thd_arg) :Protocol(thd_arg) {}
-  bool prepare_for_send(uint num_columns) override;
-  void prepare_for_resend() override;
+  virtual bool prepare_for_send(uint num_columns);
+  virtual void prepare_for_resend();
 #ifdef EMBEDDED_LIBRARY
-  bool write() override;
-  bool net_store_data(const uchar *from, size_t length) override;
+  virtual bool write();
+  bool net_store_data(const uchar *from, size_t length);
   bool net_store_data_cs(const uchar *from, size_t length,
-                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
+                      CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
 #endif
-  bool store_null() override;
-  bool store_tiny(longlong from) override;
-  bool store_short(longlong from) override;
-  bool store_long(longlong from) override;
-  bool store_longlong(longlong from, bool unsigned_flag) override;
-  bool store_decimal(const my_decimal *) override;
-  bool store_str(const char *from, size_t length,
-                 CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
-  bool store(MYSQL_TIME *time, int decimals) override;
-  bool store_date(MYSQL_TIME *time) override;
-  bool store_time(MYSQL_TIME *time, int decimals) override;
-  bool store_float(float nr, uint32 decimals) override;
-  bool store_double(double from, uint32 decimals) override;
-  bool store(Field *field) override;
+  virtual bool store_null();
+  virtual bool store_tiny(longlong from);
+  virtual bool store_short(longlong from);
+  virtual bool store_long(longlong from);
+  virtual bool store_longlong(longlong from, bool unsigned_flag);
+  virtual bool store_decimal(const my_decimal *);
+  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs);
+  virtual bool store(const char *from, size_t length,
+  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+  virtual bool store(MYSQL_TIME *time, int decimals);
+  virtual bool store_date(MYSQL_TIME *time);
+  virtual bool store_time(MYSQL_TIME *time, int decimals);
+  virtual bool store(float nr, uint32 decimals, String *buffer);
+  virtual bool store(double from, uint32 decimals, String *buffer);
+  virtual bool store(Field *field);
 
-  bool send_out_parameters(List<Item_param> *sp_params) override;
+  virtual bool send_out_parameters(List<Item_param> *sp_params);
 
-  enum enum_protocol_type type() override { return PROTOCOL_BINARY; };
+  virtual enum enum_protocol_type type() { return PROTOCOL_BINARY; };
 };
 
 
@@ -292,41 +257,40 @@ public:
   select_send::send_data() & co., and also uses  Protocol_discard object.
 */
 
-class Protocol_discard final : public Protocol
+class Protocol_discard : public Protocol_text
 {
 public:
-  Protocol_discard(THD *thd_arg) : Protocol(thd_arg) {}
-  bool write() override { return 0; }
-  bool send_result_set_metadata(List<Item> *, uint) override { return 0; }
-  bool send_eof(uint, uint) override { return 0; }
-  void prepare_for_resend() override { IF_DBUG(field_pos= 0,); }
-  bool send_out_parameters(List<Item_param> *sp_params) override { return false; }
+  Protocol_discard(THD *thd_arg) : Protocol_text(thd_arg) {}
+  bool write() { return 0; }
+  bool send_result_set_metadata(List<Item> *, uint) { return 0; }
+  bool send_eof(uint, uint) { return 0; }
+  void prepare_for_resend() { IF_DBUG(field_pos= 0,); }
   
   /* 
     Provide dummy overrides for any storage methods so that we
     avoid allocating and copying of data
   */
-  bool store_null() override { return false; }
-  bool store_tiny(longlong) override { return false; }
-  bool store_short(longlong) override { return false; }
-  bool store_long(longlong) override { return false; }
-  bool store_longlong(longlong, bool) override { return false; }
-  bool store_decimal(const my_decimal *) override { return false; }
-  bool store_str(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *) override
-  {
-    return false;
-  }
-  bool store(MYSQL_TIME *, int) override { return false; }
-  bool store_date(MYSQL_TIME *) override { return false; }
-  bool store_time(MYSQL_TIME *, int) override { return false; }
-  bool store_float(float, uint32) override { return false; }
-  bool store_double(double, uint32) override { return false; }
-  bool store(Field *) override { return false; }
-  enum enum_protocol_type type() override { return PROTOCOL_DISCARD; };
+  bool store_null() { return false; }
+  bool store_tiny(longlong) { return false; }
+  bool store_short(longlong) { return false; }
+  bool store_long(longlong) { return false; }
+  bool store_longlong(longlong, bool) { return false; }
+  bool store_decimal(const my_decimal *) { return false; }
+  bool store(const char *, size_t, CHARSET_INFO *) { return false; }
+  bool store(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *) { return false; }
+  bool store(MYSQL_TIME *, int) { return false; }
+  bool store_date(MYSQL_TIME *) { return false; }
+  bool store_time(MYSQL_TIME *, int) { return false; }
+  bool store(float, uint32, String *) { return false; }
+  bool store(double, uint32, String *) { return false; }
+  bool store(Field *) { return false; }
+
 };
 
 
 void send_warning(THD *thd, uint sql_errno, const char *err=0);
+bool net_send_error(THD *thd, uint sql_errno, const char *err,
+                    const char* sqlstate);
 void net_send_progress_packet(THD *thd);
 uchar *net_store_data(uchar *to,const uchar *from, size_t length);
 uchar *net_store_data(uchar *to,int32 from);

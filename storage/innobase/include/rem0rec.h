@@ -63,21 +63,21 @@ The status is stored in the low-order bits. */
 
 #ifndef UNIV_INNOCHECKSUM
 /** SQL null flag in a 1-byte offset of ROW_FORMAT=REDUNDANT records */
-constexpr rec_offs REC_1BYTE_SQL_NULL_MASK= 0x80;
+static const rec_offs REC_1BYTE_SQL_NULL_MASK= 0x80;
 /** SQL null flag in a 2-byte offset of ROW_FORMAT=REDUNDANT records */
-constexpr rec_offs REC_2BYTE_SQL_NULL_MASK= 0x8000;
+static const rec_offs REC_2BYTE_SQL_NULL_MASK= 0x8000;
 
 /** In a 2-byte offset of ROW_FORMAT=REDUNDANT records, the second most
 significant bit denotes that the tail of a field is stored off-page. */
-constexpr rec_offs REC_2BYTE_EXTERN_MASK= 0x4000;
+static const rec_offs REC_2BYTE_EXTERN_MASK= 0x4000;
 
-constexpr size_t RECORD_OFFSET= 2;
-constexpr size_t INDEX_OFFSET=
+static const size_t RECORD_OFFSET= 2;
+static const size_t INDEX_OFFSET=
     RECORD_OFFSET + sizeof(rec_t *) / sizeof(rec_offs);
 #endif /* UNIV_INNOCHECKSUM */
 
 /* Length of the rec_get_offsets() header */
-constexpr size_t REC_OFFS_HEADER_SIZE=
+static const size_t REC_OFFS_HEADER_SIZE=
 #ifdef UNIV_DEBUG
 #ifndef UNIV_INNOCHECKSUM
     sizeof(rec_t *) / sizeof(rec_offs) +
@@ -88,9 +88,9 @@ constexpr size_t REC_OFFS_HEADER_SIZE=
 
 /* Number of elements that should be initially allocated for the
 offsets[] array, first passed to rec_get_offsets() */
-constexpr size_t REC_OFFS_NORMAL_SIZE= 300;
-constexpr size_t REC_OFFS_SMALL_SIZE= 18;
-constexpr size_t REC_OFFS_SEC_INDEX_SIZE=
+static const size_t REC_OFFS_NORMAL_SIZE= 300;
+static const size_t REC_OFFS_SMALL_SIZE= 18;
+static const size_t REC_OFFS_SEC_INDEX_SIZE=
     /* PK max key parts */ 16 + /* sec idx max key parts */ 16 +
     /* child page number for non-leaf pages */ 1;
 
@@ -117,30 +117,30 @@ enum field_type_t
 };
 
 /** without 2 upper bits */
-static constexpr rec_offs DATA_MASK= 0x3fff;
+static const rec_offs DATA_MASK= 0x3fff;
 /** 2 upper bits */
-static constexpr rec_offs TYPE_MASK= ~DATA_MASK;
+static const rec_offs TYPE_MASK= ~DATA_MASK;
 inline field_type_t get_type(rec_offs n)
 {
   return static_cast<field_type_t>(n & TYPE_MASK);
 }
 inline void set_type(rec_offs &n, field_type_t type)
 {
-  n= static_cast<rec_offs>((n & DATA_MASK) | type);
+  n= (n & DATA_MASK) | static_cast<rec_offs>(type);
 }
 inline rec_offs get_value(rec_offs n) { return n & DATA_MASK; }
 inline rec_offs combine(rec_offs value, field_type_t type)
 {
-  return static_cast<rec_offs>(get_value(value) | type);
+  return get_value(value) | static_cast<rec_offs>(type);
 }
 
 /** Compact flag ORed to the extra size returned by rec_get_offsets() */
-constexpr rec_offs REC_OFFS_COMPACT= rec_offs(~(rec_offs(~0) >> 1));
+const rec_offs REC_OFFS_COMPACT= ~(rec_offs(~0) >> 1);
 /** External flag in offsets returned by rec_get_offsets() */
-constexpr rec_offs REC_OFFS_EXTERNAL= REC_OFFS_COMPACT >> 1;
+const rec_offs REC_OFFS_EXTERNAL= REC_OFFS_COMPACT >> 1;
 /** Default value flag in offsets returned by rec_get_offsets() */
-constexpr rec_offs REC_OFFS_DEFAULT= REC_OFFS_COMPACT >> 2;
-constexpr rec_offs REC_OFFS_MASK= REC_OFFS_DEFAULT - 1;
+const rec_offs REC_OFFS_DEFAULT= REC_OFFS_COMPACT >> 2;
+const rec_offs REC_OFFS_MASK= REC_OFFS_DEFAULT - 1;
 /******************************************************//**
 The following function is used to get the pointer of the next chained record
 on the same page.
@@ -241,6 +241,15 @@ rec_get_n_owned_old(
 	const rec_t*	rec)	/*!< in: old-style physical record */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
+The following function is used to set the number of owned records. */
+UNIV_INLINE
+void
+rec_set_n_owned_old(
+/*================*/
+	rec_t*	rec,		/*!< in: old-style physical record */
+	ulint	n_owned)	/*!< in: the number of owned */
+	MY_ATTRIBUTE((nonnull));
+/******************************************************//**
 The following function is used to get the number of records owned by the
 previous directory record.
 @return number of owned records */
@@ -250,18 +259,45 @@ rec_get_n_owned_new(
 /*================*/
 	const rec_t*	rec)	/*!< in: new-style physical record */
 	MY_ATTRIBUTE((warn_unused_result));
-
+/******************************************************//**
+The following function is used to set the number of owned records. */
+UNIV_INLINE
+void
+rec_set_n_owned_new(
+/*================*/
+	rec_t*		rec,	/*!< in/out: new-style physical record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	ulint		n_owned)/*!< in: the number of owned */
+	MY_ATTRIBUTE((nonnull(1)));
 /******************************************************//**
 The following function is used to retrieve the info bits of
 a record.
 @return info bits */
 UNIV_INLINE
-byte
+ulint
 rec_get_info_bits(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
 	ulint		comp)	/*!< in: nonzero=compact page format */
 	MY_ATTRIBUTE((warn_unused_result));
+/******************************************************//**
+The following function is used to set the info bits of a record. */
+UNIV_INLINE
+void
+rec_set_info_bits_old(
+/*==================*/
+	rec_t*	rec,	/*!< in: old-style physical record */
+	ulint	bits)	/*!< in: info bits */
+	MY_ATTRIBUTE((nonnull));
+/******************************************************//**
+The following function is used to set the info bits of a record. */
+UNIV_INLINE
+void
+rec_set_info_bits_new(
+/*==================*/
+	rec_t*	rec,	/*!< in/out: new-style physical record */
+	ulint	bits)	/*!< in: info bits */
+	MY_ATTRIBUTE((nonnull));
 
 /** Determine the status bits of a non-REDUNDANT record.
 @param[in]	rec	ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED record
@@ -278,11 +314,13 @@ rec_get_status(const rec_t* rec)
 /** Set the status bits of a non-REDUNDANT record.
 @param[in,out]	rec	ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED record
 @param[in]	bits	status bits */
-inline void rec_set_status(rec_t *rec, byte bits)
+inline
+void
+rec_set_status(rec_t* rec, byte bits)
 {
-  ut_ad(bits <= REC_STATUS_INSTANT);
-  rec[-REC_NEW_STATUS]= static_cast<byte>((rec[-REC_NEW_STATUS] &
-                                           ~REC_NEW_STATUS_MASK) | bits);
+	ut_ad(bits <= REC_STATUS_INSTANT);
+	rec[-REC_NEW_STATUS] = (rec[-REC_NEW_STATUS] & ~REC_NEW_STATUS_MASK)
+		| bits;
 }
 
 /** Get the length of added field count in a REC_STATUS_INSTANT record.
@@ -323,7 +361,7 @@ inline void rec_set_n_add_field(byte*& header, ulint n_add)
 	if (n_add < 0x80) {
 		*header-- = byte(n_add);
 	} else {
-		*header-- = byte(byte(n_add) | 0x80);
+		*header-- = byte(n_add) | 0x80;
 		*header-- = byte(n_add >> 7);
 	}
 }
@@ -331,9 +369,9 @@ inline void rec_set_n_add_field(byte*& header, ulint n_add)
 /******************************************************//**
 The following function is used to retrieve the info and status
 bits of a record.  (Only compact records have status bits.)
-@return info and status bits */
+@return info bits */
 UNIV_INLINE
-byte
+ulint
 rec_get_info_and_status_bits(
 /*=========================*/
 	const rec_t*	rec,	/*!< in: physical record */
@@ -361,6 +399,25 @@ rec_get_deleted_flag(
 	ulint		comp)	/*!< in: nonzero=compact page format */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
+The following function is used to set the deleted bit. */
+UNIV_INLINE
+void
+rec_set_deleted_flag_old(
+/*=====================*/
+	rec_t*	rec,	/*!< in: old-style physical record */
+	ulint	flag)	/*!< in: nonzero if delete marked */
+	MY_ATTRIBUTE((nonnull));
+/******************************************************//**
+The following function is used to set the deleted bit. */
+UNIV_INLINE
+void
+rec_set_deleted_flag_new(
+/*=====================*/
+	rec_t*		rec,	/*!< in/out: new-style physical record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	ulint		flag)	/*!< in: nonzero if delete marked */
+	MY_ATTRIBUTE((nonnull(1)));
+/******************************************************//**
 The following function tells if a new-style record is a node pointer.
 @return TRUE if node pointer */
 UNIV_INLINE
@@ -380,6 +437,16 @@ rec_get_heap_no_old(
 	const rec_t*	rec)	/*!< in: physical record */
 	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************//**
+The following function is used to set the heap number
+field in an old-style record. */
+UNIV_INLINE
+void
+rec_set_heap_no_old(
+/*================*/
+	rec_t*	rec,	/*!< in: physical record */
+	ulint	heap_no)/*!< in: the heap number */
+	MY_ATTRIBUTE((nonnull));
+/******************************************************//**
 The following function is used to get the order number
 of a new-style record in the heap of the index page.
 @return heap order number */
@@ -389,6 +456,16 @@ rec_get_heap_no_new(
 /*================*/
 	const rec_t*	rec)	/*!< in: physical record */
 	MY_ATTRIBUTE((warn_unused_result));
+/******************************************************//**
+The following function is used to set the heap number
+field in a new-style record. */
+UNIV_INLINE
+void
+rec_set_heap_no_new(
+/*================*/
+	rec_t*	rec,	/*!< in/out: physical record */
+	ulint	heap_no)/*!< in: the heap number */
+	MY_ATTRIBUTE((nonnull));
 /******************************************************//**
 The following function is used to test whether the data offsets
 in the record are stored in one-byte or two-byte format.
@@ -841,6 +918,26 @@ rec_offs_n_extern(
 /*==============*/
 	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
+/***********************************************************//**
+This is used to modify the value of an already existing field in a record.
+The previous value must have exactly the same size as the new value. If len
+is UNIV_SQL_NULL then the field is treated as an SQL null.
+For records in ROW_FORMAT=COMPACT (new-style records), len must not be
+UNIV_SQL_NULL unless the field already is SQL null. */
+UNIV_INLINE
+void
+rec_set_nth_field(
+/*==============*/
+	rec_t*		rec,	/*!< in: record */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
+	ulint		n,	/*!< in: index number of the field */
+	const void*	data,	/*!< in: pointer to the data if not SQL null */
+	ulint		len)	/*!< in: length of the data or UNIV_SQL_NULL.
+				If not SQL null, must have the same
+				length as the previous value.
+				If SQL null, previous value must be
+				SQL null. */
+	MY_ATTRIBUTE((nonnull(1,2)));
 /**********************************************************//**
 The following function returns the data size of an old-style physical
 record, that is the sum of field lengths. SQL null fields

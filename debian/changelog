@@ -1,9 +1,3 @@
-mariadb-10.5 (1:10.5.0) unstable; urgency=low
-
-  * Initial Release
-
- -- Vicentiu Ciorbaru <vicentiu@mariadb.org>  Tue, 21 May 2019 13:27:19 +0000
-
 mariadb-10.4 (1:10.4.0) unstable; urgency=low
 
   * Initial release.

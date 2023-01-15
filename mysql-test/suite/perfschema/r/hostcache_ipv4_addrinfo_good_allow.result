@@ -33,7 +33,7 @@ current_user()
 root@santa.claus.ipv4.example.com
 disconnect con2;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -70,7 +70,7 @@ current_user()
 root@santa.claus.ipv4.example.com
 disconnect con3;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES

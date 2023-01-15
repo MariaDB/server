@@ -108,7 +108,6 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    --replace_regex /-[0-9a-f]{12}-[0-9a-f]+-/-xxxxxxxxxxxx-xxxxx-/
     eval $CHILD2_1_SELECT_ARGUMENT1;
   }
   eval $CHILD2_1_SELECT_TABLES;

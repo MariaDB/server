@@ -5,16 +5,14 @@
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
-call mtr.add_suppression("InnoDB: Failed to read page [123] from file '.*test.t1\\.ibd': Table is encrypted but decrypt failed");
+call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page");
+call mtr.add_suppression("InnoDB: Failed to read file '.*test.t1\\.ibd' at offset 3: Table is encrypted but decrypt failed");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=\\d+, page number=3\\] in file '.*test.t1\\.ibd' cannot be decrypted");
 call mtr.add_suppression("InnoDB: Table in tablespace \\d+ encrypted. However key management plugin or used key_version \\d+ is not found or used encryption algorithm or method does not match. Can't continue opening the table.");
 --enable_query_log
 
 let INNODB_CHECKSUM_ALGORITHM = `SELECT @@innodb_checksum_algorithm`;
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
---echo # Work around MDEV-19541
-SET GLOBAL innodb_checksum_algorithm=crc32;
 CREATE TABLE t1(a BIGINT PRIMARY KEY) ENGINE=InnoDB, ENCRYPTED=YES;
 INSERT INTO t1 VALUES(1);
 # Force a redo log checkpoint.

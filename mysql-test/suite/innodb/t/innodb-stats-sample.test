@@ -2,20 +2,24 @@
 --source include/no_valgrind_without_big.inc
 #
 # Test that mysqld does not crash when running ANALYZE TABLE with
-# different values of the parameter innodb_stats_transient_sample_pages.
+# different values of the parameter innodb_stats_sample_pages.
 #
 
 # we care only that the following SQL commands do not produce errors
 # and do not crash the server
 -- disable_query_log
+-- disable_result_log
 -- enable_warnings
 
-SET @save_sample_pages = @@GLOBAL.innodb_stats_transient_sample_pages;
-SET @save_traditional = @@GLOBAL.innodb_stats_traditional;
-SET GLOBAL innodb_stats_transient_sample_pages=0;
+let $sample_pages=`select @@innodb_stats_sample_pages`;
+let $traditional=`select @@innodb_stats_traditional`;
+SET GLOBAL innodb_stats_sample_pages=0;
 #use new method to calculate statistics
 SET GLOBAL innodb_stats_traditional=0;
-SHOW VARIABLES LIKE 'innodb_stats_transient_sample_pages';
+
+# check that the value has been adjusted to 1
+-- enable_result_log
+SHOW VARIABLES LIKE 'innodb_stats_sample_pages';
 SHOW VARIABLES LIKE 'innodb_stats_traditional';
 -- disable_result_log
 
@@ -30,13 +34,13 @@ CREATE TABLE innodb_analyze (
 # test with empty table
 ANALYZE TABLE innodb_analyze;
 
-SET GLOBAL innodb_stats_transient_sample_pages=2;
+SET GLOBAL innodb_stats_sample_pages=2;
 ANALYZE TABLE innodb_analyze;
 
-SET GLOBAL innodb_stats_transient_sample_pages=1;
+SET GLOBAL innodb_stats_sample_pages=1;
 ANALYZE TABLE innodb_analyze;
 
-SET GLOBAL innodb_stats_transient_sample_pages=8000;
+SET GLOBAL innodb_stats_sample_pages=8000;
 ANALYZE TABLE innodb_analyze;
 
 delimiter //;
@@ -57,19 +61,19 @@ call innodb_insert_proc(7000);
 commit;
 set autocommit=1;
 
-SET GLOBAL innodb_stats_transient_sample_pages=1;
+SET GLOBAL innodb_stats_sample_pages=1;
 ANALYZE TABLE innodb_analyze;
 
-SET GLOBAL innodb_stats_transient_sample_pages=8;
+SET GLOBAL innodb_stats_sample_pages=8;
 ANALYZE TABLE innodb_analyze;
 
-SET GLOBAL innodb_stats_transient_sample_pages=16;
+SET GLOBAL innodb_stats_sample_pages=16;
 ANALYZE TABLE innodb_analyze;
 
-SET GLOBAL innodb_stats_transient_sample_pages=8000;
+SET GLOBAL innodb_stats_sample_pages=8000;
 ANALYZE TABLE innodb_analyze;
 
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE innodb_analyze;
-SET GLOBAL innodb_stats_transient_sample_pages = @save_sample_pages;
-SET GLOBAL innodb_stats_traditional = @save_traditional;
+EVAL SET GLOBAL innodb_stats_sample_pages=$sample_pages;
+EVAL SET GLOBAL innodb_stats_traditional=$traditional;

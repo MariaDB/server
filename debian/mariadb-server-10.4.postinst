@@ -1,0 +1,190 @@
+#!/bin/bash -e
+
+. /usr/share/debconf/confmodule
+
+# Automatically set version to ease maintenance of this file
+MAJOR_VER="${DPKG_MAINTSCRIPT_PACKAGE#mariadb-server-}"
+
+if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
+${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
+
+export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
+
+# This command can be used as pipe to syslog. With "-s" it also logs to stderr.
+ERR_LOGGER="logger -p daemon.err -t mariadb-server-$MAJOR_VER.postinst -i"
+# This will make an error in a logged command immediately apparent by aborting
+# the install, rather than failing silently and leaving a broken install.
+set -o pipefail
+
+invoke() {
+  systemctl $1 mysql
+}
+
+case "$1" in
+  configure)
+    # This is needed because mysql_install_db removes the pid file in /var/run
+    # and because changed configuration options should take effect immediately.
+    # In case the server wasn't running at all it should be ok if the stop
+    # script fails. I can't tell at this point because of the cleaned /var/run.
+    set +e; invoke stop; set -e
+
+    mysql_statedir=/usr/share/mysql
+    mysql_datadir=/var/lib/mysql
+    mysql_logdir=/var/log/mysql
+    mysql_rundir=/var/run/mysqld
+    mysql_cfgdir=/etc/mysql
+    mysql_upgradedir=/var/lib/mysql-upgrade
+
+    # If the following symlink exists, it is a preserved copy the old data dir
+    # created by the preinst script during a upgrade that would have otherwise
+    # been replaced by an empty mysql dir.  This should restore it.
+    for dir in DATADIR LOGDIR; do
+
+      if [ "$dir" = "DATADIR" ]; then
+        targetdir=$mysql_datadir
+      else
+        targetdir=$mysql_logdir
+      fi
+
+      savelink="$mysql_upgradedir/$dir.link"
+      if [ -L "$savelink" ]; then
+        # If the targetdir was a symlink before we upgraded it is supposed
+        # to be either still be present or not existing anymore now.
+        if [ -L "$targetdir" ]; then
+          rm "$savelink"
+        elif [ ! -d "$targetdir" ]; then
+          mv "$savelink" "$targetdir"
+        else
+          # this should never even happen, but just in case...
+          mysql_tmp=`mktemp -d -t mysql-symlink-restore-XXXXXX`
+          echo "this is very strange!  see $mysql_tmp/README..." >&2
+          mv "$targetdir" "$mysql_tmp"
+          cat << EOF > "$mysql_tmp/README"
+
+If you're reading this, it's most likely because you had replaced /var/lib/mysql
+with a symlink, then upgraded to a new version of mysql, and then dpkg
+removed your symlink (see #182747 and others). The mysql packages noticed
+that this happened, and as a workaround have restored it. However, because
+/var/lib/mysql seems to have been re-created in the meantime, and because
+we don't want to rm -rf something we don't know as much about, we are going
+to leave this unexpected directory here. If your database looks normal,
+and this is not a symlink to your database, you should be able to blow
+this all away.
+
+EOF
+        fi
+      fi
+	    rmdir $mysql_upgradedir 2>/dev/null || true
+
+    done
+
+    # Ensure the existence and right permissions for the database and
+    # log files.
+    if [ ! -d "$mysql_statedir" -a ! -L "$mysql_statedir" ]; then mkdir "$mysql_statedir"; fi
+    if [ ! -d "$mysql_datadir"  -a ! -L "$mysql_datadir" ]; then mkdir "$mysql_datadir" ; fi
+    if [ ! -d "$mysql_logdir"   -a ! -L "$mysql_logdir"  ]; then mkdir "$mysql_logdir"  ; fi
+    # When creating an ext3 jounal on an already mounted filesystem like e.g.
+    # /var/lib/mysql, you get a .journal file that is not modifiable by chown.
+    # The mysql_statedir must not be writable by the mysql user under any
+    # circumstances as it contains scripts that are executed by root.
+    set +e
+    chown -R 0:0 $mysql_statedir
+    find $mysql_datadir ! -uid $(id -u mysql) -print0 | xargs -0 -r chown mysql
+    chown -R mysql:adm $mysql_logdir
+    chmod 2750 $mysql_logdir
+    set -e
+
+    # Set the correct filesystem ownership for the PAM v2 plugin
+    chown mysql /usr/lib/mysql/plugin/auth_pam_tool_dir
+
+    # This is important to avoid dataloss when there is a removed
+    # mysql-server version from Woody lying around which used the same
+    # data directory and then somehow gets purged by the admin.
+    db_set mariadb-server/postrm_remove_database false || true
+
+    # Clean up old flags before setting new one
+    rm -f $mysql_datadir/debian-*.flag
+    # Flag data dir to avoid downgrades
+    touch $mysql_datadir/debian-10.4.flag
+
+    # initiate databases. Output is not allowed by debconf :-(
+    # This will fail if we are upgrading an existing database; in this case
+    # mysql_upgrade, called from the /etc/init.d/mysql start script, will
+    # handle things.
+    # Debian: beware of the bashisms...
+    # Debian: can safely run on upgrades with existing databases
+    set +e
+    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql \
+                                   --disable-log-bin --skip-test-db 2>&1 | \
+                                   $ERR_LOGGER
+    set -e
+
+    # On new installations root user can connect via unix_socket.
+    # But on upgrades, scripts rely on debian-sys-maint user and
+    # credentials in /etc/mysql/debian.cnf
+    # All tools use --defaults-file=/etc/mysql/debian.cnf
+    # And while it's not needed for new installations, we keep using
+    # --defaults-file option for tools (for the sake of upgrades)
+    # and thus need /etc/mysql/debian.cnf to exist, even if it's empty.
+    dc=$mysql_cfgdir/debian.cnf;
+    if [ ! -e "$dc" ]; then
+        cat /dev/null > $dc
+        echo "# Automatically generated for Debian scripts. DO NOT TOUCH!" >>$dc
+    fi
+    # Keep it only root-readable, as it always was
+    chown 0:0 $dc
+    chmod 0600 $dc
+
+    # If there is a real AppArmor profile, we reload it.
+    # If the default empty profile is installed, then we remove any old
+    # profile that may be loaded.
+    # This allows upgrade from old versions (that have an apparmor profile
+    # on by default) to work both to disable a default profile, and to keep
+    # any profile installed and maintained by users themselves.
+    profile="/etc/apparmor.d/usr.sbin.mysqld"
+    if [ -f "$profile" ] && aa-status --enabled 2>/dev/null; then
+        if grep -q /usr/sbin/mysqld "$profile" 2>/dev/null ; then
+            apparmor_parser -r "$profile" || true
+        else
+            echo "/usr/sbin/mysqld { }" | apparmor_parser --remove 2>/dev/null || true
+	fi
+    fi
+
+    # copy out any mysqld_safe settings
+    systemd_conf=/etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+    if [ -x /usr/bin/mariadb-service-convert -a ! -f "${systemd_conf}" ]; then
+      mkdir -p /etc/systemd/system/mariadb.service.d
+      /usr/bin/mariadb-service-convert > "${systemd_conf}"
+    fi
+  ;;
+
+  abort-upgrade|abort-remove|abort-configure)
+  ;;
+
+  triggered)
+    if [ -d /run/systemd/system ]; then
+      systemctl --system daemon-reload
+    fi
+    invoke restart
+  ;;
+
+  *)
+    echo "postinst called with unknown argument '$1'" 1>&2
+    exit 1
+  ;;
+esac
+
+db_stop # in case invoke fails
+
+# dh_systemd_start doesn't emit anything since we still ship /etc/init.d/mysql.
+# Thus MariaDB server is started via init.d script, which in turn redirects to
+# systemctl. If we upgrade from MySQL mysql.service may be masked, which also
+# means init.d script is disabled. Unmask mysql service explicitly.
+# Check first that the command exists, to avoid emitting any warning messages.
+if [ -x "$(command -v deb-systemd-helper)" ]; then
+  deb-systemd-helper unmask mysql.service > /dev/null
+fi
+
+#DEBHELPER#
+
+exit 0

@@ -29,7 +29,6 @@ class THD;
 struct TABLE;
 struct handlerton;
 class handler;
-class String;
 typedef struct st_ha_check_opt HA_CHECK_OPT;
 struct HA_CREATE_INFO;
 struct Table_specification_st;
@@ -119,6 +118,8 @@ enum enum_explain_filename_mode
   EXPLAIN_PARTITIONS_AS_COMMENT
 };
 
+/* Maximum length of GEOM_POINT Field */
+#define MAX_LEN_GEOM_POINT_FIELD   25
 
 /* depends on errmsg.txt Database `db`, Table `t` ... */
 #define EXPLAIN_FILENAME_MAX_EXTRA_LENGTH 63
@@ -139,8 +140,6 @@ static const uint NO_HA_TABLE=     1 << 4;
 static const uint SKIP_SYMDIR_ACCESS= 1 << 5;
 /** Don't check foreign key constraints while renaming table */
 static const uint NO_FK_CHECKS=    1 << 6;
-/* Don't delete .par table in quick_rm_table() */
-static const uint NO_PAR_TABLE=   1 << 7;
 
 uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);
@@ -155,8 +154,6 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
                         Table_specification_st *create_info,
                         Alter_info *alter_info);
-bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
-                          const LEX_CSTRING *add);
 
 /*
   mysql_create_table_no_lock can be called in one of the following
@@ -220,13 +217,11 @@ bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                Alter_table_ctx *alter_ctx);
 bool mysql_trans_prepare_alter_copy_data(THD *thd);
 bool mysql_trans_commit_alter_copy_data(THD *thd);
-bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
-                       const LEX_CSTRING *new_name,
+bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *new_name,
                        HA_CREATE_INFO *create_info,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
-                       uint order_num, ORDER *order, bool ignore,
-                       bool if_exists);
+                       uint order_num, ORDER *order, bool ignore);
 bool mysql_compare_tables(TABLE *table,
                           Alter_info *alter_info,
                           HA_CREATE_INFO *create_info,
@@ -245,12 +240,11 @@ bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_checksum_table(THD* thd, TABLE_LIST* table_list,
                           HA_CHECK_OPT* check_opt);
 bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
-                    bool drop_temporary, bool drop_sequence,
-                    bool dont_log_query);
+                    bool drop_temporary, bool drop_sequence);
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
                             bool drop_sequence,
-                            bool dont_log_query, bool dont_free_locks);
+                            bool log_query, bool dont_free_locks);
 bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                     const LEX_CSTRING *table_name, bool temporary_table);
 bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
@@ -262,8 +256,6 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);
 int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length,
                   bool is_trans= FALSE);
-int write_bin_log_with_if_exists(THD *thd, bool clear_error,
-                                 bool is_trans, bool add_if_exists);
 bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
                            DDL_LOG_MEMORY_ENTRY **active_entry);
 bool write_execute_ddl_log_entry(uint first_entry,

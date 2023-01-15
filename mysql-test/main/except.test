@@ -13,9 +13,9 @@ EXPLAIN extended (select a,b from t1) except (select c,d from t2);
 EXPLAIN extended select * from ((select a,b from t1) except (select c,d from t2)) a;
 EXPLAIN format=json (select a,b from t1) except (select c,d from t2);
 
---source include/analyze-format.inc
+--replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json (select a,b from t1) except (select c,d from t2);
---source include/analyze-format.inc
+--replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json select * from ((select a,b from t1) except (select c,d from t2)) a;
 select * from ((select a,b from t1) except (select c,d from t2)) a;
 
@@ -45,9 +45,9 @@ EXPLAIN (select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4);
 EXPLAIN extended select * from ((select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4)) a;
 EXPLAIN format=json (select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4);
 
---source include/analyze-format.inc
+--replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json (select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4);
---source include/analyze-format.inc
+--replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
 ANALYZE format=json select * from ((select a,b,e,f from t1,t3) except
 (select c,d,g,h from t2,t4)) a;
 select * from ((select a,b,e,f from t1,t3) except (select c,d,g,h from t2,t4)) a;
@@ -70,6 +70,8 @@ select 1 as a from dual except select 1 from dual;
 select 1 from dual ORDER BY 1 except select 1 from dual;
 
 select 1 as a from dual union all select 1 from dual;
+--error ER_PARSE_ERROR
+select 1 from dual except all select 1 from dual;
 
 
 create table t1 (a int, b blob, a1 int, b1 blob) engine=MyISAM;

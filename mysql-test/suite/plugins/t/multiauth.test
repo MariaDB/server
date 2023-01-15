@@ -1,9 +1,4 @@
 --source include/not_ubsan.inc
-
-let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
-let $REGEX_PASSWORD_LAST_CHANGED=/password_last_changed": [0-9]*/password_last_changed": #/;
-let $REGEX_GLOBAL_PRIV=$REGEX_PASSWORD_LAST_CHANGED $REGEX_VERSION_ID;
-
 #
 # MDEV-11340 Allow multiple alternative authentication methods for the same user
 #
@@ -136,7 +131,7 @@ drop user mysqltest1;
 #
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
 show grants for mysqltest1;
---replace_regex $REGEX_GLOBAL_PRIV
+--replace_regex /password_last_changed": [0-9]*/password_last_changed": #/
 select json_detailed(priv) from mysql.global_priv where user='mysqltest1';
 select password,plugin,authentication_string from mysql.user where user='mysqltest1';
 flush privileges;
@@ -186,8 +181,7 @@ eval $dreplace, mysqltest1;
 create user mysqltest1 identified via ed25519 as password("good");
 show create user mysqltest1;
 --echo # no plugin = failure
-# covers Linux (1st re), FreeBSD (2nd), AIX (3rd and 4th)
---replace_regex /loaded: .*client_ed25519.so: cannot open shared object file: No such file or directory/loaded: no such file/ /loaded: Cannot open.*client_ed25519.so./loaded: no such file/ /loaded: .*Could not load module.*client_ed25519.so.\n/loaded: no such file/ /System error: No such file or directory//
+--replace_regex /loaded: .*client_ed25519.so: cannot open shared object file: No such file or directory/loaded: no such file/ /loaded: Cannot open.*client_ed25519.so./loaded: no such file/
 --error 1
 --exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
 alter user mysqltest1 identified via ed25519 as password("good") OR mysql_native_password as password("works");

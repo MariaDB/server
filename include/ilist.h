@@ -94,7 +94,7 @@ public:
     Iterator &operator--() noexcept
     {
       node_= node_->prev;
-      DBUG_ASSERT(node_ != nullptr);
+      DBUG_ASSERT(node_);
       return *this;
     }
     Iterator operator--(int) noexcept

@@ -160,7 +160,6 @@ alter user user1@localhost  ACCOUNT LOCK PASSWORD EXPIRE DEFAULT;
 show create user user1@localhost;
 # note output needs to be corrected by MDEV-24114: password expire users cannot be unexpired
 alter user user1@localhost  PASSWORD EXPIRE INTERVAL 60 DAY ACCOUNT UNLOCK;
---replace_regex /"version_id":[0-9]*,/"version_id":XXX,/
 select * from mysql.global_priv where user='user1';
 show create user user1@localhost;
 

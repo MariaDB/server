@@ -2,7 +2,6 @@
 # This is a copy of innodb-alter.test except using remote tablespaces
 # and showing those files.
 #
-SET @innodb_file_per_table_orig=@@GLOBAL.innodb_file_per_table;
 SET default_storage_engine=InnoDB;
 SET GLOBAL innodb_file_per_table=ON;
 SET NAMES utf8mb4;
@@ -1589,4 +1588,3 @@ DROP TABLE tt, t1o, sys_tables, sys_indexes, sys_foreign;
 ### files in MYSQL_DATA_DIR/test
 db.opt
 ### files in MYSQL_TMP_DIR/alt_dir/test
-SET GLOBAL innodb_file_per_table = @innodb_file_per_table_orig;

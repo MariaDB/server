@@ -450,7 +450,7 @@ void thr_lock_delete(THR_LOCK *lock)
 
 void thr_lock_info_init(THR_LOCK_INFO *info, struct st_my_thread_var *tmp)
 {
-  if (!tmp)
+  if (tmp)
     tmp= my_thread_var;
   info->thread=    tmp->pthread_self;
   info->thread_id= tmp->id;
@@ -616,10 +616,9 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
   else
   {
     result= THR_LOCK_SUCCESS;
-    if (data->lock->get_status &&
-        (*data->lock->get_status)(data->status_param,
-                                  data->type == TL_WRITE_CONCURRENT_INSERT))
-        result= THR_LOCK_ABORTED;
+    if (data->lock->get_status)
+      (*data->lock->get_status)(data->status_param,
+                                data->type == TL_WRITE_CONCURRENT_INSERT);
     check_locks(data->lock,"got wait_for_lock", data->type, 0);
   }
   mysql_mutex_unlock(&data->lock->mutex);
@@ -704,8 +703,8 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
 	if (lock_type == TL_READ_NO_INSERT)
 	  lock->read_no_write_count++;
 	check_locks(lock,"read lock with old write lock", lock_type, 0);
-	if ((lock->get_status) && (*lock->get_status)(data->status_param, 0))
-          result= THR_LOCK_ABORTED;
+	if (lock->get_status)
+	  (*lock->get_status)(data->status_param, 0);
 	statistic_increment(locks_immediate,&THR_LOCK_lock);
 	goto end;
       }
@@ -728,8 +727,8 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
       if (lock_type == TL_READ_NO_INSERT)
 	lock->read_no_write_count++;
       check_locks(lock,"read lock with no write locks", lock_type, 0);
-      if ((lock->get_status) && (*lock->get_status)(data->status_param, 0))
-        result= THR_LOCK_ABORTED;
+      if (lock->get_status)
+	(*lock->get_status)(data->status_param, 0);
       statistic_increment(locks_immediate,&THR_LOCK_lock);
       goto end;
     }
@@ -837,10 +836,9 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
 	data->prev=lock->write.last;
 	lock->write.last= &data->next;
 	check_locks(lock,"second write lock", lock_type, 0);
-	if ((lock->get_status) &&
-            (*lock->get_status)(data->status_param,
-                                lock_type == TL_WRITE_CONCURRENT_INSERT))
-          result= THR_LOCK_ABORTED;
+	if (lock->get_status)
+	  (*lock->get_status)(data->status_param,
+                              lock_type == TL_WRITE_CONCURRENT_INSERT);
 	statistic_increment(locks_immediate,&THR_LOCK_lock);
 	goto end;
       }
@@ -873,9 +871,8 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
 	  (*lock->write.last)=data;		/* Add as current write lock */
 	  data->prev=lock->write.last;
 	  lock->write.last= &data->next;
-	  if ((lock->get_status) &&
-              (*lock->get_status)(data->status_param, concurrent_insert))
-            result= THR_LOCK_ABORTED;
+	  if (lock->get_status)
+	    (*lock->get_status)(data->status_param, concurrent_insert);
 	  check_locks(lock,"only write lock", lock_type, 0);
 	  statistic_increment(locks_immediate,&THR_LOCK_lock);
 	  goto end;
@@ -1457,7 +1454,6 @@ my_bool thr_upgrade_write_delay_lock(THR_LOCK_DATA *data,
   {
     if (!lock->read.data)			/* No read locks */
     {						/* We have the lock */
-      /* For this function, get_status is not allowed to fail */
       if (data->lock->get_status)
 	(*data->lock->get_status)(data->status_param, 0);
       mysql_mutex_unlock(&lock->mutex);
@@ -1658,10 +1654,9 @@ static ulong sum=0;
 
 /* The following functions is for WRITE_CONCURRENT_INSERT */
 
-static my_bool test_get_status(void* param __attribute__((unused)),
-                               my_bool concurrent_insert __attribute__((unused)))
+static void test_get_status(void* param __attribute__((unused)),
+                            my_bool concurrent_insert __attribute__((unused)))
 {
-  return 0;
 }
 
 static void test_update_status(void* param __attribute__((unused)))

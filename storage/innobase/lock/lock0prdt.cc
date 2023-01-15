@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -153,7 +153,7 @@ bool
 lock_prdt_has_to_wait(
 /*==================*/
 	const trx_t*	trx,	/*!< in: trx of new lock */
-	unsigned	type_mode,/*!< in: precise mode of the new lock
+	ulint		type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
 				ORed to LOCK_PREDICATE or LOCK_PRDT_PAGE,
 				LOCK_INSERT_INTENTION */
@@ -228,7 +228,7 @@ lock_t*
 lock_prdt_has_lock(
 /*===============*/
 	ulint			precise_mode,	/*!< in: LOCK_S or LOCK_X */
-	unsigned		type_mode,	/*!< in: LOCK_PREDICATE etc. */
+	ulint			type_mode,	/*!< in: LOCK_PREDICATE etc. */
 	const buf_block_t*	block,		/*!< in: buffer block
 						containing the record */
 	lock_prdt_t*		prdt,		/*!< in: The predicate to be
@@ -285,7 +285,7 @@ static
 lock_t*
 lock_prdt_other_has_conflicting(
 /*============================*/
-	unsigned		mode,	/*!< in: LOCK_S or LOCK_X,
+	ulint			mode,	/*!< in: LOCK_S or LOCK_X,
 					possibly ORed to LOCK_PREDICATE or
 					LOCK_PRDT_PAGE, LOCK_INSERT_INTENTION */
 	const buf_block_t*	block,	/*!< in: buffer block containing
@@ -385,7 +385,7 @@ static
 lock_t*
 lock_prdt_find_on_page(
 /*===================*/
-	unsigned		type_mode,	/*!< in: lock type_mode field */
+	ulint			type_mode,	/*!< in: lock type_mode field */
 	const buf_block_t*	block,		/*!< in: buffer block */
 	lock_prdt_t*		prdt,		/*!< in: MBR with the lock */
 	const trx_t*		trx)		/*!< in: transaction */
@@ -394,8 +394,7 @@ lock_prdt_find_on_page(
 
 	ut_ad(lock_mutex_own());
 
-	for (lock = lock_sys.get_first(*lock_hash_get(type_mode),
-				       block->page.id());
+	for (lock = lock_rec_get_first_on_page(lock_hash_get(type_mode), block);
 	     lock != NULL;
 	     lock = lock_rec_get_next_on_page(lock)) {
 
@@ -424,7 +423,7 @@ static
 lock_t*
 lock_prdt_add_to_queue(
 /*===================*/
-	unsigned		type_mode,/*!< in: lock mode, wait, predicate
+	ulint			type_mode,/*!< in: lock mode, wait, predicate
 					etc. flags; type is ignored
 					and replaced by LOCK_REC */
 	const buf_block_t*	block,	/*!< in: buffer block containing
@@ -458,8 +457,7 @@ lock_prdt_add_to_queue(
 
 	lock_t*		lock;
 
-	for (lock = lock_sys.get_first(*lock_hash_get(type_mode),
-				       block->page.id());
+	for (lock = lock_rec_get_first_on_page(lock_hash_get(type_mode), block);
 	     lock != NULL;
 	     lock = lock_rec_get_next_on_page(lock)) {
 
@@ -543,7 +541,7 @@ lock_prdt_insert_check_and_lock(
 	lock_t*		lock;
 
 	/* Only need to check locks on prdt_hash */
-	lock = lock_rec_get_first(&lock_sys.prdt_hash, block, PRDT_HEAPNO);
+	lock = lock_rec_get_first(lock_sys.prdt_hash, block, PRDT_HEAPNO);
 
 	if (lock == NULL) {
 		lock_mutex_exit();
@@ -621,12 +619,16 @@ lock_prdt_update_parent(
         buf_block_t*    right_block,	/*!< in/out: the new half page */
         lock_prdt_t*	left_prdt,	/*!< in: MBR on the old page */
         lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
-	const page_id_t	page_id)	/*!< in: parent page */
+	ulint		space,		/*!< in: parent space id */
+	ulint		page_no)	/*!< in: parent page number */
 {
+	lock_t*		lock;
+
 	lock_mutex_enter();
 
 	/* Get all locks in parent */
-	for (lock_t *lock = lock_sys.get_first_prdt(page_id);
+	for (lock = lock_rec_get_first_on_page_addr(
+			lock_sys.prdt_hash, space, page_no);
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 		lock_prdt_t*	lock_prdt;
@@ -673,15 +675,21 @@ lock_prdt_update_split_low(
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
-	const page_id_t	page_id,	/*!< in: page number */
-	unsigned	type_mode)	/*!< in: LOCK_PREDICATE or
+	ulint		space,		/*!< in: space id */
+	ulint		page_no,	/*!< in: page number */
+	ulint		type_mode)	/*!< in: LOCK_PREDICATE or
 					LOCK_PRDT_PAGE */
 {
 	lock_t*		lock;
 
-	for (lock = lock_sys.get_first(*lock_hash_get(type_mode), page_id);
+	lock_mutex_enter();
+
+	for (lock = lock_rec_get_first_on_page_addr(
+			lock_hash_get(type_mode), space, page_no);
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
+		ut_ad(lock);
+
 		/* First dealing with Page Lock */
 		if (lock->type_mode & LOCK_PRDT_PAGE) {
 			/* Duplicate the lock to new page */
@@ -731,6 +739,8 @@ lock_prdt_update_split_low(
 			trx_mutex_exit(lock->trx);
 		}
 	}
+
+	lock_mutex_exit();
 }
 
 /**************************************************************//**
@@ -741,17 +751,14 @@ lock_prdt_update_split(
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
-	const page_id_t	page_id)	/*!< in: page number */
+	ulint		space,		/*!< in: space id */
+	ulint		page_no)	/*!< in: page number */
 {
-	lock_mutex_enter();
-
 	lock_prdt_update_split_low(new_block, prdt, new_prdt,
-				   page_id, LOCK_PREDICATE);
+				   space, page_no, LOCK_PREDICATE);
 
 	lock_prdt_update_split_low(new_block, NULL, NULL,
-				   page_id, LOCK_PRDT_PAGE);
-
-	lock_mutex_exit();
+				   space, page_no, LOCK_PRDT_PAGE);
 }
 
 /*********************************************************************//**
@@ -768,7 +775,7 @@ lock_init_prdt_from_mbr(
 
 	if (heap != NULL) {
 		prdt->data = mem_heap_alloc(heap, sizeof(*mbr));
-		memcpy(prdt->data, mbr, sizeof(*mbr));
+		ut_memcpy(prdt->data, mbr, sizeof(*mbr));
 	} else {
 		prdt->data = static_cast<void*>(mbr);
 	}
@@ -790,7 +797,7 @@ lock_prdt_lock(
 				records: LOCK_S or LOCK_X; the
 				latter is possible in
 				SELECT FOR UPDATE */
-	unsigned	type_mode,
+	ulint		type_mode,
 				/*!< in: LOCK_PREDICATE or LOCK_PRDT_PAGE */
 	que_thr_t*	thr)	/*!< in: query thread
 				(can be NULL if BTR_NO_LOCKING_FLAG) */
@@ -807,7 +814,7 @@ lock_prdt_lock(
 	ut_ad(!dict_index_is_online_ddl(index));
 	ut_ad(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
 
-	const hash_table_t& hash = type_mode == LOCK_PREDICATE
+	hash_table_t*	hash = type_mode == LOCK_PREDICATE
 		? lock_sys.prdt_hash
 		: lock_sys.prdt_page_hash;
 
@@ -818,15 +825,15 @@ lock_prdt_lock(
 
 	lock_mutex_enter();
 
-	const unsigned	prdt_mode = type_mode | mode;
-	lock_t*		lock = lock_sys.get_first(hash, block->page.id());
+	const ulint	prdt_mode = ulint(mode) | type_mode;
+	lock_t*		lock = lock_rec_get_first_on_page(hash, block);
 
 	if (lock == NULL) {
 		lock = lock_rec_create(
 #ifdef WITH_WSREP
 			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
-			prdt_mode, block, PRDT_HEAPNO,
+			ulint(mode) | type_mode, block, PRDT_HEAPNO,
 			index, trx, FALSE);
 
 		status = LOCK_REC_SUCCESS_CREATED;
@@ -858,7 +865,7 @@ lock_prdt_lock(
 						NULL, /* FIXME: replicate
 						      SPATIAL INDEX locks */
 #endif
-						prdt_mode,
+						ulint(mode) | type_mode,
 						block, PRDT_HEAPNO,
 						index, thr, prdt);
 				} else {
@@ -898,7 +905,9 @@ Acquire a "Page" lock on a block
 @return	DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_place_prdt_page_lock(
-	const page_id_t	page_id,	/*!< in: page identifier */
+/*======================*/
+	ulint		space,		/*!< in: space for the page to lock */
+	ulint		page_no,	/*!< in: page number */
 	dict_index_t*	index,		/*!< in: secondary index */
 	que_thr_t*	thr)		/*!< in: query thread */
 {
@@ -918,7 +927,9 @@ lock_place_prdt_page_lock(
 
 	lock_mutex_enter();
 
-	const lock_t*	lock = lock_sys.get_first_prdt_page(page_id);
+	const lock_t*	lock = lock_rec_get_first_on_page_addr(
+		lock_sys.prdt_page_hash, space, page_no);
+
 	const ulint	mode = LOCK_S | LOCK_PRDT_PAGE;
 	trx_t*		trx = thr_get_trx(thr);
 
@@ -944,7 +955,7 @@ lock_place_prdt_page_lock(
 #ifdef WITH_WSREP
 			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
-			mode, page_id, NULL, PRDT_HEAPNO,
+			mode, space, page_no, NULL, PRDT_HEAPNO,
 			index, trx, FALSE);
 
 #ifdef PRDT_DIAG
@@ -959,19 +970,25 @@ lock_place_prdt_page_lock(
 
 /** Check whether there are R-tree Page lock on a page
 @param[in]	trx	trx to test the lock
-@param[in]	page_id	page identifier
+@param[in]	space	space id for the page
+@param[in]	page_no	page number
 @return	true if there is none */
-bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id)
+bool
+lock_test_prdt_page_lock(
+	const trx_t*    trx,
+	ulint           space,
+	ulint           page_no)
 {
 	lock_t*		lock;
 
 	lock_mutex_enter();
 
-	lock = lock_sys.get_first_prdt_page(page_id);
+	lock = lock_rec_get_first_on_page_addr(
+		lock_sys.prdt_page_hash, space, page_no);
 
 	lock_mutex_exit();
 
-	return(!lock || trx == lock->trx);
+	return(lock == NULL || trx == lock->trx);
 }
 
 /*************************************************************//**
@@ -985,14 +1002,20 @@ lock_prdt_rec_move(
 	const buf_block_t*	donator)	/*!< in: buffer block containing
 						the donating record */
 {
+	lock_t* lock;
+
+	if (!lock_sys.prdt_hash) {
+		return;
+	}
+
 	lock_mutex_enter();
 
-	for (lock_t *lock = lock_rec_get_first(&lock_sys.prdt_hash,
-					       donator, PRDT_HEAPNO);
+	for (lock = lock_rec_get_first(lock_sys.prdt_hash,
+				       donator, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 
-		const auto type_mode = lock->type_mode;
+		const ulint     type_mode = lock->type_mode;
 		lock_prdt_t*	lock_prdt = lock_get_prdt_from_lock(lock);
 
 		lock_rec_reset_nth_bit(lock, PRDT_HEAPNO);
@@ -1016,10 +1039,15 @@ lock_prdt_page_free_from_discard(
 {
 	lock_t*	lock;
 	lock_t*	next_lock;
+	ulint	space;
+	ulint	page_no;
 
 	ut_ad(lock_mutex_own());
 
-	lock = lock_sys.get_first(*lock_hash, block->page.id());
+	space = block->page.id.space();
+	page_no = block->page.id.page_no();
+
+	lock = lock_rec_get_first_on_page_addr(lock_hash, space, page_no);
 
 	while (lock != NULL) {
 		next_lock = lock_rec_get_next_on_page(lock);

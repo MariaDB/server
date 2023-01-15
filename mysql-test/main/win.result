@@ -1742,7 +1742,8 @@ drop table t1;
 #
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-set tmp_memory_table_size=0;
+set @tmp=@@big_tables;
+set big_tables=1;
 select rank() over (order by a) from t1;
 rank() over (order by a)
 1
@@ -1755,7 +1756,7 @@ rank() over (order by a)
 8
 9
 10
-set tmp_memory_table_size=default;
+set big_tables=@tmp;
 drop table t1;
 #
 # Check if "ORDER BY window_func" works
@@ -3762,8 +3763,7 @@ ANALYZE
           "r_total_time_ms": "REPLACED",
           "r_used_priority_queue": false,
           "r_output_rows": 3,
-          "r_buffer_size": "REPLACED",
-          "r_sort_mode": "sort_key,rowid"
+          "r_buffer_size": "REPLACED"
         }
       },
       "temporary_table": {
@@ -3773,8 +3773,7 @@ ANALYZE
           "r_loops": 1,
           "rows": 3,
           "r_rows": 3,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
+          "r_total_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }

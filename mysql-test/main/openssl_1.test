@@ -1,6 +1,5 @@
 # Needed for mysqldump
 --source include/have_utf8mb4.inc
---source include/not_asan.inc
 
 # Tests for SSL connections, only run if mysqld is compiled
 # with support for SSL.
@@ -174,7 +173,7 @@ INSERT INTO t1 VALUES (1), (2);
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test
 
 # With wrong parameters
---replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR $MYSQL_DUMP mariadb-dump .\exe ''
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR mysqldump.exe mysqldump
 --replace_regex /TLS\/SSL error.*/TLS\/SSL error: xxxx/
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test 2>&1

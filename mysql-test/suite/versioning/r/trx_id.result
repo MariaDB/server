@@ -333,41 +333,41 @@ ERROR HY000: Illegal parameter data type row for operation 'FOR SYSTEM_TIME'
 #
 # DOUBLE is not supported, use explicit CAST
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION RAND();
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF RAND();
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION (RAND());
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (RAND());
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION COALESCE(RAND());
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF COALESCE(RAND());
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION RAND();
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF RAND();
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION (RAND());
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (RAND());
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION COALESCE(RAND());
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF COALESCE(RAND());
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
 #
 # DECIMAL is not supported, use explicit CAST
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION 10.1;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF 10.1;
 ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION COALESCE(10.1);
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF COALESCE(10.1);
 ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION 10.1;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF 10.1;
 ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION COALESCE(10.1);
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF COALESCE(10.1);
 ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
 #
 # YEAR is not supported, use explicit CAST
 #
 BEGIN NOT ATOMIC
 DECLARE var YEAR;
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION var;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
 END;
 $$
 ERROR HY000: Illegal parameter data type year for operation 'FOR SYSTEM_TIME'
 BEGIN NOT ATOMIC
 DECLARE var YEAR;
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION var;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
 END;
 $$
 ERROR HY000: Illegal parameter data type year for operation 'FOR SYSTEM_TIME'
@@ -376,13 +376,13 @@ ERROR HY000: Illegal parameter data type year for operation 'FOR SYSTEM_TIME'
 #
 BEGIN NOT ATOMIC
 DECLARE var ENUM('xxx') DEFAULT 'xxx';
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION var;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
 END;
 $$
 ERROR HY000: Illegal parameter data type enum for operation 'FOR SYSTEM_TIME'
 BEGIN NOT ATOMIC
 DECLARE var ENUM('xxx') DEFAULT 'xxx';
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION var;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
 END;
 $$
 ERROR HY000: Illegal parameter data type enum for operation 'FOR SYSTEM_TIME'
@@ -391,19 +391,28 @@ ERROR HY000: Illegal parameter data type enum for operation 'FOR SYSTEM_TIME'
 #
 BEGIN NOT ATOMIC
 DECLARE var SET('xxx') DEFAULT 'xxx';
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION var;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
 END;
 $$
 ERROR HY000: Illegal parameter data type set for operation 'FOR SYSTEM_TIME'
 BEGIN NOT ATOMIC
 DECLARE var SET('xxx') DEFAULT 'xxx';
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION var;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
 END;
 $$
 ERROR HY000: Illegal parameter data type set for operation 'FOR SYSTEM_TIME'
+#
+# BIT is resolved to TRANSACTION
+#
 BEGIN NOT ATOMIC
 DECLARE var BIT(10);
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION var;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+x
+BEGIN NOT ATOMIC
+DECLARE var BIT(10);
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
 END;
 $$
 ERROR HY000: Transaction-precise system versioning for `t2` is not supported
@@ -415,6 +424,20 @@ x
 1
 SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
 x
+#
+# HEX hybrids resolve to TRANSACTION
+#
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+ERROR HY000: Transaction-precise system versioning for `t2` is not supported
+#
+# BIT literals resolve to TRANSACTION
+#
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 DROP TABLE t1, t2;
 #
 # MDEV-16094 Crash when using AS OF with a stored function
@@ -437,11 +460,11 @@ PERIOD FOR SYSTEM_TIME(start_timestamp, end_timestamp)
 ) ENGINE=InnoDB WITH SYSTEM VERSIONING;
 SELECT * FROM tts FOR SYSTEM_TIME AS OF fts();
 x	start_timestamp	end_timestamp
-SELECT * FROM tts FOR SYSTEM_TIME AS OF TRANSACTION ftx();
+SELECT * FROM tts FOR SYSTEM_TIME AS OF ftx();
 ERROR HY000: Transaction-precise system versioning for `tts` is not supported
 SELECT * FROM ttx FOR SYSTEM_TIME AS OF fts();
 x	start_timestamp	end_timestamp
-SELECT * FROM ttx FOR SYSTEM_TIME AS OF TRANSACTION ftx();
+SELECT * FROM ttx FOR SYSTEM_TIME AS OF ftx();
 x	start_timestamp	end_timestamp
 DROP TABLE tts;
 DROP TABLE ttx;

@@ -1,5 +1,4 @@
 drop table if exists test.setup_objects;
-SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 create table test.setup_objects as
 select * from performance_schema.setup_objects;
 truncate table performance_schema.setup_objects;
@@ -69,7 +68,6 @@ truncate table performance_schema.setup_objects;
 insert into performance_schema.setup_objects
 select * from test.setup_objects;
 drop table test.setup_objects;
-SET sql_mode = default;
 #
 # MDEV-25325 column_comment for performance_schema tables
 #
@@ -77,7 +75,7 @@ select column_name, column_comment
 from information_schema.columns 
 where table_schema='performance_schema' and table_name='setup_objects';
 column_name	column_comment
-OBJECT_TYPE	Type of object to instrument.
+OBJECT_TYPE	Type of object to instrument. Currently, only TABLE, for base table.
 OBJECT_SCHEMA	Schema containing the object, either the literal or % for any schema.
 OBJECT_NAME	Name of the instrumented object, either the literal or % for any object.
 ENABLED	Whether the object's events are instrumented or not. Can be disabled, in which case monitoring is not enabled for those objects.

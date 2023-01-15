@@ -23,40 +23,10 @@
 #include "my_static.h"
 #include "my_alarm.h"
 
-
-PSI_memory_key key_memory_DYNAMIC_STRING;
-PSI_memory_key key_memory_IO_CACHE;
-PSI_memory_key key_memory_KEY_CACHE;
-PSI_memory_key key_memory_LIST;
-PSI_memory_key key_memory_MY_BITMAP_bitmap;
-PSI_memory_key key_memory_MY_DIR;
-PSI_memory_key key_memory_MY_STAT;
-PSI_memory_key key_memory_MY_TMPDIR_full_list;
-PSI_memory_key key_memory_QUEUE;
-PSI_memory_key key_memory_SAFE_HASH_ENTRY;
-PSI_memory_key key_memory_THD_ALARM;
-PSI_memory_key key_memory_TREE;
-PSI_memory_key key_memory_charset_file;
-PSI_memory_key key_memory_charset_loader;
-PSI_memory_key key_memory_defaults;
-PSI_memory_key key_memory_lf_dynarray;
-PSI_memory_key key_memory_lf_node;
-PSI_memory_key key_memory_lf_slist;
-PSI_memory_key key_memory_max_alloca;
-PSI_memory_key key_memory_my_compress_alloc;
-PSI_memory_key key_memory_my_err_head;
-PSI_memory_key key_memory_my_file_info;
-PSI_memory_key key_memory_pack_frm;
-PSI_memory_key key_memory_charsets;
-
-#ifdef _WIN32
-PSI_memory_key key_memory_win_SECURITY_ATTRIBUTES;
-PSI_memory_key key_memory_win_PACL;
-PSI_memory_key key_memory_win_IP_ADAPTER_ADDRESSES;
-#endif /* _WIN32 */
+my_bool timed_mutexes= 0;
 
 	/* from my_init */
-char *home_dir=0;
+char *	home_dir=0;
 char *mysql_data_home= (char*) ".";
 const char      *my_progname= NULL, *my_progname_short= NULL;
 char		curr_dir[FN_REFLEN]= {0},
@@ -91,6 +61,12 @@ const char *soundex_map=	  "01230120022455012623010202";
 	/* from my_malloc */
 USED_MEM* my_once_root_block=0;			/* pointer to first block */
 uint	  my_once_extra=ONCE_ALLOC_INIT;	/* Memory to alloc / block */
+
+	/* from my_largepage.c */
+#ifdef HAVE_LINUX_LARGE_PAGES
+my_bool my_use_large_pages= 0;
+uint    my_large_page_size= 0;
+#endif
 
 	/* from my_alarm */
 int volatile my_have_got_alarm=0;	/* declare variable to reset */

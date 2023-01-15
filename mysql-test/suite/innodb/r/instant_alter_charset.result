@@ -1991,7 +1991,7 @@ HEX(a)
 0061
 DROP TABLE t1;
 #
-# MDEV-19285 INSTANT ALTER from ascii_general_ci to latin1_general_ci produces corrupt data
+# MDEV-19285 INSTANT ALTER from ascii_general_ci to latin1_general_ci produces currupt data
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii COLLATE ascii_general_ci, PRIMARY KEY(a)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('a'),(0xC0),('b');

@@ -10,7 +10,6 @@ Feature_delay_key_write	0
 Feature_dynamic_columns	0
 Feature_fulltext	0
 Feature_gis	0
-Feature_insert_returning	0
 Feature_invisible_columns	0
 Feature_json	0
 Feature_locale	0
@@ -166,24 +165,9 @@ drop table t1;
 show status like "feature_delay_key_write";
 Variable_name	Value
 Feature_delay_key_write	2
-#
-# Feature CHECK CONSTRAINT
-#
 create table t1 (a int check (a > 5));
 create table t2 (b int, constraint foo check (b < 10));
 drop table t1, t2;
 show status like "feature_check_constraint";
 Variable_name	Value
 Feature_check_constraint	2
-#
-# Feature insert...returning
-#
-create table t1(id1 int);
-insert into t1 values (1),(2) returning *;
-id1
-1
-2
-drop table t1;
-show status like "feature_insert_returning";
-Variable_name	Value
-Feature_insert_returning	1

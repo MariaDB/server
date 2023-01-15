@@ -1,21 +1,12 @@
 --source include/innodb_page_size_small.inc
 --source include/not_embedded.inc
 
+--disable_query_log
 # This test kills the server, which could corrupt some mysql.* tables
 # that are not created with ENGINE=InnoDB.
 # Flush any non-InnoDB tables to prevent that from happening.
 FLUSH TABLES;
-
---echo #
---echo # MDEV-21892 Assertion 'index != clust_index || row_get_rec_trx_id()'
---echo #
-connect (con1,localhost,root);
-CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
-INSERT INTO t1 VALUES (1),(2);
-BEGIN;
---error ER_DUP_ENTRY
-UPDATE t1 SET pk=1;
-connection default;
+--enable_query_log
 
 --echo #
 --echo # MDEV-12720 recovery fails with "Generic error"
@@ -34,9 +25,6 @@ COMMIT;
 
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
-disconnect con1;
 
-SELECT * FROM t1;
-DROP TABLE t1;
 SELECT COUNT(*) from a;
 DROP TABLE a;

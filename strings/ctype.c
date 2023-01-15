@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,12 +36,6 @@
   
 */
 
-const char charset_name_latin2[]= "latin2";
-const char charset_name_utf8[]= "utf8";
-const char charset_name_utf16[]= "utf16";
-const char charset_name_utf32[]= "utf32";
-const char charset_name_ucs2[]= "ucs2";
-const char charset_name_utf8mb4[]= "utf8mb4";
 
 /*
   Avoid using my_snprintf
@@ -419,7 +413,7 @@ tailoring_append2(MY_XML_PARSER *st,
 static size_t
 scan_one_character(const char *s, const char *e, my_wc_t *wc)
 {
-  CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci;
+  CHARSET_INFO *cs= &my_charset_utf8_general_ci;
   if (s >= e)
     return 0;
 
@@ -440,7 +434,7 @@ scan_one_character(const char *s, const char *e, my_wc_t *wc)
   }
   else /* Non-escaped character */
   {
-    int rc= my_ci_mb_wc(cs, wc, (uchar *) s, (uchar *) e);
+    int rc= cs->cset->mb_wc(cs, wc, (uchar *) s, (uchar *) e);
     if (rc > 0)
       return (size_t) rc;
   }
@@ -645,7 +639,7 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
     break;
   case _CS_CTYPEMAP:
     fill_uchar(i->ctype,MY_CS_CTYPE_TABLE_SIZE,attr,len);
-    i->cs.m_ctype=i->ctype;
+    i->cs.ctype=i->ctype;
     break;
 
   /* Special purpose commands */
@@ -873,7 +867,8 @@ my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
        metadata->char_length++)
   {
     my_wc_t wc;
-    int mblen= my_ci_mb_wc(cs, &wc, (const uchar *) str, (const uchar *) strend);
+    int mblen= cs->cset->mb_wc(cs, &wc, (const uchar *) str,
+                                        (const uchar *) strend);
     if (mblen > 0) /* Assigned character */
     {
       if (wc > 0x7F)
@@ -921,7 +916,7 @@ my_string_metadata_get(MY_STRING_METADATA *metadata,
 /*
   Check repertoire: detect pure ascii strings
 */
-my_repertoire_t
+uint
 my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
 {
   if (cs->mbminlen == 1 && !(cs->state & MY_CS_NONASCII))
@@ -934,7 +929,7 @@ my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
     my_wc_t wc;
     int chlen;
     for (;
-         (chlen= my_ci_mb_wc(cs, &wc, (uchar*) str, (uchar*) strend)) > 0;
+         (chlen= cs->cset->mb_wc(cs, &wc, (uchar*) str, (uchar*) strend)) > 0;
          str+= chlen)
     {
       if (wc > 0x7F)
@@ -948,7 +943,7 @@ my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
 /*
   Returns repertoire for charset
 */
-my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs)
+uint my_charset_repertoire(CHARSET_INFO *cs)
 {
   return cs->state & MY_CS_PUREASCII ?
     MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
@@ -987,142 +982,6 @@ my_charset_is_ascii_based(CHARSET_INFO *cs)
   return 
     (cs->mbmaxlen == 1 && cs->tab_to_uni && cs->tab_to_uni['{'] == '{') ||
     (cs->mbminlen == 1 && cs->mbmaxlen > 1);
-}
-
-
-/**
-  Detect if a Unicode code point is printable.
-*/
-static inline my_bool
-my_is_printable(my_wc_t wc)
-{
-  /*
-    Blocks:
-      U+0000 .. U+001F     control
-      U+0020 .. U+007E     printable
-      U+007F .. U+009F     control
-      U+00A0 .. U+00FF     printable
-      U+0100 .. U+10FFFF   As of Unicode-6.1.0, this range does not have any
-                           characters of the "Cc" (Other, control) category.
-                           Should be mostly safe to print.
-                           Except for the surrogate halfs,
-                           which are encoding components, not real characters.
-  */
-  if (wc >= 0x20 && wc <= 0x7E) /* Quickly detect ASCII printable */
-    return TRUE;
-  if (wc <= 0x9F)    /* The rest of U+0000..U+009F are control characters */
-  {
-    /* NL, CR, TAB are Ok */
-    return (wc == '\r' || wc == '\n' || wc == '\t');
-  }
-  /*
-    Surrogate halfs (when alone) print badly in terminals:
-      SELECT _ucs2 0xD800;
-    Let's escape them as well.
-  */
-  if (wc >= 0xD800 && wc <= 0xDFFF)
-    return FALSE;
-  return TRUE;
-}
-
-
-static uint to_printable_8bit(uchar *dst, my_wc_t wc, uint bs)
-{
-  /*
-    This function is used only in context of error messages for now.
-    All non-BMP characters are currently replaced to question marks
-    when a message is put into diagnostics area.
-  */
-  DBUG_ASSERT(wc < 0x10000);
-  *dst++= (char) bs;
-  *dst++= _dig_vec_upper[(wc >> 12) & 0x0F];
-  *dst++= _dig_vec_upper[(wc >> 8) & 0x0F];
-  *dst++= _dig_vec_upper[(wc >> 4) & 0x0F];
-  *dst++= _dig_vec_upper[wc & 0x0F];
-  return MY_CS_PRINTABLE_CHAR_LENGTH;
-}
-
-
-static uint my_printable_length(uint bslen, uint diglen)
-{
-  return bslen + (MY_CS_PRINTABLE_CHAR_LENGTH - 1) * diglen;
-}
-
-
-/**
-  Encode an Unicode character "wc" into a printable string.
-  This function is suitable for any character set, including
-  ASCII-incompatible multi-byte character sets, e.g. ucs2, utf16, utf32.
-*/
-int
-my_wc_to_printable_ex(CHARSET_INFO *cs, my_wc_t wc,
-                      uchar *str, uchar *end,
-                      uint bs, uint bslen, uint diglen)
-{
-  uchar *str0;
-  uint i, length;
-  uchar tmp[MY_CS_PRINTABLE_CHAR_LENGTH * MY_CS_MBMAXLEN];
-
-  if (my_is_printable(wc))
-  {
-    int mblen= my_ci_wc_mb(cs, wc, str, end);
-    if (mblen > 0)
-      return mblen;
-  }
-
-  if (str + my_printable_length(bslen, diglen) > end)
-    return MY_CS_TOOSMALLN(my_printable_length(bslen, diglen));
-
-  if ((cs->state & MY_CS_NONASCII) == 0)
-    return to_printable_8bit(str, wc, bs);
-
-  length= to_printable_8bit(tmp, wc, bs);
-  str0= str;
-  for (i= 0; i < length; i++)
-  {
-    uint expected_length= i == 0 ? bslen : diglen;
-    if (my_ci_wc_mb(cs, tmp[i], str, end) != (int) expected_length)
-    {
-      DBUG_ASSERT(0);
-      return MY_CS_ILSEQ;
-    }
-    str+= expected_length;
-  }
-  return (int) (str - str0);
-}
-
-
-int
-my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
-                        uchar *str, uchar *end)
-{
-  /*
-    Special case: swe7 does not have the backslash character.
-    Use dot instead of backslash for escaping.
-  */
-  uint bs= cs->tab_to_uni && cs->tab_to_uni['\\'] != '\\' ? '.' : '\\';
-  DBUG_ASSERT(cs->mbminlen == 1);
-  /*
-    Additionally, if the original swe7 string contains backslashes,
-    replace them to dots, so this error message:
-      Invalid swe7 character string: '\xEF\xBC\xB4'
-    is displayed as:
-      Invalid swe7 character string: '.xEF.xBC.xB4'
-    which is more readable than what would happen without '\'-to-dot mapping:
-      Invalid swe7 character string: '.005CxEF.005CxBC.005CxB4'
-  */
-  if (bs == '.' && wc == '\\')
-    wc= '.';
-  return my_wc_to_printable_ex(cs, wc, str, end, bs, 1, 1);
-}
-
-
-int
-my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
-                           uchar *str, uchar *end)
-{
-  return my_wc_to_printable_ex(cs, wc, str, end, '\\',
-                               cs->mbminlen, cs->mbminlen);
 }
 
 

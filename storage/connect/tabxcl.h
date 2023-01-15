@@ -72,7 +72,7 @@ class TDBXCL : public TDBPRX {
 	PXCLCOL Xcolp;									// To the XCVCOL column
 	int     Mult;										// Multiplication factor
 	int     N;											// The current table index
-	int			M;                      // The occurrence rank
+	int			M;                      // The occurence rank
 	BYTE    RowFlag;								// 0: Ok, 1: Same, 2: Skip
 	bool    New;						        // TRUE for new line
 	char    Sep;										// The Xcol separator

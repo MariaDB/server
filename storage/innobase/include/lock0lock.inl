@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,6 +27,35 @@ Created 5/7/1996 Heikki Tuuri
 #include "dict0dict.h"
 #include "buf0buf.h"
 #include "page0page.h"
+
+/*********************************************************************//**
+Calculates the fold value of a page file address: used in inserting or
+searching for a lock in the hash table.
+@return folded value */
+UNIV_INLINE
+ulint
+lock_rec_fold(
+/*==========*/
+	ulint	space,	/*!< in: space */
+	ulint	page_no)/*!< in: page number */
+{
+	return(ut_fold_ulint_pair(space, page_no));
+}
+
+/*********************************************************************//**
+Calculates the hash value of a page file address: used in inserting or
+searching for a lock in the hash table.
+@return hashed value */
+UNIV_INLINE
+unsigned
+lock_rec_hash(
+/*==========*/
+	ulint	space,	/*!< in: space */
+	ulint	page_no)/*!< in: page number */
+{
+	return(unsigned(hash_calc_hash(lock_rec_fold(space, page_no),
+				       lock_sys.rec_hash)));
+}
 
 /*********************************************************************//**
 Gets the heap_no of the smallest user record on a page.
@@ -61,11 +90,11 @@ lock_hash_get(
 	ulint	mode)	/*!< in: lock mode */
 {
 	if (mode & LOCK_PREDICATE) {
-		return &lock_sys.prdt_hash;
+		return(lock_sys.prdt_hash);
 	} else if (mode & LOCK_PRDT_PAGE) {
-		return &lock_sys.prdt_page_hash;
+		return(lock_sys.prdt_page_hash);
 	} else {
-		return &lock_sys.rec_hash;
+		return(lock_sys.rec_hash);
 	}
 }
 
@@ -81,7 +110,7 @@ lock_rec_create(
 	lock_t*			c_lock,	/*!< conflicting lock */
 	que_thr_t*		thr,	/*!< thread owning trx */
 #endif
-	unsigned		type_mode,/*!< in: lock mode and wait
+	ulint			type_mode,/*!< in: lock mode and wait
 					flag, type is ignored and
 					replaced by LOCK_REC */
 	const buf_block_t*	block,	/*!< in: buffer block containing
@@ -98,6 +127,8 @@ lock_rec_create(
 #ifdef WITH_WSREP
 		c_lock, thr,
 #endif
-		type_mode, block->page.id(), block->frame, heap_no,
+		type_mode,
+		block->page.id.space(), block->page.id.page_no(),
+		block->frame, heap_no,
 		index, trx, caller_owns_trx_mutex);
 }

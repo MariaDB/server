@@ -1,5 +1,3 @@
-call mtr.add_suppression("BINLOG_BASE64_EVENT: According to the master's version");
-call mtr.add_suppression("BINLOG_BASE64_EVENT: Column 1 of table 'test.char128_utf8' cannot be converted");
 DROP TABLE IF EXISTS t1;
 ==== Test BUG#32407 ====
 select * from t1;

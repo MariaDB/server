@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMARIADB-BINLOG\FR" "1" "14 April 2021" "MariaDB 10\&.5" "MariaDB Database System"
+.TH "\FBMYSQLBINLOG\FR" "1" "14 April 2021" "MariaDB 10\&.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -13,7 +13,7 @@
 .\" -----------------------------------------------------------------
 .\" mysqlbinlog
 .SH "NAME"
-mariadb-binlog \- utility for processing binary log files (mysqlbinlog is now a symlink to mariadb-binlog)
+mysqlbinlog \- utility for processing binary log files
 .SH "SYNOPSIS"
 .HP \w'\fBmysqlbinlog\ [\fR\fBoptions\fR\fB]\ \fR\fB\fIlog_file\fR\fR\fB\ \&.\&.\&.\fR\ 'u
 \fBmysqlbinlog [\fR\fBoptions\fR\fB] \fR\fB\fIlog_file\fR\fR\fB \&.\&.\&.\fR
@@ -141,7 +141,7 @@ Display a help message and exit\&.
 .\}
 .\" mysqlbinlog: base64-output option
 .\" base64-output option: mysqlbinlog
-\fB\-\-base64\-output=\fR\fB\fIvalue\fR\fR\fB\fR
+\fB\-\-base64\-output[=\fR\fB\fIvalue\fR\fR\fB]\fR
 .sp
 This option determines when events should be displayed encoded as base\-64 strings using
 BINLOG
@@ -182,6 +182,22 @@ display is the only safe behavior if you intend to use the output of
 to re\-execute binary log file contents\&. The other option values are intended only for debugging or testing purposes because they may produce output that does not include all events in executable form\&.
 .sp .5v
 .RE
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+ALWAYS
+displays
+BINLOG
+statements whenever possible\&. This is the implied value if the option is given as
+\fB\-\-base64\-output\fR
+without a value\&. Both ALWAYS and not giving a value are deprecated.
 .RE
 .sp
 .RS 4

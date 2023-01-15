@@ -1,8 +1,7 @@
 #
 # Verify that the DATA/INDEX DIR is stored and used if ALTER to MyISAM.
 #
-SET @file_per_table= @@GLOBAL.innodb_file_per_table;
-SET @strict_mode= @@SESSION.innodb_strict_mode;
+DROP TABLE IF EXISTS t1;
 SET SESSION innodb_strict_mode = ON;
 #
 # InnoDB only supports DATA DIRECTORY with innodb_file_per_table=ON
@@ -89,6 +88,7 @@ t1	CREATE TABLE `t1` (
 (PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = MyISAM,
  PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = MyISAM)
 # Verifying .frm, .par and MyISAM files (.MYD, MYI)
+---- MYSQLD_DATADIR/test
 db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
@@ -325,5 +325,3 @@ DROP TABLE t1, t2;
 #
 # Cleanup
 #
-SET GLOBAL innodb_file_per_table=@file_per_table;
-SET SESSION innodb_strict_mode=@strict_mode;

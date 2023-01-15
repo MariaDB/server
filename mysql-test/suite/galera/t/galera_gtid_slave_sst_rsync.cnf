@@ -7,12 +7,12 @@ binlog-format=ROW
 wsrep_sst_method=rsync
 [mysqld.1]
 gtid-domain-id=1
-wsrep_gtid_mode=1
-wsrep_gtid_domain_id=1
 [mysqld.2]
-gtid-domain-id=1
+gtid-domain-id=2
 wsrep_gtid_mode=1
-wsrep_gtid_domain_id=1
+wsrep_gtid_domain_id=2
 [mysqld.3]
 gtid-domain-id=2
+wsrep_gtid_mode=1
+wsrep_gtid_domain_id=2
 

@@ -165,7 +165,7 @@ drop sequence t1;
 ERROR 42S02: 'test.t1' is not a SEQUENCE
 drop sequence if exists t1;
 Warnings:
-Note	4090	'test.t1' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.t1'
 create sequence t1 start with 10 maxvalue=9;
 ERROR HY000: Sequence 'test.t1' has out of range value for options
 create sequence t1 minvalue= 100 maxvalue=10;
@@ -421,11 +421,12 @@ CREATE SEQUENCE s1;
 drop sequence s1;
 drop sequence if exists t1,t2,t3,t4;
 Warnings:
-Note	4090	'test.t3' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.t3'
 Note	4091	Unknown SEQUENCE: 'test.t4'
 drop table if exists t1,t2,t3;
 Warnings:
-Note	1051	Unknown table 'test.t1,test.t2'
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
@@ -440,15 +441,15 @@ CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
 drop sequence t1,t2,s1,s2;
-ERROR 42S02: 'test.t1' is not a SEQUENCE
+ERROR 42S02: Unknown SEQUENCE: 'test.t1,test.t2,test.s2'
 drop table if exists t1,t2;
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
 drop sequence if exists t1,t2,s1,s2;
 Warnings:
-Note	4090	'test.t1' is not a SEQUENCE
-Note	4090	'test.t2' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.t1'
+Note	4091	Unknown SEQUENCE: 'test.t2'
 Note	4091	Unknown SEQUENCE: 'test.s2'
 drop table if exists t1,t2;
 CREATE TEMPORARY SEQUENCE s1;
@@ -665,7 +666,7 @@ create temporary sequence s;
 drop temporary table s;
 create temporary table s (i int);
 drop temporary sequence s;
-ERROR 42S02: Unknown SEQUENCE: 'test.s'
+ERROR 42S02: 'test.s' is not a SEQUENCE
 drop table s;
 #
 # MDEV-15115 Assertion failure in CREATE SEQUENCE...ROW_FORMAT=REDUNDANT
@@ -703,7 +704,7 @@ ERROR HY000: Sequence 'test.seq1' has out of range value for options
 # Task 4:
 CREATE TEMPORARY TABLE s1 (s1 INT);
 DROP TEMPORARY SEQUENCE s1;
-ERROR 42S02: Unknown SEQUENCE: 'test.s1'
+ERROR 42S02: 'test.s1' is not a SEQUENCE
 DROP TEMPORARY TABLE s1;
 # Task 5:
 CREATE TEMPORARY TABLE s1 (s1 INT);

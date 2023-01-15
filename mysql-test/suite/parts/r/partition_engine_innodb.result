@@ -4303,7 +4303,7 @@ DROP TABLE t1;
 #------------------------------------------------------------------------
 # 6 Session default engine differs from engine used within create table
 #------------------------------------------------------------------------
-SET SESSION default_storage_engine='MEMORY';
+SET SESSION storage_engine='MEMORY';
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -5211,7 +5211,7 @@ TRUNCATE t1;
 # check layout success:    1
 # End usability test (inc/partition_check.inc)
 DROP TABLE t1;
-SET SESSION default_storage_engine='InnoDB';
+SET SESSION storage_engine='InnoDB';
 DROP VIEW  IF EXISTS v1;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t0_aux;

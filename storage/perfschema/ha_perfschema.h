@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2014, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -41,7 +41,7 @@ class PFS_engine_table;
 extern const char *pfs_engine_name;
 
 /** A handler for a PERFORMANCE_SCHEMA table. */
-class ha_perfschema final : public handler
+class ha_perfschema : public handler
 {
 public:
   /**
@@ -232,8 +232,8 @@ private:
   */
   bool is_executed_by_slave() const
   {
-    assert(table != NULL);
-    assert(table->in_use != NULL);
+    DBUG_ASSERT(table != NULL);
+    DBUG_ASSERT(table->in_use != NULL);
     return table->in_use->slave_thread;
 
   }

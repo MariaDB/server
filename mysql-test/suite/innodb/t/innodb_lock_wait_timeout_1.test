@@ -49,6 +49,9 @@ DROP TABLE t2, t1;
 --echo # Bug#46539 Various crashes on INSERT IGNORE SELECT + SELECT
 --echo #           FOR UPDATE
 --echo #
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
 create table t1 (a int primary key auto_increment,
                  b int, index(b)) engine=innodb;
 insert into t1 (b) values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
@@ -104,12 +107,21 @@ drop table t1, t2;
 --echo #
 --echo # Bug#41756 Strange error messages about locks from InnoDB
 --echo #
---echo # In the default transaction isolation mode,
---echo # handler::unlock_row() in InnoDB does nothing.
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+--echo # In the default transaction isolation mode, and/or with
+--echo # innodb_locks_unsafe_for_binlog=OFF, handler::unlock_row()
+--echo # in InnoDB does nothing.
 --echo # Thus in order to reproduce the condition that led to the
 --echo # warning, one needs to relax isolation by either
 --echo # setting a weaker tx_isolation value, or by turning on
 --echo # the unsafe replication switch.
+--echo # For testing purposes, choose to tweak the isolation level,
+--echo # since it's settable at runtime, unlike
+--echo # innodb_locks_unsafe_for_binlog, which is
+--echo # only a command-line switch.
+--echo #
 set @@session.tx_isolation="read-committed";
 
 --echo # Prepare data. We need a table with a unique index,

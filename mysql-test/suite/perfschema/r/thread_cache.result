@@ -1,7 +1,7 @@
 flush status;
 SET @saved_thread_cache_size = @@global.thread_cache_size;
 set global thread_cache_size = 0;
-show global variables like "thread_cache_size";
+show variables like "thread_cache_size";
 Variable_name	Value
 thread_cache_size	0
 connect  con1, localhost, root, , ;
@@ -26,7 +26,7 @@ select @thread_id_increment;
 @thread_id_increment
 1
 set global thread_cache_size = 100;
-show global variables like "thread_cache_size";
+show variables like "thread_cache_size";
 Variable_name	Value
 thread_cache_size	100
 connect  con1, localhost, root, , ;
@@ -51,7 +51,7 @@ select @thread_id_increment;
 @thread_id_increment
 1
 set global thread_cache_size = @saved_thread_cache_size;
-show global status like "performance_schema_thread%";
+show status like "performance_schema_thread%";
 Variable_name	Value
 Performance_schema_thread_classes_lost	0
 Performance_schema_thread_instances_lost	0

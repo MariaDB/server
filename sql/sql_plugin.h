@@ -56,8 +56,9 @@ extern ulong dlopen_count;
 /*
   the following flags are valid for plugin_init()
 */
-#define PLUGIN_INIT_SKIP_PLUGIN_TABLE    1U
-#define PLUGIN_INIT_SKIP_INITIALIZATION  2U
+#define PLUGIN_INIT_SKIP_DYNAMIC_LOADING 1U
+#define PLUGIN_INIT_SKIP_PLUGIN_TABLE    2U
+#define PLUGIN_INIT_SKIP_INITIALIZATION  4U
 
 #define INITIAL_LEX_PLUGIN_LIST_SIZE    16
 

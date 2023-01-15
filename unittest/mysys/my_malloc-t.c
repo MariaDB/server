@@ -24,13 +24,13 @@ int main(int argc __attribute__((unused)),char *argv[])
 
   plan(4);
 
-  p= my_malloc(PSI_NOT_INSTRUMENTED, 0, MYF(0));
+  p= my_malloc(0, MYF(0));
   ok(p != NULL, "Zero-sized block allocation.");
 
-  p= my_realloc(PSI_NOT_INSTRUMENTED, p, 32, MYF(0));
+  p= my_realloc(p, 32, MYF(0));
   ok(p != NULL, "Reallocated zero-sized block.");
 
-  p= my_realloc(PSI_NOT_INSTRUMENTED, p, 16, MYF(0));
+  p= my_realloc(p, 16, MYF(0));
   ok(p != NULL, "Trimmed block.");
 
   my_free(p);

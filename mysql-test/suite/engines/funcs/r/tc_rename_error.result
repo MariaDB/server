@@ -13,7 +13,7 @@ t1	CREATE TABLE `t1` (
 RENAME TABLE t2 TO t1;
 ERROR 42S01: Table 't1' already exists
 RENAME TABLE t3 TO t1;
-ERROR 42S02: Table 'test.t3' doesn't exist
+ERROR 42S01: Table 't1' already exists
 RENAME TABLE t3 TO doesnotexist.t1;
 ERROR 42S02: Table 'test.t3' doesn't exist
 SHOW TABLES;

@@ -1,4 +1,4 @@
-set default_storage_engine=innodb;
+set storage_engine=innodb;
 set @save_time_zone= @@time_zone;
 set time_zone='+03:00';
 SET @saved_dbug = @@SESSION.debug_dbug;

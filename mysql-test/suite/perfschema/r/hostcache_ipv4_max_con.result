@@ -36,7 +36,7 @@ current_user()
 quota@santa.claus.ipv4.example.com
 disconnect con2a;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -73,7 +73,7 @@ current_user()
 quota@santa.claus.ipv4.example.com
 disconnect con2b;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -110,7 +110,7 @@ current_user()
 quota@santa.claus.ipv4.example.com
 disconnect con2c;
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -140,7 +140,7 @@ FIRST_ERROR_SEEN	null
 LAST_ERROR_SEEN	null
 ERROR 42000: User 'quota' has exceeded the 'max_connections_per_hour' resource (current value: 3)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -170,7 +170,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 42000: User 'quota' has exceeded the 'max_connections_per_hour' resource (current value: 3)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -211,7 +211,7 @@ select current_user();
 current_user()
 quota@santa.claus.ipv4.example.com
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -247,7 +247,7 @@ select current_user();
 current_user()
 quota@santa.claus.ipv4.example.com
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -283,7 +283,7 @@ select current_user();
 current_user()
 quota@santa.claus.ipv4.example.com
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -313,7 +313,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 42000: User 'quota' has exceeded the 'max_user_connections' resource (current value: 3)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -343,7 +343,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 42000: User 'quota' has exceeded the 'max_user_connections' resource (current value: 3)
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -386,7 +386,7 @@ select current_user();
 current_user()
 quota@santa.claus.ipv4.example.com
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -422,7 +422,7 @@ select current_user();
 current_user()
 quota@santa.claus.ipv4.example.com
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -458,7 +458,7 @@ select current_user();
 current_user()
 quota@santa.claus.ipv4.example.com
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -488,7 +488,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 42000: User quota already has more than 'max_user_connections' active connections
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -518,7 +518,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 ERROR 42000: User quota already has more than 'max_user_connections' active connections
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -567,7 +567,7 @@ select current_user();
 current_user()
 quota@santa.claus.ipv4.example.com
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -603,7 +603,7 @@ select current_user();
 current_user()
 quota@santa.claus.ipv4.example.com
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -633,7 +633,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 Got one of the listed errors
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES
@@ -663,7 +663,7 @@ FIRST_ERROR_SEEN	set
 LAST_ERROR_SEEN	set
 Got one of the listed errors
 connection default;
-# Dumping performance_schema.host_cache
+"Dumping performance_schema.host_cache"
 IP	192.0.2.4
 HOST	santa.claus.ipv4.example.com
 HOST_VALIDATED	YES

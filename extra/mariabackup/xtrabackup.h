@@ -42,8 +42,8 @@ class CorruptedPages
 public:
   CorruptedPages();
   ~CorruptedPages();
-  void add_page(const char *file_name, ulint space_id, unsigned page_no);
-  bool contains(ulint space_id, unsigned page_no) const;
+  void add_page(const char *file_name, ulint space_id, ulint page_no);
+  bool contains(ulint space_id, ulint page_no) const;
   void drop_space(ulint space_id);
   void rename_space(ulint space_id, const std::string &new_name);
   bool print_to_file(const char *file_name) const;
@@ -52,11 +52,11 @@ public:
   void zero_out_free_pages();
 
 private:
-  void add_page_no_lock(const char *space_name, ulint space_id,
-                        unsigned page_no, bool convert_space_name);
+  void add_page_no_lock(const char *space_name, ulint space_id, ulint page_no,
+                        bool convert_space_name);
   struct space_info_t {
     std::string space_name;
-    std::set<unsigned> pages;
+    std::set<ulint> pages;
   };
   typedef std::map<ulint, space_info_t> container_t;
   mutable pthread_mutex_t m_mutex;
@@ -144,7 +144,7 @@ extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;
 
 extern char		*opt_user;
-extern const char	*opt_password;
+extern char		*opt_password;
 extern char		*opt_host;
 extern char		*opt_defaults_group;
 extern char		*opt_socket;

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015, 2020, MariaDB Corporation.
+   Copyright (c) 2015 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,10 +38,6 @@ $stmt").
 
 */
 
-class Gap_time_tracker;
-void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker, ulonglong timeval);
-void process_gap_time_tracker(THD *thd, ulonglong timeval);
-
 /*
   A class for tracking time it takes to do a certain action
 */
@@ -52,37 +48,26 @@ protected:
   ulonglong cycles;
   ulonglong last_start;
 
-  void cycles_stop_tracking(THD *thd)
+  void cycles_stop_tracking()
   {
     ulonglong end= my_timer_cycles();
     cycles += end - last_start;
     if (unlikely(end < last_start))
       cycles += ULONGLONG_MAX;
-
-    process_gap_time_tracker(thd, end);
-    if (my_gap_tracker)
-      attach_gap_time_tracker(thd, my_gap_tracker, end);
   }
 public:
-  Exec_time_tracker() : count(0), cycles(0), my_gap_tracker(NULL) {}
-
-  /*
-    The time spent between stop_tracking() call on this object and any
-    other time measurement will be billed to this tracker.
-  */
-  Gap_time_tracker *my_gap_tracker;
-
+  Exec_time_tracker() : count(0), cycles(0) {}
+  
   // interface for collecting time
-  void start_tracking(THD *thd)
+  void start_tracking()
   {
     last_start= my_timer_cycles();
-    process_gap_time_tracker(thd, last_start);
   }
 
-  void stop_tracking(THD *thd)
+  void stop_tracking()
   {
     count++;
-    cycles_stop_tracking(thd);
+    cycles_stop_tracking();
   }
 
   // interface for getting the time
@@ -90,36 +75,9 @@ public:
   double get_time_ms() const
   {
     // convert 'cycles' to milliseconds.
-    return 1000.0 * static_cast<double>(cycles) /
-      static_cast<double>(sys_timer_info.cycles.frequency);
+    return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
   }
 };
-
-
-/*
-  Tracker for time spent between the calls to Exec_time_tracker's {start|
-  stop}_tracking().
-
-  @seealso Gap_time_tracker_data in sql_class.h
-*/
-class Gap_time_tracker
-{
-  ulonglong cycles;
-public:
-  Gap_time_tracker() : cycles(0) {}
-
-  void log_time(ulonglong start, ulonglong end) {
-    cycles += end - start;
-  }
-
-  double get_time_ms() const
-  {
-    // convert 'cycles' to milliseconds.
-    return 1000.0 * static_cast<double>(cycles) /
-      static_cast<double>(sys_timer_info.cycles.frequency);
-  }
-};
-
 
 
 /*
@@ -141,22 +99,22 @@ public:
   /*
     Unlike Exec_time_tracker::stop_tracking, we don't increase loops.
   */
-  void stop_tracking(THD *thd)
+  void stop_tracking()
   {
-    cycles_stop_tracking(thd);
+    cycles_stop_tracking();
   }
 };
 
-#define ANALYZE_START_TRACKING(thd, tracker) \
+#define ANALYZE_START_TRACKING(tracker) \
   { \
     (tracker)->incr_loops(); \
     if (unlikely((tracker)->timed)) \
-    { (tracker)->start_tracking(thd); } \
+    { (tracker)->start_tracking(); } \
   }
 
-#define ANALYZE_STOP_TRACKING(thd, tracker) \
+#define ANALYZE_STOP_TRACKING(tracker) \
   if (unlikely((tracker)->timed)) \
-  { (tracker)->stop_tracking(thd); }
+  { (tracker)->stop_tracking(); }
 
 /*
   A class for collecting read statistics.
@@ -180,23 +138,24 @@ public:
   ha_rows r_rows; /* How many rows we've got after that */
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
 
-  bool has_scans() const { return (r_scans != 0); }
-  ha_rows get_loops() const { return r_scans; }
-  double get_avg_rows() const
+  bool has_scans() { return (r_scans != 0); }
+  ha_rows get_loops() { return r_scans; }
+  double get_avg_rows()
   {
-    return r_scans
-      ? static_cast<double>(r_rows) / static_cast<double>(r_scans)
-      : 0;
+    return r_scans ? ((double)r_rows / r_scans): 0;
   }
 
-  double get_filtered_after_where() const
+  double get_filtered_after_where()
   {
-    return r_rows > 0
-      ? static_cast<double>(r_rows_after_where) /
-        static_cast<double>(r_rows)
-      : 1.0;
-  }
+    double r_filtered;
+    if (r_rows > 0)
+      r_filtered= (double)r_rows_after_where / r_rows;
+    else
+      r_filtered= 1.0;
 
+    return r_filtered;
+  }
+  
   inline void on_scan_init() { r_scans++; }
   inline void on_record_read() { r_rows++; }
   inline void on_record_after_where() { r_rows_after_where++; }
@@ -222,22 +181,19 @@ public:
     time_tracker(do_timing), r_limit(0), r_used_pq(0),
     r_examined_rows(0), r_sorted_rows(0), r_output_rows(0),
     sort_passes(0),
-    sort_buffer_size(0),
-    r_using_addons(false),
-    r_packed_addon_fields(false),
-    r_sort_keys_packed(false)
+    sort_buffer_size(0)
   {}
   
   /* Functions that filesort uses to report various things about its execution */
 
-  inline void report_use(THD *thd, ha_rows r_limit_arg)
+  inline void report_use(ha_rows r_limit_arg)
   {
     if (!time_tracker.get_loops())
       r_limit= r_limit_arg;
     else
       r_limit= (r_limit != r_limit_arg)? 0: r_limit_arg;
 
-    ANALYZE_START_TRACKING(thd, &time_tracker);
+    ANALYZE_START_TRACKING(&time_tracker);
   }
   inline void incr_pq_used() { r_used_pq++; }
 
@@ -254,9 +210,9 @@ public:
   {
     sort_passes -= passes;
   }
-  inline void report_merge_passes_at_end(THD *thd, ulong passes)
+  inline void report_merge_passes_at_end(ulong passes)
   {
-    ANALYZE_STOP_TRACKING(thd, &time_tracker);
+    ANALYZE_STOP_TRACKING(&time_tracker);
     sort_passes += passes;
   }
 
@@ -267,39 +223,25 @@ public:
     else
       sort_buffer_size= bufsize;
   }
-
-  inline void report_addon_fields_format(bool addons_packed)
-  {
-    r_using_addons= true;
-    r_packed_addon_fields= addons_packed;
-  }
-  inline void report_sort_keys_format(bool sort_keys_packed)
-  {
-    r_sort_keys_packed= sort_keys_packed;
-  }
-
-  void get_data_format(String *str);
-
+  
   /* Functions to get the statistics */
   void print_json_members(Json_writer *writer);
-
+  
   ulonglong get_r_loops() const { return time_tracker.get_loops(); }
-  double get_avg_examined_rows() const
-  {
-    return static_cast<double>(r_examined_rows) /
-      static_cast<double>(get_r_loops());
+  double get_avg_examined_rows() 
+  { 
+    return ((double)r_examined_rows) / get_r_loops();
   }
-  double get_avg_returned_rows() const
-  {
-    return static_cast<double>(r_output_rows) /
-      static_cast<double>(get_r_loops());
+  double get_avg_returned_rows()
+  { 
+    return ((double)r_output_rows) / get_r_loops(); 
   }
-  double get_r_filtered() const
+  double get_r_filtered()
   {
-    return r_examined_rows > 0
-      ? static_cast<double>(r_sorted_rows) /
-        static_cast<double>(r_examined_rows)
-      : 1.0;
+    if (r_examined_rows > 0)
+      return ((double)r_sorted_rows / r_examined_rows);
+    else
+      return 1.0;
   }
 private:
   Time_and_counter_tracker time_tracker;
@@ -340,9 +282,6 @@ private:
     other          - value
   */
   ulonglong sort_buffer_size;
-  bool r_using_addons;
-  bool r_packed_addon_fields;
-  bool r_sort_keys_packed;
 };
 
 
@@ -379,14 +318,14 @@ public:
     container_elements(0), n_checks(0), n_positive_checks(0)
   {}
 
-  inline void start_tracking(THD *thd)
+  inline void start_tracking()
   {
-    ANALYZE_START_TRACKING(thd, &time_tracker);
+    ANALYZE_START_TRACKING(&time_tracker);
   }
 
-  inline void stop_tracking(THD *thd)
+  inline void stop_tracking()
   {
-    ANALYZE_STOP_TRACKING(thd, &time_tracker);
+    ANALYZE_STOP_TRACKING(&time_tracker);
   }
 
   /* Save container buffer size in bytes */
@@ -400,7 +339,7 @@ public:
     return &time_tracker;
   }
 
-  double get_time_fill_container_ms() const
+  double get_time_fill_container_ms()
   {
     return time_tracker.get_time_ms();
   }
@@ -414,15 +353,16 @@ public:
 
   inline void increment_container_elements_count() { container_elements++; }
 
-  uint get_container_elements() const { return container_elements; }
+  uint get_container_elements() { return container_elements; }
 
   uint get_container_lookups() { return n_checks; }
 
-  double get_r_selectivity_pct() const
+  double get_r_selectivity_pct()
   {
-    return n_checks ? static_cast<double>(n_positive_checks) /
-                      static_cast<double>(n_checks) : 0;
+    return n_checks ? (double)n_positive_checks/(double)n_checks : 0;
   }
 
-  size_t get_container_buff_size() const { return container_buff_size; }
+  size_t get_container_buff_size() { return container_buff_size; }
+
 };
+

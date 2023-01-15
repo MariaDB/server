@@ -23,7 +23,6 @@
 
 #ifndef MAIN
 
-#if defined(_AIX) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__linux__) || defined(__sun) || defined(_WIN32)
 static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
 {
   uint i, res= 1;
@@ -33,7 +32,6 @@ static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
       res= 0;
   return res;
 }
-#endif
 
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 #ifdef __OpenBSD__
@@ -80,7 +78,7 @@ err:
   return res;
 }
 
-#elif defined(_AIX) || defined(__linux__) || defined(__sun)
+#elif defined(__linux__) || defined(__sun)
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <net/if_arp.h>
@@ -93,15 +91,11 @@ err:
 my_bool my_gethwaddr(uchar *to)
 {
   int fd, res= 1;
-#ifdef _AIX
-  struct ifhwaddr_req ifr[32];
-#else
   struct ifreq ifr[32];
-#endif
   struct ifconf ifc;
   DBUG_ENTER("my_gethwaddr");
 
-  ifc.ifc_req= (struct ifreq *) ifr;
+  ifc.ifc_req= ifr;
   ifc.ifc_len= sizeof(ifr);
 
   fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -116,14 +110,9 @@ my_bool my_gethwaddr(uchar *to)
     uint i;
     for (i= 0; res && i < ifc.ifc_len / sizeof(ifr[0]); i++)
     {
-#if defined(_AIX) || defined(__linux__)
-#if defined(__linux__)
-#define HWADDR_DATA ifr[i].ifr_hwaddr.sa_data
-#else
-#define HWADDR_DATA ifr[i].ifr_hwaddr
-#endif
+#ifdef __linux__
       if (ioctl(fd, SIOCGIFHWADDR, &ifr[i]) >= 0)
-        res= memcpy_and_test(to, (uchar *)&HWADDR_DATA,
+        res= memcpy_and_test(to, (uchar *)&ifr[i].ifr_hwaddr.sa_data,
                              ETHER_ADDR_LEN);
 #else
       /*
@@ -212,3 +201,4 @@ int main(int argc __attribute__((unused)),char **argv)
   return 0;
 }
 #endif
+

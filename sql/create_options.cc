@@ -1,4 +1,4 @@
-/* Copyright (C) 2010, 2020, MariaDB Corporation.
+/* Copyright (C) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,8 +44,9 @@ void engine_option_value::link(engine_option_value **start,
   /* check duplicates to avoid writing them to frm*/
   for(opt= *start;
       opt && ((opt->parsed && !opt->value.str) ||
-              system_charset_info->strnncoll(name.str, name.length,
-                                             opt->name.str, opt->name.length));
+              my_strnncoll(system_charset_info,
+                           (uchar *)name.str, name.length,
+                           (uchar*)opt->name.str, opt->name.length));
       opt= opt->next) /* no-op */;
   if (opt)
   {
@@ -185,8 +186,9 @@ static bool set_one_value(ha_create_table_option *opt,
         for (end=start;
              *end && *end != ',';
              end++) /* no-op */;
-        if (!system_charset_info->strnncoll(start, end-start,
-                                            value->str, value->length))
+        if (!my_strnncoll(system_charset_info,
+                          (uchar*)start, end-start,
+                          (uchar*)value->str, value->length))
         {
           *val= num;
           DBUG_RETURN(0);
@@ -208,17 +210,29 @@ static bool set_one_value(ha_create_table_option *opt,
       if (!value->str)
         DBUG_RETURN(0);
 
-      if (!system_charset_info->strnncoll("NO", 2, value->str, value->length) ||
-          !system_charset_info->strnncoll("OFF", 3, value->str, value->length) ||
-          !system_charset_info->strnncoll("0", 1, value->str, value->length))
+      if (!my_strnncoll(system_charset_info,
+                        (const uchar*)"NO", 2,
+                        (uchar *)value->str, value->length) ||
+          !my_strnncoll(system_charset_info,
+                        (const uchar*)"OFF", 3,
+                        (uchar *)value->str, value->length) ||
+          !my_strnncoll(system_charset_info,
+                        (const uchar*)"0", 1,
+                        (uchar *)value->str, value->length))
       {
         *val= FALSE;
         DBUG_RETURN(FALSE);
       }
 
-      if (!system_charset_info->strnncoll("YES", 3, value->str, value->length) ||
-          !system_charset_info->strnncoll("ON", 2, value->str, value->length) ||
-          !system_charset_info->strnncoll("1", 1, value->str, value->length))
+      if (!my_strnncoll(system_charset_info,
+                        (const uchar*)"YES", 3,
+                        (uchar *)value->str, value->length) ||
+          !my_strnncoll(system_charset_info,
+                        (const uchar*)"ON", 2,
+                        (uchar *)value->str, value->length) ||
+          !my_strnncoll(system_charset_info,
+                        (const uchar*)"1", 1,
+                        (uchar *)value->str, value->length))
       {
         *val= TRUE;
         DBUG_RETURN(FALSE);
@@ -280,8 +294,9 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
     for (val= *option_list; val; val= val->next)
     {
       last= val;
-      if (system_charset_info->strnncoll(opt->name, opt->name_length,
-                                         val->name.str, val->name.length))
+      if (my_strnncoll(system_charset_info,
+                       (uchar*)opt->name, opt->name_length,
+                       (uchar*)val->name.str, val->name.length))
         continue;
 
       /* skip duplicates (see engine_option_value constructor above) */
@@ -406,7 +421,7 @@ static bool resolve_sysvars(handlerton *hton, ha_create_table_option *rules)
             return 1;
         }
         DBUG_ASSERT(str.length());
-        opt->values= my_strndup(PSI_INSTRUMENT_ME, str.ptr(), str.length()-1, MYF(MY_WME));
+        opt->values= my_strndup(str.ptr(), str.length()-1, MYF(MY_WME));
         if (!opt->values)
           return 1;
         break;
@@ -793,8 +808,9 @@ bool is_engine_option_known(engine_option_value *opt,
 
   for (; rules->name; rules++)
   {
-      if (!system_charset_info->strnncoll(rules->name, rules->name_length,
-                                          opt->name.str, opt->name.length))
+      if (!my_strnncoll(system_charset_info,
+                        (uchar*)rules->name, rules->name_length,
+                        (uchar*)opt->name.str, opt->name.length))
         return true;
   }
   return false;

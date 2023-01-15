@@ -47,8 +47,18 @@ public:
   */
   bool eq_name(const LEX_CSTRING &name) const
   {
+#if MYSQL_VERSION_ID > 100500
+#error Remove the old code
     return !table_alias_charset->strnncoll(m_name.str, m_name.length,
                                            name.str, name.length);
+#else
+    // Please remove this when merging to 10.5
+    return !table_alias_charset->coll->strnncoll(table_alias_charset,
+                                                 (const uchar *) m_name.str,
+                                                 m_name.length,
+                                                 (const uchar *) name.str,
+                                                 name.length, FALSE);
+#endif
   }
   static Schema *find_by_name(const LEX_CSTRING &name);
   static Schema *find_implied(THD *thd);

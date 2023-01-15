@@ -717,7 +717,7 @@ int Repl_semi_sync_master::wait_after_commit(THD* thd, bool all)
   my_off_t log_pos;
 
   bool is_real_trans=
-    (all || thd->transaction->all.ha_list == 0);
+    (all || thd->transaction.all.ha_list == 0);
   /*
     The coordinates are propagated to this point having been computed
     in report_binlog_update
@@ -759,8 +759,8 @@ int Repl_semi_sync_master::report_binlog_update(THD* thd, const char *log_file,
 
     if (!(log_info= thd->semisync_info))
     {
-      if(!(log_info= (Trans_binlog_info*)my_malloc(PSI_INSTRUMENT_ME,
-                                            sizeof(Trans_binlog_info), MYF(0))))
+      if(!(log_info=
+           (Trans_binlog_info*) my_malloc(sizeof(Trans_binlog_info), MYF(0))))
         return 1;
       thd->semisync_info= log_info;
     }

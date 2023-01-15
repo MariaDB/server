@@ -2,7 +2,7 @@
 
 [mysqld.1]
 max_allowed_packet=10M
-innodb_log_file_size=220M
+innodb_log_file_size=110M
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.recover=yes;pc.ignore_sb=true;gcache.size=10M'
 
 [mysqld.2]

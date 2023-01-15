@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2016, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,7 +26,7 @@
 */
 
 #include "my_global.h"
-#include "my_thread.h"
+#include "my_pthread.h"
 #include "table_events_statements.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
@@ -35,24 +35,19 @@
 #include "sp_head.h" /* TYPE_ENUM_FUNCTION, ... */
 #include "table_helper.h"
 #include "my_md5.h"
-#include "pfs_buffer_container.h"
 
 THR_LOCK table_events_statements_current::m_table_lock;
-
-PFS_engine_table_share_state
-table_events_statements_current::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_events_statements_current::m_share=
 {
   { C_STRING_WITH_LEN("events_statements_current") },
   &pfs_truncatable_acl,
-  table_events_statements_current::create,
+  &table_events_statements_current::create,
   NULL, /* write_row */
-  table_events_statements_current::delete_all_rows,
-  table_events_statements_current::get_row_count,
+  &table_events_statements_current::delete_all_rows,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(pos_events_statements_current), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_current("
@@ -69,9 +64,9 @@ table_events_statements_current::m_share=
                       "DIGEST VARCHAR(32) comment 'Statement digest.',"
                       "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
                       "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
-                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
-                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
-                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_NAME VARCHAR(64) comment 'Reserved, currently NULL',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
                       "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
                       "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
@@ -94,30 +89,22 @@ table_events_statements_current::m_share=
                       "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
                       "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
-                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
-                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'Reserved, currently NULL.',"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT') comment 'Reserved, currently NULL.')") }
 };
 
 THR_LOCK table_events_statements_history::m_table_lock;
-
-PFS_engine_table_share_state
-table_events_statements_history::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_events_statements_history::m_share=
 {
   { C_STRING_WITH_LEN("events_statements_history") },
   &pfs_truncatable_acl,
-  table_events_statements_history::create,
+  &table_events_statements_history::create,
   NULL, /* write_row */
-  table_events_statements_history::delete_all_rows,
-  table_events_statements_history::get_row_count,
+  &table_events_statements_history::delete_all_rows,
+  NULL, /* get_row_count */
+  1000, /* records */
   sizeof(pos_events_statements_history), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_history("
@@ -134,9 +121,9 @@ table_events_statements_history::m_share=
                       "DIGEST VARCHAR(32) comment 'Statement digest.',"
                       "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
                       "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
-                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
-                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
-                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_NAME VARCHAR(64) comment 'Reserved, currently NULL',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
                       "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
                       "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
@@ -159,30 +146,22 @@ table_events_statements_history::m_share=
                       "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
                       "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
-                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
-                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'Reserved, currently NULL.',"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT') comment 'Reserved, currently NULL.')") }
 };
 
 THR_LOCK table_events_statements_history_long::m_table_lock;
-
-PFS_engine_table_share_state
-table_events_statements_history_long::m_share_state = {
-  false /* m_checked */
-};
 
 PFS_engine_table_share
 table_events_statements_history_long::m_share=
 {
   { C_STRING_WITH_LEN("events_statements_history_long") },
   &pfs_truncatable_acl,
-  table_events_statements_history_long::create,
+  &table_events_statements_history_long::create,
   NULL, /* write_row */
-  table_events_statements_history_long::delete_all_rows,
-  table_events_statements_history_long::get_row_count,
+  &table_events_statements_history_long::delete_all_rows,
+  NULL, /* get_row_count */
+  10000, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_history_long("
@@ -199,9 +178,9 @@ table_events_statements_history_long::m_share=
                       "DIGEST VARCHAR(32) comment 'Statement digest.',"
                       "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
                       "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
-                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
-                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
-                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_NAME VARCHAR(64) comment 'Reserved, currently NULL',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
                       "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
                       "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
@@ -224,12 +203,8 @@ table_events_statements_history_long::m_share=
                       "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
                       "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
-                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
-                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
-  false, /* m_perpetual */
-  false, /* m_optional */
-  &m_share_state
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'Reserved, currently NULL.',"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT') comment 'Reserved, currently NULL.')") }
 };
 
 table_events_statements_common::table_events_statements_common
@@ -245,22 +220,22 @@ table_events_statements_common::table_events_statements_common
 void table_events_statements_common::make_row_part_1(PFS_events_statements *statement,
                                                      sql_digest_storage *digest)
 {
+  const char *base;
+  const char *safe_source_file;
   ulonglong timer_end;
 
   m_row_exists= false;
 
-  PFS_statement_class *unsafe= (PFS_statement_class*)
-    statement->m_event.m_class;
+  PFS_statement_class *unsafe= (PFS_statement_class*) statement->m_class;
   PFS_statement_class *klass= sanitize_statement_class(unsafe);
   if (unlikely(klass == NULL))
     return;
 
-  m_row.m_thread_internal_id= statement->m_event.m_thread_internal_id;
-  m_row.m_event_id= statement->m_event.m_event_id;
-  m_row.m_end_event_id= statement->m_event.m_end_event_id;
-  m_row.m_nesting_event_id= statement->m_event.m_nesting_event_id;
-  m_row.m_nesting_event_type= statement->m_event.m_nesting_event_type;
-  m_row.m_nesting_event_level= statement->m_event.m_nesting_event_level;
+  m_row.m_thread_internal_id= statement->m_thread_internal_id;
+  m_row.m_event_id= statement->m_event_id;
+  m_row.m_end_event_id= statement->m_end_event_id;
+  m_row.m_nesting_event_id= statement->m_nesting_event_id;
+  m_row.m_nesting_event_type= statement->m_nesting_event_type;
 
   if (m_row.m_end_event_id == 0)
   {
@@ -268,10 +243,10 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
   }
   else
   {
-    timer_end= statement->m_event.m_timer_end;
+    timer_end= statement->m_timer_end;
   }
 
-  m_normalizer->to_pico(statement->m_event.m_timer_start, timer_end,
+  m_normalizer->to_pico(statement->m_timer_start, timer_end,
                       & m_row.m_timer_start, & m_row.m_timer_end, & m_row.m_timer_wait);
   m_row.m_lock_time= statement->m_lock_time * MICROSEC_TO_PICOSEC;
 
@@ -312,18 +287,15 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
   if (m_row.m_current_schema_name_length > 0)
     memcpy(m_row.m_current_schema_name, statement->m_current_schema_name, m_row.m_current_schema_name_length);
 
-  m_row.m_object_type= statement->m_sp_type;
+  safe_source_file= statement->m_source_file;
+  if (unlikely(safe_source_file == NULL))
+    return;
 
-  m_row.m_schema_name_length= statement->m_schema_name_length;
-  if (m_row.m_schema_name_length > 0)
-    memcpy(m_row.m_schema_name, statement->m_schema_name, m_row.m_schema_name_length);
-
-  m_row.m_object_name_length= statement->m_object_name_length;
-  if (m_row.m_object_name_length > 0)
-    memcpy(m_row.m_object_name, statement->m_object_name, m_row.m_object_name_length);
-
-  /* Disable source file and line to avoid stale __FILE__ pointers. */
-  m_row.m_source_length= 0;
+  base= base_name(safe_source_file);
+  m_row.m_source_length= (uint)my_snprintf(m_row.m_source, sizeof(m_row.m_source),
+                                           "%s:%d", base, statement->m_source_line);
+  if (m_row.m_source_length > sizeof(m_row.m_source))
+    m_row.m_source_length= sizeof(m_row.m_source);
 
   memcpy(m_row.m_message_text, statement->m_message_text, sizeof(m_row.m_message_text));
   m_row.m_sql_errno= statement->m_sql_errno;
@@ -347,7 +319,6 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
   m_row.m_sort_scan= statement->m_sort_scan;
   m_row.m_no_index_used= statement->m_no_index_used;
   m_row.m_no_good_index_used= statement->m_no_good_index_used;
-
   /*
     Making a copy of digest storage.
   */
@@ -356,6 +327,7 @@ void table_events_statements_common::make_row_part_1(PFS_events_statements *stat
   m_row_exists= true;
   return;
 }
+
 
 void table_events_statements_common::make_row_part_2(const sql_digest_storage *digest)
 {
@@ -398,7 +370,7 @@ int table_events_statements_common::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  assert(table->s->null_bytes == 3);
+  DBUG_ASSERT(table->s->null_bytes == 3);
   buf[0]= 0;
   buf[1]= 0;
   buf[2]= 0;
@@ -473,30 +445,18 @@ int table_events_statements_common::read_row_values(TABLE *table,
         break;
       case 12: /* CURRENT_SCHEMA */
         if (m_row.m_current_schema_name_length)
-          set_field_varchar_utf8(f, m_row.m_current_schema_name,
-                                 m_row.m_current_schema_name_length);
+          set_field_varchar_utf8(f, m_row.m_current_schema_name, m_row.m_current_schema_name_length);
         else
           f->set_null();
         break;
-     case 13: /* OBJECT_TYPE */
-        if (m_row.m_object_name_length > 0)
-          set_field_object_type(f, m_row.m_object_type);
-        else
-          f->set_null();
+      case 13: /* OBJECT_TYPE */
+        f->set_null();
         break;
       case 14: /* OBJECT_SCHEMA */
-        if (m_row.m_schema_name_length)
-          set_field_varchar_utf8(f, m_row.m_schema_name,
-                                 m_row.m_schema_name_length);
-        else
-          f->set_null();
+        f->set_null();
         break;
       case 15: /* OBJECT_NAME */
-        if (m_row.m_object_name_length)
-          set_field_varchar_utf8(f, m_row.m_object_name,
-                                 m_row.m_object_name_length);
-        else
-          f->set_null();
+        f->set_null();
         break;
       case 16: /* OBJECT_INSTANCE_BEGIN */
         f->set_null();
@@ -511,7 +471,7 @@ int table_events_statements_common::read_row_values(TABLE *table,
           f->set_null();
         break;
       case 19: /* MESSAGE_TEXT */
-        len= static_cast<uint>(strlen(m_row.m_message_text));
+        len= (uint)strlen(m_row.m_message_text);
         if (len)
           set_field_varchar_utf8(f, m_row.m_message_text, len);
         else
@@ -583,11 +543,8 @@ int table_events_statements_common::read_row_values(TABLE *table,
         else
           f->set_null();
         break;
-      case 40: /* NESTING_EVENT_LEVEL */
-          set_field_ulong(f, m_row.m_nesting_event_level);
-        break;
       default:
-        assert(false);
+        DBUG_ASSERT(false);
       }
     }
   }
@@ -620,36 +577,39 @@ int table_events_statements_current::rnd_next(void)
 {
   PFS_thread *pfs_thread;
   PFS_events_statements *statement;
-  bool has_more_thread= true;
 
   for (m_pos.set_at(&m_next_pos);
-       has_more_thread;
+       m_pos.m_index_1 < thread_max;
        m_pos.next_thread())
   {
-    pfs_thread= global_thread_container.get(m_pos.m_index_1, & has_more_thread);
-    if (pfs_thread != NULL)
+    pfs_thread= &thread_array[m_pos.m_index_1];
+
+    if (! pfs_thread->m_lock.is_populated())
     {
-      uint safe_events_statements_count= pfs_thread->m_events_statements_count;
-
-      if (safe_events_statements_count == 0)
-      {
-        /* Display the last top level statement, when completed */
-        if (m_pos.m_index_2 >= 1)
-          continue;
-      }
-      else
-      {
-        /* Display all pending statements, when in progress */
-        if (m_pos.m_index_2 >= safe_events_statements_count)
-          continue;
-      }
-
-      statement= &pfs_thread->m_statement_stack[m_pos.m_index_2];
-
-      make_row(pfs_thread, statement);
-      m_next_pos.set_after(&m_pos);
-      return 0;
+      /* This thread does not exist */
+      continue;
     }
+
+    uint safe_events_statements_count= pfs_thread->m_events_statements_count;
+
+    if (safe_events_statements_count == 0)
+    {
+      /* Display the last top level statement, when completed */
+      if (m_pos.m_index_2 >= 1)
+        continue;
+    }
+    else
+    {
+      /* Display all pending statements, when in progress */
+      if (m_pos.m_index_2 >= safe_events_statements_count)
+        continue;
+    }
+
+    statement= &pfs_thread->m_statement_stack[m_pos.m_index_2];
+
+    make_row(pfs_thread, statement);
+    m_next_pos.set_after(&m_pos);
+    return 0;
   }
 
   return HA_ERR_END_OF_FILE;
@@ -661,45 +621,44 @@ int table_events_statements_current::rnd_pos(const void *pos)
   PFS_events_statements *statement;
 
   set_position(pos);
+  DBUG_ASSERT(m_pos.m_index_1 < thread_max);
+  pfs_thread= &thread_array[m_pos.m_index_1];
 
-  pfs_thread= global_thread_container.get(m_pos.m_index_1);
-  if (pfs_thread != NULL)
+  if (! pfs_thread->m_lock.is_populated())
+    return HA_ERR_RECORD_DELETED;
+
+  uint safe_events_statements_count= pfs_thread->m_events_statements_count;
+
+  if (safe_events_statements_count == 0)
   {
-    uint safe_events_statements_count= pfs_thread->m_events_statements_count;
-
-    if (safe_events_statements_count == 0)
-    {
-      /* Display the last top level statement, when completed */
-      if (m_pos.m_index_2 >= 1)
-        return HA_ERR_RECORD_DELETED;
-    }
-    else
-    {
-      /* Display all pending statements, when in progress */
-      if (m_pos.m_index_2 >= safe_events_statements_count)
-        return HA_ERR_RECORD_DELETED;
-    }
-
-    assert(m_pos.m_index_2 < statement_stack_max);
-
-    statement= &pfs_thread->m_statement_stack[m_pos.m_index_2];
-
-    if (statement->m_event.m_class)
-    {
-      make_row(pfs_thread, statement);
-      return 0;
-    }
+    /* Display the last top level statement, when completed */
+    if (m_pos.m_index_2 >= 1)
+      return HA_ERR_RECORD_DELETED;
+  }
+  else
+  {
+    /* Display all pending statements, when in progress */
+    if (m_pos.m_index_2 >= safe_events_statements_count)
+      return HA_ERR_RECORD_DELETED;
   }
 
-  return HA_ERR_RECORD_DELETED;
+  DBUG_ASSERT(m_pos.m_index_2 < statement_stack_max);
+
+  statement= &pfs_thread->m_statement_stack[m_pos.m_index_2];
+
+  if (statement->m_class == NULL)
+    return HA_ERR_RECORD_DELETED;
+
+  make_row(pfs_thread, statement);
+  return 0;
 }
 
 void table_events_statements_current::make_row(PFS_thread *pfs_thread,
                                                PFS_events_statements *statement)
 {
   sql_digest_storage digest;
-  pfs_optimistic_state lock;
-  pfs_optimistic_state stmt_lock;
+  pfs_lock lock;
+  pfs_lock stmt_lock;
 
   digest.reset(m_token_array, MAX_DIGEST_STORAGE_SIZE);
   /* Protect this reader against thread termination. */
@@ -723,12 +682,6 @@ int table_events_statements_current::delete_all_rows(void)
 {
   reset_events_statements_current();
   return 0;
-}
-
-ha_rows
-table_events_statements_current::get_row_count(void)
-{
-  return global_thread_container.get_row_count() * statement_stack_max;
 }
 
 PFS_engine_table* table_events_statements_history::create(void)
@@ -757,40 +710,43 @@ int table_events_statements_history::rnd_next(void)
 {
   PFS_thread *pfs_thread;
   PFS_events_statements *statement;
-  bool has_more_thread= true;
 
   if (events_statements_history_per_thread == 0)
     return HA_ERR_END_OF_FILE;
 
   for (m_pos.set_at(&m_next_pos);
-       has_more_thread;
+       m_pos.m_index_1 < thread_max;
        m_pos.next_thread())
   {
-    pfs_thread= global_thread_container.get(m_pos.m_index_1, & has_more_thread);
-    if (pfs_thread != NULL)
+    pfs_thread= &thread_array[m_pos.m_index_1];
+
+    if (! pfs_thread->m_lock.is_populated())
     {
-      if (m_pos.m_index_2 >= events_statements_history_per_thread)
-      {
-        /* This thread does not have more (full) history */
-        continue;
-      }
+      /* This thread does not exist */
+      continue;
+    }
 
-      if ( ! pfs_thread->m_statements_history_full &&
-          (m_pos.m_index_2 >= pfs_thread->m_statements_history_index))
-      {
-        /* This thread does not have more (not full) history */
-        continue;
-      }
+    if (m_pos.m_index_2 >= events_statements_history_per_thread)
+    {
+      /* This thread does not have more (full) history */
+      continue;
+    }
 
-      statement= &pfs_thread->m_statements_history[m_pos.m_index_2];
+    if ( ! pfs_thread->m_statements_history_full &&
+        (m_pos.m_index_2 >= pfs_thread->m_statements_history_index))
+    {
+      /* This thread does not have more (not full) history */
+      continue;
+    }
 
-      if (statement->m_event.m_class)
-      {
-        make_row(pfs_thread, statement);
-        /* Next iteration, look for the next history in this thread */
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
+    statement= &pfs_thread->m_statements_history[m_pos.m_index_2];
+
+    if (statement->m_class != NULL)
+    {
+      make_row(pfs_thread, statement);
+      /* Next iteration, look for the next history in this thread */
+      m_next_pos.set_after(&m_pos);
+      return 0;
     }
   }
 
@@ -802,34 +758,34 @@ int table_events_statements_history::rnd_pos(const void *pos)
   PFS_thread *pfs_thread;
   PFS_events_statements *statement;
 
-  assert(events_statements_history_per_thread != 0);
+  DBUG_ASSERT(events_statements_history_per_thread != 0);
   set_position(pos);
+  DBUG_ASSERT(m_pos.m_index_1 < thread_max);
+  pfs_thread= &thread_array[m_pos.m_index_1];
 
-  pfs_thread= global_thread_container.get(m_pos.m_index_1);
-  if (pfs_thread != NULL)
-  {
-    assert(m_pos.m_index_2 < events_statements_history_per_thread);
+  if (! pfs_thread->m_lock.is_populated())
+    return HA_ERR_RECORD_DELETED;
 
-    if ( ! pfs_thread->m_statements_history_full &&
-        (m_pos.m_index_2 >= pfs_thread->m_statements_history_index))
-      return HA_ERR_RECORD_DELETED;
+  DBUG_ASSERT(m_pos.m_index_2 < events_statements_history_per_thread);
 
-    statement= &pfs_thread->m_statements_history[m_pos.m_index_2];
-    if (statement->m_event.m_class)
-    {
-      make_row(pfs_thread, statement);
-      return 0;
-    }
-  }
+  if ( ! pfs_thread->m_statements_history_full &&
+      (m_pos.m_index_2 >= pfs_thread->m_statements_history_index))
+    return HA_ERR_RECORD_DELETED;
 
-  return HA_ERR_RECORD_DELETED;
+  statement= &pfs_thread->m_statements_history[m_pos.m_index_2];
+
+  if (statement->m_class == NULL)
+    return HA_ERR_RECORD_DELETED;
+
+  make_row(pfs_thread, statement);
+  return 0;
 }
 
 void table_events_statements_history::make_row(PFS_thread *pfs_thread,
                                                PFS_events_statements *statement)
 {
   sql_digest_storage digest;
-  pfs_optimistic_state lock;
+  pfs_lock lock;
 
   digest.reset(m_token_array, MAX_DIGEST_STORAGE_SIZE);
   /* Protect this reader against thread termination. */
@@ -843,20 +799,13 @@ void table_events_statements_history::make_row(PFS_thread *pfs_thread,
     return;
   }
   table_events_statements_common::make_row_part_2(&digest);
-  return;
+  return; 
 }
-
 
 int table_events_statements_history::delete_all_rows(void)
 {
   reset_events_statements_history();
   return 0;
-}
-
-ha_rows
-table_events_statements_history::get_row_count(void)
-{
-  return events_statements_history_per_thread * global_thread_container.get_row_count();
 }
 
 PFS_engine_table* table_events_statements_history_long::create(void)
@@ -884,21 +833,21 @@ int table_events_statements_history_long::rnd_init(bool scan)
 int table_events_statements_history_long::rnd_next(void)
 {
   PFS_events_statements *statement;
-  uint limit;
+  size_t limit;
 
   if (events_statements_history_long_size == 0)
     return HA_ERR_END_OF_FILE;
 
   if (events_statements_history_long_full)
-    limit= static_cast<uint>(events_statements_history_long_size);
+    limit= events_statements_history_long_size;
   else
-    limit= events_statements_history_long_index.m_u32 % events_statements_history_long_size;
+    limit= events_statements_history_long_index % events_statements_history_long_size;
 
   for (m_pos.set_at(&m_next_pos); m_pos.m_index < limit; m_pos.next())
   {
     statement= &events_statements_history_long_array[m_pos.m_index];
 
-    if (statement->m_event.m_class)
+    if (statement->m_class != NULL)
     {
       make_row(statement);
       /* Next iteration, look for the next entry */
@@ -913,7 +862,7 @@ int table_events_statements_history_long::rnd_next(void)
 int table_events_statements_history_long::rnd_pos(const void *pos)
 {
   PFS_events_statements *statement;
-  uint limit;
+  size_t limit;
 
   if (events_statements_history_long_size == 0)
     return HA_ERR_RECORD_DELETED;
@@ -921,16 +870,16 @@ int table_events_statements_history_long::rnd_pos(const void *pos)
   set_position(pos);
 
   if (events_statements_history_long_full)
-    limit= static_cast<uint>(events_statements_history_long_size);
+    limit= events_statements_history_long_size;
   else
-    limit= events_statements_history_long_index.m_u32 % events_statements_history_long_size;
+    limit= events_statements_history_long_index % events_statements_history_long_size;
 
   if (m_pos.m_index >= limit)
     return HA_ERR_RECORD_DELETED;
 
   statement= &events_statements_history_long_array[m_pos.m_index];
 
-  if (!statement->m_event.m_class)
+  if (statement->m_class == NULL)
     return HA_ERR_RECORD_DELETED;
 
   make_row(statement);
@@ -952,11 +901,5 @@ int table_events_statements_history_long::delete_all_rows(void)
 {
   reset_events_statements_history_long();
   return 0;
-}
-
-ha_rows
-table_events_statements_history_long::get_row_count(void)
-{
-  return events_statements_history_long_size;
 }
 

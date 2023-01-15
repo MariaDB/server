@@ -695,62 +695,62 @@ DROP TABLE test.year; -- Unknown table 'test.year'
 DROP TABLE test.create; -- Unknown table 'test.create'
 CALL p2('CREATE FUNCTION $(VAR)() RETURNS OOPS');
 --------
-CREATE FUNCTION non_keyword() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION non_keyword() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION lpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION lpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION rpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION rpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION adddate() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION adddate() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
 CREATE FUNCTION substr() RETURNS OOPS; -- ..syntax.. near 'substr() RETURNS OOPS' 
 --------
 CREATE FUNCTION substring() RETURNS OOPS; -- ..syntax.. near 'substring() RETURNS OOP
 --------
-CREATE FUNCTION trim_oracle() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION trim_oracle() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION ascii() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION ascii() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
 CREATE FUNCTION replace() RETURNS OOPS; -- ..syntax.. near 'replace() RETURNS OOPS'
 --------
-CREATE FUNCTION weight_string() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION weight_string() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
 CREATE FUNCTION char() RETURNS OOPS; -- ..syntax.. near 'char() RETURNS OOPS' at
 --------
 CREATE FUNCTION trim() RETURNS OOPS; -- ..syntax.. near 'trim() RETURNS OOPS' at
 --------
-CREATE FUNCTION year() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION year() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
 CREATE FUNCTION create() RETURNS OOPS; -- ..syntax.. near 'create() RETURNS OOPS' 
 CALL p2('CREATE FUNCTION test.$(VAR)() RETURNS OOPS');
 --------
-CREATE FUNCTION test.non_keyword() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.non_keyword() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.lpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.lpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.rpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.rpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.adddate() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.adddate() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.substr() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.substr() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.substring() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.substring() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.trim_oracle() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.trim_oracle() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.ascii() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.ascii() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.replace() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.replace() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.weight_string() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.weight_string() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.char() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.char() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.trim() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.trim() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.year() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.year() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 --------
-CREATE FUNCTION test.create() RETURNS OOPS; -- Unknown data type: 'OOPS'
+CREATE FUNCTION test.create() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
 CALL p2('DROP FUNCTION $(VAR)');
 --------
 DROP FUNCTION non_keyword; -- This command is not supported in the pre

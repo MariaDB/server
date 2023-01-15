@@ -34,17 +34,22 @@ UNIV_INLINE
 roll_ptr_t
 trx_undo_build_roll_ptr(
 /*====================*/
-	bool	is_insert,	/*!< in: TRUE if insert undo log */
+	ibool	is_insert,	/*!< in: TRUE if insert undo log */
 	ulint	rseg_id,	/*!< in: rollback segment id */
-	uint32_t page_no,	/*!< in: page number */
-	uint16_t offset)		/*!< in: offset of the undo entry within page */
+	ulint	page_no,	/*!< in: page number */
+	ulint	offset)		/*!< in: offset of the undo entry within page */
 {
-  compile_time_assert(DATA_ROLL_PTR_LEN == 7);
-  ut_ad(rseg_id < TRX_SYS_N_RSEGS);
+	roll_ptr_t	roll_ptr;
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
+	ut_ad(is_insert == 0 || is_insert == 1);
+	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
+	ut_ad(offset < 65536);
 
-  return roll_ptr_t{is_insert} << ROLL_PTR_INSERT_FLAG_POS |
-    roll_ptr_t{rseg_id} << ROLL_PTR_RSEG_ID_POS |
-    roll_ptr_t{page_no} << ROLL_PTR_PAGE_POS | offset;
+	roll_ptr = (roll_ptr_t) is_insert << ROLL_PTR_INSERT_FLAG_POS
+		| (roll_ptr_t) rseg_id << ROLL_PTR_RSEG_ID_POS
+		| (roll_ptr_t) page_no << ROLL_PTR_PAGE_POS
+		| offset;
+	return(roll_ptr);
 }
 
 /***********************************************************************//**
@@ -54,32 +59,35 @@ void
 trx_undo_decode_roll_ptr(
 /*=====================*/
 	roll_ptr_t	roll_ptr,	/*!< in: roll pointer */
-	bool*		is_insert,	/*!< out: TRUE if insert undo log */
+	ibool*		is_insert,	/*!< out: TRUE if insert undo log */
 	ulint*		rseg_id,	/*!< out: rollback segment id */
-	uint32_t*	page_no,	/*!< out: page number */
-	uint16_t*	offset)		/*!< out: offset of the undo
+	ulint*		page_no,	/*!< out: page number */
+	ulint*		offset)		/*!< out: offset of the undo
 					entry within page */
 {
-  compile_time_assert(DATA_ROLL_PTR_LEN == 7);
-  ut_ad(roll_ptr < (1ULL << 56));
-  *offset= static_cast<uint16_t>(roll_ptr);
-  *page_no= static_cast<uint32_t>(roll_ptr >> 16);
-  *rseg_id= static_cast<ulint>(roll_ptr >> 48 & 0x7F);
-  *is_insert= static_cast<bool>(roll_ptr >> 55);
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
+	ut_ad(roll_ptr < (1ULL << 56));
+	*offset = (ulint) roll_ptr & 0xFFFF;
+	roll_ptr >>= 16;
+	*page_no = (ulint) roll_ptr & 0xFFFFFFFF;
+	roll_ptr >>= 32;
+	*rseg_id = (ulint) roll_ptr & 0x7F;
+	roll_ptr >>= 7;
+	*is_insert = (ibool) roll_ptr; /* TRUE==1 */
 }
 
 /***********************************************************************//**
-Determine if DB_ROLL_PTR is of the insert type.
-@return true if insert */
+Returns TRUE if the roll pointer is of the insert type.
+@return TRUE if insert undo log */
 UNIV_INLINE
-bool
+ibool
 trx_undo_roll_ptr_is_insert(
 /*========================*/
 	roll_ptr_t	roll_ptr)	/*!< in: roll pointer */
 {
 	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	ut_ad(roll_ptr < (1ULL << (ROLL_PTR_INSERT_FLAG_POS + 1)));
-	return static_cast<bool>(roll_ptr >> ROLL_PTR_INSERT_FLAG_POS);
+	return((ibool) (roll_ptr >> ROLL_PTR_INSERT_FLAG_POS));
 }
 
 /***********************************************************************//**
@@ -100,13 +108,14 @@ trx_undo_trx_id_is_insert(
 @param[in,out]	mtr		mini-transaction
 @return pointer to page x-latched */
 UNIV_INLINE
-buf_block_t*
+page_t*
 trx_undo_page_get(const page_id_t page_id, mtr_t* mtr)
 {
 	buf_block_t*	block = buf_page_get(page_id, 0, RW_X_LATCH, mtr);
 
 	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
-	return block;
+
+	return(buf_block_get_frame(block));
 }
 
 /** Gets an undo log page and s-latches it.
@@ -114,14 +123,14 @@ trx_undo_page_get(const page_id_t page_id, mtr_t* mtr)
 @param[in,out]	mtr		mini-transaction
 @return pointer to page s-latched */
 UNIV_INLINE
-buf_block_t*
+page_t*
 trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr)
 {
 	buf_block_t*	block = buf_page_get(page_id, 0, RW_S_LATCH, mtr);
 
 	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
-	return block;
+	return(buf_block_get_frame(block));
 }
 
 /** Determine the end offset of undo log records of an undo log page.
@@ -130,29 +139,46 @@ trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr)
 @param[in]	offset		undo log header offset
 @return end offset */
 inline
-uint16_t trx_undo_page_get_end(const buf_block_t *undo_page, uint32_t page_no,
-                               uint16_t offset)
+uint16_t
+trx_undo_page_get_end(const page_t* undo_page, ulint page_no, ulint offset)
 {
-  if (page_no == undo_page->page.id().page_no())
-    if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG + offset +
-					undo_page->frame))
-      return end;
+	if (page_no == page_get_page_no(undo_page)) {
+		if (uint16_t end = mach_read_from_2(TRX_UNDO_NEXT_LOG
+						    + offset + undo_page)) {
+			return end;
+		}
+	}
 
-  return mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
-			  undo_page->frame);
+	return mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+				+ undo_page);
 }
 
-/** Get the next record in an undo log.
-@param[in]      undo_page       undo log page
-@param[in]      rec             undo record offset in the page
-@param[in]      page_no         undo log header page number
-@param[in]      offset          undo log header offset on page
-@return undo log record, the page latched, NULL if none */
-inline trx_undo_rec_t*
-trx_undo_page_get_next_rec(const buf_block_t *undo_page, uint16_t rec,
-                           uint32_t page_no, uint16_t offset)
+/******************************************************************//**
+Returns the next undo log record on the page in the specified log, or
+NULL if none exists.
+@return pointer to record, NULL if none */
+UNIV_INLINE
+trx_undo_rec_t*
+trx_undo_page_get_next_rec(
+/*=======================*/
+	trx_undo_rec_t*	rec,	/*!< in: undo log record */
+	ulint		page_no,/*!< in: undo log header page number */
+	ulint		offset)	/*!< in: undo log header offset on page */
 {
-  uint16_t end= trx_undo_page_get_end(undo_page, page_no, offset);
-  uint16_t next= mach_read_from_2(undo_page->frame + rec);
-  return next == end ? nullptr : undo_page->frame + next;
+	page_t*	undo_page;
+	ulint	end;
+	ulint	next;
+
+	undo_page = (page_t*) ut_align_down(rec, srv_page_size);
+
+	end = trx_undo_page_get_end(undo_page, page_no, offset);
+
+	next = mach_read_from_2(rec);
+
+	if (next == end) {
+
+		return(NULL);
+	}
+
+	return(undo_page + next);
 }

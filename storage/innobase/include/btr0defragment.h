@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2020, MariaDB Corporation.
+Copyright (C) 2014, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,6 +29,21 @@ this program; if not, write to the Free Software Foundation, Inc.,
 extern Atomic_counter<ulint> btr_defragment_compression_failures;
 extern Atomic_counter<ulint> btr_defragment_failures;
 extern Atomic_counter<ulint> btr_defragment_count;
+
+/** Item in the work queue for btr_degrament_thread. */
+struct btr_defragment_item_t
+{
+	btr_pcur_t*	pcur;		/* persistent cursor where
+					btr_defragment_n_pages should start */
+	os_event_t	event;		/* if not null, signal after work
+					is done */
+	bool		removed;	/* Mark an item as removed */
+	ulonglong	last_processed;	/* timestamp of last time this index
+					is processed by defragment thread */
+
+	btr_defragment_item_t(btr_pcur_t* pcur, os_event_t event);
+	~btr_defragment_item_t();
+};
 
 /******************************************************************//**
 Initialize defragmentation. */
@@ -69,7 +84,12 @@ void
 btr_defragment_save_defrag_stats_if_needed(
 	dict_index_t*	index);	/*!< in: index */
 
-/* Stop defragmentation.*/
-void btr_defragment_end();
-extern bool btr_defragment_active;
+/** Merge consecutive b-tree pages into fewer pages to defragment indexes */
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(btr_defragment_thread)(void*);
+
+/** Whether btr_defragment_thread is active */
+extern bool btr_defragment_thread_active;
+
 #endif

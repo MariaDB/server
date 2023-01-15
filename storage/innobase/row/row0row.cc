@@ -437,6 +437,7 @@ row_build_low(
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(dict_index_is_clust(index));
+	ut_ad(!mutex_own(&trx_sys.mutex));
 	ut_ad(!col_map || col_table);
 
 	if (!offsets) {
@@ -767,7 +768,7 @@ row_rec_to_index_entry_impl(
 	      (missing merge_threshold column) is acceptable. */
 	      || (!index->table->is_temporary()
 		  && index->table->id == DICT_INDEXES_ID
-		  && rec_len + 1 == dict_index_get_n_fields(index)));
+		  && rec_len == dict_index_get_n_fields(index) - 1));
 
 	ulint i;
 	for (i = 0; i < (mblob ? index->first_user_field() : rec_len);

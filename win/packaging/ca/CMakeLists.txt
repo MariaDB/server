@@ -14,9 +14,20 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 INCLUDE_DIRECTORIES(${WIX_DIR}/../SDK/${WIX_MSVC_SUFFIX}/inc)
-SET(WIXCA_SOURCES CustomAction.cpp CustomAction.def)
+SET(WIXCA_SOURCES CustomAction.cpp CustomAction.def ${CMAKE_CURRENT_BINARY_DIR}/symlinks.cc)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql ${CMAKE_CURRENT_SOURCE_DIR})
+
+INCLUDE(symlinks)
+LIST(LENGTH MARIADB_SYMLINK_FROMS LEN)
+MATH(EXPR max_index "${LEN}-1")
+SET(ALL_SYMLINKS "")
+FOREACH(i RANGE 0 ${max_index})
+  LIST(GET MARIADB_SYMLINK_FROMS ${i} src)
+  LIST(GET MARIADB_SYMLINK_TOS ${i} dst)
+  STRING(APPEND ALL_SYMLINKS "{L\"${src}\",L\"${dst}\"},\n")
+ENDFOREACH()
+CONFIGURE_FILE(symlinks.cc.in symlinks.cc)
 
 # Custom action should not depend on C runtime, since we do not know if CRT is installed.
 FORCE_STATIC_CRT()

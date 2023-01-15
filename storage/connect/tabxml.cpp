@@ -710,7 +710,7 @@ PTDB TDBXML::Clone(PTABS t)
 /***********************************************************************/
 const CHARSET_INFO *TDBXML::data_charset()
 {
-	return &my_charset_utf8mb3_general_ci;
+	return &my_charset_utf8_general_ci;
 }	// end of data_charset
 
 /***********************************************************************/

@@ -285,7 +285,7 @@ int TDBEXT::Decode(PCSZ txt, char *buf, size_t n)
 	uint   dummy_errors;
 	uint32 len = copy_and_convert(buf, n, &my_charset_latin1,
 		txt, strlen(txt),
-		&my_charset_utf8mb3_general_ci,
+		&my_charset_utf8_general_ci,
 		&dummy_errors);
 	buf[len] = '\0';
 	return 0;

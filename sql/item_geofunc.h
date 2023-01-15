@@ -26,10 +26,6 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
-#include "sql_type_geom.h"
-#include "item.h"
-#include "gstream.h"
-#include "spatial.h"
 #include "gcalc_slicescan.h"
 #include "gcalc_tools.h"
 
@@ -57,8 +53,7 @@ protected:
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count == 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
-                                                            args[0]);
+    return args[0]->check_type_or_binary(func_name(), &type_handler_geometry);
   }
 public:
   Item_real_func_args_geometry(THD *thd, Item *a)
@@ -74,8 +69,7 @@ class Item_long_func_args_geometry: public Item_long_func
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count == 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
-                                                            args[0]);
+    return args[0]->check_type_or_binary(func_name(), &type_handler_geometry);
   }
 protected:
   String value;
@@ -95,8 +89,7 @@ protected:
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count == 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
-                                                            args[0]);
+    return args[0]->check_type_or_binary(func_name(), &type_handler_geometry);
   }
 public:
   Item_bool_func_args_geometry(THD *thd, Item *a)
@@ -113,8 +106,7 @@ protected:
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count >= 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
-                                                            args[0]);
+    return args[0]->check_type_or_binary(func_name(), &type_handler_geometry);
   }
 public:
   Item_str_ascii_func_args_geometry(THD *thd, Item *a)
@@ -135,8 +127,7 @@ protected:
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count >= 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
-                                                            args[0]);
+    return args[0]->check_type_or_binary(func_name(), &type_handler_geometry);
   }
 public:
   Item_binary_func_args_geometry(THD *thd, Item *a)
@@ -153,8 +144,7 @@ protected:
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count >= 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
-                                                            args[0]);
+    return args[0]->check_type_or_binary(func_name(), &type_handler_geometry);
   }
 public:
   Item_geometry_func_args_geometry(THD *thd, Item *a)
@@ -173,8 +163,7 @@ protected:
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count >= 2);
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(),
-                                                             args, 0, 2);
+    return check_argument_types_or_binary(&type_handler_geometry, 0, 2);
   }
 public:
   Item_real_func_args_geometry_geometry(THD *thd, Item *a, Item *b)
@@ -192,8 +181,7 @@ protected:
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count >= 2);
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(),
-                                                             args, 0, 2);
+    return check_argument_types_or_binary(&type_handler_geometry, 0, 2);
   }
 public:
   Item_bool_func_args_geometry_geometry(THD *thd, Item *a, Item *b, Item *c)
@@ -222,9 +210,8 @@ class Item_func_geometry_from_wkb: public Item_geometry_func
 {
   bool check_arguments() const
   {
-    return
-      Type_handler_geometry::check_type_geom_or_binary(func_name(), args[0]) ||
-      check_argument_types_can_return_int(1, MY_MIN(2, arg_count));
+    return args[0]->check_type_or_binary(func_name(), &type_handler_geometry) ||
+           check_argument_types_can_return_int(1, MY_MIN(2, arg_count));
   }
 public:
   Item_func_geometry_from_wkb(THD *thd, Item *a): Item_geometry_func(thd, a) {}
@@ -376,10 +363,7 @@ public:
    :Item_geometry_func_args_geometry(thd, a) {}
   const char *func_name() const { return "st_centroid"; }
   String *val_str(String *);
-  const Type_handler *type_handler() const
-  {
-    return &type_handler_point;
-  }
+  Field::geometry_type get_geometry_type() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_centroid>(thd, this); }
 };
@@ -391,10 +375,7 @@ public:
    :Item_geometry_func_args_geometry(thd, a) {}
   const char *func_name() const { return "st_envelope"; }
   String *val_str(String *);
-  const Type_handler *type_handler() const
-  {
-    return &type_handler_polygon;
-  }
+  Field::geometry_type get_geometry_type() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_envelope>(thd, this); }
 };
@@ -444,10 +425,7 @@ public:
     Item_geometry_func(thd, a, b, srid) {}
   const char *func_name() const { return "point"; }
   String *val_str(String *);
-  const Type_handler *type_handler() const
-  {
-    return &type_handler_point;
-  }
+  Field::geometry_type get_geometry_type() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_point>(thd, this); }
 };
@@ -515,8 +493,7 @@ class Item_func_spatial_collection: public Item_geometry_func
 {
   bool check_arguments() const
   {
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(), args,
-                                                             0, arg_count);
+    return check_argument_types_or_binary(&type_handler_geometry, 0, arg_count);
   }
   enum Geometry::wkbType coll_type; 
   enum Geometry::wkbType item_type;
@@ -547,110 +524,11 @@ public:
     }
     return FALSE;
   }
-};
-
-
-class Item_func_geometrycollection: public Item_func_spatial_collection
-{
-public:
-  Item_func_geometrycollection(THD *thd, List<Item> &list)
-   :Item_func_spatial_collection(thd, list,
-                                 Geometry::wkb_geometrycollection,
-                                 Geometry::wkb_point)
-  { }
-  const Type_handler *type_handler() const
-  {
-    return &type_handler_geometrycollection;
-  }
+ 
   const char *func_name() const { return "geometrycollection"; }
   Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_geometrycollection>(thd, this); }
+  { return get_item_copy<Item_func_spatial_collection>(thd, this); }
 };
-
-
-class Item_func_linestring: public Item_func_spatial_collection
-{
-public:
-  Item_func_linestring(THD *thd, List<Item> &list)
-   :Item_func_spatial_collection(thd, list,
-                                 Geometry::wkb_linestring,
-                                 Geometry::wkb_point)
-  { }
-  const Type_handler *type_handler() const { return &type_handler_linestring; }
-  const char *func_name() const { return "linestring"; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_linestring>(thd, this); }
-};
-
-
-class Item_func_polygon: public Item_func_spatial_collection
-{
-public:
-  Item_func_polygon(THD *thd, List<Item> &list)
-   :Item_func_spatial_collection(thd, list,
-                                 Geometry::wkb_polygon,
-                                 Geometry::wkb_linestring)
-  { }
-  const Type_handler *type_handler() const { return &type_handler_polygon; }
-  const char *func_name() const { return "polygon"; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_polygon>(thd, this); }
-};
-
-
-class Item_func_multilinestring: public Item_func_spatial_collection
-{
-public:
-  Item_func_multilinestring(THD *thd, List<Item> &list)
-   :Item_func_spatial_collection(thd, list,
-                                 Geometry::wkb_multilinestring,
-                                 Geometry::wkb_linestring)
-  { }
-  const Type_handler *type_handler() const
-  {
-    return &type_handler_multilinestring;
-  }
-  const char *func_name() const { return "multilinestring"; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_multilinestring>(thd, this); }
-};
-
-
-class Item_func_multipoint: public Item_func_spatial_collection
-{
-public:
-  Item_func_multipoint(THD *thd, List<Item> &list)
-   :Item_func_spatial_collection(thd, list,
-                                 Geometry::wkb_multipoint,
-                                 Geometry::wkb_point)
-  { }
-  const Type_handler *type_handler() const
-  {
-    return &type_handler_multipoint;
-  }
-  const char *func_name() const { return "multipoint"; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_multipoint>(thd, this); }
-};
-
-
-class Item_func_multipolygon: public Item_func_spatial_collection
-{
-public:
-  Item_func_multipolygon(THD *thd, List<Item> &list)
-   :Item_func_spatial_collection(thd, list,
-                                 Geometry::wkb_multipolygon,
-                                 Geometry::wkb_polygon)
-  { }
-  const Type_handler *type_handler() const
-  {
-    return &type_handler_multipolygon;
-  }
-  const char *func_name() const { return "multipolygon"; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_multipolygon>(thd, this); }
-};
-
 
 
 /*
@@ -668,8 +546,7 @@ protected:
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count >= 2);
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(),
-                                                             args, 0, 2);
+    return check_argument_types_or_binary(&type_handler_geometry, 0, 2);
   }
 public:
   Item_func_spatial_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
@@ -764,8 +641,7 @@ class Item_func_spatial_operation: public Item_geometry_func
   bool check_arguments() const
   {
     DBUG_ASSERT(arg_count >= 2);
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(),
-                                                             args, 0, 2);
+    return check_argument_types_or_binary(&type_handler_geometry, 0, 2);
   }
 public:
   Gcalc_function::op_type spatial_op;
@@ -1083,10 +959,7 @@ public:
    :Item_geometry_func_args_geometry(thd, a) {}
   const char *func_name() const { return "st_pointonsurface"; }
   String *val_str(String *);
-  const Type_handler *type_handler() const
-  {
-    return &type_handler_point;
-  }
+  Field::geometry_type get_geometry_type() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_pointonsurface>(thd, this); }
 };
@@ -1112,12 +985,10 @@ class Item_func_gis_debug: public Item_long_func
 
 
 #define GEOM_NEW(thd, obj_constructor) new (thd->mem_root) obj_constructor
-#define GEOM_TYPE(x) (x)
 
 #else /*HAVE_SPATIAL*/
 
 #define GEOM_NEW(thd, obj_constructor) NULL
-#define GEOM_TYPE(x) NULL
 
 #endif /*HAVE_SPATIAL*/
 #endif /* ITEM_GEOFUNC_INCLUDED */

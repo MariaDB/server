@@ -1309,16 +1309,3 @@ DROP TABLE t1;
 #
 # End of 10.2 tests
 #
-#
-# Start of 10.5 tests
-#
-#
-# MDEV-20818 ER_CRASHED_ON_USAGE or Assertion `length <= column->length' failed in write_block_record on temporary table
-#
-SELECT 'foo' AS f UNION SELECT BINARY( UpdateXML('<a></a>', '/a', '<b></b>')) AS f;
-f
-foo
-<b></b>
-#
-# Start of 10.5 tests
-#

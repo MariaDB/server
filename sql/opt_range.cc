@@ -277,6 +277,7 @@ public:
     pointer to such SEL_TREE instead of NULL)
   */
   Mem_root_array<SEL_ARG *, true> keys;
+
   key_map keys_map;        /* bitmask of non-NULL elements in keys */
 
   /*
@@ -398,28 +399,16 @@ static SEL_ARG *key_or(RANGE_OPT_PARAM *param,
 static SEL_ARG *key_and(RANGE_OPT_PARAM *param,
                         SEL_ARG *key1, SEL_ARG *key2,
                         uint clone_flag);
-static SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param, uint keyno,
-                                  SEL_ARG *key1, SEL_ARG *key2);
-static SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
-                                   SEL_ARG *key1, SEL_ARG *key2,
-                                   uint clone_flag);
 static bool get_range(SEL_ARG **e1,SEL_ARG **e2,SEL_ARG *root1);
 bool get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
                     SEL_ARG *key_tree, uchar *min_key,uint min_key_flag,
                     uchar *max_key,uint max_key_flag);
 static bool eq_tree(SEL_ARG* a,SEL_ARG *b);
 
-SEL_ARG null_element(SEL_ARG::IMPOSSIBLE);
+static SEL_ARG null_element(SEL_ARG::IMPOSSIBLE);
 static bool null_part_in_key(KEY_PART *key_part, const uchar *key,
                              uint length);
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
-
-static
-SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
-                                      SEL_ARG *sel_arg);
-static
-bool sel_arg_and_weight_heuristic(RANGE_OPT_PARAM *param, SEL_ARG *key1,
-                                  SEL_ARG *key2);
 
 #include "opt_range_mrr.cc"
 
@@ -437,9 +426,8 @@ static bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
 static int and_range_trees(RANGE_OPT_PARAM *param,
                            SEL_TREE *tree1, SEL_TREE *tree2,
                            SEL_TREE *result);
-static bool remove_nonrange_trees(PARAM *param, SEL_TREE *tree);
-static void restore_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree,
-                                   SEL_ARG **backup);
+static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree);
+
 static void print_key_value(String *out, const KEY_PART_INFO *key_part,
                             const uchar* key, uint length);
 static void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
@@ -719,8 +707,7 @@ int SEL_IMERGE::or_sel_tree_with_checks(RANGE_OPT_PARAM *param,
           SEL_ARG *key1= (*or_tree)->keys[key_no];
           SEL_ARG *key2= tree->keys[key_no];
           key2->incr_refs();
-          if ((result->keys[key_no]= key_or_with_limit(param, key_no, key1,
-                                                       key2)))
+          if ((result->keys[key_no]= key_or(param, key1, key2)))
           {
             
             result_keys.set_bit(key_no);
@@ -1288,8 +1275,9 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   if (!no_alloc && !parent_alloc)
   {
     // Allocates everything through the internal memroot
-    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(&alloc, "QUICK_RANGE_SELECT",
+                   thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
     thd->mem_root= &alloc;
   }
   else
@@ -1297,7 +1285,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   file= head->file;
   record= head->record[0];
 
-  my_init_dynamic_array2(PSI_INSTRUMENT_ME, &ranges, sizeof(QUICK_RANGE*),
+  my_init_dynamic_array2(&ranges, sizeof(QUICK_RANGE*),
                          thd->alloc(sizeof(QUICK_RANGE*) * 16), 16, 16,
                          MYF(MY_THREAD_SPECIFIC));
 
@@ -1358,7 +1346,7 @@ QUICK_RANGE_SELECT::~QUICK_RANGE_SELECT()
       {
         DBUG_PRINT("info", ("Freeing separate handler %p (free: %d)", file,
                             free_file));
-        file->ha_external_unlock(current_thd);
+        file->ha_external_lock(current_thd, F_UNLCK);
         file->ha_close();
         delete file;
       }
@@ -1383,8 +1371,9 @@ QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param, TABLE *table)
   DBUG_ENTER("QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT");
   index= MAX_KEY;
   head= table;
-  init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                 thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&alloc, "QUICK_INDEX_SORT_SELECT",
+                 thd->variables.range_alloc_block_size, 0,
+                 MYF(MY_THREAD_SPECIFIC));
   DBUG_VOID_RETURN;
 }
 
@@ -1405,7 +1394,8 @@ bool
 QUICK_INDEX_SORT_SELECT::push_quick_back(QUICK_RANGE_SELECT *quick_sel_range)
 {
   DBUG_ENTER("QUICK_INDEX_SORT_SELECT::push_quick_back");
-  if (head->file->is_clustering_key(quick_sel_range->index))
+  if (head->file->primary_key_is_clustered() &&
+      quick_sel_range->index == head->s->primary_key)
   {
    /*
      A quick_select over a clustered primary key is handled specifically
@@ -1453,8 +1443,9 @@ QUICK_ROR_INTERSECT_SELECT::QUICK_ROR_INTERSECT_SELECT(THD *thd_param,
   head= table;
   record= head->record[0];
   if (!parent_alloc)
-    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(&alloc, "QUICK_ROR_INTERSECT_SELECT",
+                   thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
   else
     bzero(&alloc, sizeof(MEM_ROOT));
   last_rowid= (uchar*) alloc_root(parent_alloc? parent_alloc : &alloc,
@@ -1548,7 +1539,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
 
   if (init())
   {
-    file->ha_external_unlock(thd);
+    file->ha_external_lock(thd, F_UNLCK);
     file->ha_close();
     goto failure;
   }
@@ -1577,7 +1568,7 @@ end:
   {
     if (!reuse_handler)
     {
-      file->ha_external_unlock(thd);
+      file->ha_external_lock(thd, F_UNLCK);
       file->ha_close();
       goto failure;
     }
@@ -1730,8 +1721,9 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
   head= table;
   rowid_length= table->file->ref_length;
   record= head->record[0];
-  init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                 thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&alloc, "QUICK_ROR_UNION_SELECT",
+                 thd->variables.range_alloc_block_size, 0,
+                 MYF(MY_THREAD_SPECIFIC));
   thd_param->mem_root= &alloc;
 }
 
@@ -1886,13 +1878,9 @@ SEL_ARG::SEL_ARG(SEL_ARG &arg) :Sql_alloc()
   next_key_part=arg.next_key_part;
   max_part_no= arg.max_part_no;
   use_count=1; elements=1;
-  weight=1;
   next= 0;
   if (next_key_part)
-  {
-    next_key_part->increment_use_count(1);
-    weight += next_key_part->weight;
-  }
+    ++next_key_part->use_count;
 }
 
 
@@ -1901,9 +1889,7 @@ inline void SEL_ARG::make_root()
   left=right= &null_element;
   color=BLACK;
   next=prev=0;
-  use_count=0;
-  elements=1;
-  weight= 1 + (next_key_part? next_key_part->weight : 0);
+  use_count=0; elements=1;
 }
 
 SEL_ARG::SEL_ARG(Field *f,const uchar *min_value_arg,
@@ -1911,7 +1897,7 @@ SEL_ARG::SEL_ARG(Field *f,const uchar *min_value_arg,
   :min_flag(0), max_flag(0), maybe_flag(0), maybe_null(f->real_maybe_null()),
    elements(1), use_count(1), field(f), min_value((uchar*) min_value_arg),
    max_value((uchar*) max_value_arg), next(0),prev(0),
-   next_key_part(0), color(BLACK), type(KEY_RANGE), weight(1)
+   next_key_part(0), color(BLACK), type(KEY_RANGE)
 {
   left=right= &null_element;
   max_part_no= 1;
@@ -1923,7 +1909,7 @@ SEL_ARG::SEL_ARG(Field *field_,uint8 part_,
   :min_flag(min_flag_),max_flag(max_flag_),maybe_flag(maybe_flag_),
    part(part_),maybe_null(field_->real_maybe_null()), elements(1),use_count(1),
    field(field_), min_value(min_value_), max_value(max_value_),
-   next(0),prev(0),next_key_part(0),color(BLACK),type(KEY_RANGE), weight(1)
+   next(0),prev(0),next_key_part(0),color(BLACK),type(KEY_RANGE)
 {
   max_part_no= part+1;
   left=right= &null_element;
@@ -2082,7 +2068,6 @@ SEL_ARG *SEL_ARG::clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent,
   tmp->color= color;
   tmp->elements= this->elements;
   tmp->max_part_no= max_part_no;
-  tmp->weight= weight;
   return tmp;
 }
 
@@ -2586,7 +2571,7 @@ static int fill_used_fields_bitmap(PARAM *param)
   bitmap_union(&param->needed_fields, table->write_set);
 
   pk= param->table->s->primary_key;
-  if (param->table->file->pk_is_clustering_key(pk))
+  if (pk != MAX_KEY && param->table->file->primary_key_is_clustered())
   {
     /* The table uses clustered PK and it is not internally generated */
     KEY_PART_INFO *key_part= param->table->key_info[pk].key_part;
@@ -2623,10 +2608,10 @@ static int fill_used_fields_bitmap(PARAM *param)
     In the table struct the following information is updated:
       quick_keys           - Which keys can be used
       quick_rows           - How many rows the key matches
-      opt_range_condition_rows - E(# rows that will satisfy the table condition)
+      quick_condition_rows - E(# rows that will satisfy the table condition)
 
   IMPLEMENTATION
-    opt_range_condition_rows value is obtained as follows:
+    quick_condition_rows value is obtained as follows:
       
       It is a minimum of E(#output rows) for all considered table access
       methods (range and index_merge accesses over various indexes).
@@ -2650,10 +2635,10 @@ static int fill_used_fields_bitmap(PARAM *param)
     which is currently produced.
 
   TODO
-   * Change the value returned in opt_range_condition_rows from a pessimistic
+   * Change the value returned in quick_condition_rows from a pessimistic
      estimate to true E(#rows that satisfy table condition). 
-     (we can re-use some of E(#rows) calcuation code from
-     index_merge/intersection for this)
+     (we can re-use some of E(#rows) calcuation code from index_merge/intersection 
+      for this)
    
    * Check if this function really needs to modify keys_to_use, and change the
      code to pass it by reference if it doesn't.
@@ -2677,9 +2662,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 {
   uint idx;
   double scan_time;
-  Item *notnull_cond= NULL;
-  TABLE_READ_PLAN *best_trp= NULL;
-  SEL_ARG **backup_keys= 0;
   DBUG_ENTER("SQL_SELECT::test_quick_select");
   DBUG_PRINT("enter",("keys_to_use: %lu  prev_tables: %lu  const_tables: %lu",
 		      (ulong) keys_to_use.to_ulonglong(), (ulong) prev_tables,
@@ -2694,7 +2676,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   if (keys_to_use.is_clear_all() || head->is_filled_at_execution())
     DBUG_RETURN(0);
   records= head->stat_records();
-  notnull_cond= head->notnull_cond;
   if (!records)
     records++;					/* purecov: inspected */
   if (head->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
@@ -2704,21 +2685,12 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     scan_time= read_time= DBL_MAX;
   else
   {
-    scan_time= rows2double(records) / TIME_FOR_COMPARE;
-    /*
-      The 2 is there to prefer range scans to full table scans.
-      This is mainly to make the test suite happy as many tests has
-      very few rows. In real life tables has more than a few rows and the
-      +2 has no practical effect.
-    */
-    read_time= (double) head->file->scan_time() + scan_time + 2;
-    if (limit < records && read_time < (double) records + scan_time + 1 )
-    {
+    scan_time= (double) records / TIME_FOR_COMPARE + 1;
+    read_time= (double) head->file->scan_time() + scan_time + 1.1;
+    if (limit < records)
       read_time= (double) records + scan_time + 1; // Force to use index
-      notnull_cond= NULL;
-    }
   }
-
+  
   possible_keys.clear_all();
 
   DBUG_PRINT("info",("Time to scan table: %g", read_time));
@@ -2738,7 +2710,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     uchar buff[STACK_BUFF_ALLOC];
     MEM_ROOT alloc;
     SEL_TREE *tree= NULL;
-    SEL_TREE *notnull_cond_tree= NULL;
     KEY_PART *key_parts;
     KEY *key_info;
     PARAM param;
@@ -2767,8 +2738,9 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.possible_keys.clear_all();
 
     thd->no_errors=1;				// Don't warn about NULL
-    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(&alloc, "test_quick_select",
+                   thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
     if (!(param.key_parts=
            (KEY_PART*) alloc_root(&alloc,
                                   sizeof(KEY_PART) *
@@ -2816,7 +2788,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       Json_writer_array trace_keypart(thd, "key_parts");
       for (uint part= 0 ; part < n_key_parts ; 
            part++, key_parts++, key_part_info++)
-      {
+     {
 	key_parts->key=		 param.keys;
 	key_parts->part=	 part;
 	key_parts->length=       key_part_info->length;
@@ -2853,8 +2825,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (!force_quick_range && !head->covering_keys.is_clear_all())
     {
       int key_for_use= find_shortest_key(head, &head->covering_keys);
-      double key_read_time= (head->file->key_scan_time(key_for_use) +
-                             rows2double(records) / TIME_FOR_COMPARE);
+      double key_read_time= head->file->key_scan_time(key_for_use) +
+                            (double) records / TIME_FOR_COMPARE_IDX;
       DBUG_PRINT("info",  ("'all'+'using index' scan will be using key %d, "
                            "read time %g", key_for_use, key_read_time));
 
@@ -2871,20 +2843,16 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         trace_cov.add("cause", "cost");
     }
 
+    TABLE_READ_PLAN *best_trp= NULL;
+    TRP_GROUP_MIN_MAX *group_trp= NULL;
     double best_read_time= read_time;
 
-    if (notnull_cond)
-      notnull_cond_tree= notnull_cond->get_mm_tree(&param, &notnull_cond);
-
-    if (cond || notnull_cond_tree)
+    if (cond)
     {
       {
         Json_writer_array trace_range_summary(thd,
                                               "setup_range_conditions");
-        if (cond)
-          tree= cond->get_mm_tree(&param, &cond);
-        if (notnull_cond_tree)
-          tree= tree_and(&param, tree, notnull_cond_tree);
+        tree= cond->get_mm_tree(&param, &cond);
       }
       if (tree)
       {
@@ -2914,6 +2882,36 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       }
     }
 
+    /*
+      Try to construct a QUICK_GROUP_MIN_MAX_SELECT.
+      Notice that it can be constructed no matter if there is a range tree.
+    */
+    DBUG_EXECUTE_IF("force_group_by", force_group_by = true; );
+    if (!only_single_index_range_scan)
+      group_trp= get_best_group_min_max(&param, tree, best_read_time);
+    if (group_trp)
+    {
+      param.table->quick_condition_rows= MY_MIN(group_trp->records,
+                                             head->stat_records());
+      Json_writer_object grp_summary(thd, "best_group_range_summary");
+
+      if (unlikely(thd->trace_started()))
+        group_trp->trace_basic_info(&param, &grp_summary);
+
+      if (group_trp->read_cost < best_read_time || force_group_by)
+      {
+        grp_summary.add("chosen", true);
+        best_trp= group_trp;
+        best_read_time= best_trp->read_cost;
+        if (force_group_by)
+        {
+          goto force_plan;
+        }
+      }
+      else
+        grp_summary.add("chosen", false).add("cause", "cost");
+    }
+
     if (tree)
     {
       /*
@@ -2924,10 +2922,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       TRP_INDEX_INTERSECT *intersect_trp;
       bool can_build_covering= FALSE;
       Json_writer_object trace_range(thd, "analyzing_range_alternatives");
-
-      backup_keys= (SEL_ARG**) alloca(sizeof(backup_keys[0])*param.keys);
-      memcpy(&backup_keys[0], &tree->keys[0],
-             sizeof(backup_keys[0])*param.keys);
 
       remove_nonrange_trees(&param, tree);
 
@@ -2983,7 +2977,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         {
           best_trp= intersect_trp;
           best_read_time= best_trp->read_cost; 
-          set_if_smaller(param.table->opt_range_condition_rows,
+          set_if_smaller(param.table->quick_condition_rows, 
                          intersect_trp->records);
         }
       }
@@ -3003,7 +2997,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         {
           new_conj_trp= get_best_disjunct_quick(&param, imerge, best_read_time);
           if (new_conj_trp)
-            set_if_smaller(param.table->opt_range_condition_rows,
+            set_if_smaller(param.table->quick_condition_rows, 
                            new_conj_trp->records);
           if (new_conj_trp &&
               (!best_conj_trp || 
@@ -3018,38 +3012,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       }
     }
 
-    /*
-      Try to construct a QUICK_GROUP_MIN_MAX_SELECT.
-      Notice that it can be constructed no matter if there is a range tree.
-    */
-    DBUG_EXECUTE_IF("force_group_by", force_group_by = true; );
-    if (!only_single_index_range_scan)
-    {
-      TRP_GROUP_MIN_MAX *group_trp;
-      if (tree)
-        restore_nonrange_trees(&param, tree, backup_keys);
-      if ((group_trp= get_best_group_min_max(&param, tree, read_time)))
-      {
-        param.table->opt_range_condition_rows= MY_MIN(group_trp->records,
-                                                  head->stat_records());
-        Json_writer_object grp_summary(thd, "best_group_range_summary");
-
-        if (unlikely(thd->trace_started()))
-          group_trp->trace_basic_info(&param, &grp_summary);
-
-        if (group_trp->read_cost < best_read_time || force_group_by)
-        {
-          grp_summary.add("chosen", true);
-          best_trp= group_trp;
-          best_read_time= best_trp->read_cost;
-        }
-        else
-          grp_summary.add("chosen", false).add("cause", "cost");
-      }
-      if (tree)
-        remove_nonrange_trees(&param, tree);
-    }
-
+force_plan:
     thd->mem_root= param.old_root;
 
     /* If we got a read plan, create a quick select from it. */
@@ -3298,10 +3261,10 @@ double records_in_column_ranges(PARAM *param, uint idx,
 static
 int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
 {
-  int tmp= CMP_NUM(table->opt_range[*a].rows, table->opt_range[*b].rows);
+  int tmp= CMP_NUM(table->quick_rows[*a], table->quick_rows[*b]);
   if (tmp)
     return tmp;
-  return -CMP_NUM(table->opt_range[*a].key_parts, table->opt_range[*b].key_parts);
+  return -CMP_NUM(table->quick_key_parts[*a], table->quick_key_parts[*b]);
 }
 
 
@@ -3387,7 +3350,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     Walk through all quick ranges in the order of least found rows.
   */
   for (ranges= keynr= 0 ; keynr < table->s->keys; keynr++)
-    if (table->opt_range_keys.is_set(keynr))
+    if (table->quick_keys.is_set(keynr))
       optimal_key_order[ranges++]= keynr;
 
   my_qsort2(optimal_key_order, ranges,
@@ -3400,9 +3363,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     {
       {
         uint i;
-        uint used_key_parts= table->opt_range[keynr].key_parts;
-        double quick_cond_selectivity= (table->opt_range[keynr].rows /
-                                        table_records);
+        uint used_key_parts= table->quick_key_parts[keynr];
+        double quick_cond_selectivity= table->quick_rows[keynr] / 
+	                               table_records;
         KEY *key_info= table->key_info + keynr;
         KEY_PART_INFO* key_part= key_info->key_part;
         /*
@@ -3494,8 +3457,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     SEL_TREE *tree;
     double rows;
   
-    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(&alloc, "calculate_cond_selectivity_for_table",
+                   thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
     param.thd= thd;
     param.mem_root= &alloc;
     param.old_root= thd->mem_root;
@@ -3925,8 +3889,9 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   MY_BITMAP *old_sets[2];
 
   prune_param.part_info= part_info;
-  init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                 thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&alloc, "prune_partitions",
+                 thd->variables.range_alloc_block_size, 0,
+                 MYF(MY_THREAD_SPECIFIC));
   range_par->mem_root= &alloc;
   range_par->old_root= thd->mem_root;
 
@@ -4986,16 +4951,16 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num)
 double get_sweep_read_cost(const PARAM *param, ha_rows records)
 {
   double result;
-  uint pk= param->table->s->primary_key;
   DBUG_ENTER("get_sweep_read_cost");
-  if (param->table->file->pk_is_clustering_key(pk) ||
+  if (param->table->file->primary_key_is_clustered() ||
       param->table->file->stats.block_size == 0 /* HEAP */)
   {
     /*
       We are using the primary key to find the rows.
       Calculate the cost for this.
     */
-    result= param->table->file->read_time(pk, (uint)records, records);
+    result= param->table->file->read_time(param->table->s->primary_key,
+                                          (uint)records, records);
   }
   else
   {
@@ -5117,6 +5082,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   double imerge_cost= 0.0;
   ha_rows cpk_scan_records= 0;
   ha_rows non_cpk_scan_records= 0;
+  bool pk_is_clustered= param->table->file->primary_key_is_clustered();
   bool all_scans_ror_able= TRUE;
   bool all_scans_rors= TRUE;
   uint unique_calc_buff_size;
@@ -5189,7 +5155,9 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     imerge_cost += (*cur_child)->read_cost;
     all_scans_ror_able &= ((*ptree)->n_ror_scans > 0);
     all_scans_rors &= (*cur_child)->is_ror;
-    if (param->table->file->is_clustering_key(param->real_keynr[(*cur_child)->key_idx]))
+    if (pk_is_clustered &&
+        param->real_keynr[(*cur_child)->key_idx] ==
+        param->table->s->primary_key)
     {
       cpk_scan= cur_child;
       cpk_scan_records= (*cur_child)->records;
@@ -5242,8 +5210,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       Add one ROWID comparison for each row retrieved on non-CPK scan.  (it
       is done in QUICK_RANGE_SELECT::row_in_ranges)
      */
-    double rid_comp_cost= (rows2double(non_cpk_scan_records) /
-                           TIME_FOR_COMPARE_ROWID);
+    double rid_comp_cost= static_cast<double>(non_cpk_scan_records) /
+                                             TIME_FOR_COMPARE_ROWID;
     imerge_cost+= rid_comp_cost;
     trace_best_disjunct.add("cost_of_mapping_rowid_in_non_clustered_pk_scan",
                             rid_comp_cost);
@@ -5487,7 +5455,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
       if ((*tree)->keys[key_idx]) 
         (*tree)->keys[key_idx]->incr_refs(); 
       if (((*changed_tree)->keys[key_idx]=
-             key_or_with_limit(param, key_idx, key, (*tree)->keys[key_idx])))
+             key_or(param, key, (*tree)->keys[key_idx])))
         (*changed_tree)->keys_map.set_bit(key_idx);
       *tree= NULL;
       removed_cnt++;
@@ -5552,7 +5520,7 @@ typedef struct st_common_index_intersect_info
 {
   PARAM *param;           /* context info for range optimizations            */
   uint key_size;          /* size of a ROWID element stored in Unique object */
-  double compare_factor;  /* 1/compare - cost to compare two ROWIDs     */
+  uint compare_factor;         /* 1/compare - cost to compare two ROWIDs     */
   size_t max_memory_size;   /* maximum space allowed for Unique objects   */   
   ha_rows table_cardinality;   /* estimate of the number of records in table */
   double cutoff_cost;        /* discard index intersects with greater costs  */ 
@@ -5774,14 +5742,14 @@ bool prepare_search_best_index_intersect(PARAM *param,
   common->table_cardinality= 
     get_table_cardinality_for_index_intersect(table);
 
-  if (table->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX)
+  if (table->file->primary_key_is_clustered())
   {
     INDEX_SCAN_INFO **index_scan_end;
     index_scan= tree->index_scans;
     index_scan_end= index_scan+n_index_scans;
     for ( ; index_scan < index_scan_end; index_scan++)
     {  
-      if (table->file->is_clustering_key((*index_scan)->keynr))
+      if ((*index_scan)->keynr == table->s->primary_key)
       {
         common->cpk_scan= cpk_scan= *index_scan;
         break;
@@ -5820,7 +5788,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
       continue;
     }
 
-    cost= table->opt_range[(*index_scan)->keynr].index_only_cost;
+    cost= table->quick_index_only_costs[(*index_scan)->keynr];
 
     idx_scan.add("cost", cost);
 
@@ -5848,7 +5816,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     {
       idx_scan.add("chosen", true);
       if (!*scan_ptr)
-        idx_scan.add("cause", "first occurrence of index prefix");
+        idx_scan.add("cause", "first occurence of index prefix");
       else
         idx_scan.add("cause", "better cost for same idx prefix");
       *scan_ptr= *index_scan;
@@ -6247,7 +6215,7 @@ bool check_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
   {
     uint *buff_elems= common_info->buff_elems;
     uint key_size= common_info->key_size;
-    double compare_factor= common_info->compare_factor;
+    uint compare_factor= common_info->compare_factor;         
     size_t max_memory_size= common_info->max_memory_size; 
     
     records_sent_to_unique+= ext_index_scan_records;
@@ -6816,7 +6784,6 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
     {
       /* create (part1val, ..., part{n-1}val) tuple. */
       ha_rows records;
-      page_range pages;
       if (!tuple_arg)
       {
         tuple_arg= scan->sel_arg;
@@ -6834,7 +6801,7 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
       min_range.length= max_range.length= (uint) (key_ptr - key_val);
       min_range.keypart_map= max_range.keypart_map= keypart_map;
       records= (info->param->table->file->
-                records_in_range(scan->keynr, &min_range, &max_range, &pages));
+                records_in_range(scan->keynr, &min_range, &max_range));
       if (cur_covered)
       {
         /* uncovered -> covered */
@@ -7064,8 +7031,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
                                                      sizeof(ROR_SCAN_INFO*)*
                                                      param->keys)))
     return NULL;
-  cpk_no= (param->table->file->
-           pk_is_clustering_key(param->table->s->primary_key) ?
+  cpk_no= ((param->table->file->primary_key_is_clustered()) ?
            param->table->s->primary_key : MAX_KEY);
 
   for (idx= 0, cur_ror_scan= tree->ror_scans; idx < param->keys; idx++)
@@ -7231,7 +7197,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     ha_rows best_rows = double2rows(intersect_best->out_rows);
     if (!best_rows)
       best_rows= 1;
-    set_if_smaller(param->table->opt_range_condition_rows, best_rows);
+    set_if_smaller(param->table->quick_condition_rows, best_rows);
     trp->records= best_rows;
     trp->index_scan_costs= intersect_best->index_scan_costs;
     trp->cpk_scan= cpk_scan;
@@ -7400,7 +7366,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
   trp->read_cost= total_cost;
   trp->records= records;
   trp->cpk_scan= NULL;
-  set_if_smaller(param->table->opt_range_condition_rows, records);
+  set_if_smaller(param->table->quick_condition_rows, records); 
 
   DBUG_PRINT("info",
              ("Returning covering ROR-intersect plan: cost %g, records %lu",
@@ -8278,6 +8244,18 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   table_map ref_tables= 0;
   table_map param_comp= ~(param->prev_tables | param->read_tables |
 		          param->current_table);
+#ifdef HAVE_SPATIAL
+  Field::geometry_type sav_geom_type= Field::GEOM_GEOMETRY, *geom_type=
+    field_item->field->type() == MYSQL_TYPE_GEOMETRY
+    ? &(static_cast<Field_geom*>(field_item->field))->geom_type
+    : NULL;
+  if (geom_type)
+  {
+    sav_geom_type= *geom_type;
+    /* We have to be able to store all sorts of spatial features here */
+    *geom_type= Field::GEOM_GEOMETRY;
+  }
+#endif /*HAVE_SPATIAL*/
 
   for (uint i= 0; i < arg_count; i++)
   {
@@ -8305,6 +8283,12 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
     }
   }
 
+#ifdef HAVE_SPATIAL
+  if (geom_type)
+  {
+    *geom_type= sav_geom_type;
+  }
+#endif /*HAVE_SPATIAL*/
   DBUG_RETURN(ftree);
 }
 
@@ -8772,12 +8756,13 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
 
   size_t min_length, max_length;
   field_length-= maybe_null;
-  if (field->charset()->like_range(res->ptr(), res->length(),
-                                   escape, wild_one, wild_many,
-                                   field_length,
-                                   (char*) min_str + offset,
-                                   (char*) max_str + offset,
-                                   &min_length, &max_length))
+  if (my_like_range(field->charset(),
+                                 res->ptr(), res->length(),
+                                 escape, wild_one, wild_many,
+                                 field_length,
+                                 (char*) min_str + offset,
+                                 (char*) max_str + offset,
+                                 &min_length, &max_length))
     DBUG_RETURN(0);              // Can't optimize with LIKE
 
   if (offset != maybe_null)			// BLOB or VARCHAR
@@ -9094,19 +9079,6 @@ SEL_ARG *Field::stored_field_make_mm_leaf_exact(RANGE_OPT_PARAM *param,
 ******************************************************************************/
 
 /*
-  Update weights for SEL_ARG graph that is connected only via next_key_part
-  (and not left/right) links
-*/
-static uint update_weight_for_single_arg(SEL_ARG *arg)
-{
-  if (arg->next_key_part)
-    return (arg->weight= 1 + update_weight_for_single_arg(arg->next_key_part));
-  else
-    return (arg->weight= 1);
-}
-
-
-/*
   Add a new key test to a key when scanning through all keys
   This will never be called for same key parts.
 */
@@ -9138,8 +9110,6 @@ sel_add(SEL_ARG *key1,SEL_ARG *key2)
     }
   }
   *key_link=key1 ? key1 : key2;
-
-  update_weight_for_single_arg(root);
   return root;
 }
 
@@ -9206,8 +9176,7 @@ int and_range_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree1, SEL_TREE *tree2,
         key2->incr_refs();
     }
     SEL_ARG *key;
-    if ((result->keys[key_no]= key= key_and_with_limit(param, key_no,
-                                                       key1, key2, flag)))
+    if ((result->keys[key_no]= key =key_and(param, key1, key2, flag)))
     {
       if (key && key->type == SEL_ARG::IMPOSSIBLE)
       {
@@ -9591,7 +9560,7 @@ bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
     1  No tree->keys[] left.
 */
 
-static bool remove_nonrange_trees(PARAM *param, SEL_TREE *tree)
+static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree)
 {
   bool res= FALSE;
   for (uint i=0; i < param->keys; i++)
@@ -9601,8 +9570,6 @@ static bool remove_nonrange_trees(PARAM *param, SEL_TREE *tree)
       if (tree->keys[i]->part)
       {
         tree->keys[i]= NULL;
-        /* Mark that records_in_range has not been called */
-        param->quick_rows[param->real_keynr[i]]= HA_POS_ERROR;
         tree->keys_map.clear_bit(i);
       }
       else
@@ -9612,23 +9579,6 @@ static bool remove_nonrange_trees(PARAM *param, SEL_TREE *tree)
   return !res;
 }
 
-
-/*
-  Restore nonrange trees to their previous state
-*/
-
-static void restore_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree,
-                                   SEL_ARG **backup_keys)
-{
-  for (uint i=0; i < param->keys; i++)
-  {
-    if (backup_keys[i])
-    {
-      tree->keys[i]= backup_keys[i];
-      tree->keys_map.set_bit(i);
-    }
-  }
-}
 
 /*
   Build a SEL_TREE for a disjunction out of such trees for the disjuncts
@@ -9769,7 +9719,7 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
         key1->incr_refs();
         key2->incr_refs();
       }
-      if ((result->keys[key_no]= key_or_with_limit(param, key_no, key1, key2)))
+      if ((result->keys[key_no]= key_or(param, key1, key2)))
         result->keys_map.set_bit(key_no);
     }
     result->type= tree1->type;
@@ -9843,9 +9793,6 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
   SEL_ARG *next;
   ulong use_count=key1->use_count;
 
-  if (sel_arg_and_weight_heuristic(param, key1, key2))
-    return key1;
-
   if (key1->elements != 1)
   {
     key2->use_count+=key1->elements-1; //psergey: why we don't count that key1 has n-k-p?
@@ -9857,14 +9804,11 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
       return key2;
     key1->right= key1->left= &null_element;
     key1->next= key1->prev= 0;
-    key1->weight= 1 + (key1->next_key_part? key1->next_key_part->weight: 0);
   }
-
   for (next=key1->first(); next ; next=next->next)
   {
     if (next->next_key_part)
     {
-      uint old_weight= next->next_key_part->weight;
       SEL_ARG *tmp= key_and(param, next->next_key_part, key2, clone_flag);
       if (tmp && tmp->type == SEL_ARG::IMPOSSIBLE)
       {
@@ -9872,22 +9816,17 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
 	continue;
       }
       next->next_key_part=tmp;
-      key1->weight+= (tmp? tmp->weight: 0) - old_weight;
       if (use_count)
 	next->increment_use_count(use_count);
       if (param->alloced_sel_args > SEL_ARG::MAX_SEL_ARGS)
         break;
     }
     else
-    {
       next->next_key_part=key2;
-      key1->weight += key2->weight;
-    }
   }
   if (!key1)
     return &null_element;			// Impossible ranges
   key1->use_count++;
-
   key1->max_part_no= MY_MAX(key2->max_part_no, key2->part+1);
   return key1;
 }
@@ -9923,10 +9862,6 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       clone_flag=swap_clone_flag(clone_flag);
     }
     // key1->part < key2->part
-
-    if (sel_arg_and_weight_heuristic(param, key1, key2))
-      return key1;
-
     key1->use_count--;
     if (key1->use_count > 0)
       if (!(key1= key1->clone_tree(param)))
@@ -9957,9 +9892,6 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
     {						// Both are maybe key
       key1->next_key_part=key_and(param, key1->next_key_part, 
                                   key2->next_key_part, clone_flag);
-
-      key1->weight= 1 + (key1->next_key_part? key1->next_key_part->weight : 0);
-
       if (key1->next_key_part &&
 	  key1->next_key_part->type == SEL_ARG::IMPOSSIBLE)
 	return key1;
@@ -10010,9 +9942,6 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (!new_arg)
 	return &null_element;			// End of memory
       new_arg->next_key_part=next;
-      if (new_arg->next_key_part)
-        new_arg->weight += new_arg->next_key_part->weight;
-
       if (!new_tree)
       {
 	new_tree=new_arg;
@@ -10049,86 +9978,6 @@ get_range(SEL_ARG **e1,SEL_ARG **e2,SEL_ARG *root1)
     }
   }
   return 0;
-}
-
-
-#ifndef DBUG_OFF
-/*
-  Verify SEL_TREE's weight.
-
-  Recompute the weight and compare
-*/
-uint SEL_ARG::verify_weight()
-{
-  uint computed_weight= 0;
-  SEL_ARG *first_arg= first();
-
-  if (first_arg)
-  {
-    for (SEL_ARG *arg= first_arg; arg; arg= arg->next)
-    {
-      computed_weight++;
-      if (arg->next_key_part)
-        computed_weight+= arg->next_key_part->verify_weight();
-    }
-  }
-  else
-  {
-    // first()=NULL means this is a special kind of SEL_ARG, e.g.
-    // SEL_ARG with type=MAYBE_KEY
-    computed_weight= 1;
-    if (next_key_part)
-      computed_weight += next_key_part->verify_weight();
-  }
-
-  if (computed_weight != weight)
-  {
-    sql_print_error("SEL_ARG weight mismatch: computed %u have %u\n",
-                    computed_weight, weight);
-    DBUG_ASSERT(computed_weight == weight);  // Fail an assertion
-  }
-  return computed_weight;
-}
-#endif
-
-static
-SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param, uint keyno,
-                           SEL_ARG *key1, SEL_ARG *key2)
-{
-#ifndef DBUG_OFF
-  if (key1)
-    key1->verify_weight();
-  if (key2)
-    key2->verify_weight();
-#endif
-
-  SEL_ARG *res= key_or(param, key1, key2);
-  res= enforce_sel_arg_weight_limit(param, keyno, res);
-#ifndef DBUG_OFF
-  if (res)
-    res->verify_weight();
-#endif
-  return res;
-}
-
-
-static
-SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
-                            SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
-{
-#ifndef DBUG_OFF
-  if (key1)
-    key1->verify_weight();
-  if (key2)
-    key2->verify_weight();
-#endif
-  SEL_ARG *res= key_and(param, key1, key2, clone_flag);
-  res= enforce_sel_arg_weight_limit(param, keyno, res);
-#ifndef DBUG_OFF
-  if (res)
-    res->verify_weight();
-#endif
-  return res;
 }
 
 
@@ -10607,7 +10456,8 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             Move on to next range in key2
           */
           key2->increment_use_count(-1); // Free not used tree
-          key2= key2_next;
+          key2=key2_next;
+          continue;
         }
         else
         {
@@ -10621,9 +10471,8 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             tmp:     [---------]
           */
           key2->copy_max_to_min(tmp);
-          key2->next= key2_next;                // In case of key2_shared
+          continue;
         }
-        continue;
       }
 
       /*
@@ -10697,14 +10546,8 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
          */
         tmp->maybe_flag|= key2_cpy.maybe_flag;
         key2_cpy.increment_use_count(key1->use_count+1);
-
-        uint old_weight= tmp->next_key_part? tmp->next_key_part->weight: 0;
-
         tmp->next_key_part= key_or(param, tmp->next_key_part,
                                    key2_cpy.next_key_part);
-
-        uint new_weight= tmp->next_key_part? tmp->next_key_part->weight: 0;
-        key1->weight += (new_weight - old_weight);
 
         if (!cmp)
           break;                     // case b: done with this key2 range
@@ -10847,160 +10690,6 @@ static bool eq_tree(SEL_ARG* a,SEL_ARG *b)
 }
 
 
-/*
-  Compute the MAX(key part) in this SEL_ARG graph.
-*/
-uint SEL_ARG::get_max_key_part() const
-{
-  const SEL_ARG *cur;
-  uint max_part= part;
-  for (cur= first(); cur ; cur=cur->next)
-  {
-    if (cur->next_key_part)
-    {
-      uint mp= cur->next_key_part->get_max_key_part();
-      max_part= MY_MAX(part, mp);
-    }
-  }
-  return max_part;
-}
-
-
-/*
-  Remove the SEL_ARG graph elements which have part > max_part.
-
-  @detail
-    Also update weight for the graph and any modified subgraphs.
-*/
-
-void prune_sel_arg_graph(SEL_ARG *sel_arg, uint max_part)
-{
-  SEL_ARG *cur;
-  DBUG_ASSERT(max_part >= sel_arg->part);
-
-  for (cur= sel_arg->first(); cur ; cur=cur->next)
-  {
-    if (cur->next_key_part)
-    {
-      if (cur->next_key_part->part > max_part)
-      {
-        // Remove cur->next_key_part.
-        sel_arg->weight -= cur->next_key_part->weight;
-        cur->next_key_part= NULL;
-      }
-      else
-      {
-        uint old_weight= cur->next_key_part->weight;
-        prune_sel_arg_graph(cur->next_key_part, max_part);
-        sel_arg->weight -= (old_weight - cur->next_key_part->weight);
-      }
-    }
-  }
-}
-
-
-/*
-  @brief
-    Make sure the passed SEL_ARG graph's weight is below SEL_ARG::MAX_WEIGHT,
-    by cutting off branches if necessary.
-
-  @detail
-    @see declaration of SEL_ARG::weight for definition of weight.
-
-    This function attempts to reduce the graph's weight by cutting off
-    SEL_ARG::next_key_part connections if necessary.
-
-    We start with maximum used keypart and then remove one keypart after
-    another until the graph's weight is within the limit.
-
-  @seealso
-     sel_arg_and_weight_heuristic();
-
-  @return
-    tree pointer  The tree after processing,
-    NULL          If it was not possible to reduce the weight of the tree below the
-                  limit.
-*/
-
-SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
-                                      SEL_ARG *sel_arg)
-{
-  if (!sel_arg || sel_arg->type != SEL_ARG::KEY_RANGE ||
-      !param->thd->variables.optimizer_max_sel_arg_weight)
-    return sel_arg;
-
-  Field *field= sel_arg->field;
-  uint weight1= sel_arg->weight;
-
-  while (1)
-  {
-    if (likely(sel_arg->weight <= param->thd->variables.
-                                  optimizer_max_sel_arg_weight))
-      break;
-
-    uint max_part= sel_arg->get_max_key_part();
-    if (max_part == sel_arg->part)
-    {
-      /*
-        We don't return NULL right away as we want to have the information
-        about the changed tree in the optimizer trace.
-      */
-      sel_arg= NULL;
-      break;
-    }
-
-    max_part--;
-    prune_sel_arg_graph(sel_arg, max_part);
-  }
-
-  uint weight2= sel_arg? sel_arg->weight : 0;
-
-  if (weight2 != weight1)
-  {
-    Json_writer_object wrapper(param->thd);
-    Json_writer_object obj(param->thd, "enforce_sel_arg_weight_limit");
-    if (param->using_real_indexes)
-      obj.add("index", param->table->key_info[param->real_keynr[keyno]].name);
-    else
-      obj.add("pseudo_index", field->field_name);
-
-    obj.add("old_weight", (longlong)weight1);
-    obj.add("new_weight", (longlong)weight2);
-  }
-  return sel_arg;
-}
-
-
-/*
-  @detail
-    Do not combine the trees if their total weight is likely to exceed the
-    MAX_WEIGHT.
-    (It is possible that key1 has next_key_part that has empty overlap with
-    key2. In this case, the combined tree will have a smaller weight than we
-    predict. We assume this is rare.)
-*/
-
-static
-bool sel_arg_and_weight_heuristic(RANGE_OPT_PARAM *param, SEL_ARG *key1,
-                                  SEL_ARG *key2)
-{
-  DBUG_ASSERT(key1->part < key2->part);
-
-  ulong max_weight= param->thd->variables.optimizer_max_sel_arg_weight;
-  if (max_weight && key1->weight + key1->elements*key2->weight > max_weight)
-  {
-    Json_writer_object wrapper(param->thd);
-    Json_writer_object obj(param->thd, "sel_arg_weight_heuristic");
-    obj.add("key1_field", key1->field->field_name);
-    obj.add("key2_field", key2->field->field_name);
-    obj.add("key1_weight", (longlong)key1->weight);
-    obj.add("key2_weight", (longlong)key2->weight);
-    return true; // Discard key2
-  }
-  return false;
-}
-
-
 SEL_ARG *
 SEL_ARG::insert(SEL_ARG *key)
 {
@@ -11039,13 +10728,6 @@ SEL_ARG::insert(SEL_ARG *key)
   SEL_ARG *root=rb_insert(key);			// rebalance tree
   root->use_count=this->use_count;		// copy root info
   root->elements= this->elements+1;
-  /*
-    The new weight is:
-     old root's weight
-     +1 for the weight of the added element
-     + next_key_part's weight of the added element
-  */
-  root->weight = weight + 1 + (key->next_key_part? key->next_key_part->weight: 0);
   root->maybe_flag=this->maybe_flag;
   return root;
 }
@@ -11103,17 +10785,6 @@ SEL_ARG::tree_delete(SEL_ARG *key)
   root=this;
   this->parent= 0;
 
-  /*
-    Compute the weight the tree will have after the element is removed.
-    We remove the element itself (weight=1)
-    and the sub-graph connected to its next_key_part.
-  */
-  uint new_weight= root->weight - (1 + (key->next_key_part?
-                                        key->next_key_part->weight : 0));
-
-  DBUG_ASSERT(root->weight >= (1 + (key->next_key_part ?
-                                    key->next_key_part->weight : 0)));
-
   /* Unlink from list */
   if (key->prev)
     key->prev->next=key->next;
@@ -11165,7 +10836,6 @@ SEL_ARG::tree_delete(SEL_ARG *key)
   test_rb_tree(root,root->parent);
 
   root->use_count=this->use_count;		// Fix root counters
-  root->weight= new_weight;
   root->elements=this->elements-1;
   root->maybe_flag=this->maybe_flag;
   DBUG_RETURN(root);
@@ -11499,11 +11169,11 @@ void SEL_ARG::test_use_count(SEL_ARG *root)
                         about range scan we've evaluated.
       mrr_flags   INOUT MRR access flags
       cost        OUT   Scan cost
-      is_ror_scan       is set to reflect if the key scan is a ROR (see
-                        is_key_scan_ror function for more info)
 
   NOTES
-    param->table->opt_range*, param->range_count (and maybe others) are
+    param->is_ror_scan is set to reflect if the key scan is a ROR (see
+    is_key_scan_ror function for more info)
+    param->table->quick_*, param->range_count (and maybe others) are
     updated with data of given key scan, see quick_range_seq_next for details.
 
   RETURN
@@ -11523,10 +11193,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   ha_rows rows= HA_POS_ERROR;
   uint keynr= param->real_keynr[idx];
   DBUG_ENTER("check_quick_select");
-
-  /* Range not calculated yet */
-  param->quick_rows[keynr]= HA_POS_ERROR;
-
+  
   /* Handle cases when we don't have a valid non-empty list of range */
   if (!tree)
     DBUG_RETURN(HA_POS_ERROR);
@@ -11553,6 +11220,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   */
   *mrr_flags|= HA_MRR_NO_ASSOCIATION | HA_MRR_SORTED;
 
+  bool pk_is_clustered= file->primary_key_is_clustered();
   // TODO: param->max_key_parts holds 0 now, and not the #keyparts used.
   // Passing wrong second argument to index_flags() makes no difference for
   // most storage engines but might be an issue for MyRocks with certain
@@ -11573,7 +11241,6 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   if (param->table->pos_in_table_list->is_non_derived())
     rows= file->multi_range_read_info_const(keynr, &seq_if, (void*)&seq, 0,
                                             bufsize, mrr_flags, cost);
-  param->quick_rows[keynr]= rows;
   if (rows != HA_POS_ERROR)
   {
     ha_rows table_records= param->table->stat_records();
@@ -11581,31 +11248,28 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
     {
       /*
         For any index the total number of records within all ranges
-        cannot be be bigger than the number of records in the table.
-        This check is needed as sometimes that table statistics or range
-        estimates may be slightly out of sync.
+        cannot be be bigger than the number of records in the table
       */
       rows= table_records;
       set_if_bigger(rows, 1);
-      param->quick_rows[keynr]= rows;
     }
+    param->quick_rows[keynr]= rows;
     param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)
     {
-      param->table->opt_range_keys.set_bit(keynr);
-      param->table->opt_range[keynr].key_parts= param->max_key_parts;
-      param->table->opt_range[keynr].ranges= param->range_count;
-      param->table->opt_range_condition_rows=
-        MY_MIN(param->table->opt_range_condition_rows, rows);
-      param->table->opt_range[keynr].rows= rows;
-      param->table->opt_range[keynr].cost= cost->total_cost();
-      if (param->table->file->is_clustering_key(keynr))
-	param->table->opt_range[keynr].index_only_cost= 0;
+      param->table->quick_keys.set_bit(keynr);
+      param->table->quick_key_parts[keynr]= param->max_key_parts;
+      param->table->quick_n_ranges[keynr]= param->range_count;
+      param->table->quick_condition_rows=
+        MY_MIN(param->table->quick_condition_rows, rows);
+      param->table->quick_rows[keynr]= rows;
+      param->table->quick_costs[keynr]= cost->total_cost();
+      if (keynr == param->table->s->primary_key && pk_is_clustered)
+	param->table->quick_index_only_costs[keynr]= 0;
       else
-        param->table->opt_range[keynr].index_only_cost= cost->index_only_cost();
+        param->table->quick_index_only_costs[keynr]= cost->index_only_cost();
     }
   }
-
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
   enum ha_key_alg key_alg= param->table->key_info[seq.real_keyno].algorithm;
   if ((key_alg != HA_KEY_ALG_BTREE) && (key_alg!= HA_KEY_ALG_UNDEF))
@@ -11617,7 +11281,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
     */
     seq.is_ror_scan= FALSE;
   }
-  else if (param->table->file->is_clustering_key(keynr))
+  else if (param->table->s->primary_key == keynr && pk_is_clustered)
   {
     /* Clustered PK scan is always a ROR scan (TODO: same as above) */
     seq.is_ror_scan= TRUE;
@@ -11705,7 +11369,7 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
 
   key_part= table_key->key_part + nparts;
   pk_number= param->table->s->primary_key;
-  if (!param->table->file->pk_is_clustering_key(pk_number))
+  if (!param->table->file->primary_key_is_clustered() || pk_number == MAX_KEY)
     return FALSE;
 
   KEY_PART_INFO *pk_part= param->table->key_info[pk_number].key_part;
@@ -12606,8 +12270,7 @@ int QUICK_RANGE_SELECT::reset()
   if (mrr_buf_size && !mrr_buf_desc)
   {
     buf_size= mrr_buf_size;
-    while (buf_size && !my_multi_malloc(key_memory_QUICK_RANGE_SELECT_mrr_buf_desc,
-                                        MYF(MY_WME),
+    while (buf_size && !my_multi_malloc(MYF(MY_WME),
                                         &mrr_buf_desc, sizeof(*mrr_buf_desc),
                                         &mrange_buff, buf_size,
                                         NullS))
@@ -13575,7 +13238,7 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
 
  @param  param     Parameter from test_quick_select
  @param  sel_tree  Range tree generated by get_mm_tree
- @param  read_time Best read time so far of table or index scan time
+ @param  read_time Best read time so far (=table/index scan time)
  @return table read plan
    @retval NULL  Loose index scan not applicable or mem_root == NULL
    @retval !NULL Loose index scan table read plan
@@ -13606,6 +13269,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   Item_field *item_field;
   bool is_agg_distinct;
   List<Item_field> agg_distinct_flds;
+
   DBUG_ENTER("get_best_group_min_max");
 
   Json_writer_object trace_group(thd, "group_index_range");
@@ -13630,6 +13294,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     DBUG_RETURN(NULL);
   }
 
+  /* Check (SA1,SA4) and store the only MIN/MAX argument - the C attribute.*/
+  List_iterator<Item> select_items_it(join->fields_list);
   is_agg_distinct = is_indexed_agg_distinct(join, &agg_distinct_flds);
 
   if ((!join->group_list) && /* Neither GROUP BY nor a DISTINCT query. */
@@ -13640,9 +13306,6 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     DBUG_RETURN(NULL);
   }
   /* Analyze the query in more detail. */
-
-  /* Check (SA1,SA4) and store the only MIN/MAX argument - the C attribute.*/
-  List_iterator<Item> select_items_it(join->fields_list);
 
   if (join->sum_funcs[0])
   {
@@ -14018,7 +13681,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         key_part_range[1]= last_part;
 
         /* Check if cur_part is referenced in the WHERE clause. */
-        if (join->conds->walk(&Item::find_item_in_field_list_processor, true,
+        if (join->conds->walk(&Item::find_item_in_field_list_processor, 0,
                               key_part_range))
         {
           cause= "keypart reference from where clause";
@@ -14071,18 +13734,25 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     /* Compute the cost of using this index. */
     if (tree)
     {
-      if ((cur_index_tree= tree->keys[cur_param_idx]))
+      cur_index_tree= tree->keys[cur_param_idx];
+      /* Check if this range tree can be used for prefix retrieval. */
+      Cost_estimate dummy_cost;
+      uint mrr_flags= HA_MRR_USE_DEFAULT_IMPL;
+      uint mrr_bufsize=0;
+      bool is_ror_scan= FALSE;
+      cur_quick_prefix_records= check_quick_select(param, cur_param_idx,
+                                                   FALSE /*don't care*/,
+                                                   cur_index_tree, TRUE,
+                                                   &mrr_flags, &mrr_bufsize,
+                                                   &dummy_cost, &is_ror_scan);
+      if (unlikely(cur_index_tree && thd->trace_started()))
       {
-        cur_quick_prefix_records= param->quick_rows[cur_index];
-        if (unlikely(cur_index_tree && thd->trace_started()))
-        {
-          Json_writer_array trace_range(thd, "ranges");
-          trace_ranges(&trace_range, param, cur_param_idx,
-                       cur_index_tree, cur_index_info->key_part);
-        }
+        Json_writer_array trace_range(thd, "ranges");
+
+        const KEY_PART_INFO *key_part= cur_index_info->key_part;
+        trace_ranges(&trace_range, param, cur_param_idx,
+                     cur_index_tree, key_part);
       }
-      else
-        cur_quick_prefix_records= HA_POS_ERROR;
     }
     cost_group_min_max(table, cur_index_info, cur_used_key_parts,
                        cur_group_key_parts, tree, cur_index_tree,
@@ -14141,7 +13811,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   /*
     Check (SA6) if clustered key is used
   */
-  if (is_agg_distinct && table->file->is_clustering_key(index))
+  if (is_agg_distinct && index == table->s->primary_key &&
+      table->file->primary_key_is_clustered())
   {
     trace_group.add("usable", false)
                .add("cause", "index is clustered");
@@ -14489,7 +14160,7 @@ get_sel_arg_for_keypart(Field *field,
     last_part              [in]  Last keypart of the index
     thd                    [in]  Current thread
     key_infix              [out] Infix of constants to be used for index lookup
-    key_infix_len          [out] Length of the infix
+    key_infix_len          [out] Lenghth of the infix
     first_non_infix_part   [out] The first keypart after the infix (if any)
 
   DESCRIPTION
@@ -14517,6 +14188,7 @@ get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
                        uchar *key_infix, uint *key_infix_len,
                        KEY_PART_INFO **first_non_infix_part)
 {
+  SEL_ARG       *cur_range;
   KEY_PART_INFO *cur_part;
   /* End part for the first loop below. */
   KEY_PART_INFO *end_part= min_max_arg_part ? min_max_arg_part : last_part;
@@ -14525,7 +14197,7 @@ get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
   uchar *key_ptr= key_infix;
   for (cur_part= first_non_group_part; cur_part != end_part; cur_part++)
   {
-    SEL_ARG *cur_range= NULL;
+    cur_range= NULL;
     /*
       Check NGA3:
       1. get_sel_arg_for_keypart gets the range tree for the 'field' and also
@@ -14703,8 +14375,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   DBUG_ENTER("cost_group_min_max");
 
   table_records= table->stat_records();
-  /* Assume block is 75 % full */
-  keys_per_block= (uint) (table->file->stats.block_size * 3 / 4 /
+  keys_per_block= (uint) (table->file->stats.block_size / 2 /
                           (index_info->key_length + table->file->ref_length)
                           + 1);
   num_blocks= (ha_rows)(table_records / keys_per_block) + 1;
@@ -14770,21 +14441,20 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
              b-tree the number of comparisons will be larger.
        TODO: This cost should be provided by the storage engine.
   */
-  const double tree_traversal_cost=
+  const double tree_traversal_cost= 
     ceil(log(static_cast<double>(table_records))/
          log(static_cast<double>(keys_per_block))) * 
-    1/(2*TIME_FOR_COMPARE);
+    1/double(2*TIME_FOR_COMPARE); 
 
   const double cpu_cost= num_groups *
-                         (tree_traversal_cost + 1/TIME_FOR_COMPARE_IDX);
+                         (tree_traversal_cost + 1/double(TIME_FOR_COMPARE_IDX));
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;
 
   DBUG_PRINT("info",
-             ("table rows: %lu  keys/block: %u  keys/group: %lu  "
-              "result rows: %lu  blocks: %lu",
-              (ulong) table_records, keys_per_block, (ulong) keys_per_group, 
+             ("table rows: %lu  keys/block: %u  keys/group: %lu  result rows: %lu  blocks: %lu",
+              (ulong)table_records, keys_per_block, (ulong) keys_per_group, 
               (ulong) *records, (ulong) num_blocks));
   DBUG_VOID_RETURN;
 }
@@ -14952,10 +14622,10 @@ QUICK_GROUP_MIN_MAX_SELECT(TABLE *table, JOIN *join_arg, bool have_min_arg,
   DBUG_ASSERT(!parent_alloc);
   if (!parent_alloc)
   {
-    THD *thd= join->thd;
-    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
-                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
-    thd->mem_root= &alloc;
+    init_sql_alloc(&alloc, "QUICK_GROUP_MIN_MAX_SELECT",
+                   join->thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
+    join->thd->mem_root= &alloc;
   }
   else
     bzero(&alloc, sizeof(MEM_ROOT));            // ensure that it's not used
@@ -15015,8 +14685,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::init()
 
   if (min_max_arg_part)
   {
-    if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &min_max_ranges,
-                              sizeof(QUICK_RANGE*), 16, 16,
+    if (my_init_dynamic_array(&min_max_ranges, sizeof(QUICK_RANGE*), 16, 16,
                               MYF(MY_THREAD_SPECIFIC)))
       return 1;
 
@@ -16155,7 +15824,6 @@ const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
     out.append("+inf");
   else
   {
-    buf.length(0);
     print_sel_arg_key(sel_arg->field, sel_arg->max_value, &buf);
     out.append(buf);
   }

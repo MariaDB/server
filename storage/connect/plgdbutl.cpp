@@ -425,13 +425,12 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
   return pBuff;
   } // end of PlgExtractFromPath
 
-
-#ifdef NOT_USED
 /***********************************************************************/
-/*  Check the occurrence and matching of a pattern against a string.    */
+/*  Check the occurence and matching of a pattern against a string.    */
 /*  Because this function is only used for catalog name checking,      */
 /*  it must be case insensitive.                                       */
 /***********************************************************************/
+#ifdef NOT_USED
 static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
   {
   if (pat && strlen(pat)) {
@@ -445,7 +444,7 @@ static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
     return true;
 
   } // end of PlugCheckPattern
-#endif /* NOT_USED */
+#endif
 
 /***********************************************************************/
 /*  PlugEvalLike: evaluates a LIKE clause.                             */
@@ -572,7 +571,7 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
     b = (t || !*sp);                  /*   true if %  or void strg.    */
   else if (!t) {
     /*******************************************************************/
-    /*  No character to skip, check occurrence of <subtring-specifier>  */
+    /*  No character to skip, check occurence of <subtring-specifier>  */
     /*  at the very beginning of remaining string.                     */
     /*******************************************************************/
     if (p) {
@@ -586,7 +585,7 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
     if (p)
       /*****************************************************************/
       /*  Here is the case explaining why we need a recursive routine. */
-      /*  The test must be done not only against the first occurrence   */
+      /*  The test must be done not only against the first occurence   */
       /*  of the <substring-specifier> in the remaining string,        */
       /*  but also with all eventual succeeding ones.                  */
       /*****************************************************************/

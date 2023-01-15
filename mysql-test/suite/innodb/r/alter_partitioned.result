@@ -41,15 +41,6 @@ CREATE TABLE t2(a INT, FOREIGN KEY(a) REFERENCES t1(a))ENGINE=INNODB
 PARTITION BY RANGE(a)
 (PARTITION pa VALUES LESS THAN (2),
 PARTITION pb VALUES LESS THAN (4));
-ERROR HY000: Partitioned tables do not support FOREIGN KEY
+ERROR HY000: Foreign key clause is not yet supported in conjunction with partitioning
 DROP TABLE t1;
 # End of 10.3 tests
-#
-# MDEV-24754 Server crash in
-# ha_partition_inplace_ctx::~ha_partition_inplace_ctx
-#
-CREATE TABLE t1 (id INT PRIMARY KEY, a INT, va INT AS (a) VIRTUAL)
-ENGINE=InnoDB PARTITION BY HASH(id) PARTITIONS 2;
-ALTER TABLE t1 ADD b INT, ALGORITHM=INSTANT;
-DROP TABLE t1;
-# End of 10.5 tests

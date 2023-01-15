@@ -330,7 +330,6 @@ public:
     int *error_num
   );
   spider_db_result *use_result(
-    ha_spider *spider,
     st_spider_db_request_key *request_key,
     int *error_num
   );
@@ -844,8 +843,8 @@ public:
     ulong sql_type
   );
   int append_explain_select_part(
-    const key_range *start_key,
-    const key_range *end_key,
+    key_range *start_key,
+    key_range *end_key,
     ulong sql_type,
     int link_idx
   );
@@ -967,8 +966,8 @@ public:
     ulonglong &last_insert_id
   );
   ha_rows explain_select(
-    const key_range *start_key,
-    const key_range *end_key,
+    key_range *start_key,
+    key_range *end_key,
     int link_idx
   );
   int lock_tables(

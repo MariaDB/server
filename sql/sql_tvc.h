@@ -18,7 +18,6 @@
 #include "sql_type.h"
 
 typedef List<Item> List_item;
-typedef bool (Item::*Item_processor) (void *arg);
 class select_result;
 class Explain_select;
 class Explain_query;
@@ -66,7 +65,6 @@ public:
   bool exec(SELECT_LEX *sl);
 
   void print(THD *thd_arg, String *str, enum_query_type query_type);
-  bool walk_values(Item_processor processor, bool walk_subquery, void *arg);
 };
 
 st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl);

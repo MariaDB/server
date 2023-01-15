@@ -1,0 +1,2 @@
+usr/bin/mysql usr/bin/mariadb
+usr/bin/mysqlcheck usr/bin/mariadb-check

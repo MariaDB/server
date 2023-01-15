@@ -1,5 +1,3 @@
---source include/have_sequence.inc
-
 --echo #
 --echo # Bug#36981 - "innodb crash when selecting for update"
 --echo #
@@ -461,7 +459,6 @@ INSERT INTO t2 VALUES (15,4);
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='semijoin=off';
 
---replace_column 9 #
 EXPLAIN
 SELECT * FROM t1
 WHERE pk IN (SELECT it.pk FROM t2 JOIN t2 AS it ON it.i=it.i WHERE it.pk-t1.i<10);
@@ -723,15 +720,12 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (b int NOT NULL, c int, a varchar(1024), PRIMARY KEY (b));
 INSERT INTO t1 VALUES (1,4,'Ill');
-insert into t1 select seq+100,5,seq from seq_1_to_100;
 
 CREATE TABLE t2 (a varchar(1024), KEY (a(512)));
 INSERT INTO t2 VALUES
   ('Ill'), ('eckqzsflbzaffti'), ('w'), ('she'), ('gxbwypqtjzwywwer'), ('w');
-insert into t2 select seq from seq_1_to_100;
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
---replace_column 9 #
 EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
@@ -739,7 +733,6 @@ SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
 
 SET SESSION optimizer_switch='index_condition_pushdown=on';
---replace_column 9 #
 EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;

@@ -8,7 +8,6 @@ SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_ti
 connection node_2;
 SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_timeout=PT1S';
 connection node_3;
-connection node_3;
 Suspending node ...
 connection node_1;
 SET SESSION wsrep_sync_wait=0;

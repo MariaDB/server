@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -35,24 +35,22 @@
 #include "pfs_user.h"
 #include "pfs_events_stages.h"
 #include "pfs_atomic.h"
-#include "pfs_buffer_container.h"
-#include "pfs_builtin_memory.h"
 #include "m_string.h"
 
-PFS_ALIGNED ulong events_stages_history_long_size= 0;
+ulong events_stages_history_long_size= 0;
 /** Consumer flag for table EVENTS_STAGES_CURRENT. */
-PFS_ALIGNED bool flag_events_stages_current= false;
+bool flag_events_stages_current= false;
 /** Consumer flag for table EVENTS_STAGES_HISTORY. */
-PFS_ALIGNED bool flag_events_stages_history= false;
+bool flag_events_stages_history= false;
 /** Consumer flag for table EVENTS_STAGES_HISTORY_LONG. */
-PFS_ALIGNED bool flag_events_stages_history_long= false;
+bool flag_events_stages_history_long= false;
 
 /** True if EVENTS_STAGES_HISTORY_LONG circular buffer is full. */
-PFS_ALIGNED bool events_stages_history_long_full= false;
+bool events_stages_history_long_full= false;
 /** Index in EVENTS_STAGES_HISTORY_LONG circular buffer. */
-PFS_ALIGNED PFS_cacheline_uint32 events_stages_history_long_index;
+volatile uint32 events_stages_history_long_index= 0;
 /** EVENTS_STAGES_HISTORY_LONG circular buffer. */
-PFS_ALIGNED PFS_events_stages *events_stages_history_long_array= NULL;
+PFS_events_stages *events_stages_history_long_array= NULL;
 
 /**
   Initialize table EVENTS_STAGES_HISTORY_LONG.
@@ -62,16 +60,14 @@ int init_events_stages_history_long(uint events_stages_history_long_sizing)
 {
   events_stages_history_long_size= events_stages_history_long_sizing;
   events_stages_history_long_full= false;
-  PFS_atomic::store_u32(&events_stages_history_long_index.m_u32, 0);
+  PFS_atomic::store_u32(&events_stages_history_long_index, 0);
 
   if (events_stages_history_long_size == 0)
     return 0;
 
   events_stages_history_long_array=
-    PFS_MALLOC_ARRAY(& builtin_memory_stages_history_long,
-                     events_stages_history_long_size,
-                     sizeof(PFS_events_stages), PFS_events_stages,
-                     MYF(MY_ZEROFILL));
+    PFS_MALLOC_ARRAY(events_stages_history_long_size, sizeof(PFS_events_stages),
+                     PFS_events_stages,  MYF(MY_ZEROFILL));
 
   return (events_stages_history_long_array ? 0 : 1);
 }
@@ -79,9 +75,7 @@ int init_events_stages_history_long(uint events_stages_history_long_sizing)
 /** Cleanup table EVENTS_STAGES_HISTORY_LONG. */
 void cleanup_events_stages_history_long(void)
 {
-  PFS_FREE_ARRAY(& builtin_memory_stages_history_long,
-                 events_stages_history_long_size, sizeof(PFS_events_stages),
-                 events_stages_history_long_array);
+  pfs_free(events_stages_history_long_array);
   events_stages_history_long_array= NULL;
 }
 
@@ -101,7 +95,7 @@ void insert_events_stages_history(PFS_thread *thread, PFS_events_stages *stage)
   if (unlikely(events_stages_history_per_thread == 0))
     return;
 
-  assert(thread->m_stages_history != NULL);
+  DBUG_ASSERT(thread->m_stages_history != NULL);
 
   uint index= thread->m_stages_history_index;
 
@@ -133,9 +127,9 @@ void insert_events_stages_history_long(PFS_events_stages *stage)
   if (unlikely(events_stages_history_long_size == 0))
     return;
 
-  assert(events_stages_history_long_array != NULL);
+  DBUG_ASSERT(events_stages_history_long_array != NULL);
 
-  uint index= PFS_atomic::add_u32(&events_stages_history_long_index.m_u32, 1);
+  uint index= PFS_atomic::add_u32(&events_stages_history_long_index, 1);
 
   index= index % events_stages_history_long_size;
   if (index == 0)
@@ -145,38 +139,40 @@ void insert_events_stages_history_long(PFS_events_stages *stage)
   copy_events_stages(&events_stages_history_long_array[index], stage);
 }
 
-static void fct_reset_events_stages_current(PFS_thread *pfs)
-{
-  pfs->m_stage_current.m_class= NULL;
-}
-
 /** Reset table EVENTS_STAGES_CURRENT data. */
 void reset_events_stages_current(void)
 {
-  global_thread_container.apply_all(fct_reset_events_stages_current);
-}
+  PFS_thread *pfs_thread= thread_array;
+  PFS_thread *pfs_thread_last= thread_array + thread_max;
 
-static void fct_reset_events_stages_history(PFS_thread *pfs_thread)
-{
-  PFS_events_stages *pfs= pfs_thread->m_stages_history;
-  PFS_events_stages *pfs_last= pfs + events_stages_history_per_thread;
-
-  pfs_thread->m_stages_history_index= 0;
-  pfs_thread->m_stages_history_full= false;
-  for ( ; pfs < pfs_last; pfs++)
-    pfs->m_class= NULL;
+  for ( ; pfs_thread < pfs_thread_last; pfs_thread++)
+  {
+    pfs_thread->m_stage_current.m_class= NULL;
+  }
 }
 
 /** Reset table EVENTS_STAGES_HISTORY data. */
 void reset_events_stages_history(void)
 {
-  global_thread_container.apply_all(fct_reset_events_stages_history);
+  PFS_thread *pfs_thread= thread_array;
+  PFS_thread *pfs_thread_last= thread_array + thread_max;
+
+  for ( ; pfs_thread < pfs_thread_last; pfs_thread++)
+  {
+    PFS_events_stages *pfs= pfs_thread->m_stages_history;
+    PFS_events_stages *pfs_last= pfs + events_stages_history_per_thread;
+
+    pfs_thread->m_stages_history_index= 0;
+    pfs_thread->m_stages_history_full= false;
+    for ( ; pfs < pfs_last; pfs++)
+      pfs->m_class= NULL;
+  }
 }
 
 /** Reset table EVENTS_STAGES_HISTORY_LONG data. */
 void reset_events_stages_history_long(void)
 {
-  PFS_atomic::store_u32(&events_stages_history_long_index.m_u32, 0);
+  PFS_atomic::store_u32(&events_stages_history_long_index, 0);
   events_stages_history_long_full= false;
 
   PFS_events_stages *pfs= events_stages_history_long_array;
@@ -185,53 +181,70 @@ void reset_events_stages_history_long(void)
     pfs->m_class= NULL;
 }
 
-static void fct_reset_events_stages_by_thread(PFS_thread *thread)
-{
-  PFS_account *account= sanitize_account(thread->m_account);
-  PFS_user *user= sanitize_user(thread->m_user);
-  PFS_host *host= sanitize_host(thread->m_host);
-  aggregate_thread_stages(thread, account, user, host);
-}
-
 /** Reset table EVENTS_STAGES_SUMMARY_BY_THREAD_BY_EVENT_NAME data. */
 void reset_events_stages_by_thread()
 {
-  global_thread_container.apply(fct_reset_events_stages_by_thread);
-}
+  PFS_thread *thread= thread_array;
+  PFS_thread *thread_last= thread_array + thread_max;
+  PFS_account *account;
+  PFS_user *user;
+  PFS_host *host;
 
-static void fct_reset_events_stages_by_account(PFS_account *pfs)
-{
-  PFS_user *user= sanitize_user(pfs->m_user);
-  PFS_host *host= sanitize_host(pfs->m_host);
-  pfs->aggregate_stages(user, host);
+  for ( ; thread < thread_last; thread++)
+  {
+    if (thread->m_lock.is_populated())
+    {
+      account= sanitize_account(thread->m_account);
+      user= sanitize_user(thread->m_user);
+      host= sanitize_host(thread->m_host);
+      aggregate_thread_stages(thread, account, user, host);
+    }
+  }
 }
 
 /** Reset table EVENTS_STAGES_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME data. */
 void reset_events_stages_by_account()
 {
-  global_account_container.apply(fct_reset_events_stages_by_account);
-}
+  PFS_account *pfs= account_array;
+  PFS_account *pfs_last= account_array + account_max;
+  PFS_user *user;
+  PFS_host *host;
 
-static void fct_reset_events_stages_by_user(PFS_user *pfs)
-{
-  pfs->aggregate_stages();
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+    {
+      user= sanitize_user(pfs->m_user);
+      host= sanitize_host(pfs->m_host);
+      pfs->aggregate_stages(user, host);
+    }
+  }
 }
 
 /** Reset table EVENTS_STAGES_SUMMARY_BY_USER_BY_EVENT_NAME data. */
 void reset_events_stages_by_user()
 {
-  global_user_container.apply(fct_reset_events_stages_by_user);
-}
+  PFS_user *pfs= user_array;
+  PFS_user *pfs_last= user_array + user_max;
 
-static void fct_reset_events_stages_by_host(PFS_host *pfs)
-{
-  pfs->aggregate_stages();
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->aggregate_stages();
+  }
 }
 
 /** Reset table EVENTS_STAGES_SUMMARY_BY_HOST_BY_EVENT_NAME data. */
 void reset_events_stages_by_host()
 {
-  global_host_container.apply(fct_reset_events_stages_by_host);
+  PFS_host *pfs= host_array;
+  PFS_host *pfs_last= host_array + host_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->aggregate_stages();
+  }
 }
 
 /** Reset table EVENTS_STAGES_GLOBAL_BY_EVENT_NAME data. */

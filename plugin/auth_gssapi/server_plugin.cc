@@ -90,7 +90,6 @@ static int deinitialize_plugin(void *unused)
   return plugin_deinit();
 }
 
-#ifdef PLUGIN_GSSAPI
 /* system variable */
 static MYSQL_SYSVAR_STR(keytab_path, srv_keytab_path,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
@@ -98,8 +97,6 @@ static MYSQL_SYSVAR_STR(keytab_path, srv_keytab_path,
                         NULL,
                         NULL,
                         "");
-#endif
-
 static MYSQL_SYSVAR_STR(principal_name, srv_principal_name,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
                         "GSSAPI target name - service principal name for Kerberos authentication.",

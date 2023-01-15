@@ -13,4 +13,4 @@ drop user user1@localhost;
 #
 # MDEV-8491 - On shutdown, report the user and the host executed that.
 #
-FOUND 3 /(mysqld|mariadbd)(\.exe)? \(initiated by: root\[root\] @ localhost \[(::1)?\]\): Normal shutdown/ in mysqld.1.err
+FOUND 2 /mysqld(\.exe)? \(initiated by: root\[root\] @ localhost \[(::1)?\]\): Normal shutdown/ in mysqld.1.err

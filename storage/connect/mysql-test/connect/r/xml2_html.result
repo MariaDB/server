@@ -1,3 +1,5 @@
+Warnings:
+Warning	1105	No file name. Table will use t1.xml
 SET NAMES utf8;
 #
 # Testing HTML like XML file

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -19,12 +19,14 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /********************************************************************//**
 @file include/ha0ha.ic
-The hash table interface for the adaptive hash index
+The hash table with external chains
 
 Created 8/18/1994 Heikki Tuuri
 *************************************************************************/
 
 #ifdef BTR_CUR_HASH_ADAPT
+#include "ut0rnd.h"
+#include "mem0mem.h"
 #include "btr0types.h"
 
 /******************************************************************//**
@@ -93,8 +95,56 @@ ha_chain_get_first(
 	hash_table_t*	table,	/*!< in: hash table */
 	ulint		fold)	/*!< in: fold value determining the chain */
 {
-  return static_cast<ha_node_t*>(table->array[table->calc_hash(fold)].node);
+	return((ha_node_t*)
+	       hash_get_nth_cell(table, hash_calc_hash(fold, table))->node);
 }
+
+#ifdef UNIV_DEBUG
+/********************************************************************//**
+Assert that the synchronization object in a hash operation involving
+possible change in the hash table is held.
+Note that in case of mutexes we assert that mutex is owned while in case
+of rw-locks we assert that it is held in exclusive mode. */
+UNIV_INLINE
+void
+hash_assert_can_modify(
+/*===================*/
+	hash_table_t*	table,	/*!< in: hash table */
+	ulint		fold)	/*!< in: fold value */
+{
+	if (table->type == HASH_TABLE_SYNC_MUTEX) {
+		ut_ad(mutex_own(hash_get_mutex(table, fold)));
+	} else if (table->type == HASH_TABLE_SYNC_RW_LOCK) {
+# ifdef UNIV_DEBUG
+		rw_lock_t* lock = hash_get_lock(table, fold);
+		ut_ad(rw_lock_own(lock, RW_LOCK_X));
+# endif
+	} else {
+		ut_ad(table->type == HASH_TABLE_SYNC_NONE);
+	}
+}
+
+/********************************************************************//**
+Assert that the synchronization object in a hash search operation is held.
+Note that in case of mutexes we assert that mutex is owned while in case
+of rw-locks we assert that it is held either in x-mode or s-mode. */
+UNIV_INLINE
+void
+hash_assert_can_search(
+/*===================*/
+	hash_table_t*	table,	/*!< in: hash table */
+	ulint		fold)	/*!< in: fold value */
+{
+	if (table->type == HASH_TABLE_SYNC_MUTEX) {
+		ut_ad(mutex_own(hash_get_mutex(table, fold)));
+	} else if (table->type == HASH_TABLE_SYNC_RW_LOCK) {
+		ut_ad(rw_lock_own_flagged(hash_get_lock(table, fold),
+					  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+	} else {
+		ut_ad(table->type == HASH_TABLE_SYNC_NONE);
+	}
+}
+#endif /* UNIV_DEBUG */
 
 /*************************************************************//**
 Looks for an element in a hash table.
@@ -107,6 +157,7 @@ ha_search_and_get_data(
 	hash_table_t*	table,	/*!< in: hash table */
 	ulint		fold)	/*!< in: folded value of the searched data */
 {
+	hash_assert_can_search(table, fold);
 	ut_ad(btr_search_enabled);
 
 	for (const ha_node_t* node = ha_chain_get_first(table, fold);
@@ -135,6 +186,8 @@ ha_search_with_data(
 {
 	ha_node_t*	node;
 
+	hash_assert_can_search(table, fold);
+
 	ut_ad(btr_search_enabled);
 
 	node = ha_chain_get_first(table, fold);
@@ -151,4 +204,39 @@ ha_search_with_data(
 	return(NULL);
 }
 
+/***********************************************************//**
+Deletes a hash node. */
+void
+ha_delete_hash_node(
+/*================*/
+	hash_table_t*	table,		/*!< in: hash table */
+	ha_node_t*	del_node);	/*!< in: node to be deleted */
+
+/*********************************************************//**
+Looks for an element when we know the pointer to the data, and deletes
+it from the hash table, if found.
+@return TRUE if found */
+UNIV_INLINE
+ibool
+ha_search_and_delete_if_found(
+/*==========================*/
+	hash_table_t*	table,	/*!< in: hash table */
+	ulint		fold,	/*!< in: folded value of the searched data */
+	const rec_t*	data)	/*!< in: pointer to the data */
+{
+	ha_node_t*	node;
+
+	hash_assert_can_modify(table, fold);
+	ut_ad(btr_search_enabled);
+
+	node = ha_search_with_data(table, fold, data);
+
+	if (node) {
+		ha_delete_hash_node(table, node);
+
+		return(TRUE);
+	}
+
+	return(FALSE);
+}
 #endif /* BTR_CUR_HASH_ADAPT */

@@ -77,6 +77,7 @@ infinite wait The error_monitor thread scans the global wait array to signal
 any waiting threads who have missed the signal. */
 
 typedef TTASEventMutex<GenericPolicy> WaitMutex;
+typedef TTASEventMutex<BlockMutexPolicy> BlockWaitMutex;
 
 /** The latch types that use the sync array. */
 union sync_object_t {
@@ -86,6 +87,9 @@ union sync_object_t {
 
 	/** Mutex instance */
 	WaitMutex*	mutex;
+
+	/** Block mutex instance */
+	BlockWaitMutex*	bpmutex;
 };
 
 /** A cell where an individual thread may wait suspended until a resource
@@ -169,7 +173,7 @@ mutexes and read-write locks */
 sync_array_t**	sync_wait_array;
 
 /** count of how many times an object has been signalled */
-ulint sg_count;
+static ulint			sg_count;
 
 #define sync_array_exit(a)	mutex_exit(&(a)->mutex)
 #define sync_array_enter(a)	mutex_enter(&(a)->mutex)
@@ -290,12 +294,22 @@ sync_cell_get_event(
 /*================*/
 	sync_cell_t*	cell) /*!< in: non-empty sync array cell */
 {
-	switch(cell->request_type) {
-	case SYNC_MUTEX:
+	ulint	type = cell->request_type;
+
+	if (type == SYNC_MUTEX) {
+
 		return(cell->latch.mutex->event());
-	case RW_LOCK_X_WAIT:
+
+	} else if (type == SYNC_BUF_BLOCK) {
+
+		return(cell->latch.bpmutex->event());
+
+	} else if (type == RW_LOCK_X_WAIT) {
+
 		return(cell->latch.lock->wait_ex_event);
-	default:
+
+	} else { /* RW_LOCK_S and RW_LOCK_X wait on the same event */
+
 		return(cell->latch.lock->event);
 	}
 }
@@ -348,6 +362,8 @@ sync_array_reserve_cell(
 
 	if (cell->request_type == SYNC_MUTEX) {
 		cell->latch.mutex = reinterpret_cast<WaitMutex*>(object);
+	} else if (cell->request_type == SYNC_BUF_BLOCK) {
+		cell->latch.bpmutex = reinterpret_cast<BlockWaitMutex*>(object);
 	} else {
 		cell->latch.lock = reinterpret_cast<rw_lock_t*>(object);
 	}
@@ -452,9 +468,7 @@ sync_array_wait_event(
 #endif /* UNIV_DEBUG */
 	sync_array_exit(arr);
 
-	tpool::tpool_wait_begin();
 	os_event_wait_low(sync_cell_get_event(cell), cell->signal_count);
-	tpool::tpool_wait_end();
 
 	sync_array_free_cell(arr, cell);
 
@@ -477,69 +491,13 @@ sync_array_cell_print(
 	type = cell->request_type;
 
 	fprintf(file,
-		"--Thread " ULINTPF " has waited at %s line " ULINTPF
+		"--Thread %lu has waited at %s line %lu"
 		" for %.2f seconds the semaphore:\n",
-		ulint(cell->thread_id),
-		innobase_basename(cell->file), cell->line,
+		(ulong) os_thread_pf(cell->thread_id),
+		innobase_basename(cell->file), (ulong) cell->line,
 		difftime(time(NULL), cell->reservation_time));
 
-	switch (type) {
-	default:
-		ut_error;
-	case RW_LOCK_X:
-	case RW_LOCK_X_WAIT:
-	case RW_LOCK_SX:
-	case RW_LOCK_S:
-		fputs(type == RW_LOCK_X ? "X-lock on"
-		      : type == RW_LOCK_X_WAIT ? "X-lock (wait_ex) on"
-		      : type == RW_LOCK_SX ? "SX-lock on"
-		      : "S-lock on", file);
-
-		rwlock = cell->latch.lock;
-
-		if (rwlock) {
-			fprintf(file,
-				" RW-latch at %p created in file %s line %u\n",
-				(void*) rwlock, innobase_basename(rwlock->cfile_name),
-				rwlock->cline);
-
-			writer = rw_lock_get_writer(rwlock);
-
-			if (writer != RW_LOCK_NOT_LOCKED) {
-
-				fprintf(file,
-					"a writer (thread id " ULINTPF ") has"
-					" reserved it in mode %s",
-					ulint(rwlock->writer_thread),
-				writer == RW_LOCK_X ? " exclusive\n"
-				: writer == RW_LOCK_SX ? " SX\n"
-					: " wait exclusive\n");
-			}
-
-			fprintf(file,
-				"number of readers " ULINTPF
-				", waiters flag %d, "
-				"lock_word: %x\n"
-				"Last time write locked in file %s line %u"
-#if 0 /* JAN: TODO: FIX LATER */
-				"\nHolder thread " ULINTPF
-				" file %s line " ULINTPF
-#endif
-				"\n",
-				rw_lock_get_reader_count(rwlock),
-				uint32_t{rwlock->waiters},
-				int32_t{rwlock->lock_word},
-				innobase_basename(rwlock->last_x_file_name),
-				rwlock->last_x_line
-#if 0 /* JAN: TODO: FIX LATER */
-				, ulint(rwlock->thread_id),
-				innobase_basename(rwlock->file_name),
-				rwlock->line
-#endif
-				);
-		}
-		break;
-	case SYNC_MUTEX:
+	if (type == SYNC_MUTEX) {
 		WaitMutex*	mutex = cell->latch.mutex;
 		const WaitMutex::MutexPolicy&	policy = mutex->policy();
 #ifdef UNIV_DEBUG
@@ -566,7 +524,89 @@ sync_array_cell_print(
 #endif /* UNIV_DEBUG */
 			);
 		}
-		break;
+	} else if (type == SYNC_BUF_BLOCK) {
+		BlockWaitMutex*	mutex = cell->latch.bpmutex;
+
+		const BlockWaitMutex::MutexPolicy&	policy =
+			mutex->policy();
+#ifdef UNIV_DEBUG
+		const char*	name = policy.context.get_enter_filename();
+		if (name == NULL) {
+			/* The mutex might have been released. */
+			name = "NULL";
+		}
+#endif /* UNIV_DEBUG */
+
+		fprintf(file,
+			"Mutex at %p, %s, lock var %lu\n"
+#ifdef UNIV_DEBUG
+			"Last time reserved in file %s line %lu"
+#endif /* UNIV_DEBUG */
+			"\n",
+			(void*) mutex,
+			policy.to_string().c_str(),
+			(ulong) mutex->state()
+#ifdef UNIV_DEBUG
+			,name,
+			(ulong) policy.context.get_enter_line()
+#endif /* UNIV_DEBUG */
+		       );
+	} else if (type == RW_LOCK_X
+		   || type == RW_LOCK_X_WAIT
+		   || type == RW_LOCK_SX
+		   || type == RW_LOCK_S) {
+
+		fputs(type == RW_LOCK_X ? "X-lock on"
+		      : type == RW_LOCK_X_WAIT ? "X-lock (wait_ex) on"
+		      : type == RW_LOCK_SX ? "SX-lock on"
+		      : "S-lock on", file);
+
+		rwlock = cell->latch.lock;
+
+		if (rwlock) {
+			fprintf(file,
+				" RW-latch at %p created in file %s line %u\n",
+				(void*) rwlock, innobase_basename(rwlock->cfile_name),
+				rwlock->cline);
+
+			writer = rw_lock_get_writer(rwlock);
+
+			if (writer != RW_LOCK_NOT_LOCKED) {
+
+				fprintf(file,
+					"a writer (thread id " ULINTPF ") has"
+					" reserved it in mode %s",
+					os_thread_pf(rwlock->writer_thread),
+				writer == RW_LOCK_X ? " exclusive\n"
+				: writer == RW_LOCK_SX ? " SX\n"
+					: " wait exclusive\n");
+			}
+
+			fprintf(file,
+				"number of readers " ULINTPF
+				", waiters flag %d, "
+				"lock_word: %x\n"
+				"Last time write locked in file %s line %u"
+#if 0 /* JAN: TODO: FIX LATER */
+				"\nHolder thread " ULINTPF
+				" file %s line " ULINTPF
+#endif
+				"\n",
+				rw_lock_get_reader_count(rwlock),
+				uint32_t{rwlock->waiters},
+				int32_t{rwlock->lock_word},
+				innobase_basename(rwlock->last_x_file_name),
+				rwlock->last_x_line
+#if 0 /* JAN: TODO: FIX LATER */
+				, os_thread_pf(rwlock->thread_id),
+				innobase_basename(rwlock->file_name),
+				rwlock->line
+#endif
+				);
+		}
+
+	} else {
+		ut_error;
 	}
 
 	if (!cell->waiting) {
@@ -725,7 +765,7 @@ sync_array_detect_deadlock(
 
 				ib::info()
 					<< "Mutex " << mutex << " owned by"
-					" thread " << thread
+					" thread " << os_thread_pf(thread)
 					<< " file " << name << " line "
 					<< policy.context.get_enter_line();
 
@@ -738,6 +778,52 @@ sync_array_detect_deadlock(
 		/* No deadlock */
 		return(false);
 		}
+
+	case SYNC_BUF_BLOCK: {
+
+		BlockWaitMutex*	mutex = cell->latch.bpmutex;
+
+		const BlockWaitMutex::MutexPolicy&	policy =
+			mutex->policy();
+
+		if (mutex->state() != MUTEX_STATE_UNLOCKED) {
+			thread = policy.context.get_thread_id();
+
+			/* Note that mutex->thread_id above may be
+			also OS_THREAD_ID_UNDEFINED, because the
+			thread which held the mutex maybe has not
+			yet updated the value, or it has already
+			released the mutex: in this case no deadlock
+			can occur, as the wait array cannot contain
+			a thread with ID_UNDEFINED value. */
+			ret = sync_array_deadlock_step(
+				arr, start, thread, 0, depth);
+
+			if (ret) {
+				const char*	name;
+
+				name = policy.context.get_enter_filename();
+
+				if (name == NULL) {
+					/* The mutex might have been
+					released. */
+					name = "NULL";
+				}
+
+				ib::info()
+					<< "Mutex " << mutex << " owned by"
+					" thread " << os_thread_pf(thread)
+					<< " file " << name << " line "
+					<< policy.context.get_enter_line();
+
+
+				return(true);
+			}
+		}
+
+		/* No deadlock */
+		return(false);
+	}
 
 	case RW_LOCK_X:
 	case RW_LOCK_X_WAIT:
@@ -860,6 +946,15 @@ sync_array_detect_deadlock(
 #endif /* UNIV_DEBUG */
 
 /**********************************************************************//**
+Increments the signalled count. */
+void
+sync_array_object_signalled()
+/*=========================*/
+{
+	++sg_count;
+}
+
+/**********************************************************************//**
 Prints warnings of long semaphore waits to stderr.
 @return TRUE if fatal semaphore wait threshold was exceeded */
 static
@@ -871,8 +966,7 @@ sync_array_print_long_waits_low(
 	const void**	sema,	/*!< out: longest-waited-for semaphore */
 	ibool*		noticed)/*!< out: TRUE if long wait noticed */
 {
-	double		fatal_timeout = static_cast<double>(
-		srv_fatal_semaphore_wait_threshold);
+	ulint		fatal_timeout = srv_fatal_semaphore_wait_threshold;
 	ibool		fatal = FALSE;
 	double		longest_diff = 0;
 	ulint		i;
@@ -893,7 +987,6 @@ sync_array_print_long_waits_low(
 #else
 # define SYNC_ARRAY_TIMEOUT	240
 #endif
-	const time_t now = time(NULL);
 
 	for (ulint i = 0; i < arr->n_cells; i++) {
 
@@ -909,7 +1002,7 @@ sync_array_print_long_waits_low(
 			continue;
 		}
 
-		double	diff = difftime(now, cell->reservation_time);
+		double	diff = difftime(time(NULL), cell->reservation_time);
 
 		if (diff > SYNC_ARRAY_TIMEOUT) {
 			ib::warn() << "A long semaphore wait:";
@@ -982,7 +1075,14 @@ sync_array_print_long_waits(
 		sync_array_exit(arr);
 	}
 
-	if (noticed) {
+	if (noticed && srv_monitor_event) {
+
+		fprintf(stderr,
+			"InnoDB: ###### Starts InnoDB Monitor"
+			" for 30 secs to print diagnostic info:\n");
+
+		my_bool old_val = srv_print_innodb_monitor;
+
 		/* If some crucial semaphore is reserved, then also the InnoDB
 		Monitor can hang, and we do not get diagnostics. Since in
 		many cases an InnoDB hang is caused by a pwrite() or a pread()
@@ -995,7 +1095,16 @@ sync_array_print_long_waits(
 			MONITOR_VALUE(MONITOR_OS_PENDING_READS),
 			MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
-		lock_wait_timeout_task(nullptr);
+		srv_print_innodb_monitor = TRUE;
+
+		lock_set_timeout_event();
+
+		os_thread_sleep(30000000);
+
+		srv_print_innodb_monitor = static_cast<my_bool>(old_val);
+		fprintf(stderr,
+			"InnoDB: ###### Diagnostic info printed"
+			" to the standard error stream\n");
 	}
 
 	return(fatal);
@@ -1202,15 +1311,13 @@ sync_arr_fill_sys_semphore_waits_table(
 			WaitMutex* mutex;
 			type = cell->request_type;
 			/* JAN: FIXME
-			OK(fields[SYS_SEMAPHORE_WAITS_THREAD_ID]->store(,
-			ulint(cell->thread), true));
+			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_THREAD_ID],
+			(longlong)os_thread_pf(cell->thread)));
 			*/
 			OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_FILE], innobase_basename(cell->file)));
 			OK(fields[SYS_SEMAPHORE_WAITS_LINE]->store(cell->line, true));
 			fields[SYS_SEMAPHORE_WAITS_LINE]->set_notnull();
-			OK(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME]->store(
-				   difftime(time(NULL),
-					    cell->reservation_time)));
+			OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_TIME], (ulint)difftime(time(NULL), cell->reservation_time)));
 
 			if (type == SYNC_MUTEX) {
 				mutex = static_cast<WaitMutex*>(cell->latch.mutex);
@@ -1218,21 +1325,21 @@ sync_arr_fill_sys_semphore_waits_table(
 				if (mutex) {
 					// JAN: FIXME
 					// OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_OBJECT_NAME], mutex->cmutex_name));
-					OK(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT]->store((longlong)mutex, true));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT], (longlong)mutex));
 					OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "MUTEX"));
-					//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID]->store(mutex->thread_id, true));
+					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID], (longlong)mutex->thread_id));
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_HOLDER_FILE], innobase_basename(mutex->file_name)));
 					//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->store(mutex->line, true));
 					//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_CREATED_FILE], innobase_basename(mutex->cfile_name)));
 					//OK(fields[SYS_SEMAPHORE_WAITS_CREATED_LINE]->store(mutex->cline, true));
 					//fields[SYS_SEMAPHORE_WAITS_CREATED_LINE]->set_notnull();
-					//OK(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG]->store(mutex->waiters, true));
-					//OK(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD]->store(mutex->lock_word, true));
+					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)mutex->waiters));
+					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD], (longlong)mutex->lock_word));
 					//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(mutex->file_name)));
 					//OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(mutex->line, true));
 					//fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();
-					//OK(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT]->store(mutex->count_os_wait, true));
+					//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT], mutex->count_os_wait));
 				}
 			} else if (type == RW_LOCK_X_WAIT
 				|| type == RW_LOCK_X
@@ -1245,7 +1352,7 @@ sync_arr_fill_sys_semphore_waits_table(
 				if (rwlock) {
 					ulint writer = rw_lock_get_writer(rwlock);
 
-					OK(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT]->store((longlong)rwlock, true));
+					OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAIT_OBJECT], (longlong)rwlock));
 					if (type == RW_LOCK_X) {
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_WAIT_TYPE], "RW_LOCK_X"));
 					} else if (type == RW_LOCK_X_WAIT) {
@@ -1259,7 +1366,7 @@ sync_arr_fill_sys_semphore_waits_table(
 					if (writer != RW_LOCK_NOT_LOCKED) {
 						// JAN: FIXME
 						// OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_OBJECT_NAME], rwlock->lock_name));
-						OK(fields[SYS_SEMAPHORE_WAITS_WRITER_THREAD]->store(ulint(rwlock->writer_thread), true));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WRITER_THREAD], (longlong)os_thread_pf(rwlock->writer_thread)));
 
 						if (writer == RW_LOCK_X) {
 							OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_RESERVATION_MODE], "RW_LOCK_X"));
@@ -1269,21 +1376,19 @@ sync_arr_fill_sys_semphore_waits_table(
 							OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_RESERVATION_MODE], "RW_LOCK_SX"));
 						}
 
-						//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID]->store(rwlock->thread_id, true));
+						//OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID], (longlong)rwlock->thread_id));
 						//OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_HOLDER_FILE], innobase_basename(rwlock->file_name)));
 						//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->store(rwlock->line, true));
 						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
-						OK(fields[SYS_SEMAPHORE_WAITS_READERS]->store(rw_lock_get_reader_count(rwlock), true));
-						OK(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG]->store(
-							   rwlock->waiters,
-							   true));
-						OK(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD]->store(
-							   rwlock->lock_word,
-							   true));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG],
+						   rwlock->waiters));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD],
+						   rwlock->lock_word));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(rwlock->last_x_file_name)));
 						OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(rwlock->last_x_line, true));
 						fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();
-						OK(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT]->store(rwlock->count_os_wait, true));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT], rwlock->count_os_wait));
 					}
 				}
 			}

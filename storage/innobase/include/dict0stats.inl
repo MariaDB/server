@@ -201,15 +201,15 @@ dict_stats_deinit(
 		MEM_UNDEFINED(
 			index->stat_n_diff_key_vals,
 			index->n_uniq
-			* sizeof index->stat_n_diff_key_vals[0]);
+			* sizeof(index->stat_n_diff_key_vals[0]));
 		MEM_UNDEFINED(
 			index->stat_n_sample_sizes,
 			index->n_uniq
-			* sizeof index->stat_n_sample_sizes[0]);
+			* sizeof(index->stat_n_sample_sizes[0]));
 		MEM_UNDEFINED(
 			index->stat_n_non_null_key_vals,
 			index->n_uniq
-			* sizeof index->stat_n_non_null_key_vals[0]);
+			* sizeof(index->stat_n_non_null_key_vals[0]));
 		MEM_UNDEFINED(
 			&index->stat_index_size,
 			sizeof(index->stat_index_size));

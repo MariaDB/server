@@ -1,7 +1,6 @@
+# 
+# MDEV-13155: XA recovery not supported for RocksDB (Just a testcase)
 #
-# MDEV-742 fixes
-#   MDEV-13155: XA recovery not supported for RocksDB
-# as well.
 call mtr.add_suppression("Found .* prepared XA transactions");
 connect  con1,localhost,root,,test;
 DROP TABLE IF EXISTS t1;
@@ -16,55 +15,19 @@ INSERT INTO t1 (a) VALUES (3);
 INSERT INTO t1 (a) VALUES (4);
 XA END 'xa2';
 XA PREPARE 'xa2';
-connect  con3,localhost,root,,test;
-XA START 'xa3';
-INSERT INTO t1 (a) VALUES (5);
-INSERT INTO t1 (a) VALUES (6);
-XA END 'xa3';
-XA PREPARE 'xa3';
-disconnect con3;
 connection default;
 SELECT * FROM t1;
 a
-Must be all three XA:s in
-XA RECOVER;
-formatID	gtrid_length	bqual_length	data
-1	3	0	xa3
-1	3	0	xa1
-1	3	0	xa2
 # restart
 connect  con3,localhost,root,,test;
 XA RECOVER;
 formatID	gtrid_length	bqual_length	data
-1	3	0	xa3
 1	3	0	xa1
 1	3	0	xa2
 XA ROLLBACK 'xa1';
 XA COMMIT 'xa2';
-XA ROLLBACK 'xa3';
 SELECT a FROM t1;
 a
 3
 4
-connect  con4,localhost,root,,test;
-XA START 'xa4';
-INSERT INTO t1 (a) VALUES (7);
-INSERT INTO t1 (a) VALUES (8);
-XA END 'xa4';
-XA PREPARE 'xa4';
-connection default;
-# Now restart through graceful shutdown
-# restart
-connect  con5,localhost,root,,test;
-Must have 'xa4'
-XA RECOVER;
-formatID	gtrid_length	bqual_length	data
-1	3	0	xa4
-XA COMMIT 'xa4';
-SELECT a FROM t1;
-a
-3
-4
-7
-8
 DROP TABLE t1;

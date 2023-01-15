@@ -1295,7 +1295,10 @@ bool ODBConn::DriverConnect(DWORD Options)
 #else   // !_WIN32
   HWND    hWnd = (HWND)1;
 #endif  // !_WIN32
+  PGLOBAL& g = m_G;
+  PDBUSER dup = PlgGetUser(g);
 
+//if (Options & noOdbcDialog || dup->Remote)
     wConnectOption = SQL_DRIVER_NOPROMPT;
 //else if (Options & forceOdbcDialog)
 //  wConnectOption = SQL_DRIVER_PROMPT;
@@ -1694,7 +1697,7 @@ int ODBConn::PrepareSQL(char *sql)
     b = false;
 
     if (m_hstmt) {
-      SQLFreeStmt(m_hstmt, SQL_CLOSE);
+      RETCODE rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
 
       hstmt = m_hstmt;
       m_hstmt = NULL;
@@ -1702,7 +1705,7 @@ int ODBConn::PrepareSQL(char *sql)
       if (m_Tdb->GetAmType() != TYPE_AM_XDBC)
         ThrowDBX(MSG(SEQUENCE_ERROR));
 
-    } // endif m_hstmt
+      } // endif m_hstmt
 
     rc = SQLAllocStmt(m_hdbc, &hstmt);
 

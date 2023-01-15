@@ -93,19 +93,12 @@ static uchar *servers_cache_get_key(FOREIGN_SERVER *server, size_t *length,
   DBUG_RETURN((uchar*) server->server_name);
 }
 
-static PSI_memory_key key_memory_servers;
-
 #ifdef HAVE_PSI_INTERFACE
 static PSI_rwlock_key key_rwlock_THR_LOCK_servers;
 
 static PSI_rwlock_info all_servers_cache_rwlocks[]=
 {
   { &key_rwlock_THR_LOCK_servers, "THR_LOCK_servers", PSI_FLAG_GLOBAL}
-};
-
-static PSI_memory_info all_servers_cache_memory[]=
-{
-  { &key_memory_servers, "servers_cache", PSI_FLAG_GLOBAL}
 };
 
 static void init_servers_cache_psi_keys(void)
@@ -118,86 +111,8 @@ static void init_servers_cache_psi_keys(void)
 
   count= array_elements(all_servers_cache_rwlocks);
   PSI_server->register_rwlock(category, all_servers_cache_rwlocks, count);
-
-  count= array_elements(all_servers_cache_memory);
-  mysql_memory_register(category, all_servers_cache_memory, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
-
-
-struct close_cached_connection_tables_arg
-{
-  THD *thd;
-  LEX_CSTRING *connection;
-  TABLE_LIST *tables;
-};
-
-
-static my_bool close_cached_connection_tables_callback(
-  TDC_element *element, close_cached_connection_tables_arg *arg)
-{
-  TABLE_LIST *tmp;
-
-  mysql_mutex_lock(&element->LOCK_table_share);
-  /* Ignore if table is not open or does not have a connect_string */
-  if (!element->share || !element->share->connect_string.length ||
-      !element->ref_count)
-    goto end;
-
-  /* Compare the connection string */
-  if (arg->connection &&
-      (arg->connection->length > element->share->connect_string.length ||
-       (arg->connection->length < element->share->connect_string.length &&
-        (element->share->connect_string.str[arg->connection->length] != '/' &&
-         element->share->connect_string.str[arg->connection->length] != '\\')) ||
-       strncasecmp(arg->connection->str, element->share->connect_string.str,
-                   arg->connection->length)))
-    goto end;
-
-  /* close_cached_tables() only uses these elements */
-  if (!(tmp= (TABLE_LIST*) alloc_root(arg->thd->mem_root, sizeof(TABLE_LIST))) ||
-      !(arg->thd->make_lex_string(&tmp->db, element->share->db.str, element->share->db.length)) ||
-      !(arg->thd->make_lex_string(&tmp->table_name, element->share->table_name.str,
-                                      element->share->table_name.length)))
-  {
-    mysql_mutex_unlock(&element->LOCK_table_share);
-    return TRUE;
-  }
-
-  tmp->next_global= tmp->next_local= arg->tables;
-  MDL_REQUEST_INIT(&tmp->mdl_request, MDL_key::TABLE, tmp->db.str,
-                   tmp->table_name.str, MDL_EXCLUSIVE, MDL_TRANSACTION);
-  arg->tables= tmp;
-
-end:
-  mysql_mutex_unlock(&element->LOCK_table_share);
-  return FALSE;
-}
-
-
-/**
-  Close all tables which match specified connection string or
-  if specified string is NULL, then any table with a connection string.
-
-  @return false  ok
-  @return true   error, some tables may keep using old server info
-*/
-
-static bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
-{
-  close_cached_connection_tables_arg argument= { thd, connection, 0 };
-  DBUG_ENTER("close_cached_connections");
-
-  if (tdc_iterate(thd,
-                  (my_hash_walk_action) close_cached_connection_tables_callback,
-                  &argument))
-    DBUG_RETURN(true);
-
-  DBUG_RETURN(argument.tables ?
-              close_cached_tables(thd, argument.tables, true,
-                                  thd->variables.lock_wait_timeout) : false);
-}
-
 
 /*
   Initialize structures responsible for servers used in federated
@@ -233,7 +148,7 @@ bool servers_init(bool dont_read_servers_table)
     DBUG_RETURN(TRUE);
 
   /* initialise our servers cache */
-  if (my_hash_init(key_memory_servers, &servers_cache, system_charset_info, 32, 0, 0,
+  if (my_hash_init(&servers_cache, system_charset_info, 32, 0, 0,
                    (my_hash_get_key) servers_cache_get_key, 0, 0))
   {
     return_val= TRUE; /* we failed, out of memory? */
@@ -241,7 +156,7 @@ bool servers_init(bool dont_read_servers_table)
   }
 
   /* Initialize the mem root for data */
-  init_sql_alloc(key_memory_servers, &mem, ACL_ALLOC_BLOCK_SIZE, 0,
+  init_sql_alloc(&mem, "servers", ACL_ALLOC_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
 
   if (dont_read_servers_table)
@@ -291,7 +206,7 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
 
   my_hash_reset(&servers_cache);
   free_root(&mem, MYF(0));
-  init_sql_alloc(key_memory_servers, &mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&mem, "servers_load", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
                        1,0, FALSE))
@@ -479,7 +394,6 @@ insert_server(THD *thd, FOREIGN_SERVER *server)
   /* need to open before acquiring THR_LOCK_plugin or it will deadlock */
   if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
     goto end;
-  table->file->row_logging= 0;                  // Don't log to binary log
 
   /* insert the server into the table */
   if (unlikely(error= insert_server_record(table, server)))
@@ -618,9 +532,9 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
 {
   int error;
   DBUG_ENTER("insert_server_record");
-  DBUG_ASSERT(!table->file->row_logging);
-
+  tmp_disable_binlog(table->in_use);
   table->use_all_columns();
+
   empty_record(table);
 
   /* set the field that's the PK to the value we're looking for */
@@ -653,6 +567,8 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
   }
   else
     error= ER_FOREIGN_SERVER_EXISTS;
+
+  reenable_binlog(table->in_use);
   DBUG_RETURN(error);
 }
 
@@ -969,8 +885,7 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
 {
   int error=0;
   DBUG_ENTER("update_server_record");
-  DBUG_ASSERT(!table->file->row_logging);
-
+  tmp_disable_binlog(table->in_use);
   table->use_all_columns();
   /* set the field that's the PK to the value we're looking for */
   table->field[0]->store(server->server_name,
@@ -1006,6 +921,7 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
   }
 
 end:
+  reenable_binlog(table->in_use);
   DBUG_RETURN(error);
 }
 
@@ -1030,8 +946,7 @@ delete_server_record(TABLE *table, LEX_CSTRING *name)
 {
   int error;
   DBUG_ENTER("delete_server_record");
-  DBUG_ASSERT(!table->file->row_logging);
-
+  tmp_disable_binlog(table->in_use);
   table->use_all_columns();
 
   /* set the field that's the PK to the value we're looking for */
@@ -1055,6 +970,7 @@ delete_server_record(TABLE *table, LEX_CSTRING *name)
       table->file->print_error(error, MYF(0));
   }
 
+  reenable_binlog(table->in_use);
   DBUG_RETURN(error);
 }
 

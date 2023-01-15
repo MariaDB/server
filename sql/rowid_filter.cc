@@ -110,12 +110,10 @@ Range_rowid_filter_cost_info::set_adjusted_gain_param(double access_cost_factor)
 void Range_rowid_filter_cost_info::init(Rowid_filter_container_type cont_type,
                                         TABLE *tab, uint idx)
 {
-  DBUG_ASSERT(tab->opt_range_keys.is_set(idx));
-
   container_type= cont_type;
   table= tab;
   key_no= idx;
-  est_elements= (ulonglong) table->opt_range[key_no].rows;
+  est_elements= (ulonglong) (table->quick_rows[key_no]);
   b= build_cost(container_type);
   selectivity= est_elements/((double) table->stat_records());
   a= avg_access_and_eval_gain_per_row(container_type);
@@ -136,9 +134,8 @@ double
 Range_rowid_filter_cost_info::build_cost(Rowid_filter_container_type cont_type)
 {
   double cost= 0;
-  DBUG_ASSERT(table->opt_range_keys.is_set(key_no));
 
-  cost+= table->opt_range[key_no].index_only_cost;
+  cost+= table->quick_index_only_costs[key_no];
 
   switch (cont_type) {
 
@@ -348,7 +345,7 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   uint key_no;
   key_map usable_range_filter_keys;
   usable_range_filter_keys.clear_all();
-  key_map::Iterator it(opt_range_keys);
+  key_map::Iterator it(quick_keys);
 
   if (file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
     return;                                     // Cannot create filtering
@@ -363,9 +360,9 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   {
     if (!(file->index_flags(key_no, 0, 1) & HA_DO_RANGE_FILTER_PUSHDOWN))  // !1
       continue;
-    if (file->is_clustering_key(key_no))                              // !2
+    if (key_no == s->primary_key && file->primary_key_is_clustered())      // !2
       continue;
-   if (opt_range[key_no].rows >
+   if (quick_rows[key_no] >
        get_max_range_rowid_filter_elems_for_table(thd, this,
                                                   SORTED_ARRAY_CONTAINER)) // !3
       continue;
@@ -490,7 +487,7 @@ TABLE::best_range_rowid_filter_for_partial_join(uint access_key_no,
     clustered primary key it would, but the current InnoDB code does not
     allow it. Later this limitation will be lifted
   */
-  if (file->is_clustering_key(access_key_no))
+  if (access_key_no == s->primary_key && file->primary_key_is_clustered())
     return 0;
 
   Range_rowid_filter_cost_info *best_filter= 0;

@@ -290,7 +290,7 @@ drop table t1;
 #
 # Bug#36001: Partitions: spelling and using some error messages
 #
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+--error ER_FOREIGN_KEY_ON_PARTITIONED
 CREATE TABLE t1 (a INT, FOREIGN KEY (a) REFERENCES t0 (a))
 ENGINE=MyISAM
 PARTITION BY HASH (a);
@@ -1054,7 +1054,7 @@ drop table t1;
 #
 # Bug #17754 Change to explicit removal of partitioning scheme
 # Also added a number of tests to ensure that proper engine is
-# chosen in all kinds of scenarios.
+# choosen in all kinds of scenarios.
 #
 
 create table t1 (a int)
@@ -1422,7 +1422,7 @@ drop table t2;
 #
 # Bug #17497: Partitions: crash if add partition on temporary table
 #
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+--error ER_PARTITION_NO_TEMPORARY
 create temporary table t1 (a int) partition by hash(a);
 
 #
@@ -2292,9 +2292,6 @@ SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
 
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
-
-EXPLAIN
-SELECT b, c FROM t1 WHERE b = 1 or b=2 GROUP BY b, c;
 
 DROP TABLE t1;
 

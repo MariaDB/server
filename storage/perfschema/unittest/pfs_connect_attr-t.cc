@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2022, Oracle and/or its affiliates.
+/* Copyright (c) 2008, 2017, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -21,7 +21,7 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
-#include <my_thread.h>
+#include <my_pthread.h>
 #include <pfs_server.h>
 #include <pfs_instr_class.h>
 #include <pfs_instr.h>
@@ -47,7 +47,7 @@ void test_blob_parser()
   unsigned char packet[10000], *ptr;
   uint name_len, value_len, idx, packet_length;
   bool result;
-  const CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
+  const CHARSET_INFO *cs= &my_charset_utf8_bin;
 
   diag("test_blob_parser");
 
@@ -164,7 +164,7 @@ void test_multibyte_lengths()
   char name[100], value[4096];
   uint name_len, value_len;
   bool result;
-  const CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
+  const CHARSET_INFO *cs= &my_charset_utf8_bin;
 
   unsigned char var_len_packet[] = {
     252, 2, 0, 'k', '1',
@@ -197,7 +197,7 @@ void test_utf8_parser()
   char name[33 * 6], value[1024 * 6], packet[1500 * 6], *ptr;
   uint name_len, value_len;
   bool result;
-  const CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
+  const CHARSET_INFO *cs= &my_charset_utf8_bin;
 
   /* note : this is encoded in utf-8 */
   const char *attr1= "Георги";
@@ -249,7 +249,7 @@ void test_utf8_parser_bad_encoding()
   char name[33 * 3], value[1024 * 3], packet[1500 * 3], *ptr;
   uint name_len, value_len;
   bool result;
-  const CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
+  const CHARSET_INFO *cs= &my_charset_utf8_bin;
 
   /* note : this is encoded in utf-8 */
   const char *attr= "Георги";
@@ -258,7 +258,7 @@ void test_utf8_parser_bad_encoding()
   ptr= packet;
   *ptr++= strlen(attr);
   memcpy(ptr, attr, strlen(attr));
-  ptr[0]= (char)0xFA; // invalid UTF-8 char
+  ptr[0]= 0xFA; // invalid UTF-8 char
   ptr+= strlen(attr);
   *ptr++= strlen(val);
   memcpy(ptr, val, strlen(val));

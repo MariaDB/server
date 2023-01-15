@@ -5,30 +5,30 @@
 
 ## Check MyISAM and Aria unclosed tables.
 # - Requires the server to be up.
-# - Is supposed to run silently in background.
+# - Is supposed to run silently in background. 
 function check_for_crashed_tables() {
   set -e
   set -u
 
   # But do it in the background to not stall the boot process.
-  logger -p daemon.info -i -t"$0" "Triggering myisam-recover for all MyISAM tables and aria-recover for all Aria tables"
+  logger -p daemon.info -i -t$0 "Triggering myisam-recover for all MyISAM tables and aria-recover for all Aria tables"
 
   # Checking for $? is unreliable so the size of the output is checked.
   # Some table handlers like HEAP do not support CHECK TABLE.
-  tempfile=$(mktemp)
+  tempfile=`tempfile`
 
   # We have to use xargs in this case, because a for loop barfs on the
   # spaces in the thing to be looped over.
 
-  # If a crashed table is encountered, the "mariadb" command will return with a status different from 0
+  # If a crashed table is encountered, the "mysql" command will return with a status different from 0
   set +e
 
-  LC_ALL=C $MARIADB --skip-column-names --batch -e  '
+  LC_ALL=C $MYSQL --skip-column-names --batch -e  '
       select concat('\''select count(*) into @discard from `'\'',
-                    TABLE_SCHEMA, '\''`.`'\'', TABLE_NAME, '\''`'\'')
+                    TABLE_SCHEMA, '\''`.`'\'', TABLE_NAME, '\''`'\'') 
       from information_schema.TABLES where TABLE_SCHEMA<>'\''INFORMATION_SCHEMA'\'' and TABLE_SCHEMA<>'\''PERFORMANCE_SCHEMA'\'' and ( ENGINE='\''MyISAM'\'' or ENGINE='\''Aria'\'' )' | \
-    xargs -i ${MARIADB} --skip-column-names --silent --batch \
-                    --force -e "{}" &>"${tempfile}"
+    xargs -i $MYSQL --skip-column-names --silent --batch \
+                    --force -e "{}" &>$tempfile
   set -e
 
   if [ -s "$tempfile" ]; then
@@ -37,31 +37,31 @@ function check_for_crashed_tables() {
         "Improperly closed tables are also reported if clients are accessing\n" \
  	"the tables *now*. A list of current connections is below.\n";
        $MYADMIN processlist status
-    ) >> "${tempfile}"
+    ) >> $tempfile
     # Check for presence as a dependency on mailx would require an MTA.
-    if [ -x /usr/bin/mailx ]; then
-      mailx -e -s"$MYCHECK_SUBJECT" $MYCHECK_RCPT < "$tempfile"
+    if [ -x /usr/bin/mailx ]; then 
+      mailx -e -s"$MYCHECK_SUBJECT" $MYCHECK_RCPT < $tempfile 
     fi
-    (echo "$MYCHECK_SUBJECT"; cat "${tempfile}") | logger -p daemon.warn -i -t"$0"
+    (echo "$MYCHECK_SUBJECT"; cat $tempfile) | logger -p daemon.warn -i -t$0
   fi
-  rm "${tempfile}"
+  rm $tempfile
 }
 
 ## Check for tables needing an upgrade.
 # - Requires the server to be up.
-# - Is supposed to run silently in background.
+# - Is supposed to run silently in background. 
 function upgrade_system_tables_if_necessary() {
   set -e
   set -u
 
-  logger -p daemon.info -i -t"$0" "Upgrading MySQL tables if necessary."
+  logger -p daemon.info -i -t$0 "Upgrading MySQL tables if necessary."
 
   # Filter all "duplicate column", "duplicate key" and "unknown column"
   # errors as the script is designed to be idempotent.
   LC_ALL=C $MYUPGRADE \
     2>&1 \
     | egrep -v '^(1|@had|ERROR (1051|1054|1060|1061|1146|1347|1348))' \
-    | logger -p daemon.warn -i -t"$0"
+    | logger -p daemon.warn -i -t$0
 }
 
 ## Check for the presence of both, root accounts with and without password.
@@ -69,11 +69,11 @@ function upgrade_system_tables_if_necessary() {
 function check_root_accounts() {
   set -e
   set -u
+  
+  logger -p daemon.info -i -t$0 "Checking for insecure root accounts."
 
-  logger -p daemon.info -i -t"$0" "Checking for insecure root accounts."
-
-  ret=$( echo "SELECT count(*) FROM mysql.user WHERE user='root' and password='' and plugin in ('', 'mysql_native_password', 'mysql_old_password');" | $MARIADB --skip-column-names )
+  ret=$( echo "SELECT count(*) FROM mysql.user WHERE user='root' and password='' and plugin in ('', 'mysql_native_password', 'mysql_old_password');" | $MYSQL --skip-column-names )
   if [ "$ret" -ne "0" ]; then
-    logger -p daemon.warn -i -t"$0" "WARNING: mysql.user contains $ret root accounts without password!"
+    logger -p daemon.warn -i -t$0 "WARNING: mysql.user contains $ret root accounts without password!"
   fi
 }

@@ -192,14 +192,14 @@ drop tables t1, t2;
 SET @save_global_character_set_server= @@global.character_set_server;
 set @@global.character_set_server=@@character_set_server;
 select count(*) from t1;
-ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
 check table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+test.t1	check	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
 test.t1	check	error	Corrupt
 repair table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You may have retry " from storage engine MyISAM
+test.t1	repair	Error	Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
 test.t1	repair	error	Corrupt
 repair table t1 use_frm;
 Table	Op	Msg_type	Msg_text

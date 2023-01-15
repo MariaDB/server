@@ -20,7 +20,7 @@ connect disable_purge,localhost,root,,;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 
-SET DEFAULT_STORAGE_ENGINE = InnoDB;
+SET STORAGE_ENGINE = InnoDB;
 # InnoDB does not support Merge tables (affects include/index_merge1.inc)
 let $merge_table_support= 0;
 

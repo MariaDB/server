@@ -86,15 +86,15 @@ If the result is incorrect, you have found a bug. In this case, you should
 edit the test result to the correct results so that we can verify that
 the bug is corrected in future releases.
 
-If you want to submit your test case you can send it
+If you want to submit your test case you can send it 
 to maria-developers@lists.launchpad.net or attach it to a bug report on
-https://mariadb.org/jira/.
+http://mariadb.org/jira/.
 
 If the test case is really big or if it contains 'not public' data,
 then put your .test file and .result file(s) into a tar.gz archive,
 add a README that explains the problem, ftp the archive to
-ftp://ftp.mariadb.org/private and submit a report to
-https://mariadb.org/jira about it.
+ftp://ftp.askmonty.org/private and submit a report to
+http://mariadb.org/jira about it.
 
 The latest information about mysql-test-run can be found at:
 https://mariadb.com/kb/en/mariadb/mysqltest/

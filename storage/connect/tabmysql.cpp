@@ -247,7 +247,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
       // Found that if the string is:
       // user:@hostname:port/db/table
       // Then password is a null string, so set to NULL
-			if (pwd[0] == 0)
+			if ((pwd[0] == 0))
 				Password = NULL;
 			else
 				Password = pwd;

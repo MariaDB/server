@@ -53,8 +53,8 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR hung';
 # restart: --innodb-force-recovery=3
 disconnect hang;
-#sql-alter.frm
-#sql-alter.ibd
+#sql-temporary.frm
+#sql-temporary.ibd
 FTS_INDEX_1.ibd
 FTS_INDEX_2.ibd
 FTS_INDEX_3.ibd
@@ -122,8 +122,8 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 # restart: --innodb-read-only
-#sql-alter.frm
-#sql-alter.ibd
+#sql-temporary.frm
+#sql-temporary.ibd
 FTS_INDEX_1.ibd
 FTS_INDEX_2.ibd
 FTS_INDEX_3.ibd
@@ -191,7 +191,7 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 # restart
-#sql-alter.frm
+#sql-temporary.frm
 FTS_INDEX_1.ibd
 FTS_INDEX_2.ibd
 FTS_INDEX_3.ibd

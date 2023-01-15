@@ -32,7 +32,7 @@
 ##### Storage engine to be tested
 # Set the session storage engine
 --source include/have_blackhole.inc
-SET @@session.default_storage_engine = 'blackhole';
+SET @@session.storage_engine = 'blackhole';
 
 ##### Workarounds for known open engine specific bugs
 #     none

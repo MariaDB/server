@@ -52,4 +52,4 @@ SELECT @@GLOBAL.innodb_scrub_log_speed;
 
 --Error ER_BAD_FIELD_ERROR
 SELECT innodb_scrub_log_speed;
---echo Expected error 'Unknown column in field list'
+--echo Expected error 'Unknow column in field list'

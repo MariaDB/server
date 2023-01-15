@@ -95,4 +95,3 @@ mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
 drop_table: Hangs on shutdown
 add_index_inplace: not stable result
 rocksdb_range2 : result difference, update after MDEV-16746 is fixed
-add_index_inplace: FORCE INDEX gives wrong count

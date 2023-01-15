@@ -19,8 +19,8 @@
 
 C_MODE_START
 void lib_connection_phase(NET *net, int phase);
-void init_embedded_mysql(MYSQL *mysql, ulong client_flag);
-void *create_embedded_thd(ulong client_flag);
+void init_embedded_mysql(MYSQL *mysql, int client_flag);
+void *create_embedded_thd(int client_flag);
 int check_embedded_connection(MYSQL *mysql, const char *db);
 void free_old_query(MYSQL *mysql);
 extern MYSQL_METHODS embedded_methods;
@@ -37,12 +37,5 @@ typedef struct embedded_query_result
   unsigned int last_errno;
   char sqlstate[SQLSTATE_LENGTH+1];
 } EQR;
-
-
-typedef struct st_mariadb_field_extension
-{
-  MARIADB_CONST_STRING metadata[MARIADB_FIELD_ATTR_LAST+1]; /* 10.5 */
-} MARIADB_FIELD_EXTENSION;
-
 
 C_MODE_END
