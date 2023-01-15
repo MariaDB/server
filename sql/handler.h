@@ -357,9 +357,9 @@ enum chf_create_flags {
   Rowid's are not comparable. This is set if the rowid is unique to the
   current open handler, like it is with federated where the rowid is a
   pointer to a local result set buffer. The effect of having this set is
-  that the optimizer will not consirer the following optimizations for
+  that the optimizer will not consider the following optimizations for
   the table:
-  ror scans or filtering
+  ror scans, filtering or duplicate weedout
 */
 #define HA_NON_COMPARABLE_ROWID (1ULL << 60)
 

@@ -5462,7 +5462,6 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
      between high priority wsrep threads.
      Note that wsrep_thd_is_BF() doesn't take LOCK_thd_data for either thd,
      the caller should guarantee that the BF state won't change.
-     (e.g. InnoDB does it by keeping lock_sys.mutex locked)
   */
   if (WSREP_ON && wsrep_thd_is_BF(thd, false) &&
       wsrep_thd_is_BF(other_thd, false))
