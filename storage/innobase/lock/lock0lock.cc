@@ -787,34 +787,25 @@ lock_rec_has_to_wait(
 	}
 
 #ifdef WITH_WSREP
-	/* New lock request from a transaction is using unique key
-	scan and this transaction is a wsrep high priority transaction
-	(brute force). If conflicting transaction is also wsrep high
-	priority transaction we should avoid lock conflict because
-	ordering of these transactions is already decided and
-	conflicting transaction will be later replayed. Note
-	that thread holding conflicting lock can't be
-	committed or rolled back while we hold
-	lock_sys->mutex. */
-	if (trx->is_wsrep_UK_scan()
-	    && wsrep_thd_is_BF(lock2->trx->mysql_thd, false)) {
-		return false;
-	}
+		/* New lock request from a transaction is using unique key
+		scan and this transaction is a wsrep high priority transaction
+		(brute force). If conflicting transaction is also wsrep high
+		priority transaction we should avoid lock conflict because
+		ordering of these transactions is already decided and
+		conflicting transaction will be later replayed. Note
+		that thread holding conflicting lock can't be
+		committed or rolled back while we hold
+		lock_sys->mutex. */
+		if (trx->is_wsrep_UK_scan()
+		    && wsrep_thd_is_BF(lock2->trx->mysql_thd, false)) {
+			return false;
+		}
 
-	/* If BF-BF conflict, we have to look at write set order */
-	if (trx->is_wsrep()
-	    && (type_mode & LOCK_MODE_MASK) == LOCK_X
-	    && (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X
-	    && wsrep_thd_order_before(trx->mysql_thd,
-				      lock2->trx->mysql_thd)) {
-		return false;
-	}
-
-	/* We very well can let bf to wait normally as other
-	BF will be replayed in case of conflict. For debug
-	builds we will do additional sanity checks to catch
-	unsupported bf wait if any. */
-	ut_d(wsrep_assert_no_bf_bf_wait(lock2, trx));
+		/* We very well can let bf to wait normally as other
+		BF will be replayed in case of conflict. For debug
+		builds we will do additional sanity checks to catch
+		unsupported bf wait if any. */
+		ut_d(wsrep_assert_no_bf_bf_wait(lock2, trx));
 #endif /* WITH_WSREP */
 
 	return true;
@@ -1996,14 +1987,6 @@ lock_rec_has_to_wait_in_queue(
 		if (heap_no < lock_rec_get_n_bits(lock)
 		    && (p[bit_offset] & bit_mask)
 		    && lock_has_to_wait(wait_lock, lock)) {
-#ifdef WITH_WSREP
-			if (lock->trx->is_wsrep()
-			    && wsrep_thd_order_before(wait_lock->trx->mysql_thd,
-						      lock->trx->mysql_thd)) {
-				/* don't wait for another BF lock */
-				continue;
-			}
-#endif
 			return(lock);
 		}
 	}
