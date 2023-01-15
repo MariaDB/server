@@ -833,6 +833,12 @@ enum options_mysqld
   OPT_REPLICATE_REWRITE_DB,
   OPT_REPLICATE_WILD_DO_TABLE,
   OPT_REPLICATE_WILD_IGNORE_TABLE,
+  OPT_PARALLEL_DO_DB,
+  OPT_PARALLEL_DO_TABLE,
+  OPT_PARALLEL_IGNORE_DB,
+  OPT_PARALLEL_IGNORE_TABLE,
+  OPT_PARALLEL_WILD_DO_TABLE,
+  OPT_PARALLEL_WILD_IGNORE_TABLE,
   OPT_SAFE,
   OPT_SERVER_ID,
   OPT_SILENT,
@@ -989,6 +995,8 @@ extern ulong opt_binlog_dbug_fsync_sleep;
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
+extern my_bool opt_slave_ordered_thread;
+extern my_bool opt_slave_ordered_dont_wait;
 
 extern int mysqld_main(int argc, char **argv);
 

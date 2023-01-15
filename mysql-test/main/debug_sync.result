@@ -161,7 +161,7 @@ Variable_name	Value
 debug_sync	ON - current signals: 'something,from_function,from_myvar'
 SET DEBUG_SYNC= 'now WAIT_FOR nothing TIMEOUT 0';
 Warnings:
-Warning	####	debug sync point wait timed out
+Warning	####	Debug sync WAIT_FOR 'nothing' timed out
 SET DEBUG_SYNC= 'now SIGNAL nothing';
 SHOW VARIABLES LIKE 'DEBUG_SYNC';
 Variable_name	Value

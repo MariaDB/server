@@ -1143,7 +1143,7 @@ handle_rpl_parallel_thread(void *arg)
   rpt->running= true;
   mysql_cond_signal(&rpt->COND_rpl_thread);
 
-  thd->set_command(COM_SLAVE_WORKER);
+  thd->set_command(rpt->command);
 #ifdef WITH_WSREP
   wsrep_open(thd);
   if (wsrep_before_command(thd))
@@ -1184,6 +1184,8 @@ handle_rpl_parallel_thread(void *arg)
     rpt->add_to_worker_idle_time_and_reset();
 
   more_events:
+    thd->set_command(rpt->command);
+
     for (qev= events; qev; qev= next_qev)
     {
       Log_event_type event_type;
@@ -2274,10 +2276,10 @@ static bool handle_split_alter(rpl_parallel_entry *e,
   {
     /*
      j is needed for round robin scheduling, we will start with rpl_thread_idx
-     go till rpl_thread_max and then start with 0 to rpl_thread_idx
+     go till parallel_threads() and then start with 0 to rpl_thread_idx
     */
     int j= e->rpl_thread_idx;
-    for(uint i= 0; i < e->rpl_thread_max; i++)
+    for(uint i= 0; i < e->parallel_threads(); i++)
     {
       if (!e->rpl_threads[j] || e->rpl_threads[j]->current_owner
           != &e->rpl_threads[j] || !e->rpl_threads[j]->current_start_alter_id)
@@ -2288,7 +2290,7 @@ static bool handle_split_alter(rpl_parallel_entry *e,
         goto idx_found;
       }
       j++;
-      j= j % e->rpl_thread_max;
+      j= j % e->parallel_threads();
     }
     //We did not find and idx
   DBUG_ASSERT(0);
@@ -2308,7 +2310,7 @@ idx_found:
        current_start_alters
       */
       mysql_mutex_lock(&global_rpl_thread_pool.LOCK_rpl_thread_pool);
-      if (e->pending_start_alters < e->rpl_thread_max - 1 &&
+      if (e->pending_start_alters < e->parallel_threads() - 1 &&
               global_rpl_thread_pool.current_start_alters
               < global_rpl_thread_pool.count - 1)
       {
@@ -2328,7 +2330,7 @@ idx_found:
                     Gtid_log_event::FL_ROLLBACK_ALTER_E1 ))
   {
     //Free the corrosponding rpt current_start_alter_id
-    for(uint i= 0; i < e->rpl_thread_max; i++)
+    for(uint i= 0; i < e->parallel_threads(); i++)
     {
       if(e->rpl_threads[i] &&
           e->rpl_threads[i]->current_start_alter_id == gtid_ev->sa_seq_no &&
@@ -2385,22 +2387,34 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
 {
   uint32 idx;
 
-  idx= rpl_thread_idx;
   if (gtid_ev)
   {
-    if (++idx >= rpl_thread_max)
-      idx= 0;
-    //rpl_thread_idx will be updated handle_split_alter
-    if (handle_split_alter(this, gtid_ev, &idx, did_enter_cond, rgi, old_stage))
-      return rpl_threads[idx];
-    if (gtid_ev->flags2 &
-        (Gtid_log_event::FL_COMPLETED_XA | Gtid_log_event::FL_PREPARED_XA))
-    {     
-      idx= my_hash_sort(&my_charset_bin, gtid_ev->xid.key(),
-                        gtid_ev->xid.key_length()) % rpl_thread_max;
+    if (ordered_thread)
+    {
+      idx= rpl_thread_max - 1;
+      was_ordered= true;
     }
-    rpl_thread_idx= idx;
+    else
+    {
+      was_ordered= false;
+      idx= rpl_thread_idx;
+      ++idx;
+      if (idx >= parallel_threads())
+        idx= 0;
+      //rpl_thread_idx will be updated handle_split_alter
+      if (handle_split_alter(this, gtid_ev, &idx, did_enter_cond, rgi, old_stage))
+        return rpl_threads[idx];
+      if (gtid_ev->flags2 &
+          (Gtid_log_event::FL_COMPLETED_XA | Gtid_log_event::FL_PREPARED_XA))
+      {
+        idx= my_hash_sort(&my_charset_bin, gtid_ev->xid.key(),
+                          gtid_ev->xid.key_length()) % parallel_threads();
+      }
+      rpl_thread_idx= idx;
+    }
   }
+  else
+    idx= last_idx();
   return choose_thread_internal(idx, did_enter_cond, rgi, old_stage);
 }
 
@@ -2483,6 +2497,7 @@ rpl_parallel_thread * rpl_parallel_entry::choose_thread_internal(uint idx,
     rpl_threads[idx]= thr= global_rpl_thread_pool.get_thread(&rpl_threads[idx],
                                                              this);
 
+  thr->command= was_ordered ? COM_SLAVE_ORDERED : COM_SLAVE_WORKER;
   return thr;
 }
 
@@ -2571,6 +2586,7 @@ rpl_parallel::find(uint32 domain_id, Relay_log_info *rli)
     e->force_abort= false;
   }
 
+  e->ordered_thread= false;
   return e;
 }
 
@@ -2770,7 +2786,7 @@ rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
     Thus there is no need for the full complexity of choose_thread(). We only
     need to check if we have a current worker thread, and queue for it if so.
   */
-  idx= rpl_thread_idx;
+  idx= last_idx();
   thr= rpl_threads[idx];
   if (!thr)
     return 0;
@@ -2911,6 +2927,14 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   bool is_group_event;
   bool did_enter_cond= false;
   PSI_stage_info old_stage;
+  rpl_group_info::enum_speculation speculation= rpl_group_info::SPECULATE_NO;
+  enum_slave_parallel_mode mode;
+  uchar gtid_flags;
+  group_commit_orderer *gco;
+  bool new_gco= true;
+  uint8 force_switch_flag= 0;
+
+
 
   DBUG_EXECUTE_IF("slave_crash_if_parallel_apply", DBUG_SUICIDE(););
   /* Handle master log name change, seen in Rotate_log_event. */
@@ -3072,70 +3096,9 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       delete_or_keep_event_post_apply(serial_rgi, typ, ev);
       return 0;
     }
-  }
-  else
-    e= current;
+    mode= rli->mi->parallel_mode;
+    gtid_flags= gtid_ev->flags2;
 
-  /*
-    Find a worker thread to queue the event for.
-    Prefer a new thread, so we maximise parallelism (at least for the group
-    commit). But do not exceed a limit of --slave-domain-parallel-threads;
-    instead re-use a thread that we queued for previously.
-  */
-  cur_thread=
-    e->choose_thread(serial_rgi, &did_enter_cond, &old_stage, gtid_ev);
-  if (!cur_thread)
-  {
-    /* This means we were killed. The error is already signalled. */
-    delete ev;
-    return 1;
-  }
-
-  if (!(qev= cur_thread->get_qev(ev, event_size, rli)))
-  {
-    abandon_worker_thread(rli->sql_driver_thd, cur_thread,
-                          &did_enter_cond, &old_stage);
-    delete ev;
-    return 1;
-  }
-
-  if (typ == GTID_EVENT)
-  {
-    bool new_gco;
-    enum_slave_parallel_mode mode= rli->mi->parallel_mode;
-    uchar gtid_flags= gtid_ev->flags2;
-    group_commit_orderer *gco;
-    uint8 force_switch_flag;
-    enum rpl_group_info::enum_speculation speculation;
-
-    if (!(rgi= cur_thread->get_rgi(rli, gtid_ev, e, event_size)))
-    {
-      cur_thread->free_qev(qev);
-      abandon_worker_thread(rli->sql_driver_thd, cur_thread,
-                            &did_enter_cond, &old_stage);
-      delete ev;
-      return 1;
-    }
-
-    /*
-      We queue the event group in a new worker thread, to run in parallel
-      with previous groups.
-
-      To preserve commit order within the replication domain, we set up
-      rgi->wait_commit_sub_id to make the new group commit only after the
-      previous group has committed.
-
-      Event groups that group-committed together on the master can be run
-      in parallel with each other without restrictions. But one batch of
-      group-commits may not start before all groups in the previous batch
-      have initiated their commit phase; we set up rgi->gco to ensure that.
-    */
-    rgi->wait_commit_sub_id= e->current_sub_id;
-    rgi->wait_commit_group_info= e->current_group_info;
-
-    speculation= rpl_group_info::SPECULATE_NO;
-    new_gco= true;
-    force_switch_flag= 0;
     gco= e->current_gco;
     if (likely(gco))
     {
@@ -3188,18 +3151,78 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
             new group_commit_orderer, since we still want following transactions
             to run in parallel with transactions prior to this one.
           */
-          speculation= rpl_group_info::SPECULATE_WAIT;
+          if (opt_slave_ordered_dont_wait && !(gtid_flags & Gtid_log_event::FL_WAITED))
+            speculation= rpl_group_info::SPECULATE_OPTIMISTIC;
+          else
+            speculation= rpl_group_info::SPECULATE_WAIT;
+          if (opt_slave_ordered_thread)
+            e->ordered_thread= true;
         }
         else
           speculation= rpl_group_info::SPECULATE_OPTIMISTIC;
       }
       gco->flags= flags;
-    }
+    } /* if (gco) */
     else
     {
       if (gtid_flags & Gtid_log_event::FL_DDL)
         force_switch_flag= group_commit_orderer::FORCE_SWITCH;
+    } /* else (!gco) */
+  } /* if (typ == GTID_EVENT) */
+  else
+    e= current;
+
+  /*
+    Find a worker thread to queue the event for.
+    Prefer a new thread, so we maximise parallelism (at least for the group
+    commit). But do not exceed a limit of --slave-domain-parallel-threads;
+    instead re-use a thread that we queued for previously.
+  */
+  cur_thread=
+    e->choose_thread(serial_rgi, &did_enter_cond, &old_stage, gtid_ev);
+  if (!cur_thread)
+  {
+    /* This means we were killed. The error is already signalled. */
+    delete ev;
+    return 1;
+  }
+
+  DBUG_ASSERT(e->rpl_threads[e->last_idx()] == cur_thread);
+
+  if (!(qev= cur_thread->get_qev(ev, event_size, rli)))
+  {
+    abandon_worker_thread(rli->sql_driver_thd, cur_thread,
+                          &did_enter_cond, &old_stage);
+    delete ev;
+    return 1;
+  }
+
+  if (gtid_ev)
+  {
+    if (!(rgi= cur_thread->get_rgi(rli, gtid_ev, e, event_size)))
+    {
+      cur_thread->free_qev(qev);
+      abandon_worker_thread(rli->sql_driver_thd, cur_thread,
+                            &did_enter_cond, &old_stage);
+      delete ev;
+      return 1;
     }
+
+    /*
+      We queue the event group in a new worker thread, to run in parallel
+      with previous groups.
+
+      To preserve commit order within the replication domain, we set up
+      rgi->wait_commit_sub_id to make the new group commit only after the
+      previous group has committed.
+
+      Event groups that group-committed together on the master can be run
+      in parallel with each other without restrictions. But one batch of
+      group-commits may not start before all groups in the previous batch
+      have initiated their commit phase; we set up rgi->gco to ensure that.
+    */
+    rgi->wait_commit_sub_id= e->current_sub_id;
+    rgi->wait_commit_group_info= e->current_group_info;
     rgi->speculation= speculation;
 
     if (gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID)
@@ -3286,6 +3309,29 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   else
   {
     qev->rgi= e->current_group_info;
+  }
+
+  if (typ == GTID_EVENT)
+  {
+    DBUG_PRINT("rpl",
+              ("pos: %llu  "
+               "GTID %u-%u-%llu  "
+               "cid=%llu  "
+               "idx: %u  "
+               "spcl: %u  fsf: %u  ng: %u  "
+               "groups_q: %llu",
+               ev->log_pos,
+               gtid_ev->domain_id, gtid_ev->server_id, gtid_ev->seq_no,
+               gtid_ev->commit_id,
+               e->last_idx(),
+               speculation, force_switch_flag, new_gco,
+               e->count_queued_event_groups));
+  }
+  else
+  {
+    DBUG_PRINT("rpl",
+              ("pos: %llu  type: %u  idx: %u",
+               ev->log_pos, typ, e->last_idx()));
   }
 
   /*

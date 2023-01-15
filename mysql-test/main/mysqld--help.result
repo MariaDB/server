@@ -1291,6 +1291,12 @@ The following specify which files/extra groups are read (specified before remain
  --slave-net-timeout=# 
  Number of seconds to wait for more data from any
  master/slave connection before aborting the read
+ --slave-ordered-dont-wait 
+ Slave ordered events don't wait previous groups unless
+ they have explicit WAIT flag
+ --slave-ordered-thread 
+ Per-domain dedicated thread on slave for processing
+ ordered events
  --slave-parallel-max-queued=# 
  Limit on how much memory SQL threads should use per
  parallel replication thread when reading ahead in the
@@ -1887,6 +1893,8 @@ slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-max-statement-time 0
 slave-net-timeout 60
+slave-ordered-dont-wait FALSE
+slave-ordered-thread FALSE
 slave-parallel-max-queued 131072
 slave-parallel-mode conservative
 slave-parallel-threads 0

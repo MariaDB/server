@@ -87,17 +87,14 @@ Rpl_filter::~Rpl_filter()
     (I could not find an equivalent in the regex library MySQL uses).
 
   RETURN VALUES
-    0           should not be logged/replicated
-    1           should be logged/replicated                  
+    0           should not be logged/replicated (all tables not matched)
+    1           should be logged/replicated (any table matched)
 */
 
 bool 
 Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
 {
   bool some_tables_updating= 0;
-  char hash_key[SAFE_NAME_LEN*2+2];
-  char *end;
-  uint len;
   DBUG_ENTER("Rpl_filter::tables_ok");
   
   for (; tables; tables= tables->next_global)
@@ -106,31 +103,17 @@ Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
       continue;
     some_tables_updating= 1;
 
-    if (!do_table_inited &&
-        !ignore_table_inited &&
-        !wild_do_table_inited &&
-        !wild_ignore_table_inited)
-      continue;
-
-    end= strmov(hash_key, tables->db.str ? tables->db.str : db);
-    *end++= '.';
-    len= (uint) (strmov(end, tables->table_name.str) - hash_key);
-    if (do_table_inited) // if there are any do's
-    {
-      if (my_hash_search(&do_table, (uchar*) hash_key, len))
-	DBUG_RETURN(1);
-    }
-    if (ignore_table_inited) // if there are any ignores
-    {
-      if (my_hash_search(&ignore_table, (uchar*) hash_key, len))
-	DBUG_RETURN(0); 
-    }
-    if (wild_do_table_inited && 
-	find_wild(&wild_do_table, hash_key, len))
-      DBUG_RETURN(1);
-    if (wild_ignore_table_inited && 
-	find_wild(&wild_ignore_table, hash_key, len))
-      DBUG_RETURN(0);
+    /* Bits 0-1 are set in case of lists match */
+    /* Bit 2 (4) is set in case of no lists inited */
+    /* Bit 3 (8) is set in case of no lists match */
+    int res= table_ok(db, tables);
+    /* This table matched against some list, return result */
+    if (!(res & NOT_IN_ANY_LIST))
+      DBUG_RETURN(res & ALLOWED);
+    /* No lists set, no need to check more */
+    if (res & NO_LISTS_SET)
+      break;
+    DBUG_ASSERT(res & NOT_MATCHED);
   }
 
   /*
@@ -141,6 +124,42 @@ Rpl_filter::tables_ok(const char* db, TABLE_LIST* tables)
   */
   DBUG_RETURN(some_tables_updating &&
               !do_table_inited && !wild_do_table_inited);
+}
+
+
+int Rpl_filter::table_ok(const char* db, TABLE_LIST* tables)
+{
+  char hash_key[SAFE_NAME_LEN*2+2];
+  char *end;
+  uint len;
+
+  if (!do_table_inited &&
+      !ignore_table_inited &&
+      !wild_do_table_inited &&
+      !wild_ignore_table_inited)
+    return (NO_LISTS_SET | ALLOWED);
+
+  end= strmov(hash_key, tables->db.str ? tables->db.str : db);
+  *end++= '.';
+  len= (uint) (strmov(end, tables->table_name.str) - hash_key);
+  if (do_table_inited) // if there are any do's
+  {
+    if (my_hash_search(&do_table, (uchar*) hash_key, len))
+      return ALLOWED;
+  }
+  if (ignore_table_inited) // if there are any ignores
+  {
+    if (my_hash_search(&ignore_table, (uchar*) hash_key, len))
+      return IGNORED;
+  }
+  if (wild_do_table_inited &&
+      find_wild(&wild_do_table, hash_key, len))
+    return (WILDCARD | ALLOWED);
+  if (wild_ignore_table_inited &&
+      find_wild(&wild_ignore_table, hash_key, len))
+    return (WILDCARD | IGNORED);
+
+  return NOT_MATCHED;
 }
 
 #endif

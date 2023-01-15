@@ -1,0 +1,184 @@
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+set @old_parallel_threads=    @@global.slave_parallel_threads;
+set @old_slave_parallel_mode= @@global.slave_parallel_mode;
+set @old_dbug=                @@global.debug_dbug;
+set @old_slave_ordered_thread=    @@global.slave_ordered_thread;
+set @old_slave_ordered_dont_wait= @@global.slave_ordered_dont_wait;
+create procedure processlist()
+select Command, State, Info
+from information_schema.processlist
+where Command like 'Slave_%' and
+state like 'debug sync point%' and
+Info is not null
+order by db, Info;
+include/stop_slave.inc
+set global slave_parallel_threads=  5;
+set global slave_parallel_mode=     'optimistic';
+set global slave_ordered_thread=    1;
+set global slave_ordered_dont_wait= 1;
+include/start_slave.inc
+connection server_1;
+set @_parallel_do_db=             @@global.parallel_do_db;
+set @_parallel_ignore_db=         @@global.parallel_ignore_db;
+set @_parallel_do_table=          @@global.parallel_do_table;
+set @_parallel_ignore_table=      @@global.parallel_ignore_table;
+set @@global.parallel_do_db=      "db_parallel";
+set @@global.parallel_ignore_db=  "db_serial";
+set @@global.parallel_do_table= "db_serial.t3";
+select @@global.parallel_do_db;
+@@global.parallel_do_db
+db_parallel
+select @@global.replicate_do_db;
+@@global.replicate_do_db
+
+create database db_parallel;
+create database db_serial;
+create database db_not_mentioned;
+create table db_parallel.t1 (a int) engine innodb;
+create table db_serial.t2 (b int) engine innodb;
+create table db_serial.t3 (c int) engine innodb;
+create table db_not_mentioned.t4 (c int) engine innodb;
+connect  m1,localhost,root,,test,$SERVER_MYPORT_1,;
+connect  m2,localhost,root,,test,$SERVER_MYPORT_1,;
+connect  m3,localhost,root,,test,$SERVER_MYPORT_1,;
+connect  m4,localhost,root,,test,$SERVER_MYPORT_1,;
+connection server_2;
+set global debug_dbug= '+d,ha_write_row_start';
+connection m1;
+insert into db_parallel.t1 values (1);
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t1';
+connection m2;
+insert into db_serial.t2 values (2);
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t2';
+connection m3;
+insert into db_serial.t3 values (3);
+connection m4;
+insert into db_not_mentioned.t4 values (4);
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t3';
+call processlist;
+Command	State	Info
+Slave_worker	debug sync point: now	insert into db_parallel.t1 values (1)
+Slave_ordered	debug sync point: now	insert into db_serial.t2 values (2)
+Slave_worker	debug sync point: now	insert into db_serial.t3 values (3)
+set debug_sync= 'now signal ha_write_row_continue_t1';
+set debug_sync= 'now wait_for ha_write_row_continued_t1';
+set debug_sync= 'now signal ha_write_row_continue_t2';
+set debug_sync= 'now wait_for ha_write_row_continued_t2';
+set debug_sync= 'now signal ha_write_row_continue_t3';
+set debug_sync= 'now wait_for ha_write_row_continued_t3';
+set debug_sync= 'now wait_for ha_write_row_entering_t4';
+connection m1;
+insert into db_parallel.t1 values (5);
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t1';
+connection m2;
+insert into db_serial.t3 values (6);
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t3';
+call processlist;
+Command	State	Info
+Slave_ordered	debug sync point: now	insert into db_not_mentioned.t4 values (4)
+Slave_worker	debug sync point: now	insert into db_parallel.t1 values (5)
+Slave_worker	debug sync point: now	insert into db_serial.t3 values (6)
+set debug_sync= 'now signal ha_write_row_continue_t1';
+set debug_sync= 'now wait_for ha_write_row_continued_t1';
+set debug_sync= 'now signal ha_write_row_continue_t3';
+set debug_sync= 'now wait_for ha_write_row_continued_t3';
+set debug_sync= 'now signal ha_write_row_continue_t4';
+set debug_sync= 'now wait_for ha_write_row_continued_t4';
+connection m1;
+connection m2;
+connection m3;
+connection m4;
+# db_parallel.t1 is now ordered
+connection m1;
+set @@global.parallel_ignore_table= "db_parallel.t1";
+insert into db_parallel.t1 values (7);
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t1';
+call processlist;
+Command	State	Info
+Slave_ordered	debug sync point: now	insert into db_parallel.t1 values (7)
+set debug_sync= 'now signal ha_write_row_continue_t1';
+set debug_sync= 'now wait_for ha_write_row_continued_t1';
+connection m1;
+# db_parallel.t1 is parallel again
+connection m1;
+set @@global.parallel_do_table= "db_serial.t3,  db_parallel.t1";
+insert into db_parallel.t1 values (8);
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t1';
+call processlist;
+Command	State	Info
+Slave_worker	debug sync point: now	insert into db_parallel.t1 values (8)
+set debug_sync= 'now signal ha_write_row_continue_t1';
+set debug_sync= 'now wait_for ha_write_row_continued_t1';
+connection m1;
+# Transaction contains 2 parallel DML
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t1';
+connection m1;
+start transaction;
+insert into db_parallel.t1 values (9);
+insert into db_serial.t3 values (10);
+commit;
+connection server_2;
+call processlist;
+Command	State	Info
+Slave_worker	debug sync point: now	insert into db_parallel.t1 values (9)
+set debug_sync= 'now signal ha_write_row_continue_t1';
+set debug_sync= 'now wait_for ha_write_row_entering_t3';
+call processlist;
+Command	State	Info
+Slave_worker	debug sync point: now	insert into db_serial.t3 values (10)
+set debug_sync= 'now signal ha_write_row_continue_t3';
+set debug_sync= 'now wait_for ha_write_row_continued_t3';
+connection m1;
+# Transaction contains 1 parallel DML and 1 ordered DML
+connection server_2;
+set debug_sync= 'now wait_for ha_write_row_entering_t1';
+connection m1;
+start transaction;
+insert into db_parallel.t1 values (11);
+insert into db_serial.t2 values (12);
+commit;
+connection server_2;
+call processlist;
+Command	State	Info
+Slave_ordered	debug sync point: now	insert into db_parallel.t1 values (11)
+set debug_sync= 'now signal ha_write_row_continue_t1';
+set debug_sync= 'now wait_for ha_write_row_entering_t2';
+call processlist;
+Command	State	Info
+Slave_ordered	debug sync point: now	insert into db_serial.t2 values (12)
+set debug_sync= 'now signal ha_write_row_continue_t2';
+set debug_sync= 'now wait_for ha_write_row_continued_t2';
+connection m1;
+disconnect m1;
+disconnect m2;
+disconnect m3;
+disconnect m4;
+connection server_2;
+drop procedure processlist;
+include/stop_slave.inc
+set global slave_parallel_threads=  @old_parallel_threads;
+set global slave_parallel_mode=     @old_slave_parallel_mode;
+set global slave_ordered_thread=    @old_slave_ordered_thread;
+set global slave_ordered_dont_wait= @old_slave_ordered_dont_wait;
+include/start_slave.inc
+set @@global.debug_dbug= @old_dbug;
+set debug_sync= reset;
+connection server_1;
+drop database db_parallel;
+drop database db_serial;
+drop database db_not_mentioned;
+use test;
+set @@global.parallel_do_db=        @_parallel_do_db;
+set @@global.parallel_ignore_db=    @_parallel_ignore_db;
+set @@global.parallel_do_table=     @_parallel_do_table;
+set @@global.parallel_ignore_table= @_parallel_ignore_table;
+include/rpl_end.inc

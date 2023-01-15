@@ -7974,11 +7974,8 @@ WARN_NON_ASCII_SEPARATOR_NOT_IMPLEMENTED
         geo "არა-ASCII გამყოფი არგუმენტები სრულად მხარდაჭერილი არაა"
         spa "Los argumentos con separador No ASCII no están completamente soportados"
 ER_DEBUG_SYNC_TIMEOUT
-        chi "调试同步点等待超时"
-        eng "debug sync point wait timed out"
-        ger "Debug Sync Point Wartezeit überschritten"
-        geo "გამართვის სინქრონიზაციის წერტილის მოლოდინის დრო ამოიწურა"
-        spa "agotado tiempo de espera de punto de sincronización de depuración"
+	eng "Debug sync WAIT_FOR '%-.64s' timed out"
+  	ger "Debug sync WAIT_FOR '%-.64s' wartezeit überschritten"
 ER_DEBUG_SYNC_HIT_LIMIT
         chi "调试同步点限制达到"
         eng "debug sync point hit limit reached"

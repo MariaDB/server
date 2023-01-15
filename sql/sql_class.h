@@ -2907,6 +2907,7 @@ public:
   bool create_tmp_table_for_derived;
 
   bool save_prep_leaf_list;
+  bool rpl_ordered;
 
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];

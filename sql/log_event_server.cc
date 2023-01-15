@@ -2109,6 +2109,11 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             */
             thd->variables.sql_log_slow= !MY_TEST(global_system_variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
           }
+          DBUG_PRINT("rpl",
+                     ("GTID %u-%u-%llu  "
+                     "thread_id: %llu  query: %s",
+                     rgi->current_gtid.domain_id, rgi->current_gtid.server_id,
+                     rgi->current_gtid.seq_no, thd->thread_id, thd->query()));
           mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
           /* Finalize server status flags after executing a statement. */
           thd->update_server_status();
@@ -2883,7 +2888,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2|= FL_DDL;
   else if (is_transactional && !is_tmp_table)
     flags2|= FL_TRANSACTIONAL;
-  if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
+  if (!thd_arg->rpl_ordered && !(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)

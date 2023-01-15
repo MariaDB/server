@@ -1658,9 +1658,10 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         {
           // We should not make the statement fail, even if in strict mode.
           Abort_on_warning_instant_set aws(thd, false);
-          push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                        ER_DEBUG_SYNC_TIMEOUT,
-                       ER_THD(thd, ER_DEBUG_SYNC_TIMEOUT));
+                       ER_THD(thd, ER_DEBUG_SYNC_TIMEOUT),
+                       action->wait_for.c_ptr());
           DBUG_EXECUTE_IF("debug_sync_abort_on_timeout", DBUG_ASSERT(0););
           break;
         }

@@ -96,6 +96,7 @@ statement/com/Reset stmt	YES
 statement/com/Set option	YES
 statement/com/Shutdown	YES
 statement/com/Slave_IO	YES
+statement/com/Slave_ordered	YES
 statement/com/Slave_SQL	YES
 statement/com/Slave_worker	YES
 statement/com/Sleep	YES
@@ -191,6 +192,7 @@ statement/com/Reset stmt	YES
 statement/com/Set option	YES
 statement/com/Shutdown	YES
 statement/com/Slave_IO	YES
+statement/com/Slave_ordered	YES
 statement/com/Slave_SQL	YES
 statement/com/Slave_worker	YES
 statement/com/Sleep	YES

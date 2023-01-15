@@ -764,6 +764,9 @@ public:
     option.var_type|= GET_STR | GET_ASK_ADDR;
   }
 
+  Sys_var_rpl_filter(const char *name, int getopt_id, const char *comment)
+    : Sys_var_rpl_filter(name, getopt_id, comment, REPL_SLAVE_ADMIN_ACL) {}
+
   bool do_check(THD *thd, set_var *var) override
   {
     return Sys_var_charptr::do_string_check(thd, var, charset(thd));

@@ -30,7 +30,7 @@ connect con2,localhost,root,,;
 This will timeout, as RESET MASTER is blocked
 SET DEBUG_SYNC= "now WAIT_FOR reset_master_done TIMEOUT 1";
 Warnings:
-Warning	1639	debug sync point wait timed out
+Warning	1639	Debug sync WAIT_FOR 'reset_master_done' timed out
 SET DEBUG_SYNC= "now SIGNAL con1_go";
 connection con1;
 connection default;
@@ -145,6 +145,8 @@ SET debug_sync="now WAIT_FOR injected_binlog_background_thread";
 SET GLOBAL debug_dbug=@old_dbug;
 SET debug_sync="now SIGNAL reset_master_cont";
 connection con3;
+Warnings:
+Warning	1639	Debug sync WAIT_FOR 'reset_master_cont' timed out
 connection default;
 SET debug_sync = 'reset';
 *** MDEV-24660: MYSQL_BIN_LOG::cleanup(): Assertion `b->xid_count == 0' failed in MYSQL_BIN_LOG::cleanup
