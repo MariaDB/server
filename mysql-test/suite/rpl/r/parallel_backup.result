@@ -10,7 +10,7 @@ connection slave;
 include/stop_slave.inc
 SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
 SET @old_parallel_mode   = @@GLOBAL.slave_parallel_mode;
-SET @@global.slave_parallel_threads= 2;
+SET @@global.slave_parallel_threads= 3;
 SET @@global.slave_parallel_mode   = 'optimistic';
 connection master;
 INSERT INTO  t1 VALUES (1);

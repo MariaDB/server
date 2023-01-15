@@ -6740,7 +6740,34 @@ int handler::ha_write_row(const uchar *buf)
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
+#ifdef ENABLED_DEBUG_SYNC
+  if (!lex_string_eq(&MYSQL_SCHEMA_NAME, &table_share->db))
+  {
+    DBUG_EXECUTE_IF("ha_write_row_start",
+                    {
+                      String act1(
+                        "now "
+                        "signal ha_write_row_entering", system_charset_info);
+                      act1.append('_');
+                      act1.append(table->alias.c_ptr_safe());
+                      String act2(
+                        "now "
+                        "wait_for ha_write_row_continue", system_charset_info);
+                      act2.append('_');
+                      act2.append(table->alias.c_ptr_safe());
+                      String act3(
+                        "now "
+                        "signal ha_write_row_continued", system_charset_info);
+                      act3.append('_');
+                      act3.append(table->alias.c_ptr_safe());
+                      DBUG_ASSERT(debug_sync_service);
+                      DBUG_ASSERT(!debug_sync_set_action(ha_thd(), act1.ptr(), act1.length()));
+                      DBUG_ASSERT(!debug_sync_set_action(ha_thd(), act2.ptr(), act2.length()));
+                      DBUG_ASSERT(!debug_sync_set_action(ha_thd(), act3.ptr(), act3.length()));
+                    };);
+  }
   DEBUG_SYNC_C("ha_write_row_start");
+#endif
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();

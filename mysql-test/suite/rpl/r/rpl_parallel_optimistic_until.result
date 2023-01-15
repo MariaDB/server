@@ -15,7 +15,7 @@ connection slave;
 include/stop_slave.inc
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
-SET GLOBAL slave_parallel_threads=2;
+SET GLOBAL slave_parallel_threads= 3;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
 connection slave;

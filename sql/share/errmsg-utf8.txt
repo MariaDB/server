@@ -6370,8 +6370,8 @@ WARN_NON_ASCII_SEPARATOR_NOT_IMPLEMENTED
   eng "Non-ASCII separator arguments are not fully supported"
   ger "Nicht-ASCII-Trennargumente werden nicht vollständig unterstützt"
 ER_DEBUG_SYNC_TIMEOUT
-  eng "debug sync point wait timed out"
-  ger "Debug Sync Point Wartezeit überschritten"
+  eng "Debug sync WAIT_FOR '%-.64s' timed out"
+  ger "Debug sync WAIT_FOR '%-.64s' wartezeit überschritten"
 ER_DEBUG_SYNC_HIT_LIMIT
   eng "debug sync point hit limit reached"
   ger "Debug Sync Point Hit Limit erreicht"

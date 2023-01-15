@@ -42,6 +42,13 @@ typedef struct st_table_rule_ent
 class Rpl_filter 
 {
 public:
+  static constexpr int NOT_IN_ANY_LIST= 0xfc;
+  static constexpr int NO_LISTS_SET= 4;
+  static constexpr int IGNORED= 0;
+  static constexpr int ALLOWED= 1;
+  static constexpr int WILDCARD= 2;
+  static constexpr int NOT_MATCHED= 8;
+
   Rpl_filter();
   ~Rpl_filter();
   Rpl_filter(Rpl_filter const&);
@@ -51,6 +58,7 @@ public:
 
 #ifndef MYSQL_CLIENT
   bool tables_ok(const char* db, TABLE_LIST *tables);
+  int table_ok(const char* db, TABLE_LIST *tables);
 #endif 
   bool db_ok(const char* db);
   bool db_ok_with_wild_table(const char *db);
@@ -154,5 +162,6 @@ private:
 
 extern Rpl_filter *global_rpl_filter;
 extern Rpl_filter *binlog_filter;
+extern Rpl_filter *parallel_filter;
 
 #endif // RPL_FILTER_H

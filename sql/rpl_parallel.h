@@ -104,6 +104,7 @@ struct rpl_parallel_thread {
   mysql_cond_t COND_rpl_thread_stop;
   struct rpl_parallel_thread *next;             /* For free list. */
   struct rpl_parallel_thread_pool *pool;
+  enum enum_server_command command;
   THD *thd;
   /*
     Who owns the thread, if any (it's a pointer into the
@@ -293,6 +294,13 @@ struct rpl_parallel_entry {
   rpl_parallel_thread **rpl_threads;
   uint32 rpl_thread_max;
   uint32 rpl_thread_idx;
+  bool was_ordered;
+
+  uint32 last_idx() const
+  {
+    return was_ordered ? rpl_thread_max - 1 : rpl_thread_idx;
+  }
+
   /*
     The sub_id of the last transaction to commit within this domain_id.
     Must be accessed under LOCK_parallel_entry protection.
@@ -347,7 +355,9 @@ struct rpl_parallel_entry {
   group_commit_orderer *current_gco;
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
-                                      PSI_stage_info *old_stage, bool reuse);
+                                      PSI_stage_info *old_stage,
+                                      Gtid_log_event *gtid_ev,
+                                      bool ordered_thread);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
 };

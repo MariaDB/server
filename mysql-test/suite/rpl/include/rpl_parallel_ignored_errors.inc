@@ -49,7 +49,7 @@ SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET @old_debug= @@GLOBAL.debug_dbug;
 SET GLOBAL slave_parallel_mode='optimistic';
-SET GLOBAL slave_parallel_threads= 3;
+SET GLOBAL slave_parallel_threads= 4;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 --source include/start_slave.inc

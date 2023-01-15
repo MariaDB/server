@@ -115,6 +115,7 @@ enum enum_server_command
   COM_RESET_CONNECTION,
   /* don't forget to update const char *command_name[] in sql_parse.cc */
   COM_MDB_GAP_BEG,
+  COM_SLAVE_ORDERED=240,
   COM_MDB_GAP_END=249,
   COM_STMT_BULK_EXECUTE=250,
   COM_SLAVE_WORKER=251,
