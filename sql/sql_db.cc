@@ -29,7 +29,7 @@
                                          // validate_comment_length
 #include "sql_rename.h"                  // mysql_rename_tables
 #include "sql_acl.h"                     // SELECT_ACL, DB_ACLS,
-                                         // acl_get, check_grant_db
+                                         // check_grant_db, acl_get_all3
 #include "log_event.h"                   // Query_log_event
 #include "sql_base.h"                    // lock_table_names
 #include "sql_handler.h"                 // mysql_ha_rm_tables

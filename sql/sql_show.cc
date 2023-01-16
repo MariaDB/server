@@ -5316,7 +5316,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
                        &thd->col_access, NULL, 0, 1) ||
           (!thd->col_access && check_grant_db(thd, db_name->str))) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, 0))
+        acl_get_all3(sctx, db_name->str, false))
 #endif
     {
       Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
