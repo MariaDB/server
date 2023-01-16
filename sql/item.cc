@@ -3444,7 +3444,7 @@ bool Item_field::is_null_result()
 
 bool Item_field::eq(const Item *item, bool binary_cmp) const
 {
-  Item *real_item2= ((Item *) item)->real_item();
+  const Item *real_item2= item->real_item();
   if (real_item2->type() != FIELD_ITEM)
     return 0;
   
