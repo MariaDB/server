@@ -3,6 +3,7 @@
 #
 --source include/have_innodb.inc
 --source include/have_sequence.inc
+--source include/have_perfschema.inc
 
 select table_name,engine from information_schema.tables where table_name="optimizer_costs";
 show create table information_schema.optimizer_costs;
