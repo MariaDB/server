@@ -3324,20 +3324,27 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 	bool	success;
 
 	do {
+		/* In case an asynchronous read request was posted by
+		any thread (other than something invoking
+		ibuf_merge_in_background()), it is possible that the
+		change buffer will be merged to the page once the read
+		completes. To avoid race conditions and corruption due
+		to that, we will loop here until there are no pending
+		page read operations. */
+		success = !buf_get_n_pending_read_ios();
 		pc_request(ULINT_MAX, LSN_MAX);
 
 		while (pc_flush_slot() > 0) {}
 
 		ulint	n_flushed_lru = 0;
 		ulint	n_flushed_list = 0;
-		success = pc_wait_finished(&n_flushed_lru, &n_flushed_list);
-
-		n_flushed = n_flushed_lru + n_flushed_list;
+		success = pc_wait_finished(&n_flushed_lru, &n_flushed_list)
+			&& success && !n_flushed_lru && !n_flushed_list;
 
 		buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
 		buf_flush_wait_LRU_batch_end();
 
-	} while (!success || n_flushed > 0);
+	} while (!success);
 
 	/* Some sanity checks */
 	ut_a(srv_get_active_thread_type() == SRV_NONE);
