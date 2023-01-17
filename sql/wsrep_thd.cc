@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2022 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2023 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -308,32 +308,37 @@ void wsrep_fire_rollbacker(THD *thd)
 }
 
 
-int wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal)
+int wsrep_abort_thd(THD *bf_thd,
+                    THD *victim_thd,
+                    my_bool signal)
 {
   DBUG_ENTER("wsrep_abort_thd");
-  THD *victim_thd= (THD *) victim_thd_ptr;
-  THD *bf_thd= (THD *) bf_thd_ptr;
 
   mysql_mutex_lock(&victim_thd->LOCK_thd_data);
 
   /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
   might not be true.
   */
-  if ((WSREP(bf_thd) ||
+  if ((WSREP_NNULL(bf_thd) ||
        ((WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU) &&
 	 wsrep_thd_is_toi(bf_thd))) &&
-       victim_thd &&
        !wsrep_thd_is_aborting(victim_thd))
   {
-      WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu", (bf_thd) ?
-                  (long long)bf_thd->real_id : 0, (long long)victim_thd->real_id);
+      WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu",
+                  (long long)bf_thd->real_id, (long long)victim_thd->real_id);
       mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
       ha_abort_transaction(bf_thd, victim_thd, signal);
-      mysql_mutex_lock(&victim_thd->LOCK_thd_data);
+      DBUG_RETURN(1);
   }
   else
   {
-    WSREP_DEBUG("wsrep_abort_thd not effective: %p %p", bf_thd, victim_thd);
+    WSREP_DEBUG("wsrep_abort_thd not effective: bf %llu victim %llu "
+                "wsrep %d wsrep_on %d RSU %d TOI %d aborting %d",
+                (long long)bf_thd->real_id, (long long)victim_thd->real_id,
+                WSREP_NNULL(bf_thd), WSREP_ON,
+                bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU,
+                wsrep_thd_is_toi(bf_thd),
+                wsrep_thd_is_aborting(victim_thd));
   }
 
   mysql_mutex_unlock(&victim_thd->LOCK_thd_data);

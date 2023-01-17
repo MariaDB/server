@@ -2093,6 +2093,7 @@ public:
   virtual Item *copy_or_same(THD *thd) { return this; }
   virtual Item *copy_andor_structure(THD *thd) { return this; }
   virtual Item *real_item() { return this; }
+  const Item *real_item() const { return const_cast<Item*>(this)->real_item(); }
   virtual Item *get_tmp_table_item(THD *thd) { return copy_or_same(thd); }
   virtual Item *make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
   {
@@ -5577,7 +5578,7 @@ public:
   { return ref ? (*ref)->type() : REF_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const override
   {
-    Item *it= ((Item *) item)->real_item();
+    const Item *it= item->real_item();
     return ref && (*ref)->eq(it, binary_cmp);
   }
   void save_val(Field *to) override;
@@ -5933,7 +5934,7 @@ public:
   { orig_item->make_send_field(thd, field); }
   bool eq(const Item *item, bool binary_cmp) const override
   {
-    Item *it= const_cast<Item*>(item)->real_item();
+    const Item *it= item->real_item();
     return orig_item->eq(it, binary_cmp);
   }
   void fix_after_pullout(st_select_lex *new_parent, Item **refptr, bool merge)
@@ -7806,7 +7807,7 @@ public:
   { m_item->make_send_field(thd, field); }
   bool eq(const Item *item, bool binary_cmp) const
   {
-    Item *it= ((Item *) item)->real_item();
+    const Item *it= item->real_item();
     return m_item->eq(it, binary_cmp);
   }
   void fix_after_pullout(st_select_lex *new_parent, Item **refptr, bool merge)

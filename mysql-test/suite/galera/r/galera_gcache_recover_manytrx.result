@@ -134,8 +134,6 @@ connection node_1;
 call mtr.add_suppression("Error in Log_event::read_log_event():.*");
 CALL mtr.add_suppression("conflict state 7 after post commit");
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-include/assert_grep.inc [async IST sender starting to serve]
 connection node_2;
 call mtr.add_suppression("Error in Log_event::read_log_event():.*");
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-include/assert_grep.inc [Recovering GCache ring buffer: found gapless sequence]

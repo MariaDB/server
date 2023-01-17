@@ -3640,7 +3640,7 @@ without_overlaps_err:
         my_error(ER_TOO_LONG_IDENT, MYF(0), check->name.str);
         DBUG_RETURN(TRUE);
       }
-      if (check_expression(check, &check->name, VCOL_CHECK_TABLE))
+      if (check_expression(check, &check->name, VCOL_CHECK_TABLE, alter_info))
         DBUG_RETURN(TRUE);
     }
   }
@@ -6087,10 +6087,8 @@ remove_key:
 
     while ((check=it++))
     {
-      if (!(check->flags & VCOL_CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
-          check->name.length)
+      if (!check->if_not_exists && check->name.length)
         continue;
-      check->flags= 0;
       for (c= share->field_check_constraints;
            c < share->table_check_constraints ; c++)
       {
