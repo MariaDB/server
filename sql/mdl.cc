@@ -1747,10 +1747,9 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 #ifdef WITH_WSREP
   /*
     Approve lock request in BACKUP namespace for BF threads.
-    We should get rid of this code and forbid FTWRL/BACKUP statements
-    when wsrep is active.
   */
-  if ((wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
+  if (!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP) &&
+      (wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
        wsrep_thd_is_applying(requestor_ctx->get_thd())) &&
       key.mdl_namespace() == MDL_key::BACKUP)
   {
