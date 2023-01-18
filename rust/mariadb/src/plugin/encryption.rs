@@ -18,7 +18,7 @@
 //! - `encrypted_length`: function, macro provides call to `std::mem::size_of`
 
 // use core::cell::UnsafeCell;
-use mariadb_server_sys as bindings;
+use mariadb_sys as bindings;
 
 /// A type of error to be used by key functions
 #[repr(u32)]
@@ -93,7 +93,13 @@ pub trait KeyManager: Send + Sized {
 // TODO: Maybe split into `Encrypt` and `Decrypt` traits
 pub trait Encryption: Sized {
     /// Initialize the encryption context object
-    fn init(key_id: u32, key_version: u32, key: &[u8], iv: &[u8], flags: Flags) -> Result<Self, EncryptionError>;
+    fn init(
+        key_id: u32,
+        key_version: u32,
+        key: &[u8],
+        iv: &[u8],
+        flags: Flags,
+    ) -> Result<Self, EncryptionError>;
 
     /// Update the encryption context with new data, return the number of bytes
     /// written

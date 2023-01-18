@@ -1,5 +1,6 @@
-use super::{mysql_var_check_func, mysql_var_update_func, TYPELIB};
 use std::ffi::{c_char, c_int, c_uint, c_void};
+
+use super::{mysql_var_check_func, mysql_var_update_func, TYPELIB};
 
 // Defined in service_encryption.h but not imported because of tilde syntax
 pub const ENCRYPTION_KEY_VERSION_INVALID: c_uint = !0;

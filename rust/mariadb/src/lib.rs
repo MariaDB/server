@@ -1,13 +1,74 @@
 //! Crate representing safe abstractions over MariaDB bindings
 #![allow(unused)]
 
+use time::{format_description, OffsetDateTime};
+
 pub mod plugin;
 
 #[doc(hidden)]
-pub use mariadb_server_sys as bindings;
+pub use cstr;
+#[doc(hidden)]
+pub use mariadb_sys as bindings;
 
 #[doc(hidden)]
-pub use cstr;
+pub fn log_timestamped_message(title: &str, msg: &str) {
+    let t = time::OffsetDateTime::now_utc();
+    let fmt = time::format_description::parse(
+        "[year]-[month]-[day] [hour]:[minute]:[second][offset_hour sign:mandatory]:[offset_minute]",
+    )
+    .unwrap();
+    let mut to_print = t.format(&fmt).unwrap();
+    to_print.push(' ');
+    to_print.push_str(title);
+    to_print.push_str(msg);
+    eprintln!("{to_print}");
+}
 
-#[doc(inline)]
-pub use mariadb_server_macros::plugin;
+#[macro_export]
+macro_rules! error {
+    (target: $target:expr, $($msg:tt)+) => {{
+        let mut tmp = "[Error] ".to_owned();
+        tmp.push_str($target);
+        tmp.push_str(": ");
+        $crate::log_timestamped_message(&tmp, &format!($($msg)+));
+    }};
+    ($($msg:tt)+) => {
+        $crate::log_timestamped_message("[Error]: ", format!($($msg)+));
+    }
+}
+#[macro_export]
+macro_rules! warn {
+    (target: $target:expr, $($msg:tt)+) => {{
+        let mut tmp = "[Warn] ".to_owned();
+        tmp.push_str($target);
+        tmp.push_str(": ");
+        $crate::log_timestamped_message(&tmp, &format!($($msg)+));
+    }};
+    ($($msg:tt)+) => {
+        $crate::log_timestamped_message("[Warn]", format!($($msg)+));
+    }
+}
+#[macro_export]
+macro_rules! info {
+    (target: $target:expr, $($msg:tt)+) => {{
+        let mut tmp = "[Info] ".to_owned();
+        tmp.push_str($target);
+        tmp.push_str(": ");
+        $crate::log_timestamped_message(&tmp, &format!($($msg)+));
+    }};
+    ($($msg:tt)+) => {
+        $crate::log_timestamped_message("[Info]", format!($($msg)+));
+    }
+}
+#[macro_export]
+macro_rules! debug {
+    (target: $target:expr, $($msg:tt)+) => {{
+        let mut tmp = "[Debuf] ".to_owned();
+        tmp.push_str($target);
+        tmp.push_str(": ");
+        $crate::log_timestamped_message(&tmp, &format!($($msg)+));
+    }};
+    ($($msg:tt)+) => {
+        $crate::log_timestamped_message("[Debuf]", format!($($msg)+));
+    }
+}

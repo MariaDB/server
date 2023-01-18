@@ -7,10 +7,11 @@
 #![allow(clippy::must_use_candidate)]
 #![allow(clippy::cast_possible_truncation)]
 
-mod plugin;
+mod register_plugin;
 use proc_macro::TokenStream;
 
+/// Macro to use to register a plugin
 #[proc_macro]
-pub fn plugin(item: TokenStream) -> TokenStream {
-    plugin::entry(item)
+pub fn register_plugin(item: TokenStream) -> TokenStream {
+    register_plugin::entry(item)
 }
