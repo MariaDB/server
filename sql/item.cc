@@ -658,6 +658,63 @@ Item* Item::set_expr_cache(THD *thd)
   DBUG_RETURN(NULL);
 }
 
+Item_ident_placeholder::Item_ident_placeholder(THD *thd,
+                                               Name_resolution_context
+                                                 *context_arg,
+                                               const LEX_CSTRING
+                                                 &db_name_arg,
+                                               const LEX_CSTRING
+                                                 &table_name_arg,
+                                               const LEX_CSTRING
+                                                 &field_name_arg)
+  :Item(thd),
+   context(context_arg),
+   db_name(db_name_arg), table_name(table_name_arg),
+   field_name(field_name_arg),
+   resolved_to(NULL)
+{
+  // must be b.t.f or t.f or f
+  DBUG_ASSERT((db_name.length && table_name.length && field_name.length) ||
+              (!db_name.length && table_name.length && field_name.length) ||
+              (!db_name.length && !table_name.length && field_name.length));
+}
+
+bool Item_ident_placeholder::resolve_name_in_tables(TABLE_LIST *first_table,
+                                                    TABLE_LIST *last_table)
+{
+  return false;
+}
+
+void Item_ident_placeholder::print(String *str, enum_query_type query_type)
+{
+  THD *thd= current_thd;
+  if (db_name.length)
+  {
+    append_identifier(thd, str, db_name.str, db_name.length);
+    str->append('.');
+    append_identifier(thd, str, table_name.str, table_name.length);
+    str->append('.');
+    append_identifier(thd, str, field_name.str, field_name.length);
+  }
+  else if (table_name.length)
+  {
+    append_identifier(thd, str, table_name.str, table_name.length);
+    str->append('.');
+    append_identifier(thd, str, field_name.str, field_name.length);
+  }
+  else
+  {
+    append_identifier(thd, str, field_name.str, field_name.length);
+  }
+}
+
+
+bool Item_ident_placeholder::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(resolved_to != NULL);
+  *ref= resolved_to;
+  return false;
+}
 
 Item_ident::Item_ident(THD *thd, Name_resolution_context *context_arg,
                        const LEX_CSTRING &db_name_arg,

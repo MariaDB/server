@@ -1079,6 +1079,8 @@ public:
   const char *type;           /* type of select for EXPLAIN          */
 
 
+  /* List of names to resolve */
+  List<Item_ident_placeholder> names_to_resolve;
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
   List<Item> attach_to_conds;
@@ -4192,6 +4194,12 @@ public:
            create_item_ident_sp(thd, &name, cname->pos(), cname->end()) :
            create_item_ident_nosp(thd, &name);
   }
+
+  Item *create_item_ident_placeholder(THD *thd,
+                                      Name_resolution_context *ctx,
+                                      const LEX_CSTRING *db,
+                                      const LEX_CSTRING *table,
+                                      const LEX_CSTRING *field);
   /*
     Create an Item corresponding to a qualified name: a.b
     when the parser is out of an SP context.

@@ -16332,12 +16332,18 @@ simple_ident:
 simple_ident_nospvar:
           ident
           {
-            if (unlikely(!($$= Lex->create_item_ident_nosp(thd, &$1))))
+            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+                                      Lex->context_stack.head(),
+                                      &null_clex_str, &null_clex_str,
+                                      &$1))))
               MYSQL_YYABORT;
           }
         | ident '.' ident
           {
-            if (unlikely(!($$= Lex->create_item_ident_nospvar(thd, &$1, &$3))))
+            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+                                      Lex->context_stack.head(),
+                                      &null_clex_str, &$1,
+                                      &$3))))
               MYSQL_YYABORT;
           }
         | COLON_ORACLE_SYM ident_cli '.' ident_cli
@@ -16347,13 +16353,17 @@ simple_ident_nospvar:
           }
         | '.' ident '.' ident
           {
-            Lex_ident_sys none;
-            if (unlikely(!($$= Lex->create_item_ident(thd, &none, &$2, &$4))))
+            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+                                      Lex->context_stack.head(),
+                                      &null_clex_str, &$2,
+                                      &$4))))
               MYSQL_YYABORT;
           }
         | ident '.' ident '.' ident
           {
-            if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5))))
+            if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
+                                      Lex->context_stack.head(),
+                                      &$1, &$3, &$5))))
               MYSQL_YYABORT;
           }
         ;

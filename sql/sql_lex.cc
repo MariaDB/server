@@ -8875,6 +8875,28 @@ bool LEX::check_expr_allows_fields_or_error(THD *thd, const char *name) const
   return true;    // Error, fields are not allowed
 }
 
+Item *LEX::create_item_ident_placeholder(THD *thd,
+                                         Name_resolution_context *ctx,
+                                         const LEX_CSTRING *db,
+                                         const LEX_CSTRING *table,
+                                         const LEX_CSTRING *field)
+{
+  DBUG_ENTER("LEX::create_item_ident_placeholder");
+  DBUG_PRINT("enter", ("New name to resolve %s.%s.%s",
+                       (db->length ? db->str : "<NULL>"),
+                       (table->length ? table->str : "<NULL>"),
+                       (field->length ? field->str : "<NULL>")));
+  Item_ident_placeholder *res=
+   new(thd->mem_root) Item_ident_placeholder(thd, ctx,
+                                             *db, *table, *field);
+  if (res)
+  {
+    if(ctx->select_lex->names_to_resolve.push_back(res, thd->mem_root))
+      res= NULL;
+  }
+  DBUG_RETURN((Item*)res);
+}
+
 Item *LEX::create_item_ident_nospvar(THD *thd,
                                      const Lex_ident_sys_st *a,
                                      const Lex_ident_sys_st *b)

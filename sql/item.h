@@ -3692,6 +3692,54 @@ public:
 };
 
 
+/**
+  Placeholder for name resolving
+*/
+class Item_ident_placeholder :public Item
+{
+public:
+  Name_resolution_context *context;
+  const LEX_CSTRING db_name;
+  const LEX_CSTRING table_name;
+  const LEX_CSTRING field_name;
+  Item *resolved_to;
+  Item_ident_placeholder(THD *thd,
+                         Name_resolution_context *context_arg,
+                         const LEX_CSTRING &db_name_arg,
+                         const LEX_CSTRING &table_name_arg,
+                         const LEX_CSTRING &field_name_arg);
+
+  bool resolve_name();
+  bool resolve_name_in_tables(TABLE_LIST *first_table, TABLE_LIST *last_table);
+
+  void print(String *str, enum_query_type query_type) override;
+
+  bool fix_fields(THD *thd, Item **ref) override;
+  // Dummy things start
+  const Type_handler *type_handler() const override
+    { DBUG_ASSERT(0); return NULL; };
+  Type type() const override { DBUG_ASSERT(0); return FIELD_ITEM; }
+  double val_real() override { DBUG_ASSERT(0); null_value= 0; return 0.0;}
+  longlong val_int() override { DBUG_ASSERT(0); null_value= 0; return 0;}
+  String *val_str(String *str) override
+    { DBUG_ASSERT(0); null_value= 0; return NULL;}
+  my_decimal *val_decimal(my_decimal *) override
+    { DBUG_ASSERT(0); null_value= 0; return NULL;}
+  bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) override
+    {
+      DBUG_ASSERT(0);
+      null_value= 0;
+      set_zero_time(to, MYSQL_TIMESTAMP_NONE);
+      return FALSE;
+    }
+  Item *get_copy(THD *thd) override
+    { DBUG_ASSERT(0); return NULL;}
+  Field *create_tmp_field_ex(MEM_ROOT *, TABLE *, Tmp_field_src *,
+                             const Tmp_field_param *) override
+    { DBUG_ASSERT(0); return NULL;}
+  // Dummy things start
+};
+
 class Item_ident :public Item_result_field
 {
 protected:
