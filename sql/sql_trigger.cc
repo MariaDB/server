@@ -2275,6 +2275,21 @@ bool Trigger::change_on_table_name(void* param_arg)
 }
 
 
+bool Trigger::lock_trigger(void* param)
+{
+  THD *thd= (THD *) param;
+  MDL_request mdl_request;
+
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::TRIGGER, body->m_db.str,
+                   body->m_name.str, MDL_EXCLUSIVE, MDL_STATEMENT);
+  if (thd->mdl_context.acquire_lock(&mdl_request,
+                                    thd->variables.lock_wait_timeout))
+    return true;
+
+  return false;
+}
+
+
 /*
   Check if we can rename triggers in change_table_name()
   The idea is to ensure that it is close to impossible that
@@ -2341,6 +2356,12 @@ Table_triggers_list::prepare_for_rename(THD *thd,
         result= 1;
         goto end;
       }
+    }
+    if (param->lock_triggers &&
+        table->triggers->lock_triggers(thd))
+    {
+      result= 1;
+      goto end;
     }
   }
 
