@@ -1855,16 +1855,16 @@ enum enum_fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_NO_ACTION,
 
 typedef struct st_foreign_key_info
 {
-  LEX_CSTRING *foreign_id;
-  LEX_CSTRING *foreign_db;
-  LEX_CSTRING *foreign_table;
-  LEX_CSTRING *referenced_db;
-  LEX_CSTRING *referenced_table;
+  Lex_ident *foreign_id;
+  Lex_ident *foreign_db;
+  Lex_ident *foreign_table;
+  Lex_ident *referenced_db;
+  Lex_ident *referenced_table;
   enum_fk_option update_method;
   enum_fk_option delete_method;
-  LEX_CSTRING *referenced_key_name;
-  List<LEX_CSTRING> foreign_fields;
-  List<LEX_CSTRING> referenced_fields;
+  Lex_ident *referenced_key_name;
+  List<Lex_ident> foreign_fields;
+  List<Lex_ident> referenced_fields;
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);

@@ -18,6 +18,7 @@
 #define VERS_STRING_INCLUDED
 
 #include "lex_string.h"
+#include "mysql/service_thd_alloc.h"
 
 /*
   LEX_CSTRING with comparison semantics.
@@ -64,9 +65,13 @@ public:
   { }
   Lex_cstring_with_compare(const char *_str) : Lex_cstring(_str, strlen(_str))
   { }
-  bool streq(const Lex_cstring_with_compare& b) const
+  bool streq(const LEX_CSTRING& b) const
   {
     return Lex_cstring::length == b.length && 0 == Compare()(*this, b);
+  }
+  bool streq(const char *b) const
+  {
+    return streq(Lex_cstring_with_compare(b));
   }
   operator const char* () const
   {
@@ -75,6 +80,14 @@ public:
   operator bool () const
   {
     return str != NULL;
+  }
+
+  using Lex_spec= Lex_cstring_with_compare<Compare>;
+  static Lex_spec *make(THD *thd, const char* str, size_t length)
+  {
+    static_assert(sizeof (Lex_spec) == sizeof(LEX_CSTRING),
+                  "Lex_ident isn't binary compatible with LEX_CSTRING!");
+    return (Lex_spec*) thd_make_lex_string(thd, NULL, str, length, 1);
   }
 };
 

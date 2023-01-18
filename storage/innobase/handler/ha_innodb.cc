@@ -15479,16 +15479,15 @@ get_foreign_key_info(
 	char			tmp_buff[NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr;
-	LEX_CSTRING*		referenced_key_name;
-	LEX_CSTRING*		name = NULL;
+	Lex_ident*		referenced_key_name;
+	Lex_ident*		name = NULL;
 
 	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
  		return NULL;
  	}
 
 	ptr = dict_remove_db_name(foreign->id);
-	f_key_info.foreign_id = thd_make_lex_string(
-		thd, 0, ptr, strlen(ptr), 1);
+	f_key_info.foreign_id = Lex_ident::make(thd, ptr, strlen(ptr));
 
 	/* Name format: database name, '/', table name, '\0' */
 
@@ -15499,14 +15498,12 @@ get_foreign_key_info(
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
-	f_key_info.referenced_db = thd_make_lex_string(
-		thd, 0, name_buff, len, 1);
+	f_key_info.referenced_db = Lex_ident::make(thd, name_buff, len);
 
 	/* Referenced (parent) table name */
 	ptr = dict_remove_db_name(foreign->referenced_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
-	f_key_info.referenced_table = thd_make_lex_string(
-		thd, 0, name_buff, len, 1);
+	f_key_info.referenced_table = Lex_ident::make(thd, name_buff, len);
 
 	/* Dependent (child) database name */
 	len = dict_get_db_name_len(foreign->foreign_table_name);
@@ -15515,23 +15512,19 @@ get_foreign_key_info(
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
-	f_key_info.foreign_db = thd_make_lex_string(
-		thd, 0, name_buff, len, 1);
+	f_key_info.foreign_db = Lex_ident::make(thd, name_buff, len);
 
 	/* Dependent (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
-	f_key_info.foreign_table = thd_make_lex_string(
-		thd, 0, name_buff, len, 1);
+	f_key_info.foreign_table = Lex_ident::make(thd, name_buff, len);
 
 	do {
 		ptr = foreign->foreign_col_names[i];
-		name = thd_make_lex_string(thd, name, ptr,
-					   strlen(ptr), 1);
+		name = Lex_ident::make(thd, ptr, strlen(ptr));
 		f_key_info.foreign_fields.push_back(name);
 		ptr = foreign->referenced_col_names[i];
-		name = thd_make_lex_string(thd, name, ptr,
-					   strlen(ptr), 1);
+		name = Lex_ident::make(thd, ptr, strlen(ptr));
 		f_key_info.referenced_fields.push_back(name);
 	} while (++i < foreign->n_fields);
 
@@ -15578,14 +15571,11 @@ get_foreign_key_info(
 		}
 	}
 
-	if (foreign->referenced_index
-	    && foreign->referenced_index->name != NULL) {
-		referenced_key_name = thd_make_lex_string(
-			thd,
-			f_key_info.referenced_key_name,
-			foreign->referenced_index->name,
-			strlen(foreign->referenced_index->name),
-			1);
+	dict_index_t *index= foreign->referenced_index;
+	if (index) {
+		ut_ad(index->name != nullptr);
+		referenced_key_name = Lex_ident::make(thd, index->name,
+						      strlen(index->name));
 	} else {
 		referenced_key_name = NULL;
 	}

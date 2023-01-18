@@ -16681,19 +16681,13 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     grn_id ref_table_id = grn_obj_get_range(ctx, column);
     grn_obj *ref_table = grn_ctx_at(ctx, ref_table_id);
     FOREIGN_KEY_INFO f_key_info;
-    f_key_info.foreign_id = thd_make_lex_string(thd,
-                                                NULL,
-                                                column_name.c_str(),
-                                                column_name.length(),
-                                                TRUE);
-    f_key_info.foreign_db = thd_make_lex_string(thd, NULL,
-                                                table_share->db.str,
-                                                table_share->db.length,
-                                                TRUE);
-    f_key_info.foreign_table = thd_make_lex_string(thd, NULL,
-                                                   table_share->table_name.str,
-                                                   table_share->table_name.length,
-                                                   TRUE);
+    f_key_info.foreign_id = Lex_ident::make(thd, column_name.c_str(),
+                                            column_name.length());
+    f_key_info.foreign_db = Lex_ident::make(thd, table_share->db.str,
+                                            table_share->db.length);
+    f_key_info.foreign_table = Lex_ident::make(thd,
+                                               table_share->table_name.str,
+                                               table_share->table_name.length);
     f_key_info.referenced_db = f_key_info.foreign_db;
 
     char ref_table_buff[NAME_LEN + 1];
@@ -16702,19 +16696,13 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     ref_table_buff[ref_table_name_length] = '\0';
     DBUG_PRINT("info", ("mroonga: ref_table_buff=%s", ref_table_buff));
     DBUG_PRINT("info", ("mroonga: ref_table_name_length=%d", ref_table_name_length));
-    f_key_info.referenced_table = thd_make_lex_string(thd, NULL,
-                                                       ref_table_buff,
-                                                       ref_table_name_length,
-                                                       TRUE);
+    f_key_info.referenced_table = Lex_ident::make(thd, ref_table_buff,
+                                                  ref_table_name_length);
     f_key_info.update_method = FK_OPTION_RESTRICT;
     f_key_info.delete_method = FK_OPTION_RESTRICT;
-    f_key_info.referenced_key_name = thd_make_lex_string(thd, NULL, "PRIMARY",
-                                                          7, TRUE);
-    LEX_CSTRING *field_name = thd_make_lex_string(thd,
-                                                 NULL,
-                                                 column_name.c_str(),
-                                                 column_name.length(),
-                                                 TRUE);
+    f_key_info.referenced_key_name = Lex_ident::make(thd, "PRIMARY", 7);
+    auto *field_name = Lex_ident::make(thd, column_name.c_str(),
+                                      column_name.length());
     f_key_info.foreign_fields.push_back(field_name);
 
     char ref_path[FN_REFLEN + 1];
@@ -16736,10 +16724,9 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     uint ref_pkey_nr = tmp_ref_table_share->primary_key;
     KEY *ref_key_info = &tmp_ref_table_share->key_info[ref_pkey_nr];
     Field *ref_field = &ref_key_info->key_part->field[0];
-    LEX_CSTRING *ref_col_name = thd_make_lex_string(thd, NULL,
-                                                   ref_field->field_name.str,
-                                                   ref_field->field_name.length,
-                                                   TRUE);
+    auto *ref_col_name = Lex_ident::make(thd,
+                                         ref_field->field_name.str,
+                                         ref_field->field_name.length);
     f_key_info.referenced_fields.push_back(ref_col_name);
     mrn_open_mutex_lock(table_share);
     mrn_free_tmp_table_share(tmp_ref_table_share);

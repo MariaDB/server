@@ -7404,7 +7404,7 @@ static int get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
     {
       LEX_CSTRING *f_info;
       LEX_CSTRING *r_info;
-      List_iterator_fast<LEX_CSTRING> it(f_key_info->foreign_fields),
+      List_iterator_fast<Lex_ident> it(f_key_info->foreign_fields),
         it1(f_key_info->referenced_fields);
       uint f_idx= 0;
 
