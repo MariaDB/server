@@ -1,7 +1,8 @@
-use bindings::st_mysql_sys_var_basic;
-use mariadb_server_sys as bindings;
 use std::mem::ManuallyDrop;
 use std::ptr;
+
+use bindings::st_mysql_sys_var_basic;
+use mariadb_sys as bindings;
 
 #[repr(C)]
 union SysVar<T> {
@@ -180,10 +181,11 @@ pub enum PluginVarInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::ffi::c_uint;
     use std::mem::size_of;
     use std::sync::atomic::AtomicU32;
+
+    use super::*;
 
     #[test]
     fn test_sizes() {

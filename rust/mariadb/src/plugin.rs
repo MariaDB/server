@@ -2,17 +2,22 @@
 
 // use std::cell::UnsafeCell;
 
-use std::ptr;
-use std::{cell::UnsafeCell, ffi::c_void};
+use std::ffi::{c_int, c_uint};
 
-use mariadb_server_sys as bindings;
+use mariadb_sys as bindings;
 pub mod encryption;
 #[doc(hidden)]
 pub mod encryption_wrapper;
 mod variables;
 #[doc(hidden)]
 pub mod wrapper;
+pub use mariadb_macros::register_plugin;
 pub use variables::{PluginVarInfo, SysVarAtomic};
+
+/// Commonly used plugin types for reexport
+pub mod prelude {
+    pub use super::{register_plugin, Init, InitError, License, Maturity, PluginType};
+}
 
 /// Defines possible licenses for plugins
 #[non_exhaustive]
@@ -33,6 +38,11 @@ impl License {
             _ => None,
         }
     }
+
+    #[doc(hidden)]
+    pub const fn to_license_registration(self) -> c_int {
+        self as c_int
+    }
 }
 
 /// Defines a type of plugin. This determines the required implementation.
@@ -47,9 +57,17 @@ pub enum PluginType {
     MyReplication = bindings::MYSQL_REPLICATION_PLUGIN as isize,
     MyAuthentication = bindings::MYSQL_AUTHENTICATION_PLUGIN as isize,
     MariaPasswordValidation = bindings::MariaDB_PASSWORD_VALIDATION_PLUGIN as isize,
+    /// Use this plugin type both for key managers and for full encryption plugins
     MariaEncryption = bindings::MariaDB_ENCRYPTION_PLUGIN as isize,
     MariaDataType = bindings::MariaDB_DATA_TYPE_PLUGIN as isize,
     MariaFunction = bindings::MariaDB_FUNCTION_PLUGIN as isize,
+}
+
+impl PluginType {
+    #[doc(hidden)]
+    pub const fn to_ptype_registration(self) -> c_int {
+        self as c_int
+    }
 }
 
 /// Defines possible licenses for plugins
@@ -63,9 +81,16 @@ pub enum Maturity {
     Stable = bindings::MariaDB_PLUGIN_MATURITY_STABLE as isize,
 }
 
+impl Maturity {
+    #[doc(hidden)]
+    pub const fn to_maturity_registration(self) -> c_uint {
+        self as c_uint
+    }
+}
+
 pub struct InitError;
 
-/// Initialize state
+/// Implement this trait if your plugin requires init or deinit functions
 pub trait Init {
     fn init() -> Result<(), InitError> {
         Ok(())
@@ -75,106 +100,3 @@ pub trait Init {
         Ok(())
     }
 }
-
-/// New struct with all null values
-#[doc(hidden)]
-pub const fn new_null_st_maria_plugin() -> bindings::st_maria_plugin {
-    bindings::st_maria_plugin {
-        type_: 0,
-        info: ptr::null_mut(),
-        name: ptr::null(),
-        author: ptr::null(),
-        descr: ptr::null(),
-        license: 0,
-        init: None,
-        deinit: None,
-        version: 0,
-        status_vars: ptr::null_mut(),
-        system_vars: ptr::null_mut(),
-        version_info: ptr::null(),
-        maturity: 0,
-    }
-}
-
-/// Used for plugin registrations, which are in global scope.
-#[doc(hidden)]
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct UnsafeSyncCell<T>(UnsafeCell<T>);
-
-impl<T> UnsafeSyncCell<T> {
-    /// # Safety
-    ///
-    /// This inner value be used in a Sync/Send way
-    pub const unsafe fn new(value: T) -> Self {
-        Self(UnsafeCell::new(value))
-    }
-
-    pub const fn as_ptr(&self) -> *const T {
-        self.0.get()
-    }
-}
-
-unsafe impl<T> Send for UnsafeSyncCell<T> {}
-unsafe impl<T> Sync for UnsafeSyncCell<T> {}
-
-// #[macro_export]
-// macro_rules! plugin {
-//     (@def $default:expr, ) => {$default};
-//     (@def $default:expr, $replace:expr) => {$replace};
-
-//     (
-//         ty: $type:expr,
-//         name: $name:expr,
-//         author: $author:expr,
-//         description: $description:expr,
-//         license: $license:expr,
-//         version: $version:expr,
-//         $(, version_info: $version_info:expr)?
-//         maturity: $maturity:expr,
-//         // Type to use init/deinit functions on, if applicable
-//         $(, init: $init:ty)?
-//         $(,)? // trailing comma
-
-//     ) => {
-//         use std::ffi::{c_int, c_uint};
-//         use $crate::cstr;
-
-//         // Use these intermediates to validate types
-//         const ptype: PluginType = $type;
-//         const ltype: License = $license
-//         const vers: u32 = $version;
-//         const maturity: Maturity = $maturity;
-
-//         bindings::st_maria_plugin {
-//             type_: ptype as c_int,
-//             info: *mut c_void,
-//             name: cstr::cstr!($name).as_ptr(),
-//             author: cstr::cstr!($author).as_ptr(),
-//             descr: cstr::cstr!($description).as_ptr(),
-//             license: c_int,
-//             init: Option<unsafe extern "C" fn(arg1: *mut c_void) -> c_int>,
-//             deinit: Option<unsafe extern "C" fn(arg1: *mut c_void) -> c_int>,
-//             version: vers as c_uint,
-//             status_vars: *mut st_mysql_show_var,
-//             system_vars: *mut *mut st_mysql_sys_var,
-//             version_info: plugin!(
-//                 @def
-//                 cstr::cstr!($vers).as_ptr(),
-//                 $(cstr::cstr!($comment).as_ptr())?
-//             ),,
-//             maturity: maturity as c_uint,
-//         }
-
-//     };
-// }
-
-// plugin_encryption!{
-//     type: RustEncryption,
-//     init: RustEncryptionInit, // optional
-//     name: "example_key_management",
-//     author: "MariaDB Team",
-//     description: "Example key management plugin using AES",
-//     license: GPL,
-//     stability: EXPERIMENTAL
-// }

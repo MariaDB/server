@@ -1,11 +1,12 @@
 [package]
-name = "mariadb-server"
+name = "mariadb"
 version = "0.1.0"
 edition = '2021'
 
 
 [dependencies]
-mariadb-server-sys = { path = "../bindings" }
-mariadb-server-macros = { path = "../macros" }
+mariadb-sys = { path = "../bindings" }
+mariadb-macros = { path = "../macros" }
 cstr = "0.2.11"
 concat-idents = "1.1.4"
+time = { version = "0.3.17", features = ["formatting"]}

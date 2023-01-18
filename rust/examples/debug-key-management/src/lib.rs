@@ -7,18 +7,20 @@
 
 #![allow(unused)]
 
-use mariadb_server::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
-use mariadb_server::plugin::{Init, License, Maturity, SysVarAtomic};
-use mariadb_server::plugin::{InitError, PluginType, PluginVarInfo};
-use mariadb_server::sysvar_atomic;
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
-use std::sync::atomic::AtomicU32;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU32, Ordering};
+
+use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
+use mariadb::plugin::prelude::*;
+use mariadb::plugin::{
+    register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo, SysVarAtomic,
+};
+use mariadb::sysvar_atomic;
 
 const KEY_LENGTH: usize = 4;
 
-static KEY_VERSION: AtomicU32 = AtomicU32::new(0);
+static KEY_VERSION: AtomicU32 = AtomicU32::new(1);
 
 static KEY_VERSION_SYSVAR: SysVarAtomic<u32> = sysvar_atomic! {
     ty: u32,
@@ -65,7 +67,7 @@ impl KeyManager for DebugKeyMgmt {
         }
 
         // Copy our slice to the buffer, return the copied length
-        dst.copy_from_slice(key_buf.as_slice());
+        dst[..key_buf.len()].copy_from_slice(key_buf.as_slice());
         Ok(())
     }
 
@@ -106,66 +108,64 @@ impl KeyManager for DebugKeyMgmt {
 // builtin_debug_key_sizeof_struct_st_plugin
 // builtin_debug_key_plugin
 
-#[repr(transparent)]
-struct UcWrap<T>(UnsafeCell<T>);
-
-impl<T> UcWrap<T> {
-    const fn as_ptr(&self) -> *const T {
-        self.0.get()
-    }
+register_plugin! {
+    DebugKeyMgmt,
+    ptype: PluginType::MariaEncryption,
+    name: "debug_key_management",
+    author: "Trevor Gross",
+    description: "Debug key management plugin",
+    license: License::Gpl,
+    maturity: Maturity::Experimental,
+    version: "0.1",
+    init: DebugKeyMgmt, // optional
+    encryption: false,
 }
-
-unsafe impl<T> Send for UcWrap<T> {}
-unsafe impl<T> Sync for UcWrap<T> {}
 
 // PROC: should mangle names with type name
 
-static _INTERNAL_SYSVARS: UcWrap<[*mut mariadb_server::bindings::st_mysql_sys_var; 2]> =
-    UcWrap(UnsafeCell::new([
-        KEY_VERSION_SYSVAR.as_ptr().cast_mut(),
-        ::std::ptr::null_mut(),
-    ]));
+// static _INTERNAL_SYSVARS: UcWrap<[*mut mariadb::bindings::st_mysql_sys_var; 2]> =
+//     UcWrap(UnsafeCell::new([
+//         KEY_VERSION_SYSVAR.as_ptr().cast_mut(),
+//         ::std::ptr::null_mut(),
+//     ]));
 
-static _ENCRYPTION_ST: UcWrap<mariadb_server::bindings::st_mariadb_encryption> = UcWrap(
-    UnsafeCell::new(mariadb_server::bindings::st_mariadb_encryption {
-        interface_version: mariadb_server::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as i32,
-        get_latest_key_version: Some(
-            mariadb_server::plugin::encryption_wrapper::wrap_get_latest_key_version::<DebugKeyMgmt>,
-        ),
-        get_key: Some(mariadb_server::plugin::encryption_wrapper::wrap_get_key::<DebugKeyMgmt>),
-        crypt_ctx_size: None,
-        crypt_ctx_init: None,
-        crypt_ctx_update: None,
-        crypt_ctx_finish: None,
-        encrypted_length: None,
-    }),
-);
+// static _ENCRYPTION_ST: UcWrap<mariadb::bindings::st_mariadb_encryption> =
+//     UcWrap(UnsafeCell::new(mariadb::bindings::st_mariadb_encryption {
+//         interface_version: mariadb::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as i32,
+//         get_latest_key_version: Some(DebugKeyMgmt::wrap_get_latest_key_version),
+//         get_key: Some(DebugKeyMgmt::wrap_get_key),
+//         crypt_ctx_size: None,
+//         crypt_ctx_init: None,
+//         crypt_ctx_update: None,
+//         crypt_ctx_finish: None,
+//         encrypted_length: None,
+//     }));
 
-#[no_mangle]
-static _maria_plugin_interface_version_: ::std::ffi::c_int =
-    mariadb_server::bindings::MARIA_PLUGIN_INTERFACE_VERSION as ::std::ffi::c_int;
+// #[no_mangle]
+// static _maria_plugin_interface_version_: ::std::ffi::c_int =
+//     mariadb::bindings::MARIA_PLUGIN_INTERFACE_VERSION as ::std::ffi::c_int;
 
-#[no_mangle]
-static _maria_sizeof_struct_st_plugin_: ::std::ffi::c_int =
-    ::std::mem::size_of::<mariadb_server::bindings::st_maria_plugin>() as ::std::ffi::c_int;
+// #[no_mangle]
+// static _maria_sizeof_struct_st_plugin_: ::std::ffi::c_int =
+//     ::std::mem::size_of::<mariadb::bindings::st_maria_plugin>() as ::std::ffi::c_int;
 
-#[no_mangle]
-static mut _maria_plugin_declarations_: [mariadb_server::bindings::st_maria_plugin; 2] = [
-    mariadb_server::bindings::st_maria_plugin {
-        type_: PluginType::MariaEncryption as i32,
-        info: _ENCRYPTION_ST.as_ptr().cast_mut().cast(),
-        name: mariadb_server::cstr::cstr!("debug_key_management").as_ptr(),
-        author: mariadb_server::cstr::cstr!("Trevor Gross").as_ptr(),
-        descr: mariadb_server::cstr::cstr!("Debug key management plugin").as_ptr(),
-        license: License::Gpl as i32,
-        init: Some(mariadb_server::plugin::wrapper::wrap_init::<DebugKeyMgmt>),
-        deinit: Some(mariadb_server::plugin::wrapper::wrap_deinit::<DebugKeyMgmt>),
-        version: 0x0010,
-        status_vars: ::std::ptr::null_mut(),
-        system_vars: _INTERNAL_SYSVARS.0.get().cast(),
-        version_info: mariadb_server::cstr::cstr!("0.1").as_ptr(),
-        maturity: Maturity::Experimental as u32,
-    },
-    // End with a null object
-    ::mariadb_server::plugin::new_null_st_maria_plugin(),
-];
+// #[no_mangle]
+// static mut _maria_plugin_declarations_: [mariadb::bindings::st_maria_plugin; 2] = [
+//     mariadb::bindings::st_maria_plugin {
+//         type_: PluginType::MariaEncryption as i32,
+//         info: _ENCRYPTION_ST.as_ptr().cast_mut().cast(),
+//         name: mariadb::cstr::cstr!("debug_key_management").as_ptr(),
+//         author: mariadb::cstr::cstr!("Trevor Gross").as_ptr(),
+//         descr: mariadb::cstr::cstr!("Debug key management plugin").as_ptr(),
+//         license: License::Gpl as i32,
+//         init: Some(DebugKeyMgmt::wrap_init),
+//         deinit: Some(DebugKeyMgmt::wrap_deinit),
+//         version: 0x0010,
+//         status_vars: ::std::ptr::null_mut(),
+//         system_vars: _INTERNAL_SYSVARS.0.get().cast(),
+//         version_info: mariadb::cstr::cstr!("0.1").as_ptr(),
+//         maturity: Maturity::Experimental as u32,
+//     },
+//     // End with a null object
+//     ::mariadb::plugin::wrapper::new_null_st_maria_plugin(),
+// ];

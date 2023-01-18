@@ -1,11 +1,12 @@
 //! This file runs `cmake` as needed, then `bindgen` to produce the rust bindings
 
-use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
-use bindgen::EnumVariation;
 use std::collections::HashSet;
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
+
+use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
+use bindgen::EnumVariation;
 
 // `math.h` seems to double define some things, To avoid this, we ignore them.
 const IGNORE_MACROS: [&str; 20] = [
@@ -87,7 +88,12 @@ fn main() {
         })
         // LLVM has some issues with long dobule and ABI compatibility
         // disabling the only relevant function here to suppress errors
+        .blocklist_function("strfroml")
+        .blocklist_function("strfromf64x")
+        .blocklist_function("strtof64x_l")
+        .blocklist_function("strtof64x")
         .blocklist_function("strtold")
+        .blocklist_function("strtold_l")
         // qvct, evct, qfcvt_r, ...
         .blocklist_function("[a-z]{1,2}cvt(?:_r)?")
         // c++ things that aren't supported

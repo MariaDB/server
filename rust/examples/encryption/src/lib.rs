@@ -4,8 +4,6 @@
 
 #![allow(unused)]
 
-use rand::Rng;
-use sha2::{Digest, Sha256 as Hasher};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -14,21 +12,11 @@ use aes_gcm::{
     Aes256Gcm,
     Nonce, // Or `Aes128Gcm`
 };
-
-use mariadb_server::plugin::encryption::{Encryption, Flags, KeyError, KeyManager, EncryptionError};
-use mariadb_server::plugin::{Init, InitError, License, Maturity, PluginType};
-// use mariadb_server::plugin::Init;
-// use mariadb_server::plugin::prelude::*;
-
-// plugin_encryption!{
-//     type: RustEncryption,
-//     init: RustEncryptionInit, // optional
-//     name: "example_key_management",
-//     author: "MariaDB Team",
-//     description: "Example key management plugin using AES",
-//     license: GPL,
-//     stability: EXPERIMENTAL
-// }
+use mariadb::plugin::encryption::{Encryption, EncryptionError, Flags, KeyError, KeyManager};
+use mariadb::plugin::prelude::*;
+use mariadb::plugin::wrapper::WrapInit;
+use rand::Rng;
+use sha2::{Digest, Sha256 as Hasher};
 
 /// Range of key rotations, as seconds
 const KEY_ROTATION_MIN: f32 = 45.0;
@@ -167,64 +155,18 @@ impl Encryption for RustEncryption {
     }
 }
 
-// C plugins manually create this, but we can automate
-static _ENCRYPTION_ST: ::mariadb_server::plugin::UnsafeSyncCell<
-    ::mariadb_server::bindings::st_mariadb_encryption,
-> = unsafe {
-    ::mariadb_server::plugin::UnsafeSyncCell::new(mariadb_server::bindings::st_mariadb_encryption {
-        interface_version: mariadb_server::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as i32,
-        get_latest_key_version: Some(
-            mariadb_server::plugin::encryption_wrapper::wrap_get_latest_key_version::<RustEncryption>,
-        ),
-        get_key: Some(mariadb_server::plugin::encryption_wrapper::wrap_get_key::<RustEncryption>),
-        crypt_ctx_size: Some(
-            mariadb_server::plugin::encryption_wrapper::wrap_crypt_ctx_size::<RustEncryption>,
-        ),
-        crypt_ctx_init: Some(
-            mariadb_server::plugin::encryption_wrapper::wrap_crypt_ctx_init::<RustEncryption>,
-        ),
-        crypt_ctx_update: Some(
-            mariadb_server::plugin::encryption_wrapper::wrap_crypt_ctx_update::<RustEncryption>,
-        ),
-        crypt_ctx_finish: Some(
-            mariadb_server::plugin::encryption_wrapper::wrap_crypt_ctx_finish::<RustEncryption>,
-        ),
-        encrypted_length: Some(
-            mariadb_server::plugin::encryption_wrapper::wrap_encrypted_length::<RustEncryption>,
-        ),
-    })
-};
-
-// If we compile dynamically, use these names. Otherwise, we need to use
-// `buildin_maria_NAME_...`
-#[no_mangle]
-static _maria_plugin_interface_version_: ::std::ffi::c_int =
-    ::mariadb_server::bindings::MARIA_PLUGIN_INTERFACE_VERSION as ::std::ffi::c_int;
-
-#[no_mangle]
-static _maria_sizeof_struct_st_plugin_: ::std::ffi::c_int =
-    ::std::mem::size_of::<mariadb_server::bindings::st_maria_plugin>() as ::std::ffi::c_int;
-
-#[no_mangle]
-static mut _maria_plugin_declarations_: [mariadb_server::bindings::st_maria_plugin; 2] = [
-    ::mariadb_server::bindings::st_maria_plugin {
-        type_: PluginType::MariaEncryption as i32,
-        info: _ENCRYPTION_ST.as_ptr().cast_mut().cast(),
-        name: mariadb_server::cstr::cstr!("encryption_example").as_ptr(),
-        author: mariadb_server::cstr::cstr!("Trevor Gross").as_ptr(),
-        descr: mariadb_server::cstr::cstr!("Example key management / encryption plugin").as_ptr(),
-        license: License::Gpl as i32,
-        init: Some(mariadb_server::plugin::wrapper::wrap_init::<RustEncryption>),
-        deinit: Some(mariadb_server::plugin::wrapper::wrap_deinit::<RustEncryption>),
-        version: 0x0010,
-        status_vars: ::std::ptr::null_mut(),
-        system_vars: ::std::ptr::null_mut(),
-        version_info: mariadb_server::cstr::cstr!("0.1").as_ptr(),
-        maturity: Maturity::Experimental as u32,
-    },
-    // End with a null object
-    ::mariadb_server::plugin::new_null_st_maria_plugin(),
-];
+register_plugin! {
+    RustEncryption,
+    ptype: PluginType::MariaEncryption,
+    name: "encryption_example",
+    author: "Trevor Gross",
+    description: "Example key management / encryption plugin",
+    license: License::Gpl,
+    maturity: Maturity::Experimental,
+    version: "0.1",
+    init: RustEncryption, // optional
+    encryption: true,
+}
 
 #[cfg(test)]
 mod tests {

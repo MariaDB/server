@@ -7,14 +7,14 @@
 
 #![allow(unused)]
 
-use mariadb_server::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
-use mariadb_server::plugin::{new_null_st_maria_plugin, PluginType, PluginVarInfo, UnsafeSyncCell};
-use mariadb_server::plugin::{License, Maturity, SysVarAtomic, InitError, Init};
-use mariadb_server::sysvar_atomic;
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
-use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicU32, AtomicUsize};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+
+use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
+use mariadb::plugin::prelude::*;
+use mariadb::plugin::{register_plugin, PluginType, PluginVarInfo, SysVarAtomic};
+use mariadb::sysvar_atomic;
 
 struct BasicKeyMgt;
 
@@ -34,9 +34,11 @@ impl Init for BasicKeyMgt {
 
 impl KeyManager for BasicKeyMgt {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
+        eprintln!("get latest key version with {key_id}");
         static KCOUNT: AtomicU32 = AtomicU32::new(1);
-        eprintln!("get key version with {key_id}");
-        Ok(KCOUNT.fetch_add(1, Ordering::Relaxed))
+        let ret = KCOUNT.fetch_add(1, Ordering::Relaxed);
+        dbg!(ret);
+        Ok(ret)
     }
 
     fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> {
@@ -58,56 +60,18 @@ impl KeyManager for BasicKeyMgt {
     }
 }
 
-// PROC: should mangle names with type name
-
-// C plugins manually create this, but we can automate
-static _ENCRYPTION_ST: ::mariadb_server::plugin::UnsafeSyncCell<
-    ::mariadb_server::bindings::st_mariadb_encryption,
-> = unsafe {
-    ::mariadb_server::plugin::UnsafeSyncCell::new(mariadb_server::bindings::st_mariadb_encryption {
-        interface_version: mariadb_server::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as i32,
-        get_latest_key_version: Some(
-            mariadb_server::plugin::encryption_wrapper::wrap_get_latest_key_version::<BasicKeyMgt>,
-        ),
-        get_key: Some(mariadb_server::plugin::encryption_wrapper::wrap_get_key::<BasicKeyMgt>),
-        crypt_ctx_size: None,
-        crypt_ctx_init: None,
-        crypt_ctx_update: None,
-        crypt_ctx_finish: None,
-        encrypted_length: None,
-    })
-};
-
-// If we compile dynamically, use these names. Otherwise, we need to use
-// `buildin_maria_NAME_...`
-#[no_mangle]
-static _maria_plugin_interface_version_: ::std::ffi::c_int =
-    ::mariadb_server::bindings::MARIA_PLUGIN_INTERFACE_VERSION as ::std::ffi::c_int;
-
-#[no_mangle]
-static _maria_sizeof_struct_st_plugin_: ::std::ffi::c_int =
-    ::std::mem::size_of::<mariadb_server::bindings::st_maria_plugin>() as ::std::ffi::c_int;
-
-#[no_mangle]
-static mut _maria_plugin_declarations_: [mariadb_server::bindings::st_maria_plugin; 2] = [
-    ::mariadb_server::bindings::st_maria_plugin {
-        type_: PluginType::MariaEncryption as i32,
-        info: _ENCRYPTION_ST.as_ptr().cast_mut().cast(),
-        name: mariadb_server::cstr::cstr!("basic_key_management").as_ptr(),
-        author: mariadb_server::cstr::cstr!("Trevor Gross").as_ptr(),
-        descr: mariadb_server::cstr::cstr!("Basic key management plugin").as_ptr(),
-        license: License::Gpl as i32,
-        init: Some(mariadb_server::plugin::wrapper::wrap_init::<BasicKeyMgt>),
-        deinit: Some(mariadb_server::plugin::wrapper::wrap_deinit::<BasicKeyMgt>),
-        version: 0x0010,
-        status_vars: ::std::ptr::null_mut(),
-        system_vars: ::std::ptr::null_mut(),
-        version_info: mariadb_server::cstr::cstr!("0.1").as_ptr(),
-        maturity: Maturity::Experimental as u32,
-    },
-    // End with a null object
-    ::mariadb_server::plugin::new_null_st_maria_plugin(),
-];
+register_plugin! {
+    BasicKeyMgt,
+    ptype: PluginType::MariaEncryption,
+    name: "basic_key_management",
+    author: "Trevor Gross",
+    description: "Basic key management plugin",
+    license: License::Gpl,
+    maturity: Maturity::Experimental,
+    version: "0.1",
+    init: BasicKeyMgt, // optional
+    encryption: false,
+}
 
 #[cfg(test)]
 mod tests {
@@ -115,7 +79,7 @@ mod tests {
 
     #[test]
     fn print_statics() {
-        unsafe { dbg!(&*(_ENCRYPTION_ST.as_ptr())) };
+        // unsafe { dbg!(&*(_ENCRYPTION_ST.as_ptr())) };
         dbg!(&_maria_plugin_interface_version_);
         dbg!(&_maria_sizeof_struct_st_plugin_);
         unsafe { dbg!(&_maria_plugin_declarations_) };
