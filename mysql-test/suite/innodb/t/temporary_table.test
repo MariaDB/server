@@ -11,7 +11,7 @@
 --source include/no_valgrind_without_big.inc
 
 --disable_query_log
-call mtr.add_suppression("Can't create/write to file '/dev/null/nonexistent/ib");
+call mtr.add_suppression("Can't create/write to file '/dev/null/.*/ib");
 call mtr.add_suppression("InnoDB: Unable to create temporary file");
 call mtr.add_suppression("last file in setting innodb_temp_data_file_path");
 call mtr.add_suppression("The table 't1' is full");
@@ -134,7 +134,7 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 # We cannot use include/restart_mysqld.inc in this particular test,
 # because SHOW STATUS would fail due to unwritable (nonexistent) tmpdir.
 --source include/shutdown_mysqld.inc
---exec echo "restart: --tmpdir=/dev/null/nonexistent" > $_expect_file_name
+--exec echo "restart: --tmpdir=/dev/null/$MYSQL_TMP_DIR" > $_expect_file_name
 --enable_reconnect
 --disable_result_log
 --disable_query_log
