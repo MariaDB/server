@@ -29,3 +29,39 @@ select count(a) from t1;
 count(a)
 0
 drop table t1;
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+# Test multi-byte characters in table name
+set names utf8;
+# Filename is too long because it is converted to @274e@274e@274e@274e...
+# so each '❎' is 5 bytes in filesystem, 51 x 5 = 255 bytes
+create table ❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (x int);
+ERROR HY000: Can't create table `test`.`❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎` (errno: 36 "File name too long")
+# Let's find out max length for '❎'...
+# Acceptable name length: 50; Filename length: 254
+# OK with 64-characters table name, filesystem name is 40 x 5 + 24 = 224 bytes
+create table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (x int);
+# Not OK with 65-characters table name
+create table ttttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (x int);
+ERROR 42000: Incorrect table name 'ttttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎'
+show tables;
+Tables_in_test
+tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎
+create or replace table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (y int);
+show create table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎;
+Table	Create Table
+tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎	CREATE TABLE `tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+set @@debug_dbug="+d,ddl_log_create_after_save_backup", @debug_crash_counter=1;
+create or replace table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (z int);
+ERROR HY000: Lost connection to server during query
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
+drop table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎;
+set @@debug_dbug="";

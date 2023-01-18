@@ -21,7 +21,54 @@ connection slave;
 SHOW TABLES;
 Tables_in_test
 t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 connection master;
 drop temporary table if exists tmp;
 drop table t1;
 include/rpl_end.inc
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+set @saved_debug_dbug= @@session.debug_dbug;
+create table t1 (a int primary key) engine innodb;
+insert t1 values (1), (2);
+create table t2 (c int, a int constraint t1_a references t1 (a)) engine innodb;
+insert into t2 values (2, 2);
+lock tables t2 write, t1 write;
+set session debug_dbug= '+d,atomic_replace_external_lock_fail';
+create or replace table t2 (y int) as select * from t1;
+ERROR HY000: The total number of locks exceeds the lock table size
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT NULL,
+  KEY `t1_a` (`a`),
+  CONSTRAINT `t1_a` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+select * from t2;
+c	a
+2	2
+unlock tables;
+drop tables t2, t1;
+set session debug_dbug= @saved_debug_dbug;
+# Test entry_pos in higher position, so drop chain executes before create chain
+# (see commit message: On linking two chains together)
+create table t1 (c int);
+create or replace table t1 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+create or replace table t1 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+drop table t1;
