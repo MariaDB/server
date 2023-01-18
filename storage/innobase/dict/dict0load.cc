@@ -3150,8 +3150,8 @@ loop:
 		rec, DICT_FLD__SYS_FOREIGN_FOR_NAME__ID, &len);
 
 	/* Copy the string because the page may be modified or evicted
-	after mtr.commit() below. */
-	char	fk_id[MAX_TABLE_NAME_LEN + NAME_LEN];
+	after mtr.commit() below (-2 is for \xFF\xFF in tmp constraints). */
+	char	fk_id[MAX_TABLE_NAME_LEN + NAME_LEN - 2];
 	err = DB_SUCCESS;
 	if (UNIV_LIKELY(len < sizeof fk_id)) {
 		memcpy(fk_id, field, len);
