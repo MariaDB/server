@@ -3,8 +3,8 @@ if (!$restart_parameters)
   let $restart_parameters = restart;
 }
 
---let $_server_id= `SELECT @@server_id`
---let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
 
 --echo # Kill and $restart_parameters
 --exec echo "$restart_parameters" > $_expect_file_name
