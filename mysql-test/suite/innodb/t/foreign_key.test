@@ -2,6 +2,8 @@
 --source include/count_sessions.inc
 --source include/default_charset.inc
 
+call mtr.add_suppression("foreign key constraints");
+
 --echo #
 --echo # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
 --echo # DICT_CREATE_FOREIGN_CONSTR
@@ -183,7 +185,6 @@ SET FOREIGN_KEY_CHECKS=1;
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table rename might cause two FOREIGN KEY");
-call mtr.add_suppression("InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15\\.");
 --enable_query_log
 
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -739,8 +740,6 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 --echo # with CONSTRAINTs
 --echo #
 
-call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`\\.`t2` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
-
 set foreign_key_checks=on;
 create table t1 (id int not null primary key) engine=innodb;
 create table t2 (id int not null primary key, fid int not null,
@@ -1071,5 +1070,36 @@ DROP TABLE IF EXISTS t2, t1;
 --enable_warnings
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-29701 Inconsistencies and eventual failure upon CREATE OR REPLACE with foreign keys
+--echo #
+create table t2 (x int primary key) engine=innodb;
+create table t1 (a int references t2 (x), b int references t1 (a)) engine=innodb;
+
+set session foreign_key_checks = off;
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (x int, y int) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+create or replace table t2 (x int primary key, new int) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+--error ER_CANT_CREATE_TABLE
+create or replace table t2 (x int, z int) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+set session foreign_key_checks= on;
+
+show create table t2;
+show create table t1;
+
+--error ER_CANT_CREATE_TABLE
+create or replace table t1 (a int references t1 (a)) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+show create table t1;
+
+create or replace table t1 (a int) engine=innodb;
+select * from information_schema.innodb_sys_foreign;
+
+drop tables if exists t1, t2;
+
 
 --source include/wait_until_count_sessions.inc
