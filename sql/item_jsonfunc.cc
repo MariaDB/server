@@ -1004,7 +1004,7 @@ String *Item_func_json_extract::read_json(String *str,
     if (!possible_multiple_values)
     {
       /* Loop to the end of the JSON just to make sure it's valid. */
-      while (json_get_path_next(&je, &p) == 0) {}
+      while (json_scan_next(&je) == 0) {}
       break;
     }
   }
