@@ -36,11 +36,6 @@
 
 static bool provider_plugin_enabled= false;
 
-/* Prototype for provider system variables */
-static char *dummy_str= 0;
-static MYSQL_SYSVAR_STR(proto_string, dummy_str, 0, 0, 0, 0, "");
-
-
 bool wsrep_provider_plugin_enabled()
 {
   return provider_plugin_enabled;
