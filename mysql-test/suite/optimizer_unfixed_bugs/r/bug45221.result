@@ -55,13 +55,6 @@ Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
 Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
 Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
 Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
-Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
-Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
-Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
-Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
-Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
-Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
-Warning	1292	Truncated incorrect INTEGER value: '2009-11-25'
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE `t2` (

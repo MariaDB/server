@@ -206,8 +206,8 @@ insert into t2 select seq,seq,'a' from seq_1_to_512;
 insert into t1 select seq,'a' from seq_1_to_4;
 explain select count(*) from t1, t2 where t1.p = t2.i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	4	Using index
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	512	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	512	
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	4	Using where; Using index; Using join buffer (flat, BNL join)
 insert into t1 select seq,'a' from seq_5_to_10;
 explain select count(*) from t1, t2 where t1.p = t2.i;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

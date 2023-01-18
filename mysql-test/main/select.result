@@ -1427,8 +1427,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 set @@join_cache_level=@save_join_cache_level;
 explain select t2.companynr,companyname from t4 left join t2 using (companynr) where t2.companynr > 0 or t2.companynr < 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	ALL	PRIMARY	NULL	NULL	NULL	12	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1199	Using where
+1	SIMPLE	t4	ALL	PRIMARY	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t4	ALL	PRIMARY	NULL	NULL	NULL	12	Using where

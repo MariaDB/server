@@ -8778,7 +8778,7 @@ best_access_path(JOIN      *join,
   {
     double refills, row_copy_cost, cmp_time, cur_cost;
     /* Estimate the cost of the hash join access to the table */
-    double rnd_records= matching_candidates_in_table(s, 0,
+    double rnd_records= matching_candidates_in_table(s, found_constraint,
                                                      use_cond_selectivity);
     DBUG_ASSERT(rnd_records <= s->found_records);
     set_if_smaller(best.records_out, rnd_records);
@@ -8993,7 +8993,7 @@ best_access_path(JOIN      *join,
     {
       /* We will now calculate cost of scan, with or without join buffer */
       records_best_filter= records_after_filter=
-        matching_candidates_in_table(s, 0, use_cond_selectivity);
+        matching_candidates_in_table(s, found_constraint, use_cond_selectivity);
       DBUG_ASSERT(records_after_filter <= s->records);
       DBUG_ASSERT(records_after_filter <= s->found_records);
 
