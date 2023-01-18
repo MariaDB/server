@@ -154,3 +154,18 @@ S3_pagecache_blocks_unused	X
 S3_pagecache_blocks_used	X
 S3_pagecache_read_requests	X
 S3_pagecache_reads	X
+#
+# MDEV-29767 CREATE OR REPLACE bypasses S3 restriction for table creation
+#
+create table t (a int) engine=Aria;
+insert into t values (1),(2);
+alter table t engine=S3;
+create table t2 (a int) engine=S3;
+ERROR HY000: Can't create table `database`.`t2` (errno: 131 "Command not supported by the engine")
+create table t2 like t;
+ERROR HY000: Can't create table `database`.`t2` (errno: 131 "Command not supported by the engine")
+create or replace table t2 like t;
+ERROR HY000: Can't create table `database`.`t2` (errno: 131 "Command not supported by the engine")
+show create table t2;
+ERROR 42S02: Table 'database.t2' doesn't exist
+drop table t;
