@@ -2381,6 +2381,8 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                   const Lex_table_charset_collation_attrs_st &default_cscl,
                   const Lex_table_charset_collation_attrs_st &convert_cscl,
                   const Charset_collation_context &ctx);
+  bool atomic_replace_check_existing(THD *thd, const LEX_CSTRING *db,
+                                     const LEX_CSTRING *table_name) const;
   bool is_atomic_replace_usable() const
   {
     return !tmp_table() && !sequence &&
@@ -2475,6 +2477,13 @@ struct Table_specification_st: public HA_CREATE_INFO,
   {
     return or_replace() && !or_replace_slave_generated() &&
            is_atomic_replace_usable();
+  }
+  bool is_atomic_replace(THD *thd, const LEX_CSTRING *db,
+                         const LEX_CSTRING *table_name) const
+  {
+    return or_replace() && !or_replace_slave_generated() &&
+           is_atomic_replace_usable() &&
+           atomic_replace_check_existing(thd, db, table_name);
   }
 };
 

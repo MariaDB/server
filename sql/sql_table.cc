@@ -5202,7 +5202,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   bool is_trans= FALSE;
   int result;
   TABLE_LIST *orig_table= create_table;
-  bool atomic_replace= create_info->is_atomic_replace();
+  bool atomic_replace;
   DBUG_ENTER("mysql_create_table");
 
   DBUG_ASSERT(create_info->default_table_charset);
@@ -5238,6 +5238,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     /* is_error() may be 0 if table existed and we generated a warning */
     DBUG_RETURN(thd->is_error());
   }
+  atomic_replace= create_info->is_atomic_replace(thd, &create_table->db,
+                                                 &create_table->table_name);
   /* The following is needed only in case of lock tables */
   if ((create_info->table= create_table->table))
   {
@@ -5750,7 +5752,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   local_create_info.row_type= src_table->table->s->row_type;
   local_create_info.alter_info= &local_alter_info;
   local_create_info.options= create_info->options;
-  atomic_replace= local_create_info.is_atomic_replace();
+  atomic_replace= local_create_info.is_atomic_replace(thd, &table->db,
+                                                      &table->table_name);
 
   /*
     This statement:

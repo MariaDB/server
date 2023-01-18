@@ -8719,3 +8719,32 @@ Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
   }
   return false;
 }
+
+
+/**
+  @brief Check whether existing table complies with atomic C-O-R requirements
+
+  @return       true means atomic C-O-R is allowed for existing table.
+  @retval true  Table either not exists or non-view and doesn't have expensive
+                rename flag.
+  @retval false Table exists and either view or has expensive rename flag.
+*/
+
+bool HA_CREATE_INFO::
+atomic_replace_check_existing(THD *thd, const LEX_CSTRING *db,
+                              const LEX_CSTRING *table_name) const
+{
+  handlerton *db_type= NULL;
+  LEX_CSTRING partition_engine_name= {NULL, 0};
+  LEX_CUSTRING org_tabledef_version;
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db->str,
+                                             table_name->str,
+                                             MDL_SHARED_NO_READ_WRITE));
+  if (!ha_table_exists(thd, db, table_name, &org_tabledef_version,
+                       &partition_engine_name, &db_type, NULL, 0))
+    return true;
+  if (db_type == view_pseudo_hton ||
+      db_type->flags & HTON_EXPENSIVE_RENAME)
+    return false;
+  return true;
+}
