@@ -2779,39 +2779,41 @@ row_rename_table_for_mysql(
 		an ALTER TABLE, not in a RENAME. */
 		dict_names_t	fk_tables;
 
-		err = dict_load_foreigns(
-			new_name, nullptr, trx->id,
-			!old_is_tmp || trx->check_foreigns,
-			fk == RENAME_FK || fk == RENAME_ALTER_COPY
-			? DICT_ERR_IGNORE_NONE
-			: DICT_ERR_IGNORE_FK_NOKEY,
-			fk_tables);
+		if (!(new_is_tmp && fk == RENAME_FK)) {
+			err = dict_load_foreigns(
+				new_name, nullptr, trx->id,
+				!old_is_tmp || trx->check_foreigns,
+				fk == RENAME_FK || fk == RENAME_ALTER_COPY
+				? DICT_ERR_IGNORE_NONE
+				: DICT_ERR_IGNORE_FK_NOKEY,
+				fk_tables);
 
-		if (err != DB_SUCCESS) {
-			if (old_is_tmp) {
-				/* In case of copy alter, ignore the
-				loading of foreign key constraint
-				when foreign_key_check is disabled */
-				ib::error_or_warn(trx->check_foreigns)
+			if (err != DB_SUCCESS) {
+				if (old_is_tmp) {
+					/* In case of copy alter, ignore the
+					loading of foreign key constraint
+					when foreign_key_check is disabled */
+					ib::error_or_warn(trx->check_foreigns)
 					<< "In ALTER TABLE "
 					<< ut_get_name(trx, new_name)
 					<< " has or is referenced in foreign"
 					" key constraints which are not"
 					" compatible with the new table"
 					" definition.";
-				if (!trx->check_foreigns) {
-					err = DB_SUCCESS;
-					break;
-				}
-			} else {
-				ib::error() << "In RENAME TABLE table "
+					if (!trx->check_foreigns) {
+						err = DB_SUCCESS;
+						break;
+					}
+				} else {
+					ib::error() << "In RENAME TABLE table "
 					<< ut_get_name(trx, new_name)
 					<< " is referenced in foreign key"
 					" constraints which are not compatible"
 					" with the new table definition.";
-			}
+				}
 
-			goto rollback_and_exit;
+				goto rollback_and_exit;
+			}
 		}
 
 		/* Check whether virtual column or stored column affects
