@@ -51,8 +51,8 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 let datadir= `select @@datadir`;
 
 # These are from include/shutdown_mysqld.inc and allow to call start_mysqld.inc
---let $_server_id= `SELECT @@server_id`
---let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
 
 --echo #
 --echo # Bug #14669848 CRASH DURING ALTER MAKES ORIGINAL TABLE INACCESSIBLE
