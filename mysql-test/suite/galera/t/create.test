@@ -84,6 +84,16 @@ SELECT * FROM t2;
 # Cleanup
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-29824 Galera crashes when running CoR for a locked table
+--echo #
+--connection node_1
+SET autocommit=0;
+CREATE TABLE t0 (x INT,y INT);
+LOCK TABLES t0 WRITE;
+CREATE OR REPLACE TABLE t0 SELECT 1;
+DROP TABLE t0;
+
 --source include/galera_end.inc
 --echo # End of tests
 
