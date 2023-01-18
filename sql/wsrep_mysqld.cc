@@ -364,10 +364,12 @@ static void wsrep_log_cb(wsrep::log::level level,
 void wsrep_init_gtid()
 {
   wsrep_server_gtid_t stored_gtid= wsrep_get_SE_checkpoint<wsrep_server_gtid_t>();
+  // Domain id may have changed, use the one
+  // received during state transfer.
+  stored_gtid.domain_id= wsrep_gtid_server.domain_id;
   if (stored_gtid.server_id == 0)
   {
     rpl_gtid wsrep_last_gtid;
-    stored_gtid.domain_id= wsrep_gtid_server.domain_id;
     if (mysql_bin_log.is_open() &&
         mysql_bin_log.lookup_domain_in_binlog_state(stored_gtid.domain_id,
                                                     &wsrep_last_gtid))
@@ -3083,6 +3085,11 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       THD_STAGE_INFO(request_thd, stage_waiting_ddl);
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      if (granted_thd->current_backup_stage != BACKUP_FINISHED &&
+	  wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
+      {
+	wsrep_abort_thd(request_thd, granted_thd, 1);
+      }
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {

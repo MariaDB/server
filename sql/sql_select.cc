@@ -434,7 +434,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   table_count= 0;
   top_join_tab_count= 0;
   const_tables= 0;
-  const_table_map= found_const_table_map= 0;
+  const_table_map= found_const_table_map= not_usable_rowid_map= 0;
   aggr_tables= 0;
   eliminated_tables= 0;
   join_list= 0;
@@ -2501,7 +2501,7 @@ JOIN::optimize_inner()
   /*
     We have to remove constants and duplicates from group_list before
     calling make_join_statistics() as this may call get_best_group_min_max()
-    which needs a simplfied group_list.
+    which needs a simplified group_list.
   */
   if (group_list && table_count == 1)
   {
@@ -5888,7 +5888,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             caller to abort with a zero row result.
           */
           TABLE_LIST *emb= s->table->pos_in_table_list->embedding;
-          if (emb && !emb->sj_on_expr)
+          if (emb && !emb->sj_on_expr && !*s->on_expr_ref)
           {
             /* Mark all tables in a multi-table join nest as const */
             mark_join_nest_as_const(join, emb, &found_const_table_map,
