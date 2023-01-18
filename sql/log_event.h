@@ -53,6 +53,7 @@
 #include "rpl_record.h"
 #include "rpl_reporting.h"
 #include "sql_class.h"                          /* THD */
+#include "sql_insert.h"
 #endif
 
 #include "rpl_gtid.h"
@@ -5120,6 +5121,7 @@ protected:
   */
   MY_BITMAP   m_cols_ai;
 
+
   ulong       m_master_reclength; /* Length of record on master side */
 
   /* Bit buffers in the same memory as the class */
@@ -5155,7 +5157,6 @@ protected:
 
   int find_key(); // Find a best key to use in find_row()
   int find_row(rpl_group_info *);
-  int write_row(rpl_group_info *, const bool);
   int update_sequence();
 
   // Unpack the current row into m_table->record[0], but with
@@ -5309,6 +5310,9 @@ private:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  COPY_INFO m_copy_info;
+  Write_record m_write_record;
+  int write_row(rpl_group_info *, bool);
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);

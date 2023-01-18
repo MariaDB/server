@@ -79,6 +79,7 @@
 #include "sql_prepare.h"
 #include "rpl_rli.h"
 #include <my_bit.h>
+#include "scope.h"
 
 #include "debug_sync.h"
 
@@ -769,6 +770,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
   value_count= values->elements;
 
+  Write_record write;
+
   if ((res= mysql_prepare_insert(thd, table_list, fields, values,
                                  update_fields, update_values, duplic,
                                  &unused_conds, FALSE)))
@@ -997,6 +1000,12 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   THD_STAGE_INFO(thd, stage_update);
 
+
+  new (&write)
+      Write_record(thd, table, &info, table->versioned(VERS_TIMESTAMP),
+                   table->triggers && table->triggers->has_delete_triggers(),
+                   result);
+
   if  (duplic == DUP_UPDATE)
   {
     restore_record(table,s->default_values);	// Get empty record
@@ -1125,7 +1134,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       }
       else
 #endif
-      error= write_record(thd, table, &info, result);
+      error= (write.*write.write_record)();
       if (unlikely(error))
         break;
       thd->get_stmt_da()->inc_current_row_for_warning();
@@ -1731,31 +1740,74 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
 }
 
 
-	/* Check if there is more uniq keys after field */
-
-static int last_uniq_key(TABLE *table, const KEY *key, uint keynr)
+/* Check if there is more uniq keys after field */
+static ushort get_last_unique_key(TABLE *table, KEY *key_info)
 {
+  for (int key= table->s->keys - 1; key; --key)
+    if (key_info[key].flags & HA_NOSAME)
+      return key;
+  return MAX_KEY;
+}
+
+/**
+  An update optimization can be done in REPLACE only when certain criterial met.
+  In particular, if the "error key" was the last one to check. If not, there can
+  be other keys that can fail the uniqueness check after we will delete the row.
+
+  The problem arises with the order of the key checking. It is divided in two
+  parts:
+  1. Higher-level handler::ha_write_row goes first. It checks for long unique
+  and period overlaps (the latter is not supported by REPLACE yet).
+  2. Engine usual unique index check.
+  However, the order of the keys in TABLE_SHARE::key_info is:
+  * first, engine unique keys
+  * then long unique, which is not seen by engine
+  WITHOUT OVERLAPS key has no particular order
+  see sort_keys in sql_table.cc
+
+  So we need to wrap this order.
+  @return last unique key to check for duplication, or MAX_KEY if none.
+ */
+ushort Write_record::get_last_unique_key() const
+{
+  if (info->handle_duplicates != DUP_REPLACE)
+    return MAX_KEY; // Not used.
+  if (!table->s->key_info)
+    return MAX_KEY;
   /*
     When an underlying storage engine informs that the unique key
     conflicts are not reported in the ascending order by setting
     the HA_DUPLICATE_KEY_NOT_IN_ORDER flag, we cannot rely on this
     information to determine the last key conflict.
-   
+
     The information about the last key conflict will be used to
     do a replace of the new row on the conflicting row, rather
     than doing a delete (of old row) + insert (of new row).
-   
+
     Hence check for this flag and disable replacing the last row
-    by returning 0 always. Returning 0 will result in doing
+    by returning MAX_KEY always. Returning MAX_KEY will result in doing
     a delete + insert always.
   */
   if (table->file->ha_table_flags() & HA_DUPLICATE_KEY_NOT_IN_ORDER)
-    return 0;
+    return MAX_KEY;
 
-  while (++keynr < table->s->keys)
-    if (key[keynr].flags & HA_NOSAME)
-      return 0;
-  return 1;
+  /*
+    Note, that TABLE_SHARE and TABLE see long uniques differently:
+    - TABLE_SHARE sees as HA_KEY_ALG_LONG_HASH and HA_NOSAME
+    - TABLE sees as usual non-unique indexes
+  */
+  return
+       table->key_info[0].flags & HA_NOSAME ?
+       /*
+         We have an in-engine unique, which should be checked last.
+         Go through the TABLE list, which knows nothing about long uniques.
+       */
+       ::get_last_unique_key(table, table->key_info) :
+       /*
+         We can only have long uniques.
+         Go through the TABLE_SHARE list, where long uniques can be found.
+       */
+       ::get_last_unique_key(table, table->s->key_info);
 }
 
 
@@ -1799,7 +1851,7 @@ int vers_insert_history_row(TABLE *table)
   - use ha_index_read_idx_map() with the key that is duplicated, to
     retrieve the offending row.
  */
-int locate_dup_record(THD *thd, TABLE *table, uchar *&key, uint keynum)
+int Write_record::locate_dup_record()
 {
   handler *h= table->file;
   int error= 0;
@@ -1839,9 +1891,9 @@ int locate_dup_record(THD *thd, TABLE *table, uchar *&key, uint keynum)
       }
     }
 
-    key_copy(key, table->record[0], table->key_info + keynum, 0);
+    key_copy(key, table->record[0], table->key_info + key_nr, 0);
 
-    error= h->ha_index_read_idx_map(table->record[1], keynum, key,
+    error= h->ha_index_read_idx_map(table->record[1], key_nr, key,
                                     HA_WHOLE_KEY, HA_READ_KEY_EXACT);
     if (unlikely(error))
     {
@@ -1866,8 +1918,6 @@ int locate_dup_record(THD *thd, TABLE *table, uchar *&key, uint keynum)
   return error;
 }
 
-
-
 /**
    REPLACE is defined as either INSERT or DELETE + INSERT.  If
    possible, we can replace it with an UPDATE, but that will not
@@ -1884,393 +1934,383 @@ int locate_dup_record(THD *thd, TABLE *table, uchar *&key, uint keynum)
    * when we have referenced keys, as there can be different ON DELETE/ON UPDATE
      actions
 */
-replace_execution_result replace_row(TABLE *table, uint key_nr,
-                                     COPY_INFO *info, bool use_triggers,
-                                     bool versioned)
+template<bool can_optimize>
+int Write_record::replace_row()
 {
-  replace_execution_result result{};
-  /*
-    Note, TABLE_SHARE and TABLE see long uniques differently:
-    - TABLE_SHARE sees as HA_KEY_ALG_LONG_HASH and HA_NOSAME
-    - TABLE sees as usual non-unique indexes
-  */
-  bool is_long_unique= table->s->key_info &&
-                       table->s->key_info[key_nr].algorithm ==
-                       HA_KEY_ALG_LONG_HASH;
-  if ((is_long_unique ?
-       /*
-         We have a long unique. Test that there are no in-engine
-         uniques and the current long unique is the last long unique.
-       */
-       !(table->key_info[0].flags & HA_NOSAME) &&
-       last_uniq_key(table, table->s->key_info, key_nr) :
-       /*
-         We have a normal key - not a long unique.
-         Test is the current normal key is unique and
-         it is the last normal unique.
-       */
-       last_uniq_key(table, table->key_info, key_nr)) &&
-      !table->file->referenced_by_foreign_key() && use_triggers)
+  int error;
+  while (unlikely(error=table->file->ha_write_row(table->record[0])))
   {
-    DBUG_PRINT("info", ("Updating row using ha_update_row()"));
-    if (table->versioned(VERS_TRX_ID))
+    error= prepare_handle_duplicate(error);
+    if (unlikely(error))
+      return error;
+
+    DBUG_ASSERT(key_nr < MAX_KEY);
+    if (can_optimize && key_nr == last_unique_key)
     {
-      bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
-      table->file->column_bitmaps_signal();
-      table->vers_start_field()->store(0, false);
+      DBUG_PRINT("info", ("Updating row using ha_update_row()"));
+      if (table->versioned(VERS_TRX_ID))
+      {
+        bitmap_set_bit(table->write_set,
+                       table->vers_start_field()->field_index);
+        table->file->column_bitmaps_signal();
+        table->vers_start_field()->store(0, false);
+      }
+      error = table->file->ha_update_row(table->record[1], table->record[0]);
+
+      if (unlikely(error) && error != HA_ERR_RECORD_IS_THE_SAME)
+      {
+        DBUG_PRINT("info", ("ha_update_row() returns error %d", error));
+        return on_error(error);
+      }
+      else if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
+      {
+        DBUG_PRINT("info", ("ignoring HA_ERR_RECORD_IS_THE_SAME error from"
+                            " ha_update_row()"));
+      }
+      else
+      {
+        info->deleted++;
+        if (!table->file->has_transactions())
+          table->in_use->transaction->stmt.modified_non_trans_table = TRUE;
+        if (versioned)
+        {
+          store_record(table, record[2]);
+          error = vers_insert_history_row(table);
+          restore_record(table, record[2]);
+          if (unlikely(error))
+            return on_error(error);
+        }
+      }
+      after_update();
+      break;
     }
-    result.error= table->file->ha_update_row(table->record[1], table->record[0]);
-    if (unlikely(result.error) && result.error != HA_ERR_RECORD_IS_THE_SAME)
-      return result;
-    if (likely(!result.error))
+    else
     {
-      info->deleted++;
-      if (!table->file->has_transactions())
-        table->in_use->transaction->stmt.modified_non_trans_table= TRUE;
-      if (versioned)
+      DBUG_PRINT("info", ("Deleting offending row and trying to write"
+                          " new one again"));
+
+      auto *trg = table->triggers;
+      if (use_triggers && trg->process_triggers(table->in_use, TRG_EVENT_DELETE,
+                                                TRG_ACTION_BEFORE, TRUE))
+        return restore_on_error();
+      if (!versioned)
+        error = table->file->ha_delete_row(table->record[1]);
+      else
       {
         store_record(table, record[2]);
-        result.error= vers_insert_history_row(table);
+        restore_record(table, record[1]);
+        table->vers_update_end();
+        error = table->file->ha_update_row(table->record[1], table->record[0]);
         restore_record(table, record[2]);
       }
+
+      if (unlikely(error))
+      {
+        DBUG_PRINT("info", ("ha_delete_row() returns error %d", error));
+        return on_error(error);
+      }
+      if (!versioned)
+        info->deleted++;
+      else
+        info->updated++;
+      if (!table->file->has_transactions_and_rollback())
+        table->in_use->transaction->stmt.modified_non_trans_table = TRUE;
+      if (use_triggers)
+      {
+        after_trg_error = trg->process_triggers(table->in_use, TRG_EVENT_DELETE,
+                                                TRG_ACTION_AFTER, TRUE);
+        if (unlikely(after_trg_error))
+        {
+          after_insert();
+          return 1;
+        }
+      }
+
+      /*
+        If more than one iteration of the above while loop is done, from
+        the second one the row being inserted will have an explicit
+        value in the autoinc field, which was set at the first call of
+        handler::update_auto_increment(). This value is saved to avoid
+        thd->insert_id_for_cur_row becoming 0. Use this saved autoinc
+        value.
+      */
+      if (table->file->insert_id_for_cur_row == 0)
+        table->file->insert_id_for_cur_row = insert_id_for_cur_row;
     }
-    else
-      result.error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
-    result.updated= true;
   }
-  else
-  {
-    DBUG_PRINT("info", ("Deleting offending row and trying to write"
-                        " new one again"));
-
-    if (table->triggers &&
-        table->triggers->process_triggers(table->in_use, TRG_EVENT_DELETE,
-                                          TRG_ACTION_BEFORE, TRUE))
-    {
-      result.before_trg_error= true;
-      return result;
-    }
-
-    if (!versioned)
-      result.error= table->file->ha_delete_row(table->record[1]);
-    else
-    {
-      store_record(table, record[2]);
-      restore_record(table, record[1]);
-      table->vers_update_end();
-      result.error= table->file->ha_update_row(table->record[1],
-                                               table->record[0]);
-      restore_record(table, record[2]);
-    }
-
-    if (unlikely(result.error))
-    {
-      DBUG_PRINT("info", ("ha_delete_row() returns error %d", result.error));
-      return result;
-    }
-    if (!versioned)
-      info->deleted++;
-    else
-      info->updated++;
-    if (!table->file->has_transactions_and_rollback())
-      table->in_use->transaction->stmt.modified_non_trans_table= TRUE;
-    if (table->triggers &&
-        table->triggers->process_triggers(table->in_use, TRG_EVENT_DELETE,
-                                          TRG_ACTION_AFTER, TRUE))
-      result.after_trg_error= true;
-  }
-  return result;
+  after_insert();
+  return 0;
 }
 
 
-/*
-  Write a record to table with optional deleting of conflicting records,
-  invoke proper triggers if needed.
-
-  SYNOPSIS
-     write_record()
-      thd   - thread context
-      table - table to which record should be written
-      info  - COPY_INFO structure describing handling of duplicates
-              and which is used for counting number of records inserted
-              and deleted.
-      sink  - result sink for the RETURNING clause
-
-  NOTE
-    Once this record will be written to table after insert trigger will
-    be invoked. If instead of inserting new record we will update old one
-    then both on update triggers will work instead. Similarly both on
-    delete triggers will be invoked if we will delete conflicting records.
-
-    Sets thd->transaction.stmt.modified_non_trans_table to TRUE if table which
-    is updated didn't have transactions.
-
-  RETURN VALUE
-    0     - success
-    non-0 - error
-*/
-
-
-int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
+int Write_record::update_duplicate()
 {
-  int error, trg_error= 0;
-  uchar *key=0;
-  MY_BITMAP *save_read_set, *save_write_set;
-  ulonglong prev_insert_id= table->file->next_insert_id;
-  ulonglong insert_id_for_cur_row= 0;
+  int res= table->file->ha_write_row(table->record[0]);
+  if (likely(!res))
+    return 0;
+
+  DBUG_ASSERT(table->read_set == &table->def_read_set);
+  DBUG_ASSERT(table->write_set == &table->def_write_set);
+  SCOPE_EXIT([this](){ table->default_column_bitmaps(); });
+
+  res=prepare_handle_duplicate(res);
+  if (unlikely(res))
+    return res;
+
   ulonglong prev_insert_id_for_cur_row= 0;
-  DBUG_ENTER("write_record");
+  /*
+    We don't check for other UNIQUE keys - the first row
+    that matches, is updated. If update causes a conflict again,
+    an error is returned
+  */
+  DBUG_ASSERT(table->insert_values != NULL);
+  store_record(table,insert_values);
+  restore_record(table,record[1]);
+  table->reset_default_fields();
 
-  info->records++;
-  save_read_set= table->read_set;
-  save_write_set= table->write_set;
+  /*
+    in INSERT ... ON DUPLICATE KEY UPDATE the set of modified fields can
+    change per row. Thus, we have to do reset_default_fields() per row.
+    Twice (before insert and before update).
+  */
+  DBUG_ASSERT(info->update_fields->elements ==
+              info->update_values->elements);
+  if (fill_record_n_invoke_before_triggers(thd, table,
+                                           *info->update_fields,
+                                           *info->update_values,
+                                           info->ignore,
+                                           TRG_EVENT_UPDATE))
+    return restore_on_error();
 
-  DBUG_EXECUTE_IF("rpl_write_record_small_sleep_gtid_100_200",
-    {
-      if (thd->rgi_slave && (thd->rgi_slave->current_gtid.seq_no == 100 ||
-                             thd->rgi_slave->current_gtid.seq_no == 200))
-        my_sleep(20000);
-    });
-  if (info->handle_duplicates == DUP_REPLACE ||
-      info->handle_duplicates == DUP_UPDATE)
+  bool different_records= (!records_are_comparable(table) ||
+                           compare_record(table));
+  /*
+    Default fields must be updated before checking view updateability.
+    This branch of INSERT is executed only when a UNIQUE key was violated
+    with the ON DUPLICATE KEY UPDATE option. In this case the INSERT
+    operation is transformed to an UPDATE, and the default fields must
+    be updated as if this is an UPDATE.
+  */
+  if (different_records && table->default_field)
+    table->evaluate_update_default_function();
+
+  /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
+  res= info->table_list->view_check_option(table->in_use, info->ignore);
+  if (unlikely(res))
   {
-    while (unlikely(error=table->file->ha_write_row(table->record[0])))
+    if (res == VIEW_CHECK_ERROR)
+      return restore_on_error();
+    DBUG_ASSERT(res == VIEW_CHECK_SKIP);
+    return 0;
+  }
+
+  table->file->restore_auto_increment(prev_insert_id);
+  info->touched++;
+  if (different_records)
+  {
+    int error= table->file->ha_update_row(table->record[1], table->record[0]);
+
+    if (unlikely(error) && error != HA_ERR_RECORD_IS_THE_SAME)
     {
-      uint key_nr;
-      /*
-        If we do more than one iteration of this loop, from the second one the
-        row will have an explicit value in the autoinc field, which was set at
-        the first call of handler::update_auto_increment(). So we must save
-        the autogenerated value to avoid thd->insert_id_for_cur_row to become
-        0.
-      */
-      if (table->file->insert_id_for_cur_row > 0)
-        insert_id_for_cur_row= table->file->insert_id_for_cur_row;
-      else
-        table->file->insert_id_for_cur_row= insert_id_for_cur_row;
-      bool is_duplicate_key_error;
-      if (table->file->is_fatal_error(error, HA_CHECK_ALL))
-        goto err;
-      is_duplicate_key_error=
-        table->file->is_fatal_error(error, HA_CHECK_ALL & ~HA_CHECK_DUP);
-      if (!is_duplicate_key_error)
+      if (info->ignore && !table->file->is_fatal_error(error, HA_CHECK_ALL))
       {
-        /*
-          We come here when we had an ignorable error which is not a duplicate
-          key error. In this we ignore error if ignore flag is set, otherwise
-          report error as usual. We will not do any duplicate key processing.
-        */
-        if (info->ignore)
-        {
+        if (!(thd->variables.old_behavior &
+              OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
           table->file->print_error(error, MYF(ME_WARNING));
-          goto after_trg_or_ignored_err; /* Ignoring a not fatal error */
-        }
-        goto err;
+        notify_non_trans_table_modified();
+        return 0;
       }
-      if (unlikely((int) (key_nr = table->file->get_dup_key(error)) < 0))
-      {
-	error= HA_ERR_FOUND_DUPP_KEY;         /* Database can't find key */
-	goto err;
-      }
-      DEBUG_SYNC(thd, "write_row_replace");
+      return on_error(error);
+    }
 
-      /* Read all columns for the row we are going to replace */
-      table->use_all_columns();
-      /*
-	Don't allow REPLACE to replace a row when a auto_increment column
-	was used.  This ensures that we don't get a problem when the
-	whole range of the key has been used.
-      */
-      if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
-          key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
-	goto err;
-
-      error= locate_dup_record(thd, table, key, key_nr);
-      if (error)
-        goto err;
-
-      if (info->handle_duplicates == DUP_UPDATE)
-      {
-        int res= 0;
-        /*
-          We don't check for other UNIQUE keys - the first row
-          that matches, is updated. If update causes a conflict again,
-          an error is returned
-        */
-	DBUG_ASSERT(table->insert_values != NULL);
-        store_record(table,insert_values);
-        restore_record(table,record[1]);
-        table->reset_default_fields();
-
-        /*
-          in INSERT ... ON DUPLICATE KEY UPDATE the set of modified fields can
-          change per row. Thus, we have to do reset_default_fields() per row.
-          Twice (before insert and before update).
-        */
-        DBUG_ASSERT(info->update_fields->elements ==
-                    info->update_values->elements);
-        if (fill_record_n_invoke_before_triggers(thd, table,
-                                                 *info->update_fields,
-                                                 *info->update_values,
-                                                 info->ignore,
-                                                 TRG_EVENT_UPDATE))
-          goto before_trg_err;
-
-        bool different_records= (!records_are_comparable(table) ||
-                                 compare_record(table));
-        /*
-          Default fields must be updated before checking view updateability.
-          This branch of INSERT is executed only when a UNIQUE key was violated
-          with the ON DUPLICATE KEY UPDATE option. In this case the INSERT
-          operation is transformed to an UPDATE, and the default fields must
-          be updated as if this is an UPDATE.
-        */
-        if (different_records && table->default_field)
-          table->evaluate_update_default_function();
-
-        /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
-        res= info->table_list->view_check_option(table->in_use, info->ignore);
-        if (res == VIEW_CHECK_SKIP)
-          goto after_trg_or_ignored_err;
-        if (res == VIEW_CHECK_ERROR)
-          goto before_trg_err;
-
-        table->file->restore_auto_increment(prev_insert_id);
-        info->touched++;
-        if (different_records)
+    if (error != HA_ERR_RECORD_IS_THE_SAME)
+    {
+      info->updated++;
+      if (table->versioned()&&
+      table->vers_check_update(*info->update_fields)){
+        if (table->versioned(VERS_TIMESTAMP))
         {
-          if (unlikely(error=table->file->ha_update_row(table->record[1],
-                                                        table->record[0])) &&
-              error != HA_ERR_RECORD_IS_THE_SAME)
+          store_record(table, record[2]);
+          if ((error= vers_insert_history_row(table)))
           {
-            if (info->ignore &&
-                !table->file->is_fatal_error(error, HA_CHECK_ALL))
-            {
-              if (!(thd->variables.old_behavior &
-                    OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
-                table->file->print_error(error, MYF(ME_WARNING));
-              goto after_trg_or_ignored_err;
-            }
-            goto err;
+            info->last_errno= error;
+            table->file->print_error(error, MYF(0));
+            restore_record(table, record[2]);
+            notify_non_trans_table_modified();
+            return 1;
           }
-
-          if (error != HA_ERR_RECORD_IS_THE_SAME)
-          {
-            info->updated++;
-            if (table->versioned() &&
-                table->vers_check_update(*info->update_fields))
-            {
-              if (table->versioned(VERS_TIMESTAMP))
-              {
-                store_record(table, record[2]);
-                if ((error= vers_insert_history_row(table)))
-                {
-                  info->last_errno= error;
-                  table->file->print_error(error, MYF(0));
-                  trg_error= 1;
-                  restore_record(table, record[2]);
-                  goto after_trg_or_ignored_err;
-                }
-                restore_record(table, record[2]);
-              }
-              info->copied++;
-            }
-          }
-          else
-            error= 0;
-          /*
-            If ON DUP KEY UPDATE updates a row instead of inserting
-            one, it's like a regular UPDATE statement: it should not
-            affect the value of a next SELECT LAST_INSERT_ID() or
-            mysql_insert_id().  Except if LAST_INSERT_ID(#) was in the
-            INSERT query, which is handled separately by
-            THD::arg_of_last_insert_id_function.
-          */
-          prev_insert_id_for_cur_row= table->file->insert_id_for_cur_row;
-          insert_id_for_cur_row= table->file->insert_id_for_cur_row= 0;
-          trg_error= (table->triggers &&
-                      table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                        TRG_ACTION_AFTER, TRUE));
-          info->copied++;
+          restore_record(table, record[2]);
         }
-
-        /*
-          Only update next_insert_id if the AUTO_INCREMENT value was explicitly
-          updated, so we don't update next_insert_id with the value from the
-          row being updated. Otherwise reset next_insert_id to what it was
-          before the duplicate key error, since that value is unused.
-        */
-        if (table->next_number_field_updated)
-        {
-          DBUG_ASSERT(table->next_number_field != NULL);
-
-          table->file->adjust_next_insert_id_after_explicit_value(table->next_number_field->val_int());
-        }
-        else if (prev_insert_id_for_cur_row)
-        {
-          table->file->restore_auto_increment(prev_insert_id_for_cur_row);
-        }
-        goto ok;
-      }
-      else /* DUP_REPLACE */
-      {
-        auto result= replace_row(table, key_nr, info,
-                                 table->triggers &&
-                                         table->triggers->has_delete_triggers(),
-                                 table->versioned(VERS_TIMESTAMP));
-        if (result.before_trg_error)
-          goto before_trg_err;
-        if (result.error)
-          goto err;
-        if ((trg_error= result.after_trg_error))
-          goto after_trg_or_ignored_err;
-        if (result.updated)
-          goto after_trg_n_copied_inc;
-
-        /* Let us attempt write_row() once more */
+        info->copied++;
       }
     }
-    
+    else
+      error= 0;
     /*
-      If more than one iteration of the above while loop is done, from
-      the second one the row being inserted will have an explicit
-      value in the autoinc field, which was set at the first call of
-      handler::update_auto_increment(). This value is saved to avoid
-      thd->insert_id_for_cur_row becoming 0. Use this saved autoinc
-      value.
-     */
-    if (table->file->insert_id_for_cur_row == 0)
-      table->file->insert_id_for_cur_row= insert_id_for_cur_row;
-      
-    /*
-      Restore column maps if they where replaced during an duplicate key
-      problem.
+      If ON DUP KEY UPDATE updates a row instead of inserting
+      one, it's like a regular UPDATE statement: it should not
+      affect the value of a next SELECT LAST_INSERT_ID() or
+      mysql_insert_id().  Except if LAST_INSERT_ID(#) was in the
+      INSERT query, which is handled separately by
+      THD::arg_of_last_insert_id_function.
     */
-    if (table->read_set != save_read_set ||
-        table->write_set != save_write_set)
-      table->column_bitmaps_set(save_read_set, save_write_set);
+    prev_insert_id_for_cur_row= table->file->insert_id_for_cur_row;
+    insert_id_for_cur_row= table->file->insert_id_for_cur_row= 0;
+    after_trg_error= table->triggers &&
+                     table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                       TRG_ACTION_AFTER, TRUE);
+    info->copied++;
   }
-  else if (unlikely((error=table->file->ha_write_row(table->record[0]))))
+
+  /*
+    Only update next_insert_id if the AUTO_INCREMENT value was explicitly
+    updated, so we don't update next_insert_id with the value from the
+    row being updated. Otherwise reset next_insert_id to what it was
+    before the duplicate key error, since that value is unused.
+  */
+  if (table->next_number_field_updated)
+  {
+    DBUG_ASSERT(table->next_number_field != NULL);
+
+    table->file->adjust_next_insert_id_after_explicit_value(
+                                           table->next_number_field->val_int());
+  }
+  else if (prev_insert_id_for_cur_row)
+  {
+    table->file->restore_auto_increment(prev_insert_id_for_cur_row);
+  }
+
+  after_update();
+  return after_trg_error;
+}
+
+bool Write_record::is_fatal_error(int error)
+{
+  return error == HA_ERR_LOCK_DEADLOCK ||
+         error == HA_ERR_LOCK_WAIT_TIMEOUT ||
+         table->file->is_fatal_error(error, HA_CHECK_ALL);
+}
+
+int Write_record::single_insert()
+{
+  DBUG_EXECUTE_IF("rpl_write_record_small_sleep_gtid_100_200",
+  {
+    int seq= thd->rgi_slave ? thd->rgi_slave->current_gtid.seq_no : 0;
+    if (seq == 100 || seq == 200)
+      my_sleep(20000);
+  });
+
+  prev_insert_id= table->file->next_insert_id;
+  info->records++;
+
+  int error= table->file->ha_write_row(table->record[0]);
+  if (unlikely(error))
   {
     DEBUG_SYNC(thd, "write_row_noreplace");
-    if (!info->ignore ||
-        table->file->is_fatal_error(error, HA_CHECK_ALL))
-      goto err;
+    if (!info->ignore || is_fatal_error(error))
+      return on_error(error);
     if (!(thd->variables.old_behavior &
           OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
       table->file->print_error(error, MYF(ME_WARNING));
     table->file->restore_auto_increment(prev_insert_id);
-    goto after_trg_or_ignored_err;
+    notify_non_trans_table_modified();
+    return 0;
+  }
+  after_insert();
+  return after_trg_error;
+}
+
+int Write_record::prepare_handle_duplicate(int error)
+{
+  /*
+    If we do more than one iteration of this loop, from the second one the
+    row will have an explicit value in the autoinc field, which was set at
+    the first call of handler::update_auto_increment(). So we must save
+    the autogenerated value to avoid thd->insert_id_for_cur_row to become
+    0.
+  */
+  if (table->file->insert_id_for_cur_row > 0)
+    insert_id_for_cur_row= table->file->insert_id_for_cur_row;
+  else
+    table->file->insert_id_for_cur_row= insert_id_for_cur_row;
+
+  if (is_fatal_error(error))
+    return on_error(error);
+
+  bool is_duplicate_key_error=
+          table->file->is_fatal_error(error, HA_CHECK_ALL & ~HA_CHECK_DUP);
+  if (!is_duplicate_key_error)
+  {
+    /*
+      We come here when we had an ignorable error which is not a duplicate
+      key error. In this we ignore error if ignore flag is set, otherwise
+      report error as usual. We will not do any duplicate key processing.
+    */
+    if (info->ignore)
+    {
+      table->file->print_error(error, MYF(ME_WARNING));
+      notify_non_trans_table_modified();
+      return 0; /* Ignoring a not fatal error */
+    }
+    return on_error(error);
   }
 
-after_trg_n_copied_inc:
+  key_nr = table->file->get_dup_key(error);
+
+  if (unlikely((int) (key_nr < 0)))
+    return on_error(HA_ERR_FOUND_DUPP_KEY);         /* Database can't find key */
+
+  DEBUG_SYNC(thd, "write_row_replace");
+
+  /* Read all columns for the row we are going to replace */
+  table->use_all_columns();
+  /*
+    Don't allow REPLACE to replace a row when an auto_increment column
+    was used.  This ensures that we don't get a problem when the
+    whole range of the key has been used.
+  */
+  if (info->handle_duplicates == DUP_REPLACE && table->next_number_field &&
+      key_nr == table->s->next_number_index && insert_id_for_cur_row > 0)
+    return on_error(error);
+
+  error= locate_dup_record();
+  if (error)
+    return on_error(error);
+
+  return 0;
+}
+
+void Write_record::notify_non_trans_table_modified()
+{
+  if (!table->file->has_transactions_and_rollback())
+    thd->transaction->stmt.modified_non_trans_table= TRUE;
+}
+
+void Write_record::after_insert()
+{
+  after_trg_and_copied_inc();
+  send_data();
+  notify_non_trans_table_modified();
+}
+
+void Write_record::after_update()
+{
+  send_data();
+  notify_non_trans_table_modified();
+}
+void Write_record::after_trg_and_copied_inc()
+{
   info->copied++;
   thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
-  trg_error= (table->triggers &&
-              table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
-                                                TRG_ACTION_AFTER, TRUE));
+  after_trg_error= (use_triggers &&
+                    table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
+                                                      TRG_ACTION_AFTER, TRUE));
+}
 
-ok:
+
+
+void Write_record::send_data()
+{
   /*
     We send the row after writing it to the table so that the
     correct values are sent to the client. Otherwise it won't show
@@ -2278,26 +2318,9 @@ ok:
     values updated in ON DUPLICATE KEY UPDATE.
   */
   if (sink && sink->send_data(thd->lex->returning()->item_list) < 0)
-    trg_error= 1;
-
-after_trg_or_ignored_err:
-  if (key)
-    my_safe_afree(key,table->s->max_unique_length);
-  if (!table->file->has_transactions_and_rollback())
-    thd->transaction->stmt.modified_non_trans_table= TRUE;
-  DBUG_RETURN(trg_error);
-
-err:
-  info->last_errno= error;
-  table->file->print_error(error,MYF(0));
-  
-before_trg_err:
-  table->file->restore_auto_increment(prev_insert_id);
-  if (key)
-    my_safe_afree(key, table->s->max_unique_length);
-  table->column_bitmaps_set(save_read_set, save_write_set);
-  DBUG_RETURN(1);
+    after_trg_error= 1;
 }
+
 
 
 /******************************************************************************
@@ -3572,6 +3595,7 @@ bool Delayed_insert::handle_inserts(void)
   ulong max_rows;
   bool using_ignore= 0, using_opt_replace= 0, using_bin_log;
   delayed_row *row;
+  Write_record write;
   DBUG_ENTER("handle_inserts");
 
   /* Allow client to insert new rows */
@@ -3619,6 +3643,8 @@ bool Delayed_insert::handle_inserts(void)
   */
   if (!using_bin_log && !table->s->long_unique_table)
     table->file->extra(HA_EXTRA_WRITE_CACHE);
+
+  new (&write) Write_record(&thd, table, &info);
 
   mysql_mutex_lock(&mutex);
 
@@ -3712,7 +3738,7 @@ bool Delayed_insert::handle_inserts(void)
                                               VCOL_UPDATE_FOR_WRITE);
     }
 
-    if (unlikely(tmp_error || write_record(&thd, table, &info, NULL)))
+    if (unlikely(tmp_error || (write.*write.write_record)()))
     {
       info.error_count++;				// Ignore errors
       thread_safe_increment(delayed_insert_errors,&LOCK_delayed_status);
@@ -3935,10 +3961,12 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
                              List<Item> *update_values,
                              enum_duplicates duplic,
                              bool ignore_check_option_errors,
-                             select_result *result):
+                             select_result *result,
+                             Write_record *write):
   select_result_interceptor(thd_arg),
   sel_result(result),
   table_list(table_list_par), table(table_par), fields(fields_par),
+  write(write),
   autoinc_value_of_last_inserted_row(0),
   insert_into_view(table_list_par && table_list_par->view != 0)
 {
@@ -4125,6 +4153,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
      table->prepare_triggers_for_insert_stmt_or_event();
      table->mark_columns_needed_for_insert();
   }
+  new (write) Write_record(thd, table, &info, sel_result);
 
   DBUG_RETURN(res);
 }
@@ -4215,7 +4244,7 @@ int select_insert::send_data(List<Item> &values)
     }
   }
 
-  error= write_record(thd, table, &info, sel_result);
+  error= (write->*write->write_record)();
   table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
 
@@ -4916,6 +4945,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   table->mark_columns_needed_for_insert();
   // Mark table as used
   table->query_id= thd->query_id;
+  new (write) Write_record(thd, table, &info, sel_result);
   DBUG_RETURN(0);
 }
 

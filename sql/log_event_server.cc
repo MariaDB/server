@@ -7136,6 +7136,16 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
        m_table->s->long_unique_table))
     error= m_table->file->ha_rnd_init_with_error(0);
 
+  if (!error)
+  {
+    bzero(&m_copy_info, sizeof m_copy_info);
+    new (&m_write_record) Write_record(thd, m_table, &m_copy_info,
+                                       m_vers_from_plain &&
+                                       m_table->versioned(VERS_TIMESTAMP),
+                                       m_table->triggers && do_invoke_trigger(),
+                                       NULL);
+  }
+
   return error;
 }
 
@@ -7270,8 +7280,8 @@ is_duplicate_key_error(int errcode)
 */ 
 
 int
-Rows_log_event::write_row(rpl_group_info *rgi,
-                          const bool overwrite)
+Write_rows_log_event::write_row(rpl_group_info *rgi,
+                                const bool overwrite)
 {
   DBUG_ENTER("write_row");
   DBUG_ASSERT(m_table != NULL && thd != NULL);
@@ -7354,41 +7364,9 @@ Rows_log_event::write_row(rpl_group_info *rgi,
 
   if (table->s->sequence)
     error= update_sequence();
-  else while (unlikely(error= table->file->ha_write_row(table->record[0])))
+  else
   {
-    if (error == HA_ERR_LOCK_DEADLOCK ||
-        error == HA_ERR_LOCK_WAIT_TIMEOUT ||
-        (keynum= table->file->get_dup_key(error)) < 0 ||
-        !overwrite)
-    {
-      DBUG_PRINT("info",("get_dup_key returns %d)", keynum));
-      /*
-        Deadlock, waiting for lock or just an error from the handler
-        such as HA_ERR_FOUND_DUPP_KEY when overwrite is false.
-        Retrieval of the duplicate key number may fail
-        - either because the error was not "duplicate key" error
-        - or because the information which key is not available
-      */
-      table->file->print_error(error, MYF(0));
-      DBUG_RETURN(error);
-    }
-
-    error= locate_dup_record(thd, table, m_key, keynum);
-    if (unlikely(error))
-      DBUG_RETURN(error);
-
-    /*
-       Now, record[1] should contain the offending row.  That
-       will enable us to update it or, alternatively, delete it (so
-       that we can insert the new row afterwards).
-    */
-    if (table->s->long_unique_table)
-    {
-      /* same as for REPLACE/ODKU */
-      table->move_fields(table->field, table->record[1], table->record[0]);
-      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
-      table->move_fields(table->field, table->record[0], table->record[1]);
-    }
+    int error= (m_write_record.*m_write_record.write_record)();
 
     /*
       If row is incomplete we will use the record found to fill 
@@ -7402,42 +7380,10 @@ Rows_log_event::write_row(rpl_group_info *rgi,
         table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
     }
 
-    DBUG_PRINT("debug",("preparing for update: before and after image"));
-    DBUG_DUMP("record[1] (before)", table->record[1], table->s->reclength);
-    DBUG_DUMP("record[0] (after)", table->record[0], table->s->reclength);
+    if (error)
+      table->file->print_error(error, MYF(0));
 
-    COPY_INFO info;
-    auto result= replace_row(table, keynum, &info, invoke_triggers,
-                             m_vers_from_plain &&
-                                     m_table->versioned(VERS_TIMESTAMP));
-
-    if (result.updated)
-    {
-      switch (result.error)
-      {
-      case HA_ERR_RECORD_IS_THE_SAME:
-        DBUG_PRINT("info", ("ignoring HA_ERR_RECORD_IS_THE_SAME error from"
-                            " ha_update_row()"));
-        result.error= 0;
-        // fall through
-      case 0:
-        break;
-
-      default:
-        DBUG_PRINT("info", ("ha_update_row() returns error %d", result.error));
-        table->file->print_error(result.error, MYF(0));
-      }
-      DBUG_RETURN(result.error);
-    }
-    if (result.error)
-    {
-      table->file->print_error(result.error, MYF(0));
-      DBUG_RETURN(result.error);
-    }
-    if (result.before_trg_error || result.after_trg_error)
-      DBUG_RETURN(HA_ERR_GENERIC);
-
-    /* Will retry ha_write_row() with the offending row removed. */
+    DBUG_RETURN(error);
   }
 
   if (invoke_triggers &&
