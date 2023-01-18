@@ -3154,4 +3154,66 @@ group by (select a from t1 where a = 1) in
 b
 2
 drop table t1,t2,t3,t4;
+#
+# MDEV-30052: SIGSEGV in subquery_types_allow_materialization, AddressSanitizer: 
+# ... use-after-poison in base_list_iterator::next
+#
+CREATE TABLE t1 (c INT);
+insert into t1 values (1),(2);
+UPDATE t1 SET c=1 
+WHERE c=2 
+ORDER BY 
+(1 IN ((
+SELECT * 
+FROM (SELECT * FROM t1) AS v1 
+GROUP BY c 
+WINDOW v2 AS (ORDER BY 
+(SELECT * 
+FROM t1 
+GROUP BY c 
+WINDOW v3 AS (PARTITION BY c)
+)
+)
+))
+);
+drop table t1;
+#
+# MDEV-29359: Server crashed with heap-use-after-free in in Field::is_null(long long) const
+#  (Just testcase)
+CREATE TABLE t1 (id int);
+INSERT INTO t1 VALUES (-1),(0),(84);
+SELECT 
+id IN (SELECT id 
+FROM t1
+WINDOW w AS (ORDER BY (SELECT  1 
+FROM t1 
+WHERE 
+EXISTS ( SELECT id 
+FROM t1 
+GROUP BY id 
+WINDOW w2 AS (ORDER BY id)
+)
+) 
+)
+)  
+FROM t1;
+id IN (SELECT id 
+FROM t1
+WINDOW w AS (ORDER BY (SELECT  1 
+FROM t1 
+WHERE 
+EXISTS ( SELECT id 
+FROM t1 
+GROUP BY id 
+WINDOW w2 AS (ORDER BY id)
+)
+) 
+)
+)
+1
+1
+1
+Warnings:
+Warning	1052	Column 'id' in group statement is ambiguous
+DROP TABLE t1;
 # End of 10.3 tests

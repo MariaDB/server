@@ -609,7 +609,11 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
         (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
         /*
           Remove from the JOIN::all_fields list any reference to the elements
-          of the eliminated GROUP BY list unless it is 'in_field_list'.
+          of the eliminated GROUP BY list unless:
+           - The GROUP BY entry has 'in_field_list' set.
+           - The GROUP BY entry refers to an item that was already present in
+             the original select list (which can be found in join->fields_list)
+
           This is needed in order not to confuse JOIN::make_aggr_tables_info()
           when it constructs different structure for execution phase.
 	*/
@@ -617,6 +621,15 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
 	Item *item;
         while ((item= li++))
 	{
+          /*
+            Do not remove elements that are in the original join->fields_list.
+            That list is a suffix of this list. As soon as we've reached its
+            first element, stop.
+            (It's fine to compare element contents as the same item cannot be
+             in the list twice)
+          */
+          if (item == subq_select_lex->join->fields_list.head())
+            break;
           if (item == *ord->item)
 	    li.remove();
 	}
