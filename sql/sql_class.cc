@@ -5458,8 +5458,8 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
      the caller should guarantee that the BF state won't change.
      (e.g. InnoDB does it by keeping lock_sys.mutex locked)
   */
-  if (WSREP_ON && wsrep_thd_is_BF(thd, false) &&
-      wsrep_thd_is_BF(other_thd, false))
+  if (WSREP_ON &&
+      wsrep_thd_order_before(thd, other_thd))
     return 0;
 #endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
