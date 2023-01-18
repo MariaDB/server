@@ -2670,6 +2670,7 @@ row_rename_table_for_mysql(
 		char	new_table_name[MAX_TABLE_NAME_LEN + 1];
 		char	old_table_utf8[MAX_TABLE_NAME_LEN + 1];
 		uint	errors = 0;
+		const bool do_rename_fk = (fk == RENAME_ALTER_COPY);
 
 		strncpy(old_table_utf8, old_name, MAX_TABLE_NAME_LEN);
 		old_table_utf8[MAX_TABLE_NAME_LEN] = '\0';
@@ -2709,8 +2710,22 @@ row_rename_table_for_mysql(
 		}
 
 		pars_info_add_str_literal(info, "new_table_utf8", new_table_name);
+		/* Old foreign ID for temporary constraint was written like this:
+			db_name/\xFFconstraint_name */
+		pars_info_add_int4_literal(info, "old_is_tmp",
+					   do_rename_fk && old_is_tmp);
+		/* New foreign ID for temporary constraint is written like this:
+			db_name/\xFF\xFFconstraint_name */
+		pars_info_add_int4_literal(info, "new_is_tmp",
+					   do_rename_fk && new_is_tmp);
 
 		err = que_eval_sql(info, rename_constraint_ids, trx);
+		/*
+		 Higher layer should throw not ER_TABLE_EXISTS_ERROR but
+		 ER_ERROR_ON_RENAME with explanation about foreign keys.
+		*/
+		if (err == DB_DUPLICATE_KEY)
+			err = DB_FOREIGN_DUPLICATE_KEY;
 
 	} else if (n_constraints_to_drop > 0) {
 		/* Drop some constraints of tmp tables. */
