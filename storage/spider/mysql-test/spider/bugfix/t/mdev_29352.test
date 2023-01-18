@@ -6,6 +6,6 @@ FLUSH TABLES WITH READ LOCK;
 CREATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
 SELECT * FROM t;
 
---source include/restart_spider.inc
+--source include/restart_mysqld.inc
 
 DROP TABLE t;

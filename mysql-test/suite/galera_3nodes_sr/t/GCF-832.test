@@ -15,8 +15,8 @@
 --connection node_2
 SET GLOBAL debug_dbug="d,crash_last_fragment_commit_after_fragment_removal";
 
---let $_server_id= `SELECT @@server_id`
---let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--let $_expect_file_name= `select regexp_replace(@@tmpdir, '^.*/','')`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/$_expect_file_name.expect
 --exec echo "wait" > $_expect_file_name
 
 CREATE TABLE t1 (f1 VARCHAR(30)) ENGINE=InnoDB;
