@@ -5336,6 +5336,12 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
 
   if (error == HA_ERR_WRONG_COMMAND)
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
+  if (error == HA_ERR_FOREIGN_DUPLICATE_KEY)
+    /*
+       TODO: constraint name is not known because rename_constraint_ids
+       does not supply it in row_rename_table_for_mysql()
+    */
+    my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "ALTER TABLE", "???");
   else if (error ==  ENOTDIR)
     my_error(ER_BAD_DB_ERROR, MYF(0), new_db->str);
   else if (error)

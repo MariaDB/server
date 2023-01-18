@@ -780,6 +780,7 @@ private:
 
 	/** Whether we are creating a stub table for importing. */
 	const bool	m_creating_stub;
+	dict_table_t* alter_table;
 };
 
 /**
