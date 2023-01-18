@@ -24,6 +24,10 @@ if ($rpl_inited)
 # Write file to make mysql-test-run.pl expect the "crash", but don't start it
 --let $_server_id= `SELECT @@server_id`
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+if ($expect_file_name)
+{
+  -- let $_expect_file_name=$expect_file_name
+}
 --exec echo "wait" > $_expect_file_name
 
 --let $server_shutdown_timeout= 60
