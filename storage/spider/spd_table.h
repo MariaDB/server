@@ -789,6 +789,10 @@ void spider_free_spider_object_for_share(
   ha_spider **spider
 );
 
+int spider_create_init_queries_thread(
+  SPIDER_THREAD *spider_thread
+);
+
 int spider_create_sts_threads(
   SPIDER_THREAD *spider_thread
 );
