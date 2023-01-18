@@ -1054,6 +1054,18 @@ DROP TABLE t2;
 SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')));
 SELECT json_object('a', coalesce(json_object('b', 'c')));
 
+--echo #
+--echo # MDEV-26392: Crash with json_get_path_next and 10.5.12
+--echo #
+
+CREATE TABLE arrNestTest (
+    id VARCHAR(80) AS (JSON_COMPACT(JSON_EXTRACT(doc, "$._id"))) UNIQUE KEY,
+    doc JSON, 
+    CONSTRAINT id_not_null CHECK(id IS NOT NULL));
+    
+INSERT INTO test.arrNestTest (doc) VALUES ('{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
+SELECT * FROM arrNestTest;
+DROP TABLE arrNestTest;
 
 --echo #
 --echo # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
@@ -1705,6 +1717,21 @@ SET @json1 = '{"kk":{"k1":"v1","k2":"v2"}}';
 SET @json2 = '{"kk":{"k1":"v1","k2":"v2","k3":"v3"}}';
 SELECT JSON_OVERLAPS(@json2, @json1);
 SELECT JSON_OVERLAPS(@json1, @json2);
+
+--echo #
+--echo # MDEV-30304: Json Range only affects first row of the result set
+--echo #
+
+CREATE TABLE t1 ( j JSON );
+ 
+INSERT INTO t1 (j) VALUES ('[{"key1": 1, "key2": 1}, {"key3": 1, "key4": 1}]');
+INSERT INTO t1 (j) VALUES ('[{"key1": 2, "key2": 2}, {"key3": 2, "key4": 2}, {"key5": 2, "key6": 2}]');
+INSERT INTO t1 (j) VALUES ('[{"key1": 3, "key2": 3}, {"key3": 3, "key4": 3}, {"key5": 3}]');
+
+SELECT JSON_EXTRACT(j, '$[0 to 1]')  FROM t1 ;
+SELECT JSON_EXTRACT(j, '$[*]')  FROM t1 ;
+
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.9 Test

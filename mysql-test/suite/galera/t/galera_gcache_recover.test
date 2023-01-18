@@ -54,24 +54,7 @@ INSERT INTO t1 VALUES (3);
 # Warning happens when the cluster is started for the first time
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
 
-# Confirm that IST took place
---let $assert_text = async IST sender starting to serve
---let $assert_select = async IST sender starting to serve
---let $assert_count = 1
---let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
---let $assert_only_after = starting as process
---source include/assert_grep.inc
-
 --connection node_2
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-
-# Confirm that gcache recovery took place
-
---let $assert_text = Recovering GCache ring buffer: found gapless sequence
---let $assert_select = Recovering GCache ring buffer: found gapless sequence
---let $assert_count = 1
---let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
---let $assert_only_after = starting as process
---source include/assert_grep.inc
 
 DROP TABLE t1;

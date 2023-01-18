@@ -6167,6 +6167,7 @@ static const char *wsrep_mode_names[]=
   "REPLICATE_MYISAM",
   "REPLICATE_ARIA",
   "DISALLOW_LOCAL_GTID",
+  "BF_ABORT_MARIABACKUP",
   NullS
 };
 static Sys_var_set Sys_wsrep_mode(
