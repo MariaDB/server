@@ -110,8 +110,6 @@ SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;
 --echo #
 
 --let MYSQLD_DATADIR= `SELECT @@datadir`
---let SERVER_ID= `SELECT @@server_id`
---let EXPECT_FILE_NAME= $MYSQLTEST_VARDIR/tmp/mysqld.$SERVER_ID.expect
 
 --source include/shutdown_mysqld.inc
 
