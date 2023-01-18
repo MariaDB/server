@@ -412,3 +412,11 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 DROP TABLE t1,t2;
+#
+# MDEV-29709 Unexpected ER_NO_SUCH_TABLE on CREATE OR REPLACE
+#            with further assertion failures
+#
+create temporary table tmp (a int);
+create or replace table t_apparently_it_has_to_be_at_least_this_long like tmp;
+drop table t_apparently_it_has_to_be_at_least_this_long;
+drop temporary table tmp;
