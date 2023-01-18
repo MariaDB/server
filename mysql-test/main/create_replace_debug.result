@@ -91,3 +91,13 @@ ERROR HY000: Table 't2' was not locked with LOCK TABLES
 unlock tables;
 drop tables t1;
 set @@debug_dbug= @saved_debug_dbug;
+#
+# MDEV-29664 Assertion `!n_mysql_tables_in_use' failed in innobase_close_connection
+#
+create table t1 (x int);
+set @old_dbug= @@debug_dbug;
+set @@debug_dbug= '+d,ha_end_bulk_insert_fail';
+create or replace table t2 (y int) engine innodb select * from t1;
+ERROR HY000: Out of memory.
+set @@debug_dbug= @old_dbug;
+drop table t1;

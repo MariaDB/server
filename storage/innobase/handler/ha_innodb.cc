@@ -16096,6 +16096,7 @@ ha_innobase::external_lock(
 
 	/* MySQL is releasing a table lock */
 
+	ut_ad(trx->n_mysql_tables_in_use);
 	trx->n_mysql_tables_in_use--;
 	m_mysql_has_locked = false;
 
