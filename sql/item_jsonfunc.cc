@@ -1019,9 +1019,9 @@ String *Item_func_json_extract::read_json(String *str,
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
     json_path_with_flags *c_path= paths + n_arg - 1;
-    c_path->p.types_used= JSON_PATH_KEY_NULL;
     if (!c_path->parsed)
     {
+      c_path->p.types_used= JSON_PATH_KEY_NULL;
       String *s_p= args[n_arg]->val_str(tmp_paths + (n_arg-1));
       if (s_p)
       {
@@ -1104,7 +1104,7 @@ String *Item_func_json_extract::read_json(String *str,
     if (!possible_multiple_values)
     {
       /* Loop to the end of the JSON just to make sure it's valid. */
-      while (json_get_path_next(&je, &p) == 0) {}
+      while (json_scan_next(&je) == 0) {}
       break;
     }
   }
@@ -1744,7 +1744,7 @@ bool is_json_type(const Item *item)
     if (Type_handler_json_common::is_json_type_handler(item->type_handler()))
       return true;
     const Item_func_conv_charset *func;
-    if (!(func= dynamic_cast<const Item_func_conv_charset*>(item)))
+    if (!(func= dynamic_cast<const Item_func_conv_charset*>(item->real_item())))
       return false;
     item= func->arguments()[0];
   }

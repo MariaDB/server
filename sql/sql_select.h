@@ -1261,6 +1261,8 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
+  /* Tables that has HA_NON_COMPARABLE_ROWID (does not support rowid) set */
+  table_map not_usable_rowid_map;
   /* Tables that have a possiblity to use EQ_ref */
   table_map eq_ref_tables;
 

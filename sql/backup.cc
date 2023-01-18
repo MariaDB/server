@@ -35,9 +35,10 @@
 #include "sql_handler.h"                        // mysql_ha_cleanup_no_free
 #include <my_sys.h>
 #include <strfunc.h>                           // strconvert()
-#include "wsrep_mysqld.h"
+#include "debug_sync.h"
 #ifdef WITH_WSREP
 #include "wsrep_server_state.h"
+#include "wsrep_mysqld.h"
 #endif /* WITH_WSREP */
 
 static const char *stage_names[]=
@@ -292,16 +293,26 @@ static bool backup_block_ddl(THD *thd)
 
 #ifdef WITH_WSREP
   /*
-    We desync the node for BACKUP STAGE because applier threads
+    if user is specifically choosing to allow BF aborting for BACKUP STAGE BLOCK_DDL lock
+    holder, then do not desync and pause the node from cluster replication.
+    e.g. mariabackup uses BACKUP STATE BLOCK_DDL; and will be abortable by this.
+    But, If node is processing as SST donor or WSREP_MODE_BF_MARIABACKUP mode is not set,
+    we desync the node for BACKUP STAGE because applier threads
     bypass backup MDL locks (see MDL_lock::can_grant_lock)
   */
   if (WSREP_NNULL(thd))
   {
     Wsrep_server_state &server_state= Wsrep_server_state::instance();
-    if (server_state.desync_and_pause().is_undefined()) {
-      DBUG_RETURN(1);
+    if (!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP) ||
+        server_state.state() == Wsrep_server_state::s_donor)
+    {
+      if (server_state.desync_and_pause().is_undefined()) {
+        DBUG_RETURN(1);
+      }
+      thd->wsrep_desynced_backup_stage= true;
     }
-    thd->wsrep_desynced_backup_stage= true;
+    else
+      WSREP_INFO("Server not desynched from group because WSREP_MODE_BF_MARIABACKUP used.");
   }
 #endif /* WITH_WSREP */
 
@@ -341,6 +352,18 @@ static bool backup_block_ddl(THD *thd)
   /* There can't be anything more that needs to be logged to ddl log */
   THD_STAGE_INFO(thd, org_stage);
   stop_ddl_logging();
+#ifdef WITH_WSREP
+  // Allow tests to block the applier thread using the DBUG facilities
+  DBUG_EXECUTE_IF("sync.wsrep_after_mdl_block_ddl",
+                  {
+                   const char act[]=
+                     "now "
+                     "signal signal.wsrep_apply_toi";
+                   DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                      STRING_WITH_LEN(act)));
+                  };);
+#endif /* WITH_WSREP */
+
   DBUG_RETURN(0);
 err:
   THD_STAGE_INFO(thd, org_stage);
@@ -400,7 +423,8 @@ bool backup_end(THD *thd)
     thd->current_backup_stage= BACKUP_FINISHED;
     thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(thd) && thd->wsrep_desynced_backup_stage)
+    if (WSREP_NNULL(thd) && thd->wsrep_desynced_backup_stage &&
+	!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
     {
       Wsrep_server_state &server_state= Wsrep_server_state::instance();
       THD_STAGE_INFO(thd, stage_waiting_flow);
