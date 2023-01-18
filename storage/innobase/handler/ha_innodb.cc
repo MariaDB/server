@@ -5302,7 +5302,8 @@ create_table_info_t::create_table_info_t(
 	  m_create_info(create_info),
 	  m_table(NULL),
 	  m_innodb_file_per_table(file_per_table),
-	  m_creating_stub(thd_ddl_options(thd)->import_tablespace())
+	  m_creating_stub(thd_ddl_options(thd)->import_tablespace()),
+	  alter_table(NULL)
 {
   m_table_name[0]= '\0';
   m_remote_path[0]= '\0';
@@ -12263,7 +12264,6 @@ create_table_info_t::create_foreign_keys()
 	LEX_CSTRING name= {m_table_name, strlen(m_table_name)};
 
 	if (sqlcom == SQLCOM_ALTER_TABLE) {
-		dict_table_t* alter_table;
 		mem_heap_t* heap = mem_heap_create(10000);
 		LEX_CSTRING table_name = m_form->s->table_name;
 		CHARSET_INFO* to_cs = &my_charset_filename;
@@ -12317,6 +12317,15 @@ create_table_info_t::create_foreign_keys()
 			number = 1 + dict_table_get_highest_foreign_id(
 				alter_table);
 		}
+
+		/*
+			alter_table == NULL might be by the following reasons:
+
+			1. tmp_table;
+			2. is_partition(m_table_name);
+			3. Engine changed from non-InnoDB, so no original table in InnoDB;
+			4. Anything else?
+		*/
 
 		*innobase_convert_name(create_name, sizeof create_name,
 				       n, strlen(n), m_thd) = '\0';
@@ -12479,6 +12488,7 @@ create_table_info_t::create_foreign_key(
 
 		if (fk->constraint_name.str) {
 			ulint db_len;
+			const bool tmp= alter_table;
 
 			/* Catenate 'databasename/' to the constraint name
 			specified by the user: we conceive the constraint as
@@ -12488,13 +12498,17 @@ create_table_info_t::create_foreign_key(
 			db_len = dict_get_db_name_len(table->name.m_name);
 
 			foreign->id = static_cast<char*>(mem_heap_alloc(
-				foreign->heap,
-				db_len + fk->constraint_name.length + 2));
+				foreign->heap, (tmp ? 3 : 2)
+				+ db_len + fk->constraint_name.length));
 
-			memcpy(foreign->id, table->name.m_name, db_len);
-			foreign->id[db_len] = '/';
-			strcpy(foreign->id + db_len + 1,
-			       fk->constraint_name.str);
+			char *pos = foreign->id;
+			memcpy(pos, table->name.m_name, db_len);
+			pos += db_len;
+			*(pos++) = '/';
+			if (tmp) {
+				*(pos++) = '\xFF';
+			}
+			strcpy(pos, fk->constraint_name.str);
 		}
 
 		if (foreign->id == NULL) {

@@ -12280,3 +12280,5 @@ ER_SEQUENCE_TABLE_ORDER_BY
         eng "ORDER BY"
 ER_VARIABLE_IGNORED
         eng "The variable '%s' is ignored. It only exists for compatibility with old installations and will be removed in a future release"
+ER_DUP_CONSTRAINT_NAME_2
+        eng "Duplicate constraint name"
