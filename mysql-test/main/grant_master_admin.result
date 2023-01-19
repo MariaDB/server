@@ -28,7 +28,7 @@ GRANT REPLICATION MASTER ADMIN ON *.* TO `user1`@`localhost`
 connect  con1,localhost,user1,,;
 connection con1;
 SHOW SLAVE HOSTS;
-Server_id	Host	Port	Master_id
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
 connection default;
 DROP USER user1@localhost;
 #

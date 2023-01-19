@@ -13,7 +13,7 @@ set global debug_dbug=@old_dbug;
 connection master;
 kill DUMP_THREAD;
 show slave hosts;
-Server_id	Host	Port	Master_id
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
 connection slave;
 start slave;
 include/rpl_end.inc
