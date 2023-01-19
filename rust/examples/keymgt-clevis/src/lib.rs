@@ -1,8 +1,3 @@
-//! Debug key management
-//!
-//! Use to debug the encryption code with a fixed key that changes only on user
-//! request. The only valid key ID is 1.
-//!
 //! EXAMPLE ONLY: DO NOT USE IN PRODUCTION!
 
 #![allow(unused)]
@@ -18,80 +13,44 @@ use mariadb::plugin::{
 };
 use mariadb::sysvar_atomic;
 
-const KEY_LENGTH: usize = 4;
+struct KeyMgtClevis;
 
-static KEY_VERSION: AtomicU32 = AtomicU32::new(1);
-
-static KEY_VERSION_SYSVAR: SysVarAtomic<u32> = sysvar_atomic! {
-    ty: u32,
-    name: "version",
-    var: KEY_VERSION,
-    comment: "Latest key version",
-    flags: [PluginVarInfo::ReqCmdArg],
-    default: 1,
-};
-
-struct DebugKeyMgmt;
-
-impl Init for DebugKeyMgmt {
+impl Init for KeyMgtClevis {
     fn init() -> Result<(), InitError> {
-        eprintln!("init for DebugKeyMgmt");
+        eprintln!("init for KeyMgtClevis");
         Ok(())
     }
 
     fn deinit() -> Result<(), InitError> {
-        eprintln!("deinit for DebugKeyMgmt");
+        eprintln!("deinit for KeyMgtClevis");
         Ok(())
     }
 }
 
-impl KeyManager for DebugKeyMgmt {
+impl KeyManager for KeyMgtClevis {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
-        if key_id != 1 {
-            Err(KeyError::VersionInvalid)
-        } else {
-            Ok(KEY_VERSION.load(Ordering::Relaxed))
-        }
+        todo!()
     }
 
     fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> {
-        if key_id != 1 {
-            return Err(KeyError::VersionInvalid);
-        }
-
-        // Convert our integer to a native endian byte array
-        let key_buf = KEY_VERSION.load(Ordering::Relaxed).to_ne_bytes();
-
-        if dst.len() < key_buf.len() {
-            return Err(KeyError::BufferTooSmall);
-        }
-
-        // Copy our slice to the buffer, return the copied length
-        dst[..key_buf.len()].copy_from_slice(key_buf.as_slice());
-        Ok(())
+        todo!()
     }
 
     fn key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError> {
-        // Return the length of our u32 in bytes
-        // Just verify our types don't change
-        debug_assert_eq!(
-            KEY_LENGTH,
-            KEY_VERSION.load(Ordering::Relaxed).to_ne_bytes().len()
-        );
-        Ok(KEY_LENGTH)
+        todo!()
     }
 }
 
 register_plugin! {
-    DebugKeyMgmt,
+    KeyMgtClevis,
     ptype: PluginType::MariaEncryption,
-    name: "debug_key_management",
+    name: "clevis_key_management",
     author: "Trevor Gross",
-    description: "Debug key management plugin",
+    description: "Clevis key management plugin",
     license: License::Gpl,
     maturity: Maturity::Experimental,
     version: "0.1",
-    init: DebugKeyMgmt, // optional
+    init: KeyMgtClevis, // optional
     encryption: false,
 }
 
