@@ -5038,6 +5038,18 @@ Stopping slave I/O thread due to out-of-memory error from master");
           already reported.
         */
         DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply", my_sleep(800000););
+#ifdef ENABLED_DEBUG_SYNC
+      /*
+        A (+d,synchronize_semisync_slave_reply)-test is supposed to
+        be run to check Gtid_state_sent and Gtid_state_ack in show replica hosts
+      */
+      DBUG_EXECUTE_IF("synchronize_semisync_slave_reply",
+        {
+          const char act[]= "now SIGNAL at_slave_reply WAIT_FOR reply_ack_to_master";
+          DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+          DBUG_SET("-d,synchronize_semisync_slave_reply");
+        };);
+#endif
         (void)repl_semisync_slave.slave_reply(mi);
       }
 

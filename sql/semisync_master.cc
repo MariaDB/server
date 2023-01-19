@@ -51,13 +51,6 @@ ulonglong rpl_semi_sync_master_trx_wait_time = 0;
 Repl_semi_sync_master repl_semisync_master;
 Ack_receiver ack_receiver;
 
-/*
-  structure to save transaction log filename and position
-*/
-typedef struct Trans_binlog_info {
-  my_off_t log_pos;
-  char log_file[FN_REFLEN];
-} Trans_binlog_info;
 
 static int get_wait_time(const struct timespec& start_ts);
 
@@ -551,7 +544,7 @@ void Repl_semi_sync_master::remove_slave()
   unlock();
 }
 
-int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
+int Repl_semi_sync_master::report_reply_packet(THD *thd, uint32 server_id,
                                                const uchar *packet,
                                                ulong packet_len)
 {
@@ -592,14 +585,14 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
                           log_file_name, (ulong)log_file_pos, server_id));
 
   rpl_semi_sync_master_get_ack++;
-  report_reply_binlog(server_id, log_file_name, log_file_pos);
+  report_reply_binlog(thd, server_id, log_file_name, log_file_pos);
 
 l_end:
 
   DBUG_RETURN(result);
 }
 
-int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
+int Repl_semi_sync_master::report_reply_binlog(THD *replica_thd, uint32 server_id,
                                                const char *log_file_name,
                                                my_off_t log_file_pos)
 {
@@ -678,6 +671,11 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
       can_release_threads = true;
       m_wait_file_name_inited = false;
     }
+  }
+  if (rpl_semi_sync_master_enabled)
+  {
+    strncpy(replica_thd->slave_info->gtid_state_ack.log_file, log_file_name, strlen(log_file_name));
+    replica_thd->slave_info->gtid_state_ack.log_pos= log_file_pos;
   }
 
  l_end:
@@ -789,7 +787,7 @@ int Repl_semi_sync_master::dump_start(THD* thd,
   }
 
   add_slave();
-  report_reply_binlog(thd->variables.server_id,
+  report_reply_binlog(thd, thd->variables.server_id,
                       log_file + dirname_length(log_file), log_pos);
   sql_print_information("Start semi-sync binlog_dump to slave "
                         "(server_id: %ld), pos(%s, %lu)",

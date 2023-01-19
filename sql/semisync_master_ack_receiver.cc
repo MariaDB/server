@@ -275,7 +275,7 @@ void Ack_receiver::run()
 
         len= my_net_read(&net);
         if (likely(len != packet_error))
-          repl_semisync_master.report_reply_packet(slave->server_id(),
+          repl_semisync_master.report_reply_packet(slave->thd, slave->server_id(),
                                                    net.read_pos, len);
         else if (net.last_errno == ER_NET_READ_ERROR)
           listener.clear_socket_info(slave);

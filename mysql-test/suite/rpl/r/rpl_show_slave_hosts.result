@@ -8,13 +8,363 @@ START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection master;
 SHOW SLAVE HOSTS;
-Server_id	Host	Port	Master_id
-3	slave2	SLAVE_PORT	1
-2	localhost	SLAVE_PORT	1
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1		
+2	localhost	SLAVE_PORT	1		
 connection slave2;
 include/stop_slave_io.inc
 connection master;
 SHOW SLAVE HOSTS;
-Server_id	Host	Port	Master_id
-2	localhost	SLAVE_PORT	1
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+2	localhost	SLAVE_PORT	1		
+#
+# MDEV-21322: report slave progress to the primary
+#
+call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master');
+call mtr.add_suppression('Replication event checksum verification failed');
+call mtr.add_suppression("Timeout waiting for reply of binlog*");
+call mtr.add_suppression('Found invalid event in binary log');
+call mtr.add_suppression('event read from binlog did not pass crc check');
+call mtr.add_suppression('Event crc check failed! Most likely there is event corruption');
+call mtr.add_suppression('Slave SQL: Error initializing relay log position: I/O error reading event at position .*, error.* 1593');
+call mtr.add_suppression("Semi-sync slave .* reply");
+select @@global.rpl_semi_sync_master_wait_point;
+@@global.rpl_semi_sync_master_wait_point
+AFTER_COMMIT
+reset master;
+# Test 1: Primary has not enabled semisync
+# Note:   even if not enabled semisync 2 new columns should be visible
+#         that means, command should return 6 columns,
+#         with already connected replica server_id=2
+# -------------------------------------------
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+2	localhost	SLAVE_PORT	1		
+# Test 2: Primary enabled semisync
+# Note:   it should be the same as test 1
+# -------------------------------------------
+set global rpl_semi_sync_master_enabled = 1;
+show variables like 'rpl_semi_sync_master_enabled';
+Variable_name	Value
+rpl_semi_sync_master_enabled	ON
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+2	localhost	SLAVE_PORT	1		
+# Test 3: Replica (server_id=2) enabled semisync
+# Note:   No new GTIDs expected empty result
+# -------------------------------------------
+connection slave;
+include/stop_slave.inc
+include/reset_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
+include/start_slave.inc
+show variables like 'rpl_semi_sync_slave_enabled';
+Variable_name	Value
+rpl_semi_sync_slave_enabled	ON
+connection master;
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+2	localhost	SLAVE_PORT	1		
+# Test 4: Make new events - generate new GTID
+# Note:   Create new events on primary. Replica is already connected
+# -------------------------------------------
+create table t(t int);
+insert into t values (1);
+show status like 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+show status like 'Rpl_semi_sync_master_no_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+show status like 'Rpl_semi_sync_master_yes_tx';
+Variable_name	Value
+Rpl_semi_sync_master_yes_tx	2
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+2	localhost	SLAVE_PORT	1	0-1-2	0-1-2
+# Test 5: Enable semi-sync for slave2
+# Note 1: Replica (server_id=3) should be started and semi-sync enabled
+# Note 2: In semy-sync replication ACK thread (on master),
+#         waits only on single replica to respond about received events.
+# Note 3: Since `Gtid_State_Ack` is received for 2 events
+#         from server_id=2 in previous test and there is no new events
+#         in this test and primary is resending old transactions,
+#         we are expecting empty `Gtid_State_Ack` for server_id=3
+#         in show statement (see Note 2).
+# -------------------------------------------
+connection slave2;
+include/stop_slave.inc
+Warnings:
+Note	1255	Slave already has been stopped
+include/reset_slave.inc
+set global rpl_semi_sync_slave_enabled = 1;
+include/start_slave.inc
+show variables like 'rpl_semi_sync_slave_enabled';
+Variable_name	Value
+rpl_semi_sync_slave_enabled	ON
+connection master;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	2
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1	0-1-2	
+2	localhost	SLAVE_PORT	1	0-1-2	0-1-2
+# Test 6: Create new transactions on primary
+# Note:   New transactions on primary are sent to replicas
+#         and connected replicas (server_id=2 and server_id=3)
+#         should sync to the GTID state on primary.
+# -------------------------------------------
+create table t2(t2 int);
+insert into t2 values (2);
+show status like 'Rpl_semi_sync_master_no_tx';
+Variable_name	Value
+Rpl_semi_sync_master_no_tx	0
+show status like 'Rpl_semi_sync_master_yes_tx';
+Variable_name	Value
+Rpl_semi_sync_master_yes_tx	4
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1	0-1-4	0-1-4
+2	localhost	SLAVE_PORT	1	0-1-4	0-1-4
+show status like "Slaves_connected";
+Variable_name	Value
+Slaves_connected	2
+# Test 7: Simulate stop of the IO thread of replica
+# Note:   Expecting the result of show statement will not be visible
+# -------------------------------------------
+connection slave;
+show status like 'rpl_semi_sync_slave%';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	4
+Rpl_semi_sync_slave_status	ON
+show variables like 'rpl_semi_sync_slave_enabled';
+Variable_name	Value
+rpl_semi_sync_slave_enabled	ON
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+connection master;
+show status like "Slaves_connected";
+Variable_name	Value
+Slaves_connected	1
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+show status like 'rpl_semi_sync_slave%';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	0
+Rpl_semi_sync_slave_status	OFF
+show variables like 'rpl_semi_sync_slave_enabled';
+Variable_name	Value
+rpl_semi_sync_slave_enabled	OFF
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1	0-1-4	0-1-4
+INSERT INTO t VALUES (10);
+show status like 'Rpl_semi_sync_master_yes_tx';
+Variable_name	Value
+Rpl_semi_sync_master_yes_tx	5
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1	0-1-5	0-1-5
+connection slave;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+show status like 'rpl_semi_sync_slave%';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	0
+Rpl_semi_sync_slave_status	ON
+show variables like 'rpl_semi_sync_slave_enabled';
+Variable_name	Value
+rpl_semi_sync_slave_enabled	ON
+connection master;
+show status like "Slaves_connected";
+Variable_name	Value
+Slaves_connected	2
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+2	localhost	SLAVE_PORT	1		
+3	slave2	SLAVE_PORT	1	0-1-5	0-1-5
+connection slave;
+"Sync replica with master"
+connection master;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	2
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+2	localhost	SLAVE_PORT	1	0-1-5	
+3	slave2	SLAVE_PORT	1	0-1-5	0-1-5
+show status like "Slaves_connected";
+Variable_name	Value
+Slaves_connected	2
+# Test 8: Replica server_id=2 failure
+# Note 1:   Simulate replicas failure by making replica busy.
+#         Consequence is that replica will be unregistered and that is why
+#         we need to wait that replica unregisters.
+#         By creating new event, only working replicas should respond
+#         (server_id=3) with ACK
+# Note 2: In order not to show old result from server_id=2,from busy replica
+#         we have to *wait* that binlog_dump_thread_count showed with status 
+#         `Slaves_connected` to decrease and after that check show statement.
+# -------------------------------------------
+connection slave;
+SET @@GLOBAL.debug_dbug= "+d,corrupt_queue_event";
+connection master;
+INSERT INTO t VALUES (3);
+show status like 'Rpl_semi_sync_master_yes_tx';
+Variable_name	Value
+Rpl_semi_sync_master_yes_tx	6
+show status like "Slaves_connected";
+Variable_name	Value
+Slaves_connected	1
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1	0-1-6	0-1-6
+connection slave;
+SET @@GLOBAL.debug_dbug= "";
+connection master;
+show status like "Slaves_connected";
+Variable_name	Value
+Slaves_connected	1
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1	0-1-6	0-1-6
+# Test 9: Stop server_id=3
+# Note:   Reason to simulate the same behaviour is to check that
+#         no replicas get new generated event, so show statement
+#         is expected to be empty.
+# -------------------------------------------
+connection slave2;
+include/stop_slave.inc
+include/reset_slave.inc
+connection master;
+show status like "Slaves_connected";
+Variable_name	Value
+Slaves_connected	0
+show status like 'Rpl_semi_sync_master_yes_tx';
+Variable_name	Value
+Rpl_semi_sync_master_yes_tx	6
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	0
+INSERT INTO t VALUES (5);
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+# Test 10: Test Sync with rpl_semi_sync_master_timeout=0
+# Note 1:   For asynchronous replication `Gtid_state_sent` is not null,
+#           but `Gtid_state_ack` is null.
+# Note 2:   We want that `rpl_semi_sync_master_timeout=0` be edge case,
+#           by mimicking asynchronous replication, for which
+#           `Gtid_state_ack` should not update (see Note 3).
+# Note 3:   With this option we want `Gtid_state_ack` to reflect
+#           the latest received transaction by the replica[s].
+# -------------------------------------------
+select @@global.rpl_semi_sync_master_timeout;
+@@global.rpl_semi_sync_master_timeout
+10000
+show variables like 'rpl_semi_sync_master_enabled';
+Variable_name	Value
+rpl_semi_sync_master_enabled	ON
+show status like 'rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	OFF
+show status like 'rpl_semi_sync_master_get_ack';
+Variable_name	Value
+Rpl_semi_sync_master_get_ack	8
+set global rpl_semi_sync_master_timeout=0;
+select @@global.rpl_semi_sync_master_timeout;
+@@global.rpl_semi_sync_master_timeout
+0
+show variables like 'rpl_semi_sync_master_timeout';
+Variable_name	Value
+rpl_semi_sync_master_timeout	0
+show status like 'rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	OFF
+connection slave;
+SET @@GLOBAL.DEBUG_DBUG="d,synchronize_semisync_slave_reply";
+include/start_slave.inc
+SET debug_sync='now WAIT_FOR at_slave_reply';
+connection slave2;
+SET @@GLOBAL.DEBUG_DBUG="d,synchronize_semisync_slave_reply";
+include/start_slave.inc
+# Both replicas are stopped
+connection master;
+INSERT INTO t values (1111);
+show status like 'rpl_semi_sync_master_get_ack';
+Variable_name	Value
+Rpl_semi_sync_master_get_ack	8
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1		
+2	localhost	SLAVE_PORT	1	0-1-8	
+connection slave;
+SET debug_sync='now SIGNAL reply_ack_to_master';
+# Replica server_2 have sent ACK
+connection master;
+show status like 'rpl_semi_sync_master_get_ack';
+Variable_name	Value
+Rpl_semi_sync_master_get_ack	9
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1		
+2	localhost	SLAVE_PORT	1	0-1-8	0-1-8
+connection slave2;
+SET debug_sync='now SIGNAL reply_ack_to_master';
+# Replica server_3 sent ACK (it shouldn't increment ACK to master?)
+connection master;
+show status like 'rpl_semi_sync_master_get_ack';
+Variable_name	Value
+Rpl_semi_sync_master_get_ack	10
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1		
+2	localhost	SLAVE_PORT	1	0-1-8	0-1-8
+connection slave2;
+connection slave;
+# Sync server_3 with master - it should be the same
+connection master;
+show status like 'rpl_semi_sync_master_get_ack';
+Variable_name	Value
+Rpl_semi_sync_master_get_ack	10
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack
+3	slave2	SLAVE_PORT	1		
+2	localhost	SLAVE_PORT	1	0-1-8	0-1-8
+# cleanup
+# -------------------------------------------
+connection master;
+SET @@GLOBAL.rpl_semi_sync_master_timeout= 10000;
+SET GLOBAL rpl_semi_sync_master_enabled = 0;
+drop table t;
+drop table t2;
+include/save_master_gtid.inc
+connection slave;
+SET @@GLOBAL.debug_dbug= "";
+SET debug_sync='RESET';
+include/stop_slave.inc
+include/reset_slave.inc
+set global rpl_semi_sync_slave_enabled = 0;
+include/start_slave.inc
+show variables like 'rpl_semi_sync_slave_enabled';
+Variable_name	Value
+rpl_semi_sync_slave_enabled	OFF
+connection slave2;
+set global rpl_semi_sync_slave_enabled = 0;
+SET @@GLOBAL.debug_dbug= "";
+SET debug_sync='RESET';
+show variables like 'rpl_semi_sync_slave_enabled';
+Variable_name	Value
+rpl_semi_sync_slave_enabled	OFF
+include/stop_slave.inc
 include/rpl_end.inc
