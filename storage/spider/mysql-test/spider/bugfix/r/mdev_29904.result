@@ -1,0 +1,3 @@
+#
+# MDEV-29676 Dual thread hang in 'closing tables' and 'Waiting for table metadata lock' on Spider CREATE OR REPLACE TABLE
+#
