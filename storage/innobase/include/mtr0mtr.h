@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,7 @@ Created 11/26/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "dyn0buf.h"
 #include "buf0buf.h"
-#include <vector>
+#include "small_vector.h"
 
 /** Start a mini-transaction. */
 #define mtr_start(m)		(m)->start()
@@ -790,7 +790,7 @@ private:
 #endif /* UNIV_DEBUG */
 
   /** acquired dict_index_t::lock, fil_space_t::latch, buf_block_t */
-  std::vector<mtr_memo_slot_t> m_memo;
+  small_vector<mtr_memo_slot_t, 16> m_memo;
 
   /** mini-transaction log */
   mtr_buf_t m_log;
