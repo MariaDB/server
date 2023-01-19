@@ -1549,8 +1549,7 @@ static void innodb_drop_database(handlerton*, char *path)
     mtr_t mtr;
     mtr.start();
     pcur.btr_cur.page_cur.index = sys_index;
-    err= btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
-                                   BTR_SEARCH_LEAF, &pcur, &mtr);
+    err= btr_pcur_open_on_user_rec(&tuple, BTR_SEARCH_LEAF, &pcur, &mtr);
     if (err != DB_SUCCESS)
       goto err_exit;
 

@@ -37,15 +37,6 @@ Created 11/26/1995 Heikki Tuuri
 /** Commit a mini-transaction. */
 #define mtr_commit(m)		(m)->commit()
 
-/** Set and return a savepoint in mtr.
-@return	savepoint */
-#define mtr_set_savepoint(m)	(m)->get_savepoint()
-
-/** Release the (index tree) s-latch stored in an mtr memo after a
-savepoint. */
-#define mtr_release_s_latch_at_savepoint(m, s, l)			\
-				(m)->release_s_latch_at_savepoint((s), (l))
-
 /** Change the logging mode of a mini-transaction.
 @return	old mode */
 #define mtr_set_log_mode(m, d)	(m)->set_log_mode((d))
@@ -60,13 +51,10 @@ savepoint. */
 # define mtr_sx_lock_index(i,m)	(m)->u_lock(&(i)->lock)
 #endif
 
-#define mtr_release_block_at_savepoint(m, s, b)				\
-				(m)->release_block_at_savepoint((s), (b))
-
 /** Mini-transaction memo stack slot. */
 struct mtr_memo_slot_t
 {
-  /** pointer to the object, or nullptr if released */
+  /** pointer to the object */
   void *object;
   /** type of the stored object */
   mtr_memo_type_t type;
@@ -125,40 +113,35 @@ struct mtr_t {
     return m_memo.size();
   }
 
-  /** Release the (index tree) s-latch stored in an mtr memo after a savepoint.
-  @param savepoint value returned by get_savepoint()
-  @param lock   index latch to release */
-  void release_s_latch_at_savepoint(ulint savepoint, index_lock *lock)
+  /** Get the block at a savepoint */
+  buf_block_t *at_savepoint(ulint savepoint) const
   {
     ut_ad(is_active());
-    mtr_memo_slot_t &slot= m_memo[savepoint];
-    ut_ad(slot.object == lock);
-    ut_ad(slot.type == MTR_MEMO_S_LOCK);
-    slot.object= nullptr;
-    lock->s_unlock();
+    const mtr_memo_slot_t &slot= m_memo[savepoint];
+    ut_ad(slot.type < MTR_MEMO_S_LOCK);
+    ut_ad(slot.object);
+    return static_cast<buf_block_t*>(slot.object);
   }
-  /** Release the block in an mtr memo after a savepoint. */
-  void release_block_at_savepoint(ulint savepoint, buf_block_t *block)
-  {
-    ut_ad(is_active());
-    mtr_memo_slot_t &slot= m_memo[savepoint];
-    ut_ad(slot.object == block);
-    ut_ad(!(slot.type & MTR_MEMO_MODIFY));
-    slot.object= nullptr;
-    block->page.unfix();
 
-    switch (slot.type) {
-    case MTR_MEMO_PAGE_S_FIX:
-      block->page.lock.s_unlock();
-      break;
-    case MTR_MEMO_PAGE_SX_FIX:
-    case MTR_MEMO_PAGE_X_FIX:
-      block->page.lock.u_or_x_unlock(slot.type == MTR_MEMO_PAGE_SX_FIX);
-      break;
-    default:
-      break;
-    }
+  /** Try to get a block at a savepoint.
+  @param savepoint the savepoint right before the block was acquired
+  @return the block at the savepoint
+  @retval nullptr  if no buffer block was registered at that savepoint */
+  buf_block_t *block_at_savepoint(ulint savepoint) const
+  {
+    ut_ad(is_active());
+    const mtr_memo_slot_t &slot= m_memo[savepoint];
+    return slot.type < MTR_MEMO_S_LOCK
+      ? static_cast<buf_block_t*>(slot.object)
+      : nullptr;
   }
+
+  /** Retrieve a page that has already been latched.
+  @param id    page identifier
+  @param type  page latch type
+  @return block */
+  buf_block_t *get_already_latched(const page_id_t id, mtr_memo_type_t type)
+    const;
 
   /** @return if we are about to make a clean buffer block dirty */
   static bool is_block_dirtied(const buf_page_t &b)
@@ -408,28 +391,17 @@ public:
   @param rw_latch    latch to acquire */
   void upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch);
 
-  /** Register a page latch on a buffer-fixed block was buffer-fixed.
-  @param latch   latch type */
-  void u_lock_register(ulint savepoint)
+  /** Register a page latch on a previously buffer-fixed block. */
+  void lock_register(ulint savepoint, mtr_memo_type_t type)
   {
     mtr_memo_slot_t &slot= m_memo[savepoint];
     ut_ad(slot.type == MTR_MEMO_BUF_FIX);
-    slot.type= MTR_MEMO_PAGE_SX_FIX;
-  }
-
-  /** Register a page latch on a buffer-fixed block was buffer-fixed.
-  @param latch   latch type */
-  void s_lock_register(ulint savepoint)
-  {
-    mtr_memo_slot_t &slot= m_memo[savepoint];
-    ut_ad(slot.type == MTR_MEMO_BUF_FIX);
-    slot.type= MTR_MEMO_PAGE_S_FIX;
+    ut_ad(type <= MTR_MEMO_PAGE_SX_FIX);
+    slot.type= type;
   }
 
   /** Upgrade U locks on a block to X */
   void page_lock_upgrade(const buf_block_t &block);
-  /** Upgrade U lock to X */
-  void lock_upgrade(const index_lock &lock);
 
   /** Check if we are holding tablespace latch
   @param space  tablespace to search for
