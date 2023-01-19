@@ -22,6 +22,14 @@ impl<T> UnsafeSyncCell<T> {
     pub const fn as_ptr(&self) -> *const T {
         self.0.get()
     }
+
+    pub const fn get(&self) -> *mut T {
+        self.0.get()
+    }
+
+    pub fn get_mut(&mut self) -> &mut T {
+        self.0.get_mut()
+    }
 }
 
 unsafe impl<T> Send for UnsafeSyncCell<T> {}

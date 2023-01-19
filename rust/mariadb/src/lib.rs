@@ -4,6 +4,7 @@
 use time::{format_description, OffsetDateTime};
 
 pub mod plugin;
+pub mod service_sql;
 
 #[doc(hidden)]
 pub use cstr;
@@ -24,6 +25,19 @@ pub fn log_timestamped_message(title: &str, msg: &str) {
     eprintln!("{to_print}");
 }
 
+/// Provide the name of the calling function (full path)
+macro_rules! function {
+    () => {{
+        fn f() {}
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let name = type_name_of(f);
+        &name[..name.len() - 3]
+    }};
+}
+
+/// Log an error to stderr
 #[macro_export]
 macro_rules! error {
     (target: $target:expr, $($msg:tt)+) => {{
@@ -36,6 +50,8 @@ macro_rules! error {
         $crate::log_timestamped_message("[Error]: ", format!($($msg)+));
     }
 }
+
+/// Log a warning to stderr
 #[macro_export]
 macro_rules! warn {
     (target: $target:expr, $($msg:tt)+) => {{
@@ -48,6 +64,8 @@ macro_rules! warn {
         $crate::log_timestamped_message("[Warn]", format!($($msg)+));
     }
 }
+
+/// Log info to stderr
 #[macro_export]
 macro_rules! info {
     (target: $target:expr, $($msg:tt)+) => {{
@@ -60,6 +78,8 @@ macro_rules! info {
         $crate::log_timestamped_message("[Info]", format!($($msg)+));
     }
 }
+
+/// Log debug messages to stderr
 #[macro_export]
 macro_rules! debug {
     (target: $target:expr, $($msg:tt)+) => {{
