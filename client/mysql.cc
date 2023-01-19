@@ -3598,7 +3598,10 @@ print_table_data(MYSQL_RES *result)
   {
     print_field_types(result);
     if (!mysql_num_rows(result))
+    {
+      my_afree((uchar*) num_flag);
       return;
+    }
     mysql_field_seek(result,0);
   }
   separator.copy("+",1,charset_info);
