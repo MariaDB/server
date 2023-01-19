@@ -84,7 +84,7 @@ BDOC::BDOC(PGLOBAL G) : BJSON(G, NULL)
 PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
 {
   size_t i;
-  bool  b = false, ptyp = (bool *)pty;
+  bool  b = false;
   PBVAL bvp = NULL;
 
   s = js;
