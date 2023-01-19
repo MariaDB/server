@@ -53,13 +53,6 @@ ulonglong rpl_semi_sync_master_trx_wait_time = 0;
 Repl_semi_sync_master repl_semisync_master;
 Ack_receiver ack_receiver;
 
-/*
-  structure to save transaction log filename and position
-*/
-typedef struct Trans_binlog_info {
-  my_off_t log_pos;
-  char log_file[FN_REFLEN];
-} Trans_binlog_info;
 
 static int get_wait_time(const struct timespec& start_ts);
 
@@ -547,7 +540,7 @@ void Repl_semi_sync_master::remove_slave()
   @retval -1  Slave is going down (ok)
 */
 
-int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
+int Repl_semi_sync_master::report_reply_packet(Slave_info *slave_info,
                                                const uchar *packet,
                                                ulong packet_len)
 {
@@ -591,12 +584,12 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
 
   DBUG_ASSERT(dirname_length(log_file_name) == 0);
 
-  DBUG_PRINT("semisync", ("%s: Got reply(%s, %lu) from server %u",
-                          "Repl_semi_sync_master::report_reply_packet",
-                          log_file_name, (ulong)log_file_pos, server_id));
-
+  DBUG_PRINT("semisync",
+             ("%s: Got reply(%s, %lu) from server %u",
+              "Repl_semi_sync_master::report_reply_packet", log_file_name,
+              (ulong) log_file_pos, slave_info->server_id));
   rpl_semi_sync_master_get_ack++;
-  report_reply_binlog(server_id, log_file_name, log_file_pos);
+  report_reply_binlog(slave_info, log_file_name, log_file_pos);
   DBUG_RETURN(0);
 
 l_end:
@@ -605,13 +598,13 @@ l_end:
     octet2hex(buf, (const unsigned char*) packet,
               MY_MIN(sizeof(buf)-1, (size_t) packet_len));
     sql_print_information("First bytes of the packet from semisync slave "
-                          "server-id %d: %s", server_id, buf);
+                          "server-id %d: %s", slave_info->server_id, buf);
 
   }
   DBUG_RETURN(result);
 }
 
-int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
+int Repl_semi_sync_master::report_reply_binlog(Slave_info *slave_info,
                                                const char *log_file_name,
                                                my_off_t log_file_pos)
 {
@@ -632,7 +625,7 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
 
   if (!is_on())
     /* We check to see whether we can switch semi-sync ON. */
-    try_switch_on(server_id, log_file_name, log_file_pos);
+    try_switch_on(slave_info->server_id, log_file_name, log_file_pos);
 
   /* The position should increase monotonically, if there is only one
    * thread sending the binlog to the slave.
@@ -691,6 +684,9 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
       m_wait_file_name_inited = false;
     }
   }
+
+  strncpy(slave_info->gtid_state_ack.log_file, log_file_name, strlen(log_file_name));
+  slave_info->gtid_state_ack.log_pos= log_file_pos;
 
  l_end:
   unlock();
@@ -801,7 +797,7 @@ int Repl_semi_sync_master::dump_start(THD* thd,
   }
 
   add_slave();
-  report_reply_binlog(thd->variables.server_id,
+  report_reply_binlog(thd->slave_info,
                       log_file + dirname_length(log_file), log_pos);
   sql_print_information("Start semi-sync binlog_dump to slave "
                         "(server_id: %ld), pos(%s, %lu)",
@@ -830,6 +826,16 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
 {
   bool success= 0;
   DBUG_ENTER("Repl_semi_sync_master::commit_trx");
+
+  /*
+    If the semi-sync timeout is set to 0, we effectively are configured for
+    asynchronous replication; except we still want to request/receive ACKs from
+    slaves so we can monitor replication status via SHOW SLAVE HOSTS columns
+    Gtid_State_Sent and Gtid_State_Ack. Thereby, we should quit now before
+    updating rpl_semi_sync_master_(no/yes)_transactions.
+  */
+  if (!m_wait_timeout)
+    DBUG_RETURN(0);
 
   if (!rpl_semi_sync_master_clients && !rpl_semi_sync_master_wait_no_slave)
   {
@@ -1178,6 +1184,14 @@ int Repl_semi_sync_master::update_sync_header(THD* thd, unsigned char *packet,
   *need_sync= sync;
 
  l_end:
+  if (is_on())
+  {
+    thd->slave_info->sync_status=
+        sync ? thd->slave_info->sync_status=
+                   Slave_info::SYNC_STATE_SEMI_SYNC_ACTIVE
+             : thd->slave_info->sync_status=
+                   Slave_info::SYNC_STATE_SEMI_SYNC_STALE;
+  }
   unlock();
 
   /*
