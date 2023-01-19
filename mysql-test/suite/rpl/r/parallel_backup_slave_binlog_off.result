@@ -1,3 +1,6 @@
+# Specialized --skip-log-bin slave version of parallel_backup test.
+# MDEV-21953: deadlock between BACKUP STAGE BLOCK_COMMIT and parallel
+# MDEV-30423: dealock XA COMMIT vs BACKUP
 include/master-slave.inc
 [connection master]
 #
