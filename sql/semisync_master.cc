@@ -53,13 +53,6 @@ ulonglong rpl_semi_sync_master_trx_wait_time = 0;
 Repl_semi_sync_master repl_semisync_master;
 Ack_receiver ack_receiver;
 
-/*
-  structure to save transaction log filename and position
-*/
-typedef struct Trans_binlog_info {
-  my_off_t log_pos;
-  char log_file[FN_REFLEN];
-} Trans_binlog_info;
 
 static int get_wait_time(const struct timespec& start_ts);
 
@@ -582,16 +575,7 @@ void Repl_semi_sync_master::remove_slave()
   unlock();
 }
 
-
-/*
-  Check report package
-
-  @retval 0   ok
-  @retval 1   Error
-  @retval -1  Slave is going down (ok)
-*/
-
-int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
+int Repl_semi_sync_master::report_reply_packet(THD *thd, uint32 server_id,
                                                const uchar *packet,
                                                ulong packet_len)
 {
@@ -638,10 +622,8 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
   DBUG_PRINT("semisync", ("%s: Got reply(%s, %lu) from server %u",
                           "Repl_semi_sync_master::report_reply_packet",
                           log_file_name, (ulong)log_file_pos, server_id));
-
   rpl_semi_sync_master_get_ack++;
-  report_reply_binlog(server_id, log_file_name, log_file_pos);
-  DBUG_RETURN(0);
+  report_reply_binlog(thd, server_id, log_file_name, log_file_pos);
 
 l_end:
   {
@@ -655,7 +637,7 @@ l_end:
   DBUG_RETURN(result);
 }
 
-int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
+int Repl_semi_sync_master::report_reply_binlog(THD *replica_thd, uint32 server_id,
                                                const char *log_file_name,
                                                my_off_t log_file_pos)
 {
@@ -721,7 +703,11 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
                             log_file_name, (ulong)log_file_pos));
   }
 
-
+  if (rpl_semi_sync_master_enabled)
+  {
+    strncpy(replica_thd->slave_info->gtid_state_ack.log_file, log_file_name, strlen(log_file_name));
+    replica_thd->slave_info->gtid_state_ack.log_pos= log_file_pos;
+  }
  l_end:
   unlock();
 
@@ -828,7 +814,7 @@ int Repl_semi_sync_master::dump_start(THD* thd,
   }
 
   add_slave();
-  report_reply_binlog(thd->variables.server_id,
+  report_reply_binlog(thd, thd->variables.server_id,
                       log_file + dirname_length(log_file), log_pos);
   sql_print_information("Start semi-sync binlog_dump to slave "
                         "(server_id: %ld), pos(%s, %lu)",
@@ -873,6 +859,11 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
     THD *thd= current_thd;
     bool aborted __attribute__((unused)) = 0;
     set_timespec(start_ts, 0);
+
+    if (!m_wait_timeout)
+    {
+      DBUG_RETURN(0);
+    }
 
     DEBUG_SYNC(thd, "rpl_semisync_master_commit_trx_before_lock");
     /* Acquire the mutex. */
@@ -973,7 +964,17 @@ int Repl_semi_sync_master::commit_trx(const char *trx_wait_binlog_name,
       wait_result= mysql_cond_timedwait(&thd->COND_wakeup_ready, &LOCK_binlog,
                                         &abstime);
       rpl_semi_sync_master_wait_sessions--;
-
+#ifdef ENABLED_DEBUG_SYNC
+        /*
+          For debug symbol `pause_ack_thread_on_next_ack ` it will happen that
+          master status will be OFF so make sure to start it again.
+        */
+        DBUG_EXECUTE_IF("pause_ack_thread_on_next_ack",
+          {
+            DBUG_PRINT("pause_ack_thread_on_next_ack", ("now"));
+            goto l_end;
+          });
+#endif
       if (wait_result != 0)
       {
         /* This is a real wait timeout. */

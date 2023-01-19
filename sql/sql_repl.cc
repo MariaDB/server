@@ -2065,6 +2065,19 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     info->error= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
   }
+  /*
+    We want to store data slave_info on primary that will be used for
+    show_slave_hosts_callback.
+    We are interested in GTID sent by primary to replica.
+  */
+  if (info->thd->semi_sync_slave)
+  {
+    strncpy(info->thd->slave_info->gtid_state_sent.log_file,
+            info->log_file_name + info->dirlen,
+            strlen(info->log_file_name)-info->dirlen);
+    info->thd->slave_info->gtid_state_sent.log_pos= pos;
+    info->thd->slave_info->semi_sync_trans_status= need_sync;
+  }
 
   return NULL;    /* Success */
 }
@@ -2748,7 +2761,6 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
         ((info->errmsg= send_event_to_slave(info, event_type, log,
                                            ev_offset, &info->error_gtid))))
       return 1;
-
     if (unlikely(info->send_fake_gtid_list) &&
         info->gtid_skip_group == GTID_SKIP_NOT)
     {
