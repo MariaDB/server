@@ -16,18 +16,6 @@
 
 # Build comp_sql - used for embedding SQL in C or C++ programs
 
-MACRO(INSTALL_LINK old new destination component)
-  EXECUTE_PROCESS(
-    COMMAND ${CMAKE_COMMAND} -E create_symlink ${old} ${new}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  )
-  INSTALL(
-    PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${new}
-    DESTINATION ${destination}
-    COMPONENT ${component}
-  )
-ENDMACRO()
-
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
  ADD_EXECUTABLE(comp_sql comp_sql.c ../sql/sql_bootstrap.cc)
@@ -222,8 +210,6 @@ IF(UNIX AND NOT WITHOUT_SERVER)
     "${CMAKE_CURRENT_BINARY_DIR}/mariadb-install-db"
     DESTINATION ${INSTALL_SCRIPTDIR}
     COMPONENT Server)
-
-  INSTALL_LINK(mariadb-install-db mysql_install_db ${INSTALL_SCRIPTDIR} ServerSymlinks)
 ENDIF()
 
 SET(prefix "${CMAKE_INSTALL_PREFIX}")
@@ -383,10 +369,6 @@ ELSE()
       EXECUTE_PROCESS(COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/${file})
     ENDIF()
 
-    # Create symlink
-    IF (NOT ${binname} STREQUAL ${file})
-      INSTALL_LINK(${file} ${binname} ${INSTALL_BINDIR} ${${file}_COMPONENT}Symlinks)
-    ENDIF()
   ENDFOREACH()
 ENDIF()
 
