@@ -37,18 +37,7 @@
 #include "rpl_filter.h"
 #include "log_event.h"
 #include <mysql.h>
-
-
-struct Slave_info
-{
-  uint32 server_id;
-  uint32 master_id;
-  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  char user[USERNAME_LENGTH+1];
-  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  uint16 port;
-};
-
+#include "semisync_master.h"
 
 Atomic_counter<uint32_t> binlog_dump_thread_count;
 ulong rpl_status=RPL_NULL;
@@ -125,8 +114,11 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   if (check_access(this, PRIV_COM_REGISTER_SLAVE, any_db.str, NULL,NULL,0,0))
     return 1;
   if (!(si= (Slave_info*)my_malloc(key_memory_SLAVE_INFO, sizeof(Slave_info),
-                                   MYF(MY_WME))))
+                                   MYF(MY_ZEROFILL))))
     return 1;
+  memset(si->gtid_state_sent.log_file, '\0', FN_REFLEN);
+  memset(si->gtid_state_ack.log_file, '\0', FN_REFLEN);
+  si->semi_sync_trans_status= false;
 
   variables.server_id= si->server_id= uint4korr(p);
   p+= 4;
@@ -179,7 +171,11 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
 {
   my_bool res= FALSE;
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  if (auto si= thd->slave_info)
+  String gtid_sent[GTID_MAX_STR_LENGTH];
+  String gtid_ack[GTID_MAX_STR_LENGTH];
+  const char *sync_str_opt[]= {"asynchronous","semi-sync active","semi-sync stale"};
+  char *sync_str= (char *)sync_str_opt[0];
+  if (const Slave_info *si= thd->slave_info)
   {
     protocol->prepare_for_resend();
     protocol->store(si->server_id);
@@ -189,8 +185,20 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
       protocol->store(si->user, safe_strlen(si->user), &my_charset_bin);
       protocol->store(si->password, safe_strlen(si->password), &my_charset_bin);
     }
+    gtid_state_from_binlog_pos(si->gtid_state_sent.log_file,
+                               (uint32)si->gtid_state_sent.log_pos, gtid_sent);
+    if (rpl_semi_sync_master_enabled && thd->semi_sync_slave)
+    {
+      gtid_state_from_binlog_pos(si->gtid_state_ack.log_file,
+                                 (uint32)si->gtid_state_ack.log_pos, gtid_ack);
+      sync_str= si->semi_sync_trans_status ?
+                  (char *)sync_str_opt[1] :(char *)sync_str_opt[2];
+    }
     protocol->store((uint32) si->port);
     protocol->store(si->master_id);
+    protocol->store(gtid_sent);
+    protocol->store(gtid_ack);
+    protocol->store(sync_str, safe_strlen(sync_str), &my_charset_bin);
     res= protocol->write();
   }
   mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -234,6 +242,18 @@ bool show_slave_hosts(THD* thd)
   field_list.push_back(new (mem_root)
                        Item_return_int(thd, "Master_id", 10, MYSQL_TYPE_LONG),
                        thd->mem_root);
+
+ field_list.push_back(new (mem_root)
+                        Item_empty_string(thd, "Gtid_State_Sent", GTID_MAX_STR_LENGTH),
+                        thd->mem_root);
+
+ field_list.push_back(new (mem_root)
+                        Item_empty_string(thd, "Gtid_State_Ack", GTID_MAX_STR_LENGTH),
+                        thd->mem_root);
+
+ field_list.push_back(new (mem_root)
+                        Item_empty_string(thd, "Sync_Status", GTID_MAX_STR_LENGTH),
+                        thd->mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
