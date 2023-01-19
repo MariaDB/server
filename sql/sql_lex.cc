@@ -755,8 +755,6 @@ void LEX::start(THD *thd_arg)
   stmt_var_list.empty();
   proc_list.elements=0;
 
-  save_group_list.empty();
-  save_order_list.empty();
   win_ref= NULL;
   win_frame= NULL;
   frame_top_bound= NULL;
@@ -2389,9 +2387,8 @@ void st_select_lex::init_select()
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
   ftfunc_list= &ftfunc_list_alloc;
-  order_list.elements= 0;
-  order_list.first= 0;
-  order_list.next= &order_list.first;
+  order_list.empty();
+
   /* Set limit and offset to default values */
   select_limit= 0;      /* denotes the default limit = HA_POS_ERROR */
   offset_limit= 0;      /* denotes the default offset = 0 */

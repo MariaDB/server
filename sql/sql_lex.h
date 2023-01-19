@@ -975,6 +975,7 @@ public:
     group_list_ptrs, and re-establish the original list before each execution.
   */
   SQL_I_List<ORDER>       group_list;
+  SQL_I_List<ORDER>       save_group_list;
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
@@ -1040,6 +1041,7 @@ public:
   const char *type;               /* type of select for EXPLAIN          */
 
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
+  SQL_I_List<ORDER> save_order_list;
   SQL_I_List<ORDER> gorder_list;
   Item *select_limit, *offset_limit;  /* LIMIT clause parameters */
 
@@ -1249,9 +1251,7 @@ public:
   void set_lock_for_tables(thr_lock_type lock_type, bool for_update);
   inline void init_order()
   {
-    order_list.elements= 0;
-    order_list.first= 0;
-    order_list.next= &order_list.first;
+    order_list.empty();
   }
   /*
     This method created for reiniting LEX in mysql_admin_table() and can be
@@ -3215,8 +3215,6 @@ public:
   }
 
 
-  SQL_I_List<ORDER> save_group_list;
-  SQL_I_List<ORDER> save_order_list;
   LEX_CSTRING *win_ref;
   Window_frame *win_frame;
   Window_frame_bound *frame_top_bound;
