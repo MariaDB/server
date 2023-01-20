@@ -57,7 +57,7 @@ impl Init for KeyMgtClevis {
 impl KeyManager for KeyMgtClevis {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
         let conn = MySqlConn::connect_local().map_err(|_| KeyError::Other)?;
-        conn.query(&format!(
+        let res = conn.query(&format!(
             "SELECT key_version FROM {KEY_TABLE} WHERE key_id = {key_id}"
         ))
         .map_err(|_| KeyError::Other)?;
