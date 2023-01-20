@@ -40,10 +40,11 @@ carefully describe how to test manually.
 <!--
 Tick one of the following boxes [x] to help us understand
 if the base branch for the PR is correct
+(Currently the earliest maintained branch is 10.3)
 -->
 ## Basing the PR against the correct MariaDB version
 - [ ] *This is a new feature and the PR is based against the latest MariaDB development branch*
-- [ ] *This is a bug fix and the PR is based against the earliest branch in which the bug can be reproduced*
+- [ ] *This is a bug fix and the PR is based against the earliest maintained branch in which the bug can be reproduced*
 
 <!--
 You might consider answering some questions like:
