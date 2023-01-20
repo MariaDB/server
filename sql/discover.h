@@ -28,7 +28,7 @@ int writefrm(const char *path, const char *db, const char *table,
 inline void deletefrm(const char *path)
 {
   char frm_name[FN_REFLEN];
-  strxmov(frm_name, path, reg_ext, NullS);
+  strxnmov(frm_name, sizeof(frm_name)-1, path, reg_ext, NullS);
   mysql_file_delete(key_file_frm, frm_name, MYF(0));
 }
 
