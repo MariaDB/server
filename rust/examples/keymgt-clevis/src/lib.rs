@@ -11,24 +11,57 @@ use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
     register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo, SysVarAtomic,
 };
-use mariadb::sysvar_atomic;
+use mariadb::service_sql::MySqlConn;
+use mariadb::{debug, info, sysvar_atomic};
+
+const KEY_TABLE: &str = "mysql.clevis_keys";
+const SERVER_TABLE: &str = "mysql.clevis_servers";
 
 struct KeyMgtClevis;
 
 impl Init for KeyMgtClevis {
+    /// Create needed tables
     fn init() -> Result<(), InitError> {
-        eprintln!("init for KeyMgtClevis");
+        debug!("init for KeyMgtClevis");
+
+        let conn = MySqlConn::connect_local().map_err(|_| InitError)?;
+        conn.execute(&format!(
+            "CREATE TABLE IF NOT EXISTS {KEY_TABLE} (
+            key_id INT UNSIGNED NOT NULL,
+            key_version INT UNSIGNED NOT NULL,
+            key_server VARBINARY(64) NOT NULL,
+            key VARBINARY((16) NOT NULL,
+            PRIMARY KEY (key_id, key_version)
+            ) ENGINE=InnoDB"
+        ))
+        .map_err(|_| InitError)?;
+        conn.execute(&format!(
+            "CREATE TABLE IF NOT EXISTS {SERVER_TABLE} (
+            server VARBINARY(64) NOT NULL PRIMARY KEY,
+            verify VARBINARY(2048)
+            enc VARBINARY(2048)
+            ) ENGINE=InnoDB"
+        ))
+        .map_err(|_| InitError)?;
+
+        debug!("finished init for KeyMgtClevis");
         Ok(())
     }
 
     fn deinit() -> Result<(), InitError> {
-        eprintln!("deinit for KeyMgtClevis");
+        debug!("deinit for KeyMgtClevis");
         Ok(())
     }
 }
 
 impl KeyManager for KeyMgtClevis {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
+        let conn = MySqlConn::connect_local().map_err(|_| KeyError::Other)?;
+        conn.query(&format!(
+            "SELECT key_version FROM {KEY_TABLE} WHERE key_id = {key_id}"
+        ))
+        .map_err(|_| KeyError::Other)?;
+
         todo!()
     }
 
@@ -53,11 +86,3 @@ register_plugin! {
     init: KeyMgtClevis, // optional
     encryption: false,
 }
-
-// PROC: should mangle names with type name
-
-// static _INTERNAL_SYSVARS: UcWrap<[*mut mariadb::bindings::st_mysql_sys_var; 2]> =
-//     UcWrap(UnsafeCell::new([
-//         KEY_VERSION_SYSVAR.as_ptr().cast_mut(),
-//         ::std::ptr::null_mut(),
-//     ]));
