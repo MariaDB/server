@@ -47,7 +47,7 @@ macro_rules! error {
         $crate::log_timestamped_message(&tmp, &format!($($msg)+));
     }};
     ($($msg:tt)+) => {
-        $crate::log_timestamped_message("[Error]: ", format!($($msg)+));
+        $crate::log_timestamped_message("[Error]: ", &format!($($msg)+));
     }
 }
 
@@ -61,7 +61,7 @@ macro_rules! warn {
         $crate::log_timestamped_message(&tmp, &format!($($msg)+));
     }};
     ($($msg:tt)+) => {
-        $crate::log_timestamped_message("[Warn]", format!($($msg)+));
+        $crate::log_timestamped_message("[Warn]", &format!($($msg)+));
     }
 }
 
@@ -75,7 +75,7 @@ macro_rules! info {
         $crate::log_timestamped_message(&tmp, &format!($($msg)+));
     }};
     ($($msg:tt)+) => {
-        $crate::log_timestamped_message("[Info]", format!($($msg)+));
+        $crate::log_timestamped_message("[Info]", &format!($($msg)+));
     }
 }
 
@@ -89,6 +89,6 @@ macro_rules! debug {
         $crate::log_timestamped_message(&tmp, &format!($($msg)+));
     }};
     ($($msg:tt)+) => {
-        $crate::log_timestamped_message("[Debuf]", format!($($msg)+));
+        $crate::log_timestamped_message("[Debuf]", &format!($($msg)+));
     }
 }
