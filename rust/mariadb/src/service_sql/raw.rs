@@ -13,7 +13,6 @@ use std::sync::Once;
 use bindings::sql_service as GLOBAL_SQL_SERVICE;
 
 use super::error::ClientError;
-use super::Row;
 use crate::bindings;
 
 pub struct Fetch;
@@ -25,9 +24,10 @@ impl RState for Store {}
 
 pub struct RawConnection(NonNull<bindings::MYSQL>);
 pub struct RawResult<S: RState>(NonNull<bindings::MYSQL_RES>, PhantomData<S>);
-pub struct RawRow(bindings::MYSQL_ROW);
-pub struct RowsIter {
-    res: RawResult<Fetch>,
+
+pub struct Row<'a, S: RState> {
+    inner: bindings::MYSQL_ROW,
+    res: &'a RawResult<S>,
 }
 
 pub struct ConnOpts {
@@ -140,39 +140,27 @@ impl RawConnection {
     }
 }
 
+impl RawResult<Fetch> {
+    pub fn fetch_row(&mut self) -> Option<Row<Fetch>> {
+        let rptr = unsafe {bindings::server_mysql_fetch_row(self.0.as_ptr())};
+
+        if rptr.is_null() {
+            None
+        } else {
+            Some(Row { inner: rptr, res: self })
+        }
+    }
+}
+
 impl Drop for RawConnection {
     fn drop(&mut self) {
         unsafe { (*GLOBAL_SQL_SERVICE).mysql_close_func.unwrap()(self.0.as_ptr()) };
     }
 }
 
-impl RawResult<Fetch> {
-    pub fn iter_rows(self) -> RowsIter {
-        RowsIter(self)
-    }
-}
-
 impl<S: RState> Drop for RawResult<S> {
     fn drop(&mut self) {
         unsafe { (*GLOBAL_SQL_SERVICE).mysql_free_result_func.unwrap()(self.0.as_ptr()) };
-    }
-}
-
-impl<'a> Iterator for RowsIter {
-    type Item = Row<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let ptr =
-            unsafe { (*GLOBAL_SQL_SERVICE).mysql_fetch_row_func.unwrap()(self.0 .0.as_ptr()) };
-
-        if ptr.is_null() {
-            None
-        } else {
-            Some(Row {
-                inner: RawRow(ptr),
-                res: todo!(),
-            })
-        }
     }
 }
 

@@ -16,7 +16,7 @@ use raw::RawConnection;
 
 pub use self::error::ClientError;
 pub use self::raw::{Fetch, Store};
-use self::raw::{RState, RawResult, RawRow, RowsIter};
+use self::raw::{RState, RawResult,Row};
 use crate::bindings;
 use crate::plugin::wrapper::UnsafeSyncCell;
 
@@ -30,10 +30,7 @@ pub struct QueryResult<'a, S: RState> {
     conn: &'a MySqlConn,
 }
 
-pub struct Row<'a, S: RState> {
-    inner: RawRow,
-    res: &'a RawResult<S>,
-}
+
 
 impl MySqlConn {
     /// Connect to the local server
@@ -56,8 +53,20 @@ impl MySqlConn {
     }
 }
 
-// impl QueryResult<Fetch> {
-//     pub fn iter_rows(self) -> RowsIter {
-//         RowsIter
+
+impl<'a> QueryResult<'a, Fetch> {
+    /// Return an iterator over this result's rows
+    pub fn rows(self) -> RowsIter<'a> {
+        todo!()
+    }
+}
+
+pub struct RowsIter<'a> (QueryResult<'a, Fetch>);
+
+// impl<'a> Iterator for RowsIter<'a> {
+//     type Item = Row<'a, Fetch>;
+
+//     fn next(&'a mut self) -> Option<Self::Item> {
+//         self.0.res.fetch_row()
 //     }
 // }
