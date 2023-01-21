@@ -4051,7 +4051,6 @@ public:
   }
 
   bool check_dependencies_in_with_clauses();
-  bool resolve_references_to_cte_in_hanging_cte();
   bool check_cte_dependencies_and_resolve_references();
   bool resolve_references_to_cte(TABLE_LIST *tables,
                                  TABLE_LIST **tables_last);

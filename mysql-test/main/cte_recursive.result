@@ -5604,5 +5604,177 @@ r
 3
 drop table t1,t2,t3,x;
 #
+# MDEV-30248: Embedded non-recursive CTE referring to base table 'x'
+#             within a CTE with name 'x' used in a subquery from
+#             select list of another CTE
+#
+CREATE TABLE x (a int) ENGINE=MyISAM;
+INSERT INTO x VALUES (3),(7),(1);
+CREATE TABLE t1 (b int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (1);
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH x AS (SELECT a FROM x AS t) SELECT 1 AS b)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+c
+1
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH x AS (SELECT a FROM x AS t) SELECT b FROM t1)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+c
+1
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH y AS (SELECT a FROM x AS t) SELECT b FROM t1)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+c
+1
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH y(b) AS (SELECT a FROM x AS t LIMIT 1) SELECT b FROM y)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+c
+3
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH x(b) AS (SELECT a FROM x AS t LIMIT 1) SELECT b FROM x)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+c
+3
+WITH x AS
+(
+SELECT
+(
+WITH x AS
+(WITH x AS (SELECT a FROM x AS t) SELECT 1 AS b)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT x.c from x;
+c
+1
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH x AS (SELECT a FROM x AS t) SELECT 2 AS b)
+SELECT r1.b FROM x AS r1, x AS r2 WHERE r1.b=r2.b
+) AS c
+)
+SELECT cte.c from cte;
+c
+2
+DROP TABLE x;
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH x AS (SELECT a FROM x AS t) SELECT 1 AS b)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH x AS (SELECT a FROM x AS t) SELECT b FROM t1)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH y AS (SELECT a FROM x AS t) SELECT b FROM t1)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH y(b) AS (SELECT a FROM x AS t LIMIT 1) SELECT b FROM y)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH x(b) AS (SELECT a FROM x AS t LIMIT 1) SELECT b FROM x)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT cte.c FROM cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+WITH x AS
+(
+SELECT
+(
+WITH x AS
+(WITH x AS (SELECT a FROM x AS t) SELECT 1 AS b)
+SELECT b FROM x AS r
+) AS c
+)
+SELECT x.c from x;
+ERROR 42S02: Table 'test.x' doesn't exist
+WITH cte AS
+(
+SELECT
+(
+WITH x AS
+(WITH x AS (SELECT a FROM x AS t) SELECT 2 AS b)
+SELECT r1.b FROM x AS r1, x AS r2 WHERE r1.b=r2.b
+) AS c
+)
+SELECT cte.c from cte;
+ERROR 42S02: Table 'test.x' doesn't exist
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #
