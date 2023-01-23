@@ -600,6 +600,7 @@ bool trans_xa_commit(THD *thd)
 
     if (auto xs= xid_cache_search(thd, thd->lex->xid))
     {
+      bool xid_deleted= false;
       res= xa_trans_rolled_back(xs);
       /*
         Acquire metadata lock which will ensure that COMMIT is blocked
@@ -610,7 +611,7 @@ bool trans_xa_commit(THD *thd)
       */
       MDL_request mdl_request;
       MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                       MDL_STATEMENT);
+                       MDL_EXPLICIT);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
       {
@@ -621,25 +622,37 @@ bool trans_xa_commit(THD *thd)
         */
         DBUG_ASSERT(thd->is_error());
 
-        xs->acquired_to_recovered();
-        DBUG_RETURN(true);
+        res= true;
+        goto _end_external_xid;
+      }
+      else
+      {
+        thd->backup_commit_lock= &mdl_request;
       }
       DBUG_ASSERT(!xid_state.xid_cache_element);
 
-      if (thd->wait_for_prior_commit())
-      {
-        DBUG_ASSERT(thd->is_error());
-
-        xs->acquired_to_recovered();
-        DBUG_RETURN(true);
-      }
-
       xid_state.xid_cache_element= xs;
       ha_commit_or_rollback_by_xid(thd->lex->xid, !res);
-      xid_state.xid_cache_element= 0;
-
-      res= res || thd->is_error();
+      if (!res && thd->is_error())
+      {
+        // hton completion error retains xs/xid in the cache,
+        // unless there had been already one as reflected by `res`.
+        res= true;
+        goto _end_external_xid;
+      }
       xid_cache_delete(thd, xs);
+      xid_deleted= true;
+
+  _end_external_xid:
+      xid_state.xid_cache_element= 0;
+      res= res || thd->is_error();
+      if (!xid_deleted)
+        xs->acquired_to_recovered();
+      if (mdl_request.ticket)
+      {
+        thd->mdl_context.release_lock(mdl_request.ticket);
+        thd->backup_commit_lock= 0;
+      }
     }
     else
       my_error(ER_XAER_NOTA, MYF(0));
@@ -761,9 +774,11 @@ bool trans_xa_rollback(THD *thd)
 
     if (auto xs= xid_cache_search(thd, thd->lex->xid))
     {
+      bool res;
+      bool xid_deleted= false;
       MDL_request mdl_request;
       MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                       MDL_STATEMENT);
+                       MDL_EXPLICIT);
       if (thd->mdl_context.acquire_lock(&mdl_request,
                                         thd->variables.lock_wait_timeout))
       {
@@ -774,23 +789,33 @@ bool trans_xa_rollback(THD *thd)
         */
         DBUG_ASSERT(thd->is_error());
 
-        xs->acquired_to_recovered();
-        DBUG_RETURN(true);
+        goto _end_external_xid;
       }
-      xa_trans_rolled_back(xs);
-      DBUG_ASSERT(!xid_state.xid_cache_element);
-
-      if (thd->wait_for_prior_commit())
+      else
       {
-        DBUG_ASSERT(thd->is_error());
-        xs->acquired_to_recovered();
-        DBUG_RETURN(true);
+        thd->backup_commit_lock= &mdl_request;
       }
+      res= xa_trans_rolled_back(xs);
+      DBUG_ASSERT(!xid_state.xid_cache_element);
 
       xid_state.xid_cache_element= xs;
       ha_commit_or_rollback_by_xid(thd->lex->xid, 0);
-      xid_state.xid_cache_element= 0;
+      if (!res && thd->is_error())
+      {
+        goto _end_external_xid;
+      }
       xid_cache_delete(thd, xs);
+      xid_deleted= true;
+
+  _end_external_xid:
+      xid_state.xid_cache_element= 0;
+      if (!xid_deleted)
+        xs->acquired_to_recovered();
+      if (mdl_request.ticket)
+      {
+        thd->mdl_context.release_lock(mdl_request.ticket);
+        thd->backup_commit_lock= 0;
+      }
     }
     else
       my_error(ER_XAER_NOTA, MYF(0));

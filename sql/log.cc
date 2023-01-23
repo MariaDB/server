@@ -1677,11 +1677,12 @@ int binlog_init(void *p)
   {
     binlog_hton->prepare= binlog_prepare;
     binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
-    binlog_hton->commit_by_xid= binlog_commit_by_xid;
-    binlog_hton->rollback_by_xid= binlog_rollback_by_xid;
     // recover needs to be set to make xa{commit,rollback}_handlerton effective
     binlog_hton->recover= binlog_xa_recover_dummy;
   }
+  binlog_hton->commit_by_xid= binlog_commit_by_xid;
+  binlog_hton->rollback_by_xid= binlog_rollback_by_xid;
+
   binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_NO_ROLLBACK;
   return 0;
 }
@@ -2006,6 +2007,11 @@ static int binlog_commit_by_xid(handlerton *hton, XID *xid)
   int rc= 0;
   THD *thd= current_thd;
 
+  if (thd->is_current_stmt_binlog_disabled())
+  {
+    return thd->wait_for_prior_commit();
+  }
+
   /* the asserted state can't be reachable with xa commit */
   DBUG_ASSERT(!thd->get_stmt_da()->is_error() ||
               thd->get_stmt_da()->sql_errno() != ER_XA_RBROLLBACK);
@@ -2034,6 +2040,11 @@ static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 {
   int rc= 0;
   THD *thd= current_thd;
+
+  if (thd->is_current_stmt_binlog_disabled())
+  {
+    return thd->wait_for_prior_commit();
+  }
 
   if (thd->get_stmt_da()->is_error() &&
       thd->get_stmt_da()->sql_errno() == ER_XA_RBROLLBACK)

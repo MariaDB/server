@@ -2165,7 +2165,7 @@ static my_bool xacommit_handlerton(THD *unused1, plugin_ref plugin,
                                    void *arg)
 {
   handlerton *hton= plugin_hton(plugin);
-  if (hton->recover)
+  if (hton->recover || (hton == binlog_hton && current_thd->rgi_slave))
   {
     hton->commit_by_xid(hton, ((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
@@ -2177,7 +2177,7 @@ static my_bool xarollback_handlerton(THD *unused1, plugin_ref plugin,
                                      void *arg)
 {
   handlerton *hton= plugin_hton(plugin);
-  if (hton->recover)
+  if (hton->recover || (hton == binlog_hton && current_thd->rgi_slave))
   {
     hton->rollback_by_xid(hton, ((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
