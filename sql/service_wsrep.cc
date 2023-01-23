@@ -238,7 +238,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
     }
 
     victim_thd->wsrep_aborter= bf_thd->thread_id;
-    victim_thd->awake_no_mutex(KILL_QUERY);
+    victim_thd->awake_no_mutex(KILL_QUERY_HARD);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   } else {
     WSREP_DEBUG("wsrep_thd_bf_abort skipped awake, signal %d", signal);
