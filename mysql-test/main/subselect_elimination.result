@@ -1,0 +1,75 @@
+drop table if exists t1,t2,t3;
+#
+# MDEV-28437: Assertion `!eliminated' failed in Item_subselect::exec
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (3),(4);
+SELECT 1 IN (SELECT a FROM t1 LEFT JOIN t2 ON (a = b AND EXISTS (SELECT * FROM t1)));
+1 IN (SELECT a FROM t1 LEFT JOIN t2 ON (a = b AND EXISTS (SELECT * FROM t1)))
+1
+drop table t1,t2;
+#
+# MDEV-28622 Server crash in /sql/item_subselect.cc:2996 in Item_exists_subselect::exists2in_processor(void*)
+#
+CREATE TABLE t1 (  a int) ;
+CREATE VIEW v1 (i) AS SELECT EXISTS(SELECT 1) FROM t1;
+SELECT 1 FROM v1 WHERE i NOT IN (SELECT i = 0 FROM v1 WHERE i = -1 GROUP BY i);
+1
+SELECT 1 FROM v1 WHERE i IN (SELECT i = 0 FROM v1 WHERE i = -1 GROUP BY i);
+1
+DROP VIEW v1;
+SELECT 1 FROM (SELECT EXISTS(SELECT 1) i FROM t1)dt
+WHERE 1 not in (SELECT i+1 FROM t1 where i=4 group by i );
+1
+DROP TABLE t1;
+SELECT  exists(SELECT i+1 FROM (SELECT EXISTS(SELECT 1) i FROM (select 1)t)dt where i=3 group by i );
+exists(SELECT i+1 FROM (SELECT EXISTS(SELECT 1) i FROM (select 1)t)dt where i=3 group by i )
+0
+#
+# MDEV-28621 Server crash in /sql/item_subselect.cc:812 in Item_subselect::get_cache_parameters(List<Item>&)
+#
+CREATE TABLE t1 (i int) ;
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT 1 FROM t1
+WHERE i in
+(	SELECT  a+1
+FROM
+(SELECT (SELECT i FROM (SELECT 1 FROM t1) dt) AS a FROM t1) dt2
+GROUP BY a
+);
+1
+SELECT 1 FROM t1
+WHERE i in
+(	SELECT  a+1
+FROM
+(SELECT (SELECT 1 FROM t1) AS a FROM t1) dt2
+GROUP BY a
+);
+1
+DROP TABLE t1;
+#
+# MDEV-28620 Server crash in /sql/item_subselect.cc:812 in Item_subselect::get_cache_parameters(List<Item>&)
+#
+CREATE TABLE t1 ( a int);
+INSERT INTO t1 VALUES (1);
+SELECT EXISTS
+( SELECT 1 FROM t1 GROUP BY 1 IN (SELECT a FROM t1)
+ORDER BY a + (SELECT 1 FROM t1 WHERE (1,2) NOT IN (SELECT 1,0))
+);
+EXISTS
+( SELECT 1 FROM t1 GROUP BY 1 IN (SELECT a FROM t1)
+ORDER BY a + (SELECT 1 FROM t1 WHERE (1,2) NOT IN (SELECT 1,0))
+)
+1
+SELECT EXISTS
+( SELECT 1 FROM t1 GROUP BY (SELECT a FROM t1)
+ORDER BY a + (SELECT 1 FROM t1 WHERE (1,2) NOT IN (SELECT 1,0))
+);
+EXISTS
+( SELECT 1 FROM t1 GROUP BY (SELECT a FROM t1)
+ORDER BY a + (SELECT 1 FROM t1 WHERE (1,2) NOT IN (SELECT 1,0))
+)
+1
+drop table if exists t1;

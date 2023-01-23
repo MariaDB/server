@@ -1198,7 +1198,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   */
   if (select_lex->master_unit()->item &&                               // 1)
       select_lex->first_cond_optimization &&                           // 2)
-      !thd->lex->is_view_context_analysis())                           // 3)
+      !thd->lex->is_ps_or_view_context_analysis())                     // 3)
   {
     remove_redundant_subquery_clauses(select_lex);
   }
