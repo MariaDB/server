@@ -247,6 +247,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   ut_ad(!m_memo.empty());
   ut_ad(!recv_recovery_is_on());
   ut_ad(m_log_mode == MTR_LOG_ALL);
+  ut_ad(!m_freed_pages);
   ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
 
   log_write_and_flush_prepare();
@@ -261,26 +262,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   os_file_truncate(space.chain.start->name, space.chain.start->handle,
                    os_offset_t{space.size} << srv_page_size_shift, true);
 
-  if (m_freed_pages)
-  {
-    ut_ad(!m_freed_pages->empty());
-    ut_ad(m_freed_space == &space);
-    ut_ad(memo_contains(*m_freed_space));
-    ut_ad(is_named_space(m_freed_space));
-    m_freed_space->update_last_freed_lsn(m_commit_lsn);
-
-    if (!is_trim_pages())
-      for (const auto &range : *m_freed_pages)
-        m_freed_space->add_free_range(range);
-    else
-      m_freed_space->clear_freed_ranges();
-    delete m_freed_pages;
-    m_freed_pages= nullptr;
-    m_freed_space= nullptr;
-    /* mtr_t::start() will reset m_trim_pages */
-  }
-  else
-    ut_ad(!m_freed_space);
+  space.clear_freed_ranges();
 
   const page_id_t high{space.id, space.size};
 
