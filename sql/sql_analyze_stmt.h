@@ -49,22 +49,22 @@ class Exec_time_tracker
 {
 protected:
   ulonglong count;
-  ulonglong cycles;
+  ulonglong time_interval_in_ns;
   ulonglong last_start;
 
-  void cycles_stop_tracking(THD *thd)
+  void ns_stop_tracking(THD *thd)
   {
-    ulonglong end= my_timer_cycles();
-    cycles += end - last_start;
+    ulonglong end= my_interval_timer();
+    time_interval_in_ns += end - last_start;
     if (unlikely(end < last_start))
-      cycles += ULONGLONG_MAX;
+      time_interval_in_ns += ULONGLONG_MAX;
 
     process_gap_time_tracker(thd, end);
     if (my_gap_tracker)
       attach_gap_time_tracker(thd, my_gap_tracker, end);
   }
 public:
-  Exec_time_tracker() : count(0), cycles(0), my_gap_tracker(NULL) {}
+  Exec_time_tracker() : count(0), time_interval_in_ns(0), my_gap_tracker(NULL) {}
 
   /*
     The time spent between stop_tracking() call on this object and any
@@ -75,26 +75,25 @@ public:
   // interface for collecting time
   void start_tracking(THD *thd)
   {
-    last_start= my_timer_cycles();
+    last_start= my_interval_timer();
     process_gap_time_tracker(thd, last_start);
   }
 
   void stop_tracking(THD *thd)
   {
     count++;
-    cycles_stop_tracking(thd);
+    ns_stop_tracking(thd);
   }
 
   // interface for getting the time
   ulonglong get_loops() const { return count; }
   double get_time_ms() const
   {
-    // convert 'cycles' to milliseconds.
-    return 1000.0 * static_cast<double>(cycles) /
-      static_cast<double>(sys_timer_info.cycles.frequency);
+    // convert 'ns' to milliseconds.
+    return static_cast<double>(time_interval_in_ns) / 1000.0;
   }
 
-  bool has_timed_statistics() const { return cycles > 0; }
+  bool has_timed_statistics() const { return time_interval_in_ns > 0; }
 };
 
 
@@ -145,7 +144,7 @@ public:
   */
   void stop_tracking(THD *thd)
   {
-    cycles_stop_tracking(thd);
+    ns_stop_tracking(thd);
   }
 };
 
