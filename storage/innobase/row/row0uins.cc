@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2023, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -233,7 +233,7 @@ func_exit:
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_METADATA) {
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
-		btr_reset_instant(*index, true, &mtr);
+		err = btr_reset_instant(*index, true, &mtr);
 	}
 
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
@@ -268,32 +268,21 @@ row_undo_ins_remove_sec_low(
 	pcur.btr_cur.page_cur.index = index;
 	row_mtr_start(&mtr, index, !modify_leaf);
 
-	if (index->is_spatial()) {
-		mode = modify_leaf
-			? btr_latch_mode(BTR_MODIFY_LEAF
-					 | BTR_RTREE_DELETE_MARK
-					 | BTR_RTREE_UNDO_INS)
-			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
-		btr_pcur_get_btr_cur(&pcur)->thr = thr;
-		if (rtr_search(entry, mode, &pcur, &mtr)) {
-			goto func_exit;
-		}
-
-		if (rec_get_deleted_flag(
-			    btr_pcur_get_rec(&pcur),
-			    dict_table_is_comp(index->table))) {
-			ib::error() << "Record found in index " << index->name
-				<< " is deleted marked on insert rollback.";
-			ut_ad(0);
-		}
-		goto found;
-	} else if (modify_leaf) {
+	if (modify_leaf) {
 		mode = BTR_MODIFY_LEAF_ALREADY_LATCHED;
 		mtr_s_lock_index(index, &mtr);
 	} else {
 		ut_ad(mode == BTR_PURGE_TREE);
-		mode = BTR_PURGE_TREE_ALREADY_LATCHED;
-		mtr_x_lock_index(index, &mtr);
+		mtr_sx_lock_index(index, &mtr);
+	}
+
+	if (index->is_spatial()) {
+		mode = modify_leaf
+			? btr_latch_mode(BTR_MODIFY_LEAF_ALREADY_LATCHED
+					 | BTR_RTREE_DELETE_MARK
+					 | BTR_RTREE_UNDO_INS)
+			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
+		btr_pcur_get_btr_cur(&pcur)->thr = thr;
 	}
 
 	switch (row_search_index_entry(entry, mode, &pcur, &mtr)) {
@@ -306,7 +295,15 @@ row_undo_ins_remove_sec_low(
 	case ROW_NOT_FOUND:
 		break;
 	case ROW_FOUND:
-        found:
+		if (dict_index_is_spatial(index)
+		    && rec_get_deleted_flag(
+			    btr_pcur_get_rec(&pcur),
+			    dict_table_is_comp(index->table))) {
+			ib::error() << "Record found in index " << index->name
+				<< " is deleted marked on insert rollback.";
+			ut_ad(0);
+		}
+
 		btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&pcur);
 
 		if (modify_leaf) {
@@ -321,7 +318,6 @@ row_undo_ins_remove_sec_low(
 		}
 	}
 
-func_exit:
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 

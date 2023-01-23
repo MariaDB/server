@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2019, 2023, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -401,9 +401,7 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   ut_ad(have_offset || offset == 0);
   ut_ad(offset + len <= srv_page_size);
   static_assert(MIN_4BYTE >= UNIV_PAGE_SIZE_MAX, "consistency");
-  ut_ad(type == FREE_PAGE || type == OPTION || (type == EXTENDED && !bpage) ||
-        memo_contains_flagged(bpage,
-                              MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
+
   size_t max_len;
   if (!have_len)
     max_len= 1 + 5 + 5;

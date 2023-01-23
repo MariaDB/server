@@ -73,18 +73,3 @@ select count(*) from t1 where MBRWithin(t1.c2, @g1);
 
 # Clean up.
 drop table t1;
-
---echo #
---echo # MDEV-30400 Assertion height == btr_page_get_level ... on INSERT
---echo #
-
-CREATE TABLE t1 (c POINT NOT NULL,SPATIAL (c)) ENGINE=InnoDB;
-SET @save_limit=@@GLOBAL.innodb_limit_optimistic_insert_debug;
-SET GLOBAL innodb_limit_optimistic_insert_debug=2;
-BEGIN;
-INSERT INTO t1 SELECT POINTFROMTEXT ('POINT(0 0)') FROM seq_1_to_366;
-ROLLBACK;
-SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
-DROP TABLE t1;
-
---echo # End of 10.6 tests

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2023, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1696,8 +1696,8 @@ err_exit:
 		mtr->start();
 		index->set_modified(*mtr);
 		pcur->btr_cur.page_cur.index = index;
-		error = btr_pcur_open(entry, PAGE_CUR_LE, BTR_PURGE_TREE, pcur,
-				      mtr);
+		error = btr_pcur_open(entry, PAGE_CUR_LE,
+				      BTR_PURGE_TREE, pcur, 0, mtr);
 		if (error) {
 			goto err_exit;
 		}
@@ -1780,8 +1780,8 @@ row_log_table_apply_delete(
 
 	mtr_start(&mtr);
 	index->set_modified(mtr);
-	dberr_t err = btr_pcur_open(old_pk, PAGE_CUR_LE, BTR_PURGE_TREE, &pcur,
-				    &mtr);
+	dberr_t err = btr_pcur_open(old_pk, PAGE_CUR_LE,
+				    BTR_PURGE_TREE, &pcur, 0, &mtr);
 	if (err != DB_SUCCESS) {
 		goto all_done;
 	}
@@ -1917,8 +1917,8 @@ row_log_table_apply_update(
 
 	mtr.start();
 	index->set_modified(mtr);
-	error = btr_pcur_open(old_pk, PAGE_CUR_LE, BTR_MODIFY_TREE, &pcur,
-			      &mtr);
+	error = btr_pcur_open(old_pk, PAGE_CUR_LE,
+			      BTR_MODIFY_TREE, &pcur, 0, &mtr);
 	if (error != DB_SUCCESS) {
 func_exit:
 		mtr.commit();
@@ -3084,8 +3084,11 @@ row_log_apply_op_low(
 	record. The operation may already have been performed,
 	depending on when the row in the clustered index was
 	scanned. */
-	*error = cursor.search_leaf(entry, PAGE_CUR_LE, has_index_lock
-				    ? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &mtr);
+	*error = btr_cur_search_to_nth_level(0, entry, PAGE_CUR_LE,
+					     has_index_lock
+					     ? BTR_MODIFY_TREE
+					     : BTR_MODIFY_LEAF,
+					     &cursor, &mtr);
 	if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 		goto func_exit;
 	}
@@ -3135,9 +3138,9 @@ row_log_apply_op_low(
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
 				index->set_modified(mtr);
-				*error = cursor.search_leaf(entry, PAGE_CUR_LE,
-							    BTR_MODIFY_TREE,
-							    &mtr);
+				*error = btr_cur_search_to_nth_level(
+					0, entry, PAGE_CUR_LE,
+					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 					goto func_exit;
 				}
@@ -3239,9 +3242,9 @@ insert_the_rec:
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
 				index->set_modified(mtr);
-				*error = cursor.search_leaf(entry, PAGE_CUR_LE,
-							    BTR_MODIFY_TREE,
-							    &mtr);
+				*error = btr_cur_search_to_nth_level(
+					0, entry, PAGE_CUR_LE,
+					BTR_MODIFY_TREE, &cursor, &mtr);
 				if (*error != DB_SUCCESS) {
 					break;
 				}
