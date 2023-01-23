@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2023, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4143,7 +4143,8 @@ void dict_set_corrupted(dict_index_t *index, const char *ctx)
 	dict_index_copy_types(tuple, sys_index, 2);
 	cursor.page_cur.index = sys_index;
 
-	if (cursor.search_leaf(tuple, PAGE_CUR_LE, BTR_MODIFY_LEAF, &mtr)
+	if (btr_cur_search_to_nth_level(0, tuple, PAGE_CUR_LE,
+					BTR_MODIFY_LEAF, &cursor, &mtr)
 	    != DB_SUCCESS) {
 		goto fail;
 	}
@@ -4218,7 +4219,8 @@ dict_index_set_merge_threshold(
 	dict_index_copy_types(tuple, sys_index, 2);
 	cursor.page_cur.index = sys_index;
 
-	if (cursor.search_leaf(tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF, &mtr)
+	if (btr_cur_search_to_nth_level(0, tuple, PAGE_CUR_GE,
+					BTR_MODIFY_LEAF, &cursor, &mtr)
 	    != DB_SUCCESS) {
 		goto func_exit;
 	}

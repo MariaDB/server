@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2023, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1697,7 +1697,7 @@ static dberr_t page_cur_open_level(page_cur_t *page_cur, ulint level,
 static dberr_t btr_pcur_open_level(btr_pcur_t *pcur, ulint level, mtr_t *mtr,
                                    dict_index_t *index)
 {
-  pcur->latch_mode= BTR_SEARCH_LEAF;
+  pcur->latch_mode= BTR_SEARCH_TREE;
   pcur->search_mode= PAGE_CUR_G;
   pcur->pos_state= BTR_PCUR_IS_POSITIONED;
   pcur->btr_cur.page_cur.index= index;

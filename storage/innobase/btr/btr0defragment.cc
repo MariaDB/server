@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2023, MariaDB Corporation.
+Copyright (C) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -280,70 +280,6 @@ btr_defragment_calc_n_recs_for_size(
 	return n_recs;
 }
 
-MY_ATTRIBUTE((nonnull(2,3,4), warn_unused_result))
-/************************************************************//**
-Returns the upper level node pointer to a page. It is assumed that mtr holds
-an sx-latch on the tree.
-@return rec_get_offsets() of the node pointer record */
-static
-rec_offs*
-btr_page_search_father_node_ptr(
-	rec_offs*	offsets,/*!< in: work area for the return value */
-	mem_heap_t*	heap,	/*!< in: memory heap to use */
-	btr_cur_t*	cursor,	/*!< in: cursor pointing to user record,
-				out: cursor on node pointer record,
-				its page x-latched */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	const uint32_t page_no = btr_cur_get_block(cursor)->page.id().page_no();
-	dict_index_t* index = btr_cur_get_index(cursor);
-	ut_ad(!index->is_spatial());
-
-	ut_ad(mtr->memo_contains_flagged(&index->lock, MTR_MEMO_X_LOCK
-					 | MTR_MEMO_SX_LOCK));
-	ut_ad(dict_index_get_page(index) != page_no);
-
-	const auto level = btr_page_get_level(btr_cur_get_page(cursor));
-
-	const rec_t* user_rec = btr_cur_get_rec(cursor);
-	ut_a(page_rec_is_user_rec(user_rec));
-
-	if (btr_cur_search_to_nth_level(level + 1,
-					dict_index_build_node_ptr(index,
-								  user_rec, 0,
-								  heap, level),
-					RW_X_LATCH,
-					cursor, mtr) != DB_SUCCESS) {
-		return nullptr;
-	}
-
-	const rec_t* node_ptr = btr_cur_get_rec(cursor);
-	ut_ad(!btr_cur_get_block(cursor)->page.lock.not_recursive()
-	      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
-
-	offsets = rec_get_offsets(node_ptr, index, offsets, 0,
-				  ULINT_UNDEFINED, &heap);
-
-	if (btr_node_ptr_get_child_page_no(node_ptr, offsets) != page_no) {
-		offsets = nullptr;
-	}
-
-	return(offsets);
-}
-
-static bool btr_page_search_father(mtr_t *mtr, btr_cur_t *cursor)
-{
-  rec_t *rec=
-    page_rec_get_next(page_get_infimum_rec(cursor->block()->page.frame));
-  if (UNIV_UNLIKELY(!rec))
-    return false;
-  cursor->page_cur.rec= rec;
-  mem_heap_t *heap= mem_heap_create(100);
-  const bool got= btr_page_search_father_node_ptr(nullptr, heap, cursor, mtr);
-  mem_heap_free(heap);
-  return got;
-}
-
 /*************************************************************//**
 Merge as many records from the from_block to the to_block. Delete
 the from_block if all records are successfully merged to to_block.
@@ -472,7 +408,7 @@ btr_defragment_merge_pages(
 	parent.page_cur.index = index;
 	parent.page_cur.block = from_block;
 
-	if (!btr_page_search_father(mtr, &parent)) {
+	if (!btr_page_get_father(mtr, &parent)) {
 		to_block = nullptr;
 	} else if (n_recs_to_move == n_recs) {
 		/* The whole page is merged with the previous page,

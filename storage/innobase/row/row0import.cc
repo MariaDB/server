@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2023, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1629,9 +1629,6 @@ inline dberr_t IndexPurge::purge_pessimistic_delete() noexcept
 dberr_t IndexPurge::purge() noexcept
 {
   btr_pcur_store_position(&m_pcur, &m_mtr);
-  m_mtr.commit();
-  m_mtr.start();
-  m_mtr.set_log_mode(MTR_LOG_NO_REDO);
   dberr_t err= purge_pessimistic_delete();
 
   m_mtr.start();

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2023, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -299,10 +299,38 @@ btr_pcur_init(
 	pcur->btr_cur.rtr_info = NULL;
 }
 
+/**************************************************************//**
+Initializes and opens a persistent cursor to an index tree. */
+inline
+dberr_t
+btr_pcur_open(
+	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
+	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
+				NOTE that if the search is made using a unique
+				prefix of a record, mode should be
+				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
+				may end up on the previous page from the
+				record! */
+	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
+	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
+				(0 if none) */
+	mtr_t*		mtr)	/*!< in: mtr */
+{
+  ut_ad(!cursor->index()->is_spatial());
+  cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
+  cursor->search_mode= mode;
+  cursor->pos_state= BTR_PCUR_IS_POSITIONED;
+  cursor->trx_if_known= nullptr;
+  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode,
+                                     btr_pcur_get_btr_cur(cursor),
+                                     mtr, autoinc);
+}
+
 /** Opens an persistent cursor to an index tree without initializing the
 cursor.
 @param tuple      tuple on which search done
-@param mode       search mode; NOTE that if the search is made using a
+@param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
                   unique prefix of a record, mode should be PAGE_CUR_LE, not
                   PAGE_CUR_GE, as the latter may end up on the previous page of
                   the record!
@@ -311,7 +339,8 @@ cursor.
 @param mtr        mini-transaction
 @return DB_SUCCESS on success or error code otherwise. */
 inline
-dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple, page_cur_mode_t mode,
+dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple,
+                                   page_cur_mode_t mode,
                                    btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr)
 {
@@ -319,7 +348,10 @@ dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple, page_cur_mode_t mode,
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
   cursor->trx_if_known= nullptr;
-  return cursor->btr_cur.search_leaf(tuple, mode, latch_mode, mtr);
+
+  /* Search with the tree cursor */
+  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode,
+                                     btr_pcur_get_btr_cur(cursor), mtr);
 }
 
 /**************************************************************//**

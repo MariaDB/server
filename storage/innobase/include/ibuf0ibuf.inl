@@ -100,8 +100,9 @@ ibuf_should_try(
 						decide */
 {
 	return(innodb_change_buffering
-	       && !(index->type & (DICT_CLUSTERED | DICT_IBUF))
 	       && ibuf.max_size != 0
+	       && !dict_index_is_clust(index)
+	       && !dict_index_is_spatial(index)
 	       && index->table->quiesce == QUIESCE_NONE
 	       && (ignore_sec_unique || !dict_index_is_unique(index)));
 }

@@ -40,8 +40,6 @@ Created 11/26/1995 Heikki Tuuri
 
 void mtr_memo_slot_t::release() const
 {
-  ut_ad(object);
-
   switch (type) {
   case MTR_MEMO_S_LOCK:
     static_cast<index_lock*>(object)->s_unlock();
@@ -123,7 +121,11 @@ inline void mtr_t::release_resources()
 void mtr_t::release()
 {
   for (auto it= m_memo.rbegin(); it != m_memo.rend(); it++)
-    it->release();
+  {
+    mtr_memo_slot_t &slot= *it;
+    if (slot.object)
+      slot.release();
+  }
   m_memo.clear();
 }
 
@@ -189,7 +191,7 @@ void mtr_t::commit()
 
     for (const mtr_memo_slot_t &slot : m_memo)
     {
-      if (slot.type & MTR_MEMO_MODIFY)
+      if (slot.object && slot.type & MTR_MEMO_MODIFY)
       {
         ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
               slot.type == MTR_MEMO_PAGE_SX_MODIFY);
@@ -224,7 +226,8 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   while (s-- > begin)
   {
     const mtr_memo_slot_t &slot= m_memo[s];
-    ut_ad(slot.object);
+    if (!slot.object)
+      continue;
     /* This is intended for releasing latches on indexes or unmodified
     buffer pool pages. */
     ut_ad(slot.type <= MTR_MEMO_SX_LOCK);
@@ -268,7 +271,8 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   for (mtr_memo_slot_t &slot : m_memo)
   {
-    ut_ad(slot.object);
+    if (!slot.object)
+      continue;
     switch (slot.type) {
     default:
       ut_ad("invalid type" == 0);
@@ -932,6 +936,15 @@ void mtr_t::page_lock_upgrade(const buf_block_t &block)
 #endif /* BTR_CUR_HASH_ADAPT */
 }
 
+void mtr_t::lock_upgrade(const index_lock &lock)
+{
+  ut_ad(lock.have_x());
+
+  for (mtr_memo_slot_t &slot : m_memo)
+    if (slot.object == &lock && slot.type == MTR_MEMO_SX_LOCK)
+      slot.type= MTR_MEMO_X_LOCK;
+}
+
 /** Latch a buffer pool block.
 @param block    block to be latched
 @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
@@ -1103,8 +1116,7 @@ buf_block_t* mtr_t::memo_contains_page_flagged(const byte *ptr, ulint flags)
 
   for (const mtr_memo_slot_t &slot : m_memo)
   {
-    ut_ad(slot.object);
-    if (!(flags & slot.type))
+    if (!slot.object || !(flags & slot.type))
       continue;
 
     buf_page_t *bpage= static_cast<buf_page_t*>(slot.object);
@@ -1164,23 +1176,20 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
     buf_block_t *freed= nullptr;
     const page_id_t id{space.id, offset};
 
-    for (auto it= m_memo.end(); it != m_memo.begin(); )
+    for (auto it= m_memo.rbegin(); it != m_memo.rend(); it++)
     {
-      it--;
-    next:
       mtr_memo_slot_t &slot= *it;
       buf_block_t *block= static_cast<buf_block_t*>(slot.object);
-      ut_ad(block);
-      if (block == freed)
+      if (!block);
+      else if (block == freed)
       {
         if (slot.type & (MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_PAGE_X_FIX))
           slot.type= MTR_MEMO_PAGE_X_FIX;
         else
         {
           ut_ad(slot.type == MTR_MEMO_BUF_FIX);
+          slot.object= nullptr;
           block->page.unfix();
-          m_memo.erase(it, it + 1);
-          goto next;
         }
       }
       else if (slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX) &&

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2023, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -133,7 +133,8 @@ row_undo_mod_clust_low(
 		    && node->ref == &trx_undo_metadata
 		    && btr_cur_get_index(btr_cur)->table->instant
 		    && node->update->info_bits == REC_INFO_METADATA_ADD) {
-			btr_reset_instant(*btr_cur->index(), false, mtr);
+			err = btr_reset_instant(*btr_cur_get_index(btr_cur),
+						false, mtr);
 		}
 	}
 
@@ -489,6 +490,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	dberr_t			err	= DB_SUCCESS;
 	mtr_t			mtr;
 	mtr_t			mtr_vers;
+	row_search_result	search_result;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
 	row_mtr_start(&mtr, index, !modify_leaf);
@@ -503,11 +505,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 					 | BTR_RTREE_UNDO_INS)
 			: btr_latch_mode(BTR_PURGE_TREE | BTR_RTREE_UNDO_INS);
 		btr_cur->thr = thr;
-		if (UNIV_LIKELY(!rtr_search(entry, mode, &pcur, &mtr))) {
-			goto found;
-		} else {
-			goto func_exit;
-		}
 	} else if (!index->is_committed()) {
 		/* The index->online_status may change if the index is
 		or was being created online, but not committed yet. It
@@ -517,8 +514,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 			mtr_s_lock_index(index, &mtr);
 		} else {
 			ut_ad(mode == BTR_PURGE_TREE);
-			mode = BTR_PURGE_TREE_ALREADY_LATCHED;
-			mtr_x_lock_index(index, &mtr);
+			mtr_sx_lock_index(index, &mtr);
 		}
 	} else {
 		/* For secondary indexes,
@@ -527,8 +523,9 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		ut_ad(!dict_index_is_online_ddl(index));
 	}
 
-	switch (UNIV_EXPECT(row_search_index_entry(entry, mode, &pcur, &mtr),
-			    ROW_FOUND)) {
+	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
+
+	switch (UNIV_EXPECT(search_result, ROW_FOUND)) {
 	case ROW_NOT_FOUND:
 		/* In crash recovery, the secondary index record may
 		be missing if the UPDATE did not have time to insert
@@ -550,7 +547,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		ut_error;
 	}
 
-found:
 	/* We should remove the index record if no prior version of the row,
 	which cannot be purged yet, requires its existence. If some requires,
 	we should delete mark the record. */
@@ -669,12 +665,13 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	trx_t*			trx		= thr_get_trx(thr);
 	const ulint		flags
 		= BTR_KEEP_SYS_FLAG | BTR_NO_LOCKING_FLAG;
+	row_search_result	search_result;
 	const auto		orig_mode = mode;
 
 	pcur.btr_cur.page_cur.index = index;
 	ut_ad(trx->id != 0);
 
-	if (index->is_spatial()) {
+	if (dict_index_is_spatial(index)) {
 		/* FIXME: Currently we do a 2-pass search for the undo
 		due to avoid undel-mark a wrong rec in rolling back in
 		partial update.  Later, we could log some info in
@@ -689,22 +686,9 @@ try_again:
 
 	btr_cur->thr = thr;
 
-	if (index->is_spatial()) {
-		if (!rtr_search(entry, mode, &pcur, &mtr)) {
-			goto found;
-		}
+	search_result = row_search_index_entry(entry, mode, &pcur, &mtr);
 
-		if (mode != orig_mode && btr_cur->rtr_info->fd_del) {
-			mode = orig_mode;
-			btr_pcur_close(&pcur);
-			mtr.commit();
-			goto try_again;
-		}
-
-		goto not_found;
-	}
-
-	switch (row_search_index_entry(entry, mode, &pcur, &mtr)) {
+	switch (search_result) {
 		mem_heap_t*	heap;
 		mem_heap_t*	offsets_heap;
 		rec_offs*	offsets;
@@ -715,7 +699,17 @@ try_again:
 		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
 		ut_error;
 	case ROW_NOT_FOUND:
-not_found:
+		/* For spatial index, if first search didn't find an
+		undel-marked rec, try to find a del-marked rec. */
+		if (dict_index_is_spatial(index) && btr_cur->rtr_info->fd_del) {
+			if (mode != orig_mode) {
+				mode = orig_mode;
+				btr_pcur_close(&pcur);
+				mtr_commit(&mtr);
+				goto try_again;
+			}
+		}
+
 		if (btr_cur->up_match >= dict_index_get_n_unique(index)
 		    || btr_cur->low_match >= dict_index_get_n_unique(index)) {
 			ib::warn() << "Record in index " << index->name
@@ -773,7 +767,6 @@ not_found:
 
 		break;
 	case ROW_FOUND:
-found:
 		btr_rec_set_deleted<false>(btr_cur_get_block(btr_cur),
 					   btr_cur_get_rec(btr_cur), &mtr);
 		heap = mem_heap_create(

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2023, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -722,7 +722,7 @@ dict_build_field_def_step(
 }
 
 /***************************************************************//**
-Creates an index tree for the index.
+Creates an index tree for the index if it is not a member of a cluster.
 @return DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
@@ -755,8 +755,9 @@ dict_create_index_tree_step(
 	pcur.btr_cur.page_cur.index =
 		UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes);
 
-	dberr_t err = btr_pcur_open(search_tuple, PAGE_CUR_L, BTR_MODIFY_LEAF,
-				    &pcur, &mtr);
+	dberr_t err =
+		btr_pcur_open(search_tuple, PAGE_CUR_L, BTR_MODIFY_LEAF,
+			      &pcur, 0, &mtr);
 
 	if (err != DB_SUCCESS) {
 func_exit:
@@ -767,23 +768,8 @@ func_exit:
 	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 
 	if (UNIV_UNLIKELY(btr_pcur_is_after_last_on_page(&pcur))) {
-corrupted:
 		err = DB_CORRUPTION;
 		goto func_exit;
-	}
-
-	ulint	len;
-	byte*	data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
-					     DICT_FLD__SYS_INDEXES__ID,
-					     &len);
-	if (UNIV_UNLIKELY(len != 8 || mach_read_from_8(data) != index->id)) {
-		goto corrupted;
-	}
-
-	data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
-				     DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
-	if (len != 4) {
-		goto corrupted;
 	}
 
 	if (index->is_readable()) {
@@ -798,6 +784,11 @@ corrupted:
 				err = DB_OUT_OF_FILE_SPACE; );
 	}
 
+	ulint	len;
+	byte*	data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
+					     DICT_FLD__SYS_INDEXES__PAGE_NO,
+					     &len);
+	ut_ad(len == 4);
 	mtr.write<4,mtr_t::MAYBE_NOP>(*btr_pcur_get_block(&pcur), data,
 				      node->page_no);
 	goto func_exit;
