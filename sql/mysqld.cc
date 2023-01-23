@@ -207,6 +207,8 @@ typedef fp_except fp_except_t;
 #define fcntl(X,Y,Z) 0
 #endif
 
+#define CHECK_UPGRADE_TIMEOUT_MS 10000
+
 inline void setup_fpu()
 {
 #if defined(__FreeBSD__) && defined(HAVE_IEEEFP_H) && !defined(HAVE_FEDISABLEEXCEPT)
@@ -1494,6 +1496,8 @@ static void openssl_lock(int, openssl_lock_t *, const char *, int);
 char *des_key_file;
 #ifndef EMBEDDED_LIBRARY
 struct st_VioSSLFd *ssl_acceptor_fd;
+static char upgrade_info_file[FN_REFLEN]= {0};
+static void check_upgrade(void);
 #endif
 #endif /* HAVE_OPENSSL */
 
@@ -5658,6 +5662,72 @@ static void test_lc_time_sz()
 }
 #endif//DBUG_OFF
 
+static void check_upgrade(void)
+{
+  File info_file;
+  char upgrade_from_version[64]= {0};
+  size_t length;
+  ulong version_id;
+
+  uint major, minor, version;
+  char *point= upgrade_from_version, *end_point, *pos;
+
+  DBUG_ENTER("check_upgrade");
+
+  // Assuming that if the first char is 0 the path has not being set yet.
+  if (upgrade_info_file[0] == 0)
+  {
+    fn_format(upgrade_info_file, "mariadb_upgrade_info", mysql_real_data_home_ptr, "", MYF(0));
+    DBUG_PRINT("info", ("mariadb_upgrade_info path: %s", mysql_real_data_home_ptr));
+  }
+
+  if ((info_file= my_open(upgrade_info_file, O_RDONLY, MYF(0))) < 0)
+  {
+    sql_print_information("Cannot open %s. Please run mariadb-upgrade.", upgrade_info_file);
+    DBUG_VOID_RETURN;
+  }
+
+  if (my_lock(info_file, F_RDLCK, 0, 1, MYF(0)))
+    goto end; // If Another process is holding a write lock avoid checking
+
+  (void) my_seek(info_file, 0, SEEK_SET, MYF(0));
+  /* We have -3 here to make conversion below safe (similar to mysql_upgrade), note the 3 consecutive calls to strtoul */
+  length= my_read(info_file, (uchar*) upgrade_from_version,
+                  sizeof(upgrade_from_version)-3, MYF(0));
+
+  if (!length)
+  {
+    sql_print_warning("%s is empty. Please run mariadb-upgrade.", upgrade_info_file);
+    goto unlock_end;
+  }
+
+  /* Remove possible \ŋ that may end in output */
+  if ((pos= strchr(upgrade_from_version, '\n')))
+    *pos= 0;
+
+  major=   (uint) strtoul(point, &end_point, 10);   point=end_point+1;
+  minor=   (uint) strtoul(point, &end_point, 10);   point=end_point+1;
+  version= (uint) strtoul(point, &end_point, 10);
+
+  if (!(major || minor || version))
+  {
+    sql_print_warning("The content of %s cannot be parsed. Please run mariadb-upgrade.", upgrade_info_file);
+    goto unlock_end;
+  }
+
+  version_id = static_cast<ulong>(major) * 10000L + static_cast<ulong>(minor * 100 + version);
+  if (MYSQL_VERSION_ID - version_id > 99)
+    sql_print_warning("It appears that your database has begun an upgrade but has not completed it. Server version %s is currently running,"
+                      " but the data directory contains mariadb_upgrade_info from older version %s. Please run mariadb-upgrade to ensure your"
+                      " database format is updated to match the version of the running server.",
+                      MYSQL_SERVER_VERSION, upgrade_from_version);
+
+unlock_end:
+  my_lock(info_file, F_UNLCK, 0, 1, MYF(0));
+end:
+  my_close(info_file, MYF(0));
+  DBUG_VOID_RETURN;
+}
 
 int mysqld_main(int argc, char **argv)
 {
@@ -6061,6 +6131,7 @@ int mysqld_main(int argc, char **argv)
 #ifdef _WIN32
   handle_connections_win();
 #else
+  check_upgrade();
   handle_connections_sockets();
 
   mysql_mutex_lock(&LOCK_start_thread);
@@ -6328,6 +6399,10 @@ void handle_connections_sockets()
   Dynamic_array<struct pollfd> fds(PSI_INSTRUMENT_MEM);
 #else
   fd_set readFDs,clientFDs;
+
+  struct timeval tv;
+  tv.tv_sec = CHECK_UPGRADE_TIMEOUT_MS / 1000;
+  tv.tv_usec = 0;
 #endif
 
   DBUG_ENTER("handle_connections_sockets");
@@ -6359,10 +6434,10 @@ void handle_connections_sockets()
   while (!abort_loop)
   {
 #ifdef HAVE_POLL
-    retval= poll(fds.get_pos(0), fds.size(), -1);
+    retval= poll(fds.get_pos(0), fds.size(), CHECK_UPGRADE_TIMEOUT_MS);
 #else
     readFDs=clientFDs;
-    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
+    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, &tv);
 #endif
 
     if (retval < 0)
@@ -6378,6 +6453,11 @@ void handle_connections_sockets()
 	if (!select_errors++ && !abort_loop)	/* purecov: inspected */
 	  sql_print_error("Server: Got error %d from select",socket_errno); /* purecov: inspected */
       }
+      continue;
+    }
+    else if (retval == 0)
+    {
+      check_upgrade();
       continue;
     }
 

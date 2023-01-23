@@ -1,0 +1,74 @@
+#
+# Test upgrade warning appears when mariadb-upgrade tool has not being executed
+#
+
+--source include/not_embedded.inc
+
+# This test uses POSIX-specific shell tools to verify log files' contents, AND
+# the log file check is not implemented for Windows.
+--source include/not_windows.inc
+
+--let $MYSQL_LOG_ERR  = `SELECT @@log_error`
+--let $MYSQL_DATA_DIR = `SELECT @@datadir`
+--let $SERVER_VERSION = `SELECT version()`
+
+#
+# Testing the correct info message is printed in the log when mariadb_upgrade_info
+# file does not exists.
+#
+# NOTE: mariadb_upgrade_info file is not created unless mariadb-upgrade is executed,
+# so when the tests starts it won't exists.
+#
+--replace_regex /[\/\\].*[\/\\]mariadb_upgrade_info/PATH\/mariadb_upgrade_info/
+--exec egrep -q "Cannot open .*[/\\]mariadb_upgrade_info. Please run mariadb-upgrade." "$MYSQL_LOG_ERR"
+
+#
+# Testing the correct warning is printed in the log when mariadb_upgrade_info
+# file is empty.
+#
+CALL mtr.add_suppression(".*[/\]mariadb_upgrade_info is empty. Please run mariadb-upgrade.");
+--write_file $MYSQL_DATA_DIR/mariadb_upgrade_info
+EOF
+--sleep 10
+--replace_regex /[\/\\].*[\/\\]mariadb_upgrade_info/PATH\/mariadb_upgrade_info/
+--exec egrep -q ".*[/\]mariadb_upgrade_info is empty. Please run mariadb-upgrade." "$MYSQL_LOG_ERR"
+--remove_file $MYSQL_DATA_DIR/mariadb_upgrade_info
+
+#
+# Testing the correct warning is printed in the log when mariadb_upgrade_info
+# content cannot be parsed.
+#
+CALL mtr.add_suppression("The content of .*[/\]mariadb_upgrade_info cannot be parsed. Please run mariadb-upgrade.");
+--write_file $MYSQL_DATA_DIR/mariadb_upgrade_info
+wrong_format
+EOF
+--sleep 10
+--replace_regex /[\/\\].*[\/\\]mariadb_upgrade_info/PATH\/mariadb_upgrade_info/
+--exec egrep -q "The content of .*[/\]mariadb_upgrade_info cannot be parsed. Please run mariadb-upgrade." "$MYSQL_LOG_ERR"
+--remove_file $MYSQL_DATA_DIR/mariadb_upgrade_info
+
+#
+# Testing the correct warning is printed in the log when a majore version
+# upgrade is detected.
+#
+CALL mtr.add_suppression(".*Server version .* is currently running, but the data directory contains mariadb_upgrade_info from older version .*\..*");
+--write_file $MYSQL_DATA_DIR/mariadb_upgrade_info
+1.0.0-MariaDB
+EOF
+--sleep 10
+--replace_regex /[0-9]*\.[0-9]*.[0-9]*-MariaDB/VERSION-MariaDB/
+--exec egrep -q "Server version .* is currently running, but the data directory contains mariadb_upgrade_info from older version .*\." "$MYSQL_LOG_ERR"
+--remove_file $MYSQL_DATA_DIR/mariadb_upgrade_info
+
+#
+# Testing that no warnings are printed when mariadb_upgrade_info contains the current version
+#
+--exec echo "$SERVER_VERSION" > "$MYSQL_DATA_DIR/mariadb_upgrade_info"
+--exec egrep -c "\[Warning\]" "$MYSQL_LOG_ERR" > "$MYSQL_TMP_DIR/warnnings_count_before"
+--sleep 10
+--exec egrep -c "\[Warning\]" "$MYSQL_LOG_ERR" > "$MYSQL_TMP_DIR/warnnings_count_after"
+--diff_files $MYSQL_TMP_DIR/warnnings_count_before $MYSQL_TMP_DIR/warnnings_count_after
+
+--remove_file $MYSQL_TMP_DIR/warnnings_count_before
+--remove_file $MYSQL_TMP_DIR/warnnings_count_after
+--remove_file $MYSQL_DATA_DIR/mariadb_upgrade_info

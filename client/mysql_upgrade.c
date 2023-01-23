@@ -71,7 +71,7 @@ static char **defaults_argv;
 
 static my_bool not_used; /* Can't use GET_BOOL without a value pointer */
 
-char upgrade_from_version[1024];
+char upgrade_from_version[64];
 
 static my_bool opt_write_binlog;
 
