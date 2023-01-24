@@ -11,7 +11,6 @@
 ##############################################################################
 
 galera_as_slave_ctas : MDEV-28378 timeout
-galera_bf_abort_at_after_statement : Timeout in wait_condition.inc for SELECT COUNT(*) = 1 FROM t1 where id = 1 and val = 3
 galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_sst_encrypted : MDEV-29876 Galera test failure on galera_sst_encrypted
 MW-284 : MDEV-29861 Galera test case hangs

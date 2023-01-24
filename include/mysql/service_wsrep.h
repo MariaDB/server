@@ -69,6 +69,9 @@ extern struct wsrep_service_st {
   void                        (*wsrep_thd_self_abort_func)(MYSQL_THD thd);
   int                         (*wsrep_thd_append_key_func)(MYSQL_THD thd, const struct wsrep_key* key,
                                                            int n_keys, enum Wsrep_service_key_type);
+  int                         (*wsrep_thd_append_table_key_func)(MYSQL_THD thd, const char* db,
+                                                           const char* table, enum Wsrep_service_key_type);
+  my_bool                     (*wsrep_thd_is_local_transaction)(const MYSQL_THD thd);
   const char*                 (*wsrep_thd_client_state_str_func)(const MYSQL_THD thd);
   const char*                 (*wsrep_thd_client_mode_str_func)(const MYSQL_THD thd);
   const char*                 (*wsrep_thd_transaction_state_str_func)(const MYSQL_THD thd);
@@ -121,6 +124,8 @@ extern struct wsrep_service_st {
 #define wsrep_thd_is_local(T) wsrep_service->wsrep_thd_is_local_func(T)
 #define wsrep_thd_self_abort(T) wsrep_service->wsrep_thd_self_abort_func(T)
 #define wsrep_thd_append_key(T,W,N,K) wsrep_service->wsrep_thd_append_key_func(T,W,N,K)
+#define wsrep_thd_append_table_key(T,D,B,K) wsrep_service->wsrep_thd_append_table_key_func(T,D,B,K)
+#define wsrep_thd_is_local_transaction(T) wsrep_service->wsrep_thd_is_local_transaction_func(T)
 #define wsrep_thd_client_state_str(T) wsrep_service->wsrep_thd_client_state_str_func(T)
 #define wsrep_thd_client_mode_str(T) wsrep_service->wsrep_thd_client_mode_str_func(T)
 #define wsrep_thd_transaction_state_str(T) wsrep_service->wsrep_thd_transaction_state_str_func(T)
@@ -225,6 +230,13 @@ extern "C" int wsrep_thd_append_key(MYSQL_THD thd,
                                     const struct wsrep_key* key,
                                     int n_keys,
                                     enum Wsrep_service_key_type);
+
+extern "C" int wsrep_thd_append_table_key(MYSQL_THD thd,
+                                    const char* db,
+                                    const char* table,
+                                    enum Wsrep_service_key_type);
+
+extern "C" my_bool wsrep_thd_is_local_transaction(const MYSQL_THD thd);
 
 extern const char* wsrep_sr_table_name_full;
 
