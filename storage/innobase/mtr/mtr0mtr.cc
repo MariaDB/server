@@ -40,6 +40,8 @@ Created 11/26/1995 Heikki Tuuri
 
 void mtr_memo_slot_t::release() const
 {
+  ut_ad(object);
+
   switch (type) {
   case MTR_MEMO_S_LOCK:
     static_cast<index_lock*>(object)->s_unlock();
@@ -121,11 +123,7 @@ inline void mtr_t::release_resources()
 void mtr_t::release()
 {
   for (auto it= m_memo.rbegin(); it != m_memo.rend(); it++)
-  {
-    mtr_memo_slot_t &slot= *it;
-    if (slot.object)
-      slot.release();
-  }
+    it->release();
   m_memo.clear();
 }
 
@@ -191,7 +189,7 @@ void mtr_t::commit()
 
     for (const mtr_memo_slot_t &slot : m_memo)
     {
-      if (slot.object && slot.type & MTR_MEMO_MODIFY)
+      if (slot.type & MTR_MEMO_MODIFY)
       {
         ut_ad(slot.type == MTR_MEMO_PAGE_X_MODIFY ||
               slot.type == MTR_MEMO_PAGE_SX_MODIFY);
@@ -226,8 +224,7 @@ void mtr_t::rollback_to_savepoint(ulint begin, ulint end)
   while (s-- > begin)
   {
     const mtr_memo_slot_t &slot= m_memo[s];
-    if (!slot.object)
-      continue;
+    ut_ad(slot.object);
     /* This is intended for releasing latches on indexes or unmodified
     buffer pool pages. */
     ut_ad(slot.type <= MTR_MEMO_SX_LOCK);
@@ -271,8 +268,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   for (mtr_memo_slot_t &slot : m_memo)
   {
-    if (!slot.object)
-      continue;
+    ut_ad(slot.object);
     switch (slot.type) {
     default:
       ut_ad("invalid type" == 0);
@@ -936,15 +932,6 @@ void mtr_t::page_lock_upgrade(const buf_block_t &block)
 #endif /* BTR_CUR_HASH_ADAPT */
 }
 
-void mtr_t::lock_upgrade(const index_lock &lock)
-{
-  ut_ad(lock.have_x());
-
-  for (mtr_memo_slot_t &slot : m_memo)
-    if (slot.object == &lock && slot.type == MTR_MEMO_SX_LOCK)
-      slot.type= MTR_MEMO_X_LOCK;
-}
-
 /** Latch a buffer pool block.
 @param block    block to be latched
 @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
@@ -993,26 +980,29 @@ done:
 void mtr_t::upgrade_buffer_fix(ulint savepoint, rw_lock_type_t rw_latch)
 {
   ut_ad(is_active());
-  ut_ad(savepoint < m_memo.size());
-
   mtr_memo_slot_t &slot= m_memo[savepoint];
   ut_ad(slot.type == MTR_MEMO_BUF_FIX);
   buf_block_t *block= static_cast<buf_block_t*>(slot.object);
   ut_d(const auto state= block->page.state());
   ut_ad(state > buf_page_t::UNFIXED);
   ut_ad(state > buf_page_t::WRITE_FIX || state < buf_page_t::READ_FIX);
+  static_assert(int{MTR_MEMO_PAGE_S_FIX} == int{RW_S_LATCH}, "");
+  static_assert(int{MTR_MEMO_PAGE_X_FIX} == int{RW_X_LATCH}, "");
+  static_assert(int{MTR_MEMO_PAGE_SX_FIX} == int{RW_SX_LATCH}, "");
+  slot.type= mtr_memo_type_t(rw_latch);
 
   switch (rw_latch) {
   default:
     ut_ad("invalid state" == 0);
     break;
+  case RW_S_LATCH:
+    block->page.lock.s_lock();
+    break;
   case RW_SX_LATCH:
-    slot.type= MTR_MEMO_PAGE_SX_FIX;
     block->page.lock.u_lock();
     ut_ad(!block->page.is_io_fixed());
     break;
   case RW_X_LATCH:
-    slot.type= MTR_MEMO_PAGE_X_FIX;
     block->page.lock.x_lock();
     ut_ad(!block->page.is_io_fixed());
   }
@@ -1116,7 +1106,8 @@ buf_block_t* mtr_t::memo_contains_page_flagged(const byte *ptr, ulint flags)
 
   for (const mtr_memo_slot_t &slot : m_memo)
   {
-    if (!slot.object || !(flags & slot.type))
+    ut_ad(slot.object);
+    if (!(flags & slot.type))
       continue;
 
     buf_page_t *bpage= static_cast<buf_page_t*>(slot.object);
@@ -1137,30 +1128,84 @@ buf_block_t* mtr_t::memo_contains_page_flagged(const byte *ptr, ulint flags)
 
 /** Mark the given latched page as modified.
 @param block   page that will be modified */
-void mtr_t::modify(const buf_block_t &block)
+void mtr_t::set_modified(const buf_block_t &block)
 {
-  mtr_memo_slot_t *found= nullptr;
+  if (block.page.id().space() >= SRV_TMP_SPACE_ID)
+  {
+    const_cast<buf_block_t&>(block).page.set_temp_modified();
+    return;
+  }
+
+  m_modifications= true;
+
+  if (UNIV_UNLIKELY(m_log_mode == MTR_LOG_NONE))
+    return;
 
   for (mtr_memo_slot_t &slot : m_memo)
   {
     if (slot.object == &block &&
         slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX))
     {
-      found= &slot;
-      break;
+      if (slot.type & MTR_MEMO_MODIFY)
+        ut_ad(m_made_dirty || block.page.oldest_modification() > 1);
+      else
+      {
+        slot.type= static_cast<mtr_memo_type_t>(slot.type | MTR_MEMO_MODIFY);
+        if (!m_made_dirty)
+          m_made_dirty= block.page.oldest_modification() <= 1;
+      }
+      return;
     }
   }
 
-  if (UNIV_UNLIKELY(!found))
+  /* This must be PageConverter::update_page() in IMPORT TABLESPACE. */
+  ut_ad(m_memo.empty());
+  ut_ad(!block.page.in_LRU_list);
+}
+
+void mtr_t::init(buf_block_t *b)
+{
+  const page_id_t id{b->page.id()};
+  ut_ad(is_named_space(id.space()));
+  ut_ad(!m_freed_pages == !m_freed_space);
+  ut_ad(memo_contains_flagged(b, MTR_MEMO_PAGE_X_FIX));
+
+  if (id.space() >= SRV_TMP_SPACE_ID)
+    b->page.set_temp_modified();
+  else
   {
-    /* This must be PageConverter::update_page() in IMPORT TABLESPACE. */
-    ut_ad(m_memo.empty());
-    ut_ad(!block.page.in_LRU_list);
-    return;
+    for (mtr_memo_slot_t &slot : m_memo)
+    {
+      if (slot.object == b && slot.type & MTR_MEMO_PAGE_X_FIX)
+      {
+        slot.type= MTR_MEMO_PAGE_X_MODIFY;
+        m_modifications= true;
+        if (!m_made_dirty)
+          m_made_dirty= b->page.oldest_modification() <= 1;
+        goto found;
+      }
+    }
+    ut_ad("block not X-latched" == 0);
   }
-  found->type= static_cast<mtr_memo_type_t>(found->type | MTR_MEMO_MODIFY);
-  if (!m_made_dirty)
-    m_made_dirty= is_block_dirtied(block.page);
+
+ found:
+  if (UNIV_LIKELY_NULL(m_freed_space) &&
+      m_freed_space->id == id.space() &&
+      m_freed_pages->remove_if_exists(id.page_no()) &&
+      m_freed_pages->empty())
+  {
+    delete m_freed_pages;
+    m_freed_pages= nullptr;
+    m_freed_space= nullptr;
+  }
+
+  b->page.set_reinit(b->page.state() & buf_page_t::LRU_MASK);
+
+  if (!is_logged())
+    return;
+
+  m_log.close(log_write<INIT_PAGE>(id, &b->page));
+  m_last_offset= FIL_PAGE_TYPE;
 }
 
 /** Free a page.
@@ -1176,20 +1221,23 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
     buf_block_t *freed= nullptr;
     const page_id_t id{space.id, offset};
 
-    for (auto it= m_memo.rbegin(); it != m_memo.rend(); it++)
+    for (auto it= m_memo.end(); it != m_memo.begin(); )
     {
+      it--;
+    next:
       mtr_memo_slot_t &slot= *it;
       buf_block_t *block= static_cast<buf_block_t*>(slot.object);
-      if (!block);
-      else if (block == freed)
+      ut_ad(block);
+      if (block == freed)
       {
         if (slot.type & (MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_PAGE_X_FIX))
           slot.type= MTR_MEMO_PAGE_X_FIX;
         else
         {
           ut_ad(slot.type == MTR_MEMO_BUF_FIX);
-          slot.object= nullptr;
           block->page.unfix();
+          m_memo.erase(it, it + 1);
+          goto next;
         }
       }
       else if (slot.type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX) &&
@@ -1203,7 +1251,17 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
           ut_d(bool upgraded=) block->page.lock.x_lock_upgraded();
           ut_ad(upgraded);
         }
-        slot.type= MTR_MEMO_PAGE_X_MODIFY;
+        if (id.space() >= SRV_TMP_SPACE_ID)
+        {
+          block->page.set_temp_modified();
+          slot.type= MTR_MEMO_PAGE_X_FIX;
+        }
+        else
+        {
+          slot.type= MTR_MEMO_PAGE_X_MODIFY;
+          if (!m_made_dirty)
+            m_made_dirty= block->page.oldest_modification() <= 1;
+        }
 #ifdef BTR_CUR_HASH_ADAPT
         if (block->index)
           btr_search_drop_page_hash_index(block, false);
@@ -1212,8 +1270,6 @@ void mtr_t::free(const fil_space_t &space, uint32_t offset)
       }
     }
 
-    if (freed && !m_made_dirty)
-      m_made_dirty= is_block_dirtied(freed->page);
     m_log.close(log_write<FREE_PAGE>(id, nullptr));
   }
 }

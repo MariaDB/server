@@ -6081,7 +6081,8 @@ func_exit:
 
 	que_thr_t* thr = pars_complete_graph_for_exec(
 		NULL, trx, ctx->heap, NULL);
-	const bool is_root = block->page.id().page_no() == index->page;
+	page_id_t id{block->page.id()};
+	const bool is_root = id.page_no() == index->page;
 
 	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
@@ -6098,8 +6099,10 @@ func_exit:
 		}
 
 		/* Ensure that the root page is in the correct format. */
-		buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
-						       &mtr, &err);
+		id.set_page_no(index->page);
+		buf_block_t* root = mtr.get_already_latched(
+			id, MTR_MEMO_PAGE_SX_FIX);
+
 		if (UNIV_UNLIKELY(!root)) {
 			goto func_exit;
 		}

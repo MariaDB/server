@@ -71,6 +71,7 @@ public:
   using const_iterator= const T *;
   using reverse_iterator= std::reverse_iterator<iterator>;
   using reference= T &;
+  using const_reference= const T&;
 
   iterator begin() { return static_cast<iterator>(BeginX); }
   const_iterator begin() const { return static_cast<const_iterator>(BeginX); }
@@ -81,6 +82,8 @@ public:
   reverse_iterator rend() { return reverse_iterator(begin()); }
 
   reference operator[](size_t i) { assert(i < size()); return begin()[i]; }
+  const_reference operator[](size_t i) const
+  { return const_cast<small_vector&>(*this)[i]; }
 
   void erase(const_iterator S, const_iterator E)
   {

@@ -123,8 +123,6 @@ inline void buf_flush_note_modification(buf_block_t *b, lsn_t start, lsn_t end)
 
   if (oldest_modification > 1)
     ut_ad(oldest_modification <= start);
-  else if (fsp_is_system_temporary(b->page.id().space()))
-    b->page.set_temp_modified();
   else
     buf_pool.insert_into_flush_list(b, start);
   srv_stats.buf_pool_write_requests.inc();
