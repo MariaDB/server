@@ -426,7 +426,6 @@ static dberr_t trx_purge_free_segment(trx_rseg_t *rseg, fil_addr_t hdr_addr)
       block->fix();
       mtr.commit();
       mtr.start();
-      mtr.flag_modified();
       rseg->latch.wr_lock(SRW_LOCK_CALL);
       rseg_hdr->page.lock.x_lock();
       block->page.lock.x_lock();

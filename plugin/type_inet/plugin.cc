@@ -189,7 +189,7 @@ maria_declare_plugin(type_inet)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_GAMMA // Maturity(see include/mysql/plugin.h)*/
 },
 {
   MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
