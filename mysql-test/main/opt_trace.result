@@ -12700,7 +12700,7 @@ EXPLAIN
             "loops": 3,
             "rows": 10000,
             "cost": 1.701731924,
-            "filtered": 4.307688236,
+            "filtered": 3.230766058,
             "attached_condition": "t1.b < 5000 and t1.c < 1000"
           },
           "buffer_type": "flat",
@@ -12963,7 +12963,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                               "access_type": "scan_with_join_cache",
                               "rows": 10000,
                               "rows_after_filter": 430.7688,
-                              "rows_out": 430.7688,
+                              "rows_out": 323.0766,
                               "cost": 1.701731924,
                               "index_only": false,
                               "chosen": true
@@ -12972,7 +12972,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                           "chosen_access_method": {
                             "type": "scan",
                             "rows_read": 430.7688,
-                            "rows_out": 430.7688,
+                            "rows_out": 323.0766,
                             "cost": 1.701731924,
                             "uses_join_buffering": true
                           }
@@ -12983,8 +12983,11 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                   {
                     "plan_prefix": "three",
                     "table": "t1",
-                    "rows_for_plan": 1292.3064,
-                    "cost_for_plan": 1.712236739
+                    "rows_for_plan": 969.2298,
+                    "cost_for_plan": 1.712236739,
+                    "pushdown_cond_selectivity": 0.75,
+                    "filtered": 3.230766,
+                    "rows_out": 323.0766
                   }
                 ]
               },
@@ -12999,7 +13002,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
           },
           {
             "best_join_order": ["three", "t1"],
-            "rows": 1292.3064,
+            "rows": 969.2298,
             "cost": 1.712236739
           },
           {
