@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2019, 2022, MariaDB Corporation.
+Copyright (c) 2019, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -402,7 +402,8 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
   ut_ad(have_offset || offset == 0);
   ut_ad(offset + len <= srv_page_size);
   static_assert(MIN_4BYTE >= UNIV_PAGE_SIZE_MAX, "consistency");
-
+  ut_ad(type == FREE_PAGE || type == OPTION || (type == EXTENDED && !bpage) ||
+        memo_contains_flagged(bpage, MTR_MEMO_MODIFY));
   size_t max_len;
   if (!have_len)
     max_len= 1 + 5 + 5;
@@ -510,33 +511,6 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
   }
   ::memcpy(d, s, len);
   memcpy(b, ut_align_offset(d, srv_page_size), len);
-}
-
-/** Initialize an entire page.
-@param[in,out]        b       buffer page */
-inline void mtr_t::init(buf_block_t *b)
-{
-  const page_id_t id{b->page.id()};
-  ut_ad(is_named_space(id.space()));
-  ut_ad(!m_freed_pages == !m_freed_space);
-
-  if (UNIV_LIKELY_NULL(m_freed_space) &&
-      m_freed_space->id == id.space() &&
-      m_freed_pages->remove_if_exists(b->page.id().page_no()) &&
-      m_freed_pages->empty())
-  {
-    delete m_freed_pages;
-    m_freed_pages= nullptr;
-    m_freed_space= nullptr;
-  }
-
-  b->page.set_reinit(b->page.state() & buf_page_t::LRU_MASK);
-
-  if (!is_logged())
-    return;
-
-  m_log.close(log_write<INIT_PAGE>(b->page.id(), &b->page));
-  m_last_offset= FIL_PAGE_TYPE;
 }
 
 /** Write an EXTENDED log record.

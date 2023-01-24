@@ -1543,8 +1543,7 @@ static void innodb_drop_database(handlerton*, char *path)
     mtr_t mtr;
     mtr.start();
     pcur.btr_cur.page_cur.index = sys_index;
-    err= btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
-                                   BTR_SEARCH_LEAF, &pcur, &mtr);
+    err= btr_pcur_open_on_user_rec(&tuple, BTR_SEARCH_LEAF, &pcur, &mtr);
     if (err != DB_SUCCESS)
       goto err_exit;
 
@@ -7977,6 +7976,7 @@ report_error:
 
 #ifdef WITH_WSREP
 	if (!error_result && trx->is_wsrep()
+	    && !trx->is_bulk_insert()
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)
 	    && !wsrep_consistency_check(m_user_thd)
@@ -10080,6 +10080,8 @@ wsrep_append_key(
 					(shared, exclusive, semi...) */
 )
 {
+	ut_ad(!trx->is_bulk_insert());
+
 	DBUG_ENTER("wsrep_append_key");
 	DBUG_PRINT("enter",
 		    ("thd: %lu trx: %lld", thd_get_thread_id(thd),

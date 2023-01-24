@@ -100,8 +100,8 @@ ibuf_should_try(
 						a secondary index when we
 						decide */
 {
-  if (!innodb_change_buffering || !ibuf.max_size || index->is_clust() ||
-      index->is_spatial())
+  if (index->type & (DICT_CLUSTERED | DICT_IBUF | DICT_SPATIAL) ||
+      !innodb_change_buffering || !ibuf.max_size)
     return false;
   if (!ignore_sec_unique && index->is_unique())
     return false;

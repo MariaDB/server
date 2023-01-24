@@ -787,7 +787,7 @@ public:
   {
     ut_ad(fsp_is_system_temporary(id().space()));
     ut_ad(in_file());
-    ut_ad(!oldest_modification() || oldest_modification() == 2);
+    ut_ad((oldest_modification() | 2) == 2);
     oldest_modification_= 2;
   }
 

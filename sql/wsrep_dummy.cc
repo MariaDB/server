@@ -101,6 +101,12 @@ void wsrep_thd_self_abort(THD *)
 int wsrep_thd_append_key(THD *, const struct wsrep_key*, int, enum Wsrep_service_key_type)
 { return 0; }
 
+int wsrep_thd_append_table_key(THD *, const char*, const char*, enum Wsrep_service_key_type)
+{ return 0; }
+
+my_bool wsrep_thd_is_local_transaction(const THD*)
+{ return 0; }
+
 const char* wsrep_thd_client_state_str(const THD*)
 { return 0; }
 

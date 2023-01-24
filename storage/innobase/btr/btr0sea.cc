@@ -1057,25 +1057,23 @@ btr_search_guess_on_hash(
 	index_id_t	index_id;
 
 	ut_ad(mtr->is_active());
-
-	if (!btr_search_enabled) {
-		return false;
-	}
-
-	ut_ad(!index->is_ibuf());
-	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
-	compile_time_assert(ulint{BTR_SEARCH_LEAF} == ulint{RW_S_LATCH});
-	compile_time_assert(ulint{BTR_MODIFY_LEAF} == ulint{RW_X_LATCH});
-
-	/* Not supported for spatial index */
-	ut_ad(!dict_index_is_spatial(index));
+	ut_ad(index->is_btree() || index->is_ibuf());
 
 	/* Note that, for efficiency, the struct info may not be protected by
 	any latch here! */
 
-	if (info->n_hash_potential == 0) {
+	if (latch_mode > BTR_MODIFY_LEAF
+	    || !info->last_hash_succ || !info->n_hash_potential
+	    || (tuple->info_bits & REC_INFO_MIN_REC_FLAG)) {
 		return false;
 	}
+
+	ut_ad(index->is_btree());
+        ut_ad(!index->table->is_temporary());
+
+	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
+	compile_time_assert(ulint{BTR_SEARCH_LEAF} == ulint{RW_S_LATCH});
+	compile_time_assert(ulint{BTR_MODIFY_LEAF} == ulint{RW_X_LATCH});
 
 	cursor->n_fields = info->n_fields;
 	cursor->n_bytes = info->n_bytes;
