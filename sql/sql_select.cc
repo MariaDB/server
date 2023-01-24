@@ -8117,11 +8117,13 @@ best_access_path(JOIN      *join,
   DBUG_ENTER("best_access_path");
 
   /*
-    Assume that there is at least one accepted row from previous table combinations.
-    This fixes a problem when the selectivity for the preceding table combinations
-    becomes so high that record_count becomes << 1.0, which makes the cost for the
-    current table so low that it does not matter when calculating the best plans.
-   */
+    Assume that there is at least one accepted row from previous table
+    combinations.
+    This fixes a problem when the selectivity for the preceding table
+    combinations becomes so high that record_count becomes << 1.0,
+    which makes the cost for the current table so low that it does not
+    matter when calculating the best plans.
+  */
   set_if_bigger(record_count, 1.0);
 
   best.cost= DBL_MAX;
@@ -9077,17 +9079,15 @@ best_access_path(JOIN      *join,
       {
         /*
           Simple scan
-
-          For each record we have to:
-          - Read the table record
-          - Compare with the current WHERE clause
-          We estmate that 'rnd_records' will survive this check.
+          We estimate we have to read org_records rows.
+          records_after_filter rows will survive the where check of constants.
+          'best.records_out' rows will survive after the check against columns
+          from previous tables.
         */
         scan_type= "scan";
 
         /*
-          If this is not the first table we have to compare the rows against
-          all previous row combinations
+          We have to compare each row set against all previous row combinations
         */
         cur_cost= COST_MULT(cur_cost, record_count);
       }
@@ -9097,9 +9097,8 @@ best_access_path(JOIN      *join,
         double cmp_time, row_copy_cost, refills;
 
         /*
-          Calculate cost of checking the the WHERE for this table.
-          This is done before we check the TABLE rows aginst the rows
-          in the join cache.
+          Note that the cost of checking all rows against the table specific
+          WHERE is already included in cur_cost.
         */
         scan_type= "scan_with_join_cache";
 
@@ -9112,7 +9111,10 @@ best_access_path(JOIN      *join,
         /* We come here only if there are already rows in the join cache */
         DBUG_ASSERT(idx != join->const_tables);
         /*
-          Cost of:
+          records_after_filter is the number of rows that have survived
+          the table specific WHERE check that only involves constants.
+
+          Calculate cost of:
           - Copying all previous record combinations to the join cache
           - Copying the tables from the join cache to table records
           - Checking the WHERE against the final row combination
@@ -9160,7 +9162,8 @@ best_access_path(JOIN      *join,
       */
       best.cost= cur_cost;
       best.records_read= org_records;       // Records accessed
-      best.records= records_after_filter;   // Records to be checked with WHERE
+      best.records= records_after_filter;   // Records to be checked against
+                                            // previous row combinations
 
       /*
         If we are using 'use_cond_selectivity > 1' then
