@@ -2436,9 +2436,9 @@ SET SESSION optimizer_switch='loosescan=off';
 EXPLAIN
 SELECT * FROM t1 WHERE a IN (SELECT t2.a FROM t2,t3 WHERE t2.b = t3.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	t3	range	idx	idx	4	NULL	2	Using where; Using index
-1	PRIMARY	t2	ref	idx	idx	9	test.t3.b,test.t1.a	1	Using index; FirstMatch(t1)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	t2	range	idx	idx	4	NULL	2	Using where; Using index
+1	PRIMARY	t3	ref	idx	idx	4	test.t2.b	1	Using index; FirstMatch(t1)
 SELECT * FROM t1 WHERE a IN (SELECT t2.a FROM t2,t3 WHERE t2.b = t3.b);
 a
 5
@@ -2446,9 +2446,9 @@ SET SESSION optimizer_switch='loosescan=on';
 EXPLAIN
 SELECT * FROM t1 WHERE a IN (SELECT t2.a FROM t2,t3 WHERE t2.b = t3.b);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	t3	range	idx	idx	4	NULL	2	Using where; Using index
-1	PRIMARY	t2	ref	idx	idx	9	test.t3.b,test.t1.a	1	Using index; FirstMatch(t1)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	t2	range	idx	idx	4	NULL	2	Using where; Using index
+1	PRIMARY	t3	ref	idx	idx	4	test.t2.b	1	Using index; FirstMatch(t1)
 SELECT * FROM t1 WHERE a IN (SELECT t2.a FROM t2,t3 WHERE t2.b = t3.b);
 a
 5
