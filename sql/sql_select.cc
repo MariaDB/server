@@ -7756,14 +7756,12 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 
 /*
   Estimate how many records we will get if we read just this table and apply
-  a part of WHERE that can be checked for it.
+  a part of WHERE that can be checked using only the current table and
+  const tables.
 
   @param s                      Current JOIN_TAB
-  @param with_found_constraint  There is a filtering condition on the
-                                current table. See more below.
   @param use_cond_selectivity   Value of optimizer_use_condition_selectivity.
                                 If > 1 then use table->cond_selecitivity.
-
   @return 0.0                   No matching rows
   @return >= 1.0                Number of expected matching rows
 
@@ -7771,28 +7769,15 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   Estimate how many records we will get if we
    - read the given table with its "independent" access method (either quick 
      select or full table/index scan),
-   - apply the part of WHERE that refers only to this table.
+   - apply the part of WHERE that refers only to this table and const tables.
    - The result cannot be bigger than table records
-
-   'with_found_constraint' is true if the WHERE has a top level expression of
-   type:
-   current_table.key_part=expression_that_contains_fields_from_previous_tables
-   Examples (assuming join order t1,t2):
-   WHERE t2.keypart1=t1.some_field
-   WHERE t2.keypart1=t1.some_field+t1.other_field
-
-   TODO:
-   Extend with_found_constraint' to be set for a top level expression of type
-   X=Y where X and Y has fields from current table and at least one field from
-   one or more previous tables.
 
   @see also
     table_after_join_selectivity() produces selectivity of condition that is
     checked after joining rows from this table to rows from preceding tables.
 */
 
-static double matching_candidates_in_table(JOIN_TAB *s,
-                                           bool with_found_constraint,
+static double apply_selectivity_for_table(JOIN_TAB *s,
                                            uint use_cond_selectivity)
 {
   double dbl_records;
@@ -7826,19 +7811,6 @@ static double matching_candidates_in_table(JOIN_TAB *s,
     dbl_records= rows2double(s->table->opt_range_condition_rows);
   }
 
-  /*
-    If there is a filtering condition on the table (i.e. ref analyzer found
-    at least one "table.keyXpartY= exprZ", where exprZ refers only to tables
-    preceding this table in the join order we're now considering), then 
-    assume that 25% of the rows will be filtered out by this condition.
-
-    This heuristic is supposed to force tables used in exprZ to be before
-    this table in join order.
-  */
-
-  if (with_found_constraint)
-    dbl_records-= dbl_records/4;
-
   DBUG_ASSERT(dbl_records <= s->records);
   /*
     Ensure we return at least one row if there is any possibility to have
@@ -7850,6 +7822,28 @@ static double matching_candidates_in_table(JOIN_TAB *s,
     (for example if the table is empty).
   */
   return dbl_records ? MY_MAX(dbl_records, MIN_ROWS_AFTER_FILTERING) : 0.0;
+}
+
+
+/*
+  Take into account that the table's WHERE clause has conditions on earlier
+  tables that can reduce the number of accepted rows.
+
+  @param records  Number of original rows (after selectivity)
+
+  If there is a filtering condition on the table (i.e. ref analyzer found
+  at least one "table.keyXpartY= exprZ", where exprZ refers only to tables
+  preceding this table in the join order we're now considering), then
+  assume that 25% of the rows will be filtered out by this condition.
+
+  This heuristic is supposed to force tables used in exprZ to be before
+  this table in join order.
+*/
+
+static double use_found_constraint(double records)
+{
+  records-= records/4;
+  return records ? MY_MAX(records, MIN_ROWS_AFTER_FILTERING) : 0.0;
 }
 
 
@@ -8240,9 +8234,6 @@ best_access_path(JOIN      *join,
           {
             found_part|= keyuse->keypart_map;
             key_parts_dependent= 0;
-            found_constraint|= (keyuse->used_tables &
-                                ~(remaining_tables |
-                                  join->const_table_map));
             if (!(keyuse->used_tables & ~join->const_table_map))
               const_part|= keyuse->keypart_map;
 
@@ -8265,6 +8256,16 @@ best_access_path(JOIN      *join,
 	    */
             if (keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL)
               ref_or_null_part |= keyuse->keypart_map;
+
+            /*
+              Remember if there is a WHERE condition that contains
+              'key_part=expression_with_only_accessible_tables'
+              We ignore const tables as these are handled by selectivity
+              code (const table fields are treated as constants).
+            */
+            found_constraint|= (keyuse->used_tables &
+                                ~(remaining_tables |
+                                  join->const_table_map));
           }
           else if (!(found_part & keyuse->keypart_map))
             key_parts_dependent|= keyuse->used_tables;
@@ -8838,12 +8839,15 @@ best_access_path(JOIN      *join,
       (!(table->map & join->outer_join) ||
        join->allowed_outer_join_with_cache))    // (2)
   {
-    double refills, row_copy_cost, cmp_time, cur_cost;
+    double refills, row_copy_cost, cmp_time, cur_cost, records_table_filter;
     /* Estimate the cost of the hash join access to the table */
-    double rnd_records= matching_candidates_in_table(s, 0,
-                                                     use_cond_selectivity);
+    double rnd_records= apply_selectivity_for_table(s, use_cond_selectivity);
+    records_table_filter= ((found_constraint) ?
+                           use_found_constraint(rnd_records) :
+                           rnd_records);
+
     DBUG_ASSERT(rnd_records <= s->found_records);
-    set_if_smaller(best.records_out, rnd_records);
+    set_if_smaller(best.records_out, records_table_filter);
 
     /*
       The following cost calculation is identical to the cost calculation for
@@ -9053,13 +9057,19 @@ best_access_path(JOIN      *join,
     }
     else
     {
+      double records_table_filter;
+
       /* We will now calculate cost of scan, with or without join buffer */
       records_best_filter= records_after_filter=
-        matching_candidates_in_table(s, 0, use_cond_selectivity);
+        apply_selectivity_for_table(s, use_cond_selectivity);
+      records_table_filter= ((found_constraint) ?
+                             use_found_constraint(records_after_filter) :
+                             records_after_filter);
+
       DBUG_ASSERT(records_after_filter <= s->records);
       DBUG_ASSERT(records_after_filter <= s->found_records);
 
-      set_if_smaller(best.records_out, records_after_filter);
+      set_if_smaller(best.records_out, records_table_filter);
 
       org_records= rows2double(s->records);
 
@@ -10380,7 +10390,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     with previous tables.
 
     For quick selects and full table scans, selectivity of COND(this_table)
-    is accounted for in matching_candidates_in_table(). Here, we only count
+    is accounted for in apply_selectivity_for_table(). Here, we only count
     selectivity of COND(this_table, previous_tables). 
 
     For other access methods, we need to calculate selectivity of the whole
