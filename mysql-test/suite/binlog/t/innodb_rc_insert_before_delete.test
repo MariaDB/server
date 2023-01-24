@@ -1,0 +1,89 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_mixed.inc
+--source include/count_sessions.inc
+
+# MDEV-30010 merely adds is a Read-Committed version MDEV-30225 test
+# solely to prove the RC isolation yields ROW binlog format as it is
+# supposed to:
+# https://mariadb.com/kb/en/unsafe-statements-for-statement-based-replication/#isolation-levels.
+# The original MDEV-30225 test is adapted to the RC to create
+# a similar safisticated scenario which does not lead to any deadlock though.
+
+--connect (pause_purge,localhost,root)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+CREATE TABLE t (pk int PRIMARY KEY, sk INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t VALUES (10, 100);
+
+--connect (con1,localhost,root)
+BEGIN; # trx 0
+SELECT * FROM t WHERE sk = 100 FOR UPDATE;
+
+--connect (con2,localhost,root)
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL insert_wait_started";
+# trx 1 is locked on try to read the record in secondary index during duplicates
+# check. It's the first in waiting queue, that's why it will be woken up firstly
+# when trx 0 commits.
+--send INSERT INTO t VALUES (5, 100) # trx 1
+
+--connect (con3,localhost,root)
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET DEBUG_SYNC="now WAIT_FOR insert_wait_started";
+SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL delete_started_waiting";
+# trx 2 can delete (5, 100) on master, but not on slave, as on slave trx 1
+# can insert (5, 100) after trx 2 positioned it's cursor. Trx 2 lock is placed
+# in waiting queue after trx 1 lock, but its persistent cursor position was
+# stored on (100, 10) record in secondary index before suspending. After trx 1
+# is committed, trx 2 will restore persistent cursor position on (100, 10). As
+# (100, 5) secondary index record was inserted before (100, 10) in logical
+# order, and (100, 10) record is delete-marked, trx 2 just continues scanning.
+#
+# Note. There can be several records with the same key in unique secondary
+# index, but only one of them must be non-delete-marked. That's why when we do
+# point query, cursor position is set in the first record in logical order, and
+# then records are iterated until either non-delete-marked record is found or
+# all records with the same unique fields are iterated.
+
+# to prepare showing interesting binlog events
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+BEGIN;
+--send UPDATE t SET sk = 200 WHERE sk = 100; # trx 2
+
+--connection con1
+SET DEBUG_SYNC="now WAIT_FOR delete_started_waiting";
+DELETE FROM t WHERE sk=100; # trx 0
+COMMIT;
+--disconnect con1
+
+--connection con2
+--reap
+--disconnect con2
+
+--connection con3
+--error 0
+--reap
+if (`SELECT ROW_COUNT() > 0`)
+{
+  --echo unexpected effective UPDATE
+  --die
+}
+--echo must be logged in ROW format as the only event of trx 2 (con3)
+INSERT INTO t VALUES (11, 101);
+COMMIT;
+--source include/show_binlog_events.inc
+--disconnect con3
+
+--connection default
+# If the bug is not fixed, we will see the row inserted by trx 1 here. This can
+# cause duplicate key error on slave, when some other trx tries in insert row
+# with the same secondary key, as was inserted by trx 1, and not deleted by trx
+# 2.
+SELECT * FROM t;
+
+--disconnect pause_purge
+SET DEBUG_SYNC="RESET";
+DROP TABLE t;
+--source include/wait_until_count_sessions.inc
