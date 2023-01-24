@@ -9025,7 +9025,7 @@ bool TABLE::check_period_overlaps(const KEY &key,
       if (f->is_null_in_record(lhs) || f->is_null_in_record(rhs))
         return false;
     uint kp_len= key.key_part[part_nr].length;
-    if (f->cmp_prefix(f->ptr_in_record(lhs), f->ptr_in_record(rhs),
+    if (f->cmp_binary(f->ptr_in_record(lhs), f->ptr_in_record(rhs),
                       kp_len) != 0)
       return false;
   }

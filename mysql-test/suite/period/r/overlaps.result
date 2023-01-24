@@ -351,3 +351,18 @@ primary key(id, p without overlaps)
 ) engine=heap partition by hash(id);
 update t set id = 1;
 drop table t, t1;
+# MDEV-30415 PERIOD false positive overlap wtih utf8mb4_unicode_nopad_ci
+create table `t1` (
+datetime_column_name_1 datetime(6) not null,
+datetime_column_name_2 datetime(6) not null,
+text_column_name text collate utf8mb4_unicode_nopad_ci not null,
+period for p (datetime_column_name_1, datetime_column_name_2),
+unique key index_name (text_column_name(191), p without overlaps)
+) engine=innodb default charset=utf8mb4 collate=utf8mb4_unicode_nopad_ci;
+insert into t1 values ('2000-01-01', '2001-01-01', 'def '),
+('2000-01-01', '2001-01-01', 'def');
+truncate t1;
+insert into t1 values ('2000-01-01', '2001-01-01', 'def'),
+('2000-01-01', '2001-01-01', 'def '),
+('2000-01-01', '2001-01-01', 'def  ');
+drop table t1;
