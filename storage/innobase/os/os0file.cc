@@ -1025,16 +1025,22 @@ os_file_create_simple_func(
 
         create_flag |= O_CLOEXEC;
 	if (fil_system.is_write_through()) create_flag |= O_DSYNC;
-        int direct_flag = fil_system.is_buffered() ? 0 : O_DIRECT;
+#ifdef O_DIRECT
+	int direct_flag = fil_system.is_buffered() ? 0 : O_DIRECT;
+#else
+	constexpr int direct_flag = 0;
+#endif
 
 	for (;;) {
 		file = open(name, create_flag | direct_flag, os_innodb_umask);
 
 		if (file == -1) {
+#ifdef O_DIRECT
 			if (direct_flag && errno == EINVAL) {
 				direct_flag = 0;
 				continue;
 			}
+#endif
 
 			*success = false;
 			if (!os_file_handle_error(
@@ -1131,7 +1137,9 @@ os_file_create_func(
 	);
 
 	int		create_flag = O_RDONLY | O_CLOEXEC;
+#ifdef O_DIRECT
 	const char*	mode_str = "OPEN";
+#endif
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? true : false;
@@ -1147,10 +1155,14 @@ os_file_create_func(
 		   || create_mode == OS_FILE_OPEN_RETRY) {
 		create_flag = O_RDWR | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_CREATE) {
+#ifdef O_DIRECT
 		mode_str = "CREATE";
+#endif
 		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
 	} else if (create_mode == OS_FILE_OVERWRITE) {
+#ifdef O_DIRECT
 		mode_str = "OVERWRITE";
+#endif
 		create_flag = O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC;
 	} else {
 		ib::error()
@@ -1168,9 +1180,13 @@ os_file_create_func(
 
 	create_flag |= O_CLOEXEC;
 
+#ifdef O_DIRECT
 	int direct_flag = type == OS_DATA_FILE && create_mode != OS_FILE_CREATE
 		&& !fil_system.is_buffered()
 		? O_DIRECT : 0;
+#else
+	constexpr int direct_flag = 0;
+#endif
 
 	if (read_only) {
 	} else if ((type == OS_LOG_FILE)
@@ -1185,10 +1201,12 @@ os_file_create_func(
 		file = open(name, create_flag | direct_flag, os_innodb_umask);
 
 		if (file == -1) {
+#ifdef O_DIRECT
 			if (direct_flag && errno == EINVAL) {
 				direct_flag = 0;
 				continue;
 			}
+#endif
 
 			const char*	operation;
 
