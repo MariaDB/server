@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2022, MariaDB Corporation.
+Copyright (c) 2016, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2297,7 +2297,7 @@ loop:
   btr_pcur_t pcur;
   pcur.btr_cur.page_cur.index= ibuf.index;
   ibuf_mtr_start(&mtr);
-  if (btr_pcur_open(&tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF, &pcur, 0, &mtr))
+  if (btr_pcur_open(&tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF, &pcur, &mtr))
     goto func_exit;
   if (!btr_pcur_is_on_user_rec(&pcur))
   {
@@ -2493,8 +2493,8 @@ ibuf_merge_space(
 	/* Position the cursor on the first matching record. */
 
 	pcur.btr_cur.page_cur.index = ibuf.index;
-	dberr_t err = btr_pcur_open(&tuple, PAGE_CUR_GE,
-				    BTR_SEARCH_LEAF, &pcur, 0, &mtr);
+	dberr_t err = btr_pcur_open(&tuple, PAGE_CUR_GE, BTR_SEARCH_LEAF,
+				    &pcur, &mtr);
 	ut_ad(err != DB_SUCCESS || page_validate(btr_pcur_get_page(&pcur),
 						 ibuf.index));
 
@@ -3238,7 +3238,7 @@ ibuf_insert_low(
 	ibuf_mtr_start(&mtr);
 	pcur.btr_cur.page_cur.index = ibuf.index;
 
-	err = btr_pcur_open(ibuf_entry, PAGE_CUR_LE, mode, &pcur, 0, &mtr);
+	err = btr_pcur_open(ibuf_entry, PAGE_CUR_LE, mode, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 func_exit:
 		ibuf_mtr_commit(&mtr);
@@ -3955,8 +3955,6 @@ ibuf_restore_pos(
 				position is to be restored */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	ut_ad(mode == BTR_MODIFY_LEAF || mode == BTR_PURGE_TREE);
-
 	if (UNIV_LIKELY(pcur->restore_position(mode, mtr) ==
 	      btr_pcur_t::SAME_ALL)) {
 		return true;
@@ -4037,12 +4035,11 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 
 	ibuf_mtr_start(mtr);
 	mysql_mutex_lock(&ibuf_mutex);
+	mtr_x_lock_index(ibuf.index, mtr);
 
-	if (!ibuf_restore_pos(page_id, search_tuple, BTR_PURGE_TREE,
-			      pcur, mtr)) {
-
+	if (!ibuf_restore_pos(page_id, search_tuple,
+			      BTR_PURGE_TREE_ALREADY_LATCHED, pcur, mtr)) {
 		mysql_mutex_unlock(&ibuf_mutex);
-		ut_ad(mtr->has_committed());
 		goto func_exit;
 	}
 
@@ -4053,13 +4050,10 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 		ut_a(err == DB_SUCCESS);
 
 		ibuf_size_update(ibuf_root->page.frame);
-		mysql_mutex_unlock(&ibuf_mutex);
-
 		ibuf.empty = page_is_empty(ibuf_root->page.frame);
-	} else {
-		mysql_mutex_unlock(&ibuf_mutex);
 	}
 
+	mysql_mutex_unlock(&ibuf_mutex);
 	ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
 
 func_exit:
@@ -4237,7 +4231,7 @@ loop:
 
 	/* Position pcur in the insert buffer at the first entry for this
 	index page */
-	if (btr_pcur_open_on_user_rec(search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_on_user_rec(search_tuple,
 				      BTR_MODIFY_LEAF, &pcur, &mtr)
 	    != DB_SUCCESS) {
 		err = DB_CORRUPTION;
@@ -4454,7 +4448,7 @@ loop:
 
 	/* Position pcur in the insert buffer at the first entry for the
 	space */
-	if (btr_pcur_open_on_user_rec(&search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_on_user_rec(&search_tuple,
 				      BTR_MODIFY_LEAF, &pcur, &mtr)
 	    != DB_SUCCESS) {
 		goto leave_loop;

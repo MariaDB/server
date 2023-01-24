@@ -1465,7 +1465,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
   ut_ad(strchr(path, '/'));
   ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
-  flag_modified();
+  m_modifications= true;
   if (!is_logged())
     return;
   m_last= nullptr;

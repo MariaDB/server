@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -122,15 +122,22 @@ MY_ATTRIBUTE((nonnull, warn_unused_result))
 static buf_block_t *fsp_get_header(const fil_space_t *space, mtr_t *mtr,
                                    dberr_t *err)
 {
-  buf_block_t *block= buf_page_get_gen(page_id_t(space->id, 0),
-                                       space->zip_size(), RW_SX_LATCH,
-                                       nullptr, BUF_GET_POSSIBLY_FREED,
-                                       mtr, err);
-  if (block && space->id != mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID +
-                                             block->page.frame))
+  const page_id_t id{space->id, 0};
+  buf_block_t *block= mtr->get_already_latched(id, MTR_MEMO_PAGE_SX_FIX);
+  if (block)
+    *err= DB_SUCCESS;
+  else
   {
-    *err= DB_CORRUPTION;
-    block= nullptr;
+    block= buf_page_get_gen(id, space->zip_size(), RW_SX_LATCH,
+                            nullptr, BUF_GET_POSSIBLY_FREED,
+                            mtr, err);
+    if (block &&
+        space->id != mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID +
+                                      block->page.frame))
+    {
+      *err= DB_CORRUPTION;
+      block= nullptr;
+    }
   }
   return block;
 }

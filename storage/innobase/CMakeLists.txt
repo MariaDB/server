@@ -334,12 +334,14 @@ SET(INNOBASE_SOURCES
 	include/row0upd.inl
 	include/row0vers.h
 	include/rw_lock.h
+	include/small_vector.h
 	include/srv0mon.h
 	include/srv0mon.inl
 	include/srv0srv.h
 	include/srv0start.h
 	include/srw_lock.h
 	include/sux_lock.h
+	include/transactional_lock_guard.h
 	include/trx0i_s.h
 	include/trx0purge.h
 	include/trx0rec.h
