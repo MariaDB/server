@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -104,7 +104,7 @@ bool
 row_purge_remove_clust_if_poss_low(
 /*===============================*/
 	purge_node_t*	node,	/*!< in/out: row purge node */
-	btr_latch_mode	mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
+	btr_latch_mode	mode)	/*!< in: BTR_MODIFY_LEAF or BTR_PURGE_TREE */
 {
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;
@@ -342,17 +342,20 @@ row_purge_remove_sec_if_poss_tree(
 	ibool			success	= TRUE;
 	dberr_t			err;
 	mtr_t			mtr;
-	enum row_search_result	search_result;
 
 	log_free_check();
 	mtr.start();
 	index->set_modified(mtr);
 	pcur.btr_cur.page_cur.index = index;
 
-	search_result = row_search_index_entry(entry, BTR_PURGE_TREE,
-					       &pcur, &mtr);
+	if (index->is_spatial()) {
+		if (!rtr_search(entry, BTR_PURGE_TREE, &pcur, &mtr)) {
+			goto found;
+		}
+		goto func_exit;
+	}
 
-	switch (search_result) {
+	switch (row_search_index_entry(entry, BTR_PURGE_TREE, &pcur, &mtr)) {
 	case ROW_NOT_FOUND:
 		/* Not found.  This is a legitimate condition.  In a
 		rollback, InnoDB will remove secondary recs that would
@@ -381,6 +384,7 @@ row_purge_remove_sec_if_poss_tree(
 	which cannot be purged yet, requires its existence. If some requires,
 	we should do nothing. */
 
+found:
 	if (row_purge_poss_sec(node, index, entry, &pcur, &mtr, true)) {
 
 		/* Remove the index record, which should have been
@@ -439,8 +443,6 @@ row_purge_remove_sec_if_poss_leaf(
 {
 	mtr_t			mtr;
 	btr_pcur_t		pcur;
-	enum btr_latch_mode	mode;
-	enum row_search_result	search_result;
 	bool			success	= true;
 
 	log_free_check();
@@ -449,31 +451,27 @@ row_purge_remove_sec_if_poss_leaf(
 	mtr.start();
 	index->set_modified(mtr);
 
-	/* Change buffering is disabled for spatial index and
-	virtual index. */
-	mode = (index->type & (DICT_SPATIAL | DICT_VIRTUAL))
-		? BTR_MODIFY_LEAF : BTR_PURGE_LEAF;
 	pcur.btr_cur.page_cur.index = index;
 
 	/* Set the purge node for the call to row_purge_poss_sec(). */
 	pcur.btr_cur.purge_node = node;
 	if (index->is_spatial()) {
 		pcur.btr_cur.thr = NULL;
-		index->lock.u_lock(SRW_LOCK_CALL);
-		search_result = row_search_index_entry(
-			entry, mode, &pcur, &mtr);
-		index->lock.u_unlock();
-	} else {
-		/* Set the query thread, so that ibuf_insert_low() will be
-		able to invoke thd_get_trx(). */
-		pcur.btr_cur.thr = static_cast<que_thr_t*>(
-			que_node_get_parent(node));
-		search_result = row_search_index_entry(
-			entry, mode, &pcur, &mtr);
+		if (!rtr_search(entry, BTR_MODIFY_LEAF, &pcur, &mtr)) {
+			goto found;
+		}
+		goto func_exit;
 	}
 
-	switch (search_result) {
+	/* Set the query thread, so that ibuf_insert_low() will be
+	able to invoke thd_get_trx(). */
+	pcur.btr_cur.thr = static_cast<que_thr_t*>(que_node_get_parent(node));
+
+	switch (row_search_index_entry(entry, index->has_virtual()
+				       ? BTR_MODIFY_LEAF : BTR_PURGE_LEAF,
+				       &pcur, &mtr)) {
 	case ROW_FOUND:
+found:
 		/* Before attempting to purge a record, check
 		if it is safe to do so. */
 		if (row_purge_poss_sec(node, index, entry, &pcur, &mtr, false)) {

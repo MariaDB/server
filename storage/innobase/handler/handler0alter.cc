@@ -6097,7 +6097,8 @@ func_exit:
 
 	que_thr_t* thr = pars_complete_graph_for_exec(
 		NULL, trx, ctx->heap, NULL);
-	const bool is_root = block->page.id().page_no() == index->page;
+	page_id_t id{block->page.id()};
+	const bool is_root = id.page_no() == index->page;
 
 	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
@@ -6114,8 +6115,10 @@ func_exit:
 		}
 
 		/* Ensure that the root page is in the correct format. */
-		buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
-						       &mtr, &err);
+		id.set_page_no(index->page);
+		buf_block_t* root = mtr.get_already_latched(
+			id, MTR_MEMO_PAGE_SX_FIX);
+
 		if (UNIV_UNLIKELY(!root)) {
 			goto func_exit;
 		}
@@ -11293,7 +11296,8 @@ err_index:
 	}
 
 	DBUG_EXECUTE_IF("stats_lock_fail",
-			error = DB_LOCK_WAIT_TIMEOUT;);
+			error = DB_LOCK_WAIT_TIMEOUT;
+			trx_rollback_for_mysql(trx););
 
 	if (error == DB_SUCCESS) {
 		error = lock_sys_tables(trx);
@@ -11311,6 +11315,18 @@ err_index:
 		if (fts_exist) {
 			purge_sys.resume_FTS();
 		}
+
+		if (trx->state == TRX_STATE_NOT_STARTED) {
+			/* Transaction may have been rolled back
+			due to a lock wait timeout, deadlock,
+			or a KILL statement. So restart the
+			transaction to remove the newly created
+			table or index stubs from data dictionary
+			and table cache in
+			rollback_inplace_alter_table() */
+			trx_start_for_ddl(trx);
+		}
+
 		DBUG_RETURN(true);
 	}
 
