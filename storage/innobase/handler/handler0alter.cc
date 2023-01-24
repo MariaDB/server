@@ -11273,7 +11273,8 @@ err_index:
 	}
 
 	DBUG_EXECUTE_IF("stats_lock_fail",
-			error = DB_LOCK_WAIT_TIMEOUT;);
+			error = DB_LOCK_WAIT_TIMEOUT;
+			trx_rollback_for_mysql(trx););
 
 	if (error == DB_SUCCESS) {
 		error = lock_sys_tables(trx);
@@ -11291,6 +11292,18 @@ err_index:
 		if (fts_exist) {
 			purge_sys.resume_FTS();
 		}
+
+		if (trx->state == TRX_STATE_NOT_STARTED) {
+			/* Transaction may have been rolled back
+			due to a lock wait timeout, deadlock,
+			or a KILL statement. So restart the
+			transaction to remove the newly created
+			table or index stubs from data dictionary
+			and table cache in
+			rollback_inplace_alter_table() */
+			trx_start_for_ddl(trx);
+		}
+
 		DBUG_RETURN(true);
 	}
 
