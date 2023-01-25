@@ -1,0 +1,35 @@
+* Unfixed spider tests on known bugs
+
+Tests under this directory are used to document known bugs. They
+should pass on expected /failure/, thus if they fail it could mean
+good news :) Ideally every reported bug should start with a test here,
+and when the bug is fixed, the test should be updated with its logic
+reversed (passing on expected /behaviour/) and moved to the bugfix
+suite. However, if we actively work a bug to begin with, we can still
+follow the old workflow of starting with a test in bugfix. Possible
+scenarios:
+
+1. A bug is reported, and is worked on. We create a testcase under the
+   bugfix suite as usual, that should pass on expected behaviour. We
+   work on it, fix the bug, and push. In this case there's no need to
+   create a test in the unfixed suite.
+
+2. A bug is reported, but we do not have time to work on it yet. We
+   create a testcase for this bug in the unfixed suite, that should
+   pass on expected failure. We push the testcase.
+
+   While working on other bugs we continue running tests on the
+   unfixed suite from time to time.
+
+   1. They all pass, nothing needs to be done
+
+   2. Some tests fail. Check whether the failure means the bugs are
+      fixed, and update the issues associated with the bugs. These
+      actions should not block the work on whatever bug we are
+      actually working on. Because of this, failures in this suite
+      should not block moving forward in development including
+      pushing.
+
+3. We finally have time to work on a bug with a testcase in the
+   unfixed suite. This is similar to 1: we reverse the test logic,
+   move it to bugfix, fix the bug, push.
