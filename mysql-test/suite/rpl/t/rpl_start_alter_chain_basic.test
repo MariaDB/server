@@ -41,6 +41,8 @@ select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 
 --connection server_3
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+--let $slave_gtid_state = `select @@gtid_binlog_state`
+--echo # slave gtid state is $slave_gtid_state
 --source include/stop_slave.inc
 --eval set global slave_parallel_threads = $slave_parallel_threads;
 --eval set global slave_parallel_mode = $slave_parallel_mode;

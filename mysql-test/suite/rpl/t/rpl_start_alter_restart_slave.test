@@ -33,7 +33,7 @@ create table t1( a int primary key, b int) engine=myisam;
 create table t2( a int primary key, b int) engine=myisam;
 
 --connect (con1,localhost,root,,)
---send alter table t1 add column c int;
+--send alter table t1 add column c int
 
 --connection master
 --echo # Get into binlog first and wait
@@ -43,7 +43,7 @@ create table t2( a int primary key, b int) engine=myisam;
 --echo # master gtid state is $master_gtid_state
 
 --connect (con2,localhost,root,,)
---send alter table t2 add column c int;
+--send alter table t2 add column c int
 
 --connection master
 --echo # Get into binlog next and wait as well
@@ -75,7 +75,7 @@ create table t3( a int primary key, b int) engine=innodb;
 --source include/sync_with_master_gtid.inc
 # set debug_sync="now wait_for CA_1_processing";
 connect(extra_slave,127.0.0.1,root,,test,$SLAVE_MYPORT);
---send stop slave;
+--send stop slave
 --connection slave
 # set debug_sync="now signal proceed_CA_1";
 --connection extra_slave
@@ -90,8 +90,7 @@ SET GLOBAL debug_dbug= @old_debug_slave;
 
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 --source include/start_slave.inc
---connection master
---sync_slave_with_master
+--source include/sync_with_master_gtid.inc
 --echo # Everything from the master binlog must have been applied now:
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
 --let $slave_gtid_state = `select @@gtid_binlog_state`
@@ -113,9 +112,9 @@ set DEBUG_SYNC= 'RESET';
 
 --sync_slave_with_master
 stop slave;
---eval set global slave_parallel_threads = $slave_parallel_threads;
---eval set global slave_parallel_mode = $slave_parallel_mode;
---eval set global gtid_strict_mode = $gtid_strict_mode;
+--eval set global slave_parallel_threads = $slave_parallel_threads
+--eval set global slave_parallel_mode = $slave_parallel_mode
+--eval set global gtid_strict_mode = $gtid_strict_mode
 set DEBUG_SYNC= 'RESET';
 start slave;
 --source include/rpl_end.inc
