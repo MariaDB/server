@@ -353,9 +353,8 @@ row_search_index_entry(
 	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor, which must
 				be closed by the caller */
-	que_thr_t*	thr,	/*!< in/out: query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull(1,3,5), warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 #define ROW_COPY_DATA		1
 #define ROW_COPY_POINTERS	2

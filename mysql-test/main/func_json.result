@@ -1611,6 +1611,18 @@ SELECT json_object('a', coalesce(json_object('b', 'c')));
 json_object('a', coalesce(json_object('b', 'c')))
 {"a": {"b": "c"}}
 #
+# MDEV-26392: Crash with json_get_path_next and 10.5.12
+#
+CREATE TABLE arrNestTest (
+id VARCHAR(80) AS (JSON_COMPACT(JSON_EXTRACT(doc, "$._id"))) UNIQUE KEY,
+doc JSON, 
+CONSTRAINT id_not_null CHECK(id IS NOT NULL));
+INSERT INTO test.arrNestTest (doc) VALUES ('{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }');
+SELECT * FROM arrNestTest;
+id	doc
+{"$oid":"611c0a463b150154132f6636"}	{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }
+DROP TABLE arrNestTest;
+#
 # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
 #
 CREATE TABLE t (a VARCHAR(8));
@@ -2505,6 +2517,24 @@ JSON_OVERLAPS(@json2, @json1)
 SELECT JSON_OVERLAPS(@json1, @json2);
 JSON_OVERLAPS(@json1, @json2)
 0
+#
+# MDEV-30304: Json Range only affects first row of the result set
+#
+CREATE TABLE t1 ( j JSON );
+INSERT INTO t1 (j) VALUES ('[{"key1": 1, "key2": 1}, {"key3": 1, "key4": 1}]');
+INSERT INTO t1 (j) VALUES ('[{"key1": 2, "key2": 2}, {"key3": 2, "key4": 2}, {"key5": 2, "key6": 2}]');
+INSERT INTO t1 (j) VALUES ('[{"key1": 3, "key2": 3}, {"key3": 3, "key4": 3}, {"key5": 3}]');
+SELECT JSON_EXTRACT(j, '$[0 to 1]')  FROM t1 ;
+JSON_EXTRACT(j, '$[0 to 1]')
+[{"key1": 1, "key2": 1}, {"key3": 1, "key4": 1}]
+[{"key1": 2, "key2": 2}, {"key3": 2, "key4": 2}]
+[{"key1": 3, "key2": 3}, {"key3": 3, "key4": 3}]
+SELECT JSON_EXTRACT(j, '$[*]')  FROM t1 ;
+JSON_EXTRACT(j, '$[*]')
+[{"key1": 1, "key2": 1}, {"key3": 1, "key4": 1}]
+[{"key1": 2, "key2": 2}, {"key3": 2, "key4": 2}, {"key5": 2, "key6": 2}]
+[{"key1": 3, "key2": 3}, {"key3": 3, "key4": 3}, {"key5": 3}]
+DROP TABLE t1;
 #
 # End of 10.9 Test
 #

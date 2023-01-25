@@ -2512,7 +2512,6 @@ wait_for_unfix:
 		}
 	}
 
-	ut_ad(state > buf_page_t::FREED);
 	if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED)) {
 		goto ignore_block;
 	}
@@ -2524,14 +2523,11 @@ wait_for_unfix:
 #endif /* UNIV_DEBUG */
 	ut_ad(block->page.frame);
 
-	mtr_memo_type_t fix_type;
-
 	switch (rw_latch) {
 	case RW_NO_LATCH:
 		mtr->memo_push(block, MTR_MEMO_BUF_FIX);
 		return block;
 	case RW_S_LATCH:
-		fix_type = MTR_MEMO_PAGE_S_FIX;
 		block->page.lock.s_lock();
 		ut_ad(!block->page.is_read_fixed());
 		if (UNIV_UNLIKELY(block->page.id() != page_id)) {
@@ -2549,7 +2545,6 @@ page_id_mismatch:
 		}
 		break;
 	case RW_SX_LATCH:
-		fix_type = MTR_MEMO_PAGE_SX_FIX;
 		block->page.lock.u_lock();
 		ut_ad(!block->page.is_io_fixed());
 		if (UNIV_UNLIKELY(block->page.id() != page_id)) {
@@ -2559,7 +2554,6 @@ page_id_mismatch:
 		break;
 	default:
 		ut_ad(rw_latch == RW_X_LATCH);
-		fix_type = MTR_MEMO_PAGE_X_FIX;
 		if (block->page.lock.x_lock_upgraded()) {
 			ut_ad(block->page.id() == page_id);
 			block->unfix();
@@ -2571,7 +2565,7 @@ page_id_mismatch:
 		}
 	}
 
-	mtr->memo_push(block, fix_type);
+	mtr->memo_push(block, mtr_memo_type_t(rw_latch));
 #ifdef BTR_CUR_HASH_ADAPT
 	btr_search_drop_page_hash_index(block, true);
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -2719,8 +2713,7 @@ bool buf_page_optimistic_get(ulint rw_latch, buf_block_t *block,
     ut_ad(!block->page.is_read_fixed());
     block->page.set_accessed();
     buf_page_make_young_if_needed(&block->page);
-    mtr->memo_push(block, rw_latch == RW_S_LATCH
-                   ? MTR_MEMO_PAGE_S_FIX : MTR_MEMO_PAGE_X_FIX);
+    mtr->memo_push(block, mtr_memo_type_t(rw_latch));
   }
 
   ut_d(if (!(++buf_dbg_counter % 5771)) buf_pool.validate());

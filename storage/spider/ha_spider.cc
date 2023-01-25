@@ -963,10 +963,8 @@ int ha_spider::reset()
   result_list.snap_direct_aggregate = FALSE;
   result_list.direct_distinct = FALSE;
   store_error_num = 0;
-  if (
-    wide_handler &&
-    wide_handler->sql_command != SQLCOM_END
-  ) {
+  if (wide_handler)
+  {
     wide_handler->sql_command = SQLCOM_END;
     wide_handler->between_flg = FALSE;
     wide_handler->idx_bitmap_is_set = FALSE;

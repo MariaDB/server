@@ -1832,15 +1832,12 @@ row_upd_sec_index_entry(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	mtr_t			mtr;
-	const rec_t*		rec;
 	btr_pcur_t		pcur;
 	mem_heap_t*		heap;
 	dtuple_t*		entry;
 	dict_index_t*		index;
-	btr_cur_t*		btr_cur;
 	dberr_t			err	= DB_SUCCESS;
 	trx_t*			trx	= thr_get_trx(thr);
-	btr_latch_mode		mode;
 	ulint			flags;
 
 	ut_ad(trx->id != 0);
@@ -1869,45 +1866,39 @@ row_upd_sec_index_entry(
 			    "before_row_upd_sec_index_entry");
 
 	mtr.start();
-	mode = BTR_MODIFY_LEAF;
 
 	switch (index->table->space_id) {
 	case SRV_TMP_SPACE_ID:
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		flags = BTR_NO_LOCKING_FLAG;
-		if (index->is_spatial()) {
-			mode = btr_latch_mode(BTR_MODIFY_LEAF
-					      | BTR_RTREE_DELETE_MARK);
-		}
 		break;
 	default:
 		index->set_modified(mtr);
 		/* fall through */
 	case 0:
 		flags = index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
-		/* We can only buffer delete-mark operations if there
-		are no foreign key constraints referring to the index. */
-		mode = index->is_spatial()
-			? btr_latch_mode(BTR_MODIFY_LEAF
-					 | BTR_RTREE_DELETE_MARK)
-			: BTR_MODIFY_LEAF;
-		break;
 	}
 
 	pcur.btr_cur.page_cur.index = index;
+	const rec_t *rec;
 
-	bool found = row_search_index_entry(entry, mode, &pcur, thr, &mtr);
-
-	btr_cur = btr_pcur_get_btr_cur(&pcur);
-
-	rec = btr_cur_get_rec(btr_cur);
-
-	if (!found) {
-		if (dict_index_is_spatial(index) && btr_cur->rtr_info->fd_del) {
-			/* We found the record, but a delete marked */
-			goto done;
+	if (index->is_spatial()) {
+		constexpr btr_latch_mode mode = btr_latch_mode(
+			BTR_MODIFY_LEAF | BTR_RTREE_DELETE_MARK);
+		if (UNIV_LIKELY(!rtr_search(entry, mode, &pcur, thr, &mtr))) {
+			goto found;
 		}
 
+		if (pcur.btr_cur.rtr_info->fd_del) {
+			/* We found the record, but a delete marked */
+			goto close;
+		}
+
+		goto not_found;
+	} else if (!row_search_index_entry(entry, BTR_MODIFY_LEAF,
+                                           &pcur, &mtr)) {
+not_found:
+		rec = btr_pcur_get_rec(&pcur);
 		ib::error()
 			<< "Record in index " << index->name
 			<< " of table " << index->table->name
@@ -1920,7 +1911,9 @@ row_upd_sec_index_entry(
 		ut_ad(0);
 #endif /* UNIV_DEBUG */
 	} else {
+found:
 		ut_ad(err == DB_SUCCESS);
+		rec = btr_pcur_get_rec(&pcur);
 
 		/* Delete mark the old index record; it can already be
 		delete marked if we return after a lock wait in
@@ -1929,14 +1922,14 @@ row_upd_sec_index_entry(
 			    rec, dict_table_is_comp(index->table))) {
 			err = lock_sec_rec_modify_check_and_lock(
 				flags,
-				btr_cur_get_block(btr_cur),
-				btr_cur_get_rec(btr_cur), index, thr, &mtr);
+				btr_pcur_get_block(&pcur),
+				btr_pcur_get_rec(&pcur), index, thr, &mtr);
 			if (err != DB_SUCCESS) {
-				goto done;
+				goto close;
 			}
 
-			btr_rec_set_deleted<true>(btr_cur_get_block(btr_cur),
-						  btr_cur_get_rec(btr_cur),
+			btr_rec_set_deleted<true>(btr_pcur_get_block(&pcur),
+						  btr_pcur_get_rec(&pcur),
 						  &mtr);
 #ifdef WITH_WSREP
 			if (!referenced && foreign
@@ -1995,7 +1988,7 @@ row_upd_sec_index_entry(
 		}
 	}
 
-done:
+close:
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 

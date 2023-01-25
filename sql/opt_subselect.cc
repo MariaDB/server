@@ -664,6 +664,17 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         DBUG_RETURN(-1);
       }
     }
+    /* Check if any table is not supporting comparable rowids */
+    {
+      List_iterator_fast<TABLE_LIST> li(select_lex->outer_select()->leaf_tables);
+      TABLE_LIST *tbl;
+      while ((tbl = li++))
+      {
+        TABLE *table= tbl->table;
+        if (table && table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+          join->not_usable_rowid_map|= table->map;
+      }
+    }
 
     DBUG_PRINT("info", ("Checking if subq can be converted to semi-join"));
     /*
@@ -683,8 +694,11 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         9. Parent select is not a table-less select
         10. Neither parent nor child select have STRAIGHT_JOIN option.
         11. It is first optimisation (the subquery could be moved from ON
-        clause during first optimisation and then be considered for SJ
-        on the second when it is too late)
+            clause during first optimisation and then be considered for SJ
+            on the second when it is too late)
+        12. All tables supports comparable rowids.
+            This is needed for DuplicateWeedout strategy to work (which
+            is the catch-all semi-join strategy so it must be applicable).
     */
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
         in_subs &&                                                    // 1
@@ -699,7 +713,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
-        select_lex->first_cond_optimization)                          // 11
+        select_lex->first_cond_optimization &&                        // 11
+        join->not_usable_rowid_map == 0)                              // 12
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -3556,6 +3571,9 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       }
       else
       {
+        /* Ensure that table supports comparable rowids */
+        DBUG_ASSERT(!(p->table->table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID));
+
         sj_outer_fanout= COST_MULT(sj_outer_fanout, p->records_read);
         temptable_rec_size += p->table->table->file->ref_length;
       }

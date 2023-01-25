@@ -1208,7 +1208,7 @@ row_search_on_row_ref(
 			& REC_INFO_MIN_REC_FLAG;
 	} else {
 		ut_a(ref->n_fields == index->n_uniq);
-		if (btr_pcur_open(ref, PAGE_CUR_LE, mode, pcur, 0, mtr)
+		if (btr_pcur_open(ref, PAGE_CUR_LE, mode, pcur, mtr)
 		    != DB_SUCCESS) {
 			return false;
 		}
@@ -1262,20 +1262,12 @@ row_search_index_entry(
 	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor, which must
 				be closed by the caller */
-	que_thr_t*	thr,	/*!< in/out: query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	ut_ad(dtuple_check_typed(entry));
 
-	if (pcur->index()->is_spatial()) {
-		if (rtr_pcur_open(entry, mode, pcur, thr, mtr)) {
-			return false;
-		}
-	} else {
-		if (btr_pcur_open(entry, PAGE_CUR_LE, mode, pcur, 0, mtr)
-		    != DB_SUCCESS) {
-			return false;
-		}
+	if (btr_pcur_open(entry, PAGE_CUR_LE, mode, pcur, mtr) != DB_SUCCESS) {
+		return false;
 	}
 
 	return !btr_pcur_is_before_first_on_page(pcur)

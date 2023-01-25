@@ -55,25 +55,26 @@ in the index record. */
 #define BTR_EXTERN_LOCAL_STORED_MAX_SIZE	\
 	(BTR_EXTERN_FIELD_REF_SIZE * 2)
 
-/** Latching modes for btr_cur_search_to_nth_level(). */
+/** Latching modes for btr_cur_t::search_leaf(). */
 enum btr_latch_mode {
 	/** Search a record on a leaf page and S-latch it. */
 	BTR_SEARCH_LEAF = RW_S_LATCH,
 	/** (Prepare to) modify a record on a leaf page and X-latch it. */
 	BTR_MODIFY_LEAF	= RW_X_LATCH,
+	/** U-latch root and X-latch a leaf page */
+	BTR_MODIFY_ROOT_AND_LEAF = RW_SX_LATCH,
 	/** Obtain no latches. */
 	BTR_NO_LATCHES = RW_NO_LATCH,
-	/** Search the previous record. */
+	/** Search the previous record.
+	Used in btr_pcur_move_backward_from_page(). */
 	BTR_SEARCH_PREV = 4 | BTR_SEARCH_LEAF,
-	/** Modify the previous record. */
+	/** Modify the previous record.
+	Used in btr_pcur_move_backward_from_page(). */
 	BTR_MODIFY_PREV = 4 | BTR_MODIFY_LEAF,
-	/** Start searching the entire B-tree. */
-	BTR_SEARCH_TREE = 8 | BTR_SEARCH_LEAF,
-	/** Start modifying1 the entire B-tree. */
+	/** Start modifying the entire B-tree. */
 	BTR_MODIFY_TREE = 8 | BTR_MODIFY_LEAF,
-	/** Continue searching the entire B-tree. */
-	BTR_CONT_SEARCH_TREE = 4 | BTR_SEARCH_TREE,
-	/** Continue modifying the entire B-tree. */
+	/** Continue modifying the entire R-tree.
+	Only used by rtr_search_to_nth_level(). */
 	BTR_CONT_MODIFY_TREE = 4 | BTR_MODIFY_TREE,
 
 	/** The caller is already holding dict_index_t::lock S-latch. */
@@ -82,13 +83,13 @@ enum btr_latch_mode {
 	dict_index_t::lock S-latch is being held. */
 	BTR_SEARCH_LEAF_ALREADY_S_LATCHED = BTR_SEARCH_LEAF
 	| BTR_ALREADY_S_LATCHED,
-	/** Search the entire index tree, assuming that the
-	dict_index_t::lock S-latch is being held. */
-	BTR_SEARCH_TREE_ALREADY_S_LATCHED = BTR_SEARCH_TREE
-	| BTR_ALREADY_S_LATCHED,
 	/** Search and X-latch a leaf page, assuming that the
 	dict_index_t::lock is being held in non-exclusive mode. */
 	BTR_MODIFY_LEAF_ALREADY_LATCHED = BTR_MODIFY_LEAF
+	| BTR_ALREADY_S_LATCHED,
+	/** U-latch root and X-latch a leaf page, assuming that
+	dict_index_t::lock is being held in U mode. */
+	BTR_MODIFY_ROOT_AND_LEAF_ALREADY_LATCHED = BTR_MODIFY_ROOT_AND_LEAF
 	| BTR_ALREADY_S_LATCHED,
 
 	/** In the case of BTR_MODIFY_TREE, the caller specifies
@@ -103,6 +104,9 @@ enum btr_latch_mode {
 
 	/** Attempt to delete a record in the tree. */
 	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+	/** Attempt to delete a record in an x-latched tree. */
+	BTR_PURGE_TREE_ALREADY_LATCHED = BTR_PURGE_TREE
+	| BTR_ALREADY_S_LATCHED,
 
 	/** Attempt to insert a record into the tree. */
 	BTR_INSERT_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_INSERT,

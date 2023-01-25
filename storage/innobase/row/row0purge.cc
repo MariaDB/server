@@ -104,7 +104,7 @@ bool
 row_purge_remove_clust_if_poss_low(
 /*===============================*/
 	purge_node_t*	node,	/*!< in/out: row purge node */
-	btr_latch_mode	mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
+	btr_latch_mode	mode)	/*!< in: BTR_MODIFY_LEAF or BTR_PURGE_TREE */
 {
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;
@@ -349,8 +349,12 @@ row_purge_remove_sec_if_poss_tree(
 	index->set_modified(mtr);
 	pcur.btr_cur.page_cur.index = index;
 
-	if (!row_search_index_entry(entry, BTR_PURGE_TREE, &pcur,
-				    nullptr, &mtr)) {
+	if (index->is_spatial()) {
+		if (rtr_search(entry, BTR_PURGE_TREE, &pcur, nullptr, &mtr)) {
+			goto func_exit;
+		}
+	} else if (!row_search_index_entry(entry, BTR_PURGE_TREE,
+					   &pcur, &mtr)) {
 		/* Not found.  This is a legitimate condition.  In a
 		rollback, InnoDB will remove secondary recs that would
 		be purged anyway.  Then the actual purge will not find
@@ -433,21 +437,20 @@ row_purge_remove_sec_if_poss_leaf(
 	mtr.start();
 	index->set_modified(mtr);
 
-	const auto mode = BTR_MODIFY_LEAF;
 	pcur.btr_cur.page_cur.index = index;
 
-	bool found;
 	if (index->is_spatial()) {
-		index->lock.u_lock(SRW_LOCK_CALL);
-		found = !rtr_pcur_open(entry, mode, &pcur, nullptr, &mtr);
-		index->lock.u_unlock();
-	} else {
-		found = btr_pcur_open(entry, PAGE_CUR_LE, mode, &pcur, 0, &mtr)
-			== DB_SUCCESS;
-	}
-
-	if (found && !btr_pcur_is_before_first_on_page(&pcur)
-            && btr_pcur_get_low_match(&pcur) == dtuple_get_n_fields(entry)) {
+		if (!rtr_search(entry, BTR_MODIFY_LEAF, &pcur, nullptr,
+				&mtr)) {
+			goto found;
+		}
+	} else if (btr_pcur_open(entry, PAGE_CUR_LE, BTR_MODIFY_LEAF, &pcur,
+				 &mtr)
+		   == DB_SUCCESS
+		   && !btr_pcur_is_before_first_on_page(&pcur)
+		   && btr_pcur_get_low_match(&pcur)
+		   == dtuple_get_n_fields(entry)) {
+found:
 		/* Before attempting to purge a record, check
 		if it is safe to do so. */
 		if (row_purge_poss_sec(node, index, entry, &pcur, &mtr, false)) {

@@ -1313,7 +1313,7 @@ static dberr_t dict_load_columns(dict_table_t *table, unsigned use_uncommitted,
 	dict_index_copy_types(&tuple, sys_index, 1);
 	pcur.btr_cur.page_cur.index = sys_index;
 
-	dberr_t err = btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
+	dberr_t err = btr_pcur_open_on_user_rec(&tuple,
 						BTR_SEARCH_LEAF, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 		goto func_exit;
@@ -1444,7 +1444,7 @@ dict_load_virtual_col(dict_table_t *table, bool uncommitted, ulint nth_v_col)
 	dict_index_copy_types(&tuple, sys_virtual_index, 2);
 	pcur.btr_cur.page_cur.index = sys_virtual_index;
 
-	dberr_t err = btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
+	dberr_t err = btr_pcur_open_on_user_rec(&tuple,
 						BTR_SEARCH_LEAF, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 		goto func_exit;
@@ -1684,8 +1684,7 @@ static dberr_t dict_load_fields(dict_index_t *index, bool uncommitted,
 	dict_index_copy_types(&tuple, sys_index, 1);
 	pcur.btr_cur.page_cur.index = sys_index;
 
-	dberr_t error = btr_pcur_open_on_user_rec(&tuple,
-						  PAGE_CUR_GE, BTR_SEARCH_LEAF,
+	dberr_t error = btr_pcur_open_on_user_rec(&tuple, BTR_SEARCH_LEAF,
 						  &pcur, &mtr);
 	if (error != DB_SUCCESS) {
 		goto func_exit;
@@ -1943,8 +1942,7 @@ dberr_t dict_load_indexes(dict_table_t *table, bool uncommitted,
 	dict_index_copy_types(&tuple, sys_index, 1);
 	pcur.btr_cur.page_cur.index = sys_index;
 
-	dberr_t error = btr_pcur_open_on_user_rec(&tuple,
-						  PAGE_CUR_GE, BTR_SEARCH_LEAF,
+	dberr_t error = btr_pcur_open_on_user_rec(&tuple, BTR_SEARCH_LEAF,
 						  &pcur, &mtr);
 	if (error != DB_SUCCESS) {
 		goto func_exit;
@@ -2341,7 +2339,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 	bool uncommitted = false;
 reload:
 	mtr.start();
-	dberr_t err = btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
+	dberr_t err = btr_pcur_open_on_user_rec(&tuple,
 						BTR_SEARCH_LEAF, &pcur, &mtr);
 
 	if (err != DB_SUCCESS || !btr_pcur_is_on_user_rec(&pcur)) {
@@ -2597,8 +2595,7 @@ dict_load_table_on_id(
 
 	dict_table_t* table = nullptr;
 
-	if (btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
-				      BTR_SEARCH_LEAF, &pcur, &mtr)
+	if (btr_pcur_open_on_user_rec(&tuple, BTR_SEARCH_LEAF, &pcur, &mtr)
 	    == DB_SUCCESS
 	    && btr_pcur_is_on_user_rec(&pcur)) {
 		/*---------------------------------------------------*/
@@ -2704,7 +2701,7 @@ static dberr_t dict_load_foreign_cols(dict_foreign_t *foreign, trx_id_t trx_id)
 	pcur.btr_cur.page_cur.index = sys_index;
 
 	mem_heap_t* heap = nullptr;
-	dberr_t err = btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
+	dberr_t err = btr_pcur_open_on_user_rec(&tuple,
 						BTR_SEARCH_LEAF, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 		goto func_exit;
@@ -2881,7 +2878,7 @@ dict_load_foreign(
 	mtr.start();
 
 	mem_heap_t* heap = nullptr;
-	dberr_t err = btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
+	dberr_t err = btr_pcur_open_on_user_rec(&tuple,
 						BTR_SEARCH_LEAF, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 		goto err_exit;
@@ -3092,7 +3089,7 @@ start_load:
 	dict_index_copy_types(&tuple, sec_index, 1);
 	pcur.btr_cur.page_cur.index = sec_index;
 
-	dberr_t err = btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
+	dberr_t err = btr_pcur_open_on_user_rec(&tuple,
 						BTR_SEARCH_LEAF, &pcur, &mtr);
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(err);

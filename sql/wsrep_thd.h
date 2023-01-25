@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2022 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2023 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,7 +88,9 @@ bool wsrep_create_appliers(long threads, bool mutex_protected=false);
 void wsrep_create_rollbacker();
 
 bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd);
-int  wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal);
+int  wsrep_abort_thd(THD *bf_thd,
+                     THD *victim_thd,
+                     my_bool signal) __attribute__((nonnull(1,2)));
 
 /*
   Helper methods to deal with thread local storage.

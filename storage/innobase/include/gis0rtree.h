@@ -59,6 +59,49 @@ Created 2013/03/27 Jimmy Yang and Allen Lai
 
 /* Geometry data header */
 #define	GEO_DATA_HEADER_SIZE	4
+
+/** Search for a spatial index leaf page record.
+@param cur         cursor
+@param thr         query thread
+@param tuple       search tuple
+@param latch_mode  latching mode
+@param mtr         mini-transaction
+@param mode        search mode */
+dberr_t rtr_search_leaf(btr_cur_t *cur, que_thr_t *thr, const dtuple_t *tuple,
+                        btr_latch_mode latch_mode, mtr_t *mtr,
+                        page_cur_mode_t mode= PAGE_CUR_RTREE_LOCATE)
+  MY_ATTRIBUTE((nonnull(1,3,5), warn_unused_result));
+
+/** Search for inserting a spatial index leaf page record.
+@param cur         cursor
+@param tuple       search tuple
+@param latch_mode  latching mode
+@param mtr         mini-transaction */
+inline dberr_t rtr_insert_leaf(btr_cur_t *cur, que_thr_t *thr,
+                               const dtuple_t *tuple,
+                               btr_latch_mode latch_mode, mtr_t *mtr)
+{
+  return rtr_search_leaf(cur, thr, tuple, latch_mode, mtr,
+                         PAGE_CUR_RTREE_INSERT);
+}
+
+/** Search for a spatial index leaf page record.
+@param pcur        cursor
+@param thr         query thread
+@param tuple       search tuple
+@param mode        search mode
+@param mtr         mini-transaction */
+dberr_t rtr_search_leaf(btr_pcur_t *pcur, que_thr_t *thr,
+                        const dtuple_t *tuple,
+                        page_cur_mode_t mode, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+dberr_t rtr_search_to_nth_level(btr_cur_t *cur, que_thr_t *thr,
+                                const dtuple_t *tuple,
+                                btr_latch_mode latch_mode, mtr_t *mtr,
+                                page_cur_mode_t mode, ulint level)
+  MY_ATTRIBUTE((nonnull(1,3,5), warn_unused_result));
+
 /**********************************************************************//**
 Builds a Rtree node pointer out of a physical record and a page number.
 @return own: node pointer */
@@ -320,10 +363,9 @@ rtr_store_parent_path(
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. */
-bool
-rtr_pcur_open(
+bool rtr_search(
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
+	btr_latch_mode	latch_mode,/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	cursor,	/*!< in: memory buffer for persistent cursor */
 	que_thr_t*	thr,	/*!< in/out; query thread */
 	mtr_t*		mtr)	/*!< in: mtr */

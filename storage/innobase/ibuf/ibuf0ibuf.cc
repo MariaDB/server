@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2023, MariaDB Corporation.
+Copyright (c) 2016, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -807,6 +807,57 @@ static dberr_t ibuf_merge(fil_space_t *space, btr_cur_t *cur, mtr_t *mtr)
   return DB_SUCCESS;
 }
 
+static dberr_t ibuf_open(btr_cur_t *cur, mtr_t *mtr)
+{
+  ut_ad(mtr->get_savepoint() == 1);
+
+  uint32_t page= FSP_IBUF_TREE_ROOT_PAGE_NO;
+
+  for (ulint height= ULINT_UNDEFINED;;)
+  {
+    dberr_t err;
+    buf_block_t* block= btr_block_get(*cur->index(), page, RW_X_LATCH, mtr,
+                                      &err);
+    ut_ad(!block == (err != DB_SUCCESS));
+
+    if (!block)
+      return err;
+
+    page_cur_set_before_first(block, &cur->page_cur);
+    const uint32_t l= btr_page_get_level(block->page.frame);
+
+    if (height == ULINT_UNDEFINED)
+      height= l;
+    else
+    {
+      /* Release the parent page latch. */
+      ut_ad(mtr->get_savepoint() == 3);
+      mtr->rollback_to_savepoint(1, 2);
+
+      if (UNIV_UNLIKELY(height != l))
+        return DB_CORRUPTION;
+    }
+
+    if (!height)
+      return ibuf_move_to_next(cur, mtr);
+
+    height--;
+
+    if (!page_cur_move_to_next(&cur->page_cur))
+      return DB_CORRUPTION;
+
+    const rec_t *ptr= cur->page_cur.rec;
+    const ulint n_fields= rec_get_n_fields_old(ptr);
+    if (n_fields <= IBUF_REC_FIELD_USER)
+      return DB_CORRUPTION;
+    ulint len;
+    ptr+= rec_get_nth_field_offs_old(ptr, n_fields - 1, &len);
+    if (len != 4)
+      return DB_CORRUPTION;
+    page= mach_read_from_4(ptr);
+  }
+}
+
 ATTRIBUTE_COLD dberr_t ibuf_upgrade()
 {
   if (srv_read_only_mode)
@@ -838,21 +889,16 @@ ATTRIBUTE_COLD dberr_t ibuf_upgrade()
   size_t spaces=0, pages= 0;
   dberr_t err;
   mtr_t mtr;
+  mtr.start();
+  mtr_x_lock_index(ibuf_index, &mtr);
+
   {
     btr_cur_t cur;
     uint32_t prev_space_id= ~0U;
     fil_space_t *space= nullptr;
-
+    cur.page_cur.index= ibuf_index;
     log_free_check();
-    mtr.start();
-    err= cur.open_leaf(true, ibuf_index, BTR_CONT_MODIFY_TREE, &mtr);
-
-    if (err == DB_SUCCESS)
-    {
-      cur.page_cur.block->fix();
-      mtr.page_lock(cur.page_cur.block, RW_X_LATCH);
-      err= ibuf_move_to_next(&cur, &mtr);
-    }
+    err= ibuf_open(&cur, &mtr);
 
     while (err == DB_SUCCESS && !page_cur_is_after_last(&cur.page_cur))
     {

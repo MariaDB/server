@@ -1491,8 +1491,7 @@ static void innodb_drop_database(handlerton*, char *path)
     mtr_t mtr;
     mtr.start();
     pcur.btr_cur.page_cur.index = sys_index;
-    err= btr_pcur_open_on_user_rec(&tuple, PAGE_CUR_GE,
-                                   BTR_SEARCH_LEAF, &pcur, &mtr);
+    err= btr_pcur_open_on_user_rec(&tuple, BTR_SEARCH_LEAF, &pcur, &mtr);
     if (err != DB_SUCCESS)
       goto err_exit;
 
@@ -7906,6 +7905,7 @@ report_error:
 
 #ifdef WITH_WSREP
 	if (!error_result && trx->is_wsrep()
+	    && !trx->is_bulk_insert()
 	    && wsrep_thd_is_local(m_user_thd)
 	    && !wsrep_thd_ignore_table(m_user_thd)
 	    && !wsrep_consistency_check(m_user_thd)
@@ -9995,6 +9995,8 @@ wsrep_append_key(
 					(shared, exclusive, semi...) */
 )
 {
+	ut_ad(!trx->is_bulk_insert());
+
 	DBUG_ENTER("wsrep_append_key");
 	DBUG_PRINT("enter",
 		    ("thd: %lu trx: %lld", thd_get_thread_id(thd),
@@ -18575,7 +18577,15 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
       lock_sys.cancel_lock_wait_for_trx(vtrx);
 
       DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-      wsrep_thd_bf_abort(bf_thd, vthd, true);
+      if (!wsrep_thd_bf_abort(bf_thd, vthd, true))
+      {
+        wsrep_thd_LOCK(vthd);
+        wsrep_thd_set_wsrep_aborter(NULL, vthd);
+        wsrep_thd_UNLOCK(vthd);
+
+        WSREP_DEBUG("wsrep_thd_bf_abort has failed, victim %lu will survive",
+                     thd_get_thread_id(vthd));
+      }
     }
     wsrep_thd_kill_UNLOCK(vthd);
   }

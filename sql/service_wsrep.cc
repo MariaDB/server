@@ -1,4 +1,4 @@
-/* Copyright 2018 Codership Oy <info@codership.com>
+/* Copyright 2018-2023 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -238,10 +238,10 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
     }
 
     victim_thd->wsrep_aborter= bf_thd->thread_id;
-    victim_thd->awake_no_mutex(KILL_QUERY);
+    victim_thd->awake_no_mutex(KILL_QUERY_HARD);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   } else {
-    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake");
+    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake, signal %d", signal);
   }
   return ret;
 }
@@ -253,7 +253,9 @@ extern "C" my_bool wsrep_thd_skip_locking(const THD *thd)
 
 extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 {
-  if (wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right)) {
+  if (wsrep_thd_is_BF(left, false) &&
+      wsrep_thd_is_BF(right, false) &&
+      wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right)) {
     WSREP_DEBUG("BF conflict, order: %lld %lld\n",
                 (long long)wsrep_thd_trx_seqno(left),
                 (long long)wsrep_thd_trx_seqno(right));
@@ -277,7 +279,6 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
       return (cs.state() == wsrep::client_state::s_exec ||
               cs.state() == wsrep::client_state::s_result);
     case wsrep::transaction::s_aborting:
-    case wsrep::transaction::s_aborted:
       return true;
     default:
       return false;
@@ -369,13 +370,20 @@ extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd)
 
 extern "C" bool wsrep_thd_set_wsrep_aborter(THD *bf_thd, THD *victim_thd)
 {
-  WSREP_DEBUG("wsrep_thd_set_wsrep_aborter called");
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+  if (!bf_thd)
+  {
+    victim_thd->wsrep_aborter= 0;
+    WSREP_DEBUG("wsrep_thd_set_wsrep_aborter resetting wsrep_aborter");
+    return false;
+  }
   if (victim_thd->wsrep_aborter && victim_thd->wsrep_aborter != bf_thd->thread_id)
   {
     return true;
   }
-  victim_thd->wsrep_aborter = bf_thd->thread_id;
+  victim_thd->wsrep_aborter= bf_thd->thread_id;
+  WSREP_DEBUG("wsrep_thd_set_wsrep_aborter setting wsrep_aborter %u",
+              victim_thd->wsrep_aborter);
   return false;
 }
 
@@ -409,3 +417,23 @@ extern "C" void  wsrep_thd_set_PA_unsafe(THD *thd)
     WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
   }
 }
+
+extern "C" int wsrep_thd_append_table_key(MYSQL_THD thd,
+                                    const char* db,
+                                    const char* table,
+                                    enum Wsrep_service_key_type key_type)
+{
+  wsrep_key_arr_t key_arr = {0, 0};
+  int ret = wsrep_prepare_keys_for_isolation(thd, db, table, NULL, &key_arr);
+  ret = ret || wsrep_thd_append_key(thd, key_arr.keys,
+                                    (int)key_arr.keys_len, key_type);
+  wsrep_keys_free(&key_arr);
+  return ret;
+}
+
+extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
+{
+  return (wsrep_thd_is_local(thd) &&
+	  thd->wsrep_cs().transaction().active());
+}
+

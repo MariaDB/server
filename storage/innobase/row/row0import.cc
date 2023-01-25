@@ -1617,6 +1617,9 @@ inline dberr_t IndexPurge::purge_pessimistic_delete() noexcept
 dberr_t IndexPurge::purge() noexcept
 {
   btr_pcur_store_position(&m_pcur, &m_mtr);
+  m_mtr.commit();
+  m_mtr.start();
+  m_mtr.set_log_mode(MTR_LOG_NO_REDO);
   dberr_t err= purge_pessimistic_delete();
 
   m_mtr.start();

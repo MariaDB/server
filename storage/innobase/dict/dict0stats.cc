@@ -1677,7 +1677,7 @@ static dberr_t page_cur_open_level(page_cur_t *page_cur, ulint level,
 static dberr_t btr_pcur_open_level(btr_pcur_t *pcur, ulint level, mtr_t *mtr,
                                    dict_index_t *index)
 {
-  pcur->latch_mode= BTR_SEARCH_TREE;
+  pcur->latch_mode= BTR_SEARCH_LEAF;
   pcur->search_mode= PAGE_CUR_G;
   pcur->pos_state= BTR_PCUR_IS_POSITIONED;
   pcur->btr_cur.page_cur.index= index;
