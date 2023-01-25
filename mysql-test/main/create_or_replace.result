@@ -915,10 +915,11 @@ Warning	1265	Data truncated for column 'stat_description' at row 2
 Warning	1265	Data truncated for column 'stat_description' at row 3
 lock table t write;
 create or replace table t (y int);
+create or replace table t (z int) engine innodb;
 unlock tables;
 alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
 select * from t;
-y
+z
 drop table t;
 set sql_mode= default;
 #

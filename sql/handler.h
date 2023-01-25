@@ -3256,7 +3256,11 @@ public:
   bool mark_trx_read_write_done;           /* mark_trx_read_write was called */
   bool check_table_binlog_row_based_done; /* check_table_binlog.. was called */
   bool check_table_binlog_row_based_result; /* cached check_table_binlog... */
-  /* 
+  /*
+    Used to tell the table rename do as much as possible (ignore stats errors).
+  */
+  bool ddl_log_operation;
+  /*
     TRUE <=> the engine guarantees that returned records are within the range
     being scanned.
   */
@@ -3430,6 +3434,7 @@ public:
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
+    ddl_log_operation(false),
     in_range_check_pushed_down(FALSE), lookup_errkey(-1), errkey(-1),
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),

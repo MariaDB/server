@@ -77,6 +77,8 @@ static const uint SKIP_SYMDIR_ACCESS= 1 << 5;
 static const uint NO_FK_CHECKS=    1 << 6;
 /* Don't delete .par table in quick_rm_table() */
 static const uint NO_PAR_TABLE=   1 << 7;
+/* Tell the file operation to do as much as possible (f.ex. ignore stat errors on rename) */
+static const uint DDL_LOG=        1 << 8;
 
 uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);

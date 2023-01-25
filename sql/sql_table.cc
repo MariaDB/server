@@ -4480,7 +4480,7 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
       orig_table->table= NULL;
     }
 
-    param.rename_flags= FN_TO_IS_TMP;
+    param.rename_flags= FN_TO_IS_TMP | DDL_LOG;
     param.from_table_hton= old_hton;
     param.old_version= org_tabledef_version;
     param.old_alias= lower_case_table_names == 2 ? orig_table->alias :
@@ -4545,7 +4545,7 @@ bool HA_CREATE_INFO::finalize_atomic_replace(THD *thd, TABLE_LIST *orig_table)
 
   cpath.length= build_table_filename(path, sizeof(path) - 1, db.str,
                                      table_name.str, "", 0);
-  param.rename_flags= FN_FROM_IS_TMP;
+  param.rename_flags= FN_FROM_IS_TMP | DDL_LOG;
   param.from_table_hton= db_type;
   param.old_version= tabledef_version;
   param.old_alias= tmp_name.table_name;
@@ -5642,14 +5642,19 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     DBUG_RETURN(TRUE);
   }
 
-  if (file && file->needs_lower_case_filenames())
+  if (file)
   {
-    build_lower_case_table_filename(lc_from, sizeof(lc_from) -1,
-                                    old_db, old_name, flags & FN_FROM_IS_TMP);
-    build_lower_case_table_filename(lc_to, sizeof(lc_from) -1,
-                                    new_db, new_name, flags & FN_TO_IS_TMP);
-    from_base= lc_from;
-    to_base=   lc_to;
+    if (file->needs_lower_case_filenames())
+    {
+      build_lower_case_table_filename(lc_from, sizeof(lc_from) -1,
+                                      old_db, old_name, flags & FN_FROM_IS_TMP);
+      build_lower_case_table_filename(lc_to, sizeof(lc_from) -1,
+                                      new_db, new_name, flags & FN_TO_IS_TMP);
+      from_base= lc_from;
+      to_base=   lc_to;
+    }
+    if (flags & DDL_LOG)
+      file->ddl_log_operation= true;
   }
 
   if (flags & NO_HA_TABLE)

@@ -14136,12 +14136,16 @@ ha_innobase::rename_table(
 
 	if (error == DB_SUCCESS && table_stats && index_stats) {
 		error = dict_stats_rename_table(norm_from, norm_to, trx);
-		if (error == DB_DUPLICATE_KEY) {
-			/* The duplicate may also occur in
-			mysql.innodb_index_stats.  */
-			my_error(ER_DUP_KEY, MYF(0),
-				 "mysql.innodb_table_stats");
-			error = DB_ERROR;
+		if (error) {
+			if (ddl_log_operation) {
+				error = DB_SUCCESS;
+			} else if (error == DB_DUPLICATE_KEY) {
+				/* The duplicate may also occur in
+				mysql.innodb_index_stats.  */
+				my_error(ER_DUP_KEY, MYF(0),
+					"mysql.innodb_table_stats");
+				error = DB_ERROR;
+			}
 		}
 	}
 

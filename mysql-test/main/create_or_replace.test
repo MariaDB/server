@@ -708,6 +708,7 @@ insert into t values (77);
 alter table mysql.innodb_index_stats modify stat_description char(10);
 lock table t write;
 create or replace table t (y int);
+create or replace table t (z int) engine innodb;
 # cleanup
 unlock tables;
 alter table mysql.innodb_index_stats modify stat_description varchar(1024) not null;
