@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #ifdef LINUX_NATIVE_AIO
 # include <thread>
 # include <atomic>
+# include <cstdio>
 # include <libaio.h>
 # include <sys/syscall.h>
 
