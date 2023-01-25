@@ -1012,22 +1012,13 @@ FIXME: Rely on recv_sys.pages! */
 class mlog_init_t
 {
 public:
-	/** A page initialization operation that was parsed from
-	the redo log */
-	struct init {
-		/** log sequence number of the page initialization */
-		lsn_t lsn;
-		/** Whether btr_page_create() avoided a read of the page.
-
-		At the end of the last recovery batch, mark_ibuf_exist()
-		will mark pages for which this flag is set. */
-		bool created;
-	};
+	/** log sequence number of the page initialization */
+	lsn_t lsn;
 
 private:
-	typedef std::map<const page_id_t, init,
+	typedef std::map<const page_id_t, lsn_t,
 			 std::less<const page_id_t>,
-			 ut_allocator<std::pair<const page_id_t, init> > >
+			 ut_allocator<std::pair<const page_id_t, lsn_t> > >
 		map;
 	/** Map of page initialization operations.
 	FIXME: Merge this to recv_sys.pages! */
@@ -1040,13 +1031,11 @@ public:
 	bool add(const page_id_t page_id, lsn_t lsn)
 	{
 		mysql_mutex_assert_owner(&recv_sys.mutex);
-		const init init = { lsn, false };
-		std::pair<map::iterator, bool> p = inits.insert(
-			map::value_type(page_id, init));
-		ut_ad(!p.first->second.created);
+		std::pair<map::iterator, bool> p = inits.emplace(
+			map::value_type(page_id, lsn));
 		if (p.second) return true;
-		if (p.first->second.lsn >= init.lsn) return false;
-		p.first->second = init;
+		if (p.first->second >= lsn) return false;
+		p.first->second = lsn;
 		return true;
 	}
 
@@ -1056,7 +1045,7 @@ public:
 	@param[in,out]	init	initialize log or load log
 	@return the latest page initialization;
 	not valid after releasing recv_sys.mutex. */
-	init& last(page_id_t page_id)
+	lsn_t last(page_id_t page_id)
 	{
 		mysql_mutex_assert_owner(&recv_sys.mutex);
 		return inits.find(page_id)->second;
@@ -1070,16 +1059,7 @@ public:
 	{
 		mysql_mutex_assert_owner(&recv_sys.mutex);
 		auto i= inits.find(page_id);
-		return i != inits.end() && i->second.lsn > lsn;
-	}
-
-	/** At the end of each recovery batch, reset the 'created' flags. */
-	void reset()
-	{
-		mysql_mutex_assert_owner(&recv_sys.mutex);
-		for (map::value_type& i : inits) {
-			i.second.created = false;
-		}
+		return i != inits.end() && i->second > lsn;
 	}
 
 	/** Clear the data structure */
@@ -2820,19 +2800,17 @@ lsn of a log record.
 @param[in,out]	mtr		mini-transaction
 @param[in,out]	p		recovery address
 @param[in,out]	space		tablespace, or NULL if not looked up yet
-@param[in,out]	init		page initialization operation, or NULL
+@param[in,out]	init_lsn	page initialization LSN, or 0
 @return the recovered page
 @retval nullptr on failure */
 static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
                                       const recv_sys_t::map::iterator &p,
                                       fil_space_t *space= nullptr,
-                                      mlog_init_t::init *init= nullptr)
+                                      lsn_t init_lsn= 0)
 {
 	mysql_mutex_assert_owner(&recv_sys.mutex);
 	ut_ad(recv_sys.apply_log_recs);
 	ut_ad(recv_needed_recovery);
-	ut_ad(!init || init->created);
-	ut_ad(!init || init->lsn);
 	ut_ad(block->page.id() == p->first);
 	ut_ad(!p->second.is_being_processed());
 	ut_ad(!space || space->id == block->page.id().space());
@@ -2853,13 +2831,12 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 	byte *frame = UNIV_LIKELY_NULL(block->page.zip.data)
 		? block->page.zip.data
 		: block->page.frame;
-	const lsn_t page_lsn = init
+	const lsn_t page_lsn = init_lsn
 		? 0
 		: mach_read_from_8(frame + FIL_PAGE_LSN);
 	bool free_page = false;
 	lsn_t start_lsn = 0, end_lsn = 0;
 	ut_d(lsn_t recv_start_lsn = 0);
-	const lsn_t init_lsn = init ? init->lsn : 0;
 
 	bool skipped_after_init = false;
 
@@ -2987,8 +2964,7 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 set_start_lsn:
 		if ((a == log_phys_t::APPLIED_CORRUPTED
 		     || recv_sys.is_corrupt_log()) && !srv_force_recovery) {
-			if (init) {
-				init->created = false;
+			if (init_lsn) {
 				if (space || block->page.id().page_no()) {
 					block->page.lock.x_lock_recursive();
 				}
@@ -3028,12 +3004,11 @@ set_start_lsn:
 		UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
 		buf_pool.page_cleaner_wakeup();
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-	} else if (free_page && init) {
+	} else if (free_page && init_lsn) {
 		/* There have been no operations that modify the page.
 		Any buffered changes must not be merged. A subsequent
 		buf_page_create() from a user thread should discard
 		any buffered changes. */
-		init->created = false;
 		ut_ad(!mtr.has_modifications());
 		block->page.set_freed(block->page.state());
 	}
@@ -3212,11 +3187,11 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   page_recv_t &recs= p->second;
   ut_ad(recs.state == page_recv_t::RECV_WILL_NOT_READ);
   buf_block_t* block= nullptr;
-  mlog_init_t::init &i= mlog_init.last(page_id);
+  const lsn_t init_lsn= mlog_init.last(page_id);
   const lsn_t end_lsn= recs.log.last()->lsn;
-  if (end_lsn < i.lsn)
+  if (end_lsn < init_lsn)
     DBUG_LOG("ib_log", "skip log for page " << page_id
-             << " LSN " << end_lsn << " < " << i.lsn);
+             << " LSN " << end_lsn << " < " << init_lsn);
   fil_space_t *space= fil_space_t::get(page_id.space());
 
   mtr.start();
@@ -3256,9 +3231,8 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   }
 
   ut_ad(&recs == &pages.find(page_id)->second);
-  i.created= true;
   map::iterator r= p++;
-  block= recv_recover_page(block, mtr, r, space, &i);
+  block= recv_recover_page(block, mtr, r, space, init_lsn);
   ut_ad(mtr.has_committed());
 
   if (block)
@@ -3512,10 +3486,7 @@ next_free_block:
   }
 
   if (!last_batch)
-  {
-    mlog_init.reset();
     log_sys.latch.wr_unlock();
-  }
 
   mysql_mutex_unlock(&mutex);
 
