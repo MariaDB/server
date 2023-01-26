@@ -7902,7 +7902,27 @@ best_access_path(JOIN      *join,
           (s->table->file->index_flags(start_key->key,0,1) &
            HA_DO_RANGE_FILTER_PUSHDOWN))
       {
-        double rows= record_count * records;
+        double rows;
+        if (type == JT_EQ_REF)
+        {
+          /*
+            Treat EQ_REF access in a special way:
+            1. We have no cost for index-only read. Assume its cost is 50% of
+               the cost of the full read.
+
+            2. A regular ref access will do #record_count lookups, but eq_ref
+               has "lookup cache" which reduces the number of lookups made.
+               The estimation code uses prev_record_reads() call to estimate:
+
+                tmp = prev_record_reads(join_positions, idx, found_ref);
+
+               Set the effective number of rows from "tmp" here.
+          */
+          keyread_tmp= tmp/ 2;
+          rows= tmp;
+        }
+        else
+          rows= record_count * records;
 
         /*
           If we use filter F with selectivity s the the cost of fetching data
@@ -7945,10 +7965,6 @@ best_access_path(JOIN      *join,
           we cannot use filters as the cost calculation below would cause
           tmp to become negative.  The future resultion is to not limit
           cost with worst_seek.
-
-          We cannot use filter with JT_EQ_REF as in this case 'tmp' is
-          number of rows from prev_record_read() and keyread_tmp is 0. These
-          numbers are not usable with rowid filter code.
 	*/
         double access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
         if (!(records < s->worst_seeks &&
@@ -7956,7 +7972,7 @@ best_access_path(JOIN      *join,
           trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
         else if (access_cost_factor <= 0.0)
           trace_access_idx.add("rowid_filter_skipped", "cost_factor <= 0");
-        else if (type != JT_EQ_REF)
+        else
         {
           filter=
             table->best_range_rowid_filter_for_partial_join(start_key->key,
