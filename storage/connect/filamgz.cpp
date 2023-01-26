@@ -33,6 +33,8 @@
 #include <fcntl.h>
 #endif  // !_WIN32
 
+#include <m_string.h>
+
 /***********************************************************************/
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
@@ -128,12 +130,13 @@ int GZFAM::GetFileLength(PGLOBAL g)
 /***********************************************************************/
 bool GZFAM::OpenTableFile(PGLOBAL g)
   {
-  char    opmode[4], filename[_MAX_PATH];
-  MODE    mode = Tdbp->GetMode();
+  const char *opmode;
+  char filename[_MAX_PATH];
+  MODE mode = Tdbp->GetMode();
 
   switch (mode) {
     case MODE_READ:
-      strcpy(opmode, "r");
+      opmode = "rb";
       break;
     case MODE_UPDATE:
       /*****************************************************************/
@@ -147,7 +150,7 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
         DelRows = Cardinality(g);
 
         // This will erase the entire file
-        strcpy(opmode, "w");
+        opmode = "wb";
 //      Block = 0;                // For ZBKFAM
 //      Last = Nrec;              // For ZBKFAM
         Tdbp->ResetSize();
@@ -158,7 +161,7 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
 
       break;
     case MODE_INSERT:
-      strcpy(opmode, "a+");
+      opmode = "a+b";
       break;
     default:
       snprintf(g->Message, sizeof(g->Message), MSG(BAD_OPEN_MODE), mode);
@@ -170,13 +173,11 @@ bool GZFAM::OpenTableFile(PGLOBAL g)
   /*  Use specific zlib functions.                                     */
   /*  Treat files as binary.                                           */
   /*********************************************************************/
-  strcat(opmode, "b");
   Zfile = gzopen(PlugSetPath(filename, To_File, Tdbp->GetPath()), opmode);
 
   if (Zfile == NULL) {
-    snprintf(g->Message, sizeof(g->Message), MSG(GZOPEN_ERROR),
-            opmode, (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
+    snprintf(g->Message, sizeof(g->Message), MSG(GZOPEN_ERROR) ": %s",
+            opmode, (int)errno, filename, strerror(errno));
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Zfile

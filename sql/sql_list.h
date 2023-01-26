@@ -54,7 +54,7 @@ public:
   {
     elements= tmp.elements;
     first= tmp.first;
-    next= tmp.next;
+    next= elements ? tmp.next : &first;;
     return *this;
   }
 

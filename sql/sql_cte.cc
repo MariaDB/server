@@ -101,49 +101,6 @@ bool LEX::check_dependencies_in_with_clauses()
 
 /**
   @brief
-    Resolve references to CTE in specification of hanging CTE
-
-  @details
-    A CTE to which there are no references in the query is called hanging CTE.
-    Although such CTE is not used for execution its specification must be
-    subject to context analysis. All errors concerning references to
-    non-existing tables or fields occurred in the specification must be
-    reported as well as all other errors caught at the prepare stage.
-    The specification of a hanging CTE might contain references to other
-    CTE outside of the specification and within it if the specification
-    contains a with clause. This function resolves all such references for
-    all hanging CTEs encountered in the processed query.
-
-  @retval
-    false   on success
-    true    on failure
-*/
-
-bool
-LEX::resolve_references_to_cte_in_hanging_cte()
-{
-  for (With_clause *with_clause= with_clauses_list;
-       with_clause; with_clause= with_clause->next_with_clause)
-  {
-    for (With_element *with_elem= with_clause->with_list.first;
-         with_elem; with_elem= with_elem->next)
-    {
-      if (!with_elem->is_referenced())
-      {
-        TABLE_LIST *first_tbl=
-                     with_elem->spec->first_select()->table_list.first;
-        TABLE_LIST **with_elem_end_pos= with_elem->head->tables_pos.end_pos;
-        if (first_tbl && resolve_references_to_cte(first_tbl, with_elem_end_pos))
-          return true;
-      }
-    }
-  }
-  return false;
-}
-
-
-/**
-  @brief
     Resolve table references to CTE from a sub-chain of table references
 
   @param tables      Points to the beginning of the sub-chain
@@ -287,8 +244,6 @@ LEX::check_cte_dependencies_and_resolve_references()
   if (!with_cte_resolution)
     return false;
   if (resolve_references_to_cte(query_tables, query_tables_last))
-    return true;
-  if (resolve_references_to_cte_in_hanging_cte())
     return true;
   return false;
 }
@@ -488,47 +443,33 @@ With_element *find_table_def_in_with_clauses(TABLE_LIST *tbl,
                                              st_unit_ctxt_elem *ctxt)
 {
   With_element *found= 0;
+  st_select_lex_unit *top_unit= 0;
   for (st_unit_ctxt_elem *unit_ctxt_elem= ctxt;
        unit_ctxt_elem;
        unit_ctxt_elem= unit_ctxt_elem->prev)
   {
     st_select_lex_unit *unit= unit_ctxt_elem->unit;
     With_clause *with_clause= unit->with_clause;
-    /*
-      First look for the table definition in the with clause attached to 'unit'
-      if there is any such clause.
-    */
     if (with_clause)
     {
-      found= with_clause->find_table_def(tbl, NULL);
+      /*
+        If the reference to tbl that has to be resolved belongs to
+        the FROM clause of a descendant of top_unit->with_element
+        and this with element belongs to with_clause then this
+        element must be used as the barrier for the search in the
+        the list of CTEs from with_clause unless the clause contains
+        RECURSIVE.
+      */
+      With_element *barrier= 0;
+      if (top_unit && !with_clause->with_recursive &&
+          top_unit->with_element &&
+          top_unit->with_element->get_owner() == with_clause)
+        barrier= top_unit->with_element;
+      found= with_clause->find_table_def(tbl, barrier);
       if (found)
         break;
     }
-    /*
-      If 'unit' is the unit that defines a with element then reset 'unit'
-      to the unit whose attached with clause contains this with element.
-    */
-    With_element *with_elem= unit->with_element;
-    if (with_elem)
-    {
-      if (!(unit_ctxt_elem= unit_ctxt_elem->prev))
-        break;
-      unit= unit_ctxt_elem->unit;
-    }
-    with_clause= unit->with_clause;
-    /*
-      Now look for the table definition in this with clause. If the with clause
-      contains RECURSIVE the search is performed through all CTE definitions in
-      clause, otherwise up to the definition of 'with_elem' unless it is NULL.
-    */
-    if (with_clause)
-    {
-      found= with_clause->find_table_def(tbl,
-                                         with_clause->with_recursive ?
-			                 NULL : with_elem);
-      if (found)
-	break;
-    }
+    top_unit= unit;
   }
   return found;
 }

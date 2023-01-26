@@ -323,8 +323,6 @@ public:
   friend
   bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
                                       TABLE_LIST **tables_last);
-  friend
-  bool LEX::resolve_references_to_cte_in_hanging_cte();
 };
 
 const uint max_number_of_elements_in_with_clause= sizeof(table_map)*8;
@@ -438,9 +436,6 @@ public:
 
   friend
   bool LEX::check_dependencies_in_with_clauses();
-
-  friend
-  bool LEX::resolve_references_to_cte_in_hanging_cte();
 };
 
 inline

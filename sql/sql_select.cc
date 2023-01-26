@@ -3541,15 +3541,26 @@ bool JOIN::make_aggr_tables_info()
 
     /*
       If we have different sort & group then we must sort the data by group
-      and copy it to another tmp table
+      and copy it to another tmp table.
+
       This code is also used if we are using distinct something
       we haven't been able to store in the temporary table yet
       like SEC_TO_TIME(SUM(...)).
+
+      3. Also, this is used when
+      - the query has Window functions,
+      - the GROUP BY operation is done with OrderedGroupBy algorithm.
+      In this case, the first temptable will contain pre-GROUP-BY data. Force
+      the creation of the second temporary table. Post-GROUP-BY dataset will be
+      written there, and then Window Function processing code will be able to
+      process it.
     */
     if ((group_list &&
          (!test_if_subpart(group_list, order) || select_distinct)) ||
-        (select_distinct && tmp_table_param.using_outer_summary_function))
-    {					/* Must copy to another table */
+        (select_distinct && tmp_table_param.using_outer_summary_function) ||
+        (group_list && !tmp_table_param.quick_group &&  // (3)
+         select_lex->have_window_funcs())) // (3)
+   {					/* Must copy to another table */
       DBUG_PRINT("info",("Creating group table"));
 
       calc_group_buffer(this, group_list);
@@ -22081,11 +22092,17 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
 /*
   @brief
-    Perform a GROUP BY operation over a stream of rows ordered by their group. The 
-    result is sent into join->result.
+    Perform OrderedGroupBy operation and write the output into join->result.
 
   @detail
-    Also applies HAVING, etc.
+    The input stream is ordered by the GROUP BY expression, so groups come
+    one after another. We only need to accumulate the aggregate value, when
+    a GROUP BY group ends, check the HAVING and send the group.
+
+    Note that the output comes in the GROUP BY order, which is required by
+    the MySQL's GROUP BY semantics. No further sorting is needed.
+
+  @seealso end_write_group() also implements SortAndGroup
 */
 
 enum_nested_loop_state
@@ -22273,13 +22290,26 @@ end:
 
 /*
   @brief
-    Perform a GROUP BY operation over rows coming in arbitrary order. 
-    
-    This is done by looking up the group in a temp.table and updating group
-    values.
+    Perform GROUP BY operation over rows coming in arbitrary order: use
+    TemporaryTableWithPartialSums algorithm.
+
+  @detail
+    The TemporaryTableWithPartialSums algorithm is:
+
+    CREATE TEMPORARY TABLE tmp (
+      group_by_columns PRIMARY KEY,
+      partial_sum
+    );
+
+    for each row R in join output {
+      INSERT INTO tmp (R.group_by_columns, R.sum_value)
+        ON DUPLICATE KEY UPDATE partial_sum=partial_sum + R.sum_value;
+    }
 
   @detail
     Also applies HAVING, etc.
+
+  @seealso end_unique_update()
 */
 
 static enum_nested_loop_state
@@ -22427,13 +22457,15 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
 /*
   @brief
-    Perform a GROUP BY operation over a stream of rows ordered by their group.
-    Write the result into a temporary table.
+    Perform OrderedGroupBy operation and write the output into the temporary
+    table (join_tab->table).
 
   @detail
-    Also applies HAVING, etc.
+    The input stream is ordered by the GROUP BY expression, so groups come
+    one after another. We only need to accumulate the aggregate value, when
+    a GROUP BY group ends, check the HAVING and write the group.
 
-    The rows are written into temptable so e.g. filesort can read them.
+  @seealso end_send_group() also implements OrderedGroupBy
 */
 
 enum_nested_loop_state
