@@ -292,6 +292,7 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
 
   ret= ret || trans_commit(m_thd);
   ret= ret || (m_thd->wsrep_cs().after_applying(), 0);
+
   m_thd->release_transactional_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
@@ -380,6 +381,15 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
      assert(ws_handle == wsrep::ws_handle());
   }
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
+
+  WSREP_DEBUG("::rollback() thread: %lu, client_state %s "
+              "client_mode %s trans_state %s killed %d",
+              thd_get_thread_id(m_thd),
+              wsrep_thd_client_state_str(m_thd),
+              wsrep_thd_client_mode_str(m_thd),
+              wsrep_thd_transaction_state_str(m_thd),
+              m_thd->killed);
+
   m_thd->release_transactional_locks();
   mysql_ull_cleanup(m_thd);
   m_thd->mdl_context.release_explicit_locks();
