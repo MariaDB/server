@@ -1866,15 +1866,4 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"abc' at line 1
 SET @@sql_mode=@save_sql_mode;
-#
-# MDEV-30151 parse error 1=2 not between/in
-#
-select 1=2 not in (3,4);
-1=2 not in (3,4)
-1
-select 1=2 not between 3 and 4;
-1=2 not between 3 and 4
-1
-#
 # End of 10.3 tests
-#
