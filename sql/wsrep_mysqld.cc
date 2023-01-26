@@ -2795,7 +2795,9 @@ static my_bool have_client_connections(THD *thd, void*)
 {
   DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
                      (longlong) thd->thread_id));
-  if (is_client_connection(thd) && thd->killed == KILL_CONNECTION)
+  if (is_client_connection(thd) &&
+      (thd->killed == KILL_CONNECTION ||
+       thd->killed == KILL_CONNECTION_HARD))
   {
     WSREP_DEBUG("Informing thread %lld that it's time to die",
                 thd->thread_id);
@@ -2807,7 +2809,7 @@ static my_bool have_client_connections(THD *thd, void*)
 
 static void wsrep_close_thread(THD *thd)
 {
-  thd->set_killed(KILL_CONNECTION);
+  thd->set_killed(KILL_CONNECTION_HARD);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   thd->abort_current_cond_wait(true);
@@ -2843,13 +2845,13 @@ static my_bool kill_all_threads(THD *thd, THD *caller_thd)
   if (is_client_connection(thd) && thd != caller_thd)
   {
     if (is_replaying_connection(thd))
-      thd->set_killed(KILL_CONNECTION);
+      thd->set_killed(KILL_CONNECTION_HARD);
     else if (!abort_replicated(thd))
     {
       /* replicated transactions must be skipped */
       WSREP_DEBUG("closing connection %lld", (longlong) thd->thread_id);
       /* instead of wsrep_close_thread() we do now  soft kill by THD::awake */
-      thd->awake(KILL_CONNECTION);
+      thd->awake(KILL_CONNECTION_HARD);
     }
   }
   return 0;
