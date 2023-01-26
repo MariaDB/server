@@ -14891,13 +14891,6 @@ ha_innobase::info_low(
 					innodb_rec_per_key(index, j,
 							   stats.records));
 
-				/* Since MySQL seems to favor table scans
-				too much over index searches, we pretend
-				index selectivity is 2 times better than
-				our estimate: */
-
-				rec_per_key_int = rec_per_key_int / 2;
-
 				if (rec_per_key_int == 0) {
 					rec_per_key_int = 1;
 				}
