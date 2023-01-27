@@ -2046,7 +2046,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       next_chunk+= str_db_type_length + 2;
     }
 
-    share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags & HTON_SUPPORTS_EXTENDED_KEYS);
+    share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags &
+                                 HTON_SUPPORTS_EXTENDED_KEYS);
 
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
@@ -3083,12 +3084,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           if (handler_file->index_flags(key, i, 0) & HA_KEYREAD_ONLY)
           {
             share->keys_for_keyread.set_bit(key);
+            /*
+              part_of_key is used to check if we can use the field
+              as part of covering key (which implies HA_KEYREAD_ONLY).
+            */
             field->part_of_key.set_bit(key);
-            if (i < keyinfo->user_defined_key_parts)
-              field->part_of_key_not_clustered.set_bit(key);
           }
           if (handler_file->index_flags(key, i, 1) & HA_READ_ORDER)
             field->part_of_sortkey.set_bit(key);
+
+          if (i < keyinfo->user_defined_key_parts)
+            field->part_of_key_not_clustered.set_bit(key);
         }
         if (!(key_part->key_part_flag & HA_REVERSE_SORT) &&
             usable_parts == i)
