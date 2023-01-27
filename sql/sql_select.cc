@@ -13347,7 +13347,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
 	  if (!tab->table->is_filled_at_execution() &&
               !tab->loosescan_match_tab &&              // (1)
-              ((cond && (!tab->keys.is_subset(tab->const_keys) && i > 0)) ||
+              ((cond && (!tab->keys.is_subset(tab->const_keys) &&
+                         i > join->const_tables)) ||
                (!tab->const_keys.is_clear_all() && i == join->const_tables &&
                 join->unit->lim.get_select_limit() <
                 join->best_positions[i].records_read &&
