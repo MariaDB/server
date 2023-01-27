@@ -1,0 +1,24 @@
+--echo # Verify anonymous user on Windows is not 'Administrator'
+--echo #
+--echo # Test of anonymous user connection
+--echo --------------------------------------------------------------
+--source include/add_anonymous_users.inc
+
+create role test_role;
+grant test_role to ''@localhost;
+
+connect(con1,localhost,'',,,$MASTER_MYPORT);
+SELECT CURRENT_ROLE;
+SET role test_role;
+SELECT CURRENT_ROLE;
+# user cannot set subset role, since it is not granted explicitly
+--error ER_INVALID_ROLE
+SET role new_role;
+--error ER_PASSWORD_ANONYMOUS_USER
+set default role test_role for ''@localhost;
+
+connection default;
+disconnect con1;
+REVOKE all privileges, grant option from ''@localhost;
+--source include/delete_anonymous_users.inc
+drop role test_role;

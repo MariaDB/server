@@ -1,0 +1,22 @@
+# Verify anonymous user on Windows is not 'Administrator'
+#
+# Test of anonymous user connection
+--------------------------------------------------------------
+create role test_role;
+grant test_role to ''@localhost;
+connect con1,localhost,'',,,$MASTER_MYPORT;
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+NULL
+SET role test_role;
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+test_role
+SET role new_role;
+ERROR OP000: Invalid role specification `new_role`
+set default role test_role for ''@localhost;
+ERROR 42000: You are using MariaDB as an anonymous user and anonymous users are not allowed to modify user settings
+connection default;
+disconnect con1;
+REVOKE all privileges, grant option from ''@localhost;
+drop role test_role;
