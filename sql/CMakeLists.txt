@@ -228,6 +228,15 @@ FOREACH(se aria partition perfschema sql_sequence wsrep)
   ENDIF()
 ENDFOREACH()
 
+IF(VISIBILITY_HIDDEN_FLAG AND TARGET partition AND WITH_UBSAN)
+  # the spider plugin needs some partition symbols from inside mysqld
+  # when built with ubsan, in which case we need to remove
+  # -fvisibility=hidden from partition
+  GET_TARGET_PROPERTY(f partition COMPILE_FLAGS)
+  STRING(REPLACE "${VISIBILITY_HIDDEN_FLAG}" "" f ${f})
+  SET_TARGET_PROPERTIES(partition PROPERTIES COMPILE_FLAGS "${f}")
+ENDIF()
+
 IF(WIN32)
   SET(MYSQLD_SOURCE main.cc  message.rc)
 ELSE()

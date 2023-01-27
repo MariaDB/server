@@ -56,8 +56,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   rgi->event_relay_log_pos= qev->event_relay_log_pos;
   rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
   strcpy(rgi->future_event_master_log_name, qev->future_event_master_log_name);
-  if (!(ev->is_artificial_event() || ev->is_relay_log_event() ||
-        (ev->when == 0)))
+  if (event_can_update_last_master_timestamp(ev))
     rgi->last_master_timestamp= ev->when + (time_t)ev->exec_time;
   err= apply_event_and_update_pos_for_parallel(ev, thd, rgi);
 

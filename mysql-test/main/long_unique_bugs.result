@@ -1,3 +1,6 @@
+#
+# MDEV-18707 Server crash in my_hash_sort_bin, ASAN heap-use-after-free in Field::is_null, server hang, corrupted double-linked list
+#
 create table t1 (a int, b int, c int, d int, e int);
 insert into t1 () values
 (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
@@ -11,6 +14,9 @@ load data infile 'load.data' into table tmp;
 delete from tmp;
 drop table t1;
 drop table tmp;
+#
+# MDEV-18712 InnoDB indexes are inconsistent with what defined in .frm for table after rebuilding table with index on blob
+#
 create table t1 (b blob) engine=innodb;
 alter table t1 add unique (b);
 alter table t1 force;
@@ -21,12 +27,18 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`) USING HASH
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
+#
+# MDEV-18713 Assertion `strcmp(share->unique_file_name,filename) || share->last_version' failed in test_if_reopen upon REPLACE into table with key on blob
+#
 create table t1 (pk int, b blob, primary key(pk), unique(b)) engine=myisam;
 insert into t1 values (1,'foo');
 replace into t1 (pk) values (1);
 alter table t1 force;
 replace into t1 (pk) values (1);
 drop table t1;
+#
+# MDEV-18722 Assertion `templ->mysql_null_bit_mask' failed in row_sel_store_mysql_rec upon modifying indexed column into blob
+#
 create table t1 (t time, unique(t)) engine=innodb;
 insert into t1 values (null),(null);
 alter ignore table t1 modify t text not null default '';
@@ -34,6 +46,9 @@ Warnings:
 Warning	1265	Data truncated for column 't' at row 1
 Warning	1265	Data truncated for column 't' at row 2
 drop table t1;
+#
+# MDEV-18720 Assertion `inited==NONE' failed in ha_index_init upon update on versioned table with key on blob
+#
 create table t1 ( pk int, f text, primary key (pk), unique(f)) with system versioning;
 insert into t1 values (1,'foo');
 update t1 set f = 'bar';
@@ -50,20 +65,32 @@ pk	f	row_end > DATE'2030-01-01'
 1	foo	0
 1	bar	0
 drop table t1;
+#
+# MDEV-18747 InnoDB: Failing assertion: table->get_ref_count() == 0 upon dropping temporary table with unique blob
+#
 create temporary table t1 (f blob, unique(f)) engine=innodb;
 insert into t1 values (1);
 replace into t1 values (1);
 drop table t1;
+#
+# MDEV-18748 REPLACE doesn't work with unique blobs on MyISAM table
+#
 create table t (b blob, unique(b)) engine=myisam;
 insert into t values ('foo');
 replace into t values ('foo');
 drop table t;
+#
+# MDEV-18790 Server crash in fields_in_hash_keyinfo after unsuccessful attempt to drop BLOB with long index
+#
 CREATE TABLE t1 (f INT, x BLOB, UNIQUE (x));
 INSERT INTO t1 VALUES (1,'foo');
 ALTER TABLE t1 DROP x, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 UPDATE t1 SET x = 'bar';
 DROP TABLE t1;
+#
+# MDEV-18799 Long unique does not work after failed alter table
+#
 create table t1(a blob unique , b blob);
 insert into t1 values(1,1),(2,1);
 alter table t1 add unique(b);
@@ -85,16 +112,26 @@ Index_comment
 insert into t1 values(1,1);
 ERROR 23000: Duplicate entry '1' for key 'a'
 DROP TABLE t1;
+#
+# MDEV-18792 ASAN unknown-crash in _mi_pack_key upon UPDATE after failed ALTER on a table with long BLOB key
+#
 CREATE TABLE t1 (a TEXT, b INT, UNIQUE(a)) ENGINE=MyISAM;
 ALTER TABLE t1 DROP x;
 ERROR 42000: Can't DROP COLUMN `x`; check that it exists
 UPDATE t1 SET b = 0 WHERE a = 'foo';
 DROP TABLE t1;
+#
+# MDEV-18793 Assertion `0' failed in row_sel_convert_mysql_key_to_innobase, ASAN unknown-crash in
+#    row_mysql_store_col_in_innobase_format, warning " InnoDB: Using a partial-field key prefix in search"
+#
 CREATE TABLE t1 (a TEXT, b INT, UNIQUE(a)) ENGINE=InnoDB;
 ALTER TABLE t1 DROP x;
 ERROR 42000: Can't DROP COLUMN `x`; check that it exists
 UPDATE t1 SET b = 0 WHERE a = 'foo';
 DROP TABLE t1;
+#
+# MDEV-18795 InnoDB: Failing assertion: field->prefix_len > 0 upon DML on table with BLOB index
+#
 CREATE TEMPORARY TABLE t1 (f BLOB, UNIQUE(f)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 ALTER TABLE t1 ADD KEY (f);
 ERROR HY000: Index column size too large. The maximum column size is 767 bytes
@@ -102,17 +139,29 @@ TRUNCATE TABLE t1;
 SELECT * FROM t1 WHERE f LIKE 'foo';
 f
 DROP TABLE t1;
+#
+# MDEV-18798 InnoDB: No matching column for `DB_ROW_HASH_1`and server crash in
+#   ha_innobase::commit_inplace_alter_table upon ALTER on table with UNIQUE key
+#
 CREATE TABLE t1 (a INT, UNIQUE ind USING HASH (a)) ENGINE=InnoDB;
 ALTER TABLE t1 CHANGE COLUMN IF EXISTS b a INT;
 Warnings:
 Note	1054	Unknown column 'b' in 't1'
 DROP TABLE t1;
+#
+# MDEV-18801 InnoDB: Failing assertion: field->col->mtype == type or ASAN heap-buffer-overflow
+#   in row_sel_convert_mysql_key_to_innobase upon SELECT on table with long index
+#
 CREATE TABLE t1 (f VARCHAR(4096), UNIQUE(f)) ENGINE=InnoDB;
 ALTER TABLE t1 DROP x;
 ERROR 42000: Can't DROP COLUMN `x`; check that it exists
 SELECT * FROM t1 WHERE f LIKE 'foo';
 f
 DROP TABLE t1;
+#
+# MDEV-18800 Server crash in instant_alter_column_possible or
+#   Assertion `!pk->has_virtual()' failed in instant_alter_column_possible upon adding key
+#
 CREATE TABLE t1 (pk INT, PRIMARY KEY USING HASH (pk)) ENGINE=InnoDB;
 show keys from t1;;
 Table	t1
@@ -130,6 +179,9 @@ Comment
 Index_comment	
 ALTER TABLE t1 ADD INDEX (pk);
 DROP TABLE t1;
+#
+# MDEV-18922 Alter on long unique varchar column makes result null
+#
 CREATE TABLE t1 (b int, a  varchar(4000));
 INSERT INTO t1 VALUES (1, 2),(2,3),(3,4);
 ALTER TABLE t1 ADD UNIQUE INDEX (a);
@@ -144,6 +196,10 @@ a
 3
 4
 drop table t1;
+#
+# MDEV-18809 Server crash in fields_in_hash_keyinfo or Assertion `key_info->key_part->field->flags
+# & (1<< 30)' failed in setup_keyinfo_hash
+#
 CREATE TABLE t1 (f VARCHAR(4096), UNIQUE(f)) ENGINE=InnoDB;
 ALTER TABLE t1 DROP KEY f, ADD INDEX idx1(f), ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
@@ -159,6 +215,9 @@ insert into t1 values(1,1);
 ERROR 23000: Duplicate entry '1-1' for key 'a'
 alter table t1 add column c int;
 drop table t1;
+#
+# MDEV-18889 Long unique on virtual fields crashes server
+#
 create table t1(a blob , b blob as (a) unique);
 insert into t1 values(1, default);
 insert into t1 values(1, default);
@@ -172,6 +231,9 @@ insert into t1(a,b) values(2,2);
 insert into t1(a,b) values(2,3);
 insert into t1(a,b) values(3,2);
 drop table t1;
+#
+# MDEV-18888 Server crashes in Item_field::register_field_in_read_map upon MODIFY COLUMN
+#
 CREATE TABLE t1 ( 
 a CHAR(128),
 b CHAR(128) AS (a),
@@ -187,6 +249,9 @@ c varchar(5000),
 UNIQUE(c,b(64))
 ) ENGINE=InnoDB;
 drop table t1;
+#
+# MDEV-18967 Load data in system version with long unique does not work
+#
 CREATE TABLE t1 (data VARCHAR(4), unique(data) using hash) with system versioning;
 INSERT INTO t1 VALUES ('A');
 SELECT * INTO OUTFILE 'load.data' from t1;
@@ -196,6 +261,9 @@ select * from t1;
 data
 A
 DROP TABLE t1;
+#
+# MDEV-18901 Wrong results after ADD UNIQUE INDEX(blob_column)
+#
 CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('f'), ('o'), ('o');
 SELECT * INTO OUTFILE 'load.data' from t1;
@@ -214,12 +282,16 @@ SELECT * FROM t1;
 data
 f
 o
+# This should be equivalent to the REPLACE above
 LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1;
 SELECT * FROM t1;
 data
 f
 o
 DROP TABLE t1;
+#
+# MDEV-18953 Hash index on partial char field not working
+#
 create table t1 (
 c char(10) character set utf8mb4,
 unique key a using hash (c(1))
@@ -236,10 +308,16 @@ ERROR 23000: Duplicate entry 'Ð' for key 'a'
 insert into t1 values ('Ð±Ð±Ð±');
 ERROR 23000: Duplicate entry 'Ð' for key 'a'
 drop table t1;
+#
+# MDEV-18904 Assertion `m_part_spec.start_part >= m_part_spec.end_part' failed in ha_partition::index_read_idx_map
+#
 CREATE TABLE t1 (a INT, UNIQUE USING HASH (a)) PARTITION BY HASH (a) PARTITIONS 2;
 INSERT INTO t1 VALUES (2);
 REPLACE INTO t1 VALUES (2);
 DROP TABLE t1;
+#
+# MDEV-18820 Assertion `lock_table_has(trx, index->table, LOCK_IX)' failed in lock_rec_insert_check_and_lock upon INSERT into table with blob key'
+#
 set innodb_lock_wait_timeout= 10;
 CREATE TABLE t1 (
 id int primary key,
@@ -266,11 +344,20 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 disconnect con1;
 connection default;
 DROP TABLE t1, t2;
+#
+# MDEV-18791 Wrong error upon creating Aria table with long index on BLOB
+#
 CREATE TABLE t1 (a TEXT, UNIQUE(a)) ENGINE=Aria;
 ERROR 42000: Specified key was too long; max key length is 2000 bytes
+#
+# MDEV-20001 Potential dangerous regression: INSERT INTO >=100 rows fail for myisam table with HASH indexes
+#
 create table t1(a int, unique(a) using hash);
 #BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
 drop table t1;
+#
+# MDEV-21804 Assertion `marked_for_read()' failed upon INSERT into table with long unique blob under binlog_row_image=NOBLOB
+#
 SET binlog_row_image= NOBLOB;
 CREATE TABLE t1 (pk INT PRIMARY KEY, a text ,UNIQUE(a) using hash);
 INSERT INTO t1 VALUES (1,'foo');
@@ -278,6 +365,9 @@ create table t2(id int primary key, a blob, b varchar(20) as (LEFT(a,2)));
 INSERT INTO t2 VALUES (1, 'foo', default);
 DROP TABLE t1, t2;
 SET binlog_row_image= FULL;
+#
+# MDEV-22719 Long unique keys are not created when individual key_part->length < max_key_length but SUM(key_parts->length) > max_key_length
+#
 CREATE TABLE t1 (a int, b VARCHAR(1000), UNIQUE (a,b)) ENGINE=MyISAM;
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
@@ -315,6 +405,9 @@ ERROR 23000: Duplicate entry '1' for key 'v2'
 update t1,t2 set v1 = v2 , v5 = 0;
 ERROR 23000: Duplicate entry '-128' for key 'v1'
 drop table t1, t2;
+#
+# MDEV-23264 Unique blobs allow duplicate values upon UPDATE
+#
 CREATE TABLE t1 (f TEXT UNIQUE);
 INSERT INTO t1 VALUES (NULL),(NULL);
 UPDATE t1 SET f = '';
@@ -342,6 +435,18 @@ update t1 set a= x + 1;
 alter table t1 reorganize partition p1 into (
 partition n0 values less than (10),
 partition n1 values less than (50));
+drop table t1;
+#
+# MDEV-29199 Unique hash key is ignored upon INSERT ... SELECT into non-empty MyISAM table
+#
+create table t1 (a int, b text, unique(b)) engine=MyISAM;
+insert into t1 values (0,'aa');
+insert into t1 (a,b) select 1,'xxx' from seq_1_to_5;
+ERROR 23000: Duplicate entry 'xxx' for key 'b'
+select * from t1;
+a	b
+0	aa
+1	xxx
 drop table t1;
 #
 # End of 10.4 tests
