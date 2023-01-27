@@ -2701,7 +2701,7 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
           {
             "considered_execution_plans": [
               {
-                "plan_prefix": "t2",
+                "plan_prefix": "",
                 "get_costs_for_tables": [
                   {
                     "best_access_path": {
@@ -2732,7 +2732,7 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
                 ]
               },
               {
-                "plan_prefix": "t2",
+                "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 4,
                 "cost_for_plan": 0.01066122
@@ -3108,7 +3108,7 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
           {
             "considered_execution_plans": [
               {
-                "plan_prefix": "t3,t2",
+                "plan_prefix": "",
                 "get_costs_for_tables": [
                   {
                     "best_access_path": {
@@ -3139,7 +3139,7 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
                 ]
               },
               {
-                "plan_prefix": "t3,t2",
+                "plan_prefix": "",
                 "table": "t1",
                 "rows_for_plan": 4,
                 "cost_for_plan": 0.01066122
