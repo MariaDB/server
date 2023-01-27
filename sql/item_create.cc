@@ -4843,6 +4843,13 @@ Create_func_release_all_locks Create_func_release_all_locks::s_singleton;
 Item*
 Create_func_release_all_locks::create_builder(THD *thd)
 {
+#ifdef WITH_WSREP
+  if (WSREP_ON && WSREP(thd))
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RELEASE_ALL_LOCKS in cluster (WSREP_ON=ON)");
+    return NULL;
+  }
+#endif /* WITH_WSREP */
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
   thd->lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
   return new (thd->mem_root) Item_func_release_all_locks(thd);
