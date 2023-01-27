@@ -1264,7 +1264,7 @@ explain
 SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1	range	b	b	6	NULL	107	Using where; Using index
+1	SIMPLE	t1	index	b	b	6	NULL	107	Using where; Using index
 1	SIMPLE	t3	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_do_select';
@@ -1273,7 +1273,7 @@ connection default;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1	range	b	b	6	NULL	107	Using where; Using index
+1	SIMPLE	t1	index	b	b	6	NULL	107	Using where; Using index
 1	SIMPLE	t3	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
 Warnings:
 Note	1003	SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2
