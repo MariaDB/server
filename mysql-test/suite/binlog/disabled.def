@@ -9,3 +9,4 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
+innodb_rc_insert_before_delete : MDEV-30490 2023-01-28 andrei see the MDEV description
