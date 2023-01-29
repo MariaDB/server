@@ -546,14 +546,19 @@ typedef struct st_join_table {
   void cleanup();
   inline bool is_using_loose_index_scan()
   {
-    const SQL_SELECT *sel= filesort ? filesort->select : select;
+    const SQL_SELECT *sel= get_sql_select();
     return (sel && sel->quick &&
             (sel->quick->get_type() == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX));
   }
   bool is_using_agg_loose_index_scan ()
   {
+    const SQL_SELECT *sel= get_sql_select();
     return (is_using_loose_index_scan() &&
-            ((QUICK_GROUP_MIN_MAX_SELECT *)select->quick)->is_agg_distinct());
+            ((QUICK_GROUP_MIN_MAX_SELECT *)sel->quick)->is_agg_distinct());
+  }
+  const SQL_SELECT *get_sql_select()
+  {
+    return filesort ? filesort->select : select;
   }
   bool is_inner_table_of_semi_join_with_first_match()
   {
