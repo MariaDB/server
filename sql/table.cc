@@ -751,10 +751,10 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                              LEX_STRING *keynames)
 {
   uint i, j, n_length;
+  uint primary_key_parts= 0;
   KEY_PART_INFO *key_part= NULL;
   ulong *rec_per_key= NULL;
-  KEY_PART_INFO *first_key_part= NULL;
-  uint first_key_parts= 0;
+  DBUG_ASSERT(keyinfo == first_keyinfo);
 
   if (!keys)
   {  
@@ -763,15 +763,15 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     bzero((char*) keyinfo, len);
     key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo);
   }
+  bzero(first_keyinfo, sizeof(*first_keyinfo));
 
   /*
-    If share->use_ext_keys is set to TRUE we assume that any key
-    can be extended by the components of the primary key whose
-    definition is read first from the frm file.
-    For each key only those fields of the assumed primary key are
-    added that are not included in the proper key definition. 
-    If after all it turns out that there is no primary key the
-    added components are removed from each key.
+    If share->use_ext_keys is set to TRUE we assume that any not
+    primary key, can be extended by the components of the primary key
+    whose definition is read first from the frm file.
+    This code only allocates space for the extend key information as
+    we at this point don't know if there is a primary key or not.
+    The extend key information is added in init_from_binary_frm_image().
 
     When in the future we support others schemes of extending of
     secondary keys with components of the primary key we'll have
@@ -804,26 +804,31 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
 
     if (i == 0)
     {
-      (*ext_key_parts)+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0); 
+      /*
+        Allocate space for keys. We have to do it there as we need to know
+        the number of used_defined_key_parts for the first key when doing
+        this.
+      */
+      primary_key_parts= first_keyinfo->user_defined_key_parts;
+      (*ext_key_parts)+= (share->use_ext_keys ?
+                          primary_key_parts*(keys-1) :
+                          0);
       n_length=keys * sizeof(KEY) + *ext_key_parts * sizeof(KEY_PART_INFO);
       if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
 				       n_length + len)))
         return 1;
-      bzero((char*) keyinfo,n_length);
       share->key_info= keyinfo;
+
+      /* Copy first keyinfo, read above */
+      memcpy((char*) keyinfo, (char*) first_keyinfo, sizeof(*keyinfo));
+      bzero(((char*) keyinfo) + sizeof(*keyinfo), n_length - sizeof(*keyinfo));
+
       key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo + keys);
 
       if (!(rec_per_key= (ulong*) alloc_root(&share->mem_root,
                                              sizeof(ulong) * *ext_key_parts)))
         return 1;
-      first_key_part= key_part;
-      first_key_parts= first_keyinfo->user_defined_key_parts;
-      keyinfo->flags= first_keyinfo->flags;
-      keyinfo->key_length= first_keyinfo->key_length;
-      keyinfo->user_defined_key_parts= first_keyinfo->user_defined_key_parts;
-      keyinfo->algorithm= first_keyinfo->algorithm;
-      if (new_frm_ver >= 3)
-        keyinfo->block_size= first_keyinfo->block_size;
+      bzero((char*) rec_per_key, sizeof(*rec_per_key) * *ext_key_parts);
     }
 
     keyinfo->key_part=	 key_part;
@@ -833,7 +838,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
       if (!(keyinfo->algorithm == HA_KEY_ALG_LONG_HASH))
-        *rec_per_key++=0;
+        rec_per_key++;
       key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset= (uint) uint2korr(strpos+2)-1;
       key_part->key_type=	(uint) uint2korr(strpos+5);
@@ -857,48 +862,33 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       }
       key_part->store_length=key_part->length;
     }
-    if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
-    {
-      keyinfo->key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
-      key_part++; // reserved for the hash value
-      *rec_per_key++=0;
-    }
 
-    /*
-      Add primary key to end of extended keys for non unique keys for
-      storage engines that supports it.
-    */
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->ext_key_part_map= 0;
-    if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME))
-    {
-      for (j= 0; 
-           j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
-           j++)
-      {
-        uint key_parts= keyinfo->user_defined_key_parts;
-        KEY_PART_INFO* curr_key_part= keyinfo->key_part;
-        KEY_PART_INFO* curr_key_part_end= curr_key_part+key_parts;
-        for ( ; curr_key_part < curr_key_part_end; curr_key_part++)
-        {
-          if (curr_key_part->fieldnr == first_key_part[j].fieldnr)
-            break;
-        }
-        if (curr_key_part == curr_key_part_end)
-        {
-          *key_part++= first_key_part[j];
-          *rec_per_key++= 0;
-          keyinfo->ext_key_parts++;
-          keyinfo->ext_key_part_map|= 1 << j;
-        }
-      }
-      if (j == first_key_parts)
-        keyinfo->ext_key_flags= keyinfo->flags | HA_EXT_NOSAME;
-    }
+
     if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
+    {
+      /*
+        We should not increase keyinfo->ext_key_parts here as it will
+        later be changed to 1 as the engine will only see the generated hash
+        key.
+      */
+      keyinfo->key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
+      key_part++;      // This will be set to point to the hash key
+      rec_per_key++;   // Only one rec_per_key needed for the hash
       share->ext_key_parts++;
+    }
+
+    if (i && share->use_ext_keys && !((keyinfo->flags & HA_NOSAME)))
+    {
+      /* Reserve place for extended key parts */
+      key_part+=    primary_key_parts;
+      rec_per_key+= primary_key_parts;
+      share->ext_key_parts+= primary_key_parts; // For copy_keys_from_share()
+    }
     share->ext_key_parts+= keyinfo->ext_key_parts;
+    DBUG_ASSERT(share->ext_key_parts <= *ext_key_parts);
   }
   keynames->str= (char*) key_part;
   keynames->length= strnmov(keynames->str, (char *) strpos,
@@ -1292,10 +1282,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       for (key_index= 0; key_index < table->s->keys; key_index++)
       {
         key=table->key_info + key_index;
-          parts= key->user_defined_key_parts;
+        parts= key->user_defined_key_parts;
         if (key->key_part[parts].fieldnr == field->field_index + 1)
             break;
-        }
+      }
       if (!key || key->algorithm != HA_KEY_ALG_LONG_HASH)
         goto end;
       KEY_PART_INFO *keypart;
@@ -1323,7 +1313,13 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       field->vcol_info->set_vcol_type(VCOL_USING_HASH);
       if (v->fix_and_check_expr(thd, table))
         goto end;
-      key->user_defined_key_parts= key->ext_key_parts= key->usable_key_parts= 1;
+      /*
+        The hash key used by unique consist of one key_part.
+        It is stored in key_parts after the used defined parts.
+        The engine will only see the hash.
+      */
+      key->user_defined_key_parts= key->usable_key_parts=
+        key->ext_key_parts= 1;
       key->key_part+= parts;
 
       if (key->flags & HA_NULL_PART_KEY)
@@ -2046,6 +2042,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       next_chunk+= str_db_type_length + 2;
     }
 
+    /*
+      Check if engine supports extended keys. This is used by
+      create_key_infos() to allocate room for extended keys
+    */
     share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags &
                                  HTON_SUPPORTS_EXTENDED_KEYS);
 
@@ -2815,7 +2815,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->type= HA_KEYTYPE_ULONGLONG;
         hash_keypart->key_part_flag= 0;
         hash_keypart->key_type= 32834;
-        /* Last n fields are unique_index_hash fields*/
+        /* Last n fields are unique_index_hash fields */
         hash_keypart->offset= offset;
         hash_keypart->fieldnr= hash_field_used_no + 1;
         hash_field= share->field[hash_field_used_no];
@@ -2829,7 +2829,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         offset+= HA_HASH_FIELD_LENGTH;
       }
     }
-    uint add_first_key_parts= 0;
     longlong ha_option= handler_file->ha_table_flags();
     keyinfo= share->key_info;
     uint primary_key= my_strcasecmp(system_charset_info,
@@ -2899,31 +2898,78 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         goto err;
     }
 
+    uint add_first_key_parts= 0;
     if (share->use_ext_keys)
     {
       if (primary_key >= MAX_KEY)
-      {
-        add_first_key_parts= 0;
-        share->set_use_ext_keys_flag(FALSE);
-      }
+        share->set_use_ext_keys_flag(false);
       else
       {
-        add_first_key_parts= first_keyinfo.user_defined_key_parts;
-        /* 
-          Do not add components of the primary key starting from
-          the major component defined over the beginning of a field.
-	*/
-	for (i= 0; i < first_keyinfo.user_defined_key_parts; i++)
-	{
+        /* Add primary key to end of all non unique keys */
+
+        KEY *curr_keyinfo= keyinfo, *keyinfo_end= keyinfo+ keys;
+        KEY_PART_INFO *first_key_part= keyinfo->key_part;
+        uint first_key_parts= keyinfo->user_defined_key_parts;
+
+        /*
+          We are skipping the first key (primary key) as it cannot be
+          extended
+        */
+        while (++curr_keyinfo < keyinfo_end)
+        {
+          uint j;
+          if (!(curr_keyinfo->flags & HA_NOSAME))
+          {
+            KEY_PART_INFO *key_part= (curr_keyinfo->key_part +
+                                      curr_keyinfo->user_defined_key_parts);
+
+            /* Extend key with primary key parts */
+            for (j= 0;
+                 j < first_key_parts &&
+                   curr_keyinfo->ext_key_parts < MAX_REF_PARTS;
+                 j++)
+            {
+              uint key_parts= curr_keyinfo->user_defined_key_parts;
+              KEY_PART_INFO *curr_key_part= curr_keyinfo->key_part;
+              KEY_PART_INFO *curr_key_part_end= curr_key_part+key_parts;
+
+              for ( ; curr_key_part < curr_key_part_end; curr_key_part++)
+              {
+                if (curr_key_part->fieldnr == first_key_part[j].fieldnr)
+                  break;
+              }
+              if (curr_key_part == curr_key_part_end)
+              {
+                /* Add primary key part not part of the current index */
+                *key_part++= first_key_part[j];
+                curr_keyinfo->ext_key_parts++;
+                curr_keyinfo->ext_key_part_map|= 1 << j;
+              }
+            }
+            if (j == first_key_parts)
+            {
+              /* Full primary key added to secondary keys makes it unique */
+              curr_keyinfo->ext_key_flags= curr_keyinfo->flags | HA_EXT_NOSAME;
+            }
+          }
+        }
+        add_first_key_parts= keyinfo->user_defined_key_parts;
+
+        /*
+          If a primary key part is using a partial key, don't use it or any key part after
+          it.
+        */
+        for (i= 0; i < first_key_parts; i++)
+        {
           uint fieldnr= keyinfo[0].key_part[i].fieldnr;
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo[0].key_part[i].length)
-	  {
+          {
             add_first_key_parts= i;
             break;
           }
         }
-      }   
+      }
     }
 
     /* Primary key must be set early as engine may use it in index_flag() */
@@ -4055,6 +4101,11 @@ static void print_long_unique_table(TABLE *table)
 }
 #endif
 
+
+/**
+   Copy key information from TABLE_SHARE to TABLE
+*/
+
 bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
 {
   TABLE_SHARE *share= outparam->s;
@@ -4064,14 +4115,16 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
     KEY_PART_INFO *key_part;
 
     if (!multi_alloc_root(root, &key_info, share->keys*sizeof(KEY),
-                          &key_part, share->ext_key_parts*sizeof(KEY_PART_INFO),
+                          &key_part,
+                          share->ext_key_parts*sizeof(KEY_PART_INFO),
                           NullS))
       return 1;
 
     outparam->key_info= key_info;
 
     memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
-    memcpy(key_part, key_info->key_part, sizeof(*key_part)*share->ext_key_parts);
+    memcpy(key_part, key_info->key_part,
+           sizeof(*key_part)*share->ext_key_parts);
 
     my_ptrdiff_t adjust_ptrs= PTR_BYTE_DIFF(key_part, key_info->key_part);
     for (key_info_end= key_info + share->keys ;
@@ -4082,22 +4135,44 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
       key_info->key_part= reinterpret_cast<KEY_PART_INFO*>
         (reinterpret_cast<char*>(key_info->key_part) + adjust_ptrs);
       if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+      {
+        /*
+          From the user point of view, this key is unique.
+          However from the engine point, the value is not unique
+          as there can be hash collisions.
+        */
         key_info->flags&= ~HA_NOSAME;
+      }
     }
+
+    /*
+      We have to copy key parts separately as LONG HASH has invisible
+      key parts not seen by key_info
+    */
     for (KEY_PART_INFO *key_part_end= key_part+share->ext_key_parts;
          key_part < key_part_end;
          key_part++)
     {
-      Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
-      if (field->key_length() != key_part->length &&
-          !(field->flags & BLOB_FLAG))
+      /*
+        key_part->field is not set for key_parts that are here not used.
+        This can happen with extended keys where a secondary key
+        contains a primary key.  In this case no key_info will contain
+        this key_part, but it can still be part of the memory region of
+        share->key_part.
+      */
+      if (key_part->field)
       {
-        /*
-          We are using only a prefix of the column as a key:
-          Create a new field for the key part that matches the index
-        */
-        field= key_part->field=field->make_new_field(root, outparam, 0);
-        field->field_length= key_part->length;
+        Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
+        if (field->key_length() != key_part->length &&
+            !(field->flags & BLOB_FLAG))
+        {
+          /*
+            We are using only a prefix of the column as a key:
+            Create a new field for the key part that matches the index
+          */
+          field= key_part->field=field->make_new_field(root, outparam, 0);
+          field->field_length= key_part->length;
+        }
       }
     }
   }
@@ -4339,15 +4414,15 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 
     for (uint k= 0; k < share->keys; k++)
     {
-      KEY &key_info= outparam->key_info[k];
-      uint parts = (share->use_ext_keys ? key_info.ext_key_parts :
-                    key_info.user_defined_key_parts);
-      for (uint p= 0; p < parts; p++)
+      KEY *key_info= &outparam->key_info[k];
+      uint parts= (share->use_ext_keys ? key_info->ext_key_parts :
+                   key_info->user_defined_key_parts);
+      for (uint p=0; p < parts; p++)
       {
-        KEY_PART_INFO &kp= key_info.key_part[p];
-        if (kp.field != outparam->field[kp.fieldnr - 1])
+        KEY_PART_INFO *kp= &key_info->key_part[p];
+        if (kp->field != outparam->field[kp->fieldnr - 1])
         {
-          kp.field->vcol_info = outparam->field[kp.fieldnr - 1]->vcol_info;
+          kp->field->vcol_info= outparam->field[kp->fieldnr - 1]->vcol_info;
         }
       }
     }
