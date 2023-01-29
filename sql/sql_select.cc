@@ -12528,16 +12528,14 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
     j->table->const_table= 1;
   else if (!((keyparts == keyinfo->user_defined_key_parts &&
               (
-                (key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
-                /* Unique key and all keyparts are NULL rejecting */
-                ((key_flags & HA_NOSAME) && keyparts == not_null_keyparts)
-              )) ||
-              /* true only for extended keys */
-              (keyparts > keyinfo->user_defined_key_parts &&
-               MY_TEST(key_flags & HA_EXT_NOSAME) &&
-               keyparts == keyinfo->ext_key_parts)
-            ) ||
-            null_ref_key)
+               (key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
+               /* Unique key and all keyparts are NULL rejecting */
+               ((key_flags & HA_NOSAME) && keyparts == not_null_keyparts)
+               )) ||
+             /* true only for extended keys */
+             (MY_TEST(key_flags & HA_EXT_NOSAME) &&
+              keyparts == keyinfo->ext_key_parts) ) ||
+           null_ref_key)
   {
     /* Must read with repeat */
     j->type= null_ref_key ? JT_REF_OR_NULL : JT_REF;
@@ -20435,6 +20433,7 @@ TABLE *Create_tmp_table::start(THD *thd,
                         sizeof(*m_key_part_info)*(param->group_parts+1),
                         &param->start_recinfo,
                         sizeof(*param->recinfo)*(field_count*2+4),
+                        &param->rec_per_key, sizeof(ulong)*param->group_parts,
                         &tmpname, (uint) strlen(path)+1,
                         &m_group_buff, (m_group && ! m_using_unique_constraint ?
                                       param->group_length : 0),
@@ -20967,13 +20966,15 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->usable_key_parts=keyinfo->user_defined_key_parts=
       param->group_parts;
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
+    share->ext_key_parts= share->key_parts= keyinfo->ext_key_parts;
     keyinfo->key_length=0;
-    keyinfo->rec_per_key=NULL;
+    keyinfo->rec_per_key= param->rec_per_key;
     keyinfo->read_stats= NULL;
     keyinfo->collected_stats= NULL;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->name= group_key;
+    keyinfo->comment.str= 0;
     ORDER *cur_group= m_group;
     for (; cur_group ; cur_group= cur_group->next, m_key_part_info++)
     {
@@ -21074,6 +21075,7 @@ bool Create_tmp_table::finalize(THD *thd,
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
     share->keys= 1;
+    share->ext_key_parts= share->key_parts= keyinfo->ext_key_parts;
     if (!(m_key_part_info= (KEY_PART_INFO*)
           alloc_root(&table->mem_root,
                      keyinfo->user_defined_key_parts * sizeof(KEY_PART_INFO))))
@@ -21570,6 +21572,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 
       /* Can't create a key; Make a unique constraint instead of a key */
       share->keys=    0;
+      share->key_parts= share->ext_key_parts= 0;
       share->uniques= 1;
       using_unique_constraint=1;
       bzero((char*) &uniquedef,sizeof(uniquedef));
@@ -21766,6 +21769,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     {
       /* Can't create a key; Make a unique constraint instead of a key */
       share->keys=    0;
+      share->key_parts= share->ext_key_parts= 0;
       share->uniques= 1;
       using_unique_constraint=1;
       bzero((char*) &uniquedef,sizeof(uniquedef));

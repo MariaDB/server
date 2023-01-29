@@ -2727,15 +2727,21 @@ int ha_maria::info(uint flag)
     share->db_record_offset= maria_info.record_offset;
     if (share->key_parts)
     {
-      ulong *to= table->key_info[0].rec_per_key, *end;
       double *from= maria_info.rec_per_key;
-      for (end= to+ share->key_parts ; to < end ; to++, from++)
-        *to= (ulong) (*from + 0.5);
+      KEY *key, *key_end;
+      for (key= table->key_info, key_end= key + share->keys;
+           key < key_end ; key++)
+      {
+        ulong *to= key->rec_per_key;
+        for (ulong *end= to+ key->user_defined_key_parts ;
+             to < end ;
+             to++, from++)
+          *to= (ulong) (*from + 0.5);
+      }
     }
-
     /*
-       Set data_file_name and index_file_name to point at the symlink value
-       if table is symlinked (Ie;  Real name is not same as generated name)
+      Set data_file_name and index_file_name to point at the symlink value
+      if table is symlinked (Ie;  Real name is not same as generated name)
     */
     data_file_name= index_file_name= 0;
     fn_format(name_buff, file->s->open_file_name.str, "", MARIA_NAME_DEXT,

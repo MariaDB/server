@@ -6248,6 +6248,7 @@ public:
   Item	    **items_to_copy;			/* Fields in tmp table */
   TMP_ENGINE_COLUMNDEF *recinfo, *start_recinfo;
   KEY *keyinfo;
+  ulong *rec_per_key;
   ha_rows end_write_records;
   /**
     Number of normal fields in the query, including those referred to
