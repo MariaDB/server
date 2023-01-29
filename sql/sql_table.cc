@@ -2105,7 +2105,8 @@ static int sort_keys(KEY *a, KEY *b)
       return -1;
     /*
       Long Unique keys should always be last unique key.
-      Before this patch they used to change order wrt to partial keys (MDEV-19049)
+      Before this patch they used to change order wrt to partial keys
+      (MDEV-19049)
     */
     if (a->algorithm == HA_KEY_ALG_LONG_HASH)
       return 1;

@@ -12485,16 +12485,14 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
     j->table->const_table= 1;
   else if (!((keyparts == keyinfo->user_defined_key_parts &&
               (
-                (key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
-                /* Unique key and all keyparts are NULL rejecting */
-                ((key_flags & HA_NOSAME) && keyparts == not_null_keyparts)
-              )) ||
-              /* true only for extended keys */
-              (keyparts > keyinfo->user_defined_key_parts &&
-               MY_TEST(key_flags & HA_EXT_NOSAME) &&
-               keyparts == keyinfo->ext_key_parts)
-            ) ||
-            null_ref_key)
+               (key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
+               /* Unique key and all keyparts are NULL rejecting */
+               ((key_flags & HA_NOSAME) && keyparts == not_null_keyparts)
+               )) ||
+             /* true only for extended keys */
+             (MY_TEST(key_flags & HA_EXT_NOSAME) &&
+              keyparts == keyinfo->ext_key_parts) ) ||
+           null_ref_key)
   {
     /* Must read with repeat */
     j->type= null_ref_key ? JT_REF_OR_NULL : JT_REF;
