@@ -13408,7 +13408,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                 decided to not use the range (sel->quick was not set).
               */
               set_if_smaller(join->best_positions[i].records_out,
-                             sel->head->opt_range_condition_rows);
+                             rows2double(sel->head->opt_range_condition_rows));
 
             }
 	  }
