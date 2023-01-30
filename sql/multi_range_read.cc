@@ -374,7 +374,8 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   {
     set_if_smaller(total_rows, max_rows);
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
-    calculate_costs(cost, keyno, n_ranges, n_ranges - single_point_ranges,
+    calculate_costs(cost, keyno, n_ranges,
+                    n_ranges - (uint)single_point_ranges,
                     *flags, total_rows,
                     io_blocks, unassigned_single_point_ranges);
     if (top_limit < total_rows)
