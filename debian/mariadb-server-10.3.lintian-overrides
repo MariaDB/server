@@ -1,0 +1,2 @@
+# Debian obsolete package lsb-base on Debian 12 / Sid and favor sysvinit-utils
+debian/mariadb-server-10.5.lintian-overrides
