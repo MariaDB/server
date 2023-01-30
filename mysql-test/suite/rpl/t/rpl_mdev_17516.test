@@ -1,0 +1,77 @@
+# test for mdev-17516
+#
+# Notes:
+#  1) This test is mainly from the JIRA page, where it has only been slightly
+# modified to be consistent and clear about the problematic report.
+#  2) There is no result file yet, because this just shows the issue for now.
+#
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+# Test various aspects of parallel replication.
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+--save_master_pos
+
+--connection slave
+--sync_with_master
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=4;
+--source include/start_slave.inc
+
+--connection slave
+--sync_with_master
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=1;
+
+--connection master
+--disable_warnings
+INSERT INTO t1 VALUES (1, SLEEP(4));
+--echo # Sleep 2
+--sleep 2
+INSERT INTO t1 VALUES (2, SLEEP(1));
+--save_master_pos
+
+--connection slave
+set @@global.debug_dbug="+d,delay_next_io_thread_event";
+
+--echo # Lock tables so the MDL cannot commit before we read SBM
+lock tables t1 write;
+--source include/start_slave.inc
+
+--echo # BUG: First report of SBM is 0 because SHOW SLAVE STATUS sees that
+--echo # sql_thread_caught_up is true and parallel workers are not busy, as
+--echo # the relay log is empty because the IO thread is delayed.
+--let $status_items= Seconds_Behind_Master
+--source include/show_slave_status.inc
+
+--echo # Match sleep of IO thread
+sleep 3;
+--echo # SBM should now jump to real value because worker thread has work
+--let $status_items= Seconds_Behind_Master
+--source include/show_slave_status.inc
+unlock tables;
+--sync_with_master
+
+--echo # We are caught up, SBM should be 0
+--let $status_items= Seconds_Behind_Master
+--source include/show_slave_status.inc
+
+--connection master
+drop table t1;
+--save_master_pos
+
+--connection slave
+set @@global.debug_dbug="";
+--sync_with_master
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

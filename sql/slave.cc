@@ -4807,6 +4807,10 @@ Stopping slave I/O thread due to out-of-memory error from master");
         tokenamount -= network_read_len;
       }
 
+      DBUG_EXECUTE_IF("delay_next_io_thread_event", {
+        sleep(3);
+        DBUG_SET("-d,delay_next_io_thread_event");
+      });
       if (queue_event(mi, event_buf, event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
