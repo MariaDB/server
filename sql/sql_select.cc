@@ -7557,6 +7557,7 @@ best_access_path(JOIN      *join,
         rec= MATCHING_ROWS_IN_OTHER_TABLE;      // Fix for small tables
 
       Json_writer_object trace_access_idx(thd);
+      double eq_ref_rows= 0;
       /*
         full text keys require special treatment
       */
@@ -7595,7 +7596,8 @@ best_access_path(JOIN      *join,
             type= JT_EQ_REF;
             trace_access_idx.add("access_type", join_type_str[type])
                             .add("index", keyinfo->name);
-            tmp = prev_record_reads(join_positions, idx, found_ref);
+            eq_ref_rows= tmp = prev_record_reads(join_positions, idx,
+                                                 found_ref);
             records=1.0;
           }
           else
@@ -7918,8 +7920,8 @@ best_access_path(JOIN      *join,
 
                Set the effective number of rows from "tmp" here.
           */
-          keyread_tmp= tmp/ 2;
-          rows= tmp;
+          keyread_tmp= COST_ADD(eq_ref_rows / 2, s->startup_cost);
+          rows= eq_ref_rows;
         }
         else
           rows= record_count * records;
