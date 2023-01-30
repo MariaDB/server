@@ -4211,8 +4211,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 
     WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
 
+    Recreate_info recreate_info;
     res= mysql_alter_table(thd, &first_table->db, &first_table->table_name,
-                           &create_info, first_table, &alter_info,
+                           &create_info, first_table,
+                           &recreate_info, &alter_info,
                            0, (ORDER*) 0, 0, lex->if_exists());
     break;
   }
@@ -8827,8 +8829,8 @@ TABLE_LIST *st_select_lex::convert_right_join()
 void st_select_lex::prepare_add_window_spec(THD *thd)
 {
   LEX *lex= thd->lex;
-  lex->save_group_list= group_list;
-  lex->save_order_list= order_list;
+  save_group_list= group_list;
+  save_order_list= order_list;
   lex->win_ref= NULL;
   lex->win_frame= NULL;
   lex->frame_top_bound= NULL;
@@ -8855,8 +8857,8 @@ bool st_select_lex::add_window_def(THD *thd,
                                                       win_part_list_ptr,
                                                       win_order_list_ptr,
                                                       win_frame);
-  group_list= thd->lex->save_group_list;
-  order_list= thd->lex->save_order_list;
+  group_list= save_group_list;
+  order_list= save_order_list;
   if (parsing_place != SELECT_LIST)
   {
     fields_in_window_functions+= win_part_list_ptr->elements +
@@ -8882,8 +8884,8 @@ bool st_select_lex::add_window_spec(THD *thd,
                                                          win_part_list_ptr,
                                                          win_order_list_ptr,
                                                          win_frame);
-  group_list= thd->lex->save_group_list;
-  order_list= thd->lex->save_order_list;
+  group_list= save_group_list;
+  order_list= save_order_list;
   if (parsing_place != SELECT_LIST)
   {
     fields_in_window_functions+= win_part_list_ptr->elements +

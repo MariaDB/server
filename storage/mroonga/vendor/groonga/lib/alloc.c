@@ -828,7 +828,7 @@ grn_free_default(grn_ctx *ctx, void *ptr,
     if (ptr) {
       GRN_ADD_ALLOC_COUNT(-1);
     } else {
-      GRN_LOG(ctx, GRN_LOG_ALERT, "free fail (%s:%d) <%d>",
+      GRN_LOG(ctx, GRN_LOG_ALERT, "free fail (nullptr) (%s:%d) <%d>",
               file, line, alloc_count);
     }
   }

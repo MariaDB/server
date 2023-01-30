@@ -3225,6 +3225,9 @@ public:
   Item *build_clone(THD *thd) override;
   bool excl_dep_on_table(table_map tab_map) override;
   bool excl_dep_on_grouping_fields(st_select_lex *sel) override;
+
+private:
+  void merge_sub_condition(List_iterator<Item>& li);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;
