@@ -1,8 +1,0 @@
-connection default;
-set @@global.binlog_checksum=none;
-set @@session.debug_dbug='d,crash_before_write_second_checkpoint_event';
-set @@global.binlog_checksum=crc32;
-ERROR HY000: Lost connection to MySQL server during query
-connection default;
-NOT FOUND /Replication event checksum verification failed/ in mysqld.1.err
-End of the tests
