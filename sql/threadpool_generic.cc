@@ -1550,6 +1550,7 @@ int TP_connection_generic::start_io()
   }
 #ifdef HAVE_DISABLE_QUEUEING
   DBUG_ASSERT(disable_queue);
+  DEBUG_SYNC(thd, "start_io_before_disable");
   disable_queue= 0;
 #endif
 

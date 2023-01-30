@@ -1,0 +1,42 @@
+--source include/have_perfschema.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo # Initialization
+
+SELECT THREAD_ID INTO @def_thread_id FROM performance_schema.threads
+                 WHERE PROCESSLIST_ID = CONNECTION_ID();
+
+--connect (con1, localhost, root,,)
+set time_zone= '+10:00';
+
+SELECT THREAD_ID INTO @con1_thread_id FROM performance_schema.threads
+                 WHERE PROCESSLIST_ID = CONNECTION_ID();
+
+let $con1_thread_id= `select @con1_thread_id`;
+let $con1_kill_thread_id= `select CONNECTION_ID()`;
+
+--connection default
+--disable_query_log
+eval set @con1_thread_id= $con1_thread_id;
+eval set @con1_kill_thread_id= $con1_kill_thread_id;
+--enable_query_log
+
+--echo # End of initialization
+
+--connection con1
+--send
+set debug_sync= "start_io_before_disable SIGNAL net WAIT_FOR pass";
+--connection default
+set debug_sync= "now WAIT_FOR net";
+set debug_sync= "apc_after_notify SIGNAL pass";
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+set debug_sync= "now SIGNAL pass";
+--connection con1
+--reap
+--connection default
+
+set debug_sync=reset;
