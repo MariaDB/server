@@ -763,7 +763,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     bzero((char*) keyinfo, len);
     key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo);
   }
-  bzero(first_keyinfo, sizeof(*first_keyinfo));
+  bzero((char*)first_keyinfo, sizeof(*first_keyinfo));
 
   /*
     If share->use_ext_keys is set to TRUE we assume that any not
