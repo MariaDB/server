@@ -844,7 +844,7 @@ static int skip_key(json_engine_t *j)
 {
   int t_next, c_len;
 
-  if (j->s.c_next< 128 && json_instr_chr_map[j->s.c_next] == S_BKSL &&
+  if (j->s.c_next<128 && json_instr_chr_map[j->s.c_next] == S_BKSL &&
       json_handle_esc(&j->s))
     return 1;
 

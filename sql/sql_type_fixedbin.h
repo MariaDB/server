@@ -1428,7 +1428,7 @@ public:
                   item->type_handler() == type_handler());
       return true;
     }
-    void hash(ulong *nr, ulong *nr2) override
+    void hash(ulong *nr, ulong *nr2)
     {
       if (is_null())
         *nr^= (*nr << 1) | 1;

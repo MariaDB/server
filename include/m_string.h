@@ -226,6 +226,44 @@ static inline void lex_string_set3(LEX_CSTRING *lex_str, const char *c_str,
   lex_str->length= len;
 }
 
+/*
+  Copies src into dst and ensures dst is a NULL terminated C string.
+
+  Returns 1 if the src string was truncated due to too small size of dst.
+  Returns 0 if src completely fit within dst. Pads the remaining dst with '\0'
+
+  Note: dst_size must be > 0
+*/
+static inline int safe_strcpy(char *dst, size_t dst_size, const char *src)
+{
+  memset(dst, '\0', dst_size);
+  strncpy(dst, src, dst_size - 1);
+  /*
+     If the first condition is true, we are guaranteed to have src length
+     >= (dst_size - 1), hence safe to access src[dst_size - 1].
+  */
+  if (dst[dst_size - 2] != '\0' && src[dst_size - 1] != '\0')
+    return 1; /* Truncation of src. */
+  return 0;
+}
+
+/*
+  Appends src to dst and ensures dst is a NULL terminated C string.
+
+  Returns 1 if the src string was truncated due to too small size of dst.
+  Returns 0 if src completely fit within the remaining dst space. Pads the
+            remaining dst with '\0'.
+
+  Note: dst_size must be > 0
+*/
+static inline int safe_strcat(char *dst, size_t dst_size, const char *src)
+{
+  size_t init_len= strlen(dst);
+  if (init_len >= dst_size - 1)
+    return 1;
+  return safe_strcpy(dst + init_len, dst_size - init_len, src);
+}
+
 #ifdef __cplusplus
 static inline char *safe_str(char *str)
 { return str ? str : const_cast<char*>(""); }

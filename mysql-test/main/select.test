@@ -4747,4 +4747,44 @@ EXECUTE stmt;
 --enable_warnings
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-29294: Assertion `functype() == ((Item_cond *) new_item)->functype()'
+--echo #             failed in Item_cond::remove_eq_conds on SELECT
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+--echo # Test for nested OR conditions:
+SELECT * FROM t1 WHERE a = 1 AND
+  (3 = 0 OR (SELECT a = 1 OR (SELECT 3 WHERE a = a) = 3));
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a = 1 AND
+  (3 = 0 OR (SELECT a = 1 OR (SELECT 3 WHERE a = a) = 3));
+
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE a = 1 AND
+  (3 = 0 OR (SELECT a = 1 OR (SELECT 3 WHERE a = a) = 3))';
+EXECUTE stmt;
+EXECUTE stmt;
+
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a = 1 AND
+  (3 = 0 OR (SELECT a = 1 OR (SELECT 3 WHERE a = a) = 3));
+SELECT * FROM v1;
+
+--echo # Test for nested AND conditions:
+SELECT * FROM t1 WHERE a = 1 OR
+  (3 = 3 AND (SELECT a = 1 AND (SELECT 3 WHERE a = a) = 3));
+
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE a = 1 OR
+  (3 = 3 AND (SELECT a = 1 AND (SELECT 3 WHERE a = a) = 3))';
+EXECUTE stmt;
+EXECUTE stmt;
+
+CREATE VIEW v2 AS SELECT * FROM t1 WHERE a = 1 OR
+  (3 = 3 AND (SELECT a = 1 AND (SELECT 3 WHERE a = a) = 3));
+SELECT * FROM v2;
+
+DROP TABLE t1;
+DROP VIEW v1, v2;
+
 --echo End of 10.0 tests

@@ -4494,11 +4494,13 @@ static bool xtrabackup_backup_low()
 		return false;
 	}
 
-	if(!xtrabackup_incremental) {
-		strcpy(metadata_type, "full-backuped");
+	if (!xtrabackup_incremental) {
+		safe_strcpy(metadata_type, sizeof(metadata_type),
+			    "full-backuped");
 		metadata_from_lsn = 0;
 	} else {
-		strcpy(metadata_type, "incremental");
+		safe_strcpy(metadata_type, sizeof(metadata_type),
+			    "incremental");
 		metadata_from_lsn = incremental_lsn;
 	}
 	metadata_last_lsn = log_copy_scanned_lsn;
@@ -6142,7 +6144,8 @@ static bool xtrabackup_prepare_func(char** argv)
 	if (ok) {
 		char	filename[FN_REFLEN];
 
-		strcpy(metadata_type, "log-applied");
+		safe_strcpy(metadata_type, sizeof(metadata_type),
+			    "log-applied");
 
 		if(xtrabackup_incremental
 		   && metadata_to_lsn < incremental_to_lsn)
