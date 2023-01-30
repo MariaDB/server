@@ -4,6 +4,8 @@
 --source include/have_binlog_format_mixed.inc
 --source include/count_sessions.inc
 
+RESET MASTER;
+
 # MDEV-30010 merely adds is a Read-Committed version MDEV-30225 test
 # solely to prove the RC isolation yields ROW binlog format as it is
 # supposed to:
@@ -49,6 +51,7 @@ SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL delete_started_waiting";
 
 # to prepare showing interesting binlog events
 --let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+--let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
 BEGIN;
 --send UPDATE t SET sk = 200 WHERE sk = 100; # trx 2
 
