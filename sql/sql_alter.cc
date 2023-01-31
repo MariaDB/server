@@ -551,9 +551,11 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   thd->work_part_info= 0;
 #endif
 
+  Recreate_info recreate_info;
   result= mysql_alter_table(thd, &select_lex->db, &lex->name,
                             &create_info,
                             first_table,
+                            &recreate_info,
                             &alter_info,
                             select_lex->order_list.elements,
                             select_lex->order_list.first,

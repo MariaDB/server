@@ -511,7 +511,7 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     stack->delay= stack->next->delay;
     stack->maxdepth= stack->next->maxdepth;
     stack->sub_level= stack->next->sub_level;
-    strcpy(stack->name, stack->next->name);
+    safe_strcpy(stack->name, sizeof(stack->name), stack->next->name);
     stack->out_file= stack->next->out_file;
     stack->out_file->used++;
     if (stack->next == &init_settings)

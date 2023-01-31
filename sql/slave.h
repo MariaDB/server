@@ -49,6 +49,7 @@
 #include "rpl_filter.h"
 #include "rpl_tblmap.h"
 #include "rpl_gtid.h"
+#include "log_event.h"
 
 #define SLAVE_NET_TIMEOUT  60
 
@@ -292,6 +293,17 @@ extern char *master_info_file, *report_user;
 extern char *report_host, *report_password;
 
 extern I_List<THD> threads;
+
+/*
+  Check that a binlog event (read from the relay log) is valid to update
+  last_master_timestamp. That is, a valid event is one with a consistent
+  timestamp which originated from a primary server.
+*/
+static inline bool event_can_update_last_master_timestamp(Log_event *ev)
+{
+  return ev && !(ev->is_artificial_event() || ev->is_relay_log_event() ||
+                 (ev->when == 0));
+}
 
 #else
 #define close_active_mi() /* no-op */

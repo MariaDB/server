@@ -1836,7 +1836,14 @@ public:
   key_map get_possible_keys();
 
   /* Hash value */
-  virtual void hash(ulong *nr, ulong *nr2);
+  void hash(Hasher *hasher)
+  {
+    if (is_null())
+      hasher->add_null();
+    else
+      hash_not_null(hasher);
+  }
+  virtual void hash_not_null(Hasher *hasher);
 
   /**
     Get the upper limit of the MySQL integral and floating-point type.
@@ -4209,7 +4216,7 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
   bool is_equal(const Column_definition &new_field) const override;
-  void hash(ulong *nr, ulong *nr2) override;
+  void hash_not_null(Hasher *hasher) override;
   uint length_size() const override { return length_bytes; }
   void print_key_value(String *out, uint32 length) override;
   Binlog_type_info binlog_type_info() const override;
@@ -4469,6 +4476,7 @@ public:
   bool make_empty_rec_store_default_value(THD *thd, Item *item) override;
   int store(const char *to, size_t length, CHARSET_INFO *charset) override;
   using Field_str::store;
+  void hash_not_null(Hasher *hasher) override;
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
@@ -5039,7 +5047,7 @@ public:
     if (bit_ptr)
       bit_ptr= ADD_TO_PTR(bit_ptr, ptr_diff, uchar*);
   }
-  void hash(ulong *nr, ulong *nr2) override;
+  void hash_not_null(Hasher *hasher) override;
 
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,

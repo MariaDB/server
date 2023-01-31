@@ -3008,6 +3008,7 @@ dict_stats_update_persistent(
 	index_stats_t stats = dict_stats_analyze_index(index);
 
 	if (stats.is_bulk_operation()) {
+		dict_stats_empty_table(table, false);
 		return DB_SUCCESS_LOCKED_REC;
 	}
 
@@ -3049,6 +3050,12 @@ dict_stats_update_persistent(
 		table->stats_mutex_unlock();
 		stats = dict_stats_analyze_index(index);
 		table->stats_mutex_lock();
+
+		if (stats.is_bulk_operation()) {
+			table->stats_mutex_unlock();
+			dict_stats_empty_table(table, false);
+			return DB_SUCCESS_LOCKED_REC;
+		}
 
 		index->stat_index_size = stats.index_size;
 		index->stat_n_leaf_pages = stats.n_leaf_pages;

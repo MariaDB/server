@@ -10328,6 +10328,7 @@ void spider_free_sts_threads(
 ) {
   bool thread_killed;
   DBUG_ENTER("spider_free_sts_threads");
+  spider_thread->init_command = FALSE;
   pthread_mutex_lock(&spider_thread->mutex);
   thread_killed = spider_thread->killed;
   spider_thread->killed = TRUE;
@@ -10484,12 +10485,13 @@ void *spider_table_bg_sts_action(
     tmp_disable_binlog(thd);
     thd->security_ctx->skip_grants();
     thd->client_capabilities |= CLIENT_MULTI_RESULTS;
-    if (!(*spd_mysqld_server_started) && !thd->killed)
+    if (!(*spd_mysqld_server_started) && !thd->killed && !thread->killed)
     {
       pthread_mutex_lock(spd_LOCK_server_started);
       thd->mysys_var->current_cond = spd_COND_server_started;
       thd->mysys_var->current_mutex = spd_LOCK_server_started;
-      if (!(*spd_mysqld_server_started) && !thd->killed)
+      if (!(*spd_mysqld_server_started) && !thd->killed && !thread->killed &&
+        thread->init_command)
       {
         do
         {
@@ -10499,14 +10501,16 @@ void *spider_table_bg_sts_action(
             spd_LOCK_server_started, &abstime);
         } while (
           (error_num == ETIMEDOUT || error_num == ETIME) &&
-          !(*spd_mysqld_server_started) && !thd->killed && !thread->killed
+          !(*spd_mysqld_server_started) && !thd->killed && !thread->killed &&
+          thread->init_command
         );
       }
       pthread_mutex_unlock(spd_LOCK_server_started);
       thd->mysys_var->current_cond = &thread->cond;
       thd->mysys_var->current_mutex = &thread->mutex;
     }
-    while (spider_init_queries[i].length && !thd->killed && !thread->killed)
+    while (spider_init_queries[i].length && !thd->killed && !thread->killed &&
+      thread->init_command)
     {
       dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
         (uint) spider_init_queries[i].length);
