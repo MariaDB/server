@@ -771,7 +771,7 @@ parse_page(
 {
 	unsigned long long id;
 	uint16_t undo_page_type;
-	char str[20]={'\0'};
+	const char *str;
 	ulint n_recs;
 	uint32_t page_no, left_page_no, right_page_no;
 	ulint data_bytes;
@@ -779,11 +779,7 @@ parse_page(
 	ulint size_range_id;
 
 	/* Check whether page is doublewrite buffer. */
-	if(skip_page) {
-		strcpy(str, "Double_write_buffer");
-	} else {
-		strcpy(str, "-");
-	}
+	str = skip_page ? "Double_write_buffer" : "-";
 
 	switch (fil_page_get_type(page)) {
 

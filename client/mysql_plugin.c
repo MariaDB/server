@@ -569,14 +569,14 @@ static int file_exists(char * filename)
   @retval int error = 1, success = 0
 */
 
-static int search_dir(const char * base_path, const char *tool_name,
+static int search_dir(const char *base_path, const char *tool_name,
                       const char *subdir, char *tool_path)
 {
   char new_path[FN_REFLEN];
   char source_path[FN_REFLEN];
 
-  strcpy(source_path, base_path);
-  strcat(source_path, subdir);
+  safe_strcpy(source_path, sizeof(source_path), base_path);
+  safe_strcat(source_path, sizeof(source_path), subdir);
   fn_format(new_path, tool_name, source_path, "", MY_UNPACK_FILENAME);
   if (file_exists(new_path))
   {
@@ -632,7 +632,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
   FILE *file_ptr;
   char path[FN_REFLEN];
   char line[1024];
-  char *reason= 0;
+  const char *reason= 0;
   char *res;
   int i= -1;
 
@@ -643,14 +643,14 @@ static int load_plugin_data(char *plugin_name, char *config_file)
   }
   if (!file_exists(opt_plugin_ini))
   {
-    reason= (char *)"File does not exist.";
+    reason= "File does not exist.";
     goto error;
   }
 
   file_ptr= fopen(opt_plugin_ini, "r");
   if (file_ptr == NULL)
   {
-    reason= (char *)"Cannot open file.";
+    reason= "Cannot open file.";
     goto error;
   }
 
@@ -660,17 +660,20 @@ static int load_plugin_data(char *plugin_name, char *config_file)
   /* Read plugin components */
   while (i < 16)
   {
+    size_t line_len;
+
     res= fgets(line, sizeof(line), file_ptr);
+    line_len= strlen(line);
+
     /* strip /n */
-    if (line[strlen(line)-1] == '\n')
-    {
-      line[strlen(line)-1]= '\0';
-    }
+    if (line[line_len - 1] == '\n')
+      line[line_len - 1]= '\0';
+
     if (res == NULL)
     {
       if (i < 1)
       {
-        reason= (char *)"Bad format in plugin configuration file.";
+        reason= "Bad format in plugin configuration file.";
         fclose(file_ptr);
         goto error;        
       }
@@ -683,14 +686,19 @@ static int load_plugin_data(char *plugin_name, char *config_file)
     if (i == -1) /* if first pass, read this line as so_name */
     {
       /* Add proper file extension for soname */
-      strcat(line, FN_SOEXT);
+      if (safe_strcpy(line + line_len - 1, sizeof(line), FN_SOEXT))
+      {
+        reason= "Plugin name too long.";
+        fclose(file_ptr);
+        goto error;
+      }
       /* save so_name */
       plugin_data.so_name= my_strdup(PSI_NOT_INSTRUMENTED, line, MYF(MY_WME|MY_ZEROFILL));
       i++;
     }
     else
     {
-      if (strlen(line) > 0)
+      if (line_len > 0)
       {
         plugin_data.components[i]= my_strdup(PSI_NOT_INSTRUMENTED, line, MYF(MY_WME));
         i++;
@@ -779,14 +787,13 @@ static int check_options(int argc, char **argv, char *operation)
     /* read the plugin config file and check for match against argument */
     else
     {
-      if (strlen(argv[i]) + 4 + 1 > FN_REFLEN)
+      if (safe_strcpy(plugin_name, sizeof(plugin_name), argv[i]) ||
+          safe_strcpy(config_file, sizeof(config_file), argv[i]) ||
+          safe_strcat(config_file, sizeof(config_file), ".ini"))
       {
         fprintf(stderr, "ERROR: argument is too long.\n");
         return 1;
       }
-      strcpy(plugin_name, argv[i]);
-      strcpy(config_file, argv[i]);
-      strcat(config_file, ".ini");
     }
   }
 
@@ -855,35 +862,30 @@ static int check_options(int argc, char **argv, char *operation)
 static int process_options(int argc, char *argv[], char *operation)
 {
   int error= 0;
-  int i= 0;
   
   /* Parse and execute command-line options */
   if ((error= handle_options(&argc, &argv, my_long_options, get_one_option)))
-    goto exit;
+    return error;
 
   /* If the print defaults option used, exit. */
   if (opt_print_defaults)
-  {
-    error= -1;
-    goto exit;
-  }
+    return -1;
 
   /* Add a trailing directory separator if not present */
   if (opt_basedir)
   {
-    i= (int)strlength(opt_basedir);
-    if (opt_basedir[i-1] != FN_LIBCHAR || opt_basedir[i-1] != FN_LIBCHAR2)
+    size_t basedir_len= strlength(opt_basedir);
+    if (opt_basedir[basedir_len - 1] != FN_LIBCHAR ||
+        opt_basedir[basedir_len - 1] != FN_LIBCHAR2)
     {
       char buff[FN_REFLEN];
-      memset(buff, 0, sizeof(buff));
-      
-      strncpy(buff, opt_basedir, sizeof(buff) - 1);
-#ifdef _WIN32
-      strncat(buff, "/", sizeof(buff) - strlen(buff) - 1);
-#else
-      strncat(buff, FN_DIRSEP, sizeof(buff) - strlen(buff) - 1);
-#endif
-      buff[sizeof(buff) - 1]= 0;
+      if (basedir_len + 2 > FN_REFLEN)
+        return -1;
+
+      memcpy(buff, opt_basedir, basedir_len);
+      buff[basedir_len]= '/';
+      buff[basedir_len + 1]= '\0';
+
       my_free(opt_basedir);
       opt_basedir= my_strdup(PSI_NOT_INSTRUMENTED, buff, MYF(MY_FAE));
     }
@@ -895,10 +897,7 @@ static int process_options(int argc, char *argv[], char *operation)
     generated when the defaults were read from the file, exit.
   */
   if (!opt_no_defaults && ((error= get_default_values())))
-  {
-    error= -1;
-    goto exit;
-  }
+    return -1;
 
   /*
    Check to ensure required options are present and validate the operation.
@@ -906,11 +905,9 @@ static int process_options(int argc, char *argv[], char *operation)
    read a configuration file named <plugin_name>.ini from the --plugin-dir
    or --plugin-ini location if the --plugin-ini option presented.
   */
-  strcpy(operation, "");
-  if ((error = check_options(argc, argv, operation)))
-  {
-    goto exit;
-  }
+  operation[0]= '\0';
+  if ((error= check_options(argc, argv, operation)))
+    return error;
 
   if (opt_verbose)
   {
@@ -922,8 +919,7 @@ static int process_options(int argc, char *argv[], char *operation)
       printf("# lc_messages_dir = %s\n", opt_lc_messages_dir);
   }
 
-exit:
-  return error;
+  return 0;
 }
 
 

@@ -8321,6 +8321,20 @@ bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
   return 0;
 }
 
+
+void THD::my_ok_with_recreate_info(const Recreate_info &info,
+                                   ulong warn_count)
+{
+  char buf[80];
+  my_snprintf(buf, sizeof(buf),
+              ER_THD(this, ER_INSERT_INFO),
+              (ulong) info.records_processed(),
+              (ulong) info.records_duplicate(),
+              warn_count);
+  my_ok(this, info.records_processed(), 0L, buf);
+}
+
+
 THD_list_iterator *THD_list_iterator::iterator()
 {
   return &server_threads;
