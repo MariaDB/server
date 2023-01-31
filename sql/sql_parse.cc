@@ -5657,6 +5657,13 @@ mysql_execute_command(THD *thd)
   }
 #endif
   case SQLCOM_HA_OPEN:
+#ifdef WITH_WSREP
+    if (WSREP_ON && WSREP(thd))
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "HANDLER OPEN in cluster (WSREP_ON=ON)");
+      goto error;
+    }
+#endif
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if (check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE))
       goto error;
@@ -5666,10 +5673,24 @@ mysql_execute_command(THD *thd)
     res= mysql_ha_open(thd, first_table, 0);
     break;
   case SQLCOM_HA_CLOSE:
+#ifdef WITH_WSREP
+    if (WSREP_ON && WSREP(thd))
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "HANDLER CLOSE in cluster (WSREP_ON=ON)");
+      goto error;
+    }
+#endif
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     res= mysql_ha_close(thd, first_table);
     break;
   case SQLCOM_HA_READ:
+#ifdef WITH_WSREP
+    if (WSREP_ON && WSREP(thd))
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "HANDLER READ in cluster (WSREP_ON=ON)");
+      goto error;
+    }
+#endif
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     /*
       There is no need to check for table permissions here, because

@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1(a int not null primary key, b int, key b(b)) engine=innodb;
+INSERT INTO t1 VALUES (1,2),(2,3),(4,5);
+HANDLER t1 OPEN;
+ERROR 42000: This version of MariaDB doesn't yet support 'HANDLER OPEN in cluster (WSREP_ON=ON)'
+HANDLER t1 READ b >= (1);
+ERROR 42000: This version of MariaDB doesn't yet support 'HANDLER READ in cluster (WSREP_ON=ON)'
+HANDLER t1 CLOSE;
+ERROR 42000: This version of MariaDB doesn't yet support 'HANDLER CLOSE in cluster (WSREP_ON=ON)'
+DROP TABLE t1;

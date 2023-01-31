@@ -1,0 +1,11 @@
+--source include/galera_cluster.inc
+
+CREATE TABLE t1(a int not null primary key, b int, key b(b)) engine=innodb;
+INSERT INTO t1 VALUES (1,2),(2,3),(4,5);
+--error ER_NOT_SUPPORTED_YET
+HANDLER t1 OPEN;
+--error ER_NOT_SUPPORTED_YET
+HANDLER t1 READ b >= (1);
+--error ER_NOT_SUPPORTED_YET
+HANDLER t1 CLOSE;
+DROP TABLE t1;
