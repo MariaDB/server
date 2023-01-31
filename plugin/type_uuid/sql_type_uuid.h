@@ -64,9 +64,9 @@ public:
     {
       return memcmp(a + m_memory_pos, b + m_memory_pos, m_length);
     }
-    void hash_record(const uchar *ptr, ulong *nr, ulong *nr2) const
+    void hash_record(const uchar *ptr, Hasher *hasher) const
     {
-      my_charset_bin.hash_sort(ptr + m_record_pos, m_length, nr, nr2);
+      hasher->add(&my_charset_bin, ptr + m_record_pos, m_length);
     }
   };
 
@@ -119,13 +119,13 @@ public:
 
     put values into the same partition.
   */
-  static void hash_record(const uchar *ptr, ulong *nr, ulong *nr2)
+  static void hash_record(const uchar *ptr, Hasher *hasher)
   {
-    segment(0).hash_record(ptr, nr, nr2);
-    segment(1).hash_record(ptr, nr, nr2);
-    segment(2).hash_record(ptr, nr, nr2);
-    segment(3).hash_record(ptr, nr, nr2);
-    segment(4).hash_record(ptr, nr, nr2);
+    segment(0).hash_record(ptr, hasher);
+    segment(1).hash_record(ptr, hasher);
+    segment(2).hash_record(ptr, hasher);
+    segment(3).hash_record(ptr, hasher);
+    segment(4).hash_record(ptr, hasher);
   }
 
   // Compare two in-memory values

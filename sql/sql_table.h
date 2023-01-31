@@ -163,6 +163,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
                        Table_specification_st *create_info,
                        TABLE_LIST *table_list,
+                       class Recreate_info *recreate_info,
                        Alter_info *alter_info,
                        uint order_num, ORDER *order, bool ignore,
                        bool if_exists);
@@ -170,7 +171,8 @@ bool mysql_compare_tables(TABLE *table,
                           Alter_info *alter_info,
                           HA_CREATE_INFO *create_info,
                           bool *metadata_equal);
-bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy);
+bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list,
+                          class Recreate_info *recreate_info, bool table_copy);
 bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                         const LEX_CSTRING *old_name, const LEX_CSTRING *new_db,
                         const LEX_CSTRING *new_name, LEX_CUSTRING *id,

@@ -3871,6 +3871,55 @@ DROP TABLE transactions;
 DROP TABLE charges;
 DROP TABLE ledgers;
 
+
+--echo #
+--echo # MDEV-30081: Splitting from a constant mergeable derived table
+--echo #             used in inner part of an outer join.
+--echo #
+
+  CREATE TABLE t1 ( id int PRIMARY KEY ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (3),(4),(7);
+
+CREATE TABLE t2 (
+  id int,  id1 int, wid int, PRIMARY KEY (id), KEY (id1), KEY (wid)
+) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (4,4,6),(7,7,7);
+
+CREATE TABLE t3 (
+  wid int, wtid int, otid int, oid int,
+  PRIMARY KEY (wid), KEY (wtid), KEY (otid), KEY (oid)
+) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (6,30,6,6),(7,17,7,7);
+
+CREATE TABLE t4 ( id int, a int, PRIMARY KEY (id), KEY (a) )  ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+
+CREATE TABLE t5 (
+  id int, id1 int, PRIMARY KEY (id), KEY id1 (id1)
+) ENGINE=MyISAM ;
+INSERT INTO t5 VALUES (1,17),(2,15),(3,49),(4,3),(5,45),(6,38),(7,17);
+
+ANALYZE TABLE t1,t2,t3,t4,t5;
+
+CREATE VIEW v1 AS (SELECT id1 FROM t5 GROUP BY id1);
+
+let $q=
+SELECT t3.*, t1.id AS t1_id, t2.id AS t2_id, dt.*, v1.*
+FROM
+  t1, t2, t3
+  LEFT JOIN
+  (SELECT t4.* FROM t4 WHERE t4.a=3) dt
+  ON t3.oid = dt.id AND t3.otid = 14
+  LEFT JOIN v1
+  ON (v1.id1 = dt.a)
+WHERE t3.oid = t1.id AND t3.oid = t2.id AND t3.wid = 7;
+
+eval $q;
+eval EXPLAIN $q;
+
+DROP VIEW v1;
+DROP TABLE t1,t2,t3,t4,t5;
+
 --echo # End of 10.3 tests
 
 --echo #

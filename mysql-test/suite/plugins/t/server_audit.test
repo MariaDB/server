@@ -235,3 +235,8 @@ uninstall plugin server_audit;
 cat_file $MYSQLD_DATADIR/server_audit.log;
 remove_file $MYSQLD_DATADIR/server_audit.log;
 
+--echo #
+--echo # MDEV-27631 Assertion `global_status_var.global_memory_used == 0' failed in mysqld_exit
+--echo #
+install plugin server_audit soname 'server_audit';
+uninstall plugin server_audit;
