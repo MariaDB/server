@@ -700,7 +700,7 @@ static int get_upgrade_info_file_name(char* name)
 
   dynstr_free(&ds_datadir);
 
-  fn_format(name, "mysql_upgrade_info", name, "", MYF(0));
+  fn_format(name, "mariadb_upgrade_info", name, "", MYF(0));
   DBUG_PRINT("exit", ("name: %s", name));
   DBUG_RETURN(0);
 }
@@ -709,7 +709,7 @@ static char upgrade_info_file[FN_REFLEN]= {0};
 
 
 /*
-  Open or create mysql_upgrade_info file in servers data dir.
+  Open or create mariadb_upgrade_info file in servers data dir.
 
   Take a lock to ensure there cannot be any other mysql_upgrades
   running concurrently
@@ -724,10 +724,19 @@ const char *create_error_message=
 static void open_mysql_upgrade_file()
 {
   char errbuff[80];
+  char old_upgrade_info_file[FN_REFLEN]= {0};
+  size_t path_len;
+
   if (get_upgrade_info_file_name(upgrade_info_file))
   {
     die("Upgrade failed");
   }
+
+  // Delete old mysql_upgrade_info file
+  dirname_part(old_upgrade_info_file, upgrade_info_file, &path_len);
+  fn_format(old_upgrade_info_file, "mysql_upgrade_info", old_upgrade_info_file, "", MYF(0));
+  my_delete(old_upgrade_info_file, MYF(MY_IGNORE_ENOENT));
+
   if ((info_file= my_create(upgrade_info_file, 0,
                             O_RDWR | O_NOFOLLOW,
                             MYF(0))) < 0)
@@ -784,7 +793,7 @@ static int faulty_server_versions(const char *version)
 }
 
 /*
-  Read the content of mysql_upgrade_info file and
+  Read the content of mariadb_upgrade_info file and
   compare the version number form file against
   version number which mysql_upgrade was compiled for
 
@@ -861,16 +870,16 @@ static int upgrade_already_done(int silent)
   if (!silent)
   {
     verbose("This installation of MariaDB is already upgraded to %s.\n"
-            "There is no need to run mysql_upgrade again for %s.",
+            "There is no need to run mariadb-upgrade again for %s.",
             upgrade_from_version, version);
     if (!opt_check_upgrade)
-      verbose("You can use --force if you still want to run mysql_upgrade",
+      verbose("You can use --force if you still want to run mariadb-upgrade",
               upgrade_from_version, version);
   }
   return 0;
 }
 
-static void finish_mysql_upgrade_info_file(void)
+static void finish_mariadb_upgrade_info_file(void)
 {
   if (info_file < 0)
     return;
@@ -1463,7 +1472,7 @@ int main(int argc, char **argv)
     printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");
 
   /*
-    Read the mysql_upgrade_info file to check if mysql_upgrade
+    Read the mariadb_upgrade_info file to check if mysql_upgrade
     already has been run for this installation of MariaDB
   */
   if (!opt_force && !upgrade_already_done(0))
@@ -1495,7 +1504,7 @@ int main(int argc, char **argv)
   verbose("OK");
 
   /* Finish writing indicating upgrade has been performed */
-  finish_mysql_upgrade_info_file();
+  finish_mariadb_upgrade_info_file();
 
   DBUG_ASSERT(phase == phases_total);
 

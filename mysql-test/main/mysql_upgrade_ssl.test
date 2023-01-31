@@ -9,4 +9,4 @@
 --echo #
 --exec $MYSQL_UPGRADE --skip-verbose --skip-silent --ssl --force 2>&1
 --let $datadir= `select @@datadir`
---remove_file $datadir/mysql_upgrade_info
+--remove_file $datadir/mariadb_upgrade_info

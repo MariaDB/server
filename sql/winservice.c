@@ -305,19 +305,19 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   }
 
   /*
-    If version could not be determined so far, try mysql_upgrade_info in
+    If version could not be determined so far, try mariadb_upgrade_info in
     database directory.
   */
   if(props->version_major == 0)
   {
     char buf[MAX_PATH];
-    FILE *mysql_upgrade_info;
+    FILE *mariadb_upgrade_info;
 
-    sprintf_s(buf, MAX_PATH, "%s\\mysql_upgrade_info", props->datadir);
-    mysql_upgrade_info= fopen(buf, "r");
-    if(mysql_upgrade_info)
+    sprintf_s(buf, MAX_PATH, "%s\\mariadb_upgrade_info", props->datadir);
+    mariadb_upgrade_info= fopen(buf, "r");
+    if(mariadb_upgrade_info)
     {
-      if (fgets(buf, MAX_PATH, mysql_upgrade_info))
+      if (fgets(buf, MAX_PATH, mariadb_upgrade_info))
       {
         int major,minor,patch;
         if (sscanf(buf, "%d.%d.%d", &major, &minor, &patch) == 3)

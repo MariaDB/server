@@ -97,7 +97,7 @@ select count(*) from mysql.proc;
 call mtr.check_testcase();
 
 let $datadir=`select @@datadir`;
-list_files $datadir mysql_upgrade_info;
+list_files $datadir mariadb_upgrade_info;
 list_files $datadir/test #sql*;
 list_files $datadir/mysql #sql*;
 
