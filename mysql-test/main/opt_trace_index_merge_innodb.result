@@ -208,7 +208,6 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "access_type": "ref",
                       "index": "key1",
                       "used_range_estimates": true,
-                      "rowid_filter_skipped": "cost_factor <= 0",
                       "rows": 1,
                       "cost": 2,
                       "chosen": true
