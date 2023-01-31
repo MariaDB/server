@@ -7968,6 +7968,13 @@ best_access_path(JOIN      *join,
         if (filter)
         {
           tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
+          double filter_gain=
+                filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
+          if (filter_gain < 0)
+          {
+            fprintf(stderr, "filter_gain:%g, query=%s\n", filter_gain,
+                    thd->query());
+          }
           DBUG_ASSERT(tmp >= 0);
           trace_access_idx.add("rowid_filter_key",
                                  s->table->key_info[filter->key_no].name);
