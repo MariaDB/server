@@ -86,21 +86,47 @@ public:
   // Convert the in-memory representation to the in-record representation
   static void memory_to_record(char *to, const char *from)
   {
-    segment(0).memory_to_record(to, from);
-    segment(1).memory_to_record(to, from);
-    segment(2).memory_to_record(to, from);
-    segment(3).memory_to_record(to, from);
-    segment(4).memory_to_record(to, from);
+    if ((*(from + 6) & 0xf0 >> 4) <= 5)
+    {
+      segment(0).memory_to_record(to, from);
+      segment(1).memory_to_record(to, from);
+      segment(2).memory_to_record(to, from);
+      segment(3).memory_to_record(to, from);
+      segment(4).memory_to_record(to, from);
+    }
+    else
+      memcpy(to, from, 16);
   }
 
   // Convert the in-record representation to the in-memory representation
   static void record_to_memory(char *to, const char *from)
   {
-    segment(0).record_to_memory(to, from);
-    segment(1).record_to_memory(to, from);
-    segment(2).record_to_memory(to, from);
-    segment(3).record_to_memory(to, from);
-    segment(4).record_to_memory(to, from);
+    unsigned char a1= *(from + 6) & 0xf0 >> 4;
+    unsigned char a2= *(from + 8) & 0xf0 >> 4;
+    /*
+      If version <= 5 order is adjusted and:
+        a1 is the variant, a2 is version.
+      If version > 5, native order and
+        a1 is the version and a2 is the variant.
+      If its version 5+, there is no 0 variant based on
+      previous drafts: https://www.ietf.org/archive/id/draft-peabody-dispatch-new-uuid-format-04.html#name-variant-and-version-fields
+      version 6+ in a1, cannot have a variant in a2 <= 5 (a2=8 is the minimium,
+      because that's what defines variant 1+)
+      If looking at the swapped case below, as the test because they are compatible.
+    */
+    if (a2 <= 5 && ((a1 & 0x8) == 0 /* v0 */ ||
+                    (a1 & 0xc) == 0x8 /* v1 */ ||
+                    (a1 & 0xe) == 0xc) /* v2 */)
+    {
+      DBUG_ASSERT(a1 > 5 && a2 >= 8); /* Is it version 5+, we shouldn't be here */
+      segment(0).record_to_memory(to, from);
+      segment(1).record_to_memory(to, from);
+      segment(2).record_to_memory(to, from);
+      segment(3).record_to_memory(to, from);
+      segment(4).record_to_memory(to, from);
+    }
+    else
+      memcpy(to, from, 16);
   }
 
   /*

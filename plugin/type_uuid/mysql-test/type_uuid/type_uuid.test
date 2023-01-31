@@ -1682,3 +1682,20 @@ SELECT * FROM t1 ORDER BY d;
 SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
 SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
 DROP TABLE t1;
+
+--echo #
+--echo #     MDEV-29959 UUID Sorting for UUID version <= 5 only
+--echo #
+
+CREATE TABLE t1 (d UUID);
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-111111111111'), ('11111111-0000-0000-0000-000000000000');
+# https://www.ietf.org/archive/id/draft-peabody-dispatch-new-uuid-format-04.html#name-example-of-a-uuidv6-value
+INSERT INTO t1 VALUES ('C232AB00-9414-11EC-B3C8-9E6BDECED846'), ('C232AB01-9414-11EC-B3C8-9E6BDECED846');
+# https://www.ietf.org/archive/id/draft-peabody-dispatch-new-uuid-format-04.html#name-example-of-a-uuidv7-value
+INSERT INTO t1 VALUES ('017F22E2-79B0-7CC3-98C4-DC0C0C07398F'), ('017F22E2-79B1-7CC3-98C4-DC0C0C07398F');
+# https://www.ietf.org/archive/id/draft-peabody-dispatch-new-uuid-format-04.html#name-example-of-a-uuidv8-value
+INSERT INTO t1 VALUES ('320C3D4D-CC00-875B-8EC9-32D5F69181C0'), ('320C3D4D-CC01-875B-8EC9-32D5F69181C0');
+SELECT * FROM t1 ORDER BY d;
+SELECT * FROM t1 WHERE d <= ALL (SELECT * FROM t1);
+SELECT * FROM t1 WHERE d >= ALL (SELECT * FROM t1);
+DROP TABLE t1;
