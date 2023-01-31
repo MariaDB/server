@@ -1016,7 +1016,6 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           "index": "a",
                           "used_range_estimates": false,
                           "cause": "not available",
-                          "rowid_filter_skipped": "cost_factor <= 0",
                           "rows": 1,
                           "cost": 200,
                           "chosen": true
@@ -1073,7 +1072,6 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                           "index": "a",
                           "used_range_estimates": false,
                           "cause": "not available",
-                          "rowid_filter_skipped": "cost_factor <= 0",
                           "rows": 1,
                           "cost": 200,
                           "chosen": true
@@ -2120,7 +2118,6 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "access_type": "ref",
                       "index": "a_c",
                       "used_range_estimates": true,
-                      "rowid_filter_skipped": "worst/max seeks clipping",
                       "rows": 180,
                       "cost": 92,
                       "chosen": true
@@ -3346,7 +3343,6 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "access_type": "ref",
                       "index": "pk",
                       "used_range_estimates": true,
-                      "rowid_filter_skipped": "cost_factor <= 0",
                       "rows": 1,
                       "cost": 2,
                       "chosen": true
@@ -3355,7 +3351,6 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "access_type": "ref",
                       "index": "pk_a",
                       "used_range_estimates": true,
-                      "rowid_filter_skipped": "cost_factor <= 0",
                       "rows": 1,
                       "cost": 2,
                       "chosen": false,
@@ -3365,7 +3360,6 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                       "access_type": "ref",
                       "index": "pk_a_b",
                       "used_range_estimates": true,
-                      "rowid_filter_skipped": "cost_factor <= 0",
                       "rows": 1,
                       "cost": 1.0043,
                       "chosen": true
@@ -3974,6 +3968,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "best_access_path": {
                   "considered_access_paths": [
                     {
+                      "rowid_filter_skipped": "cost_factor <= 0",
                       "access_type": "range",
                       "resulting_rows": 3,
                       "cost": 1.407,
@@ -4000,7 +3995,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "index": "a",
                           "used_range_estimates": false,
                           "cause": "not better than ref estimates",
-                          "rowid_filter_skipped": "cost_factor <= 0",
                           "rows": 1,
                           "cost": 3.007,
                           "chosen": true
@@ -4030,6 +4024,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "best_access_path": {
                   "considered_access_paths": [
                     {
+                      "rowid_filter_skipped": "cost_factor <= 0",
                       "access_type": "range",
                       "resulting_rows": 3,
                       "cost": 1.407,
@@ -4056,7 +4051,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "index": "a",
                           "used_range_estimates": false,
                           "cause": "not better than ref estimates",
-                          "rowid_filter_skipped": "worst/max seeks clipping",
                           "rows": 2,
                           "cost": 3.014,
                           "chosen": true
@@ -8069,7 +8063,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "index": "b",
                                 "used_range_estimates": false,
                                 "cause": "not available",
-                                "rowid_filter_skipped": "cost_factor <= 0",
                                 "rows": 1,
                                 "cost": 20,
                                 "chosen": true
@@ -8273,7 +8266,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "index": "a",
                                 "used_range_estimates": false,
                                 "cause": "not available",
-                                "rowid_filter_skipped": "cost_factor <= 0",
                                 "rows": 1,
                                 "cost": 20,
                                 "chosen": true
@@ -8341,7 +8333,6 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                 "index": "a",
                                 "used_range_estimates": false,
                                 "cause": "not available",
-                                "rowid_filter_skipped": "cost_factor <= 0",
                                 "rows": 1,
                                 "cost": 200,
                                 "chosen": true
