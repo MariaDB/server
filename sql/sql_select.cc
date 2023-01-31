@@ -7557,7 +7557,6 @@ best_access_path(JOIN      *join,
         rec= MATCHING_ROWS_IN_OTHER_TABLE;      // Fix for small tables
 
       Json_writer_object trace_access_idx(thd);
-      double eq_ref_rows= 0;
       /*
         full text keys require special treatment
       */
@@ -7596,8 +7595,7 @@ best_access_path(JOIN      *join,
             type= JT_EQ_REF;
             trace_access_idx.add("access_type", join_type_str[type])
                             .add("index", keyinfo->name);
-            eq_ref_rows= tmp = prev_record_reads(join_positions, idx,
-                                                 found_ref);
+            tmp = prev_record_reads(join_positions, idx, found_ref);
             records=1.0;
           }
           else
@@ -7904,28 +7902,7 @@ best_access_path(JOIN      *join,
           (s->table->file->index_flags(start_key->key,0,1) &
            HA_DO_RANGE_FILTER_PUSHDOWN))
       {
-        double rows;
-        if (type == JT_EQ_REF)
-        {
-          /*
-            Treat EQ_REF access in a special way:
-            1. We have no cost for index-only read. Assume its cost is 50% of
-               the cost of the full read.
-
-            2. A regular ref access will do #record_count lookups, but eq_ref
-               has "lookup cache" which reduces the number of lookups made.
-               The estimation code uses prev_record_reads() call to estimate:
-
-                tmp = prev_record_reads(join_positions, idx, found_ref);
-
-               Set the effective number of rows from "tmp" here.
-          */
-          keyread_tmp= COST_ADD(eq_ref_rows / 2, s->startup_cost);
-          rows= eq_ref_rows;
-        }
-        else
-          rows= record_count * records;
-
+        double rows= record_count * records;
         /*
           If we use filter F with selectivity s the the cost of fetching data
           by key using this filter will be
@@ -7947,46 +7924,53 @@ best_access_path(JOIN      *join,
              cost_of_fetching_1_row = tmp/rows
              cost_of_fetching_1_key_tuple = keyread_tmp/rows
 
-          access_cost_factor is the gain we expect for using rowid filter.
-          An access_cost_factor of 1.0 means that keyread_tmp is 0
-          (using key read is infinitely fast) and the gain for each row when
-          using filter is great.
-          An access_cost_factor if 0.0 means that using keyread has the
-          same cost as reading rows, so there is no gain to get with
-          filter.
-          access_cost_factor should never be bigger than 1.0 (if all
-          calculations are correct) as the cost of keyread should always be
-          smaller than the cost of fetching the same number of keys + rows.
-          access_cost_factor should also never be smaller than 0.0.
-          The one exception is if number of records is 1 (eq_ref), then
-          because we are comparing rows to cost of keyread_tmp, keyread_tmp
-          is higher by 1.0. This is a big that will be fixed in a later
-          version.
+          Here's a more detailed explanation that uses the formulas behind
+          the function the call filter->get_adjusted_gain(). The function
+          takes as a parameter the number of probes/look-ups into the filter
+          that is equal to the number of fetched key entries that is equal to
+          the number of row fetches when no filter is used (assuming no
+          index condition pushdown is employed for the used key access).
+          Let this number be N. Then the total gain from using the filter is
+          N*a_adj - b where b is the cost of building the filter and
+          a_adj is calcilated as follows:
+          a - (1-access_cost_factor)*(1-s) =
+          (1+1_cond_eval_cost)*(1-s)-1_probe_cost - (1-access_cost_factor)*(1-s)
+          =  (1-s)*(1_cond_eval_cost+access_cost_factor) - 1_probe_cost. 
+          Here ((1-s)*(1_cond_eval_cost) * N is the gain from checking less
+          conditions pushed into the table, 1_probe_cost*N is the cost of the
+          probes and (1*s) * access_cost_factor * N must be the gain from
+          accessing less rows.
+          It does not matter how we calculate the cost of N full row fetches
+            cost_of_fetching_N_rows or
+          how we calculate the cost of fetching N key entries
+            cost_of_fetching_N_key_entries
+          the gain from less row fetches will be 
+          (cost_of_fetching_N_rows - cost_of_fetching_N_key_entries) * (1-s)
+          and this should be equal to (1*s) * access_cost_factor * N.
+          Thus access_cost_factor must be calculated as
+          (cost_of_fetching_N_rows - cost_of_fetching_N_key_entries) / N.
 
-          If we have limited the cost (=tmp) of reading rows with 'worst_seek'
-          we cannot use filters as the cost calculation below would cause
-          tmp to become negative.  The future resultion is to not limit
-          cost with worst_seek.
+          For safety we clip cost_of_fetching_N_key_entries by the value
+          of cost_of_fethching_N_row though formally it's not necessary.   
 	*/
-        double access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
-        if (!(records < s->worst_seeks &&
-              records <= thd->variables.max_seeks_for_key))
-          trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
-        else if (access_cost_factor <= 0.0)
-          trace_access_idx.add("rowid_filter_skipped", "cost_factor <= 0");
-        else
+        /*
+          For eq_ref access we assume that the cost of fetching N key entries
+          is equal to the half of fetching N rows
+	*/ 
+        double key_access_cost=
+	       type == JT_EQ_REF ? 0.5 * tmp : MY_MIN(tmp, keyread_tmp);
+        double access_cost_factor= MY_MIN((tmp - key_access_cost) / rows, 1.0);
+        
+        filter=
+          table->best_range_rowid_filter_for_partial_join(start_key->key,
+                                                          rows,
+                                                          access_cost_factor);
+        if (filter)
         {
-          filter=
-            table->best_range_rowid_filter_for_partial_join(start_key->key,
-                                                            rows,
-                                                            access_cost_factor);
-          if (filter)
-          {
-            tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
-            DBUG_ASSERT(tmp >= 0);
-            trace_access_idx.add("rowid_filter_key",
+          tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
+          DBUG_ASSERT(tmp >= 0);
+          trace_access_idx.add("rowid_filter_key",
                                  s->table->key_info[filter->key_no].name);
-          }
         }
       }
       trace_access_idx.add("rows", records).add("cost", tmp);
@@ -8139,19 +8123,19 @@ best_access_path(JOIN      *join,
         uint key_no= s->quick->index;
 
         /* See the comment concerning using rowid filter for with ref access */
-        keyread_tmp= s->table->quick_index_only_costs[key_no] * record_count;
-        double access_cost_factor= MY_MIN((rows - keyread_tmp) / rows, 1.0);
-        if (access_cost_factor > 0.0)
+        double row_access_cost= s->quick->read_time * record_count;
+        double key_access_cost=
+	  MY_MIN(row_access_cost,
+                 s->table->quick_index_only_costs[key_no] * record_count);
+        double access_cost_factor= MY_MIN((row_access_cost - key_access_cost) /
+                                          rows, 1.0);
+        filter=
+         s->table->best_range_rowid_filter_for_partial_join(key_no, rows,
+                                                            access_cost_factor);
+        if (filter)
         {
-          filter=
-            s->table->
-            best_range_rowid_filter_for_partial_join(key_no, rows,
-                                                     access_cost_factor);
-          if (filter)
-          {
-            tmp-= filter->get_adjusted_gain(rows);
-            DBUG_ASSERT(tmp >= 0);
-          }
+          tmp-= filter->get_adjusted_gain(rows);
+          DBUG_ASSERT(tmp >= 0);
         }
         else
           trace_access_scan.add("rowid_filter_skipped", "cost_factor <= 0");
