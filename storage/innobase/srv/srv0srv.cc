@@ -409,17 +409,6 @@ thread ensures that we flush the log files at least once per
 second. */
 static time_t	srv_last_log_flush_time;
 
-/* Interval in seconds at which various tasks are performed by the
-master thread when server is active. In order to balance the workload,
-we should try to keep intervals such that they are not multiple of
-each other. For example, if we have intervals for various tasks
-defined as 5, 10, 15, 60 then all tasks will be performed when
-current_time % 60 == 0 and no tasks will be performed when
-current_time % 5 != 0. */
-
-# define	SRV_MASTER_CHECKPOINT_INTERVAL		(7)
-# define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
-
 /** Buffer pool dump status frequence in percentages */
 ulong srv_buf_dump_status_frequency;
 
@@ -1481,7 +1470,7 @@ static void srv_master_do_active_tasks(ulonglong counter_time)
 
 	MONITOR_INC(MONITOR_MASTER_ACTIVE_LOOPS);
 
-	if (!(counter_time % (SRV_MASTER_DICT_LRU_INTERVAL * 1000000ULL))) {
+	if (!(counter_time % (47 * 1000000ULL))) {
 		srv_main_thread_op_info = "enforcing dict cache limit";
 		if (ulint n_evicted = dict_sys.evict_table_LRU(true)) {
 			MONITOR_INC_VALUE(

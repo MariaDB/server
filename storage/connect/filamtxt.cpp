@@ -38,6 +38,8 @@
 #include <fcntl.h>
 #endif  // !_WIN32
 
+#include <m_string.h>
+
 /***********************************************************************/
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
@@ -593,7 +595,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
     } // endswitch Mode
 
   // For blocked I/O or for moving lines, open the table in binary
-  strcat(opmode, (Bin) ? "b" : "t");
+  safe_strcat(opmode, sizeof(opmode), (Bin) ? "b" : "t");
 
   // Now open the file stream
   PlugSetPath(filename, To_File, Tdbp->GetPath());
@@ -1081,7 +1083,8 @@ bool DOSFAM::OpenTempFile(PGLOBAL g)
   /*  Open the temporary file, Spos is at the beginning of file.       */
   /*********************************************************************/
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(tempname, tempname), ".t");
+  PlugRemoveType(tempname, tempname);
+  safe_strcat(tempname, sizeof(tempname), ".t");
 
   if (!(T_Stream = PlugOpenFile(g, tempname, "wb"))) {
     if (trace(1))
@@ -1170,7 +1173,8 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
   
   if (!Abort) {
     PlugSetPath(filename, To_File, Tdbp->GetPath());
-    strcat(PlugRemoveType(filetemp, filename), ".ttt");
+    PlugRemoveType(filetemp, filename);
+    safe_strcat(filetemp, sizeof(filetemp), ".ttt");
     remove(filetemp);   // May still be there from previous error
 
     if (rename(filename, filetemp)) {    // Save file for security

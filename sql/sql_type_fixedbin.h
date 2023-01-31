@@ -1428,12 +1428,9 @@ public:
                   item->type_handler() == type_handler());
       return true;
     }
-    void hash(ulong *nr, ulong *nr2) override
+    void hash_not_null(Hasher *hasher) override
     {
-      if (is_null())
-        *nr^= (*nr << 1) | 1;
-      else
-        FbtImpl::hash_record(ptr, nr, nr2);
+      FbtImpl::hash_record(ptr, hasher);
     }
     SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
                          const Item_bool_func *cond,

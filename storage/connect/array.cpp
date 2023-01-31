@@ -975,13 +975,13 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
 
   xtrc(1, "Arraylist: len=%d\n", len);
   p = (char *)PlugSubAlloc(g, NULL, len);
-  strcpy(p, "(");
+  safe_strcpy(p, len, "(");
 
   for (i = 0; i < Nval;) {
     Value->SetValue_pvblk(Vblp, i);
     Value->Prints(g, tp, z);
-    strcat(p, tp);
-    strcat(p, (++i == Nval) ? ")" : ",");
+    safe_strcat(p, len, tp);
+    safe_strcat(p, len, (++i == Nval) ? ")" : ",");
   } // enfor i
 
   xtrc(1, "Arraylist: newlen=%d\n", strlen(p));

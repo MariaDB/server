@@ -1291,8 +1291,6 @@ void LEX::start(THD *thd_arg)
   stmt_var_list.empty();
   proc_list.elements=0;
 
-  save_group_list.empty();
-  save_order_list.empty();
   win_ref= NULL;
   win_frame= NULL;
   frame_top_bound= NULL;
