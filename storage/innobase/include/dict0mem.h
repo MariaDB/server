@@ -127,10 +127,7 @@ Secondary indexes are created from this external data using row_ext_t
 to cache the BLOB prefixes. */
 #define DICT_TF_WIDTH_ATOMIC_BLOBS	1
 
-/** If a table is created with the MYSQL option DATA DIRECTORY and
-innodb-file-per-table, an older engine will not be able to find that table.
-This flag prevents older engines from attempting to open the table and
-allows InnoDB to update_create_info() accordingly. */
+/** Whether the a table was the DATA DIRECTORY */
 #define DICT_TF_WIDTH_DATA_DIR		1
 
 /**

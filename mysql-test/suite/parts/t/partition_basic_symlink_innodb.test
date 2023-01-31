@@ -42,31 +42,10 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 # These values can change during the test
-SET @file_per_table= @@GLOBAL.innodb_file_per_table;
 SET @strict_mode= @@SESSION.innodb_strict_mode;
 
 --mkdir $MYSQLTEST_VARDIR/mysql-test-data-dir
 --mkdir $MYSQLTEST_VARDIR/mysql-test-idx-dir
-
-SET SESSION innodb_strict_mode = ON;
-
---echo #
---echo # InnoDB only supports DATA DIRECTORY with innodb_file_per_table=ON
---echo #
-SET GLOBAL innodb_file_per_table = OFF;
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---error ER_CANT_CREATE_TABLE
-eval CREATE TABLE t1 (c1 INT)  ENGINE = InnoDB
-PARTITION BY HASH (c1) (
-  PARTITION p0
-    DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
-    INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir',
-  PARTITION p1
-    DATA DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-data-dir'
-    INDEX DIRECTORY = '$MYSQLTEST_VARDIR/mysql-test-idx-dir'
-);
---replace_result ./ MYSQLD_DATADIR/  $MYSQLD_DATADIR MYSQLD_DATADIR
-SHOW WARNINGS;
 
 --echo #
 --echo # InnoDB is different from MyISAM in that it uses a text file
@@ -78,7 +57,6 @@ SHOW WARNINGS;
 --echo # and it is no longer part of the definition.
 --echo #
 SET SESSION innodb_strict_mode = OFF;
-SET GLOBAL innodb_file_per_table = ON;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval CREATE TABLE t1 (c1 INT) ENGINE = InnoDB
 PARTITION BY HASH (c1)
@@ -146,7 +124,6 @@ DROP TABLE t1;
 --echo #
 let $data_dir_path= $MYSQLTEST_VARDIR/mysql-test-data-dir;
 let $alt_data_dir_path= $MYSQLTEST_VARDIR/mysql-test-idx-dir;
-SET GLOBAL innodb_file_per_table = ON;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval CREATE TABLE t1
 (
@@ -289,5 +266,4 @@ DROP TABLE t1, t2;
 --rmdir $MYSQLTEST_VARDIR/mysql-test-data-dir
 --rmdir $MYSQLTEST_VARDIR/mysql-test-idx-dir
 
-SET GLOBAL innodb_file_per_table=@file_per_table;
 SET SESSION innodb_strict_mode=@strict_mode;

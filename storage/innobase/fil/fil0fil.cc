@@ -1189,7 +1189,7 @@ void fil_space_t::close()
 	mysql_mutex_unlock(&fil_system.mutex);
 }
 
-void fil_system_t::create(ulint hash_size)
+void fil_system_t::create()
 {
 	ut_ad(this == &fil_system);
 	ut_ad(!is_initialised());
@@ -1202,11 +1202,9 @@ void fil_system_t::create(ulint hash_size)
 	compile_time_assert(!(UNIV_PAGE_SIZE_MAX % FSP_EXTENT_SIZE_MAX));
 	compile_time_assert(!(UNIV_PAGE_SIZE_MIN % FSP_EXTENT_SIZE_MIN));
 
-	ut_ad(hash_size > 0);
-
 	mysql_mutex_init(fil_system_mutex_key, &mutex, nullptr);
 
-	spaces.create(hash_size);
+	spaces.create(50000);
 
 	fil_space_crypt_init();
 #ifdef __linux__

@@ -35,8 +35,6 @@
 # 3) KEY_BLOCK_SIZE=0 can be used to set it to 'unspecified'.
 # 4) KEY_BLOCK_SIZE=1,2,4,8 & 16 are incompatible with COMPACT, DYNAMIC &
 #    REDUNDANT.
-# 5) KEY_BLOCK_SIZE=1,2,4,8 & 16 as well as ROW_FORMAT=COMPRESSED
-#    are incompatible with innodb_file_per_table=OFF
 # 6) KEY_BLOCK_SIZE on an ALTER must occur with ROW_FORMAT=COMPRESSED
 #    or ROW_FORMAT=DEFAULT if the ROW_FORMAT was previously specified
 #    as COMPACT, DYNAMIC or REDUNDANT.
@@ -48,8 +46,6 @@
 # 2. Ignore a bad ROW_FORMAT, defaulting to COMPACT.
 # 3. Ignore a valid KEY_BLOCK_SIZE when an incompatible but valid
 #    ROW_FORMAT is specified.
-# 4. If innodb_file_per_table=OFF
-#    it will ignore ROW_FORMAT=COMPRESSED and non-zero KEY_BLOCK_SIZEs.
 #
 # See InnoDB documentation page "SQL Compression Syntax Warnings and Errors"
 # This test case does not try to create tables with KEY_BLOCK_SIZE > 4
@@ -216,62 +212,6 @@ SHOW WARNINGS;
 ALTER TABLE t1 ADD COLUMN f2 INT;
 SHOW WARNINGS;
 
---echo # Test 8) StrictMode=ON, Make sure ROW_FORMAT=COMPRESSED
---echo #         and a valid non-zero KEY_BLOCK_SIZE are rejected with
---echo #         innodb_file_per_table=OFF and that they can be set to default
---echo #         values during strict mode.
-SET GLOBAL innodb_file_per_table=OFF;
-DROP TABLE t1;
---error ER_ILLEGAL_HA,1005
-CREATE TABLE t1 ( i INT ) KEY_BLOCK_SIZE=1;
-SHOW WARNINGS;
---error ER_ILLEGAL_HA,1005
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED;
-SHOW WARNINGS;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=DYNAMIC;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-DROP TABLE t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=REDUNDANT;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-DROP TABLE t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPACT;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-DROP TABLE t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=DEFAULT;
-SHOW WARNINGS;
---error ER_ILLEGAL_HA_CREATE_OPTION
-ALTER TABLE t1 KEY_BLOCK_SIZE=1;
-SHOW WARNINGS;
---error ER_ILLEGAL_HA_CREATE_OPTION
-ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
-SHOW WARNINGS;
-ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-SHOW WARNINGS;
-ALTER TABLE t1 ROW_FORMAT=COMPACT;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-ALTER TABLE t1 ROW_FORMAT=REDUNDANT;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-ALTER TABLE t1 ROW_FORMAT=DEFAULT;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-SET GLOBAL innodb_file_per_table=ON;
-DROP TABLE t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
-SET GLOBAL innodb_file_per_table=OFF;
-ALTER TABLE t1 ADD COLUMN f1 INT;
-SHOW WARNINGS;
-ALTER TABLE t1 ROW_FORMAT=DEFAULT KEY_BLOCK_SIZE=0;
-SHOW WARNINGS;
-ALTER TABLE t1 ADD COLUMN f2 INT;
-SHOW WARNINGS;
-SET GLOBAL innodb_file_per_table=ON;
-
---echo ##################################################
 SET SESSION innodb_strict_mode = OFF;
 
 --echo # Test 9) StrictMode=OFF, CREATE and ALTER with each ROW_FORMAT & KEY_BLOCK_SIZE=0
@@ -444,35 +384,6 @@ SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE
 ALTER TABLE t1 ADD COLUMN f2 INT;
 SHOW WARNINGS;
 SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-
---echo # Test 16) StrictMode=OFF, Make sure ROW_FORMAT= COMPRESSED & DYNAMIC and a
---echo            valid KEY_BLOCK_SIZE are remembered but not used when innodb_file_per_table=OFF
---echo            and then used again when innodb_file_per_table=ON.
-DROP TABLE t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-SET GLOBAL innodb_file_per_table=OFF;
-ALTER TABLE t1 ADD COLUMN f1 INT;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-SET GLOBAL innodb_file_per_table=ON;
-ALTER TABLE t1 ADD COLUMN f2 INT;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-DROP TABLE t1;
-CREATE TABLE t1 ( i INT ) ROW_FORMAT=DYNAMIC;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-SET GLOBAL innodb_file_per_table=OFF;
-ALTER TABLE t1 ADD COLUMN f1 INT;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-SET GLOBAL innodb_file_per_table=ON;
-ALTER TABLE t1 ADD COLUMN f2 INT;
-SHOW WARNINGS;
-SELECT TABLE_NAME,ROW_FORMAT,CREATE_OPTIONS FROM information_schema.tables WHERE TABLE_NAME = 't1';
-
 
 --echo # Cleanup
 DROP TABLE t1;

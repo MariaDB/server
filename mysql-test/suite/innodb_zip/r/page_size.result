@@ -260,31 +260,7 @@ FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
 t1	Compressed	row_format=COMPRESSED
 DROP TABLE t1;
-# Test 6) KEY_BLOCK_SIZE with innodb_file_per_table=OFF
 SET SESSION innodb_strict_mode = ON;
-SET GLOBAL innodb_file_per_table = OFF;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
-SHOW VARIABLES LIKE 'innodb_file_per_table';
-Variable_name	Value
-innodb_file_per_table	OFF
-CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
-ERROR HY000: Can't create table `test`.`t4` (errno: 140 "Wrong create options")
-SHOW WARNINGS;
-Level	Code	Message
-Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Error	1005	Can't create table `test`.`t4` (errno: 140 "Wrong create options")
-Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
-CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
-ERROR HY000: Can't create table `test`.`t5` (errno: 140 "Wrong create options")
-SHOW WARNINGS;
-Level	Code	Message
-Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Error	1005	Can't create table `test`.`t5` (errno: 140 "Wrong create options")
-Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
-SET GLOBAL innodb_file_per_table = ON;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 # Test 7) This series of tests were moved from innodb-index to here
 # because the second alter table t1 assumes a 16k page size.
 # Moving the test allows the rest of innodb-index to be run on all

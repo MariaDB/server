@@ -1347,10 +1347,8 @@ struct fil_system_t
 
   /**
     Create the file system interface at database start.
-
-    @param[in] hash_size	hash table size
   */
-  void create(ulint hash_size);
+  void create();
 
   /** Close the file system interface at shutdown */
   void close();

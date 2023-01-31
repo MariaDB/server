@@ -1,6 +1,3 @@
-set global innodb_file_per_table=OFF;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 call mtr.add_suppression("(mysqld|mariadbd).*: file-key-management-filename is not set");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error.");
 call mtr.add_suppression("Plugin 'file_key_management' registration as a ENCRYPTION failed.");
@@ -12,12 +9,13 @@ create table t1(a int not null primary key, b char(200)) engine=innodb;
 # Wait until encryption threads have encrypted all tablespaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
+innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
-innodb_system
 mysql/innodb_index_stats
 mysql/innodb_table_stats
 mysql/transaction_registry
+test/t1
 # Success!
 SELECT * from t1;
 a	b
@@ -29,6 +27,7 @@ innodb_system
 mysql/innodb_index_stats
 mysql/innodb_table_stats
 mysql/transaction_registry
+test/t1
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
 # Success!
@@ -37,12 +36,13 @@ NAME
 # restart: --skip-file-key-management --innodb-encrypt-tables=OFF --innodb-encryption-threads=0 --innodb-tablespaces-encryption
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
-innodb_system
 mysql/innodb_index_stats
 mysql/innodb_table_stats
 mysql/transaction_registry
+test/t1
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
+innodb_system
 SELECT * from t1;
 a	b
 DROP TABLE t1;

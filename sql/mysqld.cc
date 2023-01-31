@@ -5303,6 +5303,7 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-commit-concurrency"),
       MARIADB_REMOVED_OPTION("innodb-concurrency-tickets"),
       MARIADB_REMOVED_OPTION("innodb-file-format"),
+      MARIADB_REMOVED_OPTION("innodb-file-per-table"),
       MARIADB_REMOVED_OPTION("innodb-large-prefix"),
       MARIADB_REMOVED_OPTION("innodb-lock-schedule-algorithm"),
       MARIADB_REMOVED_OPTION("innodb-log-checksums"),

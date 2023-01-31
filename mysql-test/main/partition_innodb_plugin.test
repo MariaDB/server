@@ -37,10 +37,8 @@ call mtr.add_suppression("InnoDB: Error: table `test`.`t1` .* InnoDB internal");
 --echo #
 --echo # Bug#55091: Server crashes on ADD PARTITION after a failed attempt
 --echo #
-SET @old_innodb_file_per_table = @@global.innodb_file_per_table;
 SET @old_innodb_strict_mode = @@global.innodb_strict_mode;
-SET @@global.innodb_file_per_table = ON,
-@@global.innodb_strict_mode = ON;
+SET @@global.innodb_strict_mode = ON;
 --disable_query_log
 SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
 SET GLOBAL innodb_read_only_compressed=OFF;
@@ -57,42 +55,11 @@ PARTITION BY HASH(id) PARTITIONS 1;
 --replace_result #p# #P#
 --list_files $MYSQLD_DATADIR/test t1*
 SHOW CREATE TABLE t1;
-
-SET GLOBAL innodb_file_per_table = OFF;
-
---disconnect con1
---connect(con2,localhost,root,,)
-
-LOCK TABLE t1 WRITE;
-
---echo # ALTER fails because COMPRESSED/KEY_BLOCK_SIZE
---echo # are incompatible with innodb_file_per_table = OFF;
-
---replace_regex / - .*//
---error ER_GET_ERRNO
-ALTER TABLE t1 ADD PARTITION PARTITIONS 1;
-
---replace_result #p# #P#
---list_files $MYSQLD_DATADIR/test t1*
---echo # This SET is not needed to reproduce the bug,
---echo # it is here just to make the test case more realistic
-SET innodb_strict_mode = OFF;
-
-ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
---replace_result #p# #P#
---list_files $MYSQLD_DATADIR/test t1*
-
-# really bug#56172
-ALTER TABLE t1 REBUILD PARTITION p0;
-
-UNLOCK TABLES;
-SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
---disconnect con2
+--disconnect con1
 --connection default
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
-SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
 --disable_query_log
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log

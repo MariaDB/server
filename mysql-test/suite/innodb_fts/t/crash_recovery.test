@@ -291,19 +291,4 @@ DROP TABLE mdev19073, mdev19073_2;
 
 let $shutdown_timeout=;
 
---echo #
---echo # MDEV-28706  Redundant InnoDB table fails during alter
---echo #
-
-SET @@global.innodb_file_per_table = 0;
-CREATE TABLE t1 (
-   col_int INTEGER, col_text TEXT,
-   col_text_1 TEXT
-) ENGINE = InnoDB ROW_FORMAT = Redundant ;
-ALTER TABLE t1 ADD FULLTEXT KEY `ftidx` ( col_text ) ;
-INSERT INTO t1 VALUES ( 1255, "mariadb", "InnoDB");
---source include/restart_mysqld.inc
-ALTER TABLE t1 ADD FULLTEXT(col_text_1);
-DROP TABLE t1;
-
 SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';

@@ -10,8 +10,6 @@
 --source include/not_valgrind.inc
 let $restart_noprint=2;
 
-SET GLOBAL innodb_file_per_table=1;
-
 # Create table with R-tree index.
 create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb ROW_FORMAT=COMPRESSED;
 

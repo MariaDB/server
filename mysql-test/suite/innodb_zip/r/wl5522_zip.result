@@ -262,28 +262,6 @@ c1	c2
 16	1
 unlink: t1.cfg
 DROP TABLE t1;
-SET GLOBAL innodb_file_per_table = 0;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
-CREATE TABLE t1(
-c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-c2 INT) ENGINE=InnoDB;
-INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `c1` int(11) NOT NULL AUTO_INCREMENT,
-  `c2` int(11) DEFAULT NULL,
-  PRIMARY KEY (`c1`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-FLUSH TABLES t1 FOR EXPORT;
-Warnings:
-Warning	1809	Table `test`.`t1` in system tablespace
-UNLOCK TABLES;
-DROP TABLE t1;
-SET GLOBAL innodb_file_per_table = 1;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX idx(c2)) ENGINE=InnoDB

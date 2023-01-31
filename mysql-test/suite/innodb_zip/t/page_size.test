@@ -488,19 +488,7 @@ SELECT table_name, row_format, create_options
    FROM information_schema.tables WHERE table_name = 't1';
 DROP TABLE t1;
 
-
---echo # Test 6) KEY_BLOCK_SIZE with innodb_file_per_table=OFF
-# Moved from innodb-zip.test
 SET SESSION innodb_strict_mode = ON;
-SET GLOBAL innodb_file_per_table = OFF;
-SHOW VARIABLES LIKE 'innodb_file_per_table';
---error ER_CANT_CREATE_TABLE
-CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
-SHOW WARNINGS;
---error ER_CANT_CREATE_TABLE
-CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
-SHOW WARNINGS;
-SET GLOBAL innodb_file_per_table = ON;
 
 if ($INNODB_PAGE_SIZE == 16384) {
 --echo # Test 7) This series of tests were moved from innodb-index to here

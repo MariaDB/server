@@ -2,9 +2,6 @@ call mtr.add_suppression("InnoDB: Cannot add field `c1` in table `test`\\.`tab0`
 SELECT @@innodb_strict_mode;
 @@innodb_strict_mode
 1
-SELECT @@innodb_file_per_table;
-@@innodb_file_per_table
-1
 SET SQL_MODE=strict_all_tables;
 CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 Warnings:

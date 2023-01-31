@@ -6,9 +6,6 @@ SET GLOBAL innodb_default_row_format=Compact;
 SELECT @@innodb_default_row_format;
 @@innodb_default_row_format
 compact
-SELECT @@innodb_file_per_table;
-@@innodb_file_per_table
-1
 CREATE TABLE tab(a INT) ENGINE=InnoDB;
 SHOW TABLE STATUS LIKE 'tab';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary

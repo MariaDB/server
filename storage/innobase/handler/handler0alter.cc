@@ -6487,8 +6487,7 @@ prepare_inplace_alter_table_dict(
 	new_clustered = (DICT_CLUSTERED & index_defs[0].ind_type) != 0;
 
 	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
-				 ha_alter_info->create_info, NULL, NULL,
-				 srv_file_per_table);
+				 ha_alter_info->create_info, NULL, NULL);
 
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
@@ -7826,19 +7825,11 @@ ha_innobase::prepare_inplace_alter_table(
 #endif
 	indexed_table = m_prebuilt->table;
 
-	/* ALTER TABLE will not implicitly move a table from a single-table
-	tablespace to the system tablespace when innodb_file_per_table=OFF.
-	But it will implicitly move a table from the system tablespace to a
-	single-table tablespace if innodb_file_per_table = ON. */
-
 	create_table_info_t	info(m_user_thd,
 				     altered_table,
 				     ha_alter_info->create_info,
 				     NULL,
-				     NULL,
-				     srv_file_per_table);
-
-	info.set_tablespace_type(indexed_table->space != fil_system.sys_space);
+				     NULL);
 
 	if (ha_alter_info->handler_flags & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 		if (info.gcols_in_fulltext_or_spatial()) {

@@ -746,8 +746,6 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-25257 SEGV in fts_get_next_doc_id upon some INSERT
 --echo #
-SET @save = @@global.innodb_file_per_table;
-SET @@global.innodb_file_per_table = 0;
 
 CREATE TABLE t1 (
    col_int INTEGER, col_text TEXT,
@@ -757,7 +755,6 @@ ALTER TABLE t1 ADD FULLTEXT KEY `ftidx` ( col_text ) ;
 ALTER TABLE t1 DROP KEY `ftidx` ;
 INSERT INTO t1 (col_int, col_text) VALUES ( 1255, NULL);
 DROP TABLE t1;
-SET @@global.innodb_file_per_table = @save;
 
 --echo #
 --echo # MDEV-20797  FULLTEXT search with apostrophe,

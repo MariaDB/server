@@ -411,13 +411,6 @@ rollback;
 
 DROP TABLE t4;
 
-# Test externally stored update rollback.
-LET $file_per_table='on';
-
---disable_warnings
-eval SET GLOBAL innodb_file_per_table=$file_per_table;
---enable_warnings
-
 create table t1(i int primary key,
 a geometry not null, spatial index(a)) row_format=dynamic engine=innodb;
 
@@ -436,10 +429,6 @@ rollback;
 check table t1;
 
 drop table t1;
-
---disable_warnings
-SET GLOBAL innodb_file_per_table=default;
---enable_warnings
 
 # Test partial update rollback.
 create table t1(i int primary key,

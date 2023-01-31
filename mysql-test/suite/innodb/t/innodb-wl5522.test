@@ -98,8 +98,6 @@ if ($checksum_algorithm == "strict_full_crc32") {
 ALTER TABLE t2 IMPORT TABLESPACE;
 DROP TABLE t2;
 
-SELECT @@innodb_file_per_table;
-
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 
 # Try importing when tablespace already exists
@@ -307,29 +305,8 @@ EOF
 DROP TABLE t1;
 
 #
-# Export/import on the same instance, with --innodb-file-per-table=0
-# This should fail because it is not supported
-SET GLOBAL innodb_file_per_table = 0;
-
-CREATE TABLE t1(
-	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	c2 INT) ENGINE=InnoDB;
-
-INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
-SHOW CREATE TABLE t1;
-
-# This should fail, InnoDB should return a warning
-FLUSH TABLES t1 FOR EXPORT;
-
-UNLOCK TABLES;
-
-DROP TABLE t1;
-
-#
 # Tests that check for schema mismatch during IMPORT
 #
-
-SET GLOBAL innodb_file_per_table = 1;
 
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

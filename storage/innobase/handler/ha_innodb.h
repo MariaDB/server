@@ -194,7 +194,6 @@ public:
 		const char*		name,
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info,
-		bool			file_per_table,
 		trx_t*			trx);
 
 	int create(
@@ -619,7 +618,7 @@ class create_table_info_t
 public:
 	/** Constructor.
 	Used in two ways:
-	- all but file_per_table is used, when creating the table.
+	- all are used, when creating the table.
 	- all but name/path is used, when validating options and using flags. */
 	create_table_info_t(
 		THD*		thd,
@@ -627,14 +626,10 @@ public:
 		HA_CREATE_INFO*	create_info,
 		char*		table_name,
 		char*		remote_path,
-		bool		file_per_table,
 		trx_t*		trx = NULL);
 
 	/** Initialize the object. */
 	int initialize();
-
-	/** Set m_tablespace_type. */
-	void set_tablespace_type(bool table_being_altered_is_file_per_table);
 
 	/** Create InnoDB foreign keys from MySQL alter_info. */
 	dberr_t create_foreign_keys();
@@ -746,21 +741,8 @@ private:
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
 
-	/** Local copy of srv_file_per_table. */
-	bool		m_innodb_file_per_table;
-
-	/** Allow file_per_table for this table either because:
-	1) the setting innodb_file_per_table=on,
-	2) it was explicitly requested by tablespace=innodb_file_per_table.
-	3) the table being altered is currently file_per_table */
-	bool		m_allow_file_per_table;
-
-	/** After all considerations, this shows whether we will actually
-	create a table and tablespace using file-per-table. */
-	bool		m_use_file_per_table;
-
 	/** Using DATA DIRECTORY */
-	bool		m_use_data_dir;
+	const bool	m_use_data_dir;
 
 	/** Table flags */
 	ulint		m_flags;

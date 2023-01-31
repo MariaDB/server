@@ -1301,7 +1301,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 #endif
 
-	fil_system.create(srv_file_per_table ? 50000 : 5000);
+	fil_system.create();
 
 	ib::info() << "Initializing buffer pool, total size = "
 		<< ib::bytes_iec{srv_buf_pool_size}

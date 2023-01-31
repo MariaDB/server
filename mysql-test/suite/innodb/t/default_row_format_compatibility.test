@@ -17,9 +17,6 @@ SET GLOBAL innodb_default_row_format=Compact;
 # Check row_format=Compact
 SELECT @@innodb_default_row_format;
 
-# Check file_per_table=1
-SELECT @@innodb_file_per_table;
-
 CREATE TABLE tab(a INT) ENGINE=InnoDB;
 --replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 #
 SHOW TABLE STATUS LIKE 'tab';

@@ -8,8 +8,6 @@
 # MDEV-15566: System tablespace does not easily key rotate to unencrypted
 #
 
-set global innodb_file_per_table=OFF;
-
 call mtr.add_suppression("(mysqld|mariadbd).*: file-key-management-filename is not set");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error.");
 call mtr.add_suppression("Plugin 'file_key_management' registration as a ENCRYPTION failed.");

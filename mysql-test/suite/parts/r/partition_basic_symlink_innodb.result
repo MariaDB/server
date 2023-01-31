@@ -1,32 +1,7 @@
 #
 # Verify that the DATA/INDEX DIR is stored and used if ALTER to MyISAM.
 #
-SET @file_per_table= @@GLOBAL.innodb_file_per_table;
 SET @strict_mode= @@SESSION.innodb_strict_mode;
-SET SESSION innodb_strict_mode = ON;
-#
-# InnoDB only supports DATA DIRECTORY with innodb_file_per_table=ON
-#
-SET GLOBAL innodb_file_per_table = OFF;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
-CREATE TABLE t1 (c1 INT)  ENGINE = InnoDB
-PARTITION BY HASH (c1) (
-PARTITION p0
-DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
-    INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir',
-PARTITION p1
-DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
-    INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir'
-);
-ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
-SHOW WARNINGS;
-Level	Code	Message
-Warning	1478	InnoDB: DATA DIRECTORY requires innodb_file_per_table.
-Warning	1478	InnoDB: INDEX DIRECTORY is not supported
-Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
-Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
-Error	6	Error on delete of 'MYSQLD_DATADIR/test/t1.par' (Errcode: 2 "No such file or directory")
 #
 # InnoDB is different from MyISAM in that it uses a text file
 # with an '.isl' extension instead of a symbolic link so that
@@ -37,9 +12,6 @@ Error	6	Error on delete of 'MYSQLD_DATADIR/test/t1.par' (Errcode: 2 "No such fil
 # and it is no longer part of the definition.
 #
 SET SESSION innodb_strict_mode = OFF;
-SET GLOBAL innodb_file_per_table = ON;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1 (c1 INT) ENGINE = InnoDB
 PARTITION BY HASH (c1)
 (PARTITION p0
@@ -137,9 +109,6 @@ DROP TABLE t1;
 # MDEV-14611 ALTER TABLE EXCHANGE PARTITION does not work
 #                 properly when used with DATA DIRECTORY
 #
-SET GLOBAL innodb_file_per_table = ON;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1
 (
 myid INT(11) NOT NULL,
@@ -331,7 +300,4 @@ DROP TABLE t1, t2;
 #
 # Cleanup
 #
-SET GLOBAL innodb_file_per_table=@file_per_table;
-Warnings:
-Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SET SESSION innodb_strict_mode=@strict_mode;

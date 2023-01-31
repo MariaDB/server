@@ -122,9 +122,6 @@ unsigned long long	srv_max_undo_log_size;
 recovery and open all tables in RO mode instead of RW mode. We don't
 sync the max trx id to disk either. */
 my_bool	srv_read_only_mode;
-/** store to its own file each table created by an user; data
-dictionary tables are in the system tablespace 0 */
-my_bool	srv_file_per_table;
 /** Set if innodb_read_only is set or innodb_force_recovery
 is SRV_FORCE_NO_UNDO_LOG_SCAN or greater. */
 bool high_level_read_only;

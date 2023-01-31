@@ -44,7 +44,6 @@ insert into t values(134, 'kasdfsdsadf', 'adfjlasdkfjasd', 'adfsadflkasdasdfljas
 
 insert into t1 select a,d,b,c from t, seq_1_to_1024;
 
-SET GLOBAL innodb_file_per_table=OFF;
 create table t2 (a int not null, d varchar(15) not null, b
 varchar(198) not null, c char(156), fulltext ftsic(c)) engine=InnoDB
 row_format=redundant;
@@ -106,7 +105,7 @@ for (my $offset= 0x65; $offset;
     for (my $i= 0; $i < $n_fields; $i++) {
     	my $end= unpack("C", substr($page, $offset-7-$i, 1));
 	# Corrupt SYS_TABLES.MIX_LEN (ignored for ROW_FORMAT=REDUNDANT)
-	if ($i == 7 && $name =~ '^test/t[123]')
+	if ($i == 7 && $name =~ '^test/t1')
 	{
 	    print "corrupted SYS_TABLES.MIX_LEN for $name\n";
 	    substr($page,$offset+$start,$end-$start)= pack("N", 511);

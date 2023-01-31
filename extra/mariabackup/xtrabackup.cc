@@ -1012,7 +1012,6 @@ enum options_xtrabackup
   OPT_INNODB_DATA_HOME_DIR,
   OPT_INNODB_ADAPTIVE_HASH_INDEX,
   OPT_INNODB_DOUBLEWRITE,
-  OPT_INNODB_FILE_PER_TABLE,
   OPT_INNODB_FLUSH_METHOD,
   OPT_INNODB_LOG_GROUP_HOME_DIR,
   OPT_INNODB_MAX_DIRTY_PAGES_PCT,
@@ -1580,11 +1579,6 @@ struct my_option xb_server_options[] =
    "Number of background write I/O threads in InnoDB.", (G_PTR*) &innobase_write_io_threads,
    (G_PTR*) &innobase_write_io_threads, 0, GET_LONG, REQUIRED_ARG, 4, 1, 64, 0,
    1, 0},
-  {"innodb_file_per_table", OPT_INNODB_FILE_PER_TABLE,
-   "Stores each InnoDB table to an .ibd file in the database dir.",
-   (G_PTR*) &srv_file_per_table,
-   (G_PTR*) &srv_file_per_table, 0, GET_BOOL, NO_ARG,
-   FALSE, 0, 0, 0, 0, 0},
 
   {"innodb_flush_method", OPT_INNODB_FLUSH_METHOD,
    "Ignored parameter with no effect",
@@ -3355,7 +3349,7 @@ static
 void
 xb_fil_io_init()
 {
-	fil_system.create(srv_file_per_table ? 50000 : 5000);
+	fil_system.create();
 	fil_system.freeze_space_list = 1;
 	fil_system.space_id_reuse_warned = true;
 }
@@ -6852,12 +6846,6 @@ static int main_low(char** argv)
 	if (xtrabackup_incremental) {
 		msg("incremental backup from " LSN_PF " is enabled.",
 		    incremental_lsn);
-	}
-
-	if (xtrabackup_export && !srv_file_per_table) {
-		msg("mariabackup: auto-enabling --innodb-file-per-table due to "
-		    "the --export option");
-		srv_file_per_table = TRUE;
 	}
 
 	/* cannot execute both for now */

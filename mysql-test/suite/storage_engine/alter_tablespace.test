@@ -1,8 +1,7 @@
 #
 # IMPORT / DISCARD TABLESPACE
 #
-# The test might require additional engine options,
-# e.g. for InnoDB it is --innodb-file-per-table
+# The test might require additional engine options
 
 --source have_engine.inc
 

@@ -2429,7 +2429,11 @@ drop table t1;
 # I_S
 #
 create table t1 (id int) comment='this is a comment' engine=innodb;
-select table_comment, data_free > 0 as data_free_is_set
+# The newly created t1.ibd consists of only 4 pages
+# (no extra pages after the clustered index root page 3).
+# This test was applicable to tables that were created in the
+# InnoDB system tablespace (innodb_file_per_table=0).
+select table_comment, data_free
   from information_schema.tables
   where table_schema='test' and table_name = 't1';
 drop table t1;

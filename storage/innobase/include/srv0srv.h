@@ -173,9 +173,6 @@ extern my_bool	srv_read_only_mode;
 /** Set if innodb_read_only is set or innodb_force_recovery
 is SRV_FORCE_NO_UNDO_LOG_SCAN or greater. */
 extern bool high_level_read_only;
-/** store to its own file each table created by an user; data
-dictionary tables are in the system tablespace 0 */
-extern my_bool	srv_file_per_table;
 
 /** Sort buffer size in index creation */
 extern ulong	srv_sort_buf_size;

@@ -3934,7 +3934,7 @@ static int innodb_init_params()
 
 	if (innobase_open_files < 10) {
 		innobase_open_files = 300;
-		if (srv_file_per_table && tc_size > 300 && tc_size < open_files_limit) {
+		if (tc_size > 300 && tc_size < open_files_limit) {
 			innobase_open_files = tc_size;
 		}
 	}
@@ -5195,7 +5195,6 @@ create_table_info_t::create_table_info_t(
 	HA_CREATE_INFO*	create_info,
 	char*		table_name,
 	char*		remote_path,
-	bool		file_per_table,
 	trx_t*		trx)
 	: m_thd(thd),
 	  m_trx(trx),
@@ -5204,7 +5203,10 @@ create_table_info_t::create_table_info_t(
 	  m_create_info(create_info),
 	  m_table_name(table_name), m_table(NULL),
 	  m_remote_path(remote_path),
-	  m_innodb_file_per_table(file_per_table)
+	  m_use_data_dir(!m_create_info->tmp_table()
+			 && m_create_info->data_file_name
+			 && m_create_info->data_file_name[0]
+			 && my_use_symdir)
 {
 }
 
@@ -10989,16 +10991,6 @@ create_table_info_t::create_option_data_directory_is_valid()
 	ut_ad(m_create_info->data_file_name
 	      && m_create_info->data_file_name[0] != '\0');
 
-	/* Use DATA DIRECTORY only with file-per-table. */
-	if (!m_allow_file_per_table) {
-		push_warning(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			ER_ILLEGAL_HA_CREATE_OPTION,
-			"InnoDB: DATA DIRECTORY requires"
-			" innodb_file_per_table.");
-		is_valid = false;
-	}
-
 	/* Do not use DATA DIRECTORY with TEMPORARY TABLE. */
 	if (m_create_info->tmp_table()) {
 		push_warning(
@@ -11069,16 +11061,6 @@ create_table_info_t::create_options_are_invalid()
 					kbs_max);
 				ret = "KEY_BLOCK_SIZE";
 			}
-
-			/* Valid KEY_BLOCK_SIZE, check its dependencies. */
-			if (!m_allow_file_per_table) {
-				push_warning(
-					m_thd, Sql_condition::WARN_LEVEL_WARN,
-					ER_ILLEGAL_HA_CREATE_OPTION,
-					"InnoDB: KEY_BLOCK_SIZE requires"
-					" innodb_file_per_table.");
-				ret = "KEY_BLOCK_SIZE";
-			}
 			break;
 		default:
 			push_warning_printf(
@@ -11099,15 +11081,6 @@ create_table_info_t::create_options_are_invalid()
 		if (is_temp || innodb_read_only_compressed) {
 			my_error(ER_UNSUPPORTED_COMPRESSED_TABLE, MYF(0));
 			return("ROW_FORMAT");
-		}
-		if (!m_allow_file_per_table) {
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
-				"InnoDB: ROW_FORMAT=%s requires"
-				" innodb_file_per_table.",
-				get_row_format_name(row_format));
-			ret = "ROW_FORMAT";
 		}
 		break;
 	case ROW_TYPE_DYNAMIC:
@@ -11236,15 +11209,6 @@ create_table_info_t::check_table_options()
 		}
 	}
 
-	if (!m_allow_file_per_table
-	    && options->encryption != FIL_ENCRYPTION_DEFAULT) {
-		push_warning(
-			m_thd, Sql_condition::WARN_LEVEL_WARN,
-			HA_WRONG_CREATE_OPTION,
-			"InnoDB: ENCRYPTED requires innodb_file_per_table");
-		return "ENCRYPTED";
- 	}
-
 	/* Check page compression requirements */
 	if (options->page_compressed) {
 
@@ -11272,15 +11236,6 @@ create_table_info_t::check_table_options()
 				HA_WRONG_CREATE_OPTION,
 				"InnoDB: PAGE_COMPRESSED table can't have"
 				" ROW_TYPE=REDUNDANT");
-			return "PAGE_COMPRESSED";
-		}
-
-		if (!m_allow_file_per_table) {
-			push_warning(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_COMPRESSED requires"
-				" innodb_file_per_table.");
 			return "PAGE_COMPRESSED";
 		}
 
@@ -11390,15 +11345,14 @@ create_table_info_t::parse_table_name(
 	1. <database_name>/<table_name>: for normal table creation
 	2. full path: for temp table creation, or DATA DIRECTORY.
 
-	When srv_file_per_table is on and mysqld_embedded is off,
+	When mysqld_embedded is off,
 	check for full path pattern, i.e.
 	X:\dir\...,		X is a driver letter, or
 	\\dir1\dir2\...,	UNC path
 	returns error if it is in full path format, but not creating a temp.
 	table. Currently InnoDB does not support symbolic link on Windows. */
 
-	if (m_innodb_file_per_table
-	    && !mysqld_embedded
+	if (!mysqld_embedded
 	    && !m_create_info->tmp_table()) {
 
 		if ((name[1] == ':')
@@ -11539,13 +11493,6 @@ index_bad:
 				"InnoDB: KEY_BLOCK_SIZE is ignored"
 				" for TEMPORARY TABLE.");
 			zip_allowed = false;
-		} else if (!m_allow_file_per_table) {
-			push_warning(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
-				"InnoDB: KEY_BLOCK_SIZE requires"
-				" innodb_file_per_table.");
-			zip_allowed = false;
 		}
 
 		if (!zip_allowed
@@ -11607,12 +11554,6 @@ index_bad:
 				"InnoDB: ROW_FORMAT=%s is ignored for"
 				" TEMPORARY TABLE.",
 				get_row_format_name(row_type));
-		} else if (!m_allow_file_per_table) {
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
-				"InnoDB: ROW_FORMAT=COMPRESSED requires"
-				" innodb_file_per_table.");
 		} else {
 			innodb_row_format = REC_FORMAT_COMPRESSED;
 			break;
@@ -11658,9 +11599,7 @@ index_bad:
 	if (is_temp) {
 		m_flags2 |= DICT_TF2_TEMPORARY;
 	} else {
-		if (m_use_file_per_table) {
-			m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
-		}
+		m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
 
 		level = ulint(options->page_compression_level);
 		if (!level) {
@@ -11864,32 +11803,6 @@ innobase_parse_hint_from_comment(
 	}
 }
 
-/** Set m_use_* flags. */
-void
-create_table_info_t::set_tablespace_type(
-	bool	table_being_altered_is_file_per_table)
-{
-	/** Allow file_per_table for this table either because:
-	1) the setting innodb_file_per_table=on,
-	2) the table being altered is currently file_per_table */
-	m_allow_file_per_table =
-		m_innodb_file_per_table
-		|| table_being_altered_is_file_per_table;
-
-	/* Ignore the current innodb-file-per-table setting if we are
-	creating a temporary table. */
-	m_use_file_per_table = m_allow_file_per_table
-		&& !m_create_info->tmp_table();
-
-	/* DATA DIRECTORY must have m_use_file_per_table but cannot be
-	used with TEMPORARY tables. */
-	m_use_data_dir =
-		m_use_file_per_table
-		&& m_create_info->data_file_name
-		&& m_create_info->data_file_name[0]
-		&& my_use_symdir;
-}
-
 /** Initialize the create_table_info_t object.
 @return error number */
 int
@@ -11951,8 +11864,6 @@ int create_table_info_t::prepare_create_table(const char* name, bool strict)
 
 	ut_ad(m_thd != NULL);
 	ut_ad(m_create_info != NULL);
-
-	set_tablespace_type(false);
 
 	normalize_table_name(m_table_name, name);
 
@@ -13067,13 +12978,12 @@ create_table_info_t::allocate_trx()
 @param[in]	name		Table name, format: "db/table_name".
 @param[in]	form		Table format; columns and index information.
 @param[in]	create_info	Create info (including create statement string).
-@param[in]	file_per_table	whether to create .ibd file
 @param[in,out]	trx		dictionary transaction, or NULL to create new
 @return error code
 @retval	0 on success */
 int
 ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
-                    bool file_per_table, trx_t *trx= nullptr)
+                    trx_t *trx= nullptr)
 {
   char norm_name[FN_REFLEN];	/* {database}/{tablename} */
   char remote_path[FN_REFLEN];	/* Absolute path of table */
@@ -13084,7 +12994,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
               table_share->table_type == TABLE_TYPE_NORMAL);
 
   create_table_info_t info(ha_thd(), form, create_info, norm_name,
-                           remote_path, file_per_table, trx);
+                           remote_path, trx);
 
   int error= info.initialize();
   if (!error)
@@ -13153,7 +13063,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
 int ha_innobase::create(const char *name, TABLE *form,
                         HA_CREATE_INFO *create_info)
 {
-  return create(name, form, create_info, srv_file_per_table);
+  return create(name, form, create_info, nullptr);
 }
 
 /*****************************************************************//**
@@ -13726,7 +13636,7 @@ int ha_innobase::truncate()
     row_mysql_lock_data_dictionary(trx);
     ib_table->release();
     dict_sys.remove(ib_table, false, true);
-    int err= create(ib_table->name.m_name, table, &info, true, trx);
+    int err= create(ib_table->name.m_name, table, &info, trx);
     row_mysql_unlock_data_dictionary(trx);
 
     ut_ad(!err);
@@ -13859,8 +13769,7 @@ int ha_innobase::truncate()
     ib_table->release();
     m_prebuilt->table= nullptr;
 
-    err= create(name, table, &info, dict_table_is_file_per_table(ib_table),
-                trx);
+    err= create(name, table, &info, trx);
     if (!err)
     {
       m_prebuilt->table->acquire();
@@ -18814,11 +18723,6 @@ static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   " values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean).",
   fast_shutdown_validate, NULL, 1, 0, 3, 0);
 
-static MYSQL_SYSVAR_BOOL(file_per_table, srv_file_per_table,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Stores each InnoDB table to an .ibd file in the database dir.",
-  NULL, NULL, TRUE);
-
 static MYSQL_SYSVAR_STR(ft_server_stopword_table, innobase_server_stopword_table,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
   "The user supplied stopword table name.",
@@ -19692,7 +19596,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fast_shutdown),
   MYSQL_SYSVAR(read_io_threads),
   MYSQL_SYSVAR(write_io_threads),
-  MYSQL_SYSVAR(file_per_table),
   MYSQL_SYSVAR(flush_log_at_timeout),
   MYSQL_SYSVAR(flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),

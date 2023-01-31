@@ -1395,9 +1395,6 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
   made a mistake and defined table names and the foreign key id to be of type
   CHAR (internally, really VARCHAR). The type should have been VARBINARY. */
 
-  /* System tables are always created inside the system tablespace. */
-  const auto srv_file_per_table_backup= srv_file_per_table;
-  srv_file_per_table= 0;
   dberr_t error;
   span<const char> tablename;
 
@@ -1425,7 +1422,6 @@ err_exit:
       trx->rollback();
       row_mysql_unlock_data_dictionary(trx);
       trx->free();
-      srv_file_per_table= srv_file_per_table_backup;
       return error;
     }
   }
@@ -1464,7 +1460,6 @@ err_exit:
   trx->commit();
   row_mysql_unlock_data_dictionary(trx);
   trx->free();
-  srv_file_per_table= srv_file_per_table_backup;
 
   lock(SRW_LOCK_CALL);
   if (sys_foreign);
