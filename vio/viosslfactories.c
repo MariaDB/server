@@ -233,30 +233,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   long ssl_ctx_options;
   DBUG_ENTER("new_VioSSLFd");
 
-  /*
-    If some optional parameters indicate empty strings, then
-    for compatibility with SSL libraries, replace them with NULL,
-    otherwise these libraries will try to open files with an empty
-    name, etc., and they will return an error code instead performing
-    the necessary operations:
-  */
-  if (ca_file && !ca_file[0])
-  {
-    ca_file  = NULL;
-  }
-  if (ca_path && !ca_path[0])
-  {
-    ca_path  = NULL;
-  }
-  if (crl_file && !crl_file[0])
-  {
-    crl_file = NULL;
-  }
-  if (crl_path && !crl_path[0])
-  {
-    crl_path = NULL;
-  }
-
   DBUG_PRINT("enter",
              ("key_file: '%s'  cert_file: '%s'  ca_file: '%s'  ca_path: '%s'  "
               "cipher: '%s' crl_file: '%s' crl_path: '%s'",
@@ -405,11 +381,6 @@ new_VioSSLConnectorFd(const char *key_file, const char *cert_file,
 {
   struct st_VioSSLFd *ssl_fd;
   int verify= SSL_VERIFY_PEER;
-
-  if (ca_file  && ! ca_file[0])  ca_file  = NULL;
-  if (ca_path  && ! ca_path[0])  ca_path  = NULL;
-  if (crl_file && ! crl_file[0]) crl_file = NULL;
-  if (crl_path && ! crl_path[0]) crl_path = NULL;
 
   /*
     If some optional parameters indicate empty strings, then

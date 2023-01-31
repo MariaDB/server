@@ -32,7 +32,7 @@
   @param ssl_error  The result code of the failed TLS/SSL I/O operation.
 */
 
-static void ssl_set_sys_error(int ssl_error)
+static void ssl_set_sys_error(int ssl_error, unsigned long err)
 {
   int error= 0;
 
@@ -52,6 +52,25 @@ static void ssl_set_sys_error(int ssl_error)
     error= SOCKET_EWOULDBLOCK;
     break;
   case SSL_ERROR_SSL:
+#ifdef SSL_R_UNEXPECTED_EOF_WHILE_READING
+    /*
+      Correction for a new behaviour was introduced in OpenSSL 3.x
+      when a peer does not send close_notify before closing the
+      connection - previously it was reported as an SSL_ERROR_SYSCALL
+      error with a errno == 0, but now it is reported as
+      SSL_ERROR_SSL with a special reason code:
+    */
+    if (ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING)
+    {
+      /* This is not really an fatal error - reset the error code to zero: */
+#ifdef _WIN32
+      WSASetLastError(0);
+#else
+      errno= 0;
+#endif
+      break;
+    }
+#endif
     /* Protocol error. */
 #ifdef EPROTO
     error= EPROTO;
@@ -96,13 +115,14 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   SSL *ssl= vio->ssl_arg;
   my_bool should_retry= TRUE;
 
+  unsigned long err = ERR_peek_error();
+
 #if defined(ERR_LIB_X509) && defined(X509_R_CERT_ALREADY_IN_HASH_TABLE)
   /*
     Ignore error X509_R_CERT_ALREADY_IN_HASH_TABLE.
     This is a workaround for an OpenSSL bug in an older (< 1.1.1)
     OpenSSL version.
   */
-  unsigned long err = ERR_peek_error();
   if (ERR_GET_LIB(err) == ERR_LIB_X509 &&
       ERR_GET_REASON(err) == X509_R_CERT_ALREADY_IN_HASH_TABLE)
   {
@@ -129,7 +149,7 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   default:
     should_retry= FALSE;
     *should_wait= FALSE;
-    ssl_set_sys_error(ssl_error);
+    ssl_set_sys_error(ssl_error, err);
     ERR_clear_error();
     break;
   }
@@ -233,8 +253,31 @@ int vio_ssl_close(Vio *vio)
       */
       break;
     default: /* Shutdown failed */
+#ifdef SSL_R_UNEXPECTED_EOF_WHILE_READING
+      {
+        unsigned long err= ERR_peek_last_error();
+        int ssl_error= SSL_get_error(ssl, r);
+        /*
+          Correction for a new behaviour was introduced in OpenSSL 3.x
+          when a peer does not send close_notify before closing the
+          connection - previously it was reported as an SSL_ERROR_SYSCALL
+          error with a errno == 0, but now it is reported as
+          SSL_ERROR_SSL with a special reason code:
+        */
+        if (ssl_error == SSL_ERROR_SSL &&
+            (ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING ||
+             ERR_GET_REASON(err) == SSL_R_SHUTDOWN_WHILE_IN_INIT))
+        {
+          ERR_clear_error();
+          break;
+        }
+        DBUG_PRINT("vio_error", ("SSL_shutdown() failed, error: %d",
+                                 ssl_error));
+      }
+#else
       DBUG_PRINT("vio_error", ("SSL_shutdown() failed, error: %d",
                                SSL_get_error(ssl, r)));
+#endif
       break;
     }
   }
