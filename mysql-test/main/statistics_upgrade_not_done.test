@@ -50,8 +50,8 @@ select * from mysql.column_stats where table_name='t2' and db_name='test';
 
 --exec $MYSQL_UPGRADE --upgrade-system-tables  --force --silent 2>&1 
 let $MYSQLD_DATADIR= `select @@datadir`;
---file_exists $MYSQLD_DATADIR/mysql_upgrade_info
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 analyze select * from t0 where a<3;
 drop table t0, t1, t2;

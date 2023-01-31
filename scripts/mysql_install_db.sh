@@ -597,7 +597,7 @@ cat_sql()
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
 if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
-    printf "@VERSION@-MariaDB" > "$ldata/mysql_upgrade_info"
+    printf "@VERSION@-MariaDB" > "$ldata/mariadb_upgrade_info"
   s_echo "OK"
 else
   log_file_place=$ldata

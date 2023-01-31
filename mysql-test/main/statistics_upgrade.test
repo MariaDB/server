@@ -44,8 +44,8 @@ alter table t3 rename mysql.column_stats;
 --exec $MYSQL_UPGRADE --upgrade-system-tables  --force --silent 2>&1 
 
 let $MYSQLD_DATADIR= `select @@datadir`;
---file_exists $MYSQLD_DATADIR/mysql_upgrade_info
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 --echo #
 --echo # Table definition after upgrade:

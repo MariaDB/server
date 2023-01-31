@@ -102,7 +102,7 @@ The privilege tables are automatically updated so all there is left is read
 the release notes on https://mariadb.com/kb/en/release-notes/ to see if any
 changes affect custom apps.
 
-There should not be any need to run 'mysql_upgrade' manually, as the upgrade
+There should not be any need to run 'mariadb-upgrade' manually, as the upgrade
 scripts do that automatically.
 
 

@@ -14,7 +14,7 @@
 
 update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', password('foo')) where user='root';
 
---replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
+--replace_regex /[^ ]*mariadb_upgrade_info/...mariadb_upgrade_info/
 --exec $MYSQL_UPGRADE
 
 connect(con1,localhost,root,foo,,,);
@@ -25,7 +25,7 @@ flush privileges;
 set global event_scheduler=OFF;
 
 let MYSQLD_DATADIR= `select @@datadir`;
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 # --skip-grant-tables state may changed during the test. Need to restart the server
 # to restore the --skip-grant-tables state. Otherwise MTR's internal check will fail

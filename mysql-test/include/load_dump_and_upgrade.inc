@@ -46,4 +46,4 @@ SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 
 # It will fail if the file doesn't exist, which is good,
 # which is an extra check that it was written
---remove_file $ddir/mysql_upgrade_info
+--remove_file $ddir/mariadb_upgrade_info

@@ -5,7 +5,7 @@
 
 [mysql]
 
-[mysql_upgrade]
+[mariadb-upgrade]
 
 [mysqladmin]
 
