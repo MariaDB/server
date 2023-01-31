@@ -122,9 +122,9 @@ public:
     Hash the in-record representation
     Used in Field::hash().
   */
-  static void hash_record(const uchar *ptr, ulong *nr, ulong *nr2)
+  static void hash_record(uchar *ptr, Hasher *hasher)
   {
-    my_charset_bin.hash_sort(ptr, binary_length(), nr, nr2);
+    hasher->add(&my_charset_bin, ptr, binary_length());
   }
 
   static bool only_zero_bytes(const char *ptr, size_t length)

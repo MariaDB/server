@@ -1,0 +1,3 @@
+#
+# MDEV-30370 mariadbd hangs when running with --wsrep-recover and --plugin-load-add=ha_spider.so
+#

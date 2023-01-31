@@ -521,3 +521,10 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'show status like \'server_audit_
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'show variables like \'server_audit%\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,plugin,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'uninstall plugin server_audit',0
+#
+# MDEV-27631 Assertion `global_status_var.global_memory_used == 0' failed in mysqld_exit
+#
+install plugin server_audit soname 'server_audit';
+uninstall plugin server_audit;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
