@@ -245,6 +245,29 @@ public:
 };
 
 
+class Recreate_info
+{
+  ha_rows m_records_copied;
+  ha_rows m_records_duplicate;
+public:
+  Recreate_info()
+   :m_records_copied(0),
+    m_records_duplicate(0)
+  { }
+  Recreate_info(ha_rows records_copied,
+                ha_rows records_duplicate)
+   :m_records_copied(records_copied),
+    m_records_duplicate(records_duplicate)
+  { }
+  ha_rows records_copied() const { return m_records_copied; }
+  ha_rows records_duplicate() const { return m_records_duplicate; }
+  ha_rows records_processed() const
+  {
+    return m_records_copied + m_records_duplicate;
+  }
+};
+
+
 #define TC_HEURISTIC_RECOVER_COMMIT   1
 #define TC_HEURISTIC_RECOVER_ROLLBACK 2
 extern ulong tc_heuristic_recover;
@@ -4354,6 +4377,8 @@ public:
   inline bool vio_ok() const { return TRUE; }
   inline bool is_connected() { return TRUE; }
 #endif
+
+   void my_ok_with_recreate_info(const Recreate_info &info, ulong warn_count);
   /**
     Mark the current error as fatal. Warning: this does not
     set any error, it sets a property of the error, so must be
@@ -6255,6 +6280,12 @@ public:
   uint  sum_func_count;   
   uint  hidden_field_count;
   uint	group_parts,group_length,group_null_parts;
+
+  /*
+    If we're doing a GROUP BY operation, shows which one is used:
+    true  TemporaryTableWithPartialSums algorithm (see end_update()).
+    false OrderedGroupBy algorithm (see end_write_group()).
+  */
   uint	quick_group;
   /**
     Enabled when we have atleast one outer_sum_func. Needed when used

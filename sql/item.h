@@ -1480,6 +1480,12 @@ public:
   */
   inline ulonglong val_uint() { return (ulonglong) val_int(); }
 
+  virtual bool hash_not_null(Hasher *hasher)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+
   /*
     Return string representation of this item object.
 
@@ -3654,6 +3660,13 @@ public:
   Sql_mode_dependency value_depends_on_sql_mode() const override
   {
     return Sql_mode_dependency(0, field->value_depends_on_sql_mode());
+  }
+  bool hash_not_null(Hasher *hasher) override
+  {
+    if (field->is_null())
+      return true;
+    field->hash_not_null(hasher);
+    return false;
   }
   longlong val_int_endpoint(bool left_endp, bool *incl_endp) override;
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;

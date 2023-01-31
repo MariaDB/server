@@ -537,6 +537,7 @@ class Item_func_left :public Item_str_func
   String tmp_value;
 public:
   Item_func_left(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
+  bool hash_not_null(Hasher *hasher) override;
   String *val_str(String *) override;
   bool fix_length_and_dec() override;
   LEX_CSTRING func_name_cstring() const override
