@@ -297,6 +297,8 @@ void Explain_query::print_query_optimization_json(Json_writer *writer)
     writer->add_member("query_optimization").start_object();
     writer->add_member("r_total_time_ms").
             add_double(optimization_time_tracker.get_time_ms());
+    writer->add_member("r_total_time_ms_cycles").
+            add_double(optimization_time_tracker.cycles_get_time_ms());
     writer->end_object(); 
   }
 }
@@ -1040,6 +1042,8 @@ void Explain_select::print_explain_json(Explain_query *query,
       {
         writer->add_member("r_total_time_ms").
                 add_double(time_tracker.get_time_ms());
+       writer->add_member("r_total_time_ms_cycles").
+               add_double(time_tracker.cycles_get_time_ms());
       }
     }
 
@@ -1947,7 +1951,10 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       if (rowid_filter)
         total_time+= rowid_filter->tracker->get_time_fill_container_ms();
       writer->add_member("r_table_time_ms").add_double(total_time);
+      writer->add_member("r_table_time_ms_cycles").
+               add_double(op_tracker.cycles_get_time_ms());
       writer->add_member("r_other_time_ms").add_double(extra_time_tracker.get_time_ms());
+      //writer->add_member("r_other_time_ms_cycles").add_double(extra_time_tracker.cycles_get_time_ms());
     }
   }
 
@@ -2480,6 +2487,8 @@ void Explain_update::print_explain_json(Explain_query *query,
   {
     writer->add_member("r_total_time_ms").
             add_double(command_tracker.get_time_ms());
+    writer->add_member("r_total_time_ms_cycles").
+            add_double(command_tracker.cycles_get_time_ms());
   }
   
   if (impossible_where || no_partitions)
@@ -2627,6 +2636,8 @@ void Explain_update::print_explain_json(Explain_query *query,
     {
       writer->add_member("r_total_time_ms").
               add_double(table_tracker.get_time_ms());
+      writer->add_member("r_total_time_ms_cycles").
+              add_double(table_tracker.cycles_get_time_ms());
     }
   }
 
