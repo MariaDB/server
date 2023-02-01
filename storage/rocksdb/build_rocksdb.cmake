@@ -163,7 +163,7 @@ find_package(Threads REQUIRED)
 if(WIN32)
   set(SYSTEM_LIBS ${SYSTEM_LIBS} Shlwapi.lib Rpcrt4.lib)
 else()
-  set(SYSTEM_LIBS ${CMAKE_THREAD_LIBS_INIT} ${LIBRT} ${CMAKE_DL_LIBS})
+  set(SYSTEM_LIBS ${SYSTEM_LIBS} ${CMAKE_THREAD_LIBS_INIT} ${LIBRT} ${CMAKE_DL_LIBS})
 endif()
 
 set(ROCKSDB_LIBS rocksdblib})
