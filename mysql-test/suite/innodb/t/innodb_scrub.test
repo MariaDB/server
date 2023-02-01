@@ -27,3 +27,19 @@ FLUSH TABLE t1 FOR EXPORT;
 UNLOCK TABLES;
 -- source include/search_pattern_in_file.inc
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-30527 Assertion !m_freed_pages in mtr_t::start()
+--echo # on DROP TEMPORARY TABLE
+--echo #
+SET @scrub= @@GLOBAL.innodb_immediate_scrub_data_uncompressed;
+SET GLOBAL innodb_immediate_scrub_data_uncompressed= 1;
+SET @fpt=@@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=0;
+CREATE TABLE t ENGINE=InnoDB AS SELECT 1;
+DROP TABLE t;
+SET GLOBAL innodb_file_per_table=@fpt;
+CREATE TEMPORARY TABLE tmp ENGINE=InnoDB AS SELECT 1;
+DROP TABLE tmp;
+SET GLOBAL INNODB_IMMEDIATE_SCRUB_DATA_UNCOMPRESSED= @scrub;
+--echo # End of 10.6 tests
