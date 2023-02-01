@@ -6550,6 +6550,7 @@ static int update_role_columns(GRANT_TABLE *merged,
     }
   }
 
+restart:
   for (uint i=0 ; i < mh->records ; i++)
   {
     GRANT_COLUMN *col = (GRANT_COLUMN *)my_hash_element(mh, i);
@@ -6558,6 +6559,7 @@ static int update_role_columns(GRANT_TABLE *merged,
     {
       changed= 1;
       my_hash_delete(mh, (uchar*)col);
+      goto restart;
     }
   }
   DBUG_ASSERT(rights == merged->cols);
