@@ -27865,6 +27865,8 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       }
     }
     str->append(" */ ");
+    if (join && join->cleaned) // if this join has been cleaned
+      return;                  // the select_number printed above is all we have
   }
 
   str->append(STRING_WITH_LEN("select "));
@@ -27875,10 +27877,11 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       JOIN already cleaned up so it is dangerous to print items
       because temporary tables they pointed on could be freed.
     */
-    str->append('#');
-    str->append(select_number);
+    str->append("#");
+    str->append_ulonglong(select_number);
     return;
   }
+
 
   /* First add options */
   if (options & SELECT_STRAIGHT_JOIN)
