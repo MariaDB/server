@@ -36,7 +36,7 @@ set global innodb_fast_shutdown=0;
 # the error code
 let $me=`select concat(' ', connection_id())`;
 replace_result $me ID;
-error ER_CONNECTION_KILLED;
+error ER_CONNECTION_KILLED, 2026;
 eval kill $me;
 
 source include/start_mysqld.inc;

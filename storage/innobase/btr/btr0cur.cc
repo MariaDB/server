@@ -1890,6 +1890,7 @@ dberr_t btr_cur_t::open_leaf(bool first, dict_index_t *index,
         ut_ad(root_leaf_rw_latch != RW_NO_LATCH);
         upper_rw_latch= root_leaf_rw_latch;
         mtr->rollback_to_savepoint(savepoint);
+        height= ULINT_UNDEFINED;
         continue;
       }
       else
