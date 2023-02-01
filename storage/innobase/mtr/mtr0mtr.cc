@@ -459,7 +459,20 @@ void mtr_t::commit()
       buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
   }
   else
+  {
+    if (m_freed_pages)
+    {
+      ut_ad(!m_freed_pages->empty());
+      ut_ad(m_freed_space == fil_system.temp_space);
+      ut_ad(!m_trim_pages);
+      for (const auto &range : *m_freed_pages)
+        m_freed_space->add_free_range(range);
+      delete m_freed_pages;
+      m_freed_pages= nullptr;
+      m_freed_space= nullptr;
+    }
     release();
+  }
 
 func_exit:
   release_resources();
