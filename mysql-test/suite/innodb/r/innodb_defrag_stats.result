@@ -1,4 +1,6 @@
 SET GLOBAL innodb_defragment_stats_accuracy = 20;
+Warnings:
+Warning	1287	'@@innodb_defragment_stats_accuracy' is deprecated and will be removed in a future release
 DELETE FROM mysql.innodb_index_stats;
 # Create table.
 CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256),
@@ -77,6 +79,8 @@ t1	SECOND	n_leaf_pages_reserved
 t1	SECOND	n_page_split
 t1	SECOND	n_pages_freed
 set global innodb_defragment_stats_accuracy = 40;
+Warnings:
+Warning	1287	'@@innodb_defragment_stats_accuracy' is deprecated and will be removed in a future release
 INSERT INTO t1 (b) SELECT b from t1;
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 table_name	index_name	stat_name
@@ -116,6 +120,8 @@ drop index SECOND on t2;
 # MDEV-26636: Statistics must not be written for temporary tables
 #
 SET GLOBAL innodb_defragment_stats_accuracy = 1;
+Warnings:
+Warning	1287	'@@innodb_defragment_stats_accuracy' is deprecated and will be removed in a future release
 CREATE TEMPORARY TABLE t (a INT PRIMARY KEY, c CHAR(255) NOT NULL)
 ENGINE=InnoDB;
 INSERT INTO t SELECT seq, '' FROM seq_1_to_100;

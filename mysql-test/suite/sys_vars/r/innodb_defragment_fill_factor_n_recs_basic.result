@@ -6,25 +6,33 @@ SELECT COUNT(@@global.innodb_defragment_fill_factor_n_recs);
 COUNT(@@global.innodb_defragment_fill_factor_n_recs)
 1
 SET @@global.innodb_defragment_fill_factor_n_recs = 50;
+Warnings:
+Warning	1287	'@@innodb_defragment_fill_factor_n_recs' is deprecated and will be removed in a future release
 SELECT @@global.innodb_defragment_fill_factor_n_recs;
 @@global.innodb_defragment_fill_factor_n_recs
 50
 SET @@global.innodb_defragment_fill_factor_n_recs = 100;
+Warnings:
+Warning	1287	'@@innodb_defragment_fill_factor_n_recs' is deprecated and will be removed in a future release
 SELECT @@global.innodb_defragment_fill_factor_n_recs;
 @@global.innodb_defragment_fill_factor_n_recs
 100
 SET @@global.innodb_defragment_fill_factor_n_recs = 1;
+Warnings:
+Warning	1287	'@@innodb_defragment_fill_factor_n_recs' is deprecated and will be removed in a future release
 SELECT @@global.innodb_defragment_fill_factor_n_recs;
 @@global.innodb_defragment_fill_factor_n_recs
 1
 SET @@global.innodb_defragment_fill_factor_n_recs = -1;
 Warnings:
+Warning	1287	'@@innodb_defragment_fill_factor_n_recs' is deprecated and will be removed in a future release
 Warning	1292	Truncated incorrect innodb_defragment_fill_factor... value: '-1'
 SELECT @@global.innodb_defragment_fill_factor_n_recs;
 @@global.innodb_defragment_fill_factor_n_recs
 1
 SET @@global.innodb_defragment_fill_factor_n_recs = 10000;
 Warnings:
+Warning	1287	'@@innodb_defragment_fill_factor_n_recs' is deprecated and will be removed in a future release
 Warning	1292	Truncated incorrect innodb_defragment_fill_factor... value: '10000'
 SELECT @@global.innodb_defragment_fill_factor_n_recs;
 @@global.innodb_defragment_fill_factor_n_recs
@@ -40,3 +48,5 @@ SELECT @@global.innodb_defragment_fill_factor_n_recs;
 @@global.innodb_defragment_fill_factor_n_recs
 100
 SET @@global.innodb_defragment_fill_factor_n_recs = @start_innodb_defragment_fill_factor_n_recs;
+Warnings:
+Warning	1287	'@@innodb_defragment_fill_factor_n_recs' is deprecated and will be removed in a future release

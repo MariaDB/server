@@ -1,4 +1,6 @@
 set global innodb_defragment_stats_accuracy = 80;
+Warnings:
+Warning	1287	'@@innodb_defragment_stats_accuracy' is deprecated and will be removed in a future release
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), KEY SECOND(a, b)) ENGINE=INNODB;
 optimize table t1;
 Table	Op	Msg_type	Msg_text
@@ -66,6 +68,8 @@ select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like
 count(stat_value) = 0
 1
 SET @@global.innodb_defragment_n_pages = 3;
+Warnings:
+Warning	1287	'@@innodb_defragment_n_pages' is deprecated and will be removed in a future release
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
@@ -104,6 +108,8 @@ select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like
 count(stat_value) = 0
 1
 SET @@global.innodb_defragment_n_pages = 10;
+Warnings:
+Warning	1287	'@@innodb_defragment_n_pages' is deprecated and will be removed in a future release
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK

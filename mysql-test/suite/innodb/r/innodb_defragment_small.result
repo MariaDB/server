@@ -1,6 +1,8 @@
 SET @innodb_defragment_orig=@@GLOBAL.innodb_defragment;
 SET @innodb_optimize_fulltext_orig=@@GLOBAL.innodb_optimize_fulltext_only;
 SET GLOBAL innodb_defragment = 1;
+Warnings:
+Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
 SET GLOBAL innodb_optimize_fulltext_only = 0;
 #
 # MDEV-12198 innodb_defragment=1 crashes server on
@@ -27,6 +29,8 @@ OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 SET GLOBAL innodb_defragment = 0;
+Warnings:
+Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
@@ -37,4 +41,6 @@ Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 DROP TABLE t1;
 SET GLOBAL innodb_defragment = @innodb_defragment_orig;
+Warnings:
+Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
 SET GLOBAL innodb_optimize_fulltext_only = @innodb_optimize_fulltext_orig;

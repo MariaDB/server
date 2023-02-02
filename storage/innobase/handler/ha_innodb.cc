@@ -19092,7 +19092,7 @@ static MYSQL_SYSVAR_BOOL(buffer_pool_load_at_startup, srv_buffer_pool_load_at_st
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(defragment, srv_defragment,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Enable/disable InnoDB defragmentation (default FALSE). When set to FALSE, all existing "
   "defragmentation will be paused. And new defragmentation command will fail."
   "Paused defragmentation commands will resume when this variable is set to "
@@ -19100,14 +19100,14 @@ static MYSQL_SYSVAR_BOOL(defragment, srv_defragment,
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_UINT(defragment_n_pages, srv_defragment_n_pages,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Number of pages considered at once when merging multiple pages to "
   "defragment",
   NULL, NULL, 7, 2, 32, 0);
 
 static MYSQL_SYSVAR_UINT(defragment_stats_accuracy,
   srv_defragment_stats_accuracy,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "How many defragment stats changes there are before the stats "
   "are written to persistent storage. Set to 0 meaning disable "
   "defragment stats tracking.",
@@ -19115,7 +19115,7 @@ static MYSQL_SYSVAR_UINT(defragment_stats_accuracy,
 
 static MYSQL_SYSVAR_UINT(defragment_fill_factor_n_recs,
   srv_defragment_fill_factor_n_recs,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "How many records of space defragmentation should leave on the page. "
   "This variable, together with innodb_defragment_fill_factor, is introduced "
   "so defragmentation won't pack the page too full and cause page split on "
@@ -19124,7 +19124,7 @@ static MYSQL_SYSVAR_UINT(defragment_fill_factor_n_recs,
   NULL, NULL, 20, 1, 100, 0);
 
 static MYSQL_SYSVAR_DOUBLE(defragment_fill_factor, srv_defragment_fill_factor,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "A number between [0.7, 1] that tells defragmentation how full it should "
   "fill a page. Default is 0.9. Number below 0.7 won't make much sense."
   "This variable, together with innodb_defragment_fill_factor_n_recs, is "
@@ -19134,7 +19134,7 @@ static MYSQL_SYSVAR_DOUBLE(defragment_fill_factor, srv_defragment_fill_factor,
   NULL, NULL, 0.9, 0.7, 1, 0);
 
 static MYSQL_SYSVAR_UINT(defragment_frequency, srv_defragment_frequency,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
   "Do not defragment a single index more than this number of time per second."
   "This controls the number of time defragmentation thread can request X_LOCK "
   "on an index. Defragmentation thread will check whether "

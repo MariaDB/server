@@ -1,4 +1,6 @@
 set global innodb_defragment=1;
+Warnings:
+Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
 create table t1 (a int not null primary key auto_increment, b varchar(256), key second(a, b)) engine=innodb;
 insert t1 select null, repeat('a', 256) from seq_1_to_100;
 select count(*) from t1;
@@ -16,3 +18,5 @@ test.t1	optimize	status	OK
 connection con1;
 drop table t1;
 set global innodb_defragment=default;
+Warnings:
+Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release

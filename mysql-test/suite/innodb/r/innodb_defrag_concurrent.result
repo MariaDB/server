@@ -3,6 +3,8 @@ SET @accuracy= @@GLOBAL.innodb_defragment_stats_accuracy;
 SET @sp= @@GLOBAL.innodb_stats_persistent;
 SET GLOBAL innodb_stats_persistent = 0;
 set global innodb_defragment_stats_accuracy = 80;
+Warnings:
+Warning	1287	'@@innodb_defragment_stats_accuracy' is deprecated and will be removed in a future release
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
 b VARCHAR(256),
 c INT,
@@ -18,6 +20,8 @@ connect  con3,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connect  con4,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection default;
 SET @@global.innodb_defragment_n_pages = 20;
+Warnings:
+Warning	1287	'@@innodb_defragment_n_pages' is deprecated and will be removed in a future release
 CREATE TEMPORARY TABLE tt (a INT, KEY(a)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 INSERT INTO tt SELECT 0 FROM seq_1_to_180;
 INSERT INTO tt SELECT 5 FROM seq_1_to_160;
@@ -98,5 +102,9 @@ count(stat_value) > 0
 1
 drop table t1;
 SET GLOBAL innodb_defragment_n_pages = @n_pages;
+Warnings:
+Warning	1287	'@@innodb_defragment_n_pages' is deprecated and will be removed in a future release
 SET GLOBAL innodb_defragment_stats_accuracy = @accuracy;
+Warnings:
+Warning	1287	'@@innodb_defragment_stats_accuracy' is deprecated and will be removed in a future release
 SET GLOBAL innodb_stats_persistent = @sp;

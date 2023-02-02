@@ -3,10 +3,14 @@ SELECT @orig;
 @orig
 0
 SET GLOBAL innodb_defragment = OFF;
+Warnings:
+Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
 SELECT @@global.innodb_defragment;
 @@global.innodb_defragment
 0
 SET GLOBAL innodb_defragment = ON;
+Warnings:
+Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
 SELECT @@global.innodb_defragment;
 @@global.innodb_defragment
 1
@@ -16,3 +20,5 @@ SELECT @@global.innodb_defragment;
 @@global.innodb_defragment
 1
 SET GLOBAL innodb_defragment = @orig;
+Warnings:
+Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
