@@ -2118,6 +2118,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "access_type": "ref",
                       "index": "a_c",
                       "used_range_estimates": true,
+                      "rowid_filter_skipped": "worst/max seeks clipping",
                       "rows": 180,
                       "cost": 92,
                       "chosen": true
@@ -3968,7 +3969,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "best_access_path": {
                   "considered_access_paths": [
                     {
-                      "rowid_filter_skipped": "cost_factor <= 0",
                       "access_type": "range",
                       "resulting_rows": 3,
                       "cost": 1.407,
@@ -4024,7 +4024,6 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "best_access_path": {
                   "considered_access_paths": [
                     {
-                      "rowid_filter_skipped": "cost_factor <= 0",
                       "access_type": "range",
                       "resulting_rows": 3,
                       "cost": 1.407,
@@ -4051,6 +4050,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                           "index": "a",
                           "used_range_estimates": false,
                           "cause": "not better than ref estimates",
+                          "rowid_filter_skipped": "worst/max seeks clipping",
                           "rows": 2,
                           "cost": 3.014,
                           "chosen": true
