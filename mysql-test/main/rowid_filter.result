@@ -2072,7 +2072,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
 WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	101	100.00	Using where
-1	PRIMARY	t1	ref|filter	a1,b1	a1|b1	5|4	test.t2.a2	36 (29%)	28.75	Using where; Using rowid filter
+1	PRIMARY	t1	ref	a1,b1	a1	5	test.t2.a2	36	28.75	Using where
 2	SUBQUERY	t2	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using index condition
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select max(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`pk2` <= 1) and `test`.`t1`.`pk1` + 1 = `test`.`t2`.`pk2` + 2
@@ -2097,14 +2097,6 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["a1"],
       "ref": ["test.t2.a2"],
-      "rowid_filter": {
-        "range": {
-          "key": "b1",
-          "used_key_parts": ["b1"]
-        },
-        "rows": 115,
-        "selectivity_pct": 28.75
-      },
       "rows": 36,
       "filtered": 28.75,
       "attached_condition": "t1.b1 <= (subquery#2) and t1.pk1 + 1 = t2.pk2 + 2"
@@ -2187,7 +2179,7 @@ test.t1	analyze	status	OK
 explain
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	a,b	b|a	5|5	const	151 (17%)	Using where; Using rowid filter
+1	SIMPLE	t1	ref	a,b	b	5	const	151	Using where
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 a	b
 1	0
@@ -2522,32 +2514,19 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t1",
-      "access_type": "ref",
+      "access_type": "range",
       "possible_keys": ["idx1", "idx2"],
-      "key": "idx2",
-      "key_length": "5",
-      "used_key_parts": ["fl2"],
-      "ref": ["const"],
-      "rowid_filter": {
-        "range": {
-          "key": "idx1",
-          "used_key_parts": ["nm"]
-        },
-        "rows": 44,
-        "selectivity_pct": 0.44,
-        "r_rows": 44,
-        "r_lookups": 1000,
-        "r_selectivity_pct": 0,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
-      },
+      "key": "idx1",
+      "key_length": "35",
+      "used_key_parts": ["nm"],
       "r_loops": 1,
-      "rows": 921,
-      "r_rows": 0,
+      "rows": 44,
+      "r_rows": 44,
       "r_total_time_ms": "REPLACED",
-      "filtered": 0.44,
-      "r_filtered": 100,
-      "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+      "filtered": 9.21,
+      "r_filtered": 0,
+      "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
+      "attached_condition": "t1.fl2 = 0"
     }
   }
 }
@@ -2580,31 +2559,19 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "table": {
       "table_name": "t1",
-      "access_type": "ref",
+      "access_type": "range",
       "possible_keys": ["idx1", "idx2"],
-      "key": "idx2",
-      "key_length": "5",
-      "used_key_parts": ["fl2"],
-      "ref": ["const"],
-      "rowid_filter": {
-        "range": {
-          "key": "idx1",
-          "used_key_parts": ["nm"]
-        },
-        "rows": 44,
-        "selectivity_pct": 0.44,
-        "r_rows": 0,
-        "r_lookups": 0,
-        "r_selectivity_pct": 0,
-        "r_buffer_size": "REPLACED",
-        "r_filling_time_ms": "REPLACED"
-      },
+      "key": "idx1",
+      "key_length": "35",
+      "used_key_parts": ["nm"],
       "r_loops": 1,
-      "rows": 911,
+      "rows": 44,
       "r_rows": 0,
-      "filtered": 0.44,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 9.11,
       "r_filtered": 100,
-      "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
+      "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
+      "attached_condition": "t1.fl2 = 0"
     }
   }
 }

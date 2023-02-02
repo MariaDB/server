@@ -7961,10 +7961,20 @@ best_access_path(JOIN      *join,
 	       type == JT_EQ_REF ? 0.5 * tmp : MY_MIN(tmp, keyread_tmp);
         double access_cost_factor= MY_MIN((tmp - key_access_cost) / rows, 1.0);
 
-        filter=
-          table->best_range_rowid_filter_for_partial_join(start_key->key,
-                                                          rows,
-                                                          access_cost_factor);
+        if (!(records < s->worst_seeks &&
+              records <= thd->variables.max_seeks_for_key))
+        {
+          // Don't use rowid filter
+          trace_access_idx.add("rowid_filter_skipped", "worst/max seeks clipping");
+          filter= NULL;
+        }
+        else
+        {
+          filter=
+            table->best_range_rowid_filter_for_partial_join(start_key->key,
+                                                            rows,
+                                                            access_cost_factor);
+        }
         if (filter)
         {
           tmp-= filter->get_adjusted_gain(rows) - filter->get_cmp_gain(rows);
@@ -8137,8 +8147,6 @@ best_access_path(JOIN      *join,
           tmp-= filter->get_adjusted_gain(rows);
           DBUG_ASSERT(tmp >= 0);
         }
-        else
-          trace_access_scan.add("rowid_filter_skipped", "cost_factor <= 0");
 
         type= JT_RANGE;
       }
