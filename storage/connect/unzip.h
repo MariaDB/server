@@ -154,11 +154,11 @@ extern int ZEXPORT unzStringFileNameCompare(const char* fileName1,
                                             const char* fileName2,
                                             int iCaseSensitivity);
 /*
-   Compare two filename (fileName1,fileName2).
-   If iCaseSenisivity = 1, comparision is case sensitivity (like strcmp)
-   If iCaseSenisivity = 2, comparision is not case sensitivity (like strcmpi
+   Compare two filenames (fileName1,fileName2).
+   If iCaseSensitivity = 1, comparison is case sensitive (like strcmp)
+   If iCaseSensitivity = 2, comparison is not case sensitive (like strcmpi
                                 or strcasecmp)
-   If iCaseSenisivity = 0, case sensitivity is defaut of your operating system
+   If iCaseSensitivity = 0, case sensitivity is default of your operating system
     (like 1 on Unix, 2 on Windows)
 */
 
@@ -304,7 +304,7 @@ extern int ZEXPORT unzGetCurrentFileInfo(unzFile file,
                                          uLong commentBufferSize);
 /*
   Get Info about the current file
-  if pfile_info!=NULL, the *pfile_info structure will contain somes info about
+  if pfile_info!=NULL, the *pfile_info structure will contain some info about
         the current file
   if szFileName!=NULL, the filemane string will be copied in szFileName
             (fileNameBufferSize is the size of the buffer)
@@ -384,7 +384,7 @@ extern int ZEXPORT unzReadCurrentFile(unzFile file,
   buf contain buffer where data must be copied
   len the size of buf.
 
-  return the number of byte copied if somes bytes are copied
+  return the number of byte copied if some bytes are copied
   return 0 if the end of file was reached
   return <0 with error code if there is an error
     (UNZ_ERRNO for IO error, or zLib error for uncompress error)

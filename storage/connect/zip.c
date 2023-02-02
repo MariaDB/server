@@ -14,7 +14,7 @@
    Oct-2009 - Mathias Svensson - Added Zip64 Support when creating new file archives
    Oct-2009 - Mathias Svensson - Did some code cleanup and refactoring to get better overview of some functions.
    Oct-2009 - Mathias Svensson - Added zipRemoveExtraInfoBlock to strip extra field data from its ZIP64 data
-                                 It is used when recreting zip archive with RAW when deleting items from a zip.
+                                 It is used when recreating zip archive with RAW when deleting items from a zip.
                                  ZIP64 data is automatically added to items that needs it, and existing ZIP64 data need to be removed.
    Oct-2009 - Mathias Svensson - Added support for BZIP2 as compression mode (bzip2 lib is required)
    Jan-2010 - back to unzip and minizip 1.0 name scheme, with compatibility layer
@@ -49,7 +49,7 @@
 /* compile with -Dlocal if your debugger can't find static symbols */
 
 #ifndef VERSIONMADEBY
-# define VERSIONMADEBY   (0x0) /* platform depedent */
+# define VERSIONMADEBY   (0x0) /* platform dependent */
 #endif
 
 #ifndef Z_BUFSIZE
@@ -140,20 +140,20 @@ typedef struct
     uInt pos_in_buffered_data;  /* last written byte in buffered_data */
 
     ZPOS64_T pos_local_header;     /* offset of the local header of the file
-                                     currenty writing */
+                                     currently writing */
     char* central_header;       /* central header data for the current file */
     uLong size_centralExtra;
     uLong size_centralheader;   /* size of the central header for cur file */
     uLong size_centralExtraFree; /* Extra bytes allocated to the centralheader but that are not used */
     uLong flag;                 /* flag of the file currently writing */
 
-    int  method;                /* compression method of file currenty wr.*/
+    int  method;                /* compression method of file currently wr.*/
     int  raw;                   /* 1 for directly writing raw data */
     Byte buffered_data[Z_BUFSIZE];/* buffer contain compressed data to be writ*/
     uLong dosDate;
     uLong crc32;
     int  encrypt;
-    int  zip64;               /* Add ZIP64 extened information in the extra field */
+    int  zip64;               /* Add ZIP64 extended information in the extra field */
     ZPOS64_T pos_zip64extrainfo;
     ZPOS64_T totalCompressedData;
     ZPOS64_T totalUncompressedData;
@@ -167,10 +167,10 @@ typedef struct
 typedef struct
 {
     zlib_filefunc64_32_def z_filefunc;
-    voidpf filestream;        /* io structore of the zipfile */
+    voidpf filestream;        /* io structure of the zipfile */
     linkedlist_data central_dir;/* datablock with central dir in construction*/
     int  in_opened_file_inzip;  /* 1 if a file in the zip is currently writ.*/
-    curfile64_info ci;            /* info on the file curretly writing */
+    curfile64_info ci;            /* info on the file currently writing */
 
     ZPOS64_T begin_pos;            /* position of the beginning of the zipfile */
     ZPOS64_T add_position_when_writing_offset;
@@ -621,9 +621,9 @@ static int LoadCentralDirectoryRecord(zip64_internal* pziinit) {
   uLong uL;
 
   uLong number_disk;          /* number of the current dist, used for
-                              spaning ZIP, unsupported, always 0*/
+                              spanning ZIP, unsupported, always 0*/
   uLong number_disk_with_CD;  /* number the the disk with central dir, used
-                              for spaning ZIP, unsupported, always 0*/
+                              for spanning ZIP, unsupported, always 0*/
   ZPOS64_T number_entry;
   ZPOS64_T number_entry_CD;      /* total number of entries in
                                 the central dir
