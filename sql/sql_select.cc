@@ -8846,7 +8846,7 @@ best_access_path(JOIN      *join,
                            use_found_constraint(rnd_records) :
                            rnd_records);
 
-    DBUG_ASSERT(rnd_records <= s->found_records);
+    DBUG_ASSERT(rnd_records <= rows2double(s->found_records) + 0.5);
     set_if_smaller(best.records_out, records_table_filter);
 
     /*
