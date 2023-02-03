@@ -1896,6 +1896,17 @@ xb_get_one_option(int optid,
     break;
 
   case OPT_INNODB_FLUSH_METHOD:
+#ifdef _WIN32
+    /* From: storage/innobase/handler/ha_innodb.cc:innodb_init_params */
+    switch (srv_file_flush_method) {
+    case SRV_ALL_O_DIRECT_FSYNC + 1 /* "async_unbuffered"="unbuffered" */:
+      srv_file_flush_method= SRV_ALL_O_DIRECT_FSYNC;
+      break;
+    case SRV_ALL_O_DIRECT_FSYNC + 2 /* "normal"="fsync" */:
+      srv_file_flush_method= SRV_FSYNC;
+      break;
+    }
+#endif
     ut_a(srv_file_flush_method
 	 <= IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT_NO_FSYNC));
     ADD_PRINT_PARAM_OPT(innodb_flush_method_names[srv_file_flush_method]);
