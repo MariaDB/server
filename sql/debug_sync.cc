@@ -18,6 +18,7 @@
 
 #include "mariadb.h"
 #include "debug_sync.h"
+#include <cstring>
 
 #if defined(ENABLED_DEBUG_SYNC)
 
@@ -348,6 +349,40 @@ void debug_sync_init_thread(THD *thd)
   }
 
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  Returns an allocated buffer containing a comma-separated C string of all
+  active signals.
+
+  Buffer must be freed by the caller.
+*/
+static const char *get_signal_set_as_string()
+{
+  mysql_mutex_assert_owner(&debug_sync_global.ds_mutex);
+  size_t req_size= 1; // In case of empty set for the end '\0' char.
+
+  for (size_t i= 0; i < debug_sync_global.ds_signal_set.size(); i++)
+    req_size+= debug_sync_global.ds_signal_set.at(i)->length + 1;
+
+  char *buf= (char *) my_malloc(PSI_NOT_INSTRUMENTED, req_size, MYF(0));
+  if (!buf)
+    return nullptr;
+  memset(buf, '\0', req_size);
+
+  char *cur_pos= buf;
+  for (size_t i= 0; i < debug_sync_global.ds_signal_set.size(); i++)
+  {
+    const LEX_CSTRING *signal= debug_sync_global.ds_signal_set.at(i);
+    memcpy(cur_pos, signal->str, signal->length);
+    if (i != debug_sync_global.ds_signal_set.size() - 1)
+      cur_pos[signal->length]= ',';
+    else
+      cur_pos[signal->length] = '\0';
+    cur_pos+= signal->length + 1;
+  }
+  return buf;
 }
 
 
@@ -1581,12 +1616,22 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         restore_current_mutex = false;
 
       set_timespec(abstime, action->timeout);
-      // TODO turn this into a for loop printing.
       DBUG_EXECUTE("debug_sync_exec", {
-          /* Functions as DBUG_PRINT args can change keyword and line nr. */
-          DBUG_PRINT("debug_sync_exec",
-                     ("wait for '%s'  at: '%s'",
-                      sig_wait, dsp_name));});
+          const char *signal_set= get_signal_set_as_string();
+          if (!signal_set)
+          {
+            DBUG_PRINT("debug_sync_exec",
+                       ("Out of memory when fetching signal set"));
+          }
+          else
+          {
+            /* Functions as DBUG_PRINT args can change keyword and line nr. */
+            DBUG_PRINT("debug_sync_exec",
+                       ("wait for '%s'  at: '%s', curr: '%s'",
+                        sig_wait, dsp_name, signal_set));
+            my_free((void *)signal_set);
+          }});
+
 
       /*
         Wait until global signal string matches the wait_for string.
