@@ -3936,5 +3936,14 @@ SELECT a, COUNT(*) FROM t1 WHERE a >= '2000-01-01 00:00:00' GROUP BY a;
 a	COUNT(*)
 DROP TABLE t1;
 #
+# MDEV-30525: Assertion `ranges > 0' fails in IO_AND_CPU_COST handler::keyread_time
+#
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT, KEY(a)) ENGINE=MyISAM;
+CREATE TABLE tm (a INT, KEY(a)) ENGINE=MRG_MyISAM UNION=(t1,t2);
+SELECT DISTINCT a FROM tm WHERE a > 50;
+a
+DROP TABLE tm, t1, t2;
+#
 # End of 11.0 tests
 #

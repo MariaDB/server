@@ -14049,6 +14049,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   else if (join->conds && join->conds->used_tables()
           & OUTER_REF_TABLE_BIT) // Cannot execute with correlated conditions.
     cause= "correlated conditions";
+  else if (table->stat_records() == 0)
+    cause= "Empty table"; // Exit now, records=0 messes up cost computations
 
   if (cause)
   {
