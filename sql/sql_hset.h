@@ -15,6 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+#include "my_global.h"
 #include "hash.h"
 
 
@@ -39,7 +40,7 @@ public:
 
   Hash_set(PSI_memory_key psi_key, CHARSET_INFO *charset, ulong default_array_elements,
            size_t key_offset, size_t key_length, my_hash_get_key get_key,
-           void (*free_element)(void*), uint flags)
+           void (*free_element)(void*),uint flags)
   {
     my_hash_init(psi_key, &m_hash, charset, default_array_elements, key_offset,
                  key_length, get_key, free_element, flags);
