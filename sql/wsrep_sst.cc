@@ -310,7 +310,8 @@ bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_before_SE()
 {
-  return (wsrep_provider != NULL
+  return (wsrep_provider
+          && *wsrep_provider
           && strcmp (wsrep_provider,   WSREP_NONE)
           && strcmp (wsrep_sst_method, WSREP_SST_SKIP)
           && strcmp (wsrep_sst_method, WSREP_SST_MYSQLDUMP));

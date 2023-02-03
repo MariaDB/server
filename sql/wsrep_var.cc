@@ -103,8 +103,8 @@ void wsrep_set_wsrep_on(THD* thd)
 {
   if (thd)
     thd->wsrep_was_on= WSREP_ON_;
-  WSREP_PROVIDER_EXISTS_= wsrep_provider &&
-    strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN);
+  WSREP_PROVIDER_EXISTS_= wsrep_provider && *wsrep_provider &&
+    strcasecmp(wsrep_provider, WSREP_NONE);
   WSREP_ON_= global_system_variables.wsrep_on && WSREP_PROVIDER_EXISTS_;
 }
 
@@ -114,10 +114,14 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
   {
     my_bool saved_wsrep_on= global_system_variables.wsrep_on;
 
-    thd->variables.wsrep_on= global_system_variables.wsrep_on;
+    thd->variables.wsrep_on= saved_wsrep_on;
 
     // If wsrep has not been inited we need to do it now
-    if (global_system_variables.wsrep_on && wsrep_provider && !wsrep_inited)
+    if (!wsrep_inited &&
+        saved_wsrep_on &&
+        wsrep_provider &&
+        *wsrep_provider &&
+        strcasecmp(wsrep_provider, WSREP_NONE))
     {
       // wsrep_init() rewrites provide if it fails
       char* tmp= strdup(wsrep_provider);

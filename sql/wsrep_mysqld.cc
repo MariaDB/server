@@ -867,8 +867,8 @@ int wsrep_init()
   wsrep_init_position();
   wsrep_sst_auth_init();
 
-  if (strlen(wsrep_provider)== 0 ||
-      !strcmp(wsrep_provider, WSREP_NONE))
+  if (!*wsrep_provider ||
+      !strcasecmp(wsrep_provider, WSREP_NONE))
   {
     // enable normal operation in case no provider is specified
     global_system_variables.wsrep_on= 0;
@@ -922,7 +922,7 @@ int wsrep_init()
 
   /* Now WSREP is fully initialized */
   global_system_variables.wsrep_on= 1;
-  WSREP_ON_= wsrep_provider && strcmp(wsrep_provider, WSREP_NONE);
+  WSREP_ON_= wsrep_provider && *wsrep_provider && strcasecmp(wsrep_provider, WSREP_NONE);
   wsrep_service_started= 1;
 
   wsrep_init_provider_status_variables();
@@ -991,7 +991,8 @@ void wsrep_init_startup (bool sst_first)
     wsrep_plugins_pre_init();
 
   /* Skip replication start if dummy wsrep provider is loaded */
-  if (!strcmp(wsrep_provider, WSREP_NONE)) return;
+  if (!wsrep_provider || !*wsrep_provider ||
+      !strcmp(wsrep_provider, WSREP_NONE)) return;
 
   /* Skip replication start if no cluster address */
   if (!wsrep_cluster_address_exists()) return;
