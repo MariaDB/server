@@ -1,0 +1,159 @@
+//! EXAMPLE ONLY: DO NOT USE IN PRODUCTION!
+
+#![allow(unused)]
+
+use std::cell::UnsafeCell;
+use std::ffi::c_void;
+use std::fmt::Write;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
+
+use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
+use mariadb::plugin::prelude::*;
+use mariadb::plugin::{
+    register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo, SysVarAtomic,
+};
+use mariadb::service_sql::{ClientError, MySqlConn};
+use mariadb::{debug, error, info, sysvar_atomic};
+
+const KEY_TABLE: &str = "mysql.clevis_keys";
+const SERVER_TABLE: &str = "mysql.clevis_servers";
+/// Max length a key can be, used for table size and buffer checking
+const KEY_MAX_BYTES: usize = 16;
+
+static TANG_SERVER: Mutex<String> = Mutex::new(String::new());
+
+struct KeyMgtClevis;
+
+/// Get the JWS body from a server
+fn fetch_jws() -> String {
+    // FIXME: error handling
+    let url = format!("https://{}", TANG_SERVER.lock().unwrap());
+    let body: String = ureq::get("http://example.com")
+        .call()
+        .expect(&format!("http request for '{}' failed", url))
+        .into_string()
+        .expect("http request larger than 10MB");
+    todo!();
+    body
+}
+
+fn make_new_key(conn: &MySqlConn) -> Result<String, ClientError> {
+    let server = TANG_SERVER.lock().unwrap();
+    format!(
+        "INSERT IGNORE INTO {KEY_TABLE} 
+        SET key_server = {server}
+        RETURNING jws"
+    );
+
+    // get the jws value
+    let jws: &str = todo!();
+
+    todo!()
+}
+
+impl Init for KeyMgtClevis {
+    /// Create needed tables
+    fn init() -> Result<(), InitError> {
+        debug!("init for KeyMgtClevis");
+
+        let conn = MySqlConn::connect_local().map_err(|_| InitError)?;
+        conn.execute(&format!(
+            "CREATE TABLE IF NOT EXISTS {KEY_TABLE} (
+                key_id INT UNSIGNED NOT NULL,
+                key_version INT UNSIGNED NOT NULL,
+                key_server VARBINARY(64) NOT NULL,
+                key VARBINARY((16) NOT NULL,
+                PRIMARY KEY (key_id, key_version)
+            ) ENGINE=InnoDB"
+        ))
+        .map_err(|_| InitError)?;
+        conn.execute(&format!(
+            "CREATE TABLE IF NOT EXISTS {SERVER_TABLE} (
+                server VARBINARY(64) NOT NULL PRIMARY KEY,
+                verify VARBINARY(2048)
+                enc VARBINARY(2048)
+            ) ENGINE=InnoDB"
+        ))
+        .map_err(|_| InitError)?;
+
+        debug!("finished init for KeyMgtClevis");
+        Ok(())
+    }
+
+    fn deinit() -> Result<(), InitError> {
+        debug!("deinit for KeyMgtClevis");
+        Ok(())
+    }
+}
+
+impl KeyManager for KeyMgtClevis {
+    fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
+        let conn = MySqlConn::connect_local().map_err(|_| KeyError::Other)?;
+        // Helper function to print a message with our enviornment
+        let p_err = |q: &str, conn: &MySqlConn| {
+            // FIXME: also print connection errors
+            error!("clevis: get_latest_key_version {key_id} - SQL error on {q} - ");
+            KeyError::Other
+        };
+
+        let mut q = format!("SELECT key_version FROM {KEY_TABLE} WHERE key_id = {key_id}");
+        let res = conn.query(&q).map_err(|_| p_err(&q, &conn))?;
+
+        // fuund! fetch result, parse to int
+        // if let Some(row) = todo!() {
+        if false {
+            return Ok(todo!());
+        }
+
+        // directly push format string
+        let key_version: u32 = 1;
+        write!(q, "AND key_version = {key_version} FOR UPDATE");
+        conn.execute("START TRANSACTION")
+            .map_err(|_| p_err("START TRANSACTION", &conn))?;
+        conn.query(&q).map_err(|_| p_err(&q, &conn))?;
+
+        let Ok(new_key) = make_new_key(&conn) else {
+            conn.execute("ROLLBACK").map_err(|_| p_err("ROLLBACK", &conn))?;
+            return todo!();
+        };
+
+        let q = format!(
+            r#"INSERT INTO {KEY_TABLE} VALUES (
+            {key_id}, {key_version}, "{server_name}", {new_key} )"#,
+            server_name = TANG_SERVER.lock().unwrap()
+        );
+        conn.execute(&q).map_err(|_| p_err(&q, &conn))?;
+
+        todo!()
+    }
+
+    fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> {
+        let conn = MySqlConn::connect_local().map_err(|_| KeyError::Other)?;
+        let q = format!(
+            "SELECT key FROM {KEY_TABLE} WHERE key_id = {key_id} AND key_version = {key_version}"
+        );
+        conn.query(&q).map_err(|_| KeyError::Other)?;
+        // TODO: generate key with server
+        let key: &[u8] = todo!();
+        dst[..key.len()].copy_from_slice(key);
+        Ok(())
+    }
+
+    fn key_length(_key_id: u32, _key_version: u32) -> Result<usize, KeyError> {
+        Ok(KEY_MAX_BYTES)
+    }
+}
+
+register_plugin! {
+    KeyMgtClevis,
+    ptype: PluginType::MariaEncryption,
+    name: "clevis_key_management",
+    author: "Trevor Gross",
+    description: "Clevis key management plugin",
+    license: License::Gpl,
+    maturity: Maturity::Experimental,
+    version: "0.1",
+    init: KeyMgtClevis,
+    encryption: false,
+}
