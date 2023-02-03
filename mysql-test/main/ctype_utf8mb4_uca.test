@@ -108,3 +108,32 @@ SET NAMES utf8mb4;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-30556 UPPER() returns an empty string for U+0251 in Unicode-5.2.0+ collations for utf8
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci /*Unicode-4.0 folding*/;
+--source include/ctype_casefolding.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_ci;
+--source include/ctype_casefolding.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_nopad_ci;
+--source include/ctype_casefolding.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_myanmar_ci;
+--source include/ctype_casefolding.inc
+
+SET NAMES utf8mb4 COLLATE utf8mb4_thai_520_w2;
+--source include/ctype_casefolding.inc
+
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
