@@ -120,7 +120,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 int sys_var_init();
 
 /* === xtrabackup specific options === */
-char xtrabackup_real_target_dir[FN_REFLEN] = "./xtrabackup_backupfiles/";
+char xtrabackup_real_target_dir[FN_REFLEN] = "./mariadb_backup_files/";
 char *xtrabackup_target_dir= xtrabackup_real_target_dir;
 static my_bool xtrabackup_version;
 static my_bool verbose;
@@ -217,7 +217,6 @@ my_bool opt_extended_validation;
 my_bool opt_encrypted_backup;
 
 /* === metadata of backup === */
-#define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
 char metadata_type[30] = ""; /*[full-backuped|log-applied|incremental]*/
 static lsn_t metadata_from_lsn;
 lsn_t metadata_to_lsn;
@@ -1129,8 +1128,8 @@ struct my_option xb_client_options[]= {
      (G_PTR *) &xtrabackup_log_copy_interval, 0, GET_LONG, REQUIRED_ARG, 1000,
      0, LONG_MAX, 0, 1, 0},
     {"extra-lsndir", OPT_XTRA_EXTRA_LSNDIR,
-     "(for --backup): save an extra copy of the xtrabackup_checkpoints file "
-     "in this directory.",
+     "(for --backup): save an extra copy of the " MB_METADATA_FILENAME
+     " file in this directory.",
      (G_PTR *) &xtrabackup_extra_lsndir, (G_PTR *) &xtrabackup_extra_lsndir, 0,
      GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
     {"incremental-lsn", OPT_XTRA_INCREMENTAL,
@@ -1244,7 +1243,7 @@ struct my_option xb_client_options[]= {
 
     {"galera-info", OPT_GALERA_INFO,
      "This options creates the "
-     "xtrabackup_galera_info file which contains the local node state at "
+     MB_GALERA_INFO " file which contains the local node state at "
      "the time of the backup. Option should be used when performing the "
      "backup of MariaDB Galera Cluster. Has no effect when backup locks "
      "are used to create the backup.",
@@ -1255,10 +1254,10 @@ struct my_option xb_client_options[]= {
      "This option is useful when backing "
      "up a replication slave server. It prints the binary log position "
      "and name of the master server. It also writes this information to "
-     "the \"xtrabackup_slave_info\" file as a \"CHANGE MASTER\" command. "
+     "the \"" MB_SLAVE_INFO "\" file as a \"CHANGE MASTER\" command. "
      "A new slave for this master can be set up by starting a slave server "
      "on this backup and issuing a \"CHANGE MASTER\" command with the "
-     "binary log position saved in the \"xtrabackup_slave_info\" file.",
+     "binary log position saved in the \"" MB_SLAVE_INFO "\" file.",
      (uchar *) &opt_slave_info, (uchar *) &opt_slave_info, 0, GET_BOOL, NO_ARG,
      0, 0, 0, 0, 0, 0},
 
@@ -2373,6 +2372,37 @@ end:
 	return(r);
 }
 
+
+/*
+Read backup meta info.
+@return TRUE on success, FALSE on failure. */
+static
+my_bool
+mb_read_metadata(const char *dir, const char *name)
+{
+	char	filename[FN_REFLEN];
+	snprintf(filename, sizeof(filename), "%s/%s", dir, name);
+	if (!xtrabackup_read_metadata(filename)) {
+		msg("mariabackup: error: failed to read metadata from "
+		    "%s", filename);
+		return false;
+	}
+	return true;
+}
+
+
+/*
+Read backup meta info from the given directory
+with backward compatibility. */
+static
+my_bool
+mb_read_metadata_from_dir(const char *dir)
+{
+	return mb_read_metadata(dir, MB_METADATA_FILENAME) ||
+		mb_read_metadata(dir, XTRABACKUP_METADATA_FILENAME);
+}
+
+
 /***********************************************************************
 Print backup meta info to a specified buffer. */
 static
@@ -2412,9 +2442,12 @@ xtrabackup_stream_metadata(ds_ctxt_t *ds_ctxt)
 	mystat.st_size = len;
 	mystat.st_mtime = my_time(0);
 
-	stream = ds_open(ds_ctxt, XTRABACKUP_METADATA_FILENAME, &mystat);
+	stream = ds_open(ds_ctxt, MB_METADATA_FILENAME, &mystat);
 	if (stream == NULL) {
-		msg("Error: cannot open output stream for %s", XTRABACKUP_METADATA_FILENAME);
+		stream = ds_open(ds_ctxt, XTRABACKUP_METADATA_FILENAME, &mystat);
+	}
+	if (stream == NULL) {
+		msg("Error: cannot open output stream for %s", MB_METADATA_FILENAME);
 		return(FALSE);
 	}
 
@@ -4451,14 +4484,14 @@ static bool xtrabackup_backup_low()
 		char	filename[FN_REFLEN];
 
 		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
-			XTRABACKUP_METADATA_FILENAME);
+			MB_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 			msg("Error: failed to write metadata "
 			    "to '%s'.", filename);
 			return false;
 		}
 		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
-			XTRABACKUP_INFO);
+			MB_INFO);
 		if (!write_xtrabackup_info(mysql_connection, filename, false, false)) {
 			msg("Error: failed to write info "
 			 "to '%s'.", filename);
@@ -5823,7 +5856,6 @@ static ibool prepare_handle_del_files(const char *datadir, const char *db, const
 static bool xtrabackup_prepare_func(char** argv)
 {
 	CorruptedPages corrupted_pages;
-	char			 metadata_path[FN_REFLEN];
 
 	/* cd to target-dir */
 
@@ -5874,12 +5906,7 @@ static bool xtrabackup_prepare_func(char** argv)
 	/*
 	  read metadata of target
 	*/
-	sprintf(metadata_path, "%s/%s", xtrabackup_target_dir,
-		XTRABACKUP_METADATA_FILENAME);
-
-	if (!xtrabackup_read_metadata(metadata_path)) {
-		msg("Error: failed to read metadata from '%s'\n",
-		    metadata_path);
+	if (!mb_read_metadata_from_dir(xtrabackup_target_dir)) {
 		return(false);
 	}
 
@@ -6038,14 +6065,14 @@ error:
 			metadata_last_lsn = incremental_last_lsn;
 		}
 
-		sprintf(filename, "%s/%s", xtrabackup_target_dir, XTRABACKUP_METADATA_FILENAME);
+		sprintf(filename, "%s/%s", xtrabackup_target_dir, MB_METADATA_FILENAME);
 		if (!xtrabackup_write_metadata(filename)) {
 
 			msg("mariabackup: Error: failed to write metadata "
 			    "to '%s'", filename);
 			ok = false;
 		} else if (xtrabackup_extra_lsndir) {
-			sprintf(filename, "%s/%s", xtrabackup_extra_lsndir, XTRABACKUP_METADATA_FILENAME);
+			sprintf(filename, "%s/%s", xtrabackup_extra_lsndir, MB_METADATA_FILENAME);
 			if (!xtrabackup_write_metadata(filename)) {
 				msg("mariabackup: Error: failed to write "
 				    "metadata to '%s'", filename);
@@ -6802,26 +6829,14 @@ static int main_low(char** argv)
 			return(EXIT_FAILURE);
 		}
 	} else if (xtrabackup_backup && xtrabackup_incremental_basedir) {
-		char	filename[FN_REFLEN];
-
-		sprintf(filename, "%s/%s", xtrabackup_incremental_basedir, XTRABACKUP_METADATA_FILENAME);
-
-		if (!xtrabackup_read_metadata(filename)) {
-			msg("mariabackup: error: failed to read metadata from "
-			    "%s", filename);
+		if (!mb_read_metadata_from_dir(xtrabackup_incremental_basedir)) {
 			return(EXIT_FAILURE);
 		}
 
 		incremental_lsn = metadata_to_lsn;
 		xtrabackup_incremental = xtrabackup_incremental_basedir; //dummy
 	} else if (xtrabackup_prepare && xtrabackup_incremental_dir) {
-		char	filename[FN_REFLEN];
-
-		sprintf(filename, "%s/%s", xtrabackup_incremental_dir, XTRABACKUP_METADATA_FILENAME);
-
-		if (!xtrabackup_read_metadata(filename)) {
-			msg("mariabackup: error: failed to read metadata from "
-			    "%s", filename);
+		if (!mb_read_metadata_from_dir(xtrabackup_incremental_dir)) {
 			return(EXIT_FAILURE);
 		}
 

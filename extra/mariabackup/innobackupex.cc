@@ -242,7 +242,7 @@ static struct my_option ibx_long_options[] =
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"galera-info", OPT_GALERA_INFO, "This options creates the "
-	 "xtrabackup_galera_info file which contains the local node state at "
+	 MB_GALERA_INFO " file which contains the local node state at "
 	 "the time of the backup. Option should be used when performing the "
 	 "backup of MariaDB Galera Cluster. Has no effect when backup locks "
 	 "are used to create the backup.",
@@ -252,10 +252,10 @@ static struct my_option ibx_long_options[] =
 	{"slave-info", OPT_SLAVE_INFO, "This option is useful when backing "
 	 "up a replication slave server. It prints the binary log position "
 	 "and name of the master server. It also writes this information to "
-	 "the \"xtrabackup_slave_info\" file as a \"CHANGE MASTER\" command. "
+	 "the \"" MB_SLAVE_INFO "\" file as a \"CHANGE MASTER\" command. "
 	 "A new slave for this master can be set up by starting a slave server "
 	 "on this backup and issuing a \"CHANGE MASTER\" command with the "
-	 "binary log position saved in the \"xtrabackup_slave_info\" file.",
+	 "binary log position saved in the \"" MB_SLAVE_INFO "\" file.",
 	 (uchar *) &opt_ibx_slave_info, (uchar *) &opt_ibx_slave_info, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
@@ -518,7 +518,7 @@ static struct my_option ibx_long_options[] =
 
 	{"extra-lsndir", OPT_EXTRA_LSNDIR, "This option specifies the "
 	 "directory in which to save an extra copy of the "
-	 "\"xtrabackup_checkpoints\" file. The option accepts a string "
+	 "\"" MB_METADATA_FILENAME "\" file. The option accepts a string "
 	 "argument.",
 	 (uchar*) &ibx_xtrabackup_extra_lsndir,
 	 (uchar*) &ibx_xtrabackup_extra_lsndir,

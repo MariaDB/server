@@ -53,9 +53,10 @@ permission notice:
 
 /*! Name of file where Galera info is stored on recovery */
 #define XB_GALERA_INFO_FILENAME "xtrabackup_galera_info"
+#define MB_GALERA_INFO_FILENAME "mariadb_backup_galera_info"
 
 /***********************************************************************
-Store Galera checkpoint info in the 'xtrabackup_galera_info' file, if that
+Store Galera checkpoint info in the MB_GALERA_INFO_FILENAME file, if that
 information is present in the trx system header. Otherwise, do nothing. */
 void
 xb_write_galera_info(bool incremental_prepare)
@@ -70,7 +71,8 @@ xb_write_galera_info(bool incremental_prepare)
 	/* Do not overwrite existing an existing file to be compatible with
 	servers with older server versions */
 	if (!incremental_prepare &&
-		my_stat(XB_GALERA_INFO_FILENAME, &statinfo, MYF(0)) != NULL) {
+		(my_stat(XB_GALERA_INFO_FILENAME, &statinfo, MYF(0)) != NULL ||
+		 my_stat(MB_GALERA_INFO_FILENAME, &statinfo, MYF(0)) != NULL)) {
 
 		return;
 	}
@@ -89,11 +91,11 @@ xb_write_galera_info(bool incremental_prepare)
 		return;
 	}
 
-	fp = fopen(XB_GALERA_INFO_FILENAME, "w");
+	fp = fopen(MB_GALERA_INFO_FILENAME, "w");
 	if (fp == NULL) {
 
 		die(
-		    "could not create " XB_GALERA_INFO_FILENAME
+		    "could not create " MB_GALERA_INFO_FILENAME
 		    ", errno = %d\n",
 		    errno);
 		exit(EXIT_FAILURE);
@@ -107,7 +109,7 @@ xb_write_galera_info(bool incremental_prepare)
 	if (fprintf(fp, "%s:%lld", uuid_str, (long long) seqno) < 0) {
 
 		die(
-		    "could not write to " XB_GALERA_INFO_FILENAME
+		    "could not write to " MB_GALERA_INFO_FILENAME
 		    ", errno = %d\n",
 		    errno);;
 	}

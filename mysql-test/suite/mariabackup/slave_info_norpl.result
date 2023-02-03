@@ -8,7 +8,7 @@ SELECT @@global.gtid_slave_pos;
 @@global.gtid_slave_pos
 
 
-# Without any masters the file xtrabackup_slave_info is not created
+# Without any masters the file mariadb_backup_slave_info is not created
 line
 [00] YYYY-MM-DD hh:mm:ss Failed to get master binlog coordinates from SHOW SLAVE STATUS.This means that the server is not a replication slave. Ignoring the --slave-info option
 

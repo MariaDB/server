@@ -6,11 +6,19 @@
 #include <mysql.h>
 #include "datasink.h"
 
-/* special files */
+/* special files, backward compatibility */
 #define XTRABACKUP_SLAVE_INFO "xtrabackup_slave_info"
 #define XTRABACKUP_GALERA_INFO "xtrabackup_galera_info"
 #define XTRABACKUP_BINLOG_INFO "xtrabackup_binlog_info"
 #define XTRABACKUP_INFO "xtrabackup_info"
+#define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
+
+/* special files */
+#define MB_SLAVE_INFO        "mariadb_backup_slave_info"
+#define MB_GALERA_INFO       "mariadb_backup_galera_info"
+#define MB_BINLOG_INFO       "mariadb_backup_binlog_info"
+#define MB_INFO              "mariadb_backup_info"
+#define MB_METADATA_FILENAME "mariadb_backup_checkpoints"
 
 extern bool binlog_locked;
 

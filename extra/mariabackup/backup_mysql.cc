@@ -1339,7 +1339,7 @@ write_slave_info(MYSQL *connection)
   }
 
   mysql_slave_position= strdup(comment.c_ptr());
-  return backup_file_print_buf(XTRABACKUP_SLAVE_INFO, sql.ptr(), sql.length());
+  return backup_file_print_buf(MB_SLAVE_INFO, sql.ptr(), sql.length());
 }
 
 
@@ -1362,7 +1362,7 @@ write_galera_info(MYSQL *connection)
 	};
 
 	/* When backup locks are supported by the server, we should skip
-	creating xtrabackup_galera_info file on the backup stage, because
+	creating MB_GALERA_INFO file on the backup stage, because
 	wsrep_local_state_uuid and wsrep_last_committed will be inconsistent
 	without blocking commits. The state file will be created on the prepare
 	stage using the WSREP recovery procedure. */
@@ -1379,7 +1379,7 @@ write_galera_info(MYSQL *connection)
 		goto cleanup;
 	}
 
-	result = backup_file_printf(XTRABACKUP_GALERA_INFO,
+	result = backup_file_printf(MB_GALERA_INFO,
 		"%s:%s\n", state_uuid ? state_uuid : state_uuid55,
 			last_committed ? last_committed : last_committed55);
 	if (result)
@@ -1513,7 +1513,7 @@ write_binlog_info(MYSQL *connection)
 	read_mysql_variables(connection, "SHOW VARIABLES", vars, true);
 
 	if (filename == NULL || position == NULL) {
-		/* Do not create xtrabackup_binlog_info if binary
+		/* Do not create MB_BINLOG_INFO if binary
 		log is disabled */
 		result = true;
 		goto cleanup;
@@ -1529,14 +1529,14 @@ write_binlog_info(MYSQL *connection)
 			"filename '%s', position '%s', "
 			"GTID of the last change '%s'",
 			filename, position, gtid) != -1);
-		result = backup_file_printf(XTRABACKUP_BINLOG_INFO,
+		result = backup_file_printf(MB_BINLOG_INFO,
 					    "%s\t%s\t%s\n", filename, position,
 					    gtid);
 	} else {
 		ut_a(asprintf(&mysql_binlog_position,
 			"filename '%s', position '%s'",
 			filename, position) != -1);
-		result = backup_file_printf(XTRABACKUP_BINLOG_INFO,
+		result = backup_file_printf(MB_BINLOG_INFO,
 					    "%s\t%s\n", filename, position);
 	}
 
@@ -1571,7 +1571,7 @@ operator<<(std::ostream& s, const escape_and_quote& eq)
 }
 
 /*********************************************************************//**
-Writes xtrabackup_info file and if backup_history is enable creates
+Writes MB_INFO file and if backup_history is enable creates
 mysql.mariabackup_history and writes a new history record to the
 table containing all the history info particular to the just completed
 backup. */
@@ -1647,7 +1647,7 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
 		xtrabackup_compress ? "compressed" : "N"); /* compressed */
 	if (buf_len < 0) {
-		msg("Error: cannot generate xtrabackup_info");
+		msg("Error: cannot generate " MB_INFO);
 		result = false;
 		goto cleanup;
 	}

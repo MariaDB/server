@@ -11,8 +11,8 @@ connection master;
 CREATE TABLE t(i INT);
 connection slave;
 "using_gtid: Slave_Pos"
-FOUND 1 /gtid_slave_pos/ in xtrabackup_slave_info
-NOT FOUND /MASTER_LOG_FILE/ in xtrabackup_slave_info
+FOUND 1 /gtid_slave_pos/ in mariadb_backup_slave_info
+NOT FOUND /MASTER_LOG_FILE/ in mariadb_backup_slave_info
 lineno	line
 1	SET GLOBAL gtid_slave_pos = '<NUM-NUM-NUM>';
 2	CHANGE MASTER TO master_use_gtid = slave_pos;
@@ -21,8 +21,8 @@ lineno	line
 ########################
 include/stop_slave.inc
 SET GLOBAL gtid_slave_pos="";
-NOT FOUND /gtid_slave_pos/ in xtrabackup_slave_info
-FOUND 1 /MASTER_LOG_FILE/ in xtrabackup_slave_info
+NOT FOUND /gtid_slave_pos/ in mariadb_backup_slave_info
+FOUND 1 /MASTER_LOG_FILE/ in mariadb_backup_slave_info
 lineno	line
 1	CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=<NUM>;
 ###############
@@ -34,8 +34,8 @@ connection master;
 INSERT INTO t VALUES(1);
 connection slave;
 "using_gtid: No"
-NOT FOUND /gtid_slave_pos/ in xtrabackup_slave_info
-FOUND 1 /MASTER_LOG_FILE/ in xtrabackup_slave_info
+NOT FOUND /gtid_slave_pos/ in mariadb_backup_slave_info
+FOUND 1 /MASTER_LOG_FILE/ in mariadb_backup_slave_info
 lineno	line
 1	CHANGE MASTER TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=<NUM>;
 connection master;
