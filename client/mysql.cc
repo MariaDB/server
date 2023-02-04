@@ -5357,6 +5357,7 @@ static void init_username()
     full_username=my_strdup(cur[0],MYF(MY_WME));
     part_username=my_strdup(strtok(cur[0],"@"),MYF(MY_WME));
     (void) mysql_fetch_row(result);		// Read eof
+    mysql_free_result(result);
   }
 }
 
