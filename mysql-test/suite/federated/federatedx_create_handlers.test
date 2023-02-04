@@ -375,17 +375,48 @@ SELECT * FROM t10 LEFT JOIN
     WHERE id=2) dt2) dt
   ) ON t10.a=t11.a;
 
+DROP TABLES federated.t1, federated.t2, federated.t3, federated.t10,
+   federated.t11;
+connection slave;
+DROP TABLES federated.t1, federated.t2, federated.t3, federated.t10,
+   federated.t11;
+
 --echo # MDEV-25080: Allow pushdown of queries involving UNIONs
 --echo #   in outer select to foreign engines
 --echo #
 
-connection master;
+connection slave;
 
-TRUNCATE TABLE federated.t1;
-TRUNCATE TABLE federated.t2;
+CREATE TABLE federated.t1 (
+  a varchar(10)
+)
+DEFAULT CHARSET=latin1;
+
+CREATE TABLE federated.t2 (
+  a varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
 
 INSERT INTO federated.t1 VALUES ('abc'), ('bcd'), ('cde');
 INSERT INTO federated.t2 VALUES ('abc'), ('bcd'), ('cde'), ('def'), ('efg');
+
+connection master;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (
+  a varchar(10)
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t2 (
+  a varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t2';
 
 CREATE TABLE t3 (a varchar(30)) ENGINE=MyISAM;
 CREATE TABLE t4 (a varchar(30)) ENGINE=MyISAM;
@@ -467,7 +498,6 @@ EXPLAIN
 --echo # at the server side
 
 --disable_warnings
-
 SELECT count(*) FROM federated.t1 UNION
   SELECT count(*) FROM federated.t1 EXCEPT
   SELECT count(*)+1 FROM federated.t1
@@ -482,7 +512,6 @@ EXPLAIN FORMAT=JSON SELECT count(*) FROM federated.t1 UNION
   SELECT count(*) FROM federated.t2 EXCEPT
   SELECT count(*)+2 FROM federated.t2
   INTO @var;
-
 --enable_warnings
 
 --echo # Prepared statements
@@ -549,6 +578,7 @@ EXPLAIN (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2)
   
 --echo # Union of tables containing different INT data types
 connection slave;
+
 CREATE TABLE federated.t11 (a smallint(6) NOT NULL);
 INSERT INTO federated.t11 VALUES (-32678), (-1), (0);
 
@@ -625,10 +655,25 @@ SELECT * FROM federated.t13 UNION
   SELECT '123456789000' UNION
   SELECT * FROM federated.t14;
 
+--echo # CREATE TABLE .. AS from a pushed UNION
+CREATE TABLE t5 AS SELECT * FROM federated.t13 UNION
+  SELECT * FROM federated.t14;
+SHOW CREATE TABLE t5;
+--sorted_result
+SELECT * FROM t5;
+
+CREATE TABLE t6 AS SELECT a FROM federated.t12 EXCEPT
+  SELECT 1 UNION ALL
+  SELECT a FROM federated.t11 EXCEPT
+  SELECT 0;
+SHOW CREATE TABLE t6;
+--sorted_result
+SELECT * FROM t6;
+
 # Cleanup
 connection master;
-DROP TABLES federated.t1, federated.t2, t3, t4, federated.t11, federated.t12,
-  federated.t13, federated.t14;
+DROP TABLES federated.t1, federated.t2, t3, t4, t5, t6, federated.t11,
+  federated.t12, federated.t13, federated.t14;
 
 connection slave;
 DROP TABLES federated.t1, federated.t2, federated.t11, federated.t12,

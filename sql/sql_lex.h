@@ -1056,6 +1056,7 @@ public:
 private:
   bool exec_inner();
   bool is_derived_eliminated() const;
+  bool set_direct_union_result(select_result *sel_result);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
