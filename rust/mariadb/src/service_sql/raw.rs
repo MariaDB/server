@@ -2,7 +2,7 @@
 //!
 //! RawConnection comes almost directly from the `diesel` client crate, since
 //! they have that all figured out pretty well. Reference:
-//! https://github.com/diesel-rs/diesel/blob/88129db2fbed49d3ecd41bafff2a5932f1621c2c/diesel/src/mysql/connection/raw.rs#L223
+//! <https://github.com/diesel-rs/diesel/blob/88129db2fbed49d3ecd41bafff2a5932f1621c2c/diesel/src/mysql/connection/raw.rs>
 
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
@@ -22,14 +22,19 @@ pub trait RState {}
 impl RState for Fetch {}
 impl RState for Store {}
 
+/// 
 pub struct RawConnection(NonNull<bindings::MYSQL>);
+
+/// Re
 pub struct RawResult<S: RState>(NonNull<bindings::MYSQL_RES>, PhantomData<S>);
 
+/// Representation of a single row, as part of a SQL query
 pub struct Row<'a, S: RState> {
     inner: bindings::MYSQL_ROW,
     res: &'a RawResult<S>,
 }
 
+/// Options for connecting to a remote SQL server
 pub struct ConnOpts {
     host: Option<CString>,
     database: Option<CString>,
@@ -64,6 +69,7 @@ impl RawConnection {
         result
     }
 
+    /// Connect to the local SQL server
     pub(super) fn connect_local(&self) -> Result<(), ClientError> {
         let res = unsafe {
             (*GLOBAL_SQL_SERVICE).mysql_real_connect_local_func.unwrap()(self.0.as_ptr())
@@ -75,6 +81,7 @@ impl RawConnection {
         }
     }
 
+    /// Connect to a remote server
     pub(super) fn connect(&self, conn_opts: &ConnOpts) -> Result<(), ClientError> {
         let host = conn_opts.host.as_ref();
         let user = conn_opts.user.as_ref();
