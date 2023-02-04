@@ -231,15 +231,12 @@ SHOW VARIABLES LIKE 'DEBUG_SYNC';
 #       immediately after setting of the DEBUG_SYNC variable.
 #       So it is executed before the SET statement ends.
 #
-# NOTE: There is only one global signal (say "signal post" or "flag mast").
-#       A SIGNAL action writes its signal into it ("sets a flag").
-#       The signal persists until explicitly overwritten.
+# NOTE: There can be multiple active signals at the same time.
+#       A SIGNAL action appends its signal into signals set.
+#       The signal persists until waited on.
 #       To avoid confusion for later tests, it is recommended to clear
-#       the signal by signalling "empty" ("setting the 'empty' flag"):
-#       SET DEBUG_SYNC= 'now SIGNAL empty';
-#       Preferably you can reset the whole facility with:
+#       the signal set by running
 #       SET DEBUG_SYNC= 'RESET';
-#       The signal is then '' (really empty) which connot be done otherwise.
 #
 
 #
