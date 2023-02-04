@@ -1,4 +1,5 @@
-// FIXME: Doesn't yet verify plugin type is Encryption
+//!
+
 #![allow(unused)]
 
 use proc_macro::TokenStream;
@@ -171,22 +172,26 @@ impl PluginInfo {
         let name = expect_litstr(&self.name)?;
         let plugin_st_name = Ident::new(&format!("_ST_PLUGIN_{}", name.value()), Span::call_site());
 
-        let ty_as_wkeymgt = quote! {<#type_ as ::mariadb::plugin::encryption_wrapper::WrapKeyMgr>};
-        let ty_as_wenc = quote! {<#type_ as ::mariadb::plugin::encryption_wrapper::WrapEncryption>};
-        let interface_version =
-            quote! {::mariadb::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as ::std::ffi::c_int};
-        let get_key_vers = quote! {Some(#ty_as_wkeymgt::wrap_get_latest_key_version)};
-        let get_key = quote! {Some(#ty_as_wkeymgt::wrap_get_key)};
+        let ty_as_wkeymgt =
+            quote! { <#type_ as ::mariadb::plugin::encryption_wrapper::WrapKeyMgr> };
+        let ty_as_wenc =
+            quote! { <#type_ as ::mariadb::plugin::encryption_wrapper::WrapEncryption> };
+        let interface_version = quote! { ::mariadb::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as ::std::ffi::c_int };
+        let get_key_vers = quote! { Some(#ty_as_wkeymgt::wrap_get_latest_key_version) };
+        let get_key = quote! { Some(#ty_as_wkeymgt::wrap_get_key) };
 
         let (crypt_size, crypt_init, crypt_update, crypt_finish, crypt_len);
+
         if expect_bool(&self.encryption)? {
-            crypt_size = quote! {Some(#ty_as_wenc::wrap_crypt_ctx_size)};
-            crypt_init = quote! {Some(#ty_as_wenc::wrap_crypt_ctx_init)};
-            crypt_update = quote! {Some(#ty_as_wenc::wrap_crypt_ctx_update)};
-            crypt_finish = quote! {Some(#ty_as_wenc::wrap_crypt_ctx_finish)};
-            crypt_len = quote! {Some(#ty_as_wenc::wrap_encrypted_length)};
+            // Use encryption if given
+            crypt_size = quote! { Some(#ty_as_wenc::wrap_crypt_ctx_size) };
+            crypt_init = quote! { Some(#ty_as_wenc::wrap_crypt_ctx_init) };
+            crypt_update = quote! { Some(#ty_as_wenc::wrap_crypt_ctx_update) };
+            crypt_finish = quote! { Some(#ty_as_wenc::wrap_crypt_ctx_finish) };
+            crypt_len = quote! { Some(#ty_as_wenc::wrap_encrypted_length) };
         } else {
-            let none = quote! {None};
+            // Default to builtin encryption
+            let none = quote! { None };
             (
                 crypt_size,
                 crypt_init,
@@ -226,10 +231,10 @@ impl PluginInfo {
         let (fn_init, fn_deinit);
         if let Some(init_ty) = self.init {
             let ty_as_init = quote! {<#init_ty as ::mariadb::plugin::wrapper::WrapInit>};
-            fn_init = quote! {Some(#ty_as_init::wrap_init)};
-            fn_deinit = quote! {Some(#ty_as_init::wrap_deinit)};
+            fn_init = quote! { Some(#ty_as_init::wrap_init) };
+            fn_deinit = quote! { Some(#ty_as_init::wrap_deinit) };
         } else {
-            let none = quote! {None};
+            let none = quote! { None };
             (fn_init, fn_deinit) = (none.clone(), none);
         }
 
@@ -237,16 +242,16 @@ impl PluginInfo {
             ::mariadb::bindings::st_maria_plugin {
                 type_: #ptype.to_ptype_registration(),
                 info: #plugin_st_name.as_ptr().cast_mut().cast(),
-                name: mariadb::cstr::cstr!(#name).as_ptr(),
-                author: mariadb::cstr::cstr!(#author).as_ptr(),
-                descr: mariadb::cstr::cstr!(#description).as_ptr(),
+                name: ::mariadb::cstr::cstr!(#name).as_ptr(),
+                author: ::mariadb::cstr::cstr!(#author).as_ptr(),
+                descr: ::mariadb::cstr::cstr!(#description).as_ptr(),
                 license: #license.to_license_registration(),
                 init: #fn_init,
                 deinit: #fn_deinit,
                 version: #version as ::std::ffi::c_uint,
                 status_vars: ::std::ptr::null_mut(),
                 system_vars: ::std::ptr::null_mut(),
-                version_info: mariadb::cstr::cstr!("0.1").as_ptr(),
+                version_info: ::mariadb::cstr::cstr!("0.1").as_ptr(),
                 maturity: #maturity.to_maturity_registration(),
             },
         };
@@ -371,13 +376,14 @@ fn expect_bool(field_opt: &Option<Expr>) -> syn::Result<bool> {
     }
 }
 
+/// Expect a literal string, error if that's not the case
 fn expect_litstr(field_opt: &Option<Expr>) -> syn::Result<&LitStr> {
     let field = field_opt.as_ref().unwrap();
-    let Expr::Lit(lit) = field else {
+    let Expr::Lit(lit) = field else { // got non-literal
         let msg = "expected literal expression for this field";
         return Err(Error::new_spanned(field, msg));
     };
-    let Lit::Str(litstr) = &lit.lit else {
+    let Lit::Str(litstr) = &lit.lit else { // got literal that wasn't a string
         let msg = "only literal strings are allowed for this field";
         return Err(Error::new_spanned(field, msg));
     };
@@ -385,7 +391,8 @@ fn expect_litstr(field_opt: &Option<Expr>) -> syn::Result<&LitStr> {
     Ok(litstr)
 }
 
-/// Convert a string likx "1.2" to a hex like "0x0102"
+/// Convert a string like "1.2" to a hex like "0x0102". Error if no decimal, or
+/// if either value exceeds a u8.
 fn version_int(s: &str) -> Result<u16, String> {
     const USAGE_MSG: &str = r#"expected a two position semvar string, e.g. "1.2""#;
     if s.chars().filter(|x| *x == '.').count() != 1 {

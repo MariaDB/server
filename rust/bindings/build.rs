@@ -5,7 +5,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks};
+use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks, DeriveInfo};
 use bindgen::EnumVariation;
 
 // `math.h` seems to double define some things, To avoid this, we ignore them.
@@ -32,6 +32,8 @@ const IGNORE_MACROS: [&str; 20] = [
     "IPPORT_RESERVED",
 ];
 
+const DERIVE_COPY_NAMES: [&str; 1] = ["enum_field_types"];
+
 #[derive(Debug)]
 struct BuildCallbacks(HashSet<String>);
 
@@ -48,6 +50,14 @@ impl ParseCallbacks for BuildCallbacks {
     /// Use a converter to turn doxygen comments into rustdoc
     fn process_comment(&self, comment: &str) -> Option<String> {
         Some(doxygen_rs::transform(comment))
+    }
+
+    fn add_derives(&self, _info: &DeriveInfo<'_>) -> Vec<String> {
+        if DERIVE_COPY_NAMES.contains(&_info.name) {
+            vec!["Copy".to_owned()]
+        } else {
+            vec![]
+        }
     }
 }
 

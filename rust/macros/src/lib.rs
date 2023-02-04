@@ -11,6 +11,8 @@ mod register_plugin;
 use proc_macro::TokenStream;
 
 /// Macro to use to register a plugin
+///
+/// See the `plugin` module in the main `mariadb` crate for examples.
 #[proc_macro]
 pub fn register_plugin(item: TokenStream) -> TokenStream {
     register_plugin::entry(item)

@@ -7,6 +7,8 @@ pub const ENCRYPTION_KEY_VERSION_INVALID: c_uint = !0;
 
 // We hand write these stucts because the definition is tricky, not all fields are
 // always present
+
+/// A basic system variable
 #[repr(C)]
 #[derive(Debug)]
 pub struct st_mysql_sys_var_basic<T> {

@@ -1,9 +1,14 @@
+//! "show variables" and "system variables"
+//! 
+//! 
+
 use std::mem::ManuallyDrop;
 use std::ptr;
 
 use bindings::st_mysql_sys_var_basic;
 use mariadb_sys as bindings;
 
+/// Basicallly, a system variable will 
 #[repr(C)]
 union SysVar<T> {
     basic: ManuallyDrop<bindings::st_mysql_sys_var_basic<T>>,

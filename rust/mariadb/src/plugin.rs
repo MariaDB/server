@@ -1,6 +1,40 @@
-//! Parent module for all plugin types
-
-// use std::cell::UnsafeCell;
+//! Module for everything relevant to plugins
+//!
+//! Usage:
+//!
+//! ```
+//! use mariadb::plugin::prelude::*;
+//!
+//! // May be empty or not
+//! struct ExampleKeyManager;
+//!
+//! impl KeyManager for ExampleKeyManager {
+//!     // ...
+//!     # fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> { todo!() }
+//!     # fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> { todo!() }
+//!     # fn key_length(_key_id: u32, _key_version: u32) -> Result<usize, KeyError> { todo!() }
+//! }
+//!
+//! impl Init for ExampleKeyManager {
+//!     // ...
+//!     # fn init() -> Result<(), InitError> { todo!() }
+//!     # fn deinit() -> Result<(), InitError> { todo!() }
+//! }
+//!
+//! register_plugin! {
+//!     ExampleKeyManager,                           // Name of the struct implementing KeyManager
+//!     ptype: PluginType::MariaEncryption,          // plugin type; only encryption supported for now
+//!     name: "name_as_sql_server_sees_it",          // loadable plugin name
+//!     author: "Author Name",                       // author's name
+//!     description: "Sample key managment plugin",  // give a description
+//!     license: License::Gpl,                       // select a license type
+//!     maturity: Maturity::Experimental,            // indicate license maturity
+//!     version: "0.1",                              // provide an "a.b" version
+//!     init: ExampleKeyManager                      // optional: struct implementing Init if needed
+//!     encryption: false,                           // false to use default encryption, true if your
+//!                                                  // struct implements 'Encryption'
+//! }
+//! ```
 
 use std::ffi::{c_int, c_uint};
 
@@ -88,6 +122,7 @@ impl Maturity {
     }
 }
 
+/// Indicate that an error occured during initialization or deinitialization
 pub struct InitError;
 
 /// Implement this trait if your plugin requires init or deinit functions

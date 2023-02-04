@@ -15,58 +15,49 @@ use bindings::sql_service as GLOBAL_SQL_SERVICE;
 use raw::RawConnection;
 
 pub use self::error::ClientError;
+use self::raw::{ClientResult, FetchedRow, RState, RawResult};
 pub use self::raw::{Fetch, Store};
-use self::raw::{RState, RawResult,Row};
 use crate::bindings;
 use crate::plugin::wrapper::UnsafeSyncCell;
 
+/// A connection to a local or remote SQL server
 pub struct MySqlConn(RawConnection);
-
-/// Need to noodle on this for a bit. I think it makes sense that we have a `&`
-/// reference to the creating `MySqlConn`, since that means the connection won't
-/// be dropped too early, and can't be changed.
-pub struct QueryResult<'a, S: RState> {
-    res: RawResult<S>,
-    conn: &'a MySqlConn,
-}
-
-
 
 impl MySqlConn {
     /// Connect to the local server
-    pub fn connect_local() -> Result<Self, ClientError> {
-        let conn = RawConnection::new();
+    pub fn connect_local() -> ClientResult<Self> {
+        let mut conn = RawConnection::new();
         conn.connect_local()?;
         Ok(Self(conn))
     }
 
     /// Run a query and discard the results
-    pub fn execute<'a>(&'a self, q: &str) -> Result<(), ClientError> {
-        self.0.real_query(q)?;
+    pub fn execute<'a>(&'a mut self, q: &str) -> ClientResult<()> {
+        self.0.query(q)?;
         Ok(())
     }
+
     /// Run a query for lazily loaded results
-    pub fn query<'a>(&'a self, q: &str) -> Result<QueryResult<'a, Fetch>, ClientError> {
-        self.0.real_query(q)?;
-        let res = self.0.fetch_result()?;
-        Ok(QueryResult { res, conn: &self })
+    pub fn query<'a>(&'a mut self, q: &str) -> ClientResult<FetchedRows<'a>> {
+        self.0.query(q)?;
+        let res = self.0.prep_fetch_result()?;
+        // let cols =
+        Ok(FetchedRows(res))
     }
 }
 
+/// Representation of returned rows from a query
+pub struct FetchedRows<'a>(RawResult<'a, Fetch>);
 
-impl<'a> QueryResult<'a, Fetch> {
-    /// Return an iterator over this result's rows
-    pub fn rows(self) -> RowsIter<'a> {
-        todo!()
+impl<'a> FetchedRows<'a> {
+    pub fn next(&mut self) -> Option<FetchedRow> {
+        self.0.fetch_next_row()
     }
 }
 
-pub struct RowsIter<'a> (QueryResult<'a, Fetch>);
-
-// impl<'a> Iterator for RowsIter<'a> {
-//     type Item = Row<'a, Fetch>;
-
-//     fn next(&'a mut self) -> Option<Self::Item> {
-//         self.0.res.fetch_row()
-//     }
-// }
+impl Drop for FetchedRows<'_> {
+    /// Consume the rest of the rows
+    fn drop(&mut self) {
+        while let Some(_) = self.next() {}
+    }
+}

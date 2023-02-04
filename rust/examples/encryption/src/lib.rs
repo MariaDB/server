@@ -167,16 +167,3 @@ register_plugin! {
     init: RustEncryption, // optional
     encryption: true,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn print_statics() {
-        unsafe { dbg!(&*(_ENCRYPTION_ST.as_ptr())) };
-        dbg!(&_maria_plugin_interface_version_);
-        dbg!(&_maria_sizeof_struct_st_plugin_);
-        unsafe { dbg!(&_maria_plugin_declarations_) };
-    }
-}
