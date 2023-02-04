@@ -8,6 +8,6 @@ members = [
     "macros",
     "examples/keymgt-basic",
     "examples/keymgt-debug",
-    "examples/keymgt-clevis",
-    "examples/encryption"
+    "examples/encryption",
+    "plugins/keymgt-clevis",
 ]
