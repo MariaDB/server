@@ -13,7 +13,7 @@ use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
     register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo, SysVarAtomic,
 };
-use mariadb::service_sql::{ClientError, MySqlConn};
+use mariadb::service_sql::{ClientError, Fetch, FetchedRows, MySqlConn};
 use mariadb::{debug, error, info, sysvar_atomic};
 
 const KEY_TABLE: &str = "mysql.clevis_keys";
@@ -57,7 +57,7 @@ impl Init for KeyMgtClevis {
     fn init() -> Result<(), InitError> {
         debug!("init for KeyMgtClevis");
 
-        let conn = MySqlConn::connect_local().map_err(|_| InitError)?;
+        let mut conn = MySqlConn::connect_local().map_err(|_| InitError)?;
         conn.execute(&format!(
             "CREATE TABLE IF NOT EXISTS {KEY_TABLE} (
                 key_id INT UNSIGNED NOT NULL,
@@ -87,18 +87,31 @@ impl Init for KeyMgtClevis {
     }
 }
 
+/// Execute a query, printing an error and returning KeyError if needed. No result
+fn run_execute(conn: &mut MySqlConn, q: &str, key_id: u32) -> Result<(), KeyError> {
+    conn.execute(q).map_err(|e| {
+        error!("clevis: get_latest_key_version {key_id} - SQL error on {q} - {e}");
+        KeyError::Other
+    })
+}
+
+/// Execute a query, printing an error, return the result
+fn run_query<'a>(
+    conn: &'a mut MySqlConn,
+    q: &str,
+    key_id: u32,
+) -> Result<FetchedRows<'a>, KeyError> {
+    conn.query(q).map_err(|e| {
+        error!("clevis: get_latest_key_version {key_id} - SQL error on {q} - {e}");
+        KeyError::Other
+    })
+}
+
 impl KeyManager for KeyMgtClevis {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
-        let conn = MySqlConn::connect_local().map_err(|_| KeyError::Other)?;
-        // Helper function to print a message with our enviornment
-        let p_err = |q: &str, conn: &MySqlConn| {
-            // FIXME: also print connection errors
-            error!("clevis: get_latest_key_version {key_id} - SQL error on {q} - ");
-            KeyError::Other
-        };
-
+        let mut conn = MySqlConn::connect_local().map_err(|_| KeyError::Other)?;
         let mut q = format!("SELECT key_version FROM {KEY_TABLE} WHERE key_id = {key_id}");
-        let res = conn.query(&q).map_err(|_| p_err(&q, &conn))?;
+        let _ = run_query(&mut conn, &q, key_id)?;
 
         // fuund! fetch result, parse to int
         // if let Some(row) = todo!() {
@@ -109,12 +122,12 @@ impl KeyManager for KeyMgtClevis {
         // directly push format string
         let key_version: u32 = 1;
         write!(q, "AND key_version = {key_version} FOR UPDATE");
-        conn.execute("START TRANSACTION")
-            .map_err(|_| p_err("START TRANSACTION", &conn))?;
-        conn.query(&q).map_err(|_| p_err(&q, &conn))?;
+
+        run_execute(&mut conn, "START TRANSACTION", key_id)?;
+        run_query(&mut conn, &q, key_id)?;
 
         let Ok(new_key) = make_new_key(&conn) else {
-            conn.execute("ROLLBACK").map_err(|_| p_err("ROLLBACK", &conn))?;
+            run_execute(&mut conn, "ROLLBACK", key_id)?;
             return todo!();
         };
 
@@ -123,13 +136,13 @@ impl KeyManager for KeyMgtClevis {
             {key_id}, {key_version}, "{server_name}", {new_key} )"#,
             server_name = TANG_SERVER.lock().unwrap()
         );
-        conn.execute(&q).map_err(|_| p_err(&q, &conn))?;
+        run_execute(&mut conn, &q, key_id)?;
 
         todo!()
     }
 
     fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> {
-        let conn = MySqlConn::connect_local().map_err(|_| KeyError::Other)?;
+        let mut conn = MySqlConn::connect_local().map_err(|_| KeyError::Other)?;
         let q = format!(
             "SELECT key FROM {KEY_TABLE} WHERE key_id = {key_id} AND key_version = {key_version}"
         );
@@ -149,7 +162,7 @@ register_plugin! {
     KeyMgtClevis,
     ptype: PluginType::MariaEncryption,
     name: "clevis_key_management",
-    author: "Trevor Gross",
+    author: "Daniel Black & Trevor Gross",
     description: "Clevis key management plugin",
     license: License::Gpl,
     maturity: Maturity::Experimental,
