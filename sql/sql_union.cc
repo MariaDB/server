@@ -1388,6 +1388,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   bool have_except= false, have_intersect= false,
     have_except_all_or_intersect_all= false;
   bool instantiate_tmp_table= false;
+  bool use_direct_union_result= false;
   bool single_tvc= !first_sl->next_select() && first_sl->tvc;
   bool single_tvc_wo_order= single_tvc && !first_sl->order_list.elements;
   bool distinct_key= 0;
@@ -1511,23 +1512,18 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     }
   }
 
-  /* Global option */
-
   if (is_union_select || is_recursive)
   {
     if ((single_tvc_wo_order && !fake_select_lex) ||
         (is_unit_op() && !union_needs_tmp_table() &&
-	 !have_except && !have_intersect && !single_tvc))
+         !have_except && !have_intersect && !single_tvc))
     {
-      SELECT_LEX *last= first_select();
-      while (last->next_select())
-        last= last->next_select();
-      if (!(tmp_result= union_result=
-              new (thd->mem_root) select_union_direct(thd, sel_result,
-                                                          last)))
-        goto err; /* purecov: inspected */
+      if (unlikely(set_direct_union_result(sel_result)))
+        goto err;
+      tmp_result= union_result;
       fake_select_lex= NULL;
       instantiate_tmp_table= false;
+      use_direct_union_result= true;
     }
     else
     {
@@ -1763,6 +1759,24 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     goto err;
 
 cont:
+  pushdown_unit= find_unit_handler(thd, this);
+  if (pushdown_unit)
+  {
+    if (unlikely(pushdown_unit->prepare()))
+      goto err;
+    /*
+      Always use select_union_direct result for pushed down units, overwrite
+      the previous union_result unless select_union_direct is already used
+    */
+    if (!use_direct_union_result)
+    {
+      if (unlikely(set_direct_union_result(sel_result)))
+        goto err;
+      fake_select_lex= NULL;
+      instantiate_tmp_table= false;
+      use_direct_union_result= true;
+    }
+  }
   /*
     If the query is using select_union_direct, we have postponed
     preparation of the underlying select_result until column types
@@ -1965,13 +1979,6 @@ cont:
     }
   }
 
-  pushdown_unit= find_unit_handler(thd, this);
-  if (pushdown_unit)
-  {
-    if (unlikely(pushdown_unit->prepare()))
-      DBUG_RETURN(TRUE);
-  }
-
   thd->lex->current_select= lex_select_save;
 
   DBUG_RETURN(saved_error || thd->is_fatal_error);
@@ -1982,6 +1989,15 @@ err:
   DBUG_RETURN(TRUE);
 }
 
+bool st_select_lex_unit::set_direct_union_result(select_result *sel_result)
+{
+  SELECT_LEX *last= first_select();
+  while (last->next_select())
+    last= last->next_select();
+  union_result= new (thd->mem_root) select_union_direct(thd, sel_result,
+                                                      last);
+  return (union_result == nullptr);
+}
 
 /**
   @brief
