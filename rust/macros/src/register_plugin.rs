@@ -228,15 +228,26 @@ impl PluginInfo {
         let maturity = self.maturity.unwrap();
         let ptype = self.ptype.unwrap();
 
-        let (fn_init, fn_deinit);
+        let init_fn_name = make_ident(&format!("_{}_init_fn", name.value()));
+
+        // We always initialize the logger, maybe do init/deinit if struct requires
+        let (fn_init, fn_deinit, init_fn_body);
         if let Some(init_ty) = self.init {
             let ty_as_init = quote! {<#init_ty as ::mariadb::plugin::wrapper::WrapInit>};
+            init_fn_body = quote! { ::mariadb::configure_logger!(); #ty_as_init::wrap_init; };
             fn_init = quote! { Some(#ty_as_init::wrap_init) };
             fn_deinit = quote! { Some(#ty_as_init::wrap_deinit) };
         } else {
-            let none = quote! { None };
-            (fn_init, fn_deinit) = (none.clone(), none);
+            init_fn_body = quote! { ::mariadb::configure_logger!(); };
+            fn_init = quote! { Some(#init_fn_name) };
+            fn_deinit = quote! { None };
         }
+
+        let init_fn = quote! {
+            fn #init_fn_name(_: *mut std::ffi::c_void) {
+                #init_fn_body
+            }
+        };
 
         let plugin_struct = quote! {
             ::mariadb::bindings::st_maria_plugin {
@@ -258,6 +269,7 @@ impl PluginInfo {
 
         Ok(PluginDef {
             name: name.value(),
+            init_fn,
             info_struct,
             plugin_struct,
         })
@@ -268,22 +280,19 @@ impl PluginInfo {
 /// applicable, plus the struct of `st_maria_plugin` that references it
 struct PluginDef {
     name: String,
+    init_fn: proc_macro2::TokenStream,
     info_struct: proc_macro2::TokenStream,
     plugin_struct: proc_macro2::TokenStream,
 }
 
 impl PluginDef {
     fn into_output(self) -> TokenStream {
-        let make_ident = |s| Ident::new(s, Span::call_site());
-        let make_ident_fmt = |s: String| Ident::new(s.as_str(), Span::call_site());
-
         // static and dynamic identifiers
-        let vers_idt_stc =
-            make_ident_fmt(format!("builtin_{}_plugin_interface_version", self.name));
+        let vers_idt_stc = make_ident(&format!("builtin_{}_plugin_interface_version", self.name));
         let vers_idt_dyn = make_ident("_maria_plugin_interface_version_");
-        let size_idt_stc = make_ident_fmt(format!("builtin_{}_sizeof_struct_st_plugin", self.name));
+        let size_idt_stc = make_ident(&format!("builtin_{}_sizeof_struct_st_plugin", self.name));
         let size_idt_dyn = make_ident("_maria_sizeof_struct_st_plugin_");
-        let decl_idt_stc = make_ident_fmt(format!("builtin_{}_plugin", self.name));
+        let decl_idt_stc = make_ident(&format!("builtin_{}_plugin", self.name));
         let decl_idt_dyn = make_ident("_maria_plugin_declarations_");
 
         let plugin_ty = quote! {::mariadb::bindings::st_maria_plugin};
@@ -408,4 +417,8 @@ fn version_int(s: &str) -> Result<u16, String> {
     let res: u16 = (major << 8) + minor;
 
     Ok(res)
+}
+
+fn make_ident(s: &str) -> Ident {
+    Ident::new(s, Span::call_site())
 }

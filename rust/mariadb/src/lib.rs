@@ -16,16 +16,18 @@ use time::{format_description, OffsetDateTime};
 mod common;
 pub mod plugin;
 pub mod service_sql;
+use std::fmt::Write;
 
 #[doc(inline)]
 pub use common::*;
 #[doc(hidden)]
 pub use cstr;
+pub use log;
 #[doc(hidden)]
 pub use mariadb_sys as bindings;
 
-#[doc(hidden)]
 #[inline]
+#[doc(hidden)]
 pub fn log_timestamped_message(title: &str, msg: &str) {
     let t = time::OffsetDateTime::now_utc();
     let fmt = time::format_description::parse(
@@ -39,6 +41,58 @@ pub fn log_timestamped_message(title: &str, msg: &str) {
     eprintln!("{to_print}");
 }
 
+#[doc(hidden)]
+pub struct MariaLogger {
+    pkg: Option<&'static str>,
+}
+
+impl MariaLogger {
+    pub const fn new() -> Self {
+        Self {
+            pkg: option_env!("CARGO_PKG_NAME"),
+        }
+    }
+}
+
+impl log::Log for MariaLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        // metadata.level() <= log::Level::Info
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
+        let t = time::OffsetDateTime::now_utc();
+        let fmt = time::format_description::parse(
+            "[year]-[month]-[day] [hour]:[minute]:[second][offset_hour sign:mandatory]:[offset_minute]",
+        )
+        .unwrap();
+        let mut out_str = t.format(&fmt).unwrap();
+        write!(out_str, " [{}]", record.level()).unwrap();
+        if let Some(pkg) = self.pkg {
+            write!(out_str, " {pkg}");
+        }
+        eprintln!("{out_str}:");
+    }
+
+    fn flush(&self) {}
+}
+
+/// Configure t
+#[macro_export]
+macro_rules! configure_logger {
+    () => {
+        $crate::configure_logger!(log::LevelFilter::Warn)
+    };
+    ($level:expr) => {{
+        static LOGGER = $crate::MariaLogger::new();
+        $crate::log::set_logger(&LOGGER).map(|()| log::set_max_level($level))
+    }}
+}
+
 /// Provide the name of the calling function (full path)
 macro_rules! function {
     () => {{
@@ -49,60 +103,4 @@ macro_rules! function {
         let name = type_name_of(f);
         &name[..name.len() - 3]
     }};
-}
-
-/// Log an error to stderr
-#[macro_export]
-macro_rules! error {
-    (target: $target:expr, $($msg:tt)+) => {{
-        let mut tmp = "[Error] ".to_owned();
-        tmp.push_str($target);
-        tmp.push_str(": ");
-        $crate::log_timestamped_message(&tmp, &format!($($msg)+));
-    }};
-    ($($msg:tt)+) => {
-        $crate::log_timestamped_message("[Error]: ", &format!($($msg)+));
-    }
-}
-
-/// Log a warning to stderr
-#[macro_export]
-macro_rules! warn {
-    (target: $target:expr, $($msg:tt)+) => {{
-        let mut tmp = "[Warn] ".to_owned();
-        tmp.push_str($target);
-        tmp.push_str(": ");
-        $crate::log_timestamped_message(&tmp, &format!($($msg)+));
-    }};
-    ($($msg:tt)+) => {
-        $crate::log_timestamped_message("[Warn]", &format!($($msg)+));
-    }
-}
-
-/// Log info to stderr
-#[macro_export]
-macro_rules! info {
-    (target: $target:expr, $($msg:tt)+) => {{
-        let mut tmp = "[Info] ".to_owned();
-        tmp.push_str($target);
-        tmp.push_str(": ");
-        $crate::log_timestamped_message(&tmp, &format!($($msg)+));
-    }};
-    ($($msg:tt)+) => {
-        $crate::log_timestamped_message("[Info]", &format!($($msg)+));
-    }
-}
-
-/// Log debug messages to stderr
-#[macro_export]
-macro_rules! debug {
-    (target: $target:expr, $($msg:tt)+) => {{
-        let mut tmp = "[Debuf] ".to_owned();
-        tmp.push_str($target);
-        tmp.push_str(": ");
-        $crate::log_timestamped_message(&tmp, &format!($($msg)+));
-    }};
-    ($($msg:tt)+) => {
-        $crate::log_timestamped_message("[Debuf]", &format!($($msg)+));
-    }
 }
