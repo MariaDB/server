@@ -12,7 +12,7 @@ use mariadb::log::{debug, error, info};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
-    register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo, SysVarAtomic,
+    register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo,
 };
 use mariadb::service_sql::{ClientError, Fetch, FetchedRows, MySqlConn};
 

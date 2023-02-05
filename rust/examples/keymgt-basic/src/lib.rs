@@ -13,8 +13,7 @@ use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::prelude::*;
-use mariadb::plugin::{register_plugin, PluginType, PluginVarInfo, SysVarAtomic};
-use mariadb::sysvar_atomic;
+use mariadb::plugin::{register_plugin, PluginType, PluginVarInfo};
 
 struct BasicKeyMgt;
 
