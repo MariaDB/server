@@ -162,8 +162,9 @@ macro_rules! sysvar_atomic {
     };
 }
 
-#[non_exhaustive]
+/// Possible flags for plugin variables
 #[repr(i32)]
+#[non_exhaustive]
 pub enum PluginVarInfo {
     ThdLocal = bindings::PLUGIN_VAR_THDLOCAL as i32,
     /// Variable is read only
