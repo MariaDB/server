@@ -1,6 +1,6 @@
-//! Safe API for a MySql connection
+//! Safe API for a `MySql` connection
 //!
-//! RawConnection comes almost directly from the `diesel` client crate, since
+//! `RawConnection` comes almost directly from the `diesel` client crate, since
 //! they have that all figured out pretty well. Reference:
 //! <https://github.com/diesel-rs/diesel/blob/88129db2fbed49d3ecd41bafff2a5932f1621c2c/diesel/src/mysql/connection/raw.rs>
 
@@ -54,7 +54,7 @@ impl RawConnection {
         // Attempt to connect, fail if nonzero (unexpected)
         let p_conn = unsafe { global_func!(mysql_init_func)(ptr::null_mut()) };
         let p_conn = NonNull::new(p_conn).expect("OOM: connection allocation failed");
-        let result = RawConnection(p_conn);
+        let result = Self(p_conn);
 
         // Validate we are using an expected charset
         let charset = unsafe {
@@ -100,12 +100,12 @@ impl RawConnection {
             // Make sure you don't use the fake one!
             global_func!(mysql_real_connect_func)(
                 self.0.as_ptr(),
-                host.map(|c| c.as_ptr()).unwrap_or(ptr::null()),
-                user.map(|c| c.as_ptr()).unwrap_or(ptr::null()),
-                pw.map(|c| c.as_ptr()).unwrap_or(ptr::null()),
-                db.map(|c| c.as_ptr()).unwrap_or(ptr::null()),
-                port.map(|p| p.into()).unwrap_or(0),
-                sock.map(|c| c.as_ptr()).unwrap_or(ptr::null()),
+                host.map_or(ptr::null(), |c| c.as_ptr()),
+                user.map_or(ptr::null(), |c| c.as_ptr()),
+                pw.map_or(ptr::null(), |c| c.as_ptr()),
+                db.map_or(ptr::null(), |c| c.as_ptr()),
+                port.map_or(0, std::convert::Into::into),
+                sock.map_or(ptr::null(), |c| c.as_ptr()),
                 conn_opts.flags.into(),
             )
         };
@@ -147,7 +147,7 @@ impl RawConnection {
     }
 
     /// Prepare the result for iteration, but do not store
-    pub fn prep_fetch_result<'a>(&'a mut self) -> ClientResult<RawResult<'a, Fetch>> {
+    pub fn prep_fetch_result(&mut self) -> ClientResult<RawResult<Fetch>> {
         let res = unsafe { bindings::mysql_use_result(self.0.as_ptr()) };
         self.check_for_errors(ClientError::QueryError)?;
 
@@ -158,7 +158,7 @@ impl RawConnection {
                 let fields = slice::from_raw_parts(field_ptr, field_count as usize);
                 Ok(RawResult {
                     inner: ptr,
-                    fields: mem::transmute(fields),
+                    fields: *fields.as_ptr().cast(),
                     _marker: PhantomData,
                 })
             },
@@ -235,7 +235,7 @@ pub struct FetchedRow<'a> {
 
 impl FetchedRow<'_> {
     /// Get the field of a given index
-    pub fn field_value(&self, index: usize) ->Value{
+    pub fn field_value(&self, index: usize) -> Value {
         let field = &self.fields[index];
         assert!(index < self.fields.len()); // extra sanity check
         unsafe {
@@ -297,8 +297,9 @@ fn fn_thread_unsafe_lib_init() {
         // mysql_library_init is defined by `#define mysql_library_init mysql_server_init`
         // which isn't picked up by bindgen
         let ret = unsafe { bindings::mysql_server_init(0, ptr::null_mut(), ptr::null_mut()) };
-        if ret != 0 {
-            panic!("Unable to perform MySQL global initialization. Return code: {ret}");
-        }
-    })
+        assert_eq!(
+            ret, 0,
+            "Unable to perform MySQL global initialization. Return code: {ret}"
+        );
+    });
 }

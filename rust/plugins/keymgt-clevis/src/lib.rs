@@ -31,7 +31,7 @@ fn fetch_jws() -> String {
     let url = format!("https://{}", TANG_SERVER.lock().unwrap());
     let body: String = ureq::get("http://example.com")
         .call()
-        .expect(&format!("http request for '{}' failed", url))
+        .unwrap_or_else(|_| panic!("http request for '{url}' failed"))
         .into_string()
         .expect("http request larger than 10MB");
     todo!();

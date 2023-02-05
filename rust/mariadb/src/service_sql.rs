@@ -1,7 +1,7 @@
-//! Safe API for include/mysql/service_sql.h
+//! Safe API for `include/mysql/service_sql.h`
 
 //!
-//! FIXME: I think we need to use a different GLOBAL_SQL_SERVICE if statically
+//! FIXME: I think we need to use a different `GLOBAL_SQL_SERVICE` if statically
 //! linked, but not yet sure where this is
 
 use std::cell::UnsafeCell;
@@ -25,6 +25,11 @@ pub struct MySqlConn(RawConnection);
 
 impl MySqlConn {
     /// Connect to the local server
+    ///
+    /// # Errors
+    ///
+    /// Error if the client could not connect
+    #[inline]
     pub fn connect_local() -> ClientResult<Self> {
         let mut conn = RawConnection::new();
         conn.connect_local()?;
@@ -32,12 +37,22 @@ impl MySqlConn {
     }
 
     /// Run a query and discard the results
-    pub fn execute<'a>(&'a mut self, q: &str) -> ClientResult<()> {
+    ///
+    /// # Errors
+    ///
+    /// Error if the query could not be completed
+    #[inline]
+    pub fn execute(&mut self, q: &str) -> ClientResult<()> {
         self.0.query(q)?;
         Ok(())
     }
 
     /// Run a query for lazily loaded results
+    ///
+    /// # Errors
+    ///
+    /// Error if the row could not be fetched
+    #[inline]
     pub fn query<'a>(&'a mut self, q: &str) -> ClientResult<FetchedRows<'a>> {
         self.0.query(q)?;
         let res = self.0.prep_fetch_result()?;
@@ -50,14 +65,16 @@ impl MySqlConn {
 pub struct FetchedRows<'a>(RawResult<'a, Fetch>);
 
 impl<'a> FetchedRows<'a> {
-    pub fn next(&mut self) -> Option<FetchedRow> {
+    #[inline]
+    pub fn next_row(&mut self) -> Option<FetchedRow> {
         self.0.fetch_next_row()
     }
 }
 
 impl Drop for FetchedRows<'_> {
     /// Consume the rest of the rows
+    #[inline]
     fn drop(&mut self) {
-        while let Some(_) = self.next() {}
+        while self.next_row().is_some() {}
     }
 }

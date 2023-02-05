@@ -37,6 +37,7 @@ unsafe impl<T> Sync for UnsafeSyncCell<T> {}
 
 /// Trait for easily wrapping init/deinit functions
 pub trait WrapInit: Init {
+    #[must_use]
     unsafe extern "C" fn wrap_init(_: *mut c_void) -> c_int {
         match Self::init() {
             Ok(_) => 0,
@@ -44,6 +45,7 @@ pub trait WrapInit: Init {
         }
     }
 
+    #[must_use]
     unsafe extern "C" fn wrap_deinit(_: *mut c_void) -> c_int {
         match Self::deinit() {
             Ok(_) => 0,
@@ -55,6 +57,7 @@ pub trait WrapInit: Init {
 impl<T> WrapInit for T where T: Init {}
 
 /// New struct with all null values
+#[must_use]
 #[doc(hidden)]
 pub const fn new_null_st_maria_plugin() -> bindings::st_maria_plugin {
     bindings::st_maria_plugin {

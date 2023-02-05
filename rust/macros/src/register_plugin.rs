@@ -18,7 +18,7 @@ use syn::{
 pub fn entry(tokens: TokenStream) -> TokenStream {
     let tokens_pm2: proc_macro2::TokenStream = tokens.clone().into();
     let input = parse_macro_input!(tokens as PluginInfo);
-    let plugindef = input.to_encryption_struct();
+    let plugindef = input.into_encryption_struct();
     match plugindef {
         Ok(ts) => ts.into_output(),
         Err(e) => e.into_compile_error().into(),
@@ -136,7 +136,7 @@ impl PluginInfo {
         ];
         req.extend_from_slice(required);
 
-        for req_field in req.iter() {
+        for req_field in &req {
             let (field_val, fname) = name_map.iter().find(|f| f.1 == *req_field).unwrap();
 
             if field_val.is_none() {
@@ -165,7 +165,7 @@ impl PluginInfo {
 
     /// Turn `self` into a tokenstream of a single `st_maria_plugin` for an
     /// encryption struct. Uses `idx` to mangle the name and avoid conflicts
-    fn to_encryption_struct(self) -> syn::Result<PluginDef> {
+    fn into_encryption_struct(self) -> syn::Result<PluginDef> {
         self.validate_as_encryption()?;
 
         let type_ = &self.main_ty;
@@ -276,7 +276,7 @@ impl PluginDef {
     fn into_output(self) -> TokenStream {
         let make_ident = |s| Ident::new(s, Span::call_site());
         let make_ident_fmt = |s: String| Ident::new(s.as_str(), Span::call_site());
-        
+
         // static and dynamic identifiers
         let vers_idt_stc =
             make_ident_fmt(format!("builtin_{}_plugin_interface_version", self.name));
@@ -303,7 +303,7 @@ impl PluginDef {
             #[no_mangle]
             #[cfg(make_static_lib)]
             static #vers_idt_stc: ::std::ffi::c_int = #version_val;
-            
+
             #[no_mangle]
             #[cfg(not(make_static_lib))]
             static #vers_idt_dyn: ::std::ffi::c_int = #version_val;
@@ -354,14 +354,13 @@ fn verify_field_order(fields: &[String]) -> Result<(), String> {
 
     expected_order.retain(|expected| fields.iter().any(|f| f == expected));
 
-    if expected_order != fields {
-        Err(format!(
-            "fields not in expected order. reorder as:\n{:?}",
-            expected_order
-        ))
-    } else {
-        Ok(())
+    if expected_order == fields {
+        return Ok(());
     }
+
+    Err(format!(
+        "fields not in expected order. reorder as:\n{expected_order:?}",
+    ))
 }
 
 /// Get the field as a boolean
