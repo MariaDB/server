@@ -288,58 +288,58 @@ struct PluginDef {
 impl PluginDef {
     fn into_output(self) -> TokenStream {
         // static and dynamic identifiers
-        let vers_idt_stc = make_ident(&format!("builtin_{}_plugin_interface_version", self.name));
-        let vers_idt_dyn = make_ident("_maria_plugin_interface_version_");
-        let size_idt_stc = make_ident(&format!("builtin_{}_sizeof_struct_st_plugin", self.name));
-        let size_idt_dyn = make_ident("_maria_sizeof_struct_st_plugin_");
-        let decl_idt_stc = make_ident(&format!("builtin_{}_plugin", self.name));
-        let decl_idt_dyn = make_ident("_maria_plugin_declarations_");
+        let vers_ident_stc = make_ident(&format!("builtin_{}_plugin_interface_version", self.name));
+        let vers_ident_dyn = make_ident("_maria_plugin_interface_version_");
+        let size_ident_stc = make_ident(&format!("builtin_{}_sizeof_struct_st_plugin", self.name));
+        let size_ident_dyn = make_ident("_maria_sizeof_struct_st_plugin_");
+        let decl_ident_stc = make_ident(&format!("builtin_{}_plugin", self.name));
+        let decl_ident_dyn = make_ident("_maria_plugin_declarations_");
 
-        let plugin_ty = quote! {::mariadb::bindings::st_maria_plugin};
+        let plugin_ty = quote! { ::mariadb::bindings::st_maria_plugin };
         let version_val =
-            quote! {mariadb::bindings::MARIA_PLUGIN_INTERFACE_VERSION as ::std::ffi::c_int};
-        let size_val = quote! {::std::mem::size_of::<#plugin_ty>() as ::std::ffi::c_int};
+            quote! { mariadb::bindings::MARIA_PLUGIN_INTERFACE_VERSION as ::std::ffi::c_int };
+        let size_val = quote! { ::std::mem::size_of::<#plugin_ty>() as ::std::ffi::c_int };
 
-        let usynccell = quote! {::mariadb::plugin::wrapper::UnsafeSyncCell};
-        let null_ps = quote! {::mariadb::plugin::wrapper::new_null_st_maria_plugin()};
+        let usynccell = quote! { ::mariadb::plugin::wrapper::UnsafeSyncCell };
+        let null_ps = quote! { ::mariadb::plugin::wrapper::new_null_st_maria_plugin() };
 
-        let is = self.info_struct;
-        let ps = self.plugin_struct;
+        let info_st = self.info_struct;
+        let plugin_st = self.plugin_struct;
 
         let ret: TokenStream = quote! {
             // Different config based on statically or dynamically lynked
 
             #[no_mangle]
             #[cfg(make_static_lib)]
-            static #vers_idt_stc: ::std::ffi::c_int = #version_val;
+            static #vers_ident_stc: ::std::ffi::c_int = #version_val;
 
             #[no_mangle]
             #[cfg(not(make_static_lib))]
-            static #vers_idt_dyn: ::std::ffi::c_int = #version_val;
+            static #vers_ident_dyn: ::std::ffi::c_int = #version_val;
 
             #[no_mangle]
             #[cfg(make_static_lib)]
-            static #size_idt_stc: ::std::ffi::c_int = #size_val;
+            static #size_ident_stc: ::std::ffi::c_int = #size_val;
 
             #[no_mangle]
             #[cfg(not(make_static_lib))]
-            static #size_idt_dyn: ::std::ffi::c_int = #size_val;
+            static #size_ident_dyn: ::std::ffi::c_int = #size_val;
 
             #[no_mangle]
             #[cfg(make_static_lib)]
-            static #decl_idt_stc: [#usynccell<#plugin_ty>; 2] = unsafe { [
-                #usynccell::new(#ps),
+            static #decl_ident_stc: [#usynccell<#plugin_ty>; 2] = unsafe { [
+                #usynccell::new(#plugin_st),
                 #usynccell::new(#null_ps),
             ] };
 
             #[no_mangle]
             #[cfg(not(make_static_lib))]
-            static #decl_idt_dyn: [#usynccell<#plugin_ty>; 2] = unsafe { [
-                #usynccell::new(#ps),
+            static #decl_ident_dyn: [#usynccell<#plugin_ty>; 2] = unsafe { [
+                #usynccell::new(#plugin_st),
                 #usynccell::new(#null_ps),
             ] };
 
-            #is
+            #info_st
         }
         .into();
 

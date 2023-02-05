@@ -1,78 +1,155 @@
 //! "show variables" and "system variables"
 
+use std::cell::UnsafeCell;
+use std::ffi::{c_double, c_int, c_long, c_longlong, c_ulong, c_ulonglong, c_void};
 use std::mem::ManuallyDrop;
+use std::os::raw::{c_char, c_uint};
 use std::ptr;
+use std::sync::atomic::{AtomicBool, AtomicI32};
 
-use bindings::st_mysql_sys_var_basic;
 use mariadb_sys as bindings;
 
-/// Basicallly, a system variable will
+use super::variables_parse::CliMysqlValue;
+
+type SVInfoInner<T> = ManuallyDrop<UnsafeCell<T>>;
+
+/// Basicallly, a system variable will be one of these types, which are dynamic
+/// structures on C. Kind of yucky to work with but I think the generic union is
+/// a lot more clear.
 #[repr(C)]
-union SysVar<T> {
-    basic: ManuallyDrop<bindings::st_mysql_sys_var_basic<T>>,
-    basic_const: ManuallyDrop<bindings::st_mysql_sys_var_const_basic<T>>,
-    simple: ManuallyDrop<bindings::st_mysql_sys_var_simple<T>>,
-    typelib: ManuallyDrop<bindings::st_mysql_sys_var_typelib<T>>,
-    thdvar_basic: ManuallyDrop<bindings::st_mysql_sys_var_thd_basic<T>>,
-    thdvar_simple: ManuallyDrop<bindings::st_mysql_sys_var_thd_simple<T>>,
-    thdvar_typelib: ManuallyDrop<bindings::st_mysql_sys_var_thd_typelib<T>>,
+pub union SysVarInfoU {
+    bool_t: SVInfoInner<bindings::sysvar_bool_t>,
+    str_t: SVInfoInner<bindings::sysvar_str_t>,
+    enum_t: SVInfoInner<bindings::sysvar_enum_t>,
+    set_t: SVInfoInner<bindings::sysvar_set_t>,
+    int_t: SVInfoInner<bindings::sysvar_int_t>,
+    long_t: SVInfoInner<bindings::sysvar_long_t>,
+    longlong_t: SVInfoInner<bindings::sysvar_longlong_t>,
+    uint_t: SVInfoInner<bindings::sysvar_uint_t>,
+    ulong_t: SVInfoInner<bindings::sysvar_ulong_t>,
+    ulonglong_t: SVInfoInner<bindings::sysvar_ulonglong_t>,
+    double_t: SVInfoInner<bindings::sysvar_double_t>,
+    // THD types have a function `resolve` that takes a thread pointer and an
+    // offset (also a field)
 }
 
-#[repr(transparent)]
-pub struct SysVarAtomic<T>(SysVar<T>);
+/// Types that can be communicated with the C sysvar interface
+trait SysVarCType {
+    const C_TYPE_FLAG: i32;
+}
 
-#[doc(hidden)]
-impl<T> SysVarAtomic<T> {
-    pub const fn as_ptr(&self) -> *const bindings::st_mysql_sys_var {
-        ptr::addr_of!(self.0).cast()
+// impl SysVarCType for i32 {
+//     const C_TYPE_FLAG: i32 = bindings::PLUGIN_VAR_INT as i32;
+// }
+impl SysVarCType for i64 {
+    const C_TYPE_FLAG: i32 = bindings::PLUGIN_VAR_LONGLONG as i32;
+}
+impl SysVarCType for f64 {
+    const C_TYPE_FLAG: i32 = bindings::PLUGIN_VAR_DOUBLE as i32;
+}
+impl SysVarCType for *const c_char {
+    const C_TYPE_FLAG: i32 = bindings::PLUGIN_VAR_INT as i32;
+}
+
+/// Internal trait
+trait SysVar: Sync {
+    /// Type for interfacing with the main server
+    // type CType: SysVarCType;
+
+    const C_FLAGS: i32;
+    /// C struct
+    type CStType;
+    /// C representation of type
+    type CType;
+    /// Inner representation type
+    type Inner;
+
+    // /// For the check function, validate the arguments in `value` and write them to `dest`.
+    unsafe fn check(
+        thd: *const c_void,
+        var: &mut Self::CStType,
+        save: &mut Self::CType,
+        value: &CliMysqlValue,
+    );
+    // /// The update function
+    unsafe fn update(
+        thd: *const c_void,
+        var: &mut Self::CStType,
+        save: &mut Self::CType,
+        value: &CliMysqlValue,
+    );
+}
+
+impl SysVar for AtomicI32 {
+    const C_FLAGS: i32 = bindings::PLUGIN_VAR_INT as i32;
+    type CStType = bindings::sysvar_int_t;
+
+    type Inner = i32;
+
+    type CType = i32;
+
+    unsafe fn check(
+        thd: *const c_void,
+        var: &mut Self::CStType,
+        save: &mut Self::CType,
+        value: &CliMysqlValue,
+    ) {
+        todo!()
     }
 
-    pub fn as_mut_ptr(&mut self) -> *mut bindings::st_mysql_sys_var {
-        ptr::addr_of_mut!(self.0).cast()
-    }
-
-    // These functions are all unsafe because preconditions are needed to ensure
-    // Send and Sync hold true
-    pub const unsafe fn new_basic(val: bindings::st_mysql_sys_var_basic<T>) -> Self {
-        Self(SysVar {
-            basic: ManuallyDrop::new(val),
-        })
-    }
-    pub const unsafe fn new_basic_const(val: bindings::st_mysql_sys_var_const_basic<T>) -> Self {
-        Self(SysVar {
-            basic_const: ManuallyDrop::new(val),
-        })
-    }
-    pub const unsafe fn new_simple(val: bindings::st_mysql_sys_var_simple<T>) -> Self {
-        Self(SysVar {
-            simple: ManuallyDrop::new(val),
-        })
-    }
-    pub const unsafe fn new_typelib(val: bindings::st_mysql_sys_var_typelib<T>) -> Self {
-        Self(SysVar {
-            typelib: ManuallyDrop::new(val),
-        })
-    }
-    pub const unsafe fn new_thdvar_basic(val: bindings::st_mysql_sys_var_thd_basic<T>) -> Self {
-        Self(SysVar {
-            thdvar_basic: ManuallyDrop::new(val),
-        })
-    }
-    pub const unsafe fn new_thdvar_simple(val: bindings::st_mysql_sys_var_thd_simple<T>) -> Self {
-        Self(SysVar {
-            thdvar_simple: ManuallyDrop::new(val),
-        })
-    }
-    pub const unsafe fn new_thdvar_typelib(val: bindings::st_mysql_sys_var_thd_typelib<T>) -> Self {
-        Self(SysVar {
-            thdvar_typelib: ManuallyDrop::new(val),
-        })
+    unsafe fn update(
+        thd: *const c_void,
+        var: &mut Self::CStType,
+        save: &mut Self::CType,
+        value: &CliMysqlValue,
+    ) {
+        todo!()
     }
 }
 
-// SAFETY: totally reliant on the server's calls here
-unsafe impl<T> Send for SysVarAtomic<T> {}
-unsafe impl<T> Sync for SysVarAtomic<T> {}
+macro_rules! sysvar {
+    () => {};
+}
+
+// pub enum SysVarInfo<'a> {
+//     Bool(&'a SVInfoInner<bindings::st_mysql_sys_var_basic<c_char>>),
+//     String(&'a SVInfoInner<bindings::st_mysql_sys_var_basic<*mut c_char>>),
+//     ConstString(&'a SVInfoInner<bindings::st_mysql_sys_var_const_basic<*const c_char>>),
+//     Int(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_int>>),
+//     UInt(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_uint>>),
+//     Long(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_long>>),
+//     ULong(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_ulong>>),
+//     LongLong(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_longlong>>),
+//     ULongLong(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_ulonglong>>),
+//     UInt64T(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<u64>>),
+//     SizeT(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<isize>>),
+//     Enum(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_typelib<c_long>>),
+//     Set(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_typelib<c_longlong>>),
+//     Double(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_double>>),
+
+//     ThdBool(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_basic<c_char>>),
+//     ThdString(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_basic<*mut c_char>>),
+//     ThdInt(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_int>>),
+//     ThdUInt(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_uint>>),
+//     ThdLong(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_long>>),
+//     ThdULong(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_ulong>>),
+//     ThdLongLong(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_longlong>>),
+//     ThdULongLong(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_ulonglong>>),
+//     ThdUInt64T(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<u64>>),
+//     ThdSizeT(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<isize>>),
+//     ThdEnum(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_typelib<c_long>>),
+//     ThdSet(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_typelib<c_longlong>>),
+//     ThdDouble(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_double>>),
+// }
+
+impl SysVarInfoU {
+    // /// Determine the version based on flags
+    // fn determine_version(&self) -> &SysVarInfo<T> {
+    //     // SAFETY: the flags field is always in the same position
+    //     let flags = unsafe { self.basic.get().flags };
+
+    // }
+}
 
 /// Create a system variable from an atomic
 ///

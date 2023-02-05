@@ -14,6 +14,7 @@
 use time::{format_description, OffsetDateTime};
 
 mod common;
+mod helpers;
 pub mod plugin;
 pub mod service_sql;
 use std::fmt::Write;
@@ -25,21 +26,6 @@ pub use cstr;
 pub use log;
 #[doc(hidden)]
 pub use mariadb_sys as bindings;
-
-#[inline]
-#[doc(hidden)]
-pub fn log_timestamped_message(title: &str, msg: &str) {
-    let t = time::OffsetDateTime::now_utc();
-    let fmt = time::format_description::parse(
-        "[year]-[month]-[day] [hour]:[minute]:[second][offset_hour sign:mandatory]:[offset_minute]",
-    )
-    .unwrap();
-    let mut to_print = t.format(&fmt).unwrap();
-    to_print.push(' ');
-    to_print.push_str(title);
-    to_print.push_str(msg);
-    eprintln!("{to_print}");
-}
 
 #[doc(hidden)]
 pub struct MariaLogger {
@@ -81,7 +67,6 @@ impl log::Log for MariaLogger {
     fn flush(&self) {}
 }
 
-/// Configure t
 #[macro_export]
 macro_rules! configure_logger {
     () => {
@@ -94,7 +79,7 @@ macro_rules! configure_logger {
 }
 
 /// Provide the name of the calling function (full path)
-macro_rules! function {
+macro_rules! function_name {
     () => {{
         fn f() {}
         fn type_name_of<T>(_: T) -> &'static str {

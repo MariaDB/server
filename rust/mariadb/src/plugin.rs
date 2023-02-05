@@ -44,10 +44,11 @@ pub mod encryption;
 #[doc(hidden)]
 pub mod encryption_wrapper;
 mod variables;
+mod variables_parse;
 #[doc(hidden)]
 pub mod wrapper;
 pub use mariadb_macros::register_plugin;
-pub use variables::{PluginVarInfo, SysVarAtomic};
+pub use variables::PluginVarInfo;
 
 /// Commonly used plugin types for reexport
 pub mod prelude {

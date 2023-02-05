@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
-    register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo, SysVarAtomic,
+    register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo,
 };
 use mariadb::sysvar_atomic;
 
@@ -22,14 +22,14 @@ const KEY_LENGTH: usize = 4;
 
 static KEY_VERSION: AtomicU32 = AtomicU32::new(1);
 
-static KEY_VERSION_SYSVAR: SysVarAtomic<u32> = sysvar_atomic! {
-    ty: u32,
-    name: "version",
-    var: KEY_VERSION,
-    comment: "Latest key version",
-    flags: [PluginVarInfo::ReqCmdArg],
-    default: 1,
-};
+// static KEY_VERSION_SYSVAR: SysVarAtomic<u32> = sysvar_atomic! {
+//     ty: u32,
+//     name: "version",
+//     var: KEY_VERSION,
+//     comment: "Latest key version",
+//     flags: [PluginVarInfo::ReqCmdArg],
+//     default: 1,
+// };
 
 struct DebugKeyMgmt;
 
