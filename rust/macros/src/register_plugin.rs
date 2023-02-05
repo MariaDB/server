@@ -276,12 +276,14 @@ impl PluginDef {
     fn into_output(self) -> TokenStream {
         let make_ident = |s| Ident::new(s, Span::call_site());
         let make_ident_fmt = |s: String| Ident::new(s.as_str(), Span::call_site());
-        // let vers_idt_stc =
-        //     make_ident_fmt(format!("builtin_{}_plugin_interface_version", self.name));
+        
+        // static and dynamic identifiers
+        let vers_idt_stc =
+            make_ident_fmt(format!("builtin_{}_plugin_interface_version", self.name));
         let vers_idt_dyn = make_ident("_maria_plugin_interface_version_");
-        // let size_idt_stc = make_ident_fmt(format!("builtin_{}_sizeof_struct_st_plugin", self.name));
+        let size_idt_stc = make_ident_fmt(format!("builtin_{}_sizeof_struct_st_plugin", self.name));
         let size_idt_dyn = make_ident("_maria_sizeof_struct_st_plugin_");
-        // let decl_idt_stc = make_ident_fmt(format!("builtin_{}_plugin", self.name));
+        let decl_idt_stc = make_ident_fmt(format!("builtin_{}_plugin", self.name));
         let decl_idt_dyn = make_ident("_maria_plugin_declarations_");
 
         let plugin_ty = quote! {::mariadb::bindings::st_maria_plugin};
@@ -298,31 +300,31 @@ impl PluginDef {
         let ret: TokenStream = quote! {
             // Different config based on statically or dynamically lynked
 
-            // #[no_mangle]
-            // #[cfg(not(any(crate_type = "dylib", crate_type = "cdylib")))]
-            // static #vers_idt_stc: ::std::ffi::c_int = #version_val;
-
             #[no_mangle]
-            // #[cfg(any(crate_type = "dylib", crate_type = "cdylib"))]
+            #[cfg(make_static_lib)]
+            static #vers_idt_stc: ::std::ffi::c_int = #version_val;
+            
+            #[no_mangle]
+            #[cfg(not(make_static_lib))]
             static #vers_idt_dyn: ::std::ffi::c_int = #version_val;
 
-            // #[no_mangle]
-            // #[cfg(not(any(crate_type = "dylib", crate_type = "cdylib")))]
-            // static #size_idt_stc: ::std::ffi::c_int = #size_val;
+            #[no_mangle]
+            #[cfg(make_static_lib)]
+            static #size_idt_stc: ::std::ffi::c_int = #size_val;
 
             #[no_mangle]
-            // #[cfg(any(crate_type = "dylib", crate_type = "cdylib"))]
+            #[cfg(not(make_static_lib))]
             static #size_idt_dyn: ::std::ffi::c_int = #size_val;
 
-            // #[no_mangle]
-            // #[cfg(not(any(crate_type = "dylib", crate_type = "cdylib")))]
-            // static #decl_idt_stc: [#usynccell<#plugin_ty>; 2] = unsafe { [
-            //     #usynccell::new(#ps),
-            //     #usynccell::new(#null_ps),
-            //     ] };
+            #[no_mangle]
+            #[cfg(make_static_lib)]
+            static #decl_idt_stc: [#usynccell<#plugin_ty>; 2] = unsafe { [
+                #usynccell::new(#ps),
+                #usynccell::new(#null_ps),
+            ] };
 
             #[no_mangle]
-            // #[cfg(any(crate_type = "dylib", crate_type = "cdylib"))]
+            #[cfg(not(make_static_lib))]
             static #decl_idt_dyn: [#usynccell<#plugin_ty>; 2] = unsafe { [
                 #usynccell::new(#ps),
                 #usynccell::new(#null_ps),
