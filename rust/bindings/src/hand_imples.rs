@@ -12,10 +12,15 @@ pub const ENCRYPTION_KEY_VERSION_INVALID: c_uint = !0;
 #[repr(C)]
 #[derive(Debug)]
 pub struct st_mysql_sys_var_basic<T> {
+    /// Variable flags
     pub flags: c_int,
+    /// Name of the variable
     pub name: *const c_char,
+    /// Variable description
     pub comment: *const c_char,
+    /// Function for getting the variable
     pub check: mysql_var_check_func,
+    /// Function for setting the variable
     pub update: mysql_var_update_func,
     pub value: *mut T,
     pub def_val: T,

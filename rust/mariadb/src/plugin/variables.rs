@@ -1,5 +1,4 @@
 //! "show variables" and "system variables"
-//!
 
 use std::mem::ManuallyDrop;
 use std::ptr;

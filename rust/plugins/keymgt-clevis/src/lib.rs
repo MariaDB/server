@@ -8,13 +8,13 @@ use std::fmt::Write;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
+use mariadb::log::{debug, error, info};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
     register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo, SysVarAtomic,
 };
 use mariadb::service_sql::{ClientError, Fetch, FetchedRows, MySqlConn};
-use mariadb::{debug, error, info, sysvar_atomic};
 
 const KEY_TABLE: &str = "mysql.clevis_keys";
 const SERVER_TABLE: &str = "mysql.clevis_servers";

@@ -3,10 +3,10 @@
 use std::ffi::{c_int, c_uchar, c_uint, c_void};
 use std::{mem, slice};
 
+use log::{error, warn};
 use mariadb_sys as bindings;
 
 use super::encryption::{Encryption, Flags, KeyError, KeyManager};
-use crate::{error, warn};
 
 ///
 pub trait WrapKeyMgr: KeyManager {
@@ -15,8 +15,8 @@ pub trait WrapKeyMgr: KeyManager {
         match Self::get_latest_key_version(key_id) {
             Ok(v) => {
                 if v == bindings::ENCRYPTION_KEY_NOT_ENCRYPTED {
-                    error!(target: "KeyManager", "get_latest_key_version returned value {v}, which is reserved for unencrypted keys.");
-                    error!(target: "KeyManager", "the server will likely shut down now.");
+                    error!("get_latest_key_version returned value {v}, which is reserved for unencrypted keys.");
+                    error!("the server will likely shut down now.");
                 }
                 v
             }
