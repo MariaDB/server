@@ -182,5 +182,5 @@ unsafe fn set_buflen_with_check(buflen: *mut c_uint, val: u32) {
             crashes after this message, that is the likely error"
         );
     }
-    *buflen = val.try_into().unwrap()
+    *buflen = val.try_into().unwrap();
 }

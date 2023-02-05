@@ -5,7 +5,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-use bindgen::callbacks::{MacroParsingBehavior, ParseCallbacks, DeriveInfo};
+use bindgen::callbacks::{DeriveInfo, MacroParsingBehavior, ParseCallbacks};
 use bindgen::EnumVariation;
 
 // `math.h` seems to double define some things, To avoid this, we ignore them.

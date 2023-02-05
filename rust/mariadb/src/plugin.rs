@@ -37,6 +37,7 @@
 //! ```
 
 use std::ffi::{c_int, c_uint};
+use std::str::FromStr;
 
 use mariadb_sys as bindings;
 pub mod encryption;
@@ -56,6 +57,7 @@ pub mod prelude {
 /// Defines possible licenses for plugins
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug)]
+#[allow(clippy::cast_possible_wrap)]
 pub enum License {
     Proprietary = bindings::PLUGIN_LICENSE_PROPRIETARY as isize,
     Gpl = bindings::PLUGIN_LICENSE_GPL as isize,
@@ -63,24 +65,33 @@ pub enum License {
 }
 
 impl License {
-    /// Create a license type from a string
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "proprietary" => Some(Self::Proprietary),
-            "gpl" => Some(Self::Gpl),
-            "bsd" => Some(Self::Bsd),
-            _ => None,
-        }
-    }
-
+    #[must_use]
     #[doc(hidden)]
     pub const fn to_license_registration(self) -> c_int {
         self as c_int
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct NoMatchingLicenseError;
+
+impl FromStr for License {
+    type Err = NoMatchingLicenseError;
+
+    /// Create a license type from a string
+    fn from_str(s: &str) -> Result<Self, NoMatchingLicenseError> {
+        match s.to_lowercase().as_str() {
+            "proprietary" => Ok(Self::Proprietary),
+            "gpl" => Ok(Self::Gpl),
+            "bsd" => Ok(Self::Bsd),
+            _ => Err(NoMatchingLicenseError),
+        }
+    }
+}
+
 /// Defines a type of plugin. This determines the required implementation.
 #[non_exhaustive]
+#[allow(clippy::cast_possible_wrap)]
 pub enum PluginType {
     MyUdf = bindings::MYSQL_UDF_PLUGIN as isize,
     MyStorageEngine = bindings::MYSQL_STORAGE_ENGINE_PLUGIN as isize,
@@ -98,6 +109,7 @@ pub enum PluginType {
 }
 
 impl PluginType {
+    #[must_use]
     #[doc(hidden)]
     pub const fn to_ptype_registration(self) -> c_int {
         self as c_int
@@ -106,6 +118,7 @@ impl PluginType {
 
 /// Defines possible licenses for plugins
 #[non_exhaustive]
+#[allow(clippy::cast_possible_wrap)]
 pub enum Maturity {
     Unknown = bindings::MariaDB_PLUGIN_MATURITY_UNKNOWN as isize,
     Experimental = bindings::MariaDB_PLUGIN_MATURITY_EXPERIMENTAL as isize,
@@ -116,6 +129,7 @@ pub enum Maturity {
 }
 
 impl Maturity {
+    #[must_use]
     #[doc(hidden)]
     pub const fn to_maturity_registration(self) -> c_uint {
         self as c_uint
@@ -127,10 +141,12 @@ pub struct InitError;
 
 /// Implement this trait if your plugin requires init or deinit functions
 pub trait Init {
+    /// Initialize the plugin
     fn init() -> Result<(), InitError> {
         Ok(())
     }
 
+    /// Deinitialize the plugin
     fn deinit() -> Result<(), InitError> {
         Ok(())
     }

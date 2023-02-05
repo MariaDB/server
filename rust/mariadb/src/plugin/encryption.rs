@@ -23,7 +23,7 @@ use mariadb_sys as bindings;
 /// A type of error to be used by key functions
 #[repr(u32)]
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyError {
     // Values must be nonzero
     /// A key ID is invalid or not found. Maps to `ENCRYPTION_KEY_VERSION_INVALID` in C.
@@ -35,7 +35,7 @@ pub enum KeyError {
 
 #[repr(i32)]
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncryptionError {
     BadData = bindings::MY_AES_BAD_DATA,
     BadKeySize = bindings::MY_AES_BAD_KEYSIZE,
@@ -43,7 +43,7 @@ pub enum EncryptionError {
 }
 
 /// Representation of the flags integer
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Flags(i32);
 
 impl Flags {
@@ -51,11 +51,11 @@ impl Flags {
         Self(value)
     }
 
-    pub(crate) fn should_encrypt(&self) -> bool {
+    pub(crate) fn should_encrypt(self) -> bool {
         (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT as i32) != 0
     }
 
-    pub(crate) fn should_decrypt(&self) -> bool {
+    pub(crate) fn should_decrypt(self) -> bool {
         // (self.0 & bindings::ENCRYPTION_FLAG_DECRYPT as i32) != 0
         !self.should_encrypt()
     }

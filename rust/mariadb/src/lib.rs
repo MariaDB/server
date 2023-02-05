@@ -1,4 +1,14 @@
 //! Crate representing safe abstractions over MariaDB bindings
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![warn(clippy::missing_inline_in_public_items)]
+#![warn(clippy::str_to_string)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::missing_const_for_fn)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::missing_inline_in_public_items)]
 #![allow(unused)]
 
 use time::{format_description, OffsetDateTime};
@@ -15,6 +25,7 @@ pub use cstr;
 pub use mariadb_sys as bindings;
 
 #[doc(hidden)]
+#[inline]
 pub fn log_timestamped_message(title: &str, msg: &str) {
     let t = time::OffsetDateTime::now_utc();
     let fmt = time::format_description::parse(
