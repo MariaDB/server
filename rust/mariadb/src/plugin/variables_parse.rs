@@ -82,6 +82,7 @@ pub unsafe fn check_func_atomic_bool<T>(
 //     (*dest).store(new_val_bool, Ordering::Relaxed);
 // }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum CliValue {
     Int(Option<i64>),
     Real(Option<f64>),

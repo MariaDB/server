@@ -231,20 +231,19 @@ impl PluginInfo {
         let init_fn_name = make_ident(&format!("_{}_init_fn", name.value()));
 
         // We always initialize the logger, maybe do init/deinit if struct requires
-        let (fn_init, fn_deinit, init_fn_body);
+        let fn_init = quote! { Some(#init_fn_name) };
+        let (fn_deinit, init_fn_body);
         if let Some(init_ty) = self.init {
-            let ty_as_init = quote! {<#init_ty as ::mariadb::plugin::wrapper::WrapInit>};
-            init_fn_body = quote! { ::mariadb::configure_logger!(); #ty_as_init::wrap_init; };
-            fn_init = quote! { Some(#ty_as_init::wrap_init) };
+            let ty_as_init = quote! { <#init_ty as ::mariadb::plugin::wrapper::WrapInit> };
+            init_fn_body = quote! { ::mariadb::configure_logger!(); #ty_as_init::wrap_init(_p) };
             fn_deinit = quote! { Some(#ty_as_init::wrap_deinit) };
         } else {
-            init_fn_body = quote! { ::mariadb::configure_logger!(); };
-            fn_init = quote! { Some(#init_fn_name) };
+            init_fn_body = quote! { ::mariadb::configure_logger!(); 0 };
             fn_deinit = quote! { None };
         }
 
         let init_fn = quote! {
-            fn #init_fn_name(_: *mut std::ffi::c_void) {
+            unsafe extern "C" fn #init_fn_name(_p: *mut std::ffi::c_void) -> std::ffi::c_int {
                 #init_fn_body
             }
         };
@@ -305,10 +304,13 @@ impl PluginDef {
 
         let info_st = self.info_struct;
         let plugin_st = self.plugin_struct;
+        let init_fn = self.init_fn;
 
         let ret: TokenStream = quote! {
-            // Different config based on statically or dynamically lynked
+            #info_st
+            #init_fn
 
+            // Different config based on statically or dynamically lynked
             #[no_mangle]
             #[cfg(make_static_lib)]
             static #vers_ident_stc: ::std::ffi::c_int = #version_val;
@@ -338,8 +340,6 @@ impl PluginDef {
                 #usynccell::new(#plugin_st),
                 #usynccell::new(#null_ps),
             ] };
-
-            #info_st
         }
         .into();
 

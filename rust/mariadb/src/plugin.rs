@@ -33,6 +33,10 @@
 //!     init: ExampleKeyManager                      // optional: struct implementing Init if needed
 //!     encryption: false,                           // false to use default encryption, true if your
 //!                                                  // struct implements 'Encryption'
+//!     sysvars: [                                   // sysvars should be a list of typed identifiers
+//!         some_identifier: Mutex<String>,
+//!         other_identifier: AtomicI32,
+//!     ]
 //! }
 //! ```
 

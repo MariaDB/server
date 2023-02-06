@@ -9,8 +9,10 @@
 
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use mariadb::log::{debug};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
@@ -19,17 +21,7 @@ use mariadb::plugin::{
 use mariadb::sysvar_atomic;
 
 const KEY_LENGTH: usize = 4;
-
 static KEY_VERSION: AtomicU32 = AtomicU32::new(1);
-
-// static KEY_VERSION_SYSVAR: SysVarAtomic<u32> = sysvar_atomic! {
-//     ty: u32,
-//     name: "version",
-//     var: KEY_VERSION,
-//     comment: "Latest key version",
-//     flags: [PluginVarInfo::ReqCmdArg],
-//     default: 1,
-// };
 
 struct DebugKeyMgmt;
 
@@ -47,6 +39,7 @@ impl Init for DebugKeyMgmt {
 
 impl KeyManager for DebugKeyMgmt {
     fn get_latest_key_version(key_id: u32) -> Result<u32, KeyError> {
+        debug!("DebugKeyMgmt get_latest_key_version");
         if key_id != 1 {
             Err(KeyError::VersionInvalid)
         } else {
@@ -55,6 +48,7 @@ impl KeyManager for DebugKeyMgmt {
     }
 
     fn get_key(key_id: u32, key_version: u32, dst: &mut [u8]) -> Result<(), KeyError> {
+        debug!("DebugKeyMgmt get_key");
         if key_id != 1 {
             return Err(KeyError::VersionInvalid);
         }
@@ -72,6 +66,7 @@ impl KeyManager for DebugKeyMgmt {
     }
 
     fn key_length(key_id: u32, key_version: u32) -> Result<usize, KeyError> {
+        debug!("DebugKeyMgmt key_length");
         // Return the length of our u32 in bytes
         // Just verify our types don't change
         debug_assert_eq!(
@@ -81,6 +76,11 @@ impl KeyManager for DebugKeyMgmt {
         Ok(KEY_LENGTH)
     }
 }
+
+static TEST_SYSVAR_STR: Mutex<String> = Mutex::new(String::new());
+
+
+
 
 register_plugin! {
     DebugKeyMgmt,
@@ -94,11 +94,3 @@ register_plugin! {
     init: DebugKeyMgmt, // optional
     encryption: false,
 }
-
-// PROC: should mangle names with type name
-
-// static _INTERNAL_SYSVARS: UcWrap<[*mut mariadb::bindings::st_mysql_sys_var; 2]> =
-//     UcWrap(UnsafeCell::new([
-//         KEY_VERSION_SYSVAR.as_ptr().cast_mut(),
-//         ::std::ptr::null_mut(),
-//     ]));

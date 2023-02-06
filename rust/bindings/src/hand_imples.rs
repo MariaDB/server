@@ -1,4 +1,4 @@
-use std::ffi::{c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong, c_void};
+use std::ffi::{c_char, c_double, c_int, c_long, c_longlong, c_uint, c_ulong, c_ulonglong};
 
 use super::{mysql_var_check_func, mysql_var_update_func, TYPELIB};
 
