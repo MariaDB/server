@@ -104,8 +104,10 @@ struct VariableInfo {
 impl Parse for VariableInfo {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let span = input.span();
-        let mut ret = Self::default();
-        ret.span = Some(span);
+        let mut ret = Self {
+            span: Some(span),
+            ..Default::default()
+        };
 
         // parse struct-like syntax
         let st: ExprStruct = input.parse()?;
@@ -196,7 +198,7 @@ impl VariableInfo {
 
         if vtype == &str_ty {
             Ok((st_ident.clone(), self.make_string_sysvar(&st_ident)?))
-        } else if atomic_tys.contains(&vtype) {
+        } else if atomic_tys.contains(vtype) {
             Ok((st_ident.clone(), self.make_atomic_sysvar(&st_ident)?))
         } else {
             Err(Error::new_spanned(
@@ -246,7 +248,7 @@ impl VariableInfo {
 
         };
 
-        Ok(res.into())
+        Ok(res)
     }
 
     fn make_atomic_sysvar(&self, st_ident: &Ident) -> syn::Result<TokenStream> {

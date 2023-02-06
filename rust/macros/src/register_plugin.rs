@@ -165,7 +165,7 @@ impl PluginInfo {
         };
         let vars: Variables = syn::parse(vars_decl.to_token_stream().into())?;
         let name = expect_litstr(&self.name)?.value();
-        let sysvar_arr_ident = Ident::new(&format!("_plugin_{}_sysvars", name), Span::call_site());
+        let sysvar_arr_ident = Ident::new(&format!("_plugin_{name}_sysvars"), Span::call_site());
 
         let sysvar_bodies = &vars.sys;
         let sysvar_idents = &vars.sys_idents;
@@ -392,8 +392,7 @@ impl PluginDef {
                 #usynccell::new(#plugin_st),
                 #usynccell::new(#null_ps),
             ] };
-        }
-        .into();
+        };
         ret
     }
 }

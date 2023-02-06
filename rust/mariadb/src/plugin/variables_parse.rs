@@ -83,7 +83,7 @@ pub unsafe fn check_func_atomic_bool<T>(
 // }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum CliValue {
+pub enum CliValue {
     Int(Option<i64>),
     Real(Option<f64>),
     String(Option<String>),
