@@ -511,16 +511,16 @@ check_routine_name(const LEX_CSTRING *ident)
  */
  
 sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
-                         enum_sp_aggregate_type agg_type)
+                         enum_sp_aggregate_type agg_type, MEM_ROOT *sp_mem_root)
 {
   MEM_ROOT own_root;
-  init_sql_alloc(key_memory_sp_head_main_root, &own_root, MEM_ROOT_BLOCK_SIZE,
-                 MEM_ROOT_PREALLOC, MYF(0));
-  sp_head *sp;
-  if (!(sp= new (&own_root) sp_head(&own_root, parent, handler, agg_type)))
-    free_root(&own_root, MYF(0));
-
-  return sp;
+  if (!sp_mem_root)
+  {
+    init_sql_alloc(key_memory_sp_head_main_root, &own_root, MEM_ROOT_BLOCK_SIZE,
+                   MEM_ROOT_PREALLOC, MYF(0));
+    sp_mem_root= &own_root;
+  }
+  return new (sp_mem_root) sp_head(sp_mem_root, parent, handler, agg_type);
 }
 
 
@@ -534,7 +534,6 @@ void sp_head::destroy(sp_head *sp)
                         &sp->mem_root, &own_root));
     delete sp;
 
- 
     free_root(&own_root, MYF(0));
   }
 }
@@ -881,7 +880,6 @@ sp_head::set_stmt_end(THD *thd)
 
 sp_head::~sp_head()
 {
-  LEX *lex;
   sp_instr *i;
   DBUG_ENTER("sp_head::~sp_head");
 
@@ -900,14 +898,7 @@ sp_head::~sp_head()
     THD::lex. It is safe to not update LEX::ptr because further query
     string parsing and execution will be stopped anyway.
   */
-  while ((lex= (LEX *)m_lex.pop()))
-  {
-    THD *thd= lex->thd;
-    thd->lex->sphead= NULL;
-    lex_end(thd->lex);
-    delete thd->lex;
-    thd->lex= lex;
-  }
+  unwind_aux_lexes_and_restore_original_lex();
 
   my_hash_free(&m_sptabs);
   my_hash_free(&m_sroutines);
@@ -2512,6 +2503,22 @@ sp_head::merge_lex(THD *thd, LEX *oldlex, LEX *sublex)
 
   DBUG_RETURN(FALSE);
 }
+
+
+void sp_head::unwind_aux_lexes_and_restore_original_lex()
+{
+  LEX *lex;
+
+  while ((lex= (LEX *)m_lex.pop()))
+  {
+    THD *thd= lex->thd;
+    thd->lex->sphead= NULL;
+    lex_end(thd->lex);
+    delete thd->lex;
+    thd->lex= lex;
+  }
+}
+
 
 /**
   Put the instruction on the backpatch list, associated with the label.
