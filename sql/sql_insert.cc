@@ -3962,7 +3962,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     lex->current_select->join->select_options|= OPTION_BUFFER_RESULT;
   }
   else if (!(lex->current_select->options & OPTION_BUFFER_RESULT) &&
-           thd->locked_tables_mode <= LTM_LOCK_TABLES)
+           thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+           !table->s->long_unique_table)
   {
     /*
       We must not yet prepare the result table if it is the same as one of the 
