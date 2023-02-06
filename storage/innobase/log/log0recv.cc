@@ -1616,7 +1616,7 @@ inline bool page_recv_t::trim(lsn_t start_lsn)
 {
   while (log.head)
   {
-    if (log.head->lsn >= start_lsn) return false;
+    if (log.head->lsn > start_lsn) return false;
     last_offset= 1; /* the next record must not be same_page */
     log_rec_t *next= log.head->next;
     recv_sys.free(log.head);
