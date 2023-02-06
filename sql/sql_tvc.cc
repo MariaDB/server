@@ -540,7 +540,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
 
     if (is_list_of_rows)
     {
-      Item_row *row_list= (Item_row *)(args[i]->build_clone(thd));
+      Item_row *row_list= (Item_row *)(args[i]);
 
       if (!row_list)
         return true;
@@ -565,8 +565,7 @@ bool Item_func_in::create_value_list_for_tvc(THD *thd,
         sprintf(col_name, "_col_%i", 1);
         args[i]->set_name(thd, col_name, strlen(col_name), thd->charset());
       }
-      Item *arg_clone= args[i]->build_clone(thd);
-      if (!arg_clone || tvc_value->push_back(arg_clone))
+      if (tvc_value->push_back(args[i]))
         return true;
     }
 
@@ -1121,12 +1120,10 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
   {
     select_lex->parsing_place= IN_WHERE;
     conds=
-      conds->transform(thd,
-		       &Item::in_predicate_to_in_subs_transformer,
-                       (uchar*) 0);
+      conds->top_level_transform(thd,
+                                 &Item::in_predicate_to_in_subs_transformer, 0);
     if (!conds)
       DBUG_RETURN(true);
-    select_lex->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
     select_lex->where= conds;
   }
 
@@ -1141,13 +1138,10 @@ bool JOIN::transform_in_predicates_into_in_subq(THD *thd)
       if (table->on_expr)
       {
         table->on_expr=
-          table->on_expr->transform(thd,
-		                    &Item::in_predicate_to_in_subs_transformer,
-                                    (uchar*) 0);
+          table->on_expr->top_level_transform(thd,
+                              &Item::in_predicate_to_in_subs_transformer, 0);
 	if (!table->on_expr)
 	  DBUG_RETURN(true);
-	table->prep_on_expr= table->on_expr ?
-                             table->on_expr->copy_andor_structure(thd) : 0;
       }
     }
   }

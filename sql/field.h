@@ -1628,7 +1628,14 @@ public:
   key_map get_possible_keys();
 
   /* Hash value */
-  virtual void hash(ulong *nr, ulong *nr2);
+  void hash(Hasher *hasher)
+  {
+    if (is_null())
+      hasher->add_null();
+    else
+      hash_not_null(hasher);
+  }
+  virtual void hash_not_null(Hasher *hasher);
 
   /**
     Get the upper limit of the MySQL integral and floating-point type.
@@ -3744,7 +3751,7 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
   bool is_equal(const Column_definition &new_field) const;
-  void hash(ulong *nr, ulong *nr2);
+  void hash_not_null(Hasher *hasher);
   uint length_size() const { return length_bytes; }
   void print_key_value(String *out, uint32 length);
 private:
@@ -3951,6 +3958,7 @@ public:
   bool make_empty_rec_store_default_value(THD *thd, Item *item);
   int store(const char *to, size_t length, CHARSET_INFO *charset);
   using Field_str::store;
+  void hash_not_null(Hasher *hasher);
   double val_real(void);
   longlong val_int(void);
   String *val_str(String*,String *);
@@ -4576,7 +4584,7 @@ public:
     if (bit_ptr)
       bit_ptr= ADD_TO_PTR(bit_ptr, ptr_diff, uchar*);
   }
-  void hash(ulong *nr, ulong *nr2);
+  void hash_not_null(Hasher *hasher);
 
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
@@ -4933,7 +4941,7 @@ public:
     Record_addr addr(true);
     return make_field(share, mem_root, &addr, field_name_arg);
   }
-  /* Return true if default is an expression that must be saved explicitely */
+  /* Return true if default is an expression that must be saved explicitly */
   bool has_default_expression();
 
   bool has_default_now_unireg_check() const

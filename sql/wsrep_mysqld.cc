@@ -915,13 +915,19 @@ void wsrep_init_startup (bool sst_first)
     With mysqldump SST (!sst_first) wait until the server reaches
     joiner state and procedd to accepting connections.
   */
+  int err= 0;
   if (sst_first)
   {
-    server_state.wait_until_state(Wsrep_server_state::s_initializing);
+    err= server_state.wait_until_state(Wsrep_server_state::s_initializing);
   }
   else
   {
-    server_state.wait_until_state(Wsrep_server_state::s_joiner);
+    err= server_state.wait_until_state(Wsrep_server_state::s_joiner);
+  }
+  if (err)
+  {
+    WSREP_ERROR("Wsrep startup was interrupted");
+    unireg_abort(1);
   }
 }
 
@@ -1016,7 +1022,11 @@ void wsrep_stop_replication(THD *thd)
   {
     WSREP_DEBUG("Disconnect provider");
     Wsrep_server_state::instance().disconnect();
-    Wsrep_server_state::instance().wait_until_state(Wsrep_server_state::s_disconnected);
+    if (Wsrep_server_state::instance().wait_until_state(
+            Wsrep_server_state::s_disconnected))
+    {
+      WSREP_WARN("Wsrep interrupted while waiting for disconnected state");
+    }
   }
 
   /* my connection, should not terminate with wsrep_close_client_connection(),
@@ -1038,7 +1048,11 @@ void wsrep_shutdown_replication()
   {
     WSREP_DEBUG("Disconnect provider");
     Wsrep_server_state::instance().disconnect();
-    Wsrep_server_state::instance().wait_until_state(Wsrep_server_state::s_disconnected);
+    if (Wsrep_server_state::instance().wait_until_state(
+            Wsrep_server_state::s_disconnected))
+    {
+      WSREP_WARN("Wsrep interrupted while waiting for disconnected state");
+    }
   }
 
   wsrep_close_client_connections(TRUE);

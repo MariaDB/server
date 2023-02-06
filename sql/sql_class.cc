@@ -5230,8 +5230,7 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
      (e.g. InnoDB does it by keeping lock_sys.mutex locked)
   */
   if (WSREP_ON &&
-      wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
-      wsrep_thd_is_BF(const_cast<THD *>(other_thd), false))
+      wsrep_thd_order_before(thd, other_thd))
     return 0;
 #endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
@@ -7939,4 +7938,17 @@ bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
     ltime->second_part= sec_part;
   }
   return 0;
+}
+
+
+void THD::my_ok_with_recreate_info(const Recreate_info &info,
+                                   ulong warn_count)
+{
+  char buf[80];
+  my_snprintf(buf, sizeof(buf),
+              ER_THD(this, ER_INSERT_INFO),
+              (ulong) info.records_processed(),
+              (ulong) info.records_duplicate(),
+              warn_count);
+  my_ok(this, info.records_processed(), 0L, buf);
 }

@@ -11,6 +11,7 @@ SET DEBUG_SYNC = 'lock_wait_suspend_thread_enter SIGNAL first_ins_locked';
 SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR first_ins_cont';
 INSERT INTO t VALUES(10, 20);
 connect con_del_2,localhost,root,,;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET DEBUG_SYNC = 'now WAIT_FOR first_ins_locked';
 SET DEBUG_SYNC = 'lock_wait_suspend_thread_enter SIGNAL second_del_locked';
 DELETE FROM t WHERE b = 20;

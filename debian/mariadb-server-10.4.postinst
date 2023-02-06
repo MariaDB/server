@@ -99,7 +99,7 @@ EOF
 
     # This is important to avoid dataloss when there is a removed
     # mysql-server version from Woody lying around which used the same
-    # data directory and then somewhen gets purged by the admin.
+    # data directory and then somehow gets purged by the admin.
     db_set mariadb-server/postrm_remove_database false || true
 
     # Clean up old flags before setting new one

@@ -12,25 +12,32 @@ if (!$restart_noprint)
   --let $restart_noprint=0
 }
 
+--let $restart_cmd= restart
+
+if ($restart_bindir)
+{
+  --let $restart_cmd= restart_bindir $restart_bindir
+}
+
 if ($restart_parameters)
 {
-  --exec echo "restart: $restart_parameters" > $_expect_file_name
+  --exec echo "$restart_cmd: $restart_parameters" > $_expect_file_name
   if (!$restart_noprint)
   {
-    --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR $MYSQLTEST_VARDIR MYSQLTEST_VARDIR 
-    --exec echo "# restart: $restart_parameters"
+    --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+    --exec echo "# $restart_cmd: $restart_parameters"
   }
   if ($restart_noprint == 1)
   {
-    --exec echo "# restart: with restart_parameters"
+    --exec echo "# $restart_cmd: with restart_parameters"
   }
 }
 if (!$restart_parameters)
 {
-  --exec echo "restart" > $_expect_file_name
+  --exec echo "$restart_cmd" > $_expect_file_name
   if ($restart_noprint < 2)
   {
-    --exec echo "# restart"
+    --exec echo "# $restart_cmd"
   }
 }
 

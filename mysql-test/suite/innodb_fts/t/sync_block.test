@@ -7,6 +7,7 @@
 --source include/have_debug_sync.inc
 --source include/have_log_bin.inc
 --source include/count_sessions.inc
+--source include/maybe_versioning.inc
 
 SET @old_log_output = @@global.log_output;
 SET @old_slow_query_log = @@global.slow_query_log;

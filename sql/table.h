@@ -52,6 +52,7 @@ class Item;				/* Needed by ORDER */
 typedef Item (*Item_ptr);
 class Item_subselect;
 class Item_field;
+class Item_func_hash;
 class GRANT_TABLE;
 class st_select_lex_unit;
 class st_select_lex;
@@ -1137,6 +1138,21 @@ struct TABLE_SHARE
   void free_frm_image(const uchar *frm);
 
   void set_overlapped_keys();
+
+  bool old_long_hash_function() const
+  {
+    return mysql_version < 100428 ||
+           (mysql_version >= 100500 && mysql_version < 100519) ||
+           (mysql_version >= 100600 && mysql_version < 100612) ||
+           (mysql_version >= 100700 && mysql_version < 100708) ||
+           (mysql_version >= 100800 && mysql_version < 100807) ||
+           (mysql_version >= 100900 && mysql_version < 100905) ||
+           (mysql_version >= 101000 && mysql_version < 101003) ||
+           (mysql_version >= 101100 && mysql_version < 101102);
+  }
+  Item_func_hash *make_long_hash_func(THD *thd,
+                                      MEM_ROOT *mem_root,
+                                      List<Item> *field_list) const;
 };
 
 /* not NULL, but cannot be dereferenced */

@@ -418,18 +418,9 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
   if (args[0]->cmp_type() == STRING_RESULT &&
       args[1]->cmp_type() == STRING_RESULT)
   {
-    Query_arena *arena, backup;
-    arena= thd->activate_stmt_arena_if_needed(&backup);
-
     DTCollation tmp;
-    bool ret= agg_arg_charsets_for_comparison(tmp, args, 2);
-
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
-
-    if (ret)
-      return ret;
-
+    if (agg_arg_charsets_for_comparison(tmp, args, 2))
+      return true;
     cmp->m_compare_collation= tmp.collation;
   }
   //  Convert constants when compared to int/year field
@@ -4825,38 +4816,18 @@ Item_cond::fix_fields(THD *thd, Item **ref)
 
   if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
     return TRUE;				// Fatal error flag is set!
-  /*
-    The following optimization reduces the depth of an AND-OR tree.
-    E.g. a WHERE clause like
-      F1 AND (F2 AND (F2 AND F4))
-    is parsed into a tree with the same nested structure as defined
-    by braces. This optimization will transform such tree into
-      AND (F1, F2, F3, F4).
-    Trees of OR items are flattened as well:
-      ((F1 OR F2) OR (F3 OR F4))   =>   OR (F1, F2, F3, F4)
-    Items for removed AND/OR levels will dangle until the death of the
-    entire statement.
-    The optimization is currently prepared statements and stored procedures
-    friendly as it doesn't allocate any memory and its effects are durable
-    (i.e. do not depend on PS/SP arguments).
-  */
-  while ((item=li++))
+
+  while (li++)
   {
-    while (item->type() == Item::COND_ITEM &&
-	   ((Item_cond*) item)->functype() == functype() &&
-           !((Item_cond*) item)->list.is_empty())
-    {						// Identical function
-      li.replace(((Item_cond*) item)->list);
-      ((Item_cond*) item)->list.empty();
-      item= *li.ref();				// new current item
-    }
+    merge_sub_condition(li);
+    item= *li.ref();
     if (abort_on_null)
       item->top_level_item();
 
     /*
       replace degraded condition:
         was:    <field>
-        become: <field> = 1
+        become: <field> != 0
     */
     Item::Type type= item->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
@@ -4872,7 +4843,9 @@ Item_cond::fix_fields(THD *thd, Item **ref)
 
     if (item->fix_fields_if_needed_for_bool(thd, li.ref()))
       return TRUE; /* purecov: inspected */
-    item= *li.ref(); // item can be substituted in fix_fields
+    merge_sub_condition(li);
+    item= *li.ref(); // may be substituted in fix_fields/merge_item_if_possible
+
     used_tables_cache|=     item->used_tables();
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
@@ -4922,6 +4895,55 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     return TRUE;
   fixed= 1;
   return FALSE;
+}
+
+/**
+  @brief
+  Merge a lower-level condition pointed by the iterator into this Item_cond
+  if possible
+
+  @param li         list iterator pointing to condition that must be
+                    examined and merged if possible.
+
+  @details
+  If an item pointed by the iterator is an instance of Item_cond with the
+  same functype() as this Item_cond (i.e. both are Item_cond_and or both are
+  Item_cond_or) then the arguments of that lower-level item can be merged
+  into the list of arguments of this upper-level Item_cond.
+
+  This optimization reduces the depth of an AND-OR tree.
+  E.g. a WHERE clause like
+    F1 AND (F2 AND (F2 AND F4))
+  is parsed into a tree with the same nested structure as defined
+  by braces. This optimization will transform such tree into
+    AND (F1, F2, F3, F4).
+  Trees of OR items are flattened as well:
+    ((F1 OR F2) OR (F3 OR F4))   =>   OR (F1, F2, F3, F4)
+  Items for removed AND/OR levels will dangle until the death of the
+  entire statement.
+
+  The optimization is currently prepared statements and stored procedures
+  friendly as it doesn't allocate any memory and its effects are durable
+  (i.e. do not depend on PS/SP arguments).
+*/
+void Item_cond::merge_sub_condition(List_iterator<Item>& li)
+{
+  Item *item= *li.ref();
+
+  /*
+    The check for list.is_empty() is to catch empty Item_cond_and() items.
+    We may encounter Item_cond_and with an empty list, because optimizer code
+    strips multiple equalities, combines items, then adds multiple equalities
+    back
+  */
+  while (item->type() == Item::COND_ITEM &&
+         ((Item_cond*) item)->functype() == functype() &&
+         !((Item_cond*) item)->list.is_empty())
+  {
+    li.replace(((Item_cond*) item)->list);
+    ((Item_cond*) item)->list.empty();
+    item= *li.ref();
+  }
 }
 
 
@@ -5032,7 +5054,8 @@ bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
+Item *Item_cond::do_transform(THD *thd, Item_transformer transformer, uchar *arg,
+                              bool toplevel)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
@@ -5040,7 +5063,8 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
   Item *item;
   while ((item= li++))
   {
-    Item *new_item= item->transform(thd, transformer, arg);
+    Item *new_item= toplevel ? item->top_level_transform(thd, transformer, arg)
+                             : item->transform(thd, transformer, arg);
     if (!new_item)
       return 0;
 
@@ -5050,7 +5074,9 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
       Otherwise we'll be allocating a lot of unnecessary memory for
       change records at each execution.
     */
-    if (new_item != item)
+    if (toplevel)
+      *li.ref()= new_item;
+    else if (new_item != item)
       thd->change_item_tree(li.ref(), new_item);
   }
   return Item_func::transform(thd, transformer, arg);
@@ -5081,8 +5107,8 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
     Item returned as the result of transformation of the root node 
 */
 
-Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
-                         Item_transformer transformer, uchar *arg_t)
+Item *Item_cond::do_compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
+                      Item_transformer transformer, uchar *arg_t, bool toplevel)
 {
   if (!(this->*analyzer)(arg_p))
     return 0;
@@ -5097,7 +5123,11 @@ Item *Item_cond::compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
     */   
     uchar *arg_v= *arg_p;
     Item *new_item= item->compile(thd, analyzer, &arg_v, transformer, arg_t);
-    if (new_item && new_item != item)
+    if (!new_item || new_item == item)
+      continue;
+    if (toplevel)
+      *li.ref()= new_item;
+    else
       thd->change_item_tree(li.ref(), new_item);
   }
   return Item_func::transform(thd, transformer, arg_t);

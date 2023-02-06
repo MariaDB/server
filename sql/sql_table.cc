@@ -9619,6 +9619,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        const LEX_CSTRING *new_name,
                        HA_CREATE_INFO *create_info,
                        TABLE_LIST *table_list,
+                       Recreate_info *recreate_info,
                        Alter_info *alter_info,
                        uint order_num, ORDER *order, bool ignore)
 {
@@ -9837,6 +9838,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   if (check_engine(thd, alter_ctx.new_db.str, alter_ctx.new_name.str, create_info))
     DBUG_RETURN(true);
 
+  create_info->vers_check_native();
   if (create_info->vers_info.fix_alter_info(thd, alter_info, create_info, table))
   {
     DBUG_RETURN(true);
@@ -10686,11 +10688,10 @@ end_inplace:
   }
 
 end_temporary:
-  my_snprintf(alter_ctx.tmp_buff, sizeof(alter_ctx.tmp_buff),
-              ER_THD(thd, ER_INSERT_INFO),
-	      (ulong) (copied + deleted), (ulong) deleted,
-	      (ulong) thd->get_stmt_da()->current_statement_warn_count());
-  my_ok(thd, copied + deleted, 0L, alter_ctx.tmp_buff);
+  *recreate_info= Recreate_info(copied, deleted);
+  thd->my_ok_with_recreate_info(*recreate_info,
+                                (ulong) thd->get_stmt_da()->
+                                          current_statement_warn_count());
   DEBUG_SYNC(thd, "alter_table_inplace_trans_commit");
   DBUG_RETURN(false);
 
@@ -11207,7 +11208,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     Like mysql_alter_table().
 */
 
-bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
+bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list,
+                          Recreate_info *recreate_info, bool table_copy)
 {
   HA_CREATE_INFO create_info;
   Alter_info alter_info;
@@ -11232,8 +11234,10 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
       Alter_info::ALTER_TABLE_ALGORITHM_COPY);
 
   bool res= mysql_alter_table(thd, &null_clex_str, &null_clex_str, &create_info,
-                                table_list, &alter_info, 0,
-                                (ORDER *) 0, 0);
+                                table_list, recreate_info, &alter_info, 0,
+                                (ORDER *) 0,
+                                // Ignore duplicate records on REPAIR
+                                thd->lex->sql_command == SQLCOM_REPAIR);
   table_list->next_global= next_table;
   DBUG_RETURN(res);
 }

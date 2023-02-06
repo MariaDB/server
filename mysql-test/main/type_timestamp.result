@@ -1320,5 +1320,27 @@ CASE WHEN a THEN DEFAULT(a) END
 DROP TABLE t1;
 SET timestamp=DEFAULT;
 #
+# MDEV-27653 long uniques don't work with unicode collations
+#
+CREATE TABLE t1 (a timestamp, UNIQUE KEY(a) USING HASH);
+SET time_zone='+00:00';
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+SET time_zone='+01:00';
+INSERT INTO t1 SELECT MAX(a) FROM t1;
+ERROR 23000: Duplicate entry '2001-01-01 11:20:30' for key 'a'
+SELECT * FROM t1;
+a
+2001-01-01 11:20:30
+DROP TABLE t1;
+CREATE TABLE t1 (a timestamp, UNIQUE KEY(a) USING HASH);
+SET time_zone='+00:00';
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+SET time_zone='+01:00';
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
 # End of 10.4 tests
 #

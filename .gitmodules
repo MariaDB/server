@@ -1,13 +1,17 @@
 [submodule "libmariadb"]
 	path = libmariadb
 	url = https://github.com/MariaDB/mariadb-connector-c.git
+	ignore = all
 [submodule "storage/rocksdb/rocksdb"]
 	path = storage/rocksdb/rocksdb
 	url = https://github.com/facebook/rocksdb.git
+	ignore = all
 [submodule "wsrep-lib"]
 	path = wsrep-lib
 	url = https://github.com/codership/wsrep-lib.git
 	branch = master
+	ignore = all
 [submodule "extra/wolfssl/wolfssl"]
 	path = extra/wolfssl/wolfssl
 	url = https://github.com/wolfSSL/wolfssl.git
+	ignore = all

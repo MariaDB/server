@@ -4145,6 +4145,35 @@ int handler::check_collation_compatibility()
 }
 
 
+int handler::check_long_hash_compatibility() const
+{
+  if (!table->s->old_long_hash_function())
+    return 0;
+  KEY *key= table->key_info;
+  KEY *key_end= key + table->s->keys;
+  for ( ; key < key_end; key++)
+  {
+    if (key->algorithm == HA_KEY_ALG_LONG_HASH)
+    {
+      /*
+        The old (pre-MDEV-27653)  hash function was wrong.
+        So the long hash unique constraint can have some
+        duplicate records. REPAIR TABLE can't fix this,
+        it will fail on a duplicate key error.
+        Only "ALTER IGNORE TABLE .. FORCE" can fix this.
+        So we need to return HA_ADMIN_NEEDS_ALTER here,
+        (not HA_ADMIN_NEEDS_UPGRADE which is used elsewhere),
+        to properly send the error message text corresponding
+        to ER_TABLE_NEEDS_REBUILD (rather than to ER_TABLE_NEEDS_UPGRADE)
+        to the user.
+      */
+      return HA_ADMIN_NEEDS_ALTER;
+    }
+  }
+  return 0;
+}
+
+
 int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
 {
   int error;
@@ -4181,6 +4210,9 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
     return HA_ADMIN_NEEDS_ALTER;
 
   if (unlikely((error= check_collation_compatibility())))
+    return error;
+
+  if (unlikely((error= check_long_hash_compatibility())))
     return error;
     
   return check_for_upgrade(check_opt);
@@ -7325,7 +7357,6 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   f->flags= flags | NOT_NULL_FLAG;
   if (integer)
   {
-    DBUG_ASSERT(0); // Not implemented yet
     f->set_handler(&type_handler_vers_trx_id);
     f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
     f->flags|= UNSIGNED_FLAG;
@@ -7343,10 +7374,13 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   return f;
 }
 
-static bool vers_create_sys_field(THD *thd, const char *field_name,
-                                  Alter_info *alter_info, int flags)
+bool Vers_parse_info::create_sys_field(THD *thd, const char *field_name,
+                                       Alter_info *alter_info, int flags)
 {
-  Create_field *f= vers_init_sys_field(thd, field_name, flags, false);
+  DBUG_ASSERT(can_native >= 0); /* Requires vers_check_native() called */
+  Create_field *f= vers_init_sys_field(thd, field_name, flags,
+                                       DBUG_EVALUATE_IF("sysvers_force_trx",
+                                                        (bool) can_native, false));
   if (!f)
     return true;
 
@@ -7370,12 +7404,20 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   period= start_end_t(default_start, default_end);
   as_row= period;
 
-  if (vers_create_sys_field(thd, default_start, alter_info, VERS_ROW_START) ||
-      vers_create_sys_field(thd, default_end, alter_info, VERS_ROW_END))
+  if (create_sys_field(thd, default_start, alter_info, VERS_ROW_START) ||
+      create_sys_field(thd, default_end, alter_info, VERS_ROW_END))
   {
     return true;
   }
   return false;
+}
+
+
+void Table_scope_and_contents_source_st::vers_check_native()
+{
+  vers_info.can_native= (db_type->db_type == DB_TYPE_PARTITION_DB ||
+                         ha_check_storage_engine_flag(db_type,
+                                                      HTON_NATIVE_SYS_VERSIONING));
 }
 
 
@@ -7384,9 +7426,12 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 {
   DBUG_ASSERT(!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING));
 
-  DBUG_EXECUTE_IF("sysvers_force", if (!tmp_table()) {
-                  alter_info->flags|= ALTER_ADD_SYSTEM_VERSIONING;
-                  options|= HA_VERSIONED_TABLE; });
+  if (DBUG_EVALUATE_IF("sysvers_force", true, false) ||
+      DBUG_EVALUATE_IF("sysvers_force_trx", true, false))
+  {
+    alter_info->flags|= ALTER_ADD_SYSTEM_VERSIONING;
+    options|= HA_VERSIONED_TABLE;
+  }
 
   if (!vers_info.need_check(alter_info))
     return false;
@@ -7417,7 +7462,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     {
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
     }
-  } // while (Create_field *f= it++)
+  } // while
+
+  vers_check_native();
 
   if (vers_info.fix_implicit(thd, alter_info))
     return true;
@@ -7470,11 +7517,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) && !versioned_fields)
     return false;
 
-  bool can_native= ha_check_storage_engine_flag(db_type,
-                                                HTON_NATIVE_SYS_VERSIONING)
-                   || db_type->db_type == DB_TYPE_PARTITION_DB;
-
-  return vers_info.check_sys_fields(table_name, db, alter_info, can_native);
+  return vers_info.check_sys_fields(table_name, db, alter_info);
 }
 
 
@@ -7487,7 +7530,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (DBUG_EVALUATE_IF("sysvers_force", 0, share->tmp_table))
+  if (DBUG_EVALUATE_IF("sysvers_force", 0, share->tmp_table) ||
+      DBUG_EVALUATE_IF("sysvers_force_trx", 0, share->tmp_table))
   {
     my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
     return true;
@@ -7732,8 +7776,7 @@ bool Create_field::vers_check_bigint(const Lex_table_name &table_name) const
 
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
-                                       Alter_info *alter_info,
-                                       bool can_native) const
+                                       Alter_info *alter_info) const
 {
   if (check_conditions(table_name, db))
     return true;

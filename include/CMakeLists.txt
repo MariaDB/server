@@ -25,6 +25,7 @@ SET(HEADERS
   mysql.h 
   mysql_com.h
   mysql_com_server.h
+  mariadb_capi_rename.h
   pack.h
   my_byteorder.h
   byte_order_generic.h

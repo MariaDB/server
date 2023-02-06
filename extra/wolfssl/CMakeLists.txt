@@ -157,6 +157,8 @@ IF(WOLFSSL_X86_64_BUILD)
       ${WOLFCRYPT_SRCDIR}/sha512_asm.S
       ${WOLFCRYPT_SRCDIR}/sha256_asm.S)
     ADD_DEFINITIONS(-maes -msse4.2 -mpclmul)
+    # WolfSSL 5.5.4 bug - user_settings.h not included into aes_asm.S
+    SET_PROPERTY(SOURCE ${WOLFCRYPT_SRCDIR}/aes_asm.S APPEND PROPERTY COMPILE_OPTIONS "-DWOLFSSL_X86_64_BUILD")
   ENDIF()
 ENDIF()
 

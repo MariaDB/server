@@ -5722,6 +5722,24 @@ EXECUTE stmt USING 'd';
 EXECUTE stmt USING 'd';
 300
 DROP TABLE t1, t2, t3;
+set @@max_session_mem_used=default;
+create table t (a varchar(10)) character set utf8;
+insert into t values ('');
+prepare stmt from "select 1 from t where a = ?";
+set @@max_session_mem_used=(select memory_used*2 from information_schema.processlist where id=connection_id());
+deallocate prepare stmt;
+drop table t;
+set @@max_session_mem_used=default;
+create table t (a varchar(10)) character set utf8;
+insert into t values ('');
+prepare stmt from "select 1 from t where a = 'a'";
+set @@max_session_mem_used=(select memory_used*2 from information_schema.processlist where id=connection_id());
+deallocate prepare stmt;
+drop table t;
+set @@max_session_mem_used=default;
+#
+# End of 10.3 tests
+#
 #
 # MDEV-19263: Server crashes in mysql_handle_single_derived
 # upon 2nd execution of PS
