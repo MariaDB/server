@@ -205,7 +205,7 @@ SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "mysql-client"
   "mytop")
 SETA(CPACK_RPM_client_PACKAGE_CONFLICTS
-  "MariaDB-server < 10.6.0")
+  "MariaDB-server < 11.0.0")
 
 SETA(CPACK_RPM_common_PACKAGE_CONFLICTS
   "MariaDB-server < 10.6.1")
@@ -237,7 +237,7 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
 
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "MariaDB-common >= 10.6.1"
-  "MariaDB-client >= 10.6.1")
+  "MariaDB-client >= 11.0.0")
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
