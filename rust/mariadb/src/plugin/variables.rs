@@ -1,13 +1,14 @@
 //! "show variables" and "system variables"
 
 use std::cell::UnsafeCell;
-use std::ffi::{c_double, c_int, c_long, c_longlong, c_ulong, c_ulonglong, c_void};
+use std::ffi::{c_double, c_int, c_long, c_longlong, c_ulong, c_ulonglong, c_void, CStr};
 use std::mem::ManuallyDrop;
 use std::os::raw::{c_char, c_uint};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicI32};
 use std::sync::Mutex;
 
+use bindings::THD;
 use mariadb_sys as bindings;
 
 use super::variables_parse::{CliMysqlValue, CliValue};
@@ -35,7 +36,7 @@ pub union SysVarInfoU {
 }
 
 /// Internal trait
-trait SysVar: Sync {
+pub trait SysVarWrap: Sync {
     /// Type for interfacing with the main server
     // type CType: SysVarCType;
 
@@ -72,7 +73,7 @@ trait SysVar: Sync {
 }
 
 /// Intermediate type is a &String
-impl SysVar for Mutex<String> {
+impl SysVarWrap for Mutex<String> {
     const C_FLAGS: i32 = (bindings::PLUGIN_VAR_STR) as i32;
     type CStType = bindings::sysvar_str_t;
     type Intermediate = Box<Option<String>>;
@@ -112,98 +113,13 @@ impl SysVarInfoU {
     // }
 }
 
-/// Create a system variable from an atomic
-///
-/// Supported types are currently `AtomicBool`, `AtomicI32`, `AtomicI64`, and
-/// their unsigned versions.
-#[macro_export]
-macro_rules! sysvar_atomic {
-    // Match the types manually
-    // (@var_type bool) => {bindings::PLUGIN_VAR_BOOL};
-    (@var_type i32) => {bindings::PLUGIN_VAR_INT};
-    (@var_type u32) => {bindings::PLUGIN_VAR_INT | bindings::PLUGIN_VAR_UNSIGNED};
-    (@var_type i64) => {bindings::PLUGIN_VAR_LONGLONG};
-    (@var_type u64) => {bindings::PLUGIN_VAR_LONGLONG | bindings::PLUGIN_VAR_UNSIGNED};
-    (@def $default:expr, ) => {$default};
-    (@def $default:expr, $replace:expr) => {$replace};
-
-    (
-        ty: $ty:tt,
-        name: $name:expr,
-        var: $var:ident
-        $(, comment: $comment:expr)?
-        $(, flags: [$($flag:expr),+ $(,)?])?
-        $(, default: $default:expr)?
-        $(, minimum: $minimum:expr)?
-        $(, maximum: $maximum:expr)?
-        $(, multiplier: $multiplier:expr)?
-        $(,)? // trailing comma
-    ) => {
-        {
-            use ::std::ffi::{c_void, c_int, c_char};
-            use ::std::mem::ManuallyDrop;
-            use ::std::ptr;
-
-            use $crate::bindings;
-            use $crate::cstr;
-
-            // Just make syntax cleaner
-            type IntTy = $ty;
-
-            unsafe extern "C" fn check_val(
-                _thd: *mut bindings::THD,
-                self_: *mut bindings::st_mysql_sys_var,
-                save: *mut c_void,
-                _mysqld_values: *mut bindings::st_mysql_value
-            ) -> c_int {
-                // SAFETY: caller ensures save points to a valid location of the correct type
-                *save.cast() = $var.load(::std::sync::atomic::Ordering::Relaxed);
-                0
-            }
-
-            unsafe extern "C" fn update_val(
-                _thd: *mut bindings::THD,
-                self_: *mut bindings::st_mysql_sys_var,
-                var_ptr: *mut c_void,
-                save: *const c_void
-            ) {
-                // SAFETY: `safe` points to a caller-validated value, `var_ptr` is properly sized
-                *var_ptr.cast() = $var.swap(*save.cast(), ::std::sync::atomic::Ordering::Relaxed);
-            }
-
-            // Defaults
-            const FLAGS: i32 = sysvar_atomic!(@var_type $ty) as i32 $( $(| ($flag as i32))+ )?;
-
-            const REF_STRUCT: bindings::st_mysql_sys_var_simple<$ty> =
-                bindings::st_mysql_sys_var_simple::<$ty> {
-                flags: FLAGS,
-                name: cstr::cstr!($name).as_ptr(),
-                comment: sysvar_atomic!(
-                    @def
-                    ptr::null(),
-                    $(cstr::cstr!($comment).as_ptr())?
-                ),
-                check: Some(check_val),
-                update: Some(update_val),
-                value: ptr::null_mut(),
-                def_val: sysvar_atomic!(@def 0, $($default)?),
-                min_val: sysvar_atomic!(@def IntTy::MIN, $($minimum)?),
-                max_val: sysvar_atomic!(@def IntTy::MAX, $($maximum)?),
-                blk_sz: sysvar_atomic!(@def 1, $($multiplier)?),
-            };
-
-            unsafe { SysVarAtomic::new_simple(REF_STRUCT) }
-        }
-
-    };
-}
-
 /// Possible flags for plugin variables
 #[repr(i32)]
 #[non_exhaustive]
+#[derive(Clone, Copy, PartialEq)]
 #[allow(clippy::cast_possible_wrap)]
 pub enum PluginVarInfo {
-    ThdLocal = bindings::PLUGIN_VAR_THDLOCAL as i32,
+    // ThdLocal = bindings::PLUGIN_VAR_THDLOCAL as i32,
     /// Variable is read only
     ReadOnly = bindings::PLUGIN_VAR_READONLY as i32,
     /// Variable is not a server variable
@@ -222,37 +138,56 @@ pub enum PluginVarInfo {
     //  MemAlloc= bindings::PLUGIN_VAR_MEMALLOC,
 }
 
-#[cfg(test)]
-mod tests {
-    use std::ffi::c_uint;
-    use std::mem::size_of;
-    use std::sync::atomic::AtomicU32;
+impl PluginVarInfo {
+    pub const fn to_i32(self) -> i32 {
+        self as i32
+    }
+}
 
-    use super::*;
+/// A string system variable
+pub struct SysVarString(Mutex<String>);
 
-    #[test]
-    fn test_sizes() {
-        assert_eq!(size_of::<u32>(), size_of::<c_uint>())
+impl SysVarString {
+    pub const fn new() -> Self {
+        Self(Mutex::new(String::new()))
     }
 
-    #[test]
-    fn test_macro() {
-        static X: AtomicU32 = AtomicU32::new(0);
-        let x = sysvar_atomic! {
-            ty: u32,
-            name: "sql_name",
-            var: X,
-        };
-        // dbg!(x);
-        let x = sysvar_atomic! {
-            ty: u32,
-            name: "sql_name",
-            var: X,
-            comment: "this is a comment",
-            flags: [PluginVarInfo::ReadOnly],
-            maximum: 40,
-            multiplier: 2
-        };
-        // dbg!(x);
+    /// Get the current value of this variable. This isn't very efficient since
+    /// it copies the string, but fixes will come later
+    pub fn get(&self) -> String {
+        let guard = self.0.lock().expect("failed to lock mutex");
+        (*guard).clone()
+    }
+}
+
+pub trait SimpleSysvarWrap: Sized {
+    type CStType;
+    type Intermediate;
+    /// Store the result of the `check` function.
+    ///
+    /// - thd: thread pointer
+    /// - var: pointer to the c struct
+    /// - var_ptr: where to stash the value
+    /// - save: stash from the `check` function
+    unsafe extern "C" fn update_wrap(
+        thd: *mut THD,
+        var: *mut bindings::st_mysql_sys_var,
+        target: *mut c_void,
+        save: *const c_void,
+    ) {
+        Self::update(&mut *var.cast(), &mut *target.cast(), &*save.cast())
+    }
+
+    unsafe fn update(var: &mut Self::CStType, target: &mut Self, save: &Self::Intermediate) {}
+}
+
+impl SimpleSysvarWrap for SysVarString {
+    type CStType = bindings::sysvar_str_t;
+    type Intermediate = *mut c_char;
+
+    unsafe fn update(var: &mut Self::CStType, target: &mut Self, save: &Self::Intermediate) {
+        let cs = CStr::from_ptr(*save).to_string_lossy();
+        let mut guard = (*target).0.lock().expect("failed to lock mutex");
+        *guard = cs.to_string();
     }
 }

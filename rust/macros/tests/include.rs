@@ -1,8 +1,14 @@
-/* Simple setup for dummy proc macro testing */
+/* Simple setup for dummy proc macro testing. Simple compile pass/fail only. */
+
+use std::sync::atomic::AtomicI32;
 
 use mariadb::plugin::encryption::*;
 use mariadb::plugin::prelude::*;
+use mariadb::plugin::SysVarString;
 pub use mariadb_macros::register_plugin;
+
+static _SYSVAR_ATOMIC: AtomicI32 = AtomicI32::new(0);
+static _SYSVAR_STR: SysVarString = SysVarString::new();
 
 struct TestPlugin;
 

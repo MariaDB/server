@@ -18,7 +18,7 @@ pub use self::error::ClientError;
 use self::raw::{ClientResult, FetchedRow, RState, RawResult};
 pub use self::raw::{Fetch, Store};
 use crate::bindings;
-use crate::plugin::wrapper::UnsafeSyncCell;
+use crate::helpers::UnsafeSyncCell;
 
 /// A connection to a local or remote SQL server
 pub struct MySqlConn(RawConnection);

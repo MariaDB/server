@@ -21,11 +21,16 @@ use std::fmt::Write;
 
 #[doc(inline)]
 pub use common::*;
-#[doc(hidden)]
-pub use cstr;
 pub use log;
 #[doc(hidden)]
 pub use mariadb_sys as bindings;
+
+#[doc(hidden)]
+pub mod internals {
+    pub use cstr::cstr;
+
+    pub use super::helpers::UnsafeSyncCell;
+}
 
 #[doc(hidden)]
 pub struct MariaLogger {
@@ -67,6 +72,8 @@ impl log::Log for MariaLogger {
     fn flush(&self) {}
 }
 
+/// Configure the default logger. This is currently called by default for
+/// plugins in the `init` function.
 #[macro_export]
 macro_rules! configure_logger {
     () => {
@@ -77,7 +84,7 @@ macro_rules! configure_logger {
         $crate::log::set_logger(&LOGGER)
             .map(|()| $crate::log::set_max_level($level))
             .expect("failed to configure logger");
-    }}
+    }};
 }
 
 /// Provide the name of the calling function (full path)
