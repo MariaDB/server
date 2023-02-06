@@ -48,10 +48,10 @@ pub trait SysVarWrap: Sync {
 
     /// For the check function, validate the arguments in `value` and write them to `dest`.
     ///
-    /// - thd: thread pointer
-    /// - var: pointer to the c struct
-    /// - save: a temporary place to stash anything until it gets to update
-    /// - value: cli value
+    /// - `thd`: thread pointer
+    /// - `var`: pointer to the c struct
+    /// - `save`: a temporary place to stash anything until it gets to update
+    /// - `value`: cli value
     unsafe fn check(
         thd: *const c_void,
         var: &mut Self::CStType,
@@ -60,48 +60,16 @@ pub trait SysVarWrap: Sync {
     ) -> c_int;
     /// Store the result of the `check` function.
     ///
-    /// - thd: thread pointer
-    /// - var: pointer to the c struct
-    /// - var_ptr: where to stash the value
-    /// - save: stash from the `check` function
+    /// - `thd`: thread pointer
+    /// - `var`: pointer to the c struct
+    /// - `var_ptr`: where to stash the value
+    /// - `save`: stash from the `check` function
     unsafe fn update(
         thd: *const c_void,
         var: &mut Self::CStType,
         var_ptr: &mut Self,
         save: &mut Self::Intermediate,
     );
-}
-
-/// Intermediate type is a &String
-impl SysVarWrap for Mutex<String> {
-    const C_FLAGS: i32 = (bindings::PLUGIN_VAR_STR) as i32;
-    type CStType = bindings::sysvar_str_t;
-    type Intermediate = Box<Option<String>>;
-    unsafe fn check(
-        thd: *const c_void,
-        var: &mut Self::CStType,
-        save: &mut Self::Intermediate,
-        value: &CliMysqlValue,
-    ) -> c_int {
-        crate::log::warn!("entering sysvar mutex string check");
-        let CliValue::String(Some(s))  = value.value() else {
-            panic!("got wrong string value {:?}", value.value());
-        };
-        dbg!(&s);
-        *save = Box::new(Some(s));
-        0
-    }
-    unsafe fn update(
-        thd: *const c_void,
-        var: &mut Self::CStType,
-        var_ptr: &mut Self,
-        save: &mut Self::Intermediate,
-    ) {
-        crate::log::warn!("entering sysvar mutex string update");
-        let s = save.take().unwrap();
-        dbg!(&s);
-        *var_ptr.lock().expect("failed to lock mutex") = s;
-    }
 }
 
 impl SysVarInfoU {
@@ -116,7 +84,7 @@ impl SysVarInfoU {
 /// Possible flags for plugin variables
 #[repr(i32)]
 #[non_exhaustive]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[allow(clippy::cast_possible_wrap)]
 pub enum PluginVarInfo {
     // ThdLocal = bindings::PLUGIN_VAR_THDLOCAL as i32,
@@ -165,29 +133,29 @@ pub trait SimpleSysvarWrap: Sized {
     type Intermediate;
     /// Store the result of the `check` function.
     ///
-    /// - thd: thread pointer
-    /// - var: pointer to the c struct
-    /// - var_ptr: where to stash the value
-    /// - save: stash from the `check` function
+    /// - `thd`: thread pointer
+    /// - `var`: pointer to the c struct
+    /// - `var_ptr`: where to stash the value
+    /// - `save`: stash from the `check` function
     unsafe extern "C" fn update_wrap(
         thd: *mut THD,
         var: *mut bindings::st_mysql_sys_var,
         target: *mut c_void,
         save: *const c_void,
     ) {
-        Self::update(&mut *var.cast(), &mut *target.cast(), &*save.cast())
+        Self::update(&*var.cast(), &*target.cast(), &*save.cast());
     }
 
-    unsafe fn update(var: &mut Self::CStType, target: &mut Self, save: &Self::Intermediate) {}
+    unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {}
 }
 
 impl SimpleSysvarWrap for SysVarString {
     type CStType = bindings::sysvar_str_t;
     type Intermediate = *mut c_char;
 
-    unsafe fn update(var: &mut Self::CStType, target: &mut Self, save: &Self::Intermediate) {
+    unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {
         let cs = CStr::from_ptr(*save).to_string_lossy();
-        let mut guard = (*target).0.lock().expect("failed to lock mutex");
+        let mut guard = target.0.lock().expect("failed to lock mutex");
         *guard = cs.to_string();
     }
 }
