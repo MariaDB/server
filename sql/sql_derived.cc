@@ -771,6 +771,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
         cursor->outer_join|= JOIN_TYPE_OUTER;
     }
   }
+  // Prevent it for possible ORDER BY clause
+  if (unit->fake_select_lex)
+    unit->fake_select_lex->context.outer_context= 0;
 
   /*
     Above cascade call of prepare is important for PS protocol, but after it
