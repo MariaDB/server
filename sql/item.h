@@ -6908,6 +6908,14 @@ private:
 public:
   /* Next in list of all Item_trigger_field's in trigger */
   Item_trigger_field *next_trg_field;
+
+  /**
+    Pointer to the next list of Item_trigger_field objects. This pointer
+    is used to organize an intrusive list of lists of Item_trigger_field
+    objects managed by sp_head.
+  */
+  SQL_I_List<Item_trigger_field> *next_trig_field_list;
+
   /* Pointer to Table_trigger_list object for table of this trigger */
   Table_triggers_list *triggers;
   /* Is this item represents row from NEW or OLD row ? */
@@ -6942,7 +6950,8 @@ Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
                      const LEX_CSTRING &field_name_arg,
                      privilege_t priv, const bool ro)
     :Item_field(thd, context_arg, field_name_arg),
-    table_grants(NULL),  next_trg_field(NULL),  triggers(NULL),
+    table_grants(nullptr),  next_trg_field(nullptr),
+    next_trig_field_list(nullptr), triggers(nullptr),
     row_version(row_ver_arg), field_idx(NO_CACHED_FIELD_INDEX),
     read_only (ro),  original_privilege(priv), want_privilege(priv)
   {
