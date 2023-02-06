@@ -70,11 +70,13 @@ impl log::Log for MariaLogger {
 #[macro_export]
 macro_rules! configure_logger {
     () => {
-        $crate::configure_logger!(log::LevelFilter::Warn)
+        $crate::configure_logger!($crate::log::LevelFilter::Warn)
     };
     ($level:expr) => {{
-        static LOGGER = $crate::MariaLogger::new();
-        $crate::log::set_logger(&LOGGER).map(|()| log::set_max_level($level))
+        static LOGGER: $crate::MariaLogger = $crate::MariaLogger::new();
+        $crate::log::set_logger(&LOGGER)
+            .map(|()| $crate::log::set_max_level($level))
+            .expect("failed to configure logger");
     }}
 }
 

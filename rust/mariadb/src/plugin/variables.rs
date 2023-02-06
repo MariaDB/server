@@ -6,10 +6,11 @@ use std::mem::ManuallyDrop;
 use std::os::raw::{c_char, c_uint};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, AtomicI32};
+use std::sync::Mutex;
 
 use mariadb_sys as bindings;
 
-use super::variables_parse::CliMysqlValue;
+use super::variables_parse::{CliMysqlValue, CliValue};
 
 type SVInfoInner<T> = ManuallyDrop<UnsafeCell<T>>;
 
@@ -33,24 +34,6 @@ pub union SysVarInfoU {
     // offset (also a field)
 }
 
-/// Types that can be communicated with the C sysvar interface
-trait SysVarCType {
-    const C_TYPE_FLAG: i32;
-}
-
-// impl SysVarCType for i32 {
-//     const C_TYPE_FLAG: i32 = bindings::PLUGIN_VAR_INT as i32;
-// }
-impl SysVarCType for i64 {
-    const C_TYPE_FLAG: i32 = bindings::PLUGIN_VAR_LONGLONG as i32;
-}
-impl SysVarCType for f64 {
-    const C_TYPE_FLAG: i32 = bindings::PLUGIN_VAR_DOUBLE as i32;
-}
-impl SysVarCType for *const c_char {
-    const C_TYPE_FLAG: i32 = bindings::PLUGIN_VAR_INT as i32;
-}
-
 /// Internal trait
 trait SysVar: Sync {
     /// Type for interfacing with the main server
@@ -59,88 +42,66 @@ trait SysVar: Sync {
     const C_FLAGS: i32;
     /// C struct
     type CStType;
-    /// C representation of type
-    type CType;
-    /// Inner representation type
-    type Inner;
+    /// Type shared between `check` and `update`
+    type Intermediate;
 
-    // /// For the check function, validate the arguments in `value` and write them to `dest`.
+    /// For the check function, validate the arguments in `value` and write them to `dest`.
+    ///
+    /// - thd: thread pointer
+    /// - var: pointer to the c struct
+    /// - save: a temporary place to stash anything until it gets to update
+    /// - value: cli value
     unsafe fn check(
         thd: *const c_void,
         var: &mut Self::CStType,
-        save: &mut Self::CType,
+        save: &mut Self::Intermediate,
         value: &CliMysqlValue,
-    );
-    // /// The update function
+    ) -> c_int;
+    /// Store the result of the `check` function.
+    ///
+    /// - thd: thread pointer
+    /// - var: pointer to the c struct
+    /// - var_ptr: where to stash the value
+    /// - save: stash from the `check` function
     unsafe fn update(
         thd: *const c_void,
         var: &mut Self::CStType,
-        save: &mut Self::CType,
-        value: &CliMysqlValue,
+        var_ptr: &mut Self,
+        save: &mut Self::Intermediate,
     );
 }
 
-impl SysVar for AtomicI32 {
-    const C_FLAGS: i32 = bindings::PLUGIN_VAR_INT as i32;
-    type CStType = bindings::sysvar_int_t;
-
-    type Inner = i32;
-
-    type CType = i32;
-
+/// Intermediate type is a &String
+impl SysVar for Mutex<String> {
+    const C_FLAGS: i32 = (bindings::PLUGIN_VAR_STR) as i32;
+    type CStType = bindings::sysvar_str_t;
+    type Intermediate = Box<Option<String>>;
     unsafe fn check(
         thd: *const c_void,
         var: &mut Self::CStType,
-        save: &mut Self::CType,
+        save: &mut Self::Intermediate,
         value: &CliMysqlValue,
-    ) {
-        todo!()
+    ) -> c_int {
+        crate::log::warn!("entering sysvar mutex string check");
+        let CliValue::String(Some(s))  = value.value() else {
+            panic!("got wrong string value {:?}", value.value());
+        };
+        dbg!(&s);
+        *save = Box::new(Some(s));
+        0
     }
-
     unsafe fn update(
         thd: *const c_void,
         var: &mut Self::CStType,
-        save: &mut Self::CType,
-        value: &CliMysqlValue,
+        var_ptr: &mut Self,
+        save: &mut Self::Intermediate,
     ) {
-        todo!()
+        crate::log::warn!("entering sysvar mutex string update");
+        let s = save.take().unwrap();
+        dbg!(&s);
+        *var_ptr.lock().expect("failed to lock mutex") = s;
     }
 }
-
-macro_rules! sysvar {
-    () => {};
-}
-
-// pub enum SysVarInfo<'a> {
-//     Bool(&'a SVInfoInner<bindings::st_mysql_sys_var_basic<c_char>>),
-//     String(&'a SVInfoInner<bindings::st_mysql_sys_var_basic<*mut c_char>>),
-//     ConstString(&'a SVInfoInner<bindings::st_mysql_sys_var_const_basic<*const c_char>>),
-//     Int(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_int>>),
-//     UInt(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_uint>>),
-//     Long(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_long>>),
-//     ULong(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_ulong>>),
-//     LongLong(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_longlong>>),
-//     ULongLong(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_ulonglong>>),
-//     UInt64T(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<u64>>),
-//     SizeT(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<isize>>),
-//     Enum(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_typelib<c_long>>),
-//     Set(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_typelib<c_longlong>>),
-//     Double(&'a SVInfoInner<bindings::st_mysql_sys_var_simple<c_double>>),
-
-//     ThdBool(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_basic<c_char>>),
-//     ThdString(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_basic<*mut c_char>>),
-//     ThdInt(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_int>>),
-//     ThdUInt(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_uint>>),
-//     ThdLong(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_long>>),
-//     ThdULong(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_ulong>>),
-//     ThdLongLong(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_longlong>>),
-//     ThdULongLong(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_ulonglong>>),
-//     ThdUInt64T(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<u64>>),
-//     ThdSizeT(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<isize>>),
-//     ThdEnum(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_typelib<c_long>>),
-//     ThdSet(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_typelib<c_longlong>>),
-//     ThdDouble(&'a SVInfoInner<bindings::st_mysql_sys_var_thd_simple<c_double>>),
-// }
 
 impl SysVarInfoU {
     // /// Determine the version based on flags

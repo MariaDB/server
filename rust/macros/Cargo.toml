@@ -3,9 +3,12 @@ name = "mariadb-macros"
 version = "0.1.0"
 edition = "2021"
 
-
 [lib]
 proc-macro = true
+
+[[test]]
+name = "tests"
+path = "tests/entry.rs"
 
 [dependencies]
 # heck = "0.4.0"
@@ -18,3 +21,4 @@ syn = { version = "1.0.107", features = [], default-features = false }
 [dev-dependencies]
 # trybuild = { version = "1.0.65", features = ["diff"] }
 mariadb = { path = "../mariadb" }
+trybuild = { version = "1.0.77", features = ["diff"] }
