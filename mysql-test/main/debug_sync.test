@@ -298,6 +298,16 @@ SET DEBUG_SYNC= 'p9abcdef TEST';
 SHOW VARIABLES LIKE 'DEBUG_SYNC';
 SET DEBUG_SYNC= 'p3abcdef TEST';
 SHOW VARIABLES LIKE 'DEBUG_SYNC';
+
+#
+# Wait for all signals currently active except s3.
+#
+SET DEBUG_SYNC= 'now WAIT_FOR s9';
+SET DEBUG_SYNC= 'now WAIT_FOR s1';
+SET DEBUG_SYNC= 'now WAIT_FOR s4';
+SET DEBUG_SYNC= 'now WAIT_FOR s7';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+
 #
 # Clear the actions.
 #
@@ -320,7 +330,7 @@ SHOW VARIABLES LIKE 'DEBUG_SYNC';
 SET DEBUG_SYNC= 'p9abcdef TEST';
 SHOW VARIABLES LIKE 'DEBUG_SYNC';
 #
-# Now cleanup. Actions are clear already, but signal needs to be cleared.
+# Now cleanup. Actions are clear already, but s3 signal needs to be cleared.
 #
 SET DEBUG_SYNC= 'RESET';
 SHOW VARIABLES LIKE 'DEBUG_SYNC';
@@ -418,10 +428,24 @@ disconnect con2;
 connection default;
 DROP TABLE t1;
 
+--echo #
+--echo # Test NO_CLEAR_EVENT flag. The signal should still be visible after
+--echo # the wait has completed succesfully.
+--echo #
+SET DEBUG_SYNC= 'now SIGNAL s1';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+SET DEBUG_SYNC= 'now WAIT_FOR s1 NO_CLEAR_EVENT';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+SET DEBUG_SYNC= 'now WAIT_FOR s1';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+
+SET DEBUG_SYNC= 'now SIGNAL s1,s2,s5,s7';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+
+
 #
 # Cleanup after test case.
-# Otherwise signal would contain 'flushed' here,
-# which could confuse the next test.
+# Otherwise signal would confuse the next test.
 #
 SET DEBUG_SYNC= 'RESET';
 

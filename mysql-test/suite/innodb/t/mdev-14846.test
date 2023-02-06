@@ -35,6 +35,7 @@ SET DEBUG_SYNC='now WAIT_FOR con1_dml';
 begin;
 SELECT * FROM t1 for update; # Holds x lock of all records in the table t1
 SET DEBUG_SYNC='now SIGNAL default_dml';
+SET DEBUG_SYNC='now SIGNAL con2_dml';
 
 --connection default
 SET DEBUG_SYNC='now WAIT_FOR default_dml';
@@ -42,7 +43,7 @@ SET DEBUG_SYNC='now WAIT_FOR default_dml';
 # It holds the lock of all record in t3 and tries to acquire record lock for the table  t1.
 
 --connect (con2,localhost,root,,test)
-set debug_sync='now WAIT_FOR default_dml';
+set debug_sync='now WAIT_FOR con2_dml';
 let $wait_condition=
 select count(*) > 0 from information_schema.innodb_lock_waits;
 --source include/wait_condition.inc
