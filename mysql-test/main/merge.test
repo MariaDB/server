@@ -2906,5 +2906,14 @@ SELECT DISTINCT a FROM tm WHERE a > 50;
 DROP TABLE tm, t1, t2;
 
 --echo #
+--echo # MDEV-30568 Assertion `cond_selectivity <= 1.000000001' failed in get_range_limit_read_cost
+--echo #
+CREATE TABLE t1 (f INT, KEY(f)) ENGINE=MyISAM;
+CREATE TABLE t2 (f INT, KEY(f)) ENGINE=MyISAM;
+CREATE TABLE tm (f INT, KEY(f)) ENGINE=MERGE UNION = (t1, t2);
+SELECT DISTINCT f FROM tm WHERE f IN (47, 126, 97, 48, 73, 0);
+DROP TABLE tm, t1, t2;
+
+--echo #
 --echo # End of 11.0 tests
 --echo #
