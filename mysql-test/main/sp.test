@@ -8700,11 +8700,10 @@ create table t1 (a int);
 insert into t1 (a) values (1), (2), (3), (4), (5);
 --echo #
 --echo # Do we correctly resolve identifiers in LIMIT?
---echo # Since DROP and CREATE did not invalidate
---echo # the SP cache, we can't test until
---echo # we drop and re-create the procedure.
+--echo # DROP and CREATE results in SP statement recompilation
+--echo # so second execution of the procedure p1() doesn't lead
+--echo # to issuing an error
 --echo #
---error ER_BAD_FIELD_ERROR
 call p1();
 --echo # 
 --echo # Drop and recreate the procedure, then repeat
