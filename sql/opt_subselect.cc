@@ -666,17 +666,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         DBUG_RETURN(-1);
       }
     }
-    /* Check if any table is not supporting comparable rowids */
-    {
-      List_iterator_fast<TABLE_LIST> li(select_lex->outer_select()->leaf_tables);
-      TABLE_LIST *tbl;
-      while ((tbl = li++))
-      {
-        TABLE *table= tbl->table;
-        if (table && table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
-          join->not_usable_rowid_map|= table->map;
-      }
-    }
 
     DBUG_PRINT("info", ("Checking if subq can be converted to semi-join"));
     /*
@@ -698,9 +687,10 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         11. It is first optimisation (the subquery could be moved from ON
             clause during first optimisation and then be considered for SJ
             on the second when it is too late)
-        12. All tables supports comparable rowids.
-            This is needed for DuplicateWeedout strategy to work (which
-            is the catch-all semi-join strategy so it must be applicable).
+
+      There are also other requirements which cannot be checked at this phase,
+      yet. They are checked later in convert_join_subqueries_to_semijoins(),
+      look for calls to block_conversion_to_sj().
     */
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
         in_subs &&                                                    // 1
@@ -715,8 +705,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
-        select_lex->first_cond_optimization &&                        // 11
-        join->not_usable_rowid_map == 0)                              // 12
+        select_lex->first_cond_optimization)                          // 11
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -1230,7 +1219,36 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     }
   }
 
-  if (join->select_options & SELECT_STRAIGHT_JOIN)
+  /*
+    Compute join->not_usable_rowid_map.
+    The idea is:
+    - DuplicateWeedout strategy requires that one is able to get the rowid
+      (call h->position()) for tables in the parent select. Obtained Rowid
+      values must be stable across table scans.
+      = Rowids are typically available. The only known exception is federatedx
+        tables.
+    - The optimizer requires that DuplicateWeedout strategy is always
+      applicable. It is the only strategy that is applicable for any join
+      order. The optimizer is not prepared for the situation where it has
+      constructed a join order and then it turns out that there's no semi-join
+      strategy that can be used for it.
+
+    Because of the above, we will not use semi-joins if the parent select has
+    tables which do not support rowids.
+  */
+  {
+    List_iterator_fast<TABLE_LIST> li(join->select_lex->leaf_tables);
+    TABLE_LIST *tbl;
+    while ((tbl = li++))
+    {
+      TABLE *table= tbl->table;
+      if (table && table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+        join->not_usable_rowid_map|= table->map;
+    }
+  }
+
+  if (join->select_options & SELECT_STRAIGHT_JOIN ||
+      join->not_usable_rowid_map != 0)
   {
     /* Block conversion to semijoins for all candidates */ 
     li.rewind();

@@ -2357,6 +2357,21 @@ DROP TABLE t2_fed, t1, t2;
 set @@optimizer_switch=@save_optimizer_switch;
 DROP SERVER s;
 # End of 10.5 tests
+#
+# MDEV-30569: Assertion ...ha_table_flags() failed in Duplicate_weedout_picker::check_qep
+#
+create server s foreign data wrapper mysql options
+(host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t1_fed ENGINE=FEDERATED CONNECTION='s/t1';
+CREATE VIEW v AS SELECT * FROM t1_fed;
+SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
+a
+DROP TABLE t1_fed, t1, t2;
+DROP SERVER s;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
