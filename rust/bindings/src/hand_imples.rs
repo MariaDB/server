@@ -10,7 +10,7 @@ pub const ENCRYPTION_KEY_VERSION_INVALID: c_uint = !0;
 
 // no support for THD yet
 macro_rules! declare_sysvar_type {
-    (@common $name:ident: $(#[$doc:meta] $fname:ident: $fty:ty),+ $(,)*) => {
+    (@common $name:ident: $(#[$doc:meta] $fname:ident: $fty:ty),* $(,)*) => {
         // Common implementation
         #[repr(C)]
         #[derive(Debug)]
@@ -30,7 +30,7 @@ macro_rules! declare_sysvar_type {
             $(
                 #[$doc]
                 pub $fname: $fty
-            ),+
+            ),*
         }
     };
     (basic: $name:ident, $ty:ty) => {
@@ -91,6 +91,7 @@ macro_rules! declare_sysvar_type {
     // };
 }
 
+declare_sysvar_type!(@common sysvar_common_t:);
 declare_sysvar_type!(basic: sysvar_bool_t, bool);
 declare_sysvar_type!(basic: sysvar_str_t, *mut c_char);
 declare_sysvar_type!(typelib: sysvar_enum_t, c_ulong);

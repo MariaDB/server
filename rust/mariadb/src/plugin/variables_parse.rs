@@ -89,7 +89,7 @@ pub(crate) enum CliValue {
     String(Option<String>),
 }
 
-pub(crate) struct CliMysqlValue(UnsafeCell<bindings::st_mysql_value>);
+pub struct CliMysqlValue(UnsafeCell<bindings::st_mysql_value>);
 
 impl CliMysqlValue {
     /// `item_val_str function`, `item_val_int`, `item_val_real`

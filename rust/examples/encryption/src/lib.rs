@@ -14,7 +14,6 @@ use aes_gcm::{
 };
 use mariadb::plugin::encryption::{Encryption, EncryptionError, Flags, KeyError, KeyManager};
 use mariadb::plugin::prelude::*;
-use mariadb::plugin::wrapper::WrapInit;
 use rand::Rng;
 use sha2::{Digest, Sha256 as Hasher};
 

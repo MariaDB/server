@@ -4,6 +4,11 @@
 //!
 //! ```
 //! use mariadb::plugin::prelude::*;
+//! use mariadb::plugin::encryption::*;
+//! use mariadb::plugin::SysVarString;
+//!
+//! static SYSVAR_STR: SysVarString = SysVarString::new();
+//!
 //!
 //! // May be empty or not
 //! struct ExampleKeyManager;
@@ -30,13 +35,30 @@
 //!     license: License::Gpl,                       // select a license type
 //!     maturity: Maturity::Experimental,            // indicate license maturity
 //!     version: "0.1",                              // provide an "a.b" version
-//!     init: ExampleKeyManager                      // optional: struct implementing Init if needed
+//!     init: ExampleKeyManager,                     // optional: struct implementing Init if needed
 //!     encryption: false,                           // false to use default encryption, true if your
 //!                                                  // struct implements 'Encryption'
-//!     sysvars: [                                   // sysvars should be a list of typed identifiers
-//!         some_identifier: Mutex<String>,
-//!         other_identifier: AtomicI32,
-//!     ]
+//!     variables: [                                 // variables should be a list of typed identifiers
+//!         SysVar {
+//!             ident: SYSVAR_STR,
+//!             vtype: SysVarString,
+//!             name: "sql_name",
+//!             description: "this is a description",
+//!             options: [PluginVarInfo::ReadOnly, PluginVarInfo::NoCmdOpt],
+//!             default: "something"
+//!         },
+//!     //     SysVar {
+//!     //         ident: OTHER_IDENT,
+//!     //         vtype: AtomicI32,
+//!     //         name: "other_sql_name",
+//!     //         description: "this is a description",
+//!     //         options: [PluginVarInfo::ReqCmdArg],
+//!     //         default: 100,
+//!     //         min: 10,
+//!     //         max: 500,
+//!     //         interval: 10
+//!     //     }
+//!      ]
 //! }
 //! ```
 
@@ -45,18 +67,24 @@ use std::str::FromStr;
 
 use mariadb_sys as bindings;
 pub mod encryption;
-#[doc(hidden)]
-pub mod encryption_wrapper;
+mod encryption_wrapper;
 mod variables;
 mod variables_parse;
-#[doc(hidden)]
-pub mod wrapper;
+mod wrapper;
 pub use mariadb_macros::register_plugin;
-pub use variables::PluginVarInfo;
+pub use variables::{PluginVarInfo, SysVarString};
 
 /// Commonly used plugin types for reexport
 pub mod prelude {
     pub use super::{register_plugin, Init, InitError, License, Maturity, PluginType};
+}
+
+/// Reexports for use in proc macros
+#[doc(hidden)]
+pub mod internals {
+    pub use super::encryption_wrapper::{WrapEncryption, WrapKeyMgr};
+    pub use super::variables::{SimpleSysvarWrap, SysVarWrap};
+    pub use super::wrapper::{new_null_st_maria_plugin, WrapInit};
 }
 
 /// Defines possible licenses for plugins

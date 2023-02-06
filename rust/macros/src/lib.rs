@@ -7,6 +7,9 @@
 #![allow(clippy::must_use_candidate)]
 #![allow(clippy::cast_possible_truncation)]
 
+mod fields;
+mod helpers;
+mod parse_vars;
 mod register_plugin;
 use proc_macro::TokenStream;
 

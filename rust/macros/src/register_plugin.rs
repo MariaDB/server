@@ -2,9 +2,8 @@
 
 #![allow(unused)]
 
-use proc_macro::TokenStream;
-use proc_macro2::{Literal, Span, TokenTree};
-use quote::quote;
+use proc_macro2::{Literal, Span, TokenStream, TokenTree};
+use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Group;
@@ -14,13 +13,17 @@ use syn::{
     TypePath, TypeReference,
 };
 
+use crate::fields::plugin::{ALL_FIELDS, ENCR_OPT_FIELDS, ENCR_REQ_FIELDS, REQ_FIELDS};
+use crate::helpers::{expect_bool, expect_litstr, make_ident};
+use crate::parse_vars::{self, Variables};
+
 /// Entrypoint for this proc macro
-pub fn entry(tokens: TokenStream) -> TokenStream {
+pub fn entry(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let tokens_pm2: proc_macro2::TokenStream = tokens.clone().into();
     let input = parse_macro_input!(tokens as PluginInfo);
     let plugindef = input.into_encryption_struct();
     match plugindef {
-        Ok(ts) => ts.into_output(),
+        Ok(ts) => ts.into_output().into(),
         Err(e) => e.into_compile_error().into(),
     }
 }
@@ -41,6 +44,7 @@ struct PluginInfo {
     version: Option<Expr>,
     init: Option<Expr>,
     encryption: Option<Expr>,
+    variables: Option<Expr>,
 }
 
 impl Parse for PluginInfo {
@@ -71,6 +75,7 @@ impl Parse for PluginInfo {
                 "version" => ret.version = Some(expr),
                 "init" => ret.init = Some(expr),
                 "encryption" => ret.encryption = Some(expr),
+                "variables" => ret.variables = Some(expr),
                 _ => {
                     return Err(Error::new_spanned(
                         name,
@@ -102,6 +107,7 @@ impl PluginInfo {
             version: None,
             init: None,
             encryption: None,
+            variables: None,
         }
     }
 
@@ -123,17 +129,10 @@ impl PluginInfo {
             (&self.version, "version"),
             (&self.init, "init"),
             (&self.encryption, "encryption"),
+            (&self.variables, "sysvars"),
         ];
 
-        let mut req = vec![
-            "ptype",
-            "name",
-            "author",
-            "description",
-            "license",
-            "maturity",
-            "version",
-        ];
+        let mut req = REQ_FIELDS.to_vec();
         req.extend_from_slice(required);
 
         for req_field in &req {
@@ -155,11 +154,49 @@ impl PluginInfo {
         Ok(())
     }
 
+    /// Validate the sysvars definition and create structure. Returns
+    fn make_variables(&self) -> syn::Result<VariableBodies> {
+        let mut ret = VariableBodies {
+            sysvar_body: TokenStream::new(),
+            sysvar_field: quote! { ::std::ptr::null_mut() },
+        };
+        let Some(vars_decl) = &self.variables else {
+            return Ok(ret);
+        };
+        let vars: Variables = syn::parse(vars_decl.to_token_stream().into())?;
+        let name = expect_litstr(&self.name)?.value();
+        let sysvar_arr_ident = Ident::new(&format!("_plugin_{}_sysvars", name), Span::call_site());
+
+        let sysvar_bodies = &vars.sys;
+        let sysvar_idents = &vars.sys_idents;
+        assert_eq!(sysvar_bodies.len(), sysvar_idents.len());
+
+        if sysvar_bodies.is_empty() {
+            return Ok(ret);
+        }
+
+        let len = sysvar_bodies.len() + 1;
+        let usynccell = quote! { ::mariadb::internals::UnsafeSyncCell };
+
+        ret.sysvar_body = quote! {
+            #(#sysvar_bodies)*
+
+            static #sysvar_arr_ident:
+                [#usynccell<*mut ::mariadb::bindings::sysvar_common_t>; #len]
+                =
+                unsafe { [
+                    #( #usynccell::new(#sysvar_idents.get().cast()), )*
+                    #usynccell::new(::std::ptr::null_mut())
+                ] };
+        };
+        // panic!("{}", ret.sysvar_body);
+        ret.sysvar_field = quote! { #sysvar_arr_ident.as_ptr().cast_mut().cast() };
+        Ok(ret)
+    }
+
     /// Ensure we have the fields required for an encryption plugin
     fn validate_as_encryption(&self) -> syn::Result<()> {
-        let optional = ["init"];
-        let required = ["encryption"];
-        self.validate_correct_fields(&required, &optional, "encryption")?;
+        self.validate_correct_fields(ENCR_REQ_FIELDS, ENCR_OPT_FIELDS, "encryption")?;
         Ok(())
     }
 
@@ -172,13 +209,13 @@ impl PluginInfo {
         let name = expect_litstr(&self.name)?;
         let plugin_st_name = Ident::new(&format!("_ST_PLUGIN_{}", name.value()), Span::call_site());
 
-        let ty_as_wkeymgt =
-            quote! { <#type_ as ::mariadb::plugin::encryption_wrapper::WrapKeyMgr> };
-        let ty_as_wenc =
-            quote! { <#type_ as ::mariadb::plugin::encryption_wrapper::WrapEncryption> };
+        let ty_as_wkeymgt = quote! { <#type_ as ::mariadb::plugin::internals::WrapKeyMgr> };
+        let ty_as_wenc = quote! { <#type_ as ::mariadb::plugin::internals::WrapEncryption> };
         let interface_version = quote! { ::mariadb::bindings::MariaDB_ENCRYPTION_INTERFACE_VERSION as ::std::ffi::c_int };
         let get_key_vers = quote! { Some(#ty_as_wkeymgt::wrap_get_latest_key_version) };
         let get_key = quote! { Some(#ty_as_wkeymgt::wrap_get_key) };
+        let variables = self.make_variables()?;
+        let variables_body = variables.sysvar_body;
 
         let (crypt_size, crypt_init, crypt_update, crypt_finish, crypt_len);
 
@@ -202,10 +239,10 @@ impl PluginInfo {
         }
 
         let info_struct = quote! {
-            static #plugin_st_name: ::mariadb::plugin::wrapper::UnsafeSyncCell<
+            static #plugin_st_name: ::mariadb::internals::UnsafeSyncCell<
                 ::mariadb::bindings::st_mariadb_encryption,
             > = unsafe {
-                ::mariadb::plugin::wrapper::UnsafeSyncCell::new(
+                ::mariadb::internals::UnsafeSyncCell::new(
                     ::mariadb::bindings::st_mariadb_encryption {
                         interface_version: #interface_version,
                         get_latest_key_version: #get_key_vers,
@@ -220,13 +257,15 @@ impl PluginInfo {
             };
         };
 
-        let version = version_int(&expect_litstr(&self.version)?.value())
-            .map_err(|e| Error::new_spanned(&self.version, e))?;
+        let version_str = &expect_litstr(&self.version)?.value();
+        let version_int =
+            version_int(version_str).map_err(|e| Error::new_spanned(&self.version, e))?;
         let author = expect_litstr(&self.author)?;
         let description = expect_litstr(&self.description)?;
         let license = self.license.unwrap();
         let maturity = self.maturity.unwrap();
         let ptype = self.ptype.unwrap();
+        let system_vars_ptr = variables.sysvar_field;
 
         let init_fn_name = make_ident(&format!("_{}_init_fn", name.value()));
 
@@ -234,7 +273,7 @@ impl PluginInfo {
         let fn_init = quote! { Some(#init_fn_name) };
         let (fn_deinit, init_fn_body);
         if let Some(init_ty) = self.init {
-            let ty_as_init = quote! { <#init_ty as ::mariadb::plugin::wrapper::WrapInit> };
+            let ty_as_init = quote! { <#init_ty as ::mariadb::plugin::internals::WrapInit> };
             init_fn_body = quote! { ::mariadb::configure_logger!(); #ty_as_init::wrap_init(_p) };
             fn_deinit = quote! { Some(#ty_as_init::wrap_deinit) };
         } else {
@@ -252,16 +291,16 @@ impl PluginInfo {
             ::mariadb::bindings::st_maria_plugin {
                 type_: #ptype.to_ptype_registration(),
                 info: #plugin_st_name.as_ptr().cast_mut().cast(),
-                name: ::mariadb::cstr::cstr!(#name).as_ptr(),
-                author: ::mariadb::cstr::cstr!(#author).as_ptr(),
-                descr: ::mariadb::cstr::cstr!(#description).as_ptr(),
+                name: ::mariadb::internals::cstr!(#name).as_ptr(),
+                author: ::mariadb::internals::cstr!(#author).as_ptr(),
+                descr: ::mariadb::internals::cstr!(#description).as_ptr(),
                 license: #license.to_license_registration(),
                 init: #fn_init,
                 deinit: #fn_deinit,
-                version: #version as ::std::ffi::c_uint,
+                version: #version_int as ::std::ffi::c_uint,
                 status_vars: ::std::ptr::null_mut(),
-                system_vars: ::std::ptr::null_mut(),
-                version_info: ::mariadb::cstr::cstr!("0.1").as_ptr(),
+                system_vars: #system_vars_ptr,
+                version_info: ::mariadb::internals::cstr!(#version_str).as_ptr(),
                 maturity: #maturity.to_maturity_registration(),
             },
         };
@@ -271,17 +310,26 @@ impl PluginInfo {
             init_fn,
             info_struct,
             plugin_struct,
+            variable_body: variables_body,
         })
     }
+}
+
+struct VariableBodies {
+    /// This body will be added
+    sysvar_body: TokenStream,
+    /// What to put in the registering `st_mariadb_plugin
+    sysvar_field: TokenStream,
 }
 
 /// Contains a struct definition of type `st_mariadb_encryption` or whatever is
 /// applicable, plus the struct of `st_maria_plugin` that references it
 struct PluginDef {
     name: String,
-    init_fn: proc_macro2::TokenStream,
-    info_struct: proc_macro2::TokenStream,
-    plugin_struct: proc_macro2::TokenStream,
+    init_fn: TokenStream,
+    info_struct: TokenStream,
+    plugin_struct: TokenStream,
+    variable_body: TokenStream,
 }
 
 impl PluginDef {
@@ -299,16 +347,20 @@ impl PluginDef {
             quote! { mariadb::bindings::MARIA_PLUGIN_INTERFACE_VERSION as ::std::ffi::c_int };
         let size_val = quote! { ::std::mem::size_of::<#plugin_ty>() as ::std::ffi::c_int };
 
-        let usynccell = quote! { ::mariadb::plugin::wrapper::UnsafeSyncCell };
-        let null_ps = quote! { ::mariadb::plugin::wrapper::new_null_st_maria_plugin() };
+        let usynccell = quote! { ::mariadb::internals::UnsafeSyncCell };
+        let null_ps = quote! { ::mariadb::plugin::internals::new_null_st_maria_plugin() };
 
         let info_st = self.info_struct;
         let plugin_st = self.plugin_struct;
         let init_fn = self.init_fn;
+        let variable_body = self.variable_body;
+
+        quote! { ::std::ptr::null_mut() };
 
         let ret: TokenStream = quote! {
             #info_st
             #init_fn
+            #variable_body
 
             // Different config based on statically or dynamically lynked
             #[no_mangle]
@@ -342,24 +394,13 @@ impl PluginDef {
             ] };
         }
         .into();
-
         ret
     }
 }
 
 /// Verify attribute order
 fn verify_field_order(fields: &[String]) -> Result<(), String> {
-    let mut expected_order = vec![
-        "ptype",
-        "name",
-        "author",
-        "description",
-        "license",
-        "maturity",
-        "version",
-        "init",
-        "encryption",
-    ];
+    let mut expected_order = ALL_FIELDS.to_vec();
 
     expected_order.retain(|expected| fields.iter().any(|f| f == expected));
 
@@ -370,35 +411,6 @@ fn verify_field_order(fields: &[String]) -> Result<(), String> {
     Err(format!(
         "fields not in expected order. reorder as:\n{expected_order:?}",
     ))
-}
-
-/// Get the field as a boolean
-fn expect_bool(field_opt: &Option<Expr>) -> syn::Result<bool> {
-    let field = field_opt.as_ref().unwrap();
-
-    if field == &parse_quote! {true} {
-        Ok(true)
-    } else if field == &parse_quote! {false} {
-        Ok(false)
-    } else {
-        let msg = "unexpected value: only 'true' or 'false' allowed";
-        Err(Error::new_spanned(field, msg))
-    }
-}
-
-/// Expect a literal string, error if that's not the case
-fn expect_litstr(field_opt: &Option<Expr>) -> syn::Result<&LitStr> {
-    let field = field_opt.as_ref().unwrap();
-    let Expr::Lit(lit) = field else { // got non-literal
-        let msg = "expected literal expression for this field";
-        return Err(Error::new_spanned(field, msg));
-    };
-    let Lit::Str(litstr) = &lit.lit else { // got literal that wasn't a string
-        let msg = "only literal strings are allowed for this field";
-        return Err(Error::new_spanned(field, msg));
-    };
-
-    Ok(litstr)
 }
 
 /// Convert a string like "1.2" to a hex like "0x0102". Error if no decimal, or
@@ -419,6 +431,13 @@ fn version_int(s: &str) -> Result<u16, String> {
     Ok(res)
 }
 
-fn make_ident(s: &str) -> Ident {
-    Ident::new(s, Span::call_site())
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version_int() {
+        assert_eq!(version_int("5.2"), Ok(0x0502));
+        assert_eq!(version_int("11.0"), Ok(0x0b00));
+    }
 }
