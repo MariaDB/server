@@ -1,5 +1,5 @@
-* MYSQL WON'T START OR STOP?
-============================
+* MARIADB WON'T START OR STOP?
+==============================
 
 The most common reasons the server does not start are:
 - AppArmor is enforced and something is wrong with the confinement profile.
@@ -10,12 +10,12 @@ First check the contents of syslog (or systemd journal) and then check the
 logs at /var/log/mysql/ for any hints of what might be wrong.
 
 Examples:
-  grep mysql /var/log/syslog
+  grep mariadbd /var/log/syslog
   journalctl -u mariadb
 
 
-* NEW SERVICE NAME, PROCESS AND BINARY NAMES IN MARIADB 10.5
-============================================================
+* NEW SERVICE NAME, PROCESS AND BINARY NAMES SINCE MARIADB 10.5
+===============================================================
 
 Starting form MariaDB 10.5, the default SysV init service name is 'mariadb',
 and can be accessed at path /etc/init.d/mariadb. The alias 'mysql' is only
@@ -38,7 +38,7 @@ https://mariadb.com/kb/en/mariadb/systemd/
 
 
 * MIXING PACKAGES FROM MARIADB.ORG AND OFFICIAL DEBIAN REPOSITORIES
-==================================================================
+===================================================================
 
 Please note that the MariaDB packaging in official Debian repositories are of
 a completely new generation compared to the legacy packaging used in MariaDB.org
@@ -57,10 +57,10 @@ revision string.
 
 On new installs no root password is set and no debian-sys-maint user is
 created anymore. Instead the MariaDB root account is set to be authenticated
-using the Unix socket, e.g. any mysqld invocation by root or via sudo will
-let the user see the mysqld prompt.
+using the Unix socket, e.g. any mariadb invocation by root or via sudo will
+let the user see the MariaDB prompt.
 
-You may never ever delete the mysql user "root". Although it has no password
+You may never ever delete the MariaDB user "root". Although it has no password
 is set, the unix_auth plugin ensure that it can only be run locally as the root
 user.
 
@@ -84,14 +84,14 @@ MariaDB in Debian is secure by default, because:
 - There is no root account with password anymore. The system admin needs to
   create one themselves if they need it. With no password, all issues related
   to password management and password leaking are gone. Sysadmins can access
-  the database without a password simply by running 'sudo mysql' thanks to
+  the database without a password simply by running 'sudo mariadb' thanks to
   socket based authentication, which detects the system root user and allows
-  them to use the mysqld console as the mysql root user. For details see
+  them to use the mariadb console as the MariaDB root user. For details see
   https://www.slideshare.net/ottokekalainen/less-passwords-more-security-unix-socket-authentication-and-other-mariadb-hardening-tips
 - There is no test database nor test accounts in the out-of-the-box Debian
   installation.
 
-Therefore there is also no need to run the 'mysql_secure_installation'. In fact
+Therefore there is also no need to run the 'mariadb-secure-installation'. In fact
 that script will try to do things that are already prevented, and might fail.
 
 
@@ -109,11 +109,11 @@ scripts do that automatically.
 * WHAT TO DO AFTER INSTALLATION
 ===============================
 
-The MySQL manual describes certain steps to do at this stage in a separate
+The MariaDB manual describes certain steps to do at this stage in a separate
 chapter. They are not necessary as the Debian packages does them
 automatically.
 
-There should not be any need to run 'mysql_install_db' manually, as the install
+There should not be any need to run 'mariadb-install-db' manually, as the install
 scripts do that automatically.
 
 The only thing that is left over for the admin is
@@ -125,7 +125,7 @@ The only thing that is left over for the admin is
 ============
 
 For security reasons, the Debian package has enabled networking only on the
-loop-back device using "bind-address" in /etc/mysql/my.cnf.  Check with
+loop-back device using "bind-address" in /etc/mysql/mariadb.cnf.  Check with
 "netstat -tlnp" where it is listening. If your connection is aborted
 immediately check your firewall rules or network routes.
 
@@ -145,16 +145,16 @@ If your local Unix account is the one you want to have local super user
 access on your database with you can create the following account that will
 only work for the local Unix user connecting to the database locally.
 
-  sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO '$USER'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION"
+  sudo /usr/bin/mariadb -e "GRANT ALL ON *.* TO '$USER'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION"
 
 To create a local machine account username=USERNAME with a password:
 
-  sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO 'USERNAME'@'localhost' IDENTIFIED BY 'password' WITH GRANT OPTION"
+  sudo /usr/bin/mariadb -e "GRANT ALL ON *.* TO 'USERNAME'@'localhost' IDENTIFIED BY 'password' WITH GRANT OPTION"
 
 To create a USERNAME user with password 'password' admin user that can access
 the DB server over the network:
 
-  sudo /usr/bin/mysql -e "GRANT ALL ON *.* TO 'USERNAME'@'%' IDENTIFIED BY 'password' WITH GRANT OPTION"
+  sudo /usr/bin/mariadb -e "GRANT ALL ON *.* TO 'USERNAME'@'%' IDENTIFIED BY 'password' WITH GRANT OPTION"
 
 Scripts should run as a user who have the required grants and be identified via unix_socket.
 
@@ -175,13 +175,12 @@ https://mariadb.com/kb/en/configuring-mariadb-with-mycnf/.
 * FURTHER NOTES ON REPLICATION
 ==============================
 
-If the MySQL server is acting as a replication slave, you should not
-set --tmpdir to point to a directory on a memory-based file system or to
-a directory that is cleared when the server host restarts. A replication
-slave needs some of its temporary files to survive a machine restart so
-that it can replicate temporary tables or LOAD DATA INFILE operations. If
-files in the temporary file directory are lost when the server restarts,
-replication fails.
+If the MariaDB server is acting as a replica, you should not set --tmpdir to
+point to a directory on a memory-based file system or to a directory that is
+cleared when the server host restarts. A replica needs some of its temporary
+files to survive a machine restart so that it can replicate temporary tables
+or LOAD DATA INFILE operations. If files in the temporary file directory are
+lost when the server restarts, replication fails.
 
 
 * DOWNGRADING
@@ -193,7 +192,7 @@ You might get lucky downgrading a few minor versions without issued. Take a
 backup first. If you break it you get to keep both pieces. Do a restore from
 backup or upgrade to the previous version.
 
-If doing a major version downgrade, take a mysqldump/maria-backup consistent
+If doing a major version downgrade, take a mariadb-dump/maria-backup consistent
 backup using the current version and reload after downgrading and purging
 existing databases.
 

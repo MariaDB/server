@@ -3,20 +3,20 @@
 # Use it for options that affect only one utility
 #
 
-[mysql]
+[mariadb-client]
 
 [mariadb-upgrade]
 
-[mysqladmin]
+[mariadb-admin]
 
-[mysqlbinlog]
+[mariadb-binlog]
 
-[mysqlcheck]
+[mariadb-check]
 
-[mysqldump]
+[mariadb-dump]
 
-[mysqlimport]
+[mariadb-import]
 
-[mysqlshow]
+[mariadb-show]
 
-[mysqlslap]
+[mariadb-slap]
