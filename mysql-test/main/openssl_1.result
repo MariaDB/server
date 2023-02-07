@@ -47,11 +47,16 @@ disconnect con3;
 disconnect con4;
 drop user ssl_user1@localhost, ssl_user3@localhost, ssl_user4@localhost, ssl_user5@localhost;
 drop table t1;
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
-mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxx
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: self signed certificate in certificate chain
+
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: No such file or directory
+
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: No such file or directory
+
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: no private key assigned
+
+mysqltest: Could not open connection 'default': 2026 TLS/SSL error: no certificate assigned
+
 have_ssl
 1
 End of 5.0 tests
@@ -179,7 +184,8 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
-mysqldump: Got error: 2026: "SSL connection error: xxxx
+mysqldump: Got error: 2026: "TLS/SSL error: no start line" when trying to connect
+
 DROP TABLE t1;
 GRANT SELECT ON test.* TO bug42158@localhost REQUIRE X509;
 FLUSH PRIVILEGES;
@@ -196,4 +202,4 @@ End of 5.1 tests
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
-ERROR: Failed on connect: SSL connection error
+ERROR: Failed on connect: TLS/SSL error: No such file or directory
