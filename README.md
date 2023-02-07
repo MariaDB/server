@@ -1,3 +1,13 @@
+# MariaDB: Rust Support Fork
+
+This is a fork of [MariaDB server](https://github.com/MariaDB/server) with the
+goal of experimenting with a Rust plugin API. It is a work in progress,
+everything here should be considered unstable.
+
+View docs for the Rust API here:
+<https://pluots.github.io/mariadb-server/mariadb/index.html>.
+
+
 Code status:
 ------------
 

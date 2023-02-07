@@ -3,7 +3,7 @@
 //! Usage:
 //!
 //! ```
-//! use mariadb::plugin::prelude::*;
+//! use mariadb::plugin::*;
 //! use mariadb::plugin::encryption::*;
 //! use mariadb::plugin::SysVarString;
 //!
@@ -44,7 +44,7 @@
 //!             vtype: SysVarString,
 //!             name: "sql_name",
 //!             description: "this is a description",
-//!             options: [PluginVarInfo::ReadOnly, PluginVarInfo::NoCmdOpt],
+//!             options: [SysVarOpt::ReadOnly, SysVarOpt::NoCmdOpt],
 //!             default: "something"
 //!         },
 //!     //     SysVar {
@@ -52,7 +52,7 @@
 //!     //         vtype: AtomicI32,
 //!     //         name: "other_sql_name",
 //!     //         description: "this is a description",
-//!     //         options: [PluginVarInfo::ReqCmdArg],
+//!     //         options: [SysVarOpt::ReqCmdArg],
 //!     //         default: 100,
 //!     //         min: 10,
 //!     //         max: 500,

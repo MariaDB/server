@@ -14,9 +14,8 @@ use std::sync::Mutex;
 
 use mariadb::log::{self, debug, trace};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
-use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
-    register_plugin, Init, InitError, License, Maturity, PluginType, SysVarOpt, SysVarString,
+    register_plugin, Init, InitError, License, Maturity, PluginType, SysVarOpt, SysVarString, *,
 };
 
 const KEY_LENGTH: usize = 4;

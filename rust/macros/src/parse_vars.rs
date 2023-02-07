@@ -6,7 +6,7 @@
 //!     vtype: String,
 //!     name: "sql_name",
 //!     description: "this is a description",
-//!     options: [PluginVarInfo::ReadOnly, PluginVarInfo::NoCmdOpt],
+//!     options: [SysVarOpt::ReadOnly, SysVarOpt::NoCmdOpt],
 //!     default: "something"
 //! }
 //! ```
@@ -19,7 +19,7 @@
 //!     vtype: AtomicI32,
 //!     name: "other_sql_name",
 //!     description: "this is a description",
-//!     options: [PluginVarInfo::ReqCmdArg],
+//!     options: [SysVarOpt::ReqCmdArg],
 //!     default: 100,
 //!     min: 10,
 //!     max: 500,
