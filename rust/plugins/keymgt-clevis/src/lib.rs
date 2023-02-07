@@ -8,9 +8,9 @@ use std::fmt::Write;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
+use josekit::jws;
 use mariadb::log::{debug, error, info};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
-use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
     register_plugin, Init, InitError, License, Maturity, PluginType, SysVarOpt, SysVarString,
 };
@@ -21,6 +21,7 @@ const SERVER_TABLE: &str = "mysql.clevis_servers";
 /// Max length a key can be, used for table size and buffer checking
 const KEY_MAX_BYTES: usize = 16;
 
+/// String system variable to set server address
 static TANG_SERVER: SysVarString = SysVarString::new();
 
 struct KeyMgtClevis;

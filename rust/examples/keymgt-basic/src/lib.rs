@@ -12,8 +12,7 @@ use std::ffi::c_void;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
-use mariadb::plugin::prelude::*;
-use mariadb::plugin::{register_plugin, PluginType, SysVarOpt};
+use mariadb::plugin::{register_plugin, PluginType, SysVarOpt, *};
 
 struct BasicKeyMgt;
 

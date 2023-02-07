@@ -3,7 +3,6 @@
 use std::sync::atomic::AtomicI32;
 
 use mariadb::plugin::encryption::*;
-use mariadb::plugin::prelude::*;
 use mariadb::plugin::*;
 pub use mariadb_macros::register_plugin;
 

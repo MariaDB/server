@@ -13,7 +13,7 @@ use aes_gcm::{
     Nonce, // Or `Aes128Gcm`
 };
 use mariadb::plugin::encryption::{Encryption, EncryptionError, Flags, KeyError, KeyManager};
-use mariadb::plugin::prelude::*;
+use mariadb::plugin::*;
 use rand::Rng;
 use sha2::{Digest, Sha256 as Hasher};
 

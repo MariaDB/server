@@ -35,15 +35,8 @@ jobs:
             CTestTestfile.cmake
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: sudo apt-get update && sudo apt-get install cmake
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --manifest-path rust/Cargo.toml
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --manifest-path rust/Cargo.toml
 
   test:
     strategy:
@@ -78,17 +71,11 @@ jobs:
             CTestTestfile.cmake
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: sudo apt-get update && sudo apt-get install cmake
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path rust/Cargo.toml
         env:
           RUST_BACKTRACE: "1"
-        with:
-          command: test
-          args: --manifest-path rust/Cargo.toml
+
 
   fmt:
     name: "Format (cargo fmt)"
@@ -110,16 +97,10 @@ jobs:
             CPackSourceConfig.cmake
             CTestTestfile.cmake
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all --manifest-path rust/Cargo.toml -- --check
+          components: rustfmt
+      - run: cargo fmt --manifest-path rust/Cargo.toml --all -- --check
 
   clippy:
     name: "Clippy (cargo clippy)"
@@ -142,17 +123,10 @@ jobs:
             CTestTestfile.cmake
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: sudo apt-get update && sudo apt-get install cmake
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          profile: minimal
-          # Some nice checks are only nightly
-          toolchain: nightly
-          override: true
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --manifest-path rust/Cargo.toml -- -D warnings
+          components: clippy
+      - run: cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
 
   doc:
     name: "Docs (cargo doc) & Pub"
@@ -175,19 +149,20 @@ jobs:
             CTestTestfile.cmake
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: sudo apt-get update && sudo apt-get install cmake
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --manifest-path rust/Cargo.toml --no-deps
+      - uses: dtolnay/rust-toolchain@stable
+      # test docs for everything
+      - name: Test build all docs
+        run: cargo doc --manifest-path rust/Cargo.toml --no-deps
+      # create docs for the crate we care about
+      - name: Build docs for publish
+        run: |
+          rm -rf target/doc/ rust/target/doc/
+          cargo doc --manifest-path rust/mariadb/Cargo.toml --no-deps
+          cargo doc --manifest-path rust/bindings/Cargo.toml --no-deps
       - run: |
           echo `pwd`/rust/target/doc >> $GITHUB_PATH
           # fake index.html so github likes us
-          echo "<meta http-equiv=\"refresh\" content=\"0; url=mariadb_server\">" > rust/target/doc/index.html
+          echo "<meta http-equiv=\"refresh\" content=\"0; url=mariadb\">" > rust/target/doc/index.html
       - name: Deploy GitHub Pages
         run: |
           git worktree add gh-pages

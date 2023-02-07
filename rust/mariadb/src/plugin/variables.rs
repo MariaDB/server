@@ -95,7 +95,7 @@ pub enum SysVarOpt {
     OptCmdArd = bindings::PLUGIN_VAR_OPCMDARG as i32,
     /// Variable is deprecated
     Deprecated = bindings::PLUGIN_VAR_DEPRECATED as i32,
-    // String needs memory allocation
+    // String needs memory allocation - don't expose this
     //  MemAlloc= bindings::PLUGIN_VAR_MEMALLOC,
 }
 
