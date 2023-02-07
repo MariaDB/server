@@ -32,16 +32,16 @@ pub mod internals {
     pub use super::helpers::UnsafeSyncCell;
 }
 
+/// Our main logger config
+///
+/// Writes a timestamp, log level, and message. For debug & trace, also log the
+/// file name.
 #[doc(hidden)]
-pub struct MariaLogger {
-    pkg: Option<&'static str>,
-}
+pub struct MariaLogger;
 
 impl MariaLogger {
     pub const fn new() -> Self {
-        Self {
-            pkg: option_env!("CARGO_PKG_NAME"),
-        }
+        Self
     }
 }
 
@@ -61,12 +61,19 @@ impl log::Log for MariaLogger {
             "[year]-[month]-[day] [hour]:[minute]:[second][offset_hour sign:mandatory]:[offset_minute]",
         )
         .unwrap();
+
+        // Format our string
         let mut out_str = t.format(&fmt).unwrap();
-        write!(out_str, " [{}]", record.level()).unwrap();
-        if let Some(pkg) = self.pkg {
-            write!(out_str, " {pkg}");
+        write!(out_str, " [{}", record.level()).unwrap();
+
+        if record.level() == log::Level::Debug || record.level() == log::Level::Trace {
+            write!(out_str, " {}", record.file().unwrap_or("")).unwrap();
+            if let Some(line) = record.line() {
+                write!(out_str, ":{line}").unwrap();
+            }
         }
-        eprintln!("{out_str}:");
+
+        eprintln!("{out_str}]: {}", record.args());
     }
 
     fn flush(&self) {}

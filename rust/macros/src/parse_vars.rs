@@ -32,7 +32,7 @@
 // use proc_macro::TokenStream;
 use proc_macro2::{Literal, Span, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
-use syn::parse::{Parse, ParseStream};
+use syn::parse::{Parse, ParseBuffer, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Group;
 use syn::{
@@ -208,10 +208,27 @@ impl VariableInfo {
         }
     }
 
+    fn make_option_fields(&self) -> syn::Result<TokenStream> {
+        let Some(input) = &self.options else {
+            return Ok(TokenStream::new());
+        };
+        let flags: OptFields = syn::parse(input.to_token_stream().into())?;
+        let opts = flags.flags;
+        if opts.is_empty() {
+            return Ok(TokenStream::new());
+        }
+        let ret = quote! {
+            | (( #( #opts .as_plugin_var_info() )|* ) &
+                ::mariadb::bindings::PLUGIN_VAR_MASK as i32)
+        };
+        Ok(ret)
+    }
+
     fn make_string_sysvar(&self, st_ident: &Ident) -> syn::Result<TokenStream> {
         self.validate_correct_fields(STR_REQ_FIELDS, STR_OPT_FIELDS);
 
-        let flags = quote! { ::mariadb::bindings::PLUGIN_VAR_STR as i32 };
+        let opts = self.make_option_fields()?;
+        let flags = quote! { (::mariadb::bindings::PLUGIN_VAR_STR as i32) #opts };
         let name = expect_litstr(&self.name)?;
         let description = expect_litstr(&self.description)?;
         let default = if let Some(def) = &self.default {
@@ -221,10 +238,11 @@ impl VariableInfo {
         };
         let disambig_name = quote! { ::std::sync::Mutex<String> };
         let check_fn = quote! { None };
-        let update_fn = quote! {
-            Some(<::mariadb::plugin::SysVarString as
-                ::mariadb::plugin::internals::SimpleSysvarWrap>::update_wrap)
-        };
+        let update_fn = quote! { None };
+        // let update_fn = quote! {
+        //     Some(<::mariadb::plugin::SysVarString as
+        //         ::mariadb::plugin::internals::SysvarWrap>::update_wrap)
+        // };
         // let check_fn = quote! { Some(<#disambig_name as ::mariadb::internals::SysVarWrap>::check) };
         // let update_fn =
         //     quote! { Some(<#disambig_name as ::mariadb::internals::SysVarWrap>::update) };
@@ -297,6 +315,21 @@ impl VariableInfo {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+struct OptFields {
+    flags: Vec<TypePath>,
+}
+
+impl Parse for OptFields {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        let _ = bracketed!(content in input);
+        let flags = Punctuated::<TypePath, Token![,]>::parse_terminated(&content)?;
+        let v = Vec::from_iter(flags);
+        Ok(Self { flags: v })
     }
 }
 

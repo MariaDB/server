@@ -179,9 +179,9 @@ impl PluginInfo {
         let usynccell = quote! { ::mariadb::internals::UnsafeSyncCell };
 
         ret.sysvar_body = quote! {
-            #(#sysvar_bodies)*
+            #( #sysvar_bodies )*
 
-            static #sysvar_arr_ident:
+            pub static #sysvar_arr_ident:
                 [#usynccell<*mut ::mariadb::bindings::sysvar_common_t>; #len]
                 =
                 unsafe { [

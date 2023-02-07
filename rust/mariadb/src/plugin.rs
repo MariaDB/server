@@ -72,7 +72,7 @@ mod variables;
 mod variables_parse;
 mod wrapper;
 pub use mariadb_macros::register_plugin;
-pub use variables::{PluginVarInfo, SysVarString};
+pub use variables::{SysVarOpt, SysVarString};
 
 /// Commonly used plugin types for reexport
 pub mod prelude {
@@ -83,7 +83,7 @@ pub mod prelude {
 #[doc(hidden)]
 pub mod internals {
     pub use super::encryption_wrapper::{WrapEncryption, WrapKeyMgr};
-    pub use super::variables::{SimpleSysvarWrap, SysVarWrap};
+    pub use super::variables::{SysVarWrap, SysvarWrap};
     pub use super::wrapper::{new_null_st_maria_plugin, WrapInit};
 }
 

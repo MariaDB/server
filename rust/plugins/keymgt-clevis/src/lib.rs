@@ -12,7 +12,7 @@ use mariadb::log::{debug, error, info};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
-    register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo,
+    register_plugin, Init, InitError, License, Maturity, PluginType, SysVarOpt, SysVarString,
 };
 use mariadb::service_sql::{ClientError, Fetch, FetchedRows, MySqlConn};
 
@@ -21,14 +21,14 @@ const SERVER_TABLE: &str = "mysql.clevis_servers";
 /// Max length a key can be, used for table size and buffer checking
 const KEY_MAX_BYTES: usize = 16;
 
-static TANG_SERVER: Mutex<String> = Mutex::new(String::new());
+static TANG_SERVER: SysVarString = SysVarString::new();
 
 struct KeyMgtClevis;
 
 /// Get the JWS body from a server
 fn fetch_jws() -> String {
     // FIXME: error handling
-    let url = format!("https://{}", TANG_SERVER.lock().unwrap());
+    let url = format!("https://{}", TANG_SERVER.get());
     let body: String = ureq::get("http://example.com")
         .call()
         .unwrap_or_else(|_| panic!("http request for '{url}' failed"))
@@ -39,7 +39,7 @@ fn fetch_jws() -> String {
 }
 
 fn make_new_key(conn: &MySqlConn) -> Result<String, ClientError> {
-    let server = TANG_SERVER.lock().unwrap();
+    let server = TANG_SERVER.get();
     format!(
         "INSERT IGNORE INTO {KEY_TABLE} 
         SET key_server = {server}
@@ -134,7 +134,7 @@ impl KeyManager for KeyMgtClevis {
         let q = format!(
             r#"INSERT INTO {KEY_TABLE} VALUES (
             {key_id}, {key_version}, "{server_name}", {new_key} )"#,
-            server_name = TANG_SERVER.lock().unwrap()
+            server_name = TANG_SERVER.get()
         );
         run_execute(&mut conn, &q, key_id)?;
 
@@ -169,4 +169,14 @@ register_plugin! {
     version: "0.1",
     init: KeyMgtClevis,
     encryption: false,
+    variables: [
+        SysVar {
+            ident: TANG_SERVER,
+            vtype: SysVarString,
+            name: "tang_server",
+            description: "the tang server for key exchange",
+            options: [SysVarOpt::OptCmdArd],
+            default: "localhost"
+        }
+    ]
 }
