@@ -824,7 +824,7 @@ public:
     item= si;
     maybe_null= 0;
   }
-  virtual ~subselect_engine() {}; // to satisfy compiler
+  virtual ~subselect_engine() = default;; // to satisfy compiler
   virtual void cleanup()= 0;
 
   /*

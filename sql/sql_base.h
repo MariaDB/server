@@ -388,7 +388,7 @@ inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
 class Prelocking_strategy
 {
 public:
-  virtual ~Prelocking_strategy() { }
+  virtual ~Prelocking_strategy() = default;
 
   virtual void reset(THD *thd) { };
   virtual bool handle_routine(THD *thd, Query_tables_list *prelocking_ctx,

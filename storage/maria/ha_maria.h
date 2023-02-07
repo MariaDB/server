@@ -56,7 +56,7 @@ class ha_maria :public handler
 
 public:
   ha_maria(handlerton *hton, TABLE_SHARE * table_arg);
-  ~ha_maria() {}
+  ~ha_maria() = default;
   handler *clone(const char *name, MEM_ROOT *mem_root);
   const char *index_type(uint key_number);
   ulonglong table_flags() const

@@ -229,8 +229,7 @@ ha_perfschema::ha_perfschema(handlerton *hton, TABLE_SHARE *share)
   : handler(hton, share), m_table_share(NULL), m_table(NULL)
 {}
 
-ha_perfschema::~ha_perfschema()
-{}
+ha_perfschema::~ha_perfschema() = default;
 
 int ha_perfschema::open(const char *name, int mode, uint test_if_locked)
 {

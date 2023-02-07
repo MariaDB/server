@@ -321,11 +321,9 @@ enum ACL_internal_access_result
 class ACL_internal_table_access
 {
 public:
-  ACL_internal_table_access()
-  {}
+  ACL_internal_table_access() = default;
 
-  virtual ~ACL_internal_table_access()
-  {}
+  virtual ~ACL_internal_table_access() = default;
 
   /**
     Check access to an internal table.
@@ -360,11 +358,9 @@ public:
 class ACL_internal_schema_access
 {
 public:
-  ACL_internal_schema_access()
-  {}
+  ACL_internal_schema_access() = default;
 
-  virtual ~ACL_internal_schema_access()
-  {}
+  virtual ~ACL_internal_schema_access() = default;
 
   /**
     Check access to an internal schema.

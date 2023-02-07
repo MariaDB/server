@@ -49,8 +49,7 @@ protected:
   cursor_by_user(const PFS_engine_table_share *share);
 
 public:
-  ~cursor_by_user()
-  {}
+  ~cursor_by_user() = default;
 
 protected:
   virtual void make_row(PFS_user *user)= 0;

@@ -324,7 +324,7 @@ public:
     reinit_io_cache(m_cache, WRITE_CACHE, 0L, FALSE, TRUE);
   }
 
-  ~Write_on_release_cache() {}
+  ~Write_on_release_cache() = default;
 
   bool flush_data()
   {
@@ -15046,9 +15046,7 @@ Ignorable_log_event::Ignorable_log_event(const char *buf,
   DBUG_VOID_RETURN;
 }
 
-Ignorable_log_event::~Ignorable_log_event()
-{
-}
+Ignorable_log_event::~Ignorable_log_event() = default;
 
 #ifndef MYSQL_CLIENT
 /* Pack info for its unrecognized ignorable event */

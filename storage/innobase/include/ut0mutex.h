@@ -111,10 +111,10 @@ in the debug version. */
 class MutexMonitor {
 public:
 	/** Constructor */
-	MutexMonitor() { }
+	MutexMonitor() = default;
 
 	/** Destructor */
-	~MutexMonitor() { }
+	~MutexMonitor() = default;
 
 	/** Enable the mutex monitoring */
 	void enable();

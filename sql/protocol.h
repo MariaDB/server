@@ -80,7 +80,7 @@ protected:
 public:
   THD	 *thd;
   Protocol(THD *thd_arg) { init(thd_arg); }
-  virtual ~Protocol() {}
+  virtual ~Protocol() = default;
   void init(THD* thd_arg);
 
   enum { SEND_NUM_ROWS= 1, SEND_EOF= 2 };

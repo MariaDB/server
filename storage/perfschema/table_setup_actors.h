@@ -88,8 +88,7 @@ protected:
   table_setup_actors();
 
 public:
-  ~table_setup_actors()
-  {}
+  ~table_setup_actors() = default;
 
 private:
   void make_row(PFS_setup_actor *actor);

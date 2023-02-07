@@ -73,8 +73,7 @@ private:
   table_file_summary_by_event_name();
 
 public:
-  ~table_file_summary_by_event_name()
-  {}
+  ~table_file_summary_by_event_name() = default;
 
 private:
   void make_row(PFS_file_class *klass);

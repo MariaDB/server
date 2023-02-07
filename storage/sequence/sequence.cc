@@ -370,7 +370,7 @@ public:
                           TABLE_LIST *table_list_arg)
     : group_by_handler(thd_arg, sequence_hton), fields(fields_arg),
       table_list(table_list_arg) {}
-  ~ha_seq_group_by_handler() {}
+  ~ha_seq_group_by_handler() = default;
   int init_scan() { first_row= 1 ; return 0; }
   int next_row();
   int end_scan()  { return 0; }

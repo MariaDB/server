@@ -4072,9 +4072,7 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
   DBUG_VOID_RETURN;
 }
 
-Statement::~Statement()
-{
-}
+Statement::~Statement() = default;
 
 C_MODE_START
 

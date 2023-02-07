@@ -117,8 +117,7 @@ protected:
   table_ews_by_host_by_event_name();
 
 public:
-  ~table_ews_by_host_by_event_name()
-  {}
+  ~table_ews_by_host_by_event_name() = default;
 
 protected:
   void make_row(PFS_host *host, PFS_instr_class *klass);

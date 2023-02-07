@@ -264,7 +264,7 @@ public:
 	}
 
 	/** Destructor */
-	~IORequest() { }
+	~IORequest() = default;
 
 	/** @return true if ignore missing flag is set */
 	static bool ignore_missing(ulint type)

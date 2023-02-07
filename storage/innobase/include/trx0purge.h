@@ -78,7 +78,7 @@ public:
 	typedef trx_rsegs_t::iterator iterator;
 	typedef trx_rsegs_t::const_iterator const_iterator;
 
-	TrxUndoRsegs() {}
+	TrxUndoRsegs() = default;
 
 	/** Constructor */
 	TrxUndoRsegs(trx_rseg_t& rseg)

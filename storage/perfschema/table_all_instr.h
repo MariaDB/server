@@ -82,8 +82,7 @@ protected:
   table_all_instr(const PFS_engine_table_share *share);
 
 public:
-  ~table_all_instr()
-  {}
+  ~table_all_instr() = default;
 
 protected:
   /**

@@ -110,8 +110,7 @@ protected:
   table_os_global_by_type();
 
 public:
-  ~table_os_global_by_type()
-  {}
+  ~table_os_global_by_type() = default;
 
 protected:
   void make_row(PFS_table_share *table_share);

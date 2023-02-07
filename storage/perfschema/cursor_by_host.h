@@ -49,8 +49,7 @@ protected:
   cursor_by_host(const PFS_engine_table_share *share);
 
 public:
-  ~cursor_by_host()
-  {}
+  ~cursor_by_host() = default;
 
 protected:
   virtual void make_row(PFS_host *host)= 0;

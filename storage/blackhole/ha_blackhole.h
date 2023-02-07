@@ -44,9 +44,7 @@ class ha_blackhole: public handler
 
 public:
   ha_blackhole(handlerton *hton, TABLE_SHARE *table_arg);
-  ~ha_blackhole()
-  {
-  }
+  ~ha_blackhole() = default;
   /*
     The name of the index type that will be used for display
     don't implement this method unless you really have indexes

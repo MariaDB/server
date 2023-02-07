@@ -81,8 +81,7 @@ private:
   table_file_summary_by_instance();
 
 public:
-  ~table_file_summary_by_instance()
-  {}
+  ~table_file_summary_by_instance() = default;
 
 private:
   void make_row(PFS_file *pfs);

@@ -385,9 +385,7 @@ protected:
 
 public:
 
-  virtual ~Json_writer_struct()
-  {
-  }
+  virtual ~Json_writer_struct() = default;
 
   bool trace_started() const
   {

@@ -84,8 +84,7 @@ public:
   void get_normalizer(PFS_instr_class *instr_class);
 
   /** Destructor. */
-  virtual ~PFS_engine_table()
-  {}
+  virtual ~PFS_engine_table() = default;
 
   /**
     Helper, assign a value to a ulong field.
@@ -260,11 +259,9 @@ struct PFS_engine_table_share
 class PFS_readonly_acl : public ACL_internal_table_access
 {
 public:
-  PFS_readonly_acl()
-  {}
+  PFS_readonly_acl() = default;
 
-  ~PFS_readonly_acl()
-  {}
+  ~PFS_readonly_acl() = default;
 
   virtual ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
 };
@@ -279,11 +276,9 @@ extern PFS_readonly_acl pfs_readonly_acl;
 class PFS_truncatable_acl : public ACL_internal_table_access
 {
 public:
-  PFS_truncatable_acl()
-  {}
+  PFS_truncatable_acl() = default;
 
-  ~PFS_truncatable_acl()
-  {}
+  ~PFS_truncatable_acl() = default;
 
   ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
 };
@@ -298,11 +293,9 @@ extern PFS_truncatable_acl pfs_truncatable_acl;
 class PFS_updatable_acl : public ACL_internal_table_access
 {
 public:
-  PFS_updatable_acl()
-  {}
+  PFS_updatable_acl() = default;
 
-  ~PFS_updatable_acl()
-  {}
+  ~PFS_updatable_acl() = default;
 
   ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
 };
@@ -317,11 +310,9 @@ extern PFS_updatable_acl pfs_updatable_acl;
 class PFS_editable_acl : public ACL_internal_table_access
 {
 public:
-  PFS_editable_acl()
-  {}
+  PFS_editable_acl() = default;
 
-  ~PFS_editable_acl()
-  {}
+  ~PFS_editable_acl() = default;
 
   ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
 };
@@ -335,11 +326,9 @@ extern PFS_editable_acl pfs_editable_acl;
 class PFS_unknown_acl : public ACL_internal_table_access
 {
 public:
-  PFS_unknown_acl()
-  {}
+  PFS_unknown_acl() = default;
 
-  ~PFS_unknown_acl()
-  {}
+  ~PFS_unknown_acl() = default;
 
   ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
 };

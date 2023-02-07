@@ -193,8 +193,7 @@ public:
   }
 
 protected:
-  Sql_cmd()
-  {}
+  Sql_cmd() = default;
 
   virtual ~Sql_cmd()
   {
@@ -242,8 +241,7 @@ public:
     m_handler(handler)
   {}
 
-  virtual ~Sql_cmd_call()
-  {}
+  virtual ~Sql_cmd_call() = default;
 
   /**
     Execute a CALL statement at runtime.

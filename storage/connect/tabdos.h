@@ -245,7 +245,7 @@ class DllExport DOSCOL : public COLBLK {
           bool   AddDistinctValue(PGLOBAL g);
 
   // Default constructor not to be used
-  DOSCOL(void) {}
+  DOSCOL(void) = default;
 
   // Members
   PVBLK Min;          // Array of block min values

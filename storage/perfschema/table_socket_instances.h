@@ -84,8 +84,7 @@ private:
   table_socket_instances();
 
 public:
-  ~table_socket_instances()
-  {}
+  ~table_socket_instances() = default;
 
 private:
   void make_row(PFS_socket *pfs);

@@ -1045,7 +1045,7 @@ struct Rdb_inplace_alter_ctx : public my_core::inplace_alter_handler_ctx {
         m_n_dropped_keys(n_dropped_keys),
         m_max_auto_incr(max_auto_incr) {}
 
-  ~Rdb_inplace_alter_ctx() {}
+  ~Rdb_inplace_alter_ctx() = default;
 
  private:
   /* Disable Copying */

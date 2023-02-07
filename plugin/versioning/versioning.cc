@@ -35,8 +35,8 @@ public:
   static Create_func_trt<TRT_FIELD> s_singleton;
 
 protected:
-  Create_func_trt<TRT_FIELD>() {}
-  virtual ~Create_func_trt<TRT_FIELD>() {}
+  Create_func_trt<TRT_FIELD>() = default;
+  virtual ~Create_func_trt<TRT_FIELD>() = default;
 };
 
 template<TR_table::field_id_t TRT_FIELD>
@@ -131,8 +131,8 @@ public:
   static Create_func_trt_trx_sees<Item_func_trt_trx_seesX> s_singleton;
 
 protected:
-  Create_func_trt_trx_sees<Item_func_trt_trx_seesX>() {}
-  virtual ~Create_func_trt_trx_sees<Item_func_trt_trx_seesX>() {}
+  Create_func_trt_trx_sees<Item_func_trt_trx_seesX>() = default;
+  virtual ~Create_func_trt_trx_sees<Item_func_trt_trx_seesX>() = default;
 };
 
 template<class X>

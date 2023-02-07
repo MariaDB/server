@@ -1174,7 +1174,7 @@ class Rdb_seq_generator {
 
 interface Rdb_tables_scanner {
   virtual int add_table(Rdb_tbl_def * tdef) = 0;
-  virtual ~Rdb_tables_scanner() {} /* Keep the compiler happy */
+  virtual ~Rdb_tables_scanner() = default; /* Keep the compiler happy */
 };
 
 /*
@@ -1211,7 +1211,7 @@ class Rdb_ddl_manager {
  public:
   Rdb_ddl_manager(const Rdb_ddl_manager &) = delete;
   Rdb_ddl_manager &operator=(const Rdb_ddl_manager &) = delete;
-  Rdb_ddl_manager() {}
+  Rdb_ddl_manager() = default;
 
   /* Load the data dictionary from on-disk storage */
   bool init(Rdb_dict_manager *const dict_arg, Rdb_cf_manager *const cf_manager,

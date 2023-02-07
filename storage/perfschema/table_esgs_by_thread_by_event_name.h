@@ -110,8 +110,7 @@ protected:
   table_esgs_by_thread_by_event_name();
 
 public:
-  ~table_esgs_by_thread_by_event_name()
-  {}
+  ~table_esgs_by_thread_by_event_name() = default;
 
 protected:
   void make_row(PFS_thread *thread, PFS_stage_class *klass);

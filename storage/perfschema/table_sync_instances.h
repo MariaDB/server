@@ -76,8 +76,7 @@ private:
   table_mutex_instances();
 
 public:
-  ~table_mutex_instances()
-  {}
+  ~table_mutex_instances() = default;
 
 private:
   void make_row(PFS_mutex *pfs);
@@ -133,8 +132,7 @@ private:
   table_rwlock_instances();
 
 public:
-  ~table_rwlock_instances()
-  {}
+  ~table_rwlock_instances() = default;
 
 private:
   void make_row(PFS_rwlock *pfs);
@@ -184,8 +182,7 @@ private:
   table_cond_instances();
 
 public:
-  ~table_cond_instances()
-  {}
+  ~table_cond_instances() = default;
 
 private:
   void make_row(PFS_cond *pfs);

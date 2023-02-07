@@ -2957,10 +2957,8 @@ ha_innobase::ha_innobase(
 /*********************************************************************//**
 Destruct ha_innobase handler. */
 
-ha_innobase::~ha_innobase()
+ha_innobase::~ha_innobase() = default;
 /*======================*/
-{
-}
 
 /*********************************************************************//**
 Updates the user_thd field in a handle and also allocates a new InnoDB
@@ -16061,7 +16059,7 @@ struct ShowStatus {
 	};
 
 	/** Constructor */
-	ShowStatus() { }
+	ShowStatus() = default;
 
 	/** Callback for collecting the stats
 	@param[in]	latch_meta		Latch meta data

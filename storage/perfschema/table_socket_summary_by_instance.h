@@ -77,8 +77,7 @@ private:
   table_socket_summary_by_instance();
 
 public:
-  ~table_socket_summary_by_instance()
-  {}
+  ~table_socket_summary_by_instance() = default;
 
 private:
   void make_row(PFS_socket *pfs);

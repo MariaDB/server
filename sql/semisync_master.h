@@ -454,7 +454,7 @@ class Repl_semi_sync_master
 
  public:
   Repl_semi_sync_master();
-  ~Repl_semi_sync_master() {}
+  ~Repl_semi_sync_master() = default;
 
   void cleanup();
 

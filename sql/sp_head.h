@@ -116,8 +116,7 @@ public:
   /** Create temporary sp_name object from MDL key. Store in qname_buff */
   sp_name(const MDL_key *key, char *qname_buff);
 
-  ~sp_name()
-  {}
+  ~sp_name() = default;
 };
 
 
@@ -1286,8 +1285,7 @@ public:
     m_query.length= 0;
   }
 
-  virtual ~sp_instr_stmt()
-  {};
+  virtual ~sp_instr_stmt() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1318,8 +1316,7 @@ public:
       m_lex_keeper(lex, lex_resp)
   {}
 
-  virtual ~sp_instr_set()
-  {}
+  virtual ~sp_instr_set() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1358,8 +1355,7 @@ public:
       m_field_offset(field_offset)
   {}
 
-  virtual ~sp_instr_set_row_field()
-  {}
+  virtual ~sp_instr_set_row_field() = default;
 
   virtual int exec_core(THD *thd, uint *nextp);
 
@@ -1401,8 +1397,7 @@ public:
       m_field_name(field_name)
   {}
 
-  virtual ~sp_instr_set_row_field_by_name()
-  {}
+  virtual ~sp_instr_set_row_field_by_name() = default;
 
   virtual int exec_core(THD *thd, uint *nextp);
 
@@ -1428,8 +1423,7 @@ public:
       value(val), m_lex_keeper(lex, TRUE)
   {}
 
-  virtual ~sp_instr_set_trigger_field()
-  {}
+  virtual ~sp_instr_set_trigger_field() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1468,8 +1462,7 @@ public:
       m_dest(dest), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
   {}
 
-  virtual ~sp_instr_opt_meta()
-  {}
+  virtual ~sp_instr_opt_meta() = default;
 
   virtual void set_destination(uint old_dest, uint new_dest)
     = 0;
@@ -1498,8 +1491,7 @@ public:
     : sp_instr_opt_meta(ip, ctx, dest)
   {}
 
-  virtual ~sp_instr_jump()
-  {}
+  virtual ~sp_instr_jump() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1547,8 +1539,7 @@ public:
       m_lex_keeper(lex, TRUE)
   {}
 
-  virtual ~sp_instr_jump_if_not()
-  {}
+  virtual ~sp_instr_jump_if_not() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1592,8 +1583,7 @@ public:
     : sp_instr(ip, ctx)
   {}
 
-  virtual ~sp_instr_preturn()
-  {}
+  virtual ~sp_instr_preturn() = default;
 
   virtual int execute(THD *thd, uint *nextp)
   {
@@ -1629,8 +1619,7 @@ public:
       m_lex_keeper(lex, TRUE)
   {}
 
-  virtual ~sp_instr_freturn()
-  {}
+  virtual ~sp_instr_freturn() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1729,8 +1718,7 @@ public:
     : sp_instr(ip, ctx), m_count(count)
   {}
 
-  virtual ~sp_instr_hpop()
-  {}
+  virtual ~sp_instr_hpop() = default;
 
   void update_count(uint count)
   {
@@ -1760,8 +1748,7 @@ public:
     m_frame(ctx->current_var_count())
   {}
 
-  virtual ~sp_instr_hreturn()
-  {}
+  virtual ~sp_instr_hreturn() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1795,8 +1782,7 @@ public:
     : sp_instr(ip, ctx), m_lex_keeper(lex, TRUE), m_cursor(offset)
   {}
 
-  virtual ~sp_instr_cpush()
-  {}
+  virtual ~sp_instr_cpush() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1827,8 +1813,7 @@ public:
     : sp_instr(ip, ctx), m_count(count)
   {}
 
-  virtual ~sp_instr_cpop()
-  {}
+  virtual ~sp_instr_cpop() = default;
 
   void update_count(uint count)
   {
@@ -1857,8 +1842,7 @@ public:
     : sp_instr(ip, ctx), m_cursor(c)
   {}
 
-  virtual ~sp_instr_copen()
-  {}
+  virtual ~sp_instr_copen() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1892,8 +1876,7 @@ public:
       m_cursor(coffs),
       m_var(voffs)
   {}
-  virtual ~sp_instr_cursor_copy_struct()
-  {}
+  virtual ~sp_instr_cursor_copy_struct() = default;
   virtual int execute(THD *thd, uint *nextp);
   virtual int exec_core(THD *thd, uint *nextp);
   virtual void print(String *str);
@@ -1911,8 +1894,7 @@ public:
     : sp_instr(ip, ctx), m_cursor(c)
   {}
 
-  virtual ~sp_instr_cclose()
-  {}
+  virtual ~sp_instr_cclose() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1938,8 +1920,7 @@ public:
     m_varlist.empty();
   }
 
-  virtual ~sp_instr_cfetch()
-  {}
+  virtual ~sp_instr_cfetch() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1974,8 +1955,7 @@ public:
   sp_instr_agg_cfetch(uint ip, sp_pcontext *ctx)
     : sp_instr(ip, ctx){}
 
-  virtual ~sp_instr_agg_cfetch()
-  {}
+  virtual ~sp_instr_agg_cfetch() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -1996,8 +1976,7 @@ public:
     : sp_instr(ip, ctx), m_errcode(errcode)
   {}
 
-  virtual ~sp_instr_error()
-  {}
+  virtual ~sp_instr_error() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 
@@ -2027,8 +2006,7 @@ public:
       m_lex_keeper(lex, TRUE)
   {}
 
-  virtual ~sp_instr_set_case_expr()
-  {}
+  virtual ~sp_instr_set_case_expr() = default;
 
   virtual int execute(THD *thd, uint *nextp);
 

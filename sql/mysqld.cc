@@ -1217,8 +1217,7 @@ class Buffered_log : public Sql_alloc
 public:
   Buffered_log(enum loglevel level, const char *message);
 
-  ~Buffered_log()
-  {}
+  ~Buffered_log() = default;
 
   void print(void);
 
@@ -1278,11 +1277,9 @@ void Buffered_log::print()
 class Buffered_logs
 {
 public:
-  Buffered_logs()
-  {}
+  Buffered_logs() = default;
 
-  ~Buffered_logs()
-  {}
+  ~Buffered_logs() = default;
 
   void init();
   void cleanup();

@@ -2257,7 +2257,7 @@ static inline uint32_t rocksdb_perf_context_level(THD *const thd) {
 */
 
 interface Rdb_tx_list_walker {
-  virtual ~Rdb_tx_list_walker() {}
+  virtual ~Rdb_tx_list_walker() = default;
   virtual void process_tran(const Rdb_transaction *const) = 0;
 };
 

@@ -27,7 +27,7 @@ class Type_handler_json_longtext: public Type_handler_long_blob
                                             const LEX_CSTRING *field_name)
                                             const;
 public:
-  virtual ~Type_handler_json_longtext() {}
+  virtual ~Type_handler_json_longtext() = default;
   bool Column_definition_validate_check_constraint(THD *thd,
                                                    Column_definition *c) const;
 };

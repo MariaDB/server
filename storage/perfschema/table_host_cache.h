@@ -125,8 +125,7 @@ protected:
   table_host_cache();
 
 public:
-  ~table_host_cache()
-  {}
+  ~table_host_cache() = default;
 
 private:
   void materialize(THD *thd);

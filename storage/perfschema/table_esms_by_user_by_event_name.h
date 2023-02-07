@@ -106,8 +106,7 @@ protected:
   table_esms_by_user_by_event_name();
 
 public:
-  ~table_esms_by_user_by_event_name()
-  {}
+  ~table_esms_by_user_by_event_name() = default;
 
 protected:
   void make_row(PFS_user *user, PFS_statement_class *klass);

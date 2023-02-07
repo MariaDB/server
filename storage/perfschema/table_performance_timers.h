@@ -71,8 +71,7 @@ protected:
   table_performance_timers();
 
 public:
-  ~table_performance_timers()
-  {}
+  ~table_performance_timers() = default;
 
 private:
   /** Table share lock. */

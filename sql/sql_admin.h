@@ -34,11 +34,9 @@ public:
   /**
     Constructor, used to represent a ANALYZE TABLE statement.
   */
-  Sql_cmd_analyze_table()
-  {}
+  Sql_cmd_analyze_table() = default;
 
-  ~Sql_cmd_analyze_table()
-  {}
+  ~Sql_cmd_analyze_table() = default;
 
   bool execute(THD *thd);
 
@@ -59,11 +57,9 @@ public:
   /**
     Constructor, used to represent a CHECK TABLE statement.
   */
-  Sql_cmd_check_table()
-  {}
+  Sql_cmd_check_table() = default;
 
-  ~Sql_cmd_check_table()
-  {}
+  ~Sql_cmd_check_table() = default;
 
   bool execute(THD *thd);
 
@@ -83,11 +79,9 @@ public:
   /**
     Constructor, used to represent a OPTIMIZE TABLE statement.
   */
-  Sql_cmd_optimize_table()
-  {}
+  Sql_cmd_optimize_table() = default;
 
-  ~Sql_cmd_optimize_table()
-  {}
+  ~Sql_cmd_optimize_table() = default;
 
   bool execute(THD *thd);
 
@@ -108,11 +102,9 @@ public:
   /**
     Constructor, used to represent a REPAIR TABLE statement.
   */
-  Sql_cmd_repair_table()
-  {}
+  Sql_cmd_repair_table() = default;
 
-  ~Sql_cmd_repair_table()
-  {}
+  ~Sql_cmd_repair_table() = default;
 
   bool execute(THD *thd);
 

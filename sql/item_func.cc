@@ -3919,7 +3919,7 @@ class Interruptible_wait
     Interruptible_wait(THD *thd)
     : m_thd(thd) {}
 
-    ~Interruptible_wait() {}
+    ~Interruptible_wait() = default;
 
   public:
     /**

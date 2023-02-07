@@ -66,8 +66,7 @@ protected:
   table_accounts();
 
 public:
-  ~table_accounts()
-  {}
+  ~table_accounts() = default;
 
 private:
   virtual void make_row(PFS_account *pfs);

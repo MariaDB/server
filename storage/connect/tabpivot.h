@@ -188,7 +188,7 @@ class SRCCOL : public PRXCOL {
 
  protected:
   // Default constructor not to be used
-  SRCCOL(void) {}
+  SRCCOL(void) = default;
 
   // Members
   }; // end of class SRCCOL

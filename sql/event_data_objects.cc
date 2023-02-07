@@ -314,9 +314,7 @@ Event_queue_element::Event_queue_element():
   SYNOPSIS
     Event_queue_element::Event_queue_element()
 */
-Event_queue_element::~Event_queue_element()
-{
-}
+Event_queue_element::~Event_queue_element() = default;
 
 
 /*
@@ -342,9 +340,7 @@ Event_timed::Event_timed():
     Event_timed::~Event_timed()
 */
 
-Event_timed::~Event_timed()
-{
-}
+Event_timed::~Event_timed() = default;
 
 
 /*

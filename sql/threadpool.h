@@ -102,8 +102,7 @@ struct TP_connection
     priority(TP_PRIORITY_HIGH)
   {}
 
-  virtual ~TP_connection()
-  {};
+  virtual ~TP_connection() = default;
 
   /* Initialize io structures windows threadpool, epoll etc */
   virtual int init() = 0;
@@ -121,7 +120,7 @@ struct TP_connection
 
 struct TP_pool
 {
-  virtual ~TP_pool(){};
+  virtual ~TP_pool() = default;
   virtual int init()= 0;
   virtual TP_connection *new_connection(CONNECT *)= 0;
   virtual void add(TP_connection *c)= 0;

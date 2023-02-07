@@ -45,7 +45,7 @@ class select_handler
   select_handler(THD *thd_arg, handlerton *ht_arg)
     : thd(thd_arg), ht(ht_arg), table(0) {}
 
-  virtual ~select_handler() {}
+  virtual ~select_handler() = default;
 
   /*
     Functions to scan the select result set.

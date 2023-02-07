@@ -117,8 +117,7 @@ protected:
   table_ews_by_user_by_event_name();
 
 public:
-  ~table_ews_by_user_by_event_name()
-  {}
+  ~table_ews_by_user_by_event_name() = default;
 
 protected:
   void make_row(PFS_user *user, PFS_instr_class *klass);

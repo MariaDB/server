@@ -438,11 +438,9 @@ int PFS_engine_table::update_row_values(TABLE *,
 class PFS_internal_schema_access : public ACL_internal_schema_access
 {
 public:
-  PFS_internal_schema_access()
-  {}
+  PFS_internal_schema_access() = default;
 
-  ~PFS_internal_schema_access()
-  {}
+  ~PFS_internal_schema_access() = default;
 
   ACL_internal_access_result check(ulong want_access,
                                    ulong *save_priv) const;

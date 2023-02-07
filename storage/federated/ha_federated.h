@@ -121,7 +121,7 @@ private:
   int real_connect();
 public:
   ha_federated(handlerton *hton, TABLE_SHARE *table_arg);
-  ~ha_federated() {}
+  ~ha_federated() = default;
   /*
     Next pointer used in transaction
   */

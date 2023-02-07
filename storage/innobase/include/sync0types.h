@@ -392,7 +392,7 @@ struct OSMutex {
 	}
 
 	/** Destructor */
-	~OSMutex() { }
+	~OSMutex() = default;
 
 	/** Destroy the mutex */
 	void destroy()
@@ -743,7 +743,7 @@ public:
 	}
 
 	/** Destructor */
-	~LatchMeta() { }
+	~LatchMeta() = default;
 
 	/** Constructor
 	@param[in]	id		Latch id

@@ -23,7 +23,7 @@ class DllExport ZIPDEF : public DOSDEF {          /* Table description */
 	friend class UNZFAM;
 public:
 	// Constructor
-	ZIPDEF(void) {}
+	ZIPDEF(void) = default;
 
 	// Implementation
 	virtual const char *GetType(void) {return "ZIP";}
@@ -94,7 +94,7 @@ public:
 
 protected:
 	// Default constructor not to be used
-	ZIPCOL(void) {}
+	ZIPCOL(void) = default;
 
 	// Members
 	TDBZIP *Tdbz;

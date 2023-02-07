@@ -99,7 +99,7 @@ class OCCURCOL : public COLBLK {
 
  protected:
   // Default constructor not to be used
-  OCCURCOL(void) {}
+  OCCURCOL(void) = default;
 
   // Members
 	int    I;
@@ -121,7 +121,7 @@ class RANKCOL : public COLBLK {
 
  protected:
   // Default constructor not to be used
-  RANKCOL(void) {}
+  RANKCOL(void) = default;
 
   // Members
   }; // end of class RANKCOL

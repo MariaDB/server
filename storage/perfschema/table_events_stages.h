@@ -102,8 +102,7 @@ protected:
 
   table_events_stages_common(const PFS_engine_table_share *share, void *pos);
 
-  ~table_events_stages_common()
-  {}
+  ~table_events_stages_common() = default;
 
   void make_row(PFS_events_stages *stage);
 
@@ -131,8 +130,7 @@ protected:
   table_events_stages_current();
 
 public:
-  ~table_events_stages_current()
-  {}
+  ~table_events_stages_current() = default;
 
 private:
   friend class table_events_stages_history;
@@ -165,8 +163,7 @@ protected:
   table_events_stages_history();
 
 public:
-  ~table_events_stages_history()
-  {}
+  ~table_events_stages_history() = default;
 
 private:
   /** Table share lock. */
@@ -196,8 +193,7 @@ protected:
   table_events_stages_history_long();
 
 public:
-  ~table_events_stages_history_long()
-  {}
+  ~table_events_stages_history_long() = default;
 
 private:
   /** Table share lock. */

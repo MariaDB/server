@@ -105,8 +105,7 @@ protected:
   table_setup_instruments();
 
 public:
-  ~table_setup_instruments()
-  {}
+  ~table_setup_instruments() = default;
 
 private:
   void make_row(PFS_instr_class *klass);

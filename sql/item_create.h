@@ -63,9 +63,9 @@ public:
 
 protected:
   /** Constructor */
-  Create_func() {}
+  Create_func() = default;
   /** Destructor */
-  virtual ~Create_func() {}
+  virtual ~Create_func() = default;
 };
 
 
@@ -95,9 +95,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_native_func() {}
+  Create_native_func() = default;
   /** Destructor. */
-  virtual ~Create_native_func() {}
+  virtual ~Create_native_func() = default;
 };
 
 
@@ -138,9 +138,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_qfunc() {}
+  Create_qfunc() = default;
   /** Destructor. */
-  virtual ~Create_qfunc() {}
+  virtual ~Create_qfunc() = default;
 };
 
 
@@ -187,9 +187,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_udf_func() {}
+  Create_udf_func() = default;
   /** Destructor. */
-  virtual ~Create_udf_func() {}
+  virtual ~Create_udf_func() = default;
 };
 #endif
 

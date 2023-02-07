@@ -72,7 +72,7 @@ public:
 
   group_by_handler(THD *thd_arg, handlerton *ht_arg)
     : thd(thd_arg), ht(ht_arg), table(0) {}
-  virtual ~group_by_handler() {}
+  virtual ~group_by_handler() = default;
 
   /*
     Functions to scan data. All these returns 0 if ok, error code in case

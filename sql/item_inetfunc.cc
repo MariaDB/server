@@ -174,7 +174,7 @@ protected:
     return false;
   }
   // Non-initializing constructor
-  Inet4() { }
+  Inet4() = default;
 public:
   void to_binary(char *dst, size_t dstsize) const
   {
@@ -266,7 +266,7 @@ protected:
     return false;
   }
   // Non-initializing constructor
-  Inet6() { }
+  Inet6() = default;
 public:
   bool to_binary(String *to) const
   {

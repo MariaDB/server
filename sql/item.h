@@ -287,7 +287,7 @@ private:
   TABLE_LIST *save_next_local;
 
 public:
-  Name_resolution_context_state() {}          /* Remove gcc warning */
+  Name_resolution_context_state() = default;          /* Remove gcc warning */
 
 public:
   /* Save the state of a name resolution context. */
@@ -388,7 +388,7 @@ class sp_rcontext;
 class Sp_rcontext_handler
 {
 public:
-  virtual ~Sp_rcontext_handler() {}
+  virtual ~Sp_rcontext_handler() = default;
   /**
     A prefix used for SP variable names in queries:
     - EXPLAIN EXTENDED
@@ -461,8 +461,8 @@ public:
                   required, otherwise we only reading it and SELECT
                   privilege might be required.
   */
-  Settable_routine_parameter() {}
-  virtual ~Settable_routine_parameter() {}
+  Settable_routine_parameter() = default;
+  virtual ~Settable_routine_parameter() = default;
   virtual void set_required_privilege(bool rw) {};
 
   /*
@@ -544,7 +544,7 @@ class Rewritable_query_parameter
       limit_clause_param(false)
   { }
 
-  virtual ~Rewritable_query_parameter() { }
+  virtual ~Rewritable_query_parameter() = default;
 
   virtual bool append_for_log(THD *thd, String *str) = 0;
 };
@@ -704,7 +704,7 @@ public:
 class Item_const
 {
 public:
-  virtual ~Item_const() {}
+  virtual ~Item_const() = default;
   virtual const Type_all_attributes *get_type_all_attributes_from_const() const= 0;
   virtual bool const_is_null() const { return false; }
   virtual const longlong *const_ptr_longlong() const { return NULL; }
@@ -2741,8 +2741,8 @@ class Field_enumerator
 {
 public:
   virtual void visit_field(Item_field *field)= 0;
-  virtual ~Field_enumerator() {};             /* purecov: inspected */
-  Field_enumerator() {}                       /* Remove gcc warning */
+  virtual ~Field_enumerator() = default;;             /* purecov: inspected */
+  Field_enumerator() = default;                       /* Remove gcc warning */
 };
 
 class Item_string;
@@ -3265,7 +3265,7 @@ public:
   Item_result_field(THD *thd, Item_result_field *item):
     Item_fixed_hybrid(thd, item), result_field(item->result_field)
   {}
-  ~Item_result_field() {}			/* Required with gcc 2.95 */
+  ~Item_result_field() = default;			/* Required with gcc 2.95 */
   Field *get_tmp_table_field() { return result_field; }
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
@@ -7540,7 +7540,7 @@ public:
   */
   virtual void close()= 0;
 
-  virtual ~Item_iterator() {}
+  virtual ~Item_iterator() = default;
 };
 
 

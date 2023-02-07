@@ -95,7 +95,7 @@ class XCLCOL : public PRXCOL {
 
  protected:
   // Default constructor not to be used
-  XCLCOL(void) {}
+  XCLCOL(void) = default;
 
   // Members
 	char   *Cbuf;					        // The column buffer

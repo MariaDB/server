@@ -562,7 +562,7 @@ public:
     name.length= 0;
   };
   Virtual_column_info* clone(THD *thd);
-  ~Virtual_column_info() {};
+  ~Virtual_column_info() = default;
   enum_vcol_info_type get_vcol_type() const
   {
     return vcol_type;
@@ -761,7 +761,7 @@ public:
   Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
         uchar null_bit_arg, utype unireg_check_arg,
         const LEX_CSTRING *field_name_arg);
-  virtual ~Field() {}
+  virtual ~Field() = default;
 
   DTCollation dtcollation() const
   {
@@ -5215,7 +5215,7 @@ public:
   LEX_CSTRING col_name, org_col_name;
   ulong length;
   uint flags, decimals;
-  Send_field() {}
+  Send_field() = default;
   Send_field(Field *field)
   {
     field->make_send_field(this);
@@ -5320,8 +5320,8 @@ public:
   Field *from_field,*to_field;
   String tmp;					// For items
 
-  Copy_field() {}
-  ~Copy_field() {}
+  Copy_field() = default;
+  ~Copy_field() = default;
   void set(Field *to,Field *from,bool save);	// Field to field 
   void set(uchar *to,Field *from);		// Field to string
   void (*do_copy)(Copy_field *);

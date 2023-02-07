@@ -319,7 +319,7 @@ private:
   int real_connect(FEDERATEDX_SHARE *my_share, uint create_flag);
 public:
   ha_federatedx(handlerton *hton, TABLE_SHARE *table_arg);
-  ~ha_federatedx() {}
+  ~ha_federatedx() = default;
   /*
     The name of the index type that will be used for display
     don't implement this method unless you really have indexes

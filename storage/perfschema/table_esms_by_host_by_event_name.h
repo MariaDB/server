@@ -106,8 +106,7 @@ protected:
   table_esms_by_host_by_event_name();
 
 public:
-  ~table_esms_by_host_by_event_name()
-  {}
+  ~table_esms_by_host_by_event_name() = default;
 
 protected:
   void make_row(PFS_host *host, PFS_statement_class *klass);

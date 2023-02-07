@@ -948,7 +948,7 @@ protected:
 class Table_read_cursor : public Rowid_seq_cursor
 {
 public:
-  virtual ~Table_read_cursor() {}
+  virtual ~Table_read_cursor() = default;
 
   void init(READ_RECORD *info)
   {
@@ -1132,7 +1132,7 @@ public:
 
   virtual bool is_outside_computation_bounds() const { return false; };
 
-  virtual ~Frame_cursor() {}
+  virtual ~Frame_cursor() = default;
 
   /*
      Regular frame cursors add or remove values from the sum functions they

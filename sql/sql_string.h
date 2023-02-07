@@ -739,7 +739,7 @@ public:
 class String: public Charset, public Binary_string
 {
 public:
-  String() { }
+  String() = default;
   String(size_t length_arg)
    :Binary_string(length_arg)
   { }
@@ -760,10 +760,7 @@ public:
    :Charset(cs),
     Binary_string(str, len)
   { }
-  String(const String &str)
-   :Charset(str),
-    Binary_string(str)
-  { }
+  String(const String &str) = default;
 
   void set(String &str,size_t offset,size_t arg_length)
   {

@@ -99,7 +99,7 @@ class GRN_DAT_API Key {
 
   // Disallows instantiation.
   Key() : id_and_length_low_(INVALID_KEY_ID << 4), length_high_(0) {}
-  ~Key() {}
+  ~Key() = default;
 
   // Disallows copy and assignment.
   Key(const Key &);
