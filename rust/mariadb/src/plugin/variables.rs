@@ -2,13 +2,15 @@
 
 use std::cell::UnsafeCell;
 use std::ffi::{c_double, c_int, c_long, c_longlong, c_ulong, c_ulonglong, c_void, CStr};
+use std::marker::PhantomPinned;
 use std::mem::ManuallyDrop;
 use std::os::raw::{c_char, c_uint};
 use std::ptr;
-use std::sync::atomic::{AtomicBool, AtomicI32};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, Ordering};
 use std::sync::Mutex;
 
 use bindings::THD;
+use log::trace;
 use mariadb_sys as bindings;
 
 use super::variables_parse::{CliMysqlValue, CliValue};
@@ -72,21 +74,12 @@ pub trait SysVarWrap: Sync {
     );
 }
 
-impl SysVarInfoU {
-    // /// Determine the version based on flags
-    // fn determine_version(&self) -> &SysVarInfo<T> {
-    //     // SAFETY: the flags field is always in the same position
-    //     let flags = unsafe { self.basic.get().flags };
-
-    // }
-}
-
 /// Possible flags for plugin variables
 #[repr(i32)]
 #[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[allow(clippy::cast_possible_wrap)]
-pub enum PluginVarInfo {
+pub enum SysVarOpt {
     // ThdLocal = bindings::PLUGIN_VAR_THDLOCAL as i32,
     /// Variable is read only
     ReadOnly = bindings::PLUGIN_VAR_READONLY as i32,
@@ -106,29 +99,41 @@ pub enum PluginVarInfo {
     //  MemAlloc= bindings::PLUGIN_VAR_MEMALLOC,
 }
 
-impl PluginVarInfo {
-    pub const fn to_i32(self) -> i32 {
+impl SysVarOpt {
+    pub const fn as_plugin_var_info(self) -> i32 {
         self as i32
     }
 }
 
 /// A string system variable
-pub struct SysVarString(Mutex<String>);
+///
+/// Consider this very unstable because I don't 100% understand what the SQL
+/// side of things does with the malloc / const options
+///
+/// Bug: it seems like after updating, the SQL server cannot read the
+/// variable... but we can? Do we need to do more in our `update` function?
+#[repr(transparent)]
+pub struct SysVarString(AtomicPtr<c_char>);
+
+// unsafe impl Sync for SysVarString {}
 
 impl SysVarString {
     pub const fn new() -> Self {
-        Self(Mutex::new(String::new()))
+        Self(AtomicPtr::new(std::ptr::null_mut()))
     }
 
     /// Get the current value of this variable. This isn't very efficient since
     /// it copies the string, but fixes will come later
     pub fn get(&self) -> String {
-        let guard = self.0.lock().expect("failed to lock mutex");
-        (*guard).clone()
+        let ptr = self.0.load(Ordering::SeqCst);
+        let cs = unsafe { CStr::from_ptr(ptr) };
+        cs.to_str()
+            .unwrap_or_else(|_| panic!("got non-UTF8 string like {}", cs.to_string_lossy()))
+            .to_owned()
     }
 }
 
-pub trait SimpleSysvarWrap: Sized {
+pub trait SysvarWrap: Sized {
     type CStType;
     type Intermediate;
     /// Store the result of the `check` function.
@@ -149,13 +154,12 @@ pub trait SimpleSysvarWrap: Sized {
     unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {}
 }
 
-impl SimpleSysvarWrap for SysVarString {
+impl SysvarWrap for SysVarString {
     type CStType = bindings::sysvar_str_t;
     type Intermediate = *mut c_char;
 
     unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {
-        let cs = CStr::from_ptr(*save).to_string_lossy();
-        let mut guard = target.0.lock().expect("failed to lock mutex");
-        *guard = cs.to_string();
+        target.0.store(*save, Ordering::SeqCst);
+        trace!("updated system variable to '{}'", target.get());
     }
 }

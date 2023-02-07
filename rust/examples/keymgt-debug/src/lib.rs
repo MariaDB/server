@@ -12,21 +12,24 @@ use std::ffi::c_void;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 
-use mariadb::log::debug;
+use mariadb::log::{self, debug, trace};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::prelude::*;
 use mariadb::plugin::{
-    register_plugin, Init, InitError, License, Maturity, PluginType, PluginVarInfo,
+    register_plugin, Init, InitError, License, Maturity, PluginType, SysVarOpt, SysVarString,
 };
 
 const KEY_LENGTH: usize = 4;
 static KEY_VERSION: AtomicU32 = AtomicU32::new(1);
+static TEST_SYSVAR_STR: SysVarString = SysVarString::new();
 
 struct DebugKeyMgmt;
 
 impl Init for DebugKeyMgmt {
     fn init() -> Result<(), InitError> {
-        eprintln!("init for DebugKeyMgmt");
+        log::set_max_level(log::LevelFilter::Trace);
+        debug!("DebugKeyMgmt get_latest_key_version");
+        trace!("current sysvar: {}", TEST_SYSVAR_STR.get());
         Ok(())
     }
 
@@ -76,8 +79,6 @@ impl KeyManager for DebugKeyMgmt {
     }
 }
 
-static TEST_SYSVAR_STR: Mutex<String> = Mutex::new(String::new());
-
 register_plugin! {
     DebugKeyMgmt,
     ptype: PluginType::MariaEncryption,
@@ -86,7 +87,17 @@ register_plugin! {
     description: "Debug key management plugin",
     license: License::Gpl,
     maturity: Maturity::Experimental,
-    version: "0.1",
+    version: "0.2",
     init: DebugKeyMgmt, // optional
     encryption: false,
+    variables: [
+        SysVar {
+            ident: TEST_SYSVAR_STR,
+            vtype: SysVarString,
+            name: "test_sysvar",
+            description: "this is a description",
+            options: [SysVarOpt::OptCmdArd],
+            default: "default value"
+        }
+    ]
 }

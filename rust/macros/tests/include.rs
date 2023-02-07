@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicI32;
 
 use mariadb::plugin::encryption::*;
 use mariadb::plugin::prelude::*;
-use mariadb::plugin::SysVarString;
+use mariadb::plugin::*;
 pub use mariadb_macros::register_plugin;
 
 static _SYSVAR_ATOMIC: AtomicI32 = AtomicI32::new(0);

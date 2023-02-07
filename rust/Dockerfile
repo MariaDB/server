@@ -5,13 +5,13 @@
 # # Build the image. Change the directory (../) if not building in `rust/`
 # docker build -f Dockerfile ../ --tag mdb-plugin-ex
 #
-# # Run the container
+# # Run the container, select default plugins as desired
 # docker run --rm -e MARIADB_ROOT_PASSWORD=example --name mdb-plugin-ex-c \
 #   mdb-plugin-ex \
 #   --plugin-maturity=experimental \
 #   --plugin-load=libbasic \
 #   --plugin-load=libencryption
-#   --plugin-load=libdebug_key_management
+#   --plugin-load=libkeymgt_debug
 #
 # # Enter a SQL console
 # docker exec -it mdb-plugin-ex-c mysql -pexample
@@ -19,12 +19,16 @@
 # # Install desired plugins
 # INSTALL PLUGIN basic_key_management SONAME 'libbasic.so';
 # INSTALL PLUGIN encryption_example SONAME 'libencryption.so';
+# INSTALL PLUGIN debug_key_management SONAME 'libkeymgt_debug.so';
+#
+# # Stop server
+# docker stop mdb-plugin-ex-c
 # ```
 
-# This build is space inefficient, but should rerun somewhat quick
+# use nighlty image for faster builds
+FROM rustlang/rust:nightly AS build
 
-FROM rust:1.66 AS build
-
+ENV CARGO_UNSTABLE_SPARSE_REGISTRY=true
 WORKDIR /build
 
 RUN apt-get update \

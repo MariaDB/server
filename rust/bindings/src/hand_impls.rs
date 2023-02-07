@@ -5,6 +5,16 @@ use super::{mysql_var_check_func, mysql_var_update_func, TYPELIB};
 // Defined in service_encryption.h but not imported because of tilde syntax
 pub const ENCRYPTION_KEY_VERSION_INVALID: c_uint = !0;
 
+#[allow(dead_code)] // not sure why this lint hits
+pub const PLUGIN_VAR_MASK: u32 = super::PLUGIN_VAR_READONLY
+    | super::PLUGIN_VAR_NOSYSVAR
+    | super::PLUGIN_VAR_NOCMDOPT
+    | super::PLUGIN_VAR_NOCMDARG
+    | super::PLUGIN_VAR_OPCMDARG
+    | super::PLUGIN_VAR_RQCMDARG
+    | super::PLUGIN_VAR_DEPRECATED
+    | super::PLUGIN_VAR_MEMALLOC;
+
 // We hand write these stucts because the definition is tricky, not all fields are
 // always present
 
