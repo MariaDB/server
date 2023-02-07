@@ -263,7 +263,7 @@ static char *get_plugindir()
 {
   static char plugin_dir[2*MAX_PATH];
   get_basedir(plugin_dir, sizeof(plugin_dir), mysqld_path);
-  strcat(plugin_dir, "/" STR(INSTALL_PLUGINDIR));
+  safe_strcat(plugin_dir, sizeof(plugin_dir), "/" STR(INSTALL_PLUGINDIR));
 
   if (access(plugin_dir, 0) == 0)
     return plugin_dir;

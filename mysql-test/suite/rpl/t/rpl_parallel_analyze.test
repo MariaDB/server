@@ -1,0 +1,84 @@
+# The test file is created to prove fixes to
+# MDEV-30323 Some DDLs like ANALYZE can complete on parallel slave out of order
+# Debug-sync tests aiming at parallel replication of ADMIN commands
+# are welcome here.
+
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/master-slave.inc
+
+--echo # Initialize
+--connection slave
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+--echo # Setup data
+--connection master
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE ta (a int);
+--let $pre_load_gtid=`SELECT @@last_gtid`
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source suite/rpl/include/create_or_drop_sync_func.inc
+
+# configure MDEV-30323 slave
+--source include/stop_slave.inc
+SET @old_parallel_threads  =@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode     =@@GLOBAL.slave_parallel_mode;
+SET @old_gtid_strict_mode  =@@GLOBAL.gtid_strict_mode;
+SET GLOBAL slave_parallel_threads=10;
+SET GLOBAL slave_parallel_mode=conservative;
+SET GLOBAL gtid_strict_mode=ON;
+--source include/start_slave.inc
+
+# MDEV-30323 setup needs two group of events the first of which is a DML
+# and ANALYZE is the 2nd.
+# The latter is made to race in slave execution over the DML thanks
+# to a DML latency simulation.
+# In the fixed case the race-over should not be a problem: ultimately
+# ANALYZE must wait for its turn to update slave@@global.gtid_binlog_pos.
+# Otherwise the reported OOO error must be issued.
+
+--connection master
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format=statement;
+INSERT INTO t1 VALUES (foo(1, 'rpl_parallel_after_mark_start_commit WAIT_FOR sig_go', ''));
+
+ANALYZE TABLE ta;
+--source include/save_master_gtid.inc
+
+--connection slave
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+SELECT info FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit";
+if (`select strcmp(@@global.gtid_binlog_pos, '$pre_load_gtid') <> 0 or strcmp(@@global.gtid_slave_pos, '$pre_load_gtid') <> 0`)
+{
+   --let $bs=`SELECT @@global.gtid_binlog_pos`
+   --let $es=`SELECT @@global.gtid_slave_pos`
+   --echo Mismatch between expected $pre_load_gtid state and the actual binlog state " @@global.gtid_binlog_pos = $bs or/and slave execution state @@global.gtid_slave_pos = $es.
+   --die
+}
+
+set @@debug_sync="now signal sig_go";
+--source include/sync_with_master_gtid.inc
+
+--echo # Cleanup
+--connection master
+DROP TABLE t1,ta;
+--let $create_or_drop=drop
+--source suite/rpl/include/create_or_drop_sync_func.inc
+
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET @@GLOBAL.slave_parallel_threads=@old_parallel_threads;
+SET @@GLOBAL.slave_parallel_mode   =@old_parallel_mode;
+SET @@GLOBAL.gtid_strict_mode      =@old_gtid_strict_mode;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

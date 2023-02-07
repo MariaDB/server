@@ -1,0 +1,133 @@
+#
+#   This test ensures that after a delayed parallel slave has idled, i.e.
+# executed everything in its relay log, the next event group that the SQL
+# thread reads from the relay log will immediately be used in the
+# Seconds_Behind_Master. In particular, it ensures that the calculation for
+# Seconds_Behind_Master is based on the timestamp of the new transaction,
+# rather than the last committed transaction.
+#
+# References:
+#   MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel
+#               Replicas
+#
+
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+--let $master_delay= 3
+--eval change master to master_delay=$master_delay, master_use_gtid=Slave_Pos
+--let $old_slave_threads= `SELECT @@GLOBAL.slave_parallel_threads`
+set @@GLOBAL.slave_parallel_threads=2;
+--source include/start_slave.inc
+
+--connection master
+create table t1 (a int);
+--source include/sync_slave_sql_with_master.inc
+
+--echo #
+--echo # Pt 1) Ensure SBM is updated immediately upon arrival of the next event
+
+--echo # Lock t1 on slave so the first received transaction does not complete/commit
+--connection slave
+LOCK TABLES t1 WRITE;
+
+--connection master
+--echo # Sleep 2 to allow a buffer between events for SBM check
+sleep 2;
+
+--let $ts_trx_before_ins= `SELECT UNIX_TIMESTAMP()`
+--let insert_ctr= 0
+--eval insert into t1 values ($insert_ctr)
+--inc $insert_ctr
+--source include/save_master_gtid.inc
+
+--connection slave
+
+--echo # Waiting for transaction to arrive on slave and begin SQL Delay..
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting until MASTER_DELAY seconds after master executed event';
+--source include/wait_condition.inc
+
+--echo # Validating SBM is updated on event arrival..
+--let $sbm_trx1_arrive= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $seconds_since_idling= `SELECT UNIX_TIMESTAMP() - $ts_trx_before_ins`
+if (`SELECT $sbm_trx1_arrive > ($seconds_since_idling + 1)`)
+{
+    --echo # SBM was $sbm_trx1_arrive yet shouldn't have been larger than $seconds_since_idling + 1 (for possible negative clock_diff_with_master)
+    --die Seconds_Behind_Master should reset after idling
+}
+--echo # ..done
+
+--connection slave
+UNLOCK TABLES;
+--source include/sync_with_master_gtid.inc
+
+--echo #
+--echo # Pt 2) If the SQL thread has not entered an idle state, ensure
+--echo # following events do not update SBM
+
+--echo # Stop slave IO thread so it receives both events together on restart
+--connection slave
+--source include/stop_slave_io.inc
+
+--connection master
+
+--echo # Sleep 2 to allow a buffer between events for SBM check
+sleep 2;
+--let $ts_trxpt2_before_ins= `SELECT UNIX_TIMESTAMP()`
+--eval insert into t1 values ($insert_ctr)
+--inc $insert_ctr
+--echo # Sleep 3 to create gap between events
+sleep 3;
+--eval insert into t1 values ($insert_ctr)
+--inc $insert_ctr
+--let $ts_trx_after_ins= `SELECT UNIX_TIMESTAMP()`
+
+--connection slave
+LOCK TABLES t1 WRITE;
+
+START SLAVE IO_THREAD;
+
+--echo # Wait for first transaction to complete SQL delay and begin execution..
+--let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock%' AND command LIKE 'Slave_Worker';
+--source include/wait_condition.inc
+
+--echo # Validate SBM calculation doesn't use the second transaction because SQL thread shouldn't have gone idle..
+--let $sbm_after_trx_no_idle= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $timestamp_trxpt2_arrive= `SELECT UNIX_TIMESTAMP()`
+if (`SELECT $sbm_after_trx_no_idle < $timestamp_trxpt2_arrive - $ts_trx_after_ins`)
+{
+    --let $cmpv= `SELECT $timestamp_trxpt2_arrive - $ts_trx_after_ins`
+    --echo # SBM $sbm_after_trx_no_idle was more recent than time since last transaction ($cmpv seconds)
+    --die Seconds_Behind_Master should not have used second transaction timestamp
+}
+--let $seconds_since_idling= `SELECT ($timestamp_trxpt2_arrive - $ts_trxpt2_before_ins)`
+--echo # ..and that SBM wasn't calculated using prior committed transactions
+if (`SELECT $sbm_after_trx_no_idle > ($seconds_since_idling + 1)`)
+{
+    --echo # SBM was $sbm_after_trx_no_idle yet shouldn't have been larger than $seconds_since_idling + 1 (for possible negative clock_diff_with_master)
+    --die Seconds_Behind_Master calculation should not have used prior committed transaction
+}
+--echo # ..done
+
+--connection slave
+UNLOCK TABLES;
+
+--echo #
+--echo # Cleanup
+
+--echo # Reset master_delay
+--source include/stop_slave.inc
+--eval CHANGE MASTER TO master_delay=0
+--eval set @@GLOBAL.slave_parallel_threads=$old_slave_threads
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_delayed_parallel_slave_sbm.test

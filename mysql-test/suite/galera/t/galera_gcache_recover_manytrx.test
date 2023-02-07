@@ -205,8 +205,3 @@ CALL mtr.add_suppression("conflict state 7 after post commit");
 
 # Warning happens when the cluster is started for the first time
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-
---connection node_2
-call mtr.add_suppression("Error in Log_event::read_log_event():.*");
-CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-
