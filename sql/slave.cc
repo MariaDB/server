@@ -4112,6 +4112,21 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     int exec_res;
     Log_event_type typ= ev->get_type_code();
 
+    DBUG_EXECUTE_IF(
+        "pause_sql_thread_on_next_event",
+        {
+          /*
+            Temporarily unlock data_lock so we can check-in with the IO thread
+          */
+          mysql_mutex_unlock(&rli->data_lock);
+          DBUG_ASSERT(!debug_sync_set_action(
+              thd,
+              STRING_WITH_LEN(
+                  "now SIGNAL paused_on_event WAIT_FOR sql_thread_continue")));
+          DBUG_SET("-d,pause_sql_thread_on_next_event");
+          mysql_mutex_lock(&rli->data_lock);
+        });
+
     /*
       Even if we don't execute this event, we keep the master timestamp,
       so that seconds behind master shows correct delta (there are events
