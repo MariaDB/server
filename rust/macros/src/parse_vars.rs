@@ -184,7 +184,6 @@ impl VariableInfo {
             parse_quote!(AtomicI32),
             parse_quote!(AtomicI64),
             parse_quote!(AtomicIsize),
-            parse_quote!(AtomicPtr),
             parse_quote!(AtomicU8),
             parse_quote!(AtomicU16),
             parse_quote!(AtomicU32),
@@ -203,7 +202,7 @@ impl VariableInfo {
         } else {
             Err(Error::new_spanned(
                 &self.vtype,
-                "invalid variable type. Only 'SysVarString' and 'AtomicX' currently allowed.",
+                "invalid variable type. Only 'SysVarString', 'SysVarConstString', and 'AtomicX' currently allowed.",
             ))
         }
     }

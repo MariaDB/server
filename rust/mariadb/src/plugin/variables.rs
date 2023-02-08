@@ -15,65 +15,6 @@ use mariadb_sys as bindings;
 
 use super::variables_parse::{CliMysqlValue, CliValue};
 
-type SVInfoInner<T> = ManuallyDrop<UnsafeCell<T>>;
-
-/// Basicallly, a system variable will be one of these types, which are dynamic
-/// structures on C. Kind of yucky to work with but I think the generic union is
-/// a lot more clear.
-#[repr(C)]
-pub union SysVarInfoU {
-    bool_t: SVInfoInner<bindings::sysvar_bool_t>,
-    str_t: SVInfoInner<bindings::sysvar_str_t>,
-    enum_t: SVInfoInner<bindings::sysvar_enum_t>,
-    set_t: SVInfoInner<bindings::sysvar_set_t>,
-    int_t: SVInfoInner<bindings::sysvar_int_t>,
-    long_t: SVInfoInner<bindings::sysvar_long_t>,
-    longlong_t: SVInfoInner<bindings::sysvar_longlong_t>,
-    uint_t: SVInfoInner<bindings::sysvar_uint_t>,
-    ulong_t: SVInfoInner<bindings::sysvar_ulong_t>,
-    ulonglong_t: SVInfoInner<bindings::sysvar_ulonglong_t>,
-    double_t: SVInfoInner<bindings::sysvar_double_t>,
-    // THD types have a function `resolve` that takes a thread pointer and an
-    // offset (also a field)
-}
-
-/// Internal trait
-pub trait SysVarWrap: Sync {
-    /// Type for interfacing with the main server
-    // type CType: SysVarCType;
-
-    const C_FLAGS: i32;
-    /// C struct
-    type CStType;
-    /// Type shared between `check` and `update`
-    type Intermediate;
-
-    /// For the check function, validate the arguments in `value` and write them to `dest`.
-    ///
-    /// - `thd`: thread pointer
-    /// - `var`: pointer to the c struct
-    /// - `save`: a temporary place to stash anything until it gets to update
-    /// - `value`: cli value
-    unsafe fn check(
-        thd: *const c_void,
-        var: &mut Self::CStType,
-        save: &mut Self::Intermediate,
-        value: &CliMysqlValue,
-    ) -> c_int;
-    /// Store the result of the `check` function.
-    ///
-    /// - `thd`: thread pointer
-    /// - `var`: pointer to the c struct
-    /// - `var_ptr`: where to stash the value
-    /// - `save`: stash from the `check` function
-    unsafe fn update(
-        thd: *const c_void,
-        var: &mut Self::CStType,
-        var_ptr: &mut Self,
-        save: &mut Self::Intermediate,
-    );
-}
-
 /// Possible flags for plugin variables
 #[repr(i32)]
 #[non_exhaustive]
@@ -99,6 +40,28 @@ pub enum SysVarOpt {
     //  MemAlloc= bindings::PLUGIN_VAR_MEMALLOC,
 }
 
+type SVInfoInner<T> = ManuallyDrop<UnsafeCell<T>>;
+
+/// Basicallly, a system variable will be one of these types, which are dynamic
+/// structures on C. Kind of yucky to work with but I think the generic union is
+/// a lot more clear.
+#[repr(C)]
+pub union SysVarInfoU {
+    bool_t: SVInfoInner<bindings::sysvar_bool_t>,
+    str_t: SVInfoInner<bindings::sysvar_str_t>,
+    enum_t: SVInfoInner<bindings::sysvar_enum_t>,
+    set_t: SVInfoInner<bindings::sysvar_set_t>,
+    int_t: SVInfoInner<bindings::sysvar_int_t>,
+    long_t: SVInfoInner<bindings::sysvar_long_t>,
+    longlong_t: SVInfoInner<bindings::sysvar_longlong_t>,
+    uint_t: SVInfoInner<bindings::sysvar_uint_t>,
+    ulong_t: SVInfoInner<bindings::sysvar_ulong_t>,
+    ulonglong_t: SVInfoInner<bindings::sysvar_ulonglong_t>,
+    double_t: SVInfoInner<bindings::sysvar_double_t>,
+    // THD types have a function `resolve` that takes a thread pointer and an
+    // offset (also a field)
+}
+
 impl SysVarOpt {
     pub const fn as_plugin_var_info(self) -> i32 {
         self as i32
@@ -113,11 +76,9 @@ impl SysVarOpt {
 /// Bug: it seems like after updating, the SQL server cannot read the
 /// variable... but we can? Do we need to do more in our `update` function?
 #[repr(transparent)]
-pub struct SysVarString(AtomicPtr<c_char>);
+pub struct SysVarConstString(AtomicPtr<c_char>);
 
-// unsafe impl Sync for SysVarString {}
-
-impl SysVarString {
+impl SysVarConstString {
     pub const fn new() -> Self {
         Self(AtomicPtr::new(std::ptr::null_mut()))
     }
@@ -133,7 +94,7 @@ impl SysVarString {
     }
 }
 
-pub trait SysvarWrap: Sized {
+pub trait SysVarWrap: Sized {
     type CStType;
     type Intermediate;
     /// Store the result of the `check` function.
@@ -154,7 +115,7 @@ pub trait SysvarWrap: Sized {
     unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {}
 }
 
-impl SysvarWrap for SysVarString {
+impl SysVarWrap for SysVarConstString {
     type CStType = bindings::sysvar_str_t;
     type Intermediate = *mut c_char;
 
