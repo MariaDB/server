@@ -83,7 +83,7 @@ pub mod prelude {
 #[doc(hidden)]
 pub mod internals {
     pub use super::encryption_wrapper::{WrapEncryption, WrapKeyMgr};
-    pub use super::variables::SysVarWrap;
+    pub use super::variables::SysVarInterface;
     pub use super::wrapper::{new_null_st_maria_plugin, WrapInit};
 }
 

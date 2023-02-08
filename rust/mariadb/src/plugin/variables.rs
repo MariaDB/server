@@ -6,7 +6,7 @@ use std::marker::PhantomPinned;
 use std::mem::ManuallyDrop;
 use std::os::raw::{c_char, c_uint};
 use std::ptr;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, Ordering};
+use std::sync::atomic::{self, AtomicBool, AtomicI32, AtomicPtr, AtomicU32, Ordering};
 use std::sync::Mutex;
 
 use bindings::THD;
@@ -68,6 +68,53 @@ impl SysVarOpt {
     }
 }
 
+/// `bindings::mysql_var_update_func` without the `Option`
+type SvUpdateFn =
+    unsafe extern "C" fn(*mut THD, *mut bindings::st_mysql_sys_var, *mut c_void, *const c_void);
+
+/// A wrapper for system variables. This won't be exposed externally.
+///
+/// This provides the interface of update functions
+pub trait SysVarInterface: Sized {
+    /// The C struct representation, e.g. `sysvar_str_t`
+    type CStType;
+
+    /// Intermediate type, pointed to by the CStType's `value` pointer
+    type Intermediate;
+
+    /// Associated const with an optional function pointer to an update
+    /// function.
+    ///
+    /// If a sysvar type should use a custom update function, implmeent `update`
+    /// and set this value to `update_wrap`.
+    const UPDATE_FUNC: Option<SvUpdateFn> = None;
+
+    /// Options to implement by default
+    const DEFAULT_OPTS: i32;
+
+    /// Wrapper for the task of storing the result of the `check` function.
+    /// Simply converts to our safe rust function "update".
+    ///
+    /// - `thd`: thread pointer
+    /// - `var`: pointer to the c struct
+    /// - `var_ptr`: where to stash the value
+    /// - `save`: stash from the `check` function
+    unsafe extern "C" fn update_wrap(
+        thd: *mut THD,
+        var: *mut bindings::st_mysql_sys_var,
+        target: *mut c_void,
+        save: *const c_void,
+    ) {
+        let new_save: *const Self::Intermediate = save.cast();
+        Self::update(&*target.cast(), &*var.cast(), new_save.as_ref());
+    }
+
+    /// Update function: override this if it is pointed to by `UPDATE_FUNC`
+    unsafe fn update(&self, var: &Self::CStType, save: Option<&Self::Intermediate>) {
+        unimplemented!()
+    }
+}
+
 /// A string system variable
 ///
 /// Consider this very unstable because I don't 100% understand what the SQL
@@ -94,33 +141,66 @@ impl SysVarConstString {
     }
 }
 
-pub trait SysVarWrap: Sized {
-    type CStType;
-    type Intermediate;
-    /// Store the result of the `check` function.
-    ///
-    /// - `thd`: thread pointer
-    /// - `var`: pointer to the c struct
-    /// - `var_ptr`: where to stash the value
-    /// - `save`: stash from the `check` function
-    unsafe extern "C" fn update_wrap(
-        thd: *mut THD,
-        var: *mut bindings::st_mysql_sys_var,
-        target: *mut c_void,
-        save: *const c_void,
-    ) {
-        Self::update(&*var.cast(), &*target.cast(), &*save.cast());
-    }
-
-    unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {}
-}
-
-impl SysVarWrap for SysVarConstString {
+impl SysVarInterface for SysVarConstString {
     type CStType = bindings::sysvar_str_t;
     type Intermediate = *mut c_char;
+    const DEFAULT_OPTS: i32 = bindings::PLUGIN_VAR_STR as i32;
+    // const UPDATE_FUNC: Option<bindings::mysql_var_update_func> =
+    //     Some(Self::update_wrap as bindings::mysql_var_update_func);
 
-    unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {
-        target.0.store(*save, Ordering::SeqCst);
-        trace!("updated system variable to '{}'", target.get());
-    }
+    // unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {
+    //     target.0.store(*save, Ordering::SeqCst);
+    //     trace!("updated system variable to '{}'", target.get());
+    // }
 }
+
+/// Macro to easily create implementations for all the atomics
+macro_rules! atomic_svinterface {
+    ($atomic_ty:ty, $cs_ty:ty, $inter_ty:ty, $opts:expr) => {
+        impl SysVarInterface for $atomic_ty {
+            type CStType = $cs_ty;
+            type Intermediate = $inter_ty;
+            const DEFAULT_OPTS: i32 = ($opts) as i32;
+            const UPDATE_FUNC: Option<SvUpdateFn> = Some(Self::update_wrap as SvUpdateFn);
+
+            unsafe fn update(&self, var: &Self::CStType, save: Option<&Self::Intermediate>) {
+                // based on sql_plugin.cc, seems like there are no null integers
+                // (can't represent that anyway)
+                let new = save.expect("somehow got a null pointer");
+                self.store(*new, Ordering::SeqCst);
+                trace!("updated system variable to '{}'", new);
+            }
+        }
+    };
+}
+
+atomic_svinterface!(
+    atomic::AtomicBool,
+    bindings::sysvar_bool_t,
+    bool,
+    bindings::PLUGIN_VAR_BOOL
+);
+atomic_svinterface!(
+    atomic::AtomicI32,
+    bindings::sysvar_int_t,
+    c_int,
+    bindings::PLUGIN_VAR_INT
+);
+atomic_svinterface!(
+    atomic::AtomicU32,
+    bindings::sysvar_uint_t,
+    c_uint,
+    bindings::PLUGIN_VAR_INT | bindings::PLUGIN_VAR_UNSIGNED
+);
+atomic_svinterface!(
+    atomic::AtomicI64,
+    bindings::sysvar_longlong_t,
+    c_longlong,
+    bindings::PLUGIN_VAR_LONGLONG
+);
+atomic_svinterface!(
+    atomic::AtomicU64,
+    bindings::sysvar_ulonglong_t,
+    c_ulonglong,
+    bindings::PLUGIN_VAR_LONGLONG | bindings::PLUGIN_VAR_UNSIGNED
+);

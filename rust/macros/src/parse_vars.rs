@@ -177,7 +177,7 @@ impl VariableInfo {
             return Err(Error::new_spanned(&self.vtype, "missing required field 'vtype'"));
         };
         let str_ty: Expr = parse_quote!(SysVarString);
-        let atomic_tys: [Expr; 12] = [
+        let atomic_tys: [Expr; 11] = [
             parse_quote!(AtomicBool),
             parse_quote!(AtomicI8),
             parse_quote!(AtomicI16),
