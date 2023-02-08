@@ -3563,9 +3563,11 @@ void do_system(struct st_command *command)
 /* returns TRUE if path is inside a sandbox */
 bool is_sub_path(const char *path, size_t plen, const char *sandbox)
 {
-  size_t len= strlen(sandbox);
-  if (!sandbox || !len || plen <= len || memcmp(path, sandbox, len - 1)
-      || path[len] != '/')
+  size_t len;
+  if (!sandbox)
+    return false;
+  len= strlen(sandbox);
+  if (plen <= len || memcmp(path, sandbox, len-1) || path[len] != '/')
     return false;
   return true;
 }
@@ -11696,7 +11698,7 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
 
   /* Sort array */
   qsort(lines.buffer, lines.elements,
-        sizeof(char**), (qsort_cmp)comp_lines);
+        sizeof(uchar *), (qsort_cmp)comp_lines);
 
   /* Create new result */
   for (i= 0; i < lines.elements ; i++)
