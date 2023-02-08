@@ -2,7 +2,7 @@ set @@default_storage_engine="aria";
 CREATE SEQUENCE t1 cache=10;
 show create sequence t1;
 Table	Create Table
-t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 10 nocycle ENGINE=Aria
+t1	CREATE SEQUENCE `t1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 10 nocycle ENGINE=Aria
 select NEXT VALUE for t1,seq from seq_1_to_20;
 NEXT VALUE for t1	seq
 1	1

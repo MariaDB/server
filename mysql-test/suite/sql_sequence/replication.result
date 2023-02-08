@@ -149,7 +149,7 @@ CREATE TABLE `s2` (
 ) ENGINE=myisam DEFAULT CHARSET=latin1 sequence=1;
 show create sequence s2;
 Table	Create Table
-s2	CREATE SEQUENCE `s2` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+s2	CREATE SEQUENCE `s2` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
 drop sequence s2;
 ###########################################
 select sequence syntax test
@@ -188,7 +188,7 @@ alter table s2 rename to s2_1;
 rename table s2_1 to s2_2;
 show create sequence s2_2;
 Table	Create Table
-s2_2	CREATE SEQUENCE `s2_2` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+s2_2	CREATE SEQUENCE `s2_2` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
 select * from s2_2;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0

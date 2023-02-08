@@ -297,3 +297,36 @@ SELECT SETVAL (v,0);
 
 UNLOCK TABLES;
 DROP VIEW v;
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+create or replace sequence t1 as tinyint unsigned minvalue 1 maxvalue 2;
+show create sequence t1;
+show create table t1;
+select * from t1;
+select next value for t1;
+select next value for t1;
+--error ER_SEQUENCE_RUN_OUT
+select next value for t1;
+
+create or replace sequence t1 as tinyint unsigned minvalue 1 maxvalue 2 cycle;
+show create sequence t1;
+show create table t1;
+select * from t1;
+select next value for t1;
+select next value for t1;
+select next value for t1;
+
+--disable_ps_protocol
+create or replace sequence t1 minvalue -23 maxvalue 99999 as tinyint;
+--enable_ps_protocol
+show create sequence t1;
+show create table t1;
+select * from t1;
+select next value for t1;
+select next value for t1;
+select next value for t1;
+
+drop sequence t1;

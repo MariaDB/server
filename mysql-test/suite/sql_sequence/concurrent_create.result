@@ -22,6 +22,20 @@ select * from s2;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 1	1	9223372036854775806	1	1	1000	0	0
 DROP SEQUENCE s1, s2;
+#
+# MDEV-28152 Features for sequence
+#
+CREATE SEQUENCE s1 as mediumint unsigned ENGINE=InnoDB;
+PREPARE stmt FROM "CREATE TABLE s2 LIKE s1";
+execute stmt;
+drop table s2;
+execute stmt;
+drop table s2;
+execute stmt;
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	16777214	1	1	1000	0	0
+DROP SEQUENCE s1, s2;
 CREATE SEQUENCE s1 ENGINE=InnoDB;
 connect  con1,localhost,root,,test;
 CREATE TABLE s2 LIKE s1;;

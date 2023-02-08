@@ -2694,12 +2694,29 @@ static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
 
   packet->append(STRING_WITH_LEN("CREATE SEQUENCE "));
   append_identifier(thd, packet, &alias);
+  /* Do not show " as <type>" in oracle mode as it is not supported:
+     https://docs.oracle.com/en/database/oracle/oracle-database/21/sqlrf/CREATE-SEQUENCE.html
+  */
+  if (!(sql_mode & MODE_ORACLE))
+  {
+    packet->append(STRING_WITH_LEN(" as "));
+    packet->append(seq->value_type_handler()->name().lex_cstring());
+  }
   packet->append(STRING_WITH_LEN(" start with "));
-  packet->append_longlong(seq->start);
+  if (seq->is_unsigned)
+    packet->append_ulonglong(seq->start);
+  else
+    packet->append_longlong(seq->start);
   packet->append(STRING_WITH_LEN(" minvalue "));
-  packet->append_longlong(seq->min_value);
+  if (seq->is_unsigned)
+    packet->append_ulonglong(seq->min_value);
+  else
+    packet->append_longlong(seq->min_value);
   packet->append(STRING_WITH_LEN(" maxvalue "));
-  packet->append_longlong(seq->max_value);
+  if (seq->is_unsigned)
+    packet->append_ulonglong(seq->max_value);
+  else
+    packet->append_longlong(seq->max_value);
   packet->append(STRING_WITH_LEN(" increment by "));
   packet->append_longlong(seq->increment);
   if (seq->cache)
@@ -5512,6 +5529,36 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_RETURN(0);
 }
 
+static int get_schema_sequence_record(THD *thd, TABLE_LIST *tables,
+				    TABLE *table, bool res,
+				    const LEX_CSTRING *db_name,
+				    const LEX_CSTRING *table_name)
+{
+  DBUG_ENTER("get_sequence_record");
+  CHARSET_INFO *cs= system_charset_info;
+  restore_record(table, s->default_values);
+  sequence_definition *seq= tables->table->s->sequence;
+  if (tables->table->s->table_type == TABLE_TYPE_SEQUENCE)
+  {
+    const Type_handler *handler= seq->value_type_handler();
+    table->field[0]->store(STRING_WITH_LEN("def"), cs);
+    table->field[1]->store(db_name->str, db_name->length, cs);
+    table->field[2]->store(table_name->str, table_name->length, cs);
+    table->field[3]->store(handler->name().lex_cstring(), cs);
+    table->field[4]->store(8 * handler->calc_pack_length(0));
+    table->field[5]->store(2);
+    table->field[5]->set_notnull();
+    table->field[6]->store(0);
+    table->field[6]->set_notnull();
+    table->field[7]->store(seq->start, seq->is_unsigned);
+    table->field[8]->store(seq->min_value, seq->is_unsigned);
+    table->field[9]->store(seq->max_value, seq->is_unsigned);
+    table->field[10]->store(seq->increment, 0);
+    table->field[11]->store(seq->cycle);
+    DBUG_RETURN(schema_table_store_record(thd, table));
+  }
+  DBUG_RETURN(0);
+}
 
 static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
 				    TABLE *table, bool res,
@@ -9419,6 +9466,29 @@ ST_FIELD_INFO proc_fields_info[]=
 };
 
 
+ST_FIELD_INFO sequence_fields_info[]=
+{
+  Column("SEQUENCE_CATALOG",            Catalog(),     NOT_NULL,                OPEN_FRM_ONLY),
+  Column("SEQUENCE_SCHEMA",             Name(),        NOT_NULL,                OPEN_FRM_ONLY),
+  Column("SEQUENCE_NAME",               Name(),        NOT_NULL, "Table",       OPEN_FRM_ONLY),
+  Column("DATA_TYPE",                   Name(),        NOT_NULL),
+  Column("NUMERIC_PRECISION",           SLong(21),     NOT_NULL),
+  Column("NUMERIC_PRECISION_RADIX",     SLong(21),     NULLABLE),
+  Column("NUMERIC_SCALE",               SLong(21),     NULLABLE),
+  // Decimal types for these values to incorporate possibly unsigned
+  // longlongs.
+  Column("START_VALUE",                 Decimal(2100), NOT_NULL),
+  Column("MINIMUM_VALUE",               Decimal(2100), NOT_NULL),
+  Column("MAXIMUM_VALUE",               Decimal(2100), NOT_NULL),
+  Column("INCREMENT",                   SLonglong(21), NOT_NULL),
+  Column("CYCLE_OPTION",                SLonglong(21), NOT_NULL),
+  Column("DECLARED_DATA_TYPE",          SLong(21),     NULLABLE),
+  Column("DECLARED_NUMERIC_PRECISION",  SLong(21),     NULLABLE),
+  Column("DECLARED_NUMERIC_SCALE",      SLong(21),     NULLABLE),
+  CEnd()
+};
+
+
 ST_FIELD_INFO stat_fields_info[]=
 {
   Column("TABLE_CATALOG", Catalog(),   NOT_NULL,                OPEN_FRM_ONLY),
@@ -9985,6 +10055,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_schemata, make_schemata_old_format, 0, 1, -1, 0, 0},
   {"SCHEMA_PRIVILEGES", Show::schema_privileges_fields_info, 0,
    fill_schema_schema_privileges, 0, 0, -1, -1, 0, 0},
+  {"SEQUENCES", Show::sequence_fields_info, 0,
+   get_all_tables, make_old_format, get_schema_sequence_record, 1, 2, 0, 0},
   {"SESSION_STATUS", Show::variables_fields_info, 0,
    fill_status, make_old_format, 0, 0, -1, 0, 0},
   {"SESSION_VARIABLES", Show::variables_fields_info, 0,

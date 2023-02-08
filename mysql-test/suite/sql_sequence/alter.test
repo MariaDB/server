@@ -161,3 +161,64 @@ CREATE SEQUENCE s;
 ALTER TABLE s ORDER BY cache_size;
 SELECT NEXTVAL(s);
 DROP SEQUENCE s;
+
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+# truncation in alter sequence
+create sequence s maxvalue 12345;
+show create sequence s;
+alter sequence s maxvalue 123456789012345678901234;
+show create sequence s;
+drop sequence s;
+
+# alter first from a narrower type to a wider type, then maxvalue
+create sequence s as tinyint;
+show create sequence s;
+show create table s;
+alter sequence s as int;
+show create sequence s;
+show create table s;
+alter sequence s maxvalue 12345;
+show create sequence s;
+show create table s;
+drop sequence s;
+
+# alter first maxvalue then from a wider type to a narrower type
+create sequence s;
+show create sequence s;
+show create table s;
+alter sequence s maxvalue 123;
+show create sequence s;
+show create table s;
+alter sequence s as tinyint;
+show create sequence s;
+show create table s;
+drop sequence s;
+
+# from a wider type to a narrower type with out of range values
+create sequence s as int;
+show create sequence s;
+show create table s;
+--error ER_WARN_DATA_OUT_OF_RANGE
+alter sequence s as tinyint;
+drop sequence s;
+
+# cannot alter both value type and something else yet.
+create sequence s as tinyint;
+show create sequence s;
+show create table s;
+--error ER_NOT_SUPPORTED_YET
+alter sequence s as int maxvalue 123;
+drop sequence s;
+
+# from signed to unsigned
+create sequence s as int;
+show create sequence s;
+show create table s;
+alter sequence s as int unsigned;
+show create sequence s;
+show create table s;
+drop sequence s;
