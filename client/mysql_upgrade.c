@@ -848,8 +848,7 @@ static int upgrade_already_done(int silent)
             "There is no need to run mysql_upgrade again for %s.",
             upgrade_from_version, version);
     if (!opt_check_upgrade)
-      verbose("You can use --force if you still want to run mysql_upgrade",
-              upgrade_from_version, version);
+      verbose("You can use --force if you still want to run mysql_upgrade");
   }
   return 0;
 }
