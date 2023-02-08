@@ -177,14 +177,13 @@ impl VariableInfo {
             return Err(Error::new_spanned(&self.vtype, "missing required field 'vtype'"));
         };
         let str_ty: Expr = parse_quote!(SysVarString);
-        let atomic_tys: [Expr; 12] = [
+        let atomic_tys: [Expr; 11] = [
             parse_quote!(AtomicBool),
             parse_quote!(AtomicI8),
             parse_quote!(AtomicI16),
             parse_quote!(AtomicI32),
             parse_quote!(AtomicI64),
             parse_quote!(AtomicIsize),
-            parse_quote!(AtomicPtr),
             parse_quote!(AtomicU8),
             parse_quote!(AtomicU16),
             parse_quote!(AtomicU32),
@@ -203,7 +202,7 @@ impl VariableInfo {
         } else {
             Err(Error::new_spanned(
                 &self.vtype,
-                "invalid variable type. Only 'SysVarString' and 'AtomicX' currently allowed.",
+                "invalid variable type. Only 'SysVarString', 'SysVarConstString', and 'AtomicX' currently allowed.",
             ))
         }
     }
