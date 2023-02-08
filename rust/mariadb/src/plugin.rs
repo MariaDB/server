@@ -72,7 +72,7 @@ mod variables;
 mod variables_parse;
 mod wrapper;
 pub use mariadb_macros::register_plugin;
-pub use variables::{SysVarOpt, SysVarString};
+pub use variables::{SysVarConstString, SysVarOpt};
 
 /// Commonly used plugin types for reexport
 pub mod prelude {
@@ -83,7 +83,7 @@ pub mod prelude {
 #[doc(hidden)]
 pub mod internals {
     pub use super::encryption_wrapper::{WrapEncryption, WrapKeyMgr};
-    pub use super::variables::{SysVarWrap, SysvarWrap};
+    pub use super::variables::SysVarWrap;
     pub use super::wrapper::{new_null_st_maria_plugin, WrapInit};
 }
 
@@ -105,19 +105,16 @@ impl License {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct NoMatchingLicenseError;
-
 impl FromStr for License {
-    type Err = NoMatchingLicenseError;
+    type Err = String;
 
     /// Create a license type from a string
-    fn from_str(s: &str) -> Result<Self, NoMatchingLicenseError> {
+    fn from_str(s: &str) -> Result<Self, String> {
         match s.to_lowercase().as_str() {
             "proprietary" => Ok(Self::Proprietary),
             "gpl" => Ok(Self::Gpl),
             "bsd" => Ok(Self::Bsd),
-            _ => Err(NoMatchingLicenseError),
+            _ => Err(format!("'{s}' has no matching license type")),
         }
     }
 }

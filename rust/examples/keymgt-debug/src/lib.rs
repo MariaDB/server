@@ -15,12 +15,12 @@ use std::sync::Mutex;
 use mariadb::log::{self, debug, trace};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::{
-    register_plugin, Init, InitError, License, Maturity, PluginType, SysVarOpt, SysVarString, *,
+    register_plugin, Init, InitError, License, Maturity, PluginType, SysVarConstString, SysVarOpt,
 };
 
 const KEY_LENGTH: usize = 4;
 static KEY_VERSION: AtomicU32 = AtomicU32::new(1);
-static TEST_SYSVAR_STR: SysVarString = SysVarString::new();
+static TEST_SYSVAR_STR: SysVarConstString = SysVarConstString::new();
 
 struct DebugKeyMgmt;
 

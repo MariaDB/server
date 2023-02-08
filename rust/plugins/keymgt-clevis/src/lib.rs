@@ -12,7 +12,7 @@ use josekit::jws;
 use mariadb::log::{debug, error, info};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::{
-    register_plugin, Init, InitError, License, Maturity, PluginType, SysVarOpt, SysVarString,
+    register_plugin, Init, InitError, License, Maturity, PluginType, SysVarConstString, SysVarOpt,
 };
 use mariadb::service_sql::{ClientError, Fetch, FetchedRows, MySqlConn};
 
@@ -22,7 +22,7 @@ const SERVER_TABLE: &str = "mysql.clevis_servers";
 const KEY_MAX_BYTES: usize = 16;
 
 /// String system variable to set server address
-static TANG_SERVER: SysVarString = SysVarString::new();
+static TANG_SERVER: SysVarConstString = SysVarConstString::new();
 
 struct KeyMgtClevis;
 
