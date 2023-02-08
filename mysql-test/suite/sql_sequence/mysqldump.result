@@ -73,3 +73,145 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 1	1	9223372036854775806	1	1	1000	0	0
 unlock tables;
 drop table t1;
+#
+# MDEV-28152 Features for sequence
+#
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+CREATE SEQUENCE s1 as tinyint;
+CREATE SEQUENCE s2 as smallint;
+CREATE SEQUENCE s3 as mediumint;
+CREATE SEQUENCE s4 as int;
+CREATE SEQUENCE s5 as bigint;
+CREATE SEQUENCE s6 as tinyint unsigned;
+CREATE SEQUENCE s7 as smallint unsigned;
+CREATE SEQUENCE s8 as mediumint unsigned;
+CREATE SEQUENCE s9 as int unsigned;
+CREATE SEQUENCE s10 as bigint unsigned;
+# Dump database 1
+# Restore from database 1 to database 2
+SETVAL(`s1`, 1, 0)
+1
+SETVAL(`s10`, 1, 0)
+1
+SETVAL(`s2`, 1, 0)
+1
+SETVAL(`s3`, 1, 0)
+1
+SETVAL(`s4`, 1, 0)
+1
+SETVAL(`s5`, 1, 0)
+1
+SETVAL(`s6`, 1, 0)
+1
+SETVAL(`s7`, 1, 0)
+1
+SETVAL(`s8`, 1, 0)
+1
+SETVAL(`s9`, 1, 0)
+1
+USE test2;
+SHOW CREATE SEQUENCE s1;
+Table	Create Table
+s1	CREATE SEQUENCE `s1` as tinyint start with 1 minvalue 1 maxvalue 126 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s2;
+Table	Create Table
+s2	CREATE SEQUENCE `s2` as smallint start with 1 minvalue 1 maxvalue 32766 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s3;
+Table	Create Table
+s3	CREATE SEQUENCE `s3` as mediumint start with 1 minvalue 1 maxvalue 8388606 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s4;
+Table	Create Table
+s4	CREATE SEQUENCE `s4` as int start with 1 minvalue 1 maxvalue 2147483646 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s5;
+Table	Create Table
+s5	CREATE SEQUENCE `s5` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s6;
+Table	Create Table
+s6	CREATE SEQUENCE `s6` as tinyint unsigned start with 1 minvalue 1 maxvalue 254 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s7;
+Table	Create Table
+s7	CREATE SEQUENCE `s7` as smallint unsigned start with 1 minvalue 1 maxvalue 65534 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s8;
+Table	Create Table
+s8	CREATE SEQUENCE `s8` as mediumint unsigned start with 1 minvalue 1 maxvalue 16777214 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s9;
+Table	Create Table
+s9	CREATE SEQUENCE `s9` as int unsigned start with 1 minvalue 1 maxvalue 4294967294 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+SHOW CREATE SEQUENCE s10;
+Table	Create Table
+s10	CREATE SEQUENCE `s10` as bigint unsigned start with 1 minvalue 1 maxvalue 18446744073709551614 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+DROP DATABASE test1;
+DROP DATABASE test2;
+## test ORACLE mode
+set sql_mode=ORACLE;
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+CREATE SEQUENCE s1 as tinyint;
+CREATE SEQUENCE s2 as smallint;
+CREATE SEQUENCE s3 as mediumint;
+CREATE SEQUENCE s4 as int;
+CREATE SEQUENCE s5 as bigint;
+CREATE SEQUENCE s6 as tinyint unsigned;
+CREATE SEQUENCE s7 as smallint unsigned;
+CREATE SEQUENCE s8 as mediumint unsigned;
+CREATE SEQUENCE s9 as int unsigned;
+CREATE SEQUENCE s10 as bigint unsigned;
+# Dump database 1
+# Restore from database 1 to database 2
+SETVAL(`s1`, 1, 0)
+1
+SETVAL(`s10`, 1, 0)
+1
+SETVAL(`s2`, 1, 0)
+1
+SETVAL(`s3`, 1, 0)
+1
+SETVAL(`s4`, 1, 0)
+1
+SETVAL(`s5`, 1, 0)
+1
+SETVAL(`s6`, 1, 0)
+1
+SETVAL(`s7`, 1, 0)
+1
+SETVAL(`s8`, 1, 0)
+1
+SETVAL(`s9`, 1, 0)
+1
+USE test2;
+SHOW CREATE SEQUENCE s1;
+Table	Create Table
+s1	CREATE SEQUENCE "s1" start with 1 minvalue 1 maxvalue 126 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s2;
+Table	Create Table
+s2	CREATE SEQUENCE "s2" start with 1 minvalue 1 maxvalue 32766 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s3;
+Table	Create Table
+s3	CREATE SEQUENCE "s3" start with 1 minvalue 1 maxvalue 8388606 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s4;
+Table	Create Table
+s4	CREATE SEQUENCE "s4" start with 1 minvalue 1 maxvalue 2147483646 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s5;
+Table	Create Table
+s5	CREATE SEQUENCE "s5" start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s6;
+Table	Create Table
+s6	CREATE SEQUENCE "s6" start with 1 minvalue 1 maxvalue 254 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s7;
+Table	Create Table
+s7	CREATE SEQUENCE "s7" start with 1 minvalue 1 maxvalue 65534 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s8;
+Table	Create Table
+s8	CREATE SEQUENCE "s8" start with 1 minvalue 1 maxvalue 16777214 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s9;
+Table	Create Table
+s9	CREATE SEQUENCE "s9" start with 1 minvalue 1 maxvalue 4294967294 increment by 1 cache 1000 nocycle
+SHOW CREATE SEQUENCE s10;
+Table	Create Table
+s10	CREATE SEQUENCE "s10" start with 1 minvalue 1 maxvalue 18446744073709551614 increment by 1 cache 1000 nocycle
+DROP DATABASE test1;
+DROP DATABASE test2;
+set sql_mode=default;

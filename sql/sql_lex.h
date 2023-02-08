@@ -4093,8 +4093,9 @@ public:
   /*
     Create an item for "SETVAL(sequence_name, value [, is_used [, round]])
   */
-  Item *create_item_func_setval(THD *thd, Table_ident *ident, longlong value,
-                                ulonglong round, bool is_used);
+  Item *create_item_func_setval(THD *thd, Table_ident *ident,
+                                Longlong_hybrid value, ulonglong round,
+                                bool is_used);
 
   /*
     Create an item for a name in LIMIT clause: LIMIT var

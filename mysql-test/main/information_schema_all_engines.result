@@ -52,6 +52,7 @@ REFERENTIAL_CONSTRAINTS
 ROUTINES
 SCHEMATA
 SCHEMA_PRIVILEGES
+SEQUENCES
 SESSION_STATUS
 SESSION_VARIABLES
 SPATIAL_REF_SYS
@@ -133,6 +134,7 @@ REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA
 ROUTINES	ROUTINE_SCHEMA
 SCHEMATA	SCHEMA_NAME
 SCHEMA_PRIVILEGES	TABLE_SCHEMA
+SEQUENCES	SEQUENCE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
 SPATIAL_REF_SYS	SRID
@@ -214,6 +216,7 @@ REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA
 ROUTINES	ROUTINE_SCHEMA
 SCHEMATA	SCHEMA_NAME
 SCHEMA_PRIVILEGES	TABLE_SCHEMA
+SEQUENCES	SEQUENCE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
 SPATIAL_REF_SYS	SRID
@@ -299,6 +302,7 @@ REFERENTIAL_CONSTRAINTS	information_schema.REFERENTIAL_CONSTRAINTS	1
 ROUTINES	information_schema.ROUTINES	1
 SCHEMATA	information_schema.SCHEMATA	1
 SCHEMA_PRIVILEGES	information_schema.SCHEMA_PRIVILEGES	1
+SEQUENCES	information_schema.SEQUENCES	1
 SESSION_STATUS	information_schema.SESSION_STATUS	1
 SESSION_VARIABLES	information_schema.SESSION_VARIABLES	1
 SPATIAL_REF_SYS	information_schema.SPATIAL_REF_SYS	1
@@ -369,6 +373,7 @@ Database: information_schema
 | ROUTINES                              |
 | SCHEMATA                              |
 | SCHEMA_PRIVILEGES                     |
+| SEQUENCES                             |
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
 | SPATIAL_REF_SYS                       |
@@ -440,6 +445,7 @@ Database: INFORMATION_SCHEMA
 | ROUTINES                              |
 | SCHEMATA                              |
 | SCHEMA_PRIVILEGES                     |
+| SEQUENCES                             |
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
 | SPATIAL_REF_SYS                       |
@@ -463,5 +469,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	66
+information_schema	67
 mysql	31
