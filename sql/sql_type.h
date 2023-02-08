@@ -124,6 +124,32 @@ enum scalar_comparison_op
 };
 
 
+class Hasher
+{
+  ulong m_nr1;
+  ulong m_nr2;
+public:
+  Hasher(): m_nr1(1), m_nr2(4)
+  { }
+  void add_null()
+  {
+    m_nr1^= (m_nr1 << 1) | 1;
+  }
+  void add(CHARSET_INFO *cs, const uchar *str, size_t length)
+  {
+    cs->coll->hash_sort(cs, str, length, &m_nr1, &m_nr2);
+  }
+  void add(CHARSET_INFO *cs, const char *str, size_t length)
+  {
+    add(cs, (const uchar *) str, length);
+  }
+  uint32 finalize() const
+  {
+    return (uint32) m_nr1;
+  }
+};
+
+
 enum partition_value_print_mode_t
 {
   PARTITION_VALUE_PRINT_MODE_SHOW= 0,
