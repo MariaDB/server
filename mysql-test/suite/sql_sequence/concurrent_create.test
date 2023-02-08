@@ -38,6 +38,21 @@ execute stmt;
 select * from s2;
 DROP SEQUENCE s1, s2;
 
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+CREATE SEQUENCE s1 as mediumint unsigned ENGINE=InnoDB;
+PREPARE stmt FROM "CREATE TABLE s2 LIKE s1";
+execute stmt;
+drop table s2;
+execute stmt;
+show create sequence s2;
+drop table s2;
+execute stmt;
+select * from s2;
+DROP SEQUENCE s1, s2;
+
 #
 # MDEV-15117 Server crashes in in open_and_process_table or ASAN
 # heap-use-after-free in is_temporary_table upon creating/flushing sequences

@@ -28,3 +28,15 @@ drop sequence s;
 # Clean up
 
 set global auto_increment_increment= default, auto_increment_offset= default;
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+set global auto_increment_increment= 100;
+set global auto_increment_offset= 42;
+create sequence s as bigint unsigned start with 9223372036854775800 increment 0;
+select next value for s;
+select next value for s;
+drop sequence s;
+set global auto_increment_increment= default, auto_increment_offset= default;

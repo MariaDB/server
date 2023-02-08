@@ -7192,8 +7192,20 @@ longlong Item_func_setval::val_int()
     DBUG_RETURN(0);
   }
 
-  value= nextval;
-  error= table->s->sequence->set_value(table, nextval, round, is_used);
+  /*
+    Truncate nextval according to the value type of the sequence if
+    out of bounds. If truncation happens i.e. nextval is out of
+    bounds for the value type, return null immediately.
+  */
+  value= table->s->sequence->truncate_value(nextval);
+  if (value != nextval.value())
+  {
+    null_value= 1;
+    value= 0;
+    DBUG_RETURN(0);
+  }
+  unsigned_flag= table->s->sequence->is_unsigned;
+  error= table->s->sequence->set_value(table, value, round, is_used);
   if (unlikely(error))
   {
     null_value= 1;
@@ -7241,7 +7253,10 @@ void Item_func_setval::print(String *str, enum_query_type query_type)
   }
   append_identifier(thd, str, &t_name);
   str->append(',');
-  str->append_longlong(nextval);
+  if (nextval.is_unsigned())
+    str->append_ulonglong(nextval.value());
+  else
+    str->append_longlong(nextval.value());
   str->append(',');
   str->append_longlong(is_used);
   str->append(',');

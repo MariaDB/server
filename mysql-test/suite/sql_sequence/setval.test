@@ -154,3 +154,100 @@ DROP SEQUENCE s;
 
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+# out of bounds for the type: returns NULL
+create sequence s;
+select setval(s, 12345678901234567890);
+select nextval(s);
+drop sequence s;
+
+create sequence s increment -1;
+select setval(s, 12345678901234567890);
+select nextval(s);
+drop sequence s;
+
+create sequence s as smallint;
+select setval(s, 55555);
+select setval(s, -55555);
+select nextval(s);
+drop sequence s;
+
+create sequence s as smallint increment -1;
+select setval(s, 55555);
+select setval(s, -55555);
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned;
+select setval(s, -123);
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned increment -1;
+select setval(s, -123);
+select nextval(s);
+drop sequence s;
+
+# large setval values for bigint unsigned
+create sequence s as bigint unsigned;
+select setval(s, -123);
+select setval(s, 0);
+select nextval(s);
+select setval(s, 12345678901234567890);
+select nextval(s);
+select setval(s, 12345678901234567890);
+select nextval(s);
+select setval(s, 18446744073709551614, 0);
+select nextval(s);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+--error ER_SEQUENCE_RUN_OUT
+select setval(s, 12345678901234567890, 0, 1);
+alter sequence s cycle;
+select setval(s, 12345678901234567890, 0, 1);
+select nextval(s);
+drop sequence s;
+
+# extreme setval values for bigint unsigned
+create sequence s as bigint unsigned;
+--error ER_PARSE_ERROR
+select setval(s, 18446744073709551616);
+select setval(s, 18446744073709551615);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned;
+select setval(s, 18446744073709551615, 0);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned cycle;
+select setval(s, 18446744073709551615);
+select nextval(s);
+drop sequence s;
+
+create sequence s as bigint unsigned cycle;
+select setval(s, 18446744073709551615, 0);
+select nextval(s);
+drop sequence s;
+
+# a small range for bigint unsigned
+create sequence s as bigint unsigned minvalue 123 maxvalue 456;
+select setval(s, 100);
+select nextval(s);
+select setval(s, 500);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+drop sequence s;
+
+create sequence s as smallint;
+select setval(s, 32767);
+--error ER_SEQUENCE_RUN_OUT
+select nextval(s);
+drop sequence s;

@@ -4136,7 +4136,8 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override
   {
-    unsigned_flag= 0;
+    if (table_list->table)
+      unsigned_flag= table_list->table->s->sequence->is_unsigned;
     max_length= MAX_BIGINT_WIDTH;
     set_maybe_null();             /* In case of errors */
     return FALSE;
@@ -4190,11 +4191,11 @@ public:
 
 class Item_func_setval :public Item_func_nextval
 {
-  longlong nextval;
+  Longlong_hybrid nextval;
   ulonglong round;
   bool is_used;
 public:
-  Item_func_setval(THD *thd, TABLE_LIST *table_list_arg, longlong nextval_arg,
+  Item_func_setval(THD *thd, TABLE_LIST *table_list_arg, Longlong_hybrid nextval_arg,
                    ulonglong round_arg, bool is_used_arg)
     : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)

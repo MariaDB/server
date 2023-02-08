@@ -339,6 +339,18 @@ def	information_schema	SCHEMA_PRIVILEGES	IS_GRANTABLE	5	NULL	NO	varchar	3	9	NULL
 def	information_schema	SCHEMA_PRIVILEGES	PRIVILEGE_TYPE	4	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	SCHEMA_PRIVILEGES	TABLE_CATALOG	2	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)					NEVER	NULL
 def	information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
+def	information_schema	SEQUENCES	CYCLE_OPTION	12	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)					NEVER	NULL
+def	information_schema	SEQUENCES	DATA_TYPE	4	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
+def	information_schema	SEQUENCES	INCREMENT	11	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)					NEVER	NULL
+def	information_schema	SEQUENCES	MAXIMUM_VALUE	10	NULL	NO	decimal	NULL	NULL	21	0	NULL	NULL	NULL	decimal(21,0)					NEVER	NULL
+def	information_schema	SEQUENCES	MINIMUM_VALUE	9	NULL	NO	decimal	NULL	NULL	21	0	NULL	NULL	NULL	decimal(21,0)					NEVER	NULL
+def	information_schema	SEQUENCES	NUMERIC_PRECISION	5	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)					NEVER	NULL
+def	information_schema	SEQUENCES	NUMERIC_PRECISION_RADIX	6	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)					NEVER	NULL
+def	information_schema	SEQUENCES	NUMERIC_SCALE	7	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(21)					NEVER	NULL
+def	information_schema	SEQUENCES	SEQUENCE_CATALOG	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)					NEVER	NULL
+def	information_schema	SEQUENCES	SEQUENCE_NAME	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
+def	information_schema	SEQUENCES	SEQUENCE_SCHEMA	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
+def	information_schema	SEQUENCES	START_VALUE	8	NULL	NO	decimal	NULL	NULL	21	0	NULL	NULL	NULL	decimal(21,0)					NEVER	NULL
 def	information_schema	SESSION_STATUS	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2	NULL	NO	varchar	2048	6144	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(2048)					NEVER	NULL
 def	information_schema	SESSION_VARIABLES	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)					NEVER	NULL
@@ -890,6 +902,18 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	SCHEMA_PRIVILEGES	PRIVILEGE_TYPE	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	SCHEMA_PRIVILEGES	IS_GRANTABLE	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
+3.0000	information_schema	SEQUENCES	SEQUENCE_CATALOG	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
+3.0000	information_schema	SEQUENCES	SEQUENCE_SCHEMA	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SEQUENCES	SEQUENCE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+3.0000	information_schema	SEQUENCES	DATA_TYPE	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
+NULL	information_schema	SEQUENCES	NUMERIC_PRECISION	int	NULL	NULL	NULL	NULL	int(21)
+NULL	information_schema	SEQUENCES	NUMERIC_PRECISION_RADIX	int	NULL	NULL	NULL	NULL	int(21)
+NULL	information_schema	SEQUENCES	NUMERIC_SCALE	int	NULL	NULL	NULL	NULL	int(21)
+NULL	information_schema	SEQUENCES	START_VALUE	decimal	NULL	NULL	NULL	NULL	decimal(21,0)
+NULL	information_schema	SEQUENCES	MINIMUM_VALUE	decimal	NULL	NULL	NULL	NULL	decimal(21,0)
+NULL	information_schema	SEQUENCES	MAXIMUM_VALUE	decimal	NULL	NULL	NULL	NULL	decimal(21,0)
+NULL	information_schema	SEQUENCES	INCREMENT	bigint	NULL	NULL	NULL	NULL	bigint(21)
+3.0000	information_schema	SEQUENCES	CYCLE_OPTION	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
 3.0000	information_schema	SESSION_STATUS	VARIABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
 3.0000	information_schema	SESSION_STATUS	VARIABLE_VALUE	varchar	2048	6144	utf8mb3	utf8mb3_general_ci	varchar(2048)
 3.0000	information_schema	SESSION_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8mb3	utf8mb3_general_ci	varchar(64)
