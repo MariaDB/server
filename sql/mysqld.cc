@@ -166,6 +166,7 @@ extern "C" {					// Because of SCO 3.2V4.2
 #endif /* _WIN32 */
 
 #include <my_libwrap.h>
+#include <ctime>
 
 #ifdef _WIN32 
 #include <crtdbg.h>
@@ -330,6 +331,8 @@ static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 
 ulong max_used_connections;
+tm* currtime;
+std::string max_used_connections_time;
 static const char *mysqld_user, *mysqld_chroot;
 static char *default_character_set_name;
 static char *character_set_filesystem_name;
@@ -6147,8 +6150,49 @@ void create_new_thread(CONNECT *connect)
   }
 
   uint sum= connection_count + extra_connection_count;
-  if (sum > max_used_connections)
+  
+  if (sum > max_used_connections){
+    time_t now = time(0);
+    currtime = localtime(&now);
+    std::string year = std::to_string(currtime->tm_year+1900);
+    std::string month;
+    std::string day;
+    std::string hour;
+    std::string min;
+    std::string sec;
+    if(currtime->tm_mon+1 < 10){
+      month = "0" + std::to_string(currtime->tm_mon+1);
+    }
+    else{
+      month = std::to_string(currtime->tm_mon+1);
+    }
+    if(currtime->tm_mday < 10){
+      day = "0" + std::to_string(currtime->tm_mday);
+    }
+    else{
+      day = std::to_string(currtime->tm_mday);
+    }
+    if(currtime->tm_hour < 10){
+      hour = "0" + std::to_string(currtime->tm_hour);
+    }
+    else{
+      hour = std::to_string(currtime->tm_hour);
+    }
+    if(currtime->tm_min < 10){
+      min = "0" + std::to_string(currtime->tm_min);
+    }
+    else{
+      min = std::to_string(currtime->tm_min);
+    }
+    if(currtime->tm_sec < 10){
+      sec = "0" + std::to_string(currtime->tm_sec);
+    }
+    else{
+      sec = std::to_string(currtime->tm_sec);
+    }
+    max_used_connections_time = year + "-" + month + "-" + day + " " + hour + ":" + min + ":" + sec;
     max_used_connections= sum;
+  }
 
   /*
     The initialization of thread_id is done in create_embedded_thd() for
