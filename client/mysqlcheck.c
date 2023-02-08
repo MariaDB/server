@@ -942,6 +942,7 @@ static int handle_request_for_tables(char *tables, size_t length,
     DBUG_RETURN(1);
   if (dont_quote)
   {
+    DBUG_ASSERT(op);
     DBUG_ASSERT(strlen(op)+strlen(tables)+strlen(options)+8+1 <= query_size);
 
     /* No backticks here as we added them before */
