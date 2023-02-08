@@ -143,6 +143,66 @@ t1	CREATE SEQUENCE `t1` start with 10 minvalue -10 maxvalue 11 increment by 10 c
 select * from t1;
 next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
 10	-10	11	10	10	10	1	0
+create or replace sequence t1 minvalue -999999999999999999999;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MINVALUE'
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with -9223372036854775807 minvalue -9223372036854775807 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 minvalue -9223372036854775808;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MINVALUE'
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with -9223372036854775807 minvalue -9223372036854775807 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 minvalue -9223372036854775807;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with -9223372036854775807 minvalue -9223372036854775807 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 minvalue 9223372036854775805;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 9223372036854775805 minvalue 9223372036854775805 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 minvalue 9223372036854775806;
+ERROR HY000: Sequence 'test.t1' has out of range value for options
+create or replace sequence t1 minvalue 9223372036854775807;
+ERROR HY000: Sequence 'test.t1' has out of range value for options
+create or replace sequence t1 minvalue 9223372036854775808;
+ERROR HY000: Sequence 'test.t1' has out of range value for options
+create or replace sequence t1 minvalue 9999999999999999999999;
+ERROR HY000: Sequence 'test.t1' has out of range value for options
+create or replace sequence t1 maxvalue -999999999999999999999 increment by -1;
+ERROR HY000: Sequence 'test.t1' has out of range value for options
+create or replace sequence t1 maxvalue -9223372036854775808 increment by -1;
+ERROR HY000: Sequence 'test.t1' has out of range value for options
+create or replace sequence t1 maxvalue -9223372036854775807 increment by -1;
+ERROR HY000: Sequence 'test.t1' has out of range value for options
+create or replace sequence t1 maxvalue -9223372036854775806 increment by -1;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with -9223372036854775806 minvalue -9223372036854775807 maxvalue -9223372036854775806 increment by -1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 maxvalue 9223372036854775806;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 maxvalue 9223372036854775807;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 maxvalue 9223372036854775808;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+create or replace sequence t1 maxvalue 9999999999999999999999;
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: 'MAXVALUE'
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
 create or replace sequence t1 start with 10 NO MAXVALUE NO MINVALUE;
 create or replace sequence t1 start with 10 maxvalue 10;
 create or replace sequence t1 start with 10 minvalue 10;
@@ -182,15 +242,11 @@ create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NO MINVALUE' at line 1
 create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NO MINVALUE' at line 1
-create sequence t1 start with 10 maxvalue=9223372036854775807;
-ERROR HY000: Sequence 'test.t1' has out of range value for options
-create sequence t1 start with 10 minvalue=-9223372036854775808;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '9223372036854775808' at line 1
 create sequence t1 RESTART WITH 10;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RESTART' at line 1
 create or replace sequence t1 start with 10 NO MINVALUE minvalue=1;
-drop sequence t1;
-create sequence t1;
+ERROR HY000: Option 'MINVALUE' used twice in statement
+create or replace sequence t1;
 show fields from t1;
 Field	Type	Null	Key	Default	Extra
 next_not_cached_value	bigint(21)	NO		NULL	

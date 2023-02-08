@@ -198,6 +198,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   int  num;
   ulong ulong_num;
   ulonglong ulonglong_number;
+  ulonglong minus_ulonglong_number;
   longlong longlong_number;
   uint sp_instr_addr;
 
@@ -345,9 +346,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 
 %ifdef MARIADB
-%expect 82
+%expect 84
 %else
-%expect 83
+%expect 85
 %endif
 
 /*
@@ -1465,6 +1466,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <ulonglong_number>
         ulonglong_num real_ulonglong_num
 
+%type <minus_ulonglong_number>
+        minus_ulonglong_num
+
 %type <longlong_number>
         longlong_num
 
@@ -2419,7 +2423,7 @@ create:
          {
             LEX *lex= thd->lex;
 
-            if (unlikely(lex->create_info.seq_create_info->check_and_adjust(1)))
+            if (unlikely(lex->create_info.seq_create_info->check_and_adjust(thd, 1)))
             {
               my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
                        lex->first_select_lex()->table_list.first->db.str,
@@ -2605,9 +2609,42 @@ sequence_defs:
         ;
 
 sequence_def:
-        MINVALUE_SYM opt_equal longlong_num
+          MINVALUE_SYM opt_equal ulonglong_num
           {
-            Lex->create_info.seq_create_info->min_value= $3;
+            if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                         seq_field_used_min_value))
+              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
+            if ($3 > (ulonglong) LONGLONG_MAX)
+              Lex->create_info.seq_create_info->min_value= LONGLONG_MAX;
+            else
+              Lex->create_info.seq_create_info->min_value= (longlong) $3;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
+          }
+        | MINVALUE_SYM opt_equal minus_ulonglong_num
+          {
+              if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                         seq_field_used_min_value))
+              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
+              if ($3 > (ulonglong) LONGLONG_MAX)
+                  Lex->create_info.seq_create_info->min_value= LONGLONG_MIN;
+              else
+                  Lex->create_info.seq_create_info->min_value= - (longlong) $3;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
+          }
+        | MINVALUE_SYM opt_equal DECIMAL_NUM
+          {
+            if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                         seq_field_used_min_value))
+              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
+            Lex->create_info.seq_create_info->min_value= LONGLONG_MAX;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
+          }
+        | MINVALUE_SYM opt_equal '-' DECIMAL_NUM
+          {
+            if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                         seq_field_used_min_value))
+              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
+            Lex->create_info.seq_create_info->min_value= LONGLONG_MIN;
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
           }
         | NO_SYM MINVALUE_SYM
@@ -2622,12 +2659,42 @@ sequence_def:
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
           }
-        | MAXVALUE_SYM opt_equal longlong_num
+        | MAXVALUE_SYM opt_equal ulonglong_num
           {
-           if (unlikely(Lex->create_info.seq_create_info->used_fields &
-               seq_field_used_max_value))
+            if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                         seq_field_used_max_value))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
-            Lex->create_info.seq_create_info->max_value= $3;
+            if ($3 > (ulonglong) LONGLONG_MAX)
+              Lex->create_info.seq_create_info->max_value= LONGLONG_MAX;
+            else
+              Lex->create_info.seq_create_info->max_value= (longlong) $3;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_max_value;
+          }
+        | MAXVALUE_SYM opt_equal minus_ulonglong_num
+          {
+            if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                        seq_field_used_max_value))
+            my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
+            if ($3 > (ulonglong) LONGLONG_MAX)
+              Lex->create_info.seq_create_info->max_value= LONGLONG_MIN;
+            else
+              Lex->create_info.seq_create_info->max_value= - (longlong) $3;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_max_value;
+          }
+        | MAXVALUE_SYM opt_equal DECIMAL_NUM
+          {
+            if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                         seq_field_used_max_value))
+              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
+            Lex->create_info.seq_create_info->max_value= LONGLONG_MAX;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_max_value;
+          }
+        | MAXVALUE_SYM opt_equal '-' DECIMAL_NUM
+          {
+            if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                         seq_field_used_max_value))
+              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
+            Lex->create_info.seq_create_info->max_value= LONGLONG_MIN;
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_max_value;
           }
         | NO_SYM MAXVALUE_SYM
@@ -12573,6 +12640,12 @@ ulonglong_num:
         | opt_plus LONG_NUM      { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
         | opt_plus DECIMAL_NUM   { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
         | opt_plus FLOAT_NUM     { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
+        ;
+
+minus_ulonglong_num:
+          '-' NUM           { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
+        | '-' ULONGLONG_NUM { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
+        | '-' LONG_NUM      { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
         ;
 
 real_ulonglong_num:

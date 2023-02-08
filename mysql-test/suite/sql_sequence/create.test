@@ -71,6 +71,41 @@ create or replace sequence t1 start with 10 minvalue=-10 maxvalue=11 cache=10 cy
 show create sequence t1;
 select * from t1;
 
+# Truncating out-of-bound numbers for minvalue and maxvalue
+create or replace sequence t1 minvalue -999999999999999999999;
+show create sequence t1;
+create or replace sequence t1 minvalue -9223372036854775808;
+show create sequence t1;
+create or replace sequence t1 minvalue -9223372036854775807;
+show create sequence t1;
+create or replace sequence t1 minvalue 9223372036854775805;
+show create sequence t1;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 minvalue 9223372036854775806;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 minvalue 9223372036854775807;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 minvalue 9223372036854775808;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 minvalue 9999999999999999999999;
+
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 maxvalue -999999999999999999999 increment by -1;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 maxvalue -9223372036854775808 increment by -1;
+--error ER_SEQUENCE_INVALID_DATA
+create or replace sequence t1 maxvalue -9223372036854775807 increment by -1;
+create or replace sequence t1 maxvalue -9223372036854775806 increment by -1;
+show create sequence t1;
+create or replace sequence t1 maxvalue 9223372036854775806;
+show create sequence t1;
+create or replace sequence t1 maxvalue 9223372036854775807;
+show create sequence t1;
+create or replace sequence t1 maxvalue 9223372036854775808;
+show create sequence t1;
+create or replace sequence t1 maxvalue 9999999999999999999999;
+show create sequence t1;
+
 # NO MINVALUE, NO MAXVALUE
 create or replace sequence t1 start with 10 NO MAXVALUE NO MINVALUE;
 
@@ -114,21 +149,15 @@ create or replace sequence t1 maxvalue=13, increment= -1;
 create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
 --error ER_PARSE_ERROR
 create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
---error ER_SEQUENCE_INVALID_DATA
-create sequence t1 start with 10 maxvalue=9223372036854775807;
---error ER_PARSE_ERROR
-create sequence t1 start with 10 minvalue=-9223372036854775808;
 --error ER_PARSE_ERROR
 create sequence t1 RESTART WITH 10;
-
-# This should probably give an error
+--error ER_DUP_ARGUMENT
 create or replace sequence t1 start with 10 NO MINVALUE minvalue=1;
-drop sequence t1;
 
 #
 # Test with LIST COLUMNS as first command
 #
-create sequence t1;
+create or replace sequence t1;
 show fields from t1;
 flush tables;
 show fields from t1;
