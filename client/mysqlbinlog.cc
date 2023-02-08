@@ -3169,7 +3169,7 @@ int main(int argc, char** argv)
   /* Set delimiter back to semicolon */
   if (retval != ERROR_STOP)
   {
-    if (!stop_event_string.is_empty())
+    if (!stop_event_string.is_empty() && result_file)
       fprintf(result_file, "%s", stop_event_string.ptr());
     if (!opt_raw_mode && opt_flashback)
       fprintf(result_file, "DELIMITER ;\n");
