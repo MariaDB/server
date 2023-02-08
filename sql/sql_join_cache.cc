@@ -910,7 +910,12 @@ int JOIN_CACHE::alloc_buffer()
   min_buff_size= get_min_join_buffer_size();
   buff_size= get_max_join_buffer_size(optimize_buff_size);
 
-  for (tab= start_tab; tab!= join_tab; 
+  /*
+    Compute the total buffer usage for all join buffers up to
+    and including the current one.
+  */
+  for (tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+       tab != join_tab;
        tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
   {
     cache= tab->cache;

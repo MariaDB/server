@@ -4443,6 +4443,15 @@ bool JOIN::shrink_join_buffers(JOIN_TAB *jt,
       }
       buff_size= cache->get_join_buffer_size();
       curr_space-= buff_size;
+      if (needed_space < buff_size)
+      {
+        /*
+          Safety: fail if we've exhausted available buffer space with
+          reduced join buffers.
+        */
+        DBUG_ASSERT(0);
+        return TRUE;
+      }
       needed_space-= buff_size;
     }
   }
