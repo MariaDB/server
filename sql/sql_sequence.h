@@ -53,7 +53,7 @@ public:
   bool     cycle;
   uint used_fields;              // Which fields where used in CREATE
 
-  bool check_and_adjust(bool set_reserved_until);
+  bool check_and_adjust(THD *thd, bool set_reserved_until);
   void store_fields(TABLE *table);
   void read_fields(TABLE *table);
   int write_initial_sequence(TABLE *table);

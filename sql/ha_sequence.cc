@@ -227,7 +227,7 @@ int ha_sequence::write_row(const uchar *buf)
     int error= 0;
     /* This is called from alter table */
     tmp_seq.read_fields(table);
-    if (tmp_seq.check_and_adjust(0))
+    if (tmp_seq.check_and_adjust(thd, 0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
     sequence->copy(&tmp_seq);
     if (likely(!(error= file->write_row(buf))))
@@ -258,7 +258,7 @@ int ha_sequence::write_row(const uchar *buf)
         DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
 
     tmp_seq.read_fields(table);
-    if (tmp_seq.check_and_adjust(0))
+    if (tmp_seq.check_and_adjust(thd, 0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
 
     /*

@@ -82,7 +82,7 @@ static Field_definition sequence_structure[]=
      true       invalid
 */
 
-bool sequence_definition::check_and_adjust(bool set_reserved_until)
+bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
 {
   longlong max_increment;
   DBUG_ENTER("sequence_definition::check");
@@ -103,6 +103,22 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
   */
   if (!(used_fields & seq_field_used_max_value))
     max_value= real_increment < 0 ? -1 : LONGLONG_MAX-1;
+
+  if (max_value == LONGLONG_MAX)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_TRUNCATED_WRONG_VALUE,
+                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
+                        "INTEGER", "MAXVALUE");
+    max_value= LONGLONG_MAX - 1;
+  }
+  if (min_value == LONGLONG_MIN)
+  {
+    push_warning_printf(
+        thd, Sql_condition::WARN_LEVEL_NOTE, ER_TRUNCATED_WRONG_VALUE,
+        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER", "MINVALUE");
+    min_value= LONGLONG_MIN + 1;
+  }
 
   if (!(used_fields & seq_field_used_start))
   {
@@ -993,7 +1009,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
 
   /* Let check_and_adjust think all fields are used */
   new_seq->used_fields= ~0;
-  if (new_seq->check_and_adjust(0))
+  if (new_seq->check_and_adjust(thd, 0))
   {
     my_error(ER_SEQUENCE_INVALID_DATA, MYF(0),
              first_table->db.str,
