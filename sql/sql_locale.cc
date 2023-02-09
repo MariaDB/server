@@ -1919,7 +1919,7 @@ MY_LOCALE my_locale_th_TH
 );
 /***** LOCALE END th_TH *****/
 
-/***** LOCALE BEGIN tr_TR: Turkish - Turkey *****/
+/***** LOCALE BEGIN tr_TR: Turkish - Türkiye *****/
 static const char *my_locale_month_names_tr_TR[13] = 
  {"Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık", NullS };
 static const char *my_locale_ab_month_names_tr_TR[13] = 
@@ -1940,7 +1940,7 @@ MY_LOCALE my_locale_tr_TR
 (
   52,
   "tr_TR",
-  "Turkish - Turkey",
+  "Turkish - Türkiye",
   FALSE,
   &my_locale_typelib_month_names_tr_TR,
   &my_locale_typelib_ab_month_names_tr_TR,
