@@ -3,9 +3,9 @@ CREATE TABLE t1(a INT, KEY (a)) KEY_BLOCK_SIZE=1024;
 insert into t1 values (1),(2);
 CREATE SEQUENCE x1 engine=innodb;
 # dump whole database
-CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
+CREATE SEQUENCE `a1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
 SELECT SETVAL(`a1`, 1, 0);
-CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
+CREATE SEQUENCE `x1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
 SELECT SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -18,9 +18,9 @@ INSERT INTO `t1` VALUES
 (1),
 (2);
 # dump by tables order 1
-CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
+CREATE SEQUENCE `a1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
 SELECT SETVAL(`a1`, 1, 0);
-CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
+CREATE SEQUENCE `x1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
 SELECT SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -33,9 +33,9 @@ INSERT INTO `t1` VALUES
 (1),
 (2);
 # dump by tables order 2
-CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
+CREATE SEQUENCE `a1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
 SELECT SETVAL(`a1`, 1, 0);
-CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
+CREATE SEQUENCE `x1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
 SELECT SETVAL(`x1`, 1, 0);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -59,9 +59,9 @@ INSERT INTO `t1` VALUES
 (1),
 (2);
 # dump by tables only sequences
-CREATE SEQUENCE `a1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
+CREATE SEQUENCE `a1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=Aria;
 SELECT SETVAL(`a1`, 1, 0);
-CREATE SEQUENCE `x1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
+CREATE SEQUENCE `x1` as bigint start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB;
 SELECT SETVAL(`x1`, 1, 0);
 # end of dumps
 DROP TABLE a1,t1,x1;

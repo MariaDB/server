@@ -2429,8 +2429,8 @@ create:
             }
 
             /* No fields specified, generate them */
-            if (unlikely(prepare_sequence_fields(thd,
-                         &lex->alter_info.create_list)))
+            if (unlikely(lex->create_info.seq_create_info->prepare_sequence_fields(
+                &lex->alter_info.create_list)))
                MYSQL_YYABORT;
 
             /* CREATE SEQUENCE always creates a sequence */
@@ -2605,13 +2605,21 @@ sequence_defs:
         ;
 
 sequence_def:
-          MINVALUE_SYM opt_equal sequence_truncated_value_num
+          AS int_type
+          {
+            if (unlikely(Lex->create_info.seq_create_info->used_fields &
+                         seq_field_used_as))
+              my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "AS"));
+            Lex->create_info.seq_create_info->value_type = $2->field_type();
+          }
+        | MINVALUE_SYM opt_equal sequence_truncated_value_num
           {
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_min_value))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
             Lex->create_info.seq_create_info->min_value= $3;
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_specified_min_value;
           }
         | NO_SYM MINVALUE_SYM
           {
@@ -2632,6 +2640,7 @@ sequence_def:
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
             Lex->create_info.seq_create_info->max_value= $3;
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_max_value;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_specified_max_value;
           }
         | NO_SYM MAXVALUE_SYM
           {

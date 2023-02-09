@@ -30,15 +30,6 @@
 #include "wsrep_mysqld.h"
 #endif
 
-struct Field_definition
-{
-  const char *field_name;
-  uint length;
-  const Type_handler *type_handler;
-  LEX_CSTRING comment;
-  ulong flags;
-};
-
 /*
   Structure for all SEQUENCE tables
 
@@ -48,30 +39,61 @@ struct Field_definition
   a column named NEXTVAL.
 */
 
-#define FL (NOT_NULL_FLAG | NO_DEFAULT_VALUE_FLAG)
-
-static Field_definition sequence_structure[]=
-{
-  {"next_not_cached_value", 21, &type_handler_slonglong,
-   {STRING_WITH_LEN("")}, FL},
-  {"minimum_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("")}, FL},
-  {"maximum_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("")}, FL},
-  {"start_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
-  {"increment", 21, &type_handler_slonglong,
-   {STRING_WITH_LEN("increment value")}, FL},
-  {"cache_size", 21, &type_handler_ulonglong, {STRING_WITH_LEN("")},
-   FL | UNSIGNED_FLAG},
-  {"cycle_option", 1, &type_handler_utiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
-   FL | UNSIGNED_FLAG },
-  {"cycle_count", 21, &type_handler_slonglong,
-   {STRING_WITH_LEN("How many cycles have been done")}, FL},
-  {NULL, 0, &type_handler_slonglong, {STRING_WITH_LEN("")}, 0}
-};
-
-#undef FL
-
-
 #define MAX_AUTO_INCREMENT_VALUE 65535
+
+Sequence_row_definition sequence_structure(const Type_handler* handler)
+{
+  // We don't really care about src because it is unused in max_display_length_for_field().
+  const Conv_source src(handler, 0, system_charset_info);
+  const uint32 len= handler->max_display_length_for_field(src) + 1;
+  const LEX_CSTRING empty= {STRING_WITH_LEN("")};
+#define FL (NOT_NULL_FLAG | NO_DEFAULT_VALUE_FLAG)
+  return {{{"next_not_cached_value", len, handler, empty, FL},
+           {"minimum_value", len, handler, empty, FL},
+           {"maximum_value", len, handler, empty, FL},
+           {"start_value", len, handler,
+            {STRING_WITH_LEN("start value when sequences is created or value "
+                             "if RESTART is used")}, FL},
+           {"increment", 21, &type_handler_slonglong,
+            {STRING_WITH_LEN("increment value")}, FL},
+           {"cache_size", 21, &type_handler_ulonglong, empty,
+            FL | UNSIGNED_FLAG},
+           {"cycle_option", 1, &type_handler_utiny,
+            {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence "                             "should begin a new cycle when maximum_value is "                             "passed")}, FL | UNSIGNED_FLAG},
+           {"cycle_count", 21, &type_handler_slonglong,
+            {STRING_WITH_LEN("How many cycles have been done")}, FL},
+           {NULL, 0, &type_handler_slonglong, {STRING_WITH_LEN("")}, 0}}};
+#undef FL
+}
+
+bool sequence_definition::is_allowed_value_type(enum_field_types type)
+{
+  switch (type)
+  {
+  case MYSQL_TYPE_TINY:
+  case MYSQL_TYPE_SHORT:
+  case MYSQL_TYPE_LONG:
+  case MYSQL_TYPE_INT24:
+  case MYSQL_TYPE_LONGLONG:
+    return true;
+  default:
+    return false;
+  }
+}
+
+Type_handler const *sequence_definition::value_type_handler()
+{
+  return Type_handler::get_handler_by_field_type(value_type);
+}
+
+longlong sequence_definition::value_type_max()
+{
+  return ~ value_type_min();
+}
+
+longlong sequence_definition::value_type_min() {
+  return ~0ULL << (8 * value_type_handler()->calc_pack_length(0) - 1);
+}
 
 /*
   Check whether sequence values are valid.
@@ -85,7 +107,7 @@ static Field_definition sequence_structure[]=
 bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
 {
   longlong max_increment;
-  DBUG_ENTER("sequence_definition::check");
+  DBUG_ENTER("sequence_definition::check_and_adjust");
 
   if (!(real_increment= increment))
     real_increment= global_system_variables.auto_increment_increment;
@@ -94,30 +116,30 @@ bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
     If min_value is not set, set it to LONGLONG_MIN or 1, depending on
     real_increment
   */
-  if (!(used_fields & seq_field_used_min_value))
-    min_value= real_increment < 0 ? LONGLONG_MIN+1 : 1;
+  if (!(used_fields & seq_field_specified_min_value))
+    min_value= real_increment < 0 ? value_type_min()+1 : 1;
 
   /*
     If max_value is not set, set it to LONGLONG_MAX or -1, depending on
     real_increment
   */
-  if (!(used_fields & seq_field_used_max_value))
-    max_value= real_increment < 0 ? -1 : LONGLONG_MAX-1;
+  if (!(used_fields & seq_field_specified_max_value))
+    max_value= real_increment < 0 ? -1 : value_type_max()-1;
 
-  if (max_value == LONGLONG_MAX)
+  if (max_value >= value_type_max())
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
                         "INTEGER", "MAXVALUE");
-    max_value= LONGLONG_MAX - 1;
+    max_value= value_type_max() - 1;
   }
-  if (min_value == LONGLONG_MIN)
+  if (min_value <= value_type_min())
   {
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_NOTE, ER_TRUNCATED_WRONG_VALUE,
         ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER", "MINVALUE");
-    min_value= LONGLONG_MIN + 1;
+    min_value= value_type_min() + 1;
   }
 
   if (!(used_fields & seq_field_used_start))
@@ -136,14 +158,11 @@ bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
                   llabs(real_increment) :
                   MAX_AUTO_INCREMENT_VALUE);
 
-  if (max_value >= start &&
-      max_value > min_value &&
-      start >= min_value &&
-      max_value != LONGLONG_MAX &&
-      min_value != LONGLONG_MIN &&
+  if (max_value >= start && max_value > min_value && start >= min_value &&
       cache >= 0 && cache < (LONGLONG_MAX - max_increment) / max_increment &&
       ((real_increment > 0 && reserved_until >= min_value) ||
-       (real_increment < 0 && reserved_until <= max_value)))
+       (real_increment < 0 && reserved_until <= max_value)) &&
+      is_allowed_value_type(value_type))
     DBUG_RETURN(FALSE);
 
   DBUG_RETURN(TRUE);                           // Error
@@ -165,6 +184,7 @@ void sequence_definition::read_fields(TABLE *table)
   cache=          table->field[5]->val_int();
   cycle=          table->field[6]->val_int();
   round=          table->field[7]->val_int();
+  value_type=     table->field[0]->type();
   dbug_tmp_restore_column_map(&table->read_set, old_map);
   used_fields= ~(uint) 0;
   print_dbug();
@@ -210,10 +230,17 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
   uint field_count;
   uint field_no;
   const char *reason;
+  Sequence_row_definition row_structure;
   DBUG_ENTER("check_sequence_fields");
 
   field_count= fields->elements;
-  if (field_count != array_elements(sequence_structure)-1)
+  if (!field_count)
+  {
+    reason= "Wrong number of columns";
+    goto err;
+  }
+  row_structure= sequence_structure(fields->head()->type_handler());
+  if (field_count != array_elements(row_structure.fields)-1)
   {
     reason= "Wrong number of columns";
     goto err;
@@ -236,7 +263,7 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
 
   for (field_no= 0; (field= it++); field_no++)
   {
-    Field_definition *field_def= &sequence_structure[field_no];
+    const Sequence_field_definition *field_def= &row_structure.fields[field_no];
     if (my_strcasecmp(system_charset_info, field_def->field_name,
                       field->field_name.str) ||
         field->flags != field_def->flags ||
@@ -265,12 +292,13 @@ err:
     true        Failure (out of memory)
 */
 
-bool prepare_sequence_fields(THD *thd, List<Create_field> *fields)
+bool sequence_definition::prepare_sequence_fields(List<Create_field> *fields)
 {
-  Field_definition *field_info;
   DBUG_ENTER("prepare_sequence_fields");
+  const Sequence_row_definition row_def= sequence_structure(value_type_handler());
 
-  for (field_info= sequence_structure; field_info->field_name ; field_info++)
+  for (const Sequence_field_definition *field_info= row_def.fields;
+       field_info->field_name; field_info++)
   {
     Create_field *new_field;
     LEX_CSTRING field_name= {field_info->field_name,

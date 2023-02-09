@@ -109,6 +109,18 @@ show create sequence t1;
 # NO MINVALUE, NO MAXVALUE
 create or replace sequence t1 start with 10 NO MAXVALUE NO MINVALUE;
 
+# Create with value types
+create or replace sequence t1 as tinyint;
+show create sequence t1;
+create or replace sequence t1 as smallint;
+show create sequence t1;
+create or replace sequence t1 as mediumint;
+show create sequence t1;
+create or replace sequence t1 as int;
+show create sequence t1;
+create or replace sequence t1 as bigint;
+show create sequence t1;
+
 # Some edge cases
 create or replace sequence t1 start with 10 maxvalue 10;
 create or replace sequence t1 start with 10 minvalue 10;

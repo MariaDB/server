@@ -2694,6 +2694,8 @@ static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
 
   packet->append(STRING_WITH_LEN("CREATE SEQUENCE "));
   append_identifier(thd, packet, &alias);
+  packet->append(STRING_WITH_LEN(" as "));
+  packet->append(seq->value_type_handler()->name().lex_cstring());
   packet->append(STRING_WITH_LEN(" start with "));
   packet->append_longlong(seq->start);
   packet->append(STRING_WITH_LEN(" minvalue "));

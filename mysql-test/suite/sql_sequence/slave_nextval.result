@@ -4,7 +4,7 @@ CREATE SEQUENCE s;
 INSERT INTO s VALUES (1,1,4,1,1,1,0,0);
 show create sequence s;
 Table	Create Table
-s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 4 increment by 1 cache 1 nocycle ENGINE=MyISAM
+s	CREATE SEQUENCE `s` as bigint start with 1 minvalue 1 maxvalue 4 increment by 1 cache 1 nocycle ENGINE=MyISAM
 SELECT NEXTVAL(s);
 NEXTVAL(s)
 1
@@ -38,7 +38,7 @@ CREATE SEQUENCE s;
 INSERT INTO s VALUES (1,1,3,1,1,1,1,0);
 show create sequence s;
 Table	Create Table
-s	CREATE SEQUENCE `s` start with 1 minvalue 1 maxvalue 3 increment by 1 cache 1 cycle ENGINE=MyISAM
+s	CREATE SEQUENCE `s` as bigint start with 1 minvalue 1 maxvalue 3 increment by 1 cache 1 cycle ENGINE=MyISAM
 SELECT NEXTVAL(s);
 NEXTVAL(s)
 1
