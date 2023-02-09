@@ -44,12 +44,13 @@ Created 5/7/1996 Heikki Tuuri
 #include "row0vers.h"
 #include "pars0pars.h"
 #include "srv0mon.h"
+#include "scope.h"
+#include <debug_sync.h>
 
 #include <set>
 
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
-#include <debug_sync.h>
 #endif /* WITH_WSREP */
 
 /** The value of innodb_deadlock_detect */
@@ -1698,7 +1699,13 @@ dberr_t lock_wait(que_thr_t *thr)
   trx_t *trx= thr_get_trx(thr);
 
   if (trx->mysql_thd)
-    DEBUG_SYNC_C("lock_wait_suspend_thread_enter");
+    DEBUG_SYNC_C("lock_wait_start");
+
+  /* Create the sync point for any quit from the function. */
+  ut_d(SCOPE_EXIT([trx]() {
+    if (trx->mysql_thd)
+      DEBUG_SYNC_C("lock_wait_end");
+  }));
 
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
@@ -1836,6 +1843,7 @@ dberr_t lock_wait(que_thr_t *thr)
   if (row_lock_wait)
     lock_sys.wait_resume(trx->mysql_thd, suspend_time, my_hrtime_coarse());
 
+  /* Cache trx->lock.wait_lock to avoid unnecessary atomic variable load */
   if (lock_t *lock= trx->lock.wait_lock)
   {
     lock_sys_t::cancel<false>(trx, lock);
@@ -1859,7 +1867,6 @@ static void lock_wait_end(trx_t *trx)
   ut_d(const auto state= trx->state);
   ut_ad(state == TRX_STATE_ACTIVE || state == TRX_STATE_PREPARED);
   ut_ad(trx->lock.wait_thr);
-
   if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
   {
     ut_ad(state == TRX_STATE_ACTIVE);
@@ -3101,6 +3108,8 @@ lock_rec_store_on_page_infimum(
 
   ut_ad(block->page.frame == page_align(rec));
   const page_id_t id{block->page.id()};
+  ut_d(SCOPE_EXIT(
+      []() { DEBUG_SYNC_C("lock_rec_store_on_page_infimum_end"); }));
 
   LockGuard g{lock_sys.rec_hash, id};
   lock_rec_move(g.cell(), *block, id, g.cell(), id,
@@ -5661,17 +5670,30 @@ void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
 
 /** Cancel a waiting lock request.
 @tparam check_victim  whether to check for DB_DEADLOCK
-@param lock           waiting lock request
 @param trx            active transaction
+@param lock           waiting lock request
 @retval DB_SUCCESS    if no lock existed
 @retval DB_DEADLOCK   if trx->lock.was_chosen_as_deadlock_victim was set
 @retval DB_LOCK_WAIT  if the lock was canceled */
 template<bool check_victim>
 dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock)
 {
+  DEBUG_SYNC_C("lock_sys_t_cancel_enter");
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-  ut_ad(trx->lock.wait_lock == lock);
   ut_ad(trx->state == TRX_STATE_ACTIVE);
+  /* trx->lock.wait_lock may be changed by other threads as long as
+  we are not holding lock_sys.latch.
+
+  So, trx->lock.wait_lock==lock does not necessarily hold, but both
+  pointers should be valid, because other threads cannot assign
+  trx->lock.wait_lock=nullptr (or invalidate *lock) while we are
+  holding lock_sys.wait_mutex. Also, the type of trx->lock.wait_lock
+  (record or table lock) cannot be changed by other threads. So, it is
+  safe to call lock->is_table() while not holding lock_sys.latch. If
+  we have to release and reacquire lock_sys.wait_mutex, we must reread
+  trx->lock.wait_lock. We must also reread trx->lock.wait_lock after
+  lock_sys.latch acquiring, as it can be changed to not-null in lock moving
+  functions even if we hold lock_sys.wait_mutex. */
   dberr_t err= DB_SUCCESS;
   /* This would be too large for a memory transaction, except in the
   DB_DEADLOCK case, which was already tested in lock_trx_handle_wait(). */
@@ -5691,6 +5713,15 @@ dberr_t lock_sys_t::cancel(trx_t *trx, lock_t *lock)
     }
     else
     {
+      /* This function is invoked from the thread which executes the
+      transaction. Table locks are requested before record locks. Some other
+      transaction can't change trx->lock.wait_lock from table to record for the
+      current transaction at this point, because the current transaction has not
+      requested record locks yet. There is no need to move any table locks by
+      other threads. And trx->lock.wait_lock can't be set to null while we are
+      holding lock_sys.wait_mutex. That's why there is no need to reload
+      trx->lock.wait_lock here. */
+      ut_ad(lock == trx->lock.wait_lock);
 resolve_table_lock:
       dict_table_t *table= lock->un_member.tab_lock.table;
       if (!table->lock_mutex_trylock())
@@ -5701,6 +5732,7 @@ resolve_table_lock:
         mysql_mutex_unlock(&lock_sys.wait_mutex);
         table->lock_mutex_lock();
         mysql_mutex_lock(&lock_sys.wait_mutex);
+        /* Cache trx->lock.wait_lock under the corresponding latches. */
         lock= trx->lock.wait_lock;
         if (!lock)
           goto retreat;
@@ -5710,6 +5742,10 @@ resolve_table_lock:
           goto retreat;
         }
       }
+      else
+        /* Cache trx->lock.wait_lock under the corresponding latches if
+        it was not cached yet */
+        lock= trx->lock.wait_lock;
       if (lock->is_waiting())
         lock_cancel_waiting_and_release(lock);
       /* Even if lock->is_waiting() did not hold above, we must return
@@ -5733,6 +5769,7 @@ retreat:
       mysql_mutex_unlock(&lock_sys.wait_mutex);
       lock_sys.wr_lock(SRW_LOCK_CALL);
       mysql_mutex_lock(&lock_sys.wait_mutex);
+      /* Cache trx->lock.wait_lock under the corresponding latches. */
       lock= trx->lock.wait_lock;
       if (!lock);
       else if (check_victim && trx->lock.was_chosen_as_deadlock_victim)
@@ -5742,6 +5779,9 @@ retreat:
     }
     else
     {
+      /* Cache trx->lock.wait_lock under the corresponding latches if
+      it was not cached yet */
+      lock= trx->lock.wait_lock;
 resolve_record_lock:
       if (lock->is_waiting())
         lock_cancel_waiting_and_release(lock);
@@ -5763,6 +5803,7 @@ resolve_record_lock:
 void lock_sys_t::cancel(trx_t *trx)
 {
   mysql_mutex_lock(&lock_sys.wait_mutex);
+  /* Cache trx->lock.wait_lock to avoid unnecessary atomic variable load */
   if (lock_t *lock= trx->lock.wait_lock)
   {
     /* Dictionary transactions must be immune to KILL, because they
@@ -5823,6 +5864,7 @@ dberr_t lock_trx_handle_wait(trx_t *trx)
   mysql_mutex_lock(&lock_sys.wait_mutex);
   if (trx->lock.was_chosen_as_deadlock_victim)
     err= DB_DEADLOCK;
+  /* Cache trx->lock.wait_lock to avoid unnecessary atomic variable load */
   else if (lock_t *wait_lock= trx->lock.wait_lock)
     err= lock_sys_t::cancel<true>(trx, wait_lock);
   lock_sys.deadlock_check();

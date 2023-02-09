@@ -38,7 +38,7 @@ select f1, f2 from t2 for update;
 f1	f2
 1	2
 connection default;
-set debug_sync='lock_wait_suspend_thread_enter SIGNAL upd_waiting WAIT_FOR go_upd';
+set debug_sync='lock_wait_start SIGNAL upd_waiting WAIT_FOR go_upd';
 update t1 set f1 = 10 where f1 = 2;
 connection con1;
 set debug_sync='now WAIT_FOR upd_waiting';
@@ -97,7 +97,7 @@ select f1, f2 from t2 for update;
 f1	f2
 1	91
 connection default;
-set debug_sync='lock_wait_suspend_thread_enter SIGNAL upd_waiting WAIT_FOR go_upd';
+set debug_sync='lock_wait_start SIGNAL upd_waiting WAIT_FOR go_upd';
 update t1 set f2 = 28 where f2 = 91;
 connection con1;
 set debug_sync='now WAIT_FOR upd_waiting';
@@ -164,7 +164,7 @@ select f1 from t3 for update;
 f1
 2
 connection default;
-set debug_sync='lock_wait_suspend_thread_enter SIGNAL upd_waiting WAIT_FOR go_upd';
+set debug_sync='lock_wait_start SIGNAL upd_waiting WAIT_FOR go_upd';
 update t1 set f1 = 10 where f1 = 2;
 connection con1;
 set debug_sync='now WAIT_FOR upd_waiting';
@@ -253,7 +253,7 @@ select f1 from t3 for update;
 f1
 2
 connection default;
-set debug_sync='lock_wait_suspend_thread_enter SIGNAL upd_waiting WAIT_FOR go_upd';
+set debug_sync='lock_wait_start SIGNAL upd_waiting WAIT_FOR go_upd';
 update t1 set f2 = 28 where f2 = 91;
 connection con1;
 set debug_sync='now WAIT_FOR upd_waiting';
