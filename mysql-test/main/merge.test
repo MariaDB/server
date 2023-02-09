@@ -2905,6 +2905,14 @@ CREATE TABLE tm (a INT, KEY(a)) ENGINE=MRG_MyISAM UNION=(t1,t2);
 SELECT DISTINCT a FROM tm WHERE a > 50;
 DROP TABLE tm, t1, t2;
 
+--echo # Testcase 2:
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT, KEY(a)) ENGINE=MyISAM;
+CREATE TABLE tm (a INT, KEY(a)) ENGINE=MERGE UNION = (t1, t2) INSERT_METHOD=FIRST;
+ANALYZE TABLE tm PERSISTENT FOR ALL;
+SELECT DISTINCT a FROM (SELECT * FROM tm WHERE a iS NOT NULL) AS sq;
+DROP TABLE tm, t1, t2;
+
 --echo #
 --echo # MDEV-30568 Assertion `cond_selectivity <= 1.000000001' failed in get_range_limit_read_cost
 --echo #
