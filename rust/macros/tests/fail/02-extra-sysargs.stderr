@@ -1,0 +1,7 @@
+error[E0560]: struct `sysvar_str_t` has no field named `blk_sz`
+  --> tests/fail/02-extra-sysargs.rs:22:23
+   |
+22 |             interval: "50"
+   |                       ^^^^ `sysvar_str_t` does not have this field
+   |
+   = note: available fields are: `flags`, `name`, `comment`, `check`, `update` ... and 2 others

@@ -92,7 +92,7 @@ register_plugin! {
     variables: [
         SysVar {
             ident: TEST_SYSVAR_STR,
-            vtype: SysVarString,
+            vtype: SysVarConstString,
             name: "test_sysvar",
             description: "this is a description",
             options: [SysVarOpt::OptCmdArd],
