@@ -5,9 +5,9 @@
 //! ```
 //! use mariadb::plugin::*;
 //! use mariadb::plugin::encryption::*;
-//! use mariadb::plugin::SysVarString;
+//! use mariadb::plugin::SysVarConstString;
 //!
-//! static SYSVAR_STR: SysVarString = SysVarString::new();
+//! static SYSVAR_STR: SysVarConstString = SysVarConstString::new();
 //!
 //!
 //! // May be empty or not
