@@ -14527,6 +14527,17 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       if ((cur_index_tree= tree->keys[cur_param_idx]))
       {
         cur_quick_prefix_records= param->quick_rows[cur_index];
+        if (!cur_quick_prefix_records)
+        {
+          /*
+            Non-constant table has a range with rows=0. Can happen e.g. for
+            Merge tables. Regular range access will be just as good as loose
+            scan.
+          */
+          if (unlikely(trace_idx.trace_started()))
+            trace_idx.add("aborting_search", "range with rows=0");
+          DBUG_RETURN(NULL);
+        }
         if (unlikely(cur_index_tree && thd->trace_started()))
         {
           Json_writer_array trace_range(thd, "ranges");
