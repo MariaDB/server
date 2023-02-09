@@ -217,6 +217,7 @@ from
 --echo # This must NOT have "Range checked for each record" without any
 --echo #   provisions to produce rows in the required ordering:
 --replace_column 9 #
+set optimizer_trace="enabled=on";
 explain
 select
   t1.id,t2.id
@@ -231,6 +232,7 @@ from
                  order by
                    dd.d1, dd.d2, dd.id limit 1
                 );
+select trace from information_schema.OPTIMIZER_TRACE;
 
 drop table t1,t2,t3;
 
