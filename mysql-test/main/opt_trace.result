@@ -59,7 +59,7 @@ select * from v1	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select t1.a AS a,t1.b AS b from v1"
+            "expanded_query": "/* select#1 */ select v1.a AS a,v1.b AS b from v1"
           }
         ]
       }
@@ -230,7 +230,7 @@ select * from (select * from t1 where t1.a=1)q	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select t1.a AS a,t1.b AS b from (/* select#2 */ select t1.a AS a,t1.b AS b from t1 where t1.a = 1) q"
+            "expanded_query": "/* select#1 */ select q.a AS a,q.b AS b from (/* select#2 */ select t1.a AS a,t1.b AS b from t1 where t1.a = 1) q"
           }
         ]
       }
@@ -695,7 +695,7 @@ explain select * from v2	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select t2.a AS a from v2"
+            "expanded_query": "/* select#1 */ select v2.a AS a from v2"
           }
         ]
       }

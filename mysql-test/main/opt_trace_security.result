@@ -197,7 +197,7 @@ select * from db1.v1	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select db1.t1.a AS a from v1"
+            "expanded_query": "/* select#1 */ select v1.a AS a from v1"
           }
         ]
       }
