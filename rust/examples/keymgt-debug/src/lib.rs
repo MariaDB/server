@@ -9,18 +9,21 @@
 
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 use std::sync::Mutex;
 
 use mariadb::log::{self, debug, trace};
 use mariadb::plugin::encryption::{Encryption, Flags, KeyError, KeyManager};
 use mariadb::plugin::{
     register_plugin, Init, InitError, License, Maturity, PluginType, SysVarConstString, SysVarOpt,
+    SysVarString,
 };
 
 const KEY_LENGTH: usize = 4;
 static KEY_VERSION: AtomicU32 = AtomicU32::new(1);
-static TEST_SYSVAR_STR: SysVarConstString = SysVarConstString::new();
+static TEST_SYSVAR_CONST_STR: SysVarConstString = SysVarConstString::new();
+static TEST_SYSVAR_STR: SysVarString = SysVarString::new();
+static TEST_SYSVAR_I32: AtomicI32 = AtomicI32::new(10);
 
 struct DebugKeyMgmt;
 
@@ -28,7 +31,15 @@ impl Init for DebugKeyMgmt {
     fn init() -> Result<(), InitError> {
         log::set_max_level(log::LevelFilter::Trace);
         debug!("DebugKeyMgmt get_latest_key_version");
-        trace!("current sysvar: {}", TEST_SYSVAR_STR.get());
+        trace!(
+            "current const str sysvar: {:?}",
+            TEST_SYSVAR_CONST_STR.get()
+        );
+        trace!("current str sysvar: {:?}", TEST_SYSVAR_STR.get());
+        trace!(
+            "current sysvar: {}",
+            TEST_SYSVAR_I32.load(Ordering::Relaxed)
+        );
         Ok(())
     }
 
@@ -91,12 +102,28 @@ register_plugin! {
     encryption: false,
     variables: [
         SysVar {
-            ident: TEST_SYSVAR_STR,
+            ident: TEST_SYSVAR_CONST_STR,
             vtype: SysVarConstString,
-            name: "test_sysvar",
+            name: "test_sysvar_const_string",
             description: "this is a description",
             options: [SysVarOpt::OptCmdArd],
             default: "default value"
+        },
+        SysVar {
+            ident: TEST_SYSVAR_STR,
+            vtype: SysVarString,
+            name: "test_sysvar_string",
+            description: "this is a description",
+            options: [SysVarOpt::OptCmdArd],
+            default: "other default value"
+        },
+        SysVar {
+            ident: TEST_SYSVAR_I32,
+            vtype: AtomicI32,
+            name: "test_sysvar_i32",
+            description: "this is a description",
+            options: [SysVarOpt::OptCmdArd],
+            default: 67
         }
     ]
 }

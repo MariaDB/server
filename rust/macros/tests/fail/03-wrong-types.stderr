@@ -1,0 +1,15 @@
+error[E0308]: mismatched types
+  --> tests/fail/03-wrong-types.rs:7:1
+   |
+7  | / register_plugin! {
+8  | |     TestPlugin,
+9  | |     ptype: PluginType::MariaEncryption,
+10 | |     name: "debug_key_management",
+...  |
+27 | |     ]
+28 | | }
+   | |_^ expected `&SysVarConstString`, found `&AtomicI32`
+   |
+   = note: expected reference `&'static mariadb::plugin::SysVarConstString`
+              found reference `&AtomicI32`
+   = note: this error originates in the macro `register_plugin` (in Nightly builds, run with -Z macro-backtrace for more info)

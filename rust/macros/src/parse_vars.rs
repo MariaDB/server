@@ -190,17 +190,22 @@ impl VariableInfo {
         let max = process_default_override(&self.max, "max_val")?;
         let interval = process_default_override(&self.interval, "blk_sz")?;
 
-        let st_ident = Ident::new(&format!("_st_sysvar_{}", name.value()), Span::call_site());
-        // https://github.com/rust-lang/rust/issues/86935#issuecomment-1146670057
-        let ty_wrap = Ident::new(
-            &format!("_st_sysvar_Type{}", name.value()),
+        let st_ident = Ident::new(&format!("_sysvar_st_{}", name.value()), Span::call_site());
+        let st_tycheck = Ident::new(
+            &format!("_sysvar_tychk_{}", name.value()),
             Span::call_site(),
         );
+        // https://github.com/rust-lang/rust/issues/86935#issuecomment-1146670057
+        let ty_wrap = Ident::new(&format!("_sysvar_Type{}", name.value()), Span::call_site());
+        // check to verify our vars are of the right type for our idents
+        let ty_check = quote! { static #st_tycheck: &#vtype = &#ident; };
 
         let usynccell = quote! { ::mariadb::internals::UnsafeSyncCell };
 
         let res = quote! {
             type #ty_wrap<T> = T;
+
+            #ty_check
 
             static #st_ident: #usynccell<#ty_wrap::<#ty_as_svwrap::CStructType>> = unsafe {
                 #usynccell::new(
@@ -223,7 +228,7 @@ impl VariableInfo {
 
         };
 
-        Ok((st_ident.clone(), res))
+        Ok((st_ident, res))
     }
 
     /// Take the options vector, parse it as an array, bitwise or the output,
@@ -319,7 +324,7 @@ fn verify_field_order(fields: &[String]) -> Result<(), String> {
 
 /// Process "default override" style fields by these rules:
 ///
-/// - If `field` is `None`, return an empty TokenStream
+/// - If `field` is `None`, return an empty `TokenStream`
 /// - Enforce it is a literal
 /// - If it is a literal string, change it to a `cstr`
 ///

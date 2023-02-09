@@ -48,7 +48,7 @@ fn make_new_key(conn: &MySqlConn) -> Result<String, ClientError> {
     );
 
     // get the jws value
-    let jws: &str = todo!();
+    let jws: &str;
 
     todo!()
 }
@@ -117,7 +117,8 @@ impl KeyManager for KeyMgtClevis {
         // fuund! fetch result, parse to int
         // if let Some(row) = todo!() {
         if false {
-            return Ok(todo!());
+            todo!()
+            // return Ok();
         }
 
         // directly push format string
@@ -129,7 +130,7 @@ impl KeyManager for KeyMgtClevis {
 
         let Ok(new_key) = make_new_key(&conn) else {
             run_execute(&mut conn, "ROLLBACK", key_id)?;
-            return todo!();
+            todo!();
         };
 
         let q = format!(
@@ -149,7 +150,8 @@ impl KeyManager for KeyMgtClevis {
         );
         conn.query(&q).map_err(|_| KeyError::Other)?;
         // TODO: generate key with server
-        let key: &[u8] = todo!();
+        let key: &[u8];
+        todo!();
         dst[..key.len()].copy_from_slice(key);
         Ok(())
     }

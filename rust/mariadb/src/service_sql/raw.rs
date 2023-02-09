@@ -244,12 +244,12 @@ impl FetchedRow<'_> {
         }
     }
 
-    pub fn field_info(&self, index: usize) -> &Field {
+    pub const fn field_info(&self, index: usize) -> &Field {
         &self.fields[index]
     }
 
     /// Get the total number of fields
-    pub fn field_count(&self) -> usize {
+    pub const fn field_count(&self) -> usize {
         self.fields.len()
     }
 }
