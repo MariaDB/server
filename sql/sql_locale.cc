@@ -29,7 +29,7 @@
 
 enum err_msgs_index
 {
-  en_US= 0, cs_CZ, da_DK, nl_NL, et_EE, fr_FR, de_DE, el_GR, hu_HU, it_IT,
+  en_US= 0, zh_CN, cs_CZ, da_DK, nl_NL, et_EE, fr_FR, de_DE, el_GR, hu_HU, it_IT,
   ja_JP, ko_KR, no_NO, nn_NO, pl_PL, pt_PT, ro_RO, ru_RU, sr_RS,  sk_SK,
   es_ES, sv_SE, uk_UA, hi_IN
 } ERR_MSGS_INDEX;
@@ -38,6 +38,7 @@ enum err_msgs_index
 MY_LOCALE_ERRMSGS global_errmsgs[]=
 {
   {"english", NULL},
+  {"chinese", NULL},
   {"czech", NULL},
   {"danish", NULL},
   {"dutch", NULL},
@@ -2095,7 +2096,7 @@ MY_LOCALE my_locale_zh_CN
   '.',        /* decimal point zh_CN */
   ',',        /* thousands_sep zh_CN */
   "\x03",     /* grouping      zh_CN */
-  &global_errmsgs[en_US]
+  &global_errmsgs[zh_CN]
 );
 /***** LOCALE END zh_CN *****/
 
@@ -2131,7 +2132,7 @@ MY_LOCALE my_locale_zh_TW
   '.',        /* decimal point zh_TW */
   ',',        /* thousands_sep zh_TW */
   "\x03",     /* grouping      zh_TW */
-  &global_errmsgs[en_US]
+  &global_errmsgs[zh_CN]
 );
 /***** LOCALE END zh_TW *****/
 
@@ -3171,7 +3172,7 @@ MY_LOCALE my_locale_zh_HK
   '.',        /* decimal point zh_HK */
   ',',        /* thousands_sep zh_HK */
   "\x03",     /* grouping      zh_HK */
-  &global_errmsgs[en_US]
+  &global_errmsgs[zh_CN]
 );
 /***** LOCALE END zh_HK *****/
 

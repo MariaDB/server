@@ -57,8 +57,8 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 53	uk_UA	Ukrainian - Ukraine	8	9	,	.	ukrainian
 54	ur_PK	Urdu - Pakistan	6	6	.	,	english
 55	vi_VN	Vietnamese - Vietnam	16	11	,	.	english
-56	zh_CN	Chinese - Peoples Republic of China	3	3	.	,	english
-57	zh_TW	Chinese - Taiwan	3	2	.	,	english
+56	zh_CN	Chinese - Peoples Republic of China	3	3	.	,	chinese
+57	zh_TW	Chinese - Taiwan	3	2	.	,	chinese
 58	ar_DZ	Arabic - Algeria	6	8	.	,	english
 59	ar_EG	Arabic - Egypt	6	8	.	,	english
 60	ar_IN	Arabic - Iran	6	8	.	,	english
@@ -109,7 +109,7 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 105	nl_BE	Dutch - Belgium	9	9	,	.	dutch
 106	no_NO	Norwegian - Norway	9	7	,	.	norwegian
 107	sv_FI	Swedish - Finland	9	7	,	 	swedish
-108	zh_HK	Chinese - Hong Kong SAR	3	3	.	,	english
+108	zh_HK	Chinese - Hong Kong SAR	3	3	.	,	chinese
 109	el_GR	Greek - Greece	11	9	,	.	greek
 110	rm_CH	Romansh - Switzerland	9	9	,	'	english
 show locales;
@@ -170,8 +170,8 @@ Id	Name	Description	Error_Message_Language
 53	uk_UA	Ukrainian - Ukraine	ukrainian
 54	ur_PK	Urdu - Pakistan	english
 55	vi_VN	Vietnamese - Vietnam	english
-56	zh_CN	Chinese - Peoples Republic of China	english
-57	zh_TW	Chinese - Taiwan	english
+56	zh_CN	Chinese - Peoples Republic of China	chinese
+57	zh_TW	Chinese - Taiwan	chinese
 58	ar_DZ	Arabic - Algeria	english
 59	ar_EG	Arabic - Egypt	english
 60	ar_IN	Arabic - Iran	english
@@ -222,7 +222,7 @@ Id	Name	Description	Error_Message_Language
 105	nl_BE	Dutch - Belgium	dutch
 106	no_NO	Norwegian - Norway	norwegian
 107	sv_FI	Swedish - Finland	swedish
-108	zh_HK	Chinese - Hong Kong SAR	english
+108	zh_HK	Chinese - Hong Kong SAR	chinese
 109	el_GR	Greek - Greece	greek
 110	rm_CH	Romansh - Switzerland	english
 show locales like '%spanish%';
