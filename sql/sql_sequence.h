@@ -25,11 +25,33 @@
 #define seq_field_used_cycle     32
 #define seq_field_used_restart   64
 #define seq_field_used_restart_value 128
+#define seq_field_used_as 256
+#define seq_field_specified_min_value 512
+#define seq_field_specified_max_value 1024
 
 /* Field position in sequence table for some fields we refer to directly */
 #define NEXT_FIELD_NO 0
 #define MIN_VALUE_FIELD_NO 1
 #define ROUND_FIELD_NO 7
+
+#include "mysql_com.h"
+
+class Create_field;
+class Type_handler;
+
+struct Sequence_field_definition
+{
+  const char *field_name;
+  uint length;
+  const Type_handler *type_handler;
+  LEX_CSTRING comment;
+  ulong flags;
+};
+
+struct Sequence_row_definition
+{
+  Sequence_field_definition fields[9];
+};
 
 /**
    sequence_definition is used when defining a sequence as part of create
@@ -40,7 +62,7 @@ class sequence_definition :public Sql_alloc
 public:
   sequence_definition():
     min_value(1), max_value(LONGLONG_MAX-1), start(1), increment(1),
-      cache(1000), round(0), restart(0), cycle(0), used_fields(0)
+    cache(1000), round(0), restart(0), cycle(0), used_fields(0), value_type(MYSQL_TYPE_LONGLONG)
   {}
   longlong reserved_until;
   longlong min_value;
@@ -52,7 +74,13 @@ public:
   longlong restart;              // alter sequence restart value
   bool     cycle;
   uint used_fields;              // Which fields where used in CREATE
+  enum_field_types value_type;    // value type of the sequence
 
+  Type_handler const *value_type_handler();
+  // max value for the value type, e.g. 32767 for smallint.
+  longlong value_type_max();
+  // min value for the value type, e.g. -32768 for smallint.
+  longlong value_type_min();
   bool check_and_adjust(THD *thd, bool set_reserved_until);
   void store_fields(TABLE *table);
   void read_fields(TABLE *table);
@@ -66,6 +94,9 @@ public:
                       reserved_until, start, increment, min_value,
                         max_value, cache, round));
   }
+  static bool is_allowed_value_type(enum_field_types type);
+  bool prepare_sequence_fields(List<Create_field> *fields);
+  
 protected:
   /*
     The following values are the values from sequence_definition
@@ -159,9 +190,6 @@ public:
   uchar table_version[MY_UUID_SIZE];
 };
 
-
-class Create_field;
-extern bool prepare_sequence_fields(THD *thd, List<Create_field> *fields);
 extern bool check_sequence_fields(LEX *lex, List<Create_field> *fields);
 extern bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list);
 #endif /* SQL_SEQUENCE_INCLUDED */
