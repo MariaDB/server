@@ -94,7 +94,7 @@ impl Parse for PluginInfo {
 }
 
 impl PluginInfo {
-    fn new(main_ty: Ident, span: Span) -> Self {
+    const fn new(main_ty: Ident, span: Span) -> Self {
         Self {
             main_ty,
             span,

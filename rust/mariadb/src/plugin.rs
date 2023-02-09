@@ -72,7 +72,7 @@ mod variables;
 mod variables_parse;
 mod wrapper;
 pub use mariadb_macros::register_plugin;
-pub use variables::{SysVarConstString, SysVarOpt};
+pub use variables::{SysVarConstString, SysVarOpt, SysVarString};
 
 /// Commonly used plugin types for reexport
 pub mod prelude {

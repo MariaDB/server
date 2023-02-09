@@ -30,6 +30,7 @@ impl<T> UnsafeSyncCell<T> {
     }
 }
 
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl<T> Send for UnsafeSyncCell<T> {}
 unsafe impl<T> Sync for UnsafeSyncCell<T> {}
 

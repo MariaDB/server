@@ -47,20 +47,20 @@ pub enum EncryptionError {
 pub struct Flags(i32);
 
 impl Flags {
-    pub(crate) fn new(value: i32) -> Self {
+    pub(crate) const fn new(value: i32) -> Self {
         Self(value)
     }
 
-    pub(crate) fn should_encrypt(self) -> bool {
+    pub(crate) const fn should_encrypt(self) -> bool {
         (self.0 & bindings::ENCRYPTION_FLAG_ENCRYPT as i32) != 0
     }
 
-    pub(crate) fn should_decrypt(self) -> bool {
+    pub(crate) const fn should_decrypt(self) -> bool {
         // (self.0 & bindings::ENCRYPTION_FLAG_DECRYPT as i32) != 0
         !self.should_encrypt()
     }
 
-    pub fn nopad(&self) -> bool {
+    pub const fn nopad(&self) -> bool {
         (self.0 & bindings::ENCRYPTION_FLAG_NOPAD as i32) != 0
     }
 }

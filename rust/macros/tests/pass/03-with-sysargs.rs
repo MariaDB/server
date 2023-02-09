@@ -13,7 +13,7 @@ register_plugin! {
     encryption: false,
     variables: [
         SysVar {
-            ident: _SYSVAR_STR,
+            ident: _SYSVAR_CONST_STR,
             vtype: SysVarConstString,
             name: "test_sysvar",
             description: "this is a description",
@@ -37,7 +37,7 @@ fn main() {
     let plugin_def: &st_maria_plugin = unsafe { &*(_maria_plugin_declarations_[0]).get() };
 
     let sysv_ptr: *mut *mut st_mysql_sys_var = plugin_def.system_vars;
-    let sysvar_st: *const sysvar_str_t = _st_sysvar_test_sysvar.get();
+    let sysvar_st: *const sysvar_str_t = _sysvar_st_test_sysvar.get();
     let sysvar_arr: &[UnsafeSyncCell<*mut sysvar_common_t>] = &_plugin_debug_key_management_sysvars;
     let idx_0: *mut sysvar_common_t = unsafe { *sysvar_arr[0].get() };
     let idx_1: *mut sysvar_common_t = unsafe { *sysvar_arr[1].get() };

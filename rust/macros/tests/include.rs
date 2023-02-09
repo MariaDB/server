@@ -7,7 +7,7 @@ use mariadb::plugin::*;
 pub use mariadb_macros::register_plugin;
 
 static _SYSVAR_ATOMIC: AtomicI32 = AtomicI32::new(0);
-static _SYSVAR_STR: SysVarConstString = SysVarConstString::new();
+static _SYSVAR_CONST_STR: SysVarConstString = SysVarConstString::new();
 
 struct TestPlugin;
 

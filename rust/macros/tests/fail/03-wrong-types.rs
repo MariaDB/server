@@ -1,3 +1,7 @@
+/*
+ * Verify our added check for identifier-type mismatch
+ */
+
 include!("../include.rs");
 
 register_plugin! {
@@ -13,13 +17,12 @@ register_plugin! {
     encryption: false,
     variables: [
         SysVar {
-            ident: _SYSVAR_CONST_STR,
+            ident: _SYSVAR_ATOMIC,
             vtype: SysVarConstString,
             name: "test_sysvar",
             description: "this is a description",
             options: [SysVarOpt::ReadOnly, SysVarOpt::NoCmdOpt],
-            default: "default value",
-            interval: "50"
+            default: "default value"
         }
     ]
 }

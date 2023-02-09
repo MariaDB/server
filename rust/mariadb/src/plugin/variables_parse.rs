@@ -107,7 +107,7 @@ impl CliMysqlValue {
         }
     }
 
-    unsafe fn from_ptr<'a>(ptr: *const bindings::st_mysql_value) -> &'a Self {
+    const unsafe fn from_ptr<'a>(ptr: *const bindings::st_mysql_value) -> &'a Self {
         &*ptr.cast()
     }
 

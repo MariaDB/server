@@ -81,15 +81,8 @@ pub unsafe trait SysVarInterface: Sized {
     /// The C struct representation, e.g. `sysvar_str_t`
     type CStructType;
 
-    /// Intermediate type, pointed to by the CStructType's `value` pointer
-    type Intermediate;
-
-    /// Associated const with an optional function pointer to an update
-    /// function.
-    ///
-    /// If a sysvar type should use a custom update function, implmeent `update`
-    /// and set this value to `update_wrap`.
-    const UPDATE_FUNC: Option<SvUpdateFn> = None;
+    /// Intermediate type, pointed to by the `CStructType's` `value` pointer
+    type Intermediate: Copy;
 
     /// Options to implement by default
     const DEFAULT_OPTS: i32;
@@ -111,11 +104,15 @@ pub unsafe trait SysVarInterface: Sized {
         save: *const c_void,
     ) {
         let new_save: *const Self::Intermediate = save.cast();
-        Self::update(&*target.cast(), &*var.cast(), new_save.as_ref());
+        assert!(
+            !new_save.is_null(),
+            "got a null pointer from the C interface"
+        );
+        Self::update(&*target.cast(), &*var.cast(), *new_save);
     }
 
     /// Update function: override this if it is pointed to by `UPDATE_FUNC`
-    unsafe fn update(&self, var: &Self::CStructType, save: Option<&Self::Intermediate>) {
+    unsafe fn update(&self, var: &Self::CStructType, save: Self::Intermediate) {
         unimplemented!()
     }
 }
@@ -137,6 +134,10 @@ impl SysVarConstString {
 
     /// Get the current value of this variable. This isn't very efficient since
     /// it copies the string, but fixes will come later
+    ///
+    /// # Panics
+    ///
+    /// Panics if it gets a non-UTF8 C string
     pub fn get(&self) -> String {
         let ptr = self.0.load(Ordering::SeqCst);
         let cs = unsafe { CStr::from_ptr(ptr) };
@@ -184,6 +185,10 @@ impl SysVarString {
     }
 
     /// Get the current value of this variable
+    ///
+    /// # Panics
+    ///
+    /// Panics if the mutex can't be locked
     pub fn get(&self) -> Option<String> {
         let guard = &*self.mutex.lock().expect("failed to lock mutex");
         let ptr = self.ptr.load(Ordering::SeqCst);
@@ -194,11 +199,11 @@ impl SysVarString {
                 ptr.cast_const() == cs.as_ptr(),
                 "pointer and c string unsynchronized"
             );
-            Some(cstr_to_string(&cs))
+            Some(cstr_to_string(cs))
         } else if ptr.is_null() && guard.is_none() {
             None
         } else {
-            warn!("pointer {ptr:p} mismatch with guard {guard:?}");
+            trace!("pointer {ptr:p} mismatch with guard {guard:?} (likely init condition)");
             // prefer the pointer, must have been set on the C side
             let cs = unsafe { CStr::from_ptr(ptr) };
             Some(cstr_to_string(cs))
@@ -209,7 +214,6 @@ impl SysVarString {
 unsafe impl SysVarInterface for SysVarString {
     type CStructType = bindings::sysvar_str_t;
     type Intermediate = *mut c_char;
-    const UPDATE_FUNC: Option<SvUpdateFn> = Some(Self::update_wrap);
     const DEFAULT_OPTS: i32 = bindings::PLUGIN_VAR_STR as i32;
     const DEFAULT_C_STRUCT: Self::CStructType = Self::CStructType {
         flags: 0,
@@ -221,14 +225,17 @@ unsafe impl SysVarInterface for SysVarString {
         def_val: cstr!("").as_ptr().cast_mut(),
     };
 
-    unsafe fn update(&self, var: &Self::CStructType, save: Option<&Self::Intermediate>) {
-        let to_save = save.map(|ptr| unsafe { CStr::from_ptr(*ptr).to_owned() });
+    unsafe fn update(&self, var: &Self::CStructType, save: Self::Intermediate) {
+        let to_save = save
+            .as_ref()
+            .map(|ptr| unsafe { CStr::from_ptr(ptr).to_owned() });
         let guard = &mut *self.mutex.lock().expect("failed to lock mutex");
         *guard = to_save;
         let new_ptr = guard
             .as_deref()
             .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());
         self.ptr.store(new_ptr, Ordering::SeqCst);
+        trace!("updated sysvar with inner: {guard:?}");
     }
 }
 
@@ -281,27 +288,24 @@ macro_rules! atomic_svinterface {
             type CStructType = $c_struct_type;
             type Intermediate = $inter_type;
             const DEFAULT_OPTS: i32 = ($default_options) as i32;
-            const UPDATE_FUNC: Option<SvUpdateFn> = Some(Self::update_wrap as SvUpdateFn);
             const DEFAULT_C_STRUCT: Self::CStructType = Self::CStructType {
                 flags: 0,
                 name: ptr::null(),
                 comment: ptr::null(),
                 check: None,
-                update: None,
+                update: Some(Self::update_wrap),
                 value: ptr::null_mut(),
                 $( $extra_struct_fields )*
             };
 
-            unsafe fn update(&self, var: &Self::CStructType, save: Option<&Self::Intermediate>) {
+            unsafe fn update(&self, var: &Self::CStructType, save: Self::Intermediate) {
                 trace!(
                     "updated {} system variable to '{:?}'",
                     std::any::type_name::<$atomic_type>(), save
                 );
                 // based on sql_plugin.cc, seems like there are no null integers
                 // (can't represent that anyway)
-                let new = save.expect("somehow got a null pointer");
-                self.store(*new, Ordering::SeqCst);
-                trace!("updated system variable to '{}'", new);
+                self.store(save, Ordering::SeqCst);
             }
         }
     };
