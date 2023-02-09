@@ -2,6 +2,7 @@ if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'lo
 {
   --skip LOCALES plugin is not active
 }
+SET names utf8;
 
 select * from information_schema.locales;
 show locales;
