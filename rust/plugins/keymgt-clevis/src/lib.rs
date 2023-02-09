@@ -173,7 +173,7 @@ register_plugin! {
     variables: [
         SysVar {
             ident: TANG_SERVER,
-            vtype: SysVarString,
+            vtype: SysVarConstString,
             name: "tang_server",
             description: "the tang server for key exchange",
             options: [SysVarOpt::OptCmdArd],

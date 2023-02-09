@@ -41,7 +41,7 @@
 //!     variables: [                                 // variables should be a list of typed identifiers
 //!         SysVar {
 //!             ident: SYSVAR_STR,
-//!             vtype: SysVarString,
+//!             vtype: SysVarConstString,
 //!             name: "sql_name",
 //!             description: "this is a description",
 //!             options: [SysVarOpt::ReadOnly, SysVarOpt::NoCmdOpt],

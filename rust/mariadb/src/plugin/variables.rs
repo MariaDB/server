@@ -1,7 +1,7 @@
 //! "show variables" and "system variables"
 
 use std::cell::UnsafeCell;
-use std::ffi::{c_double, c_int, c_long, c_longlong, c_ulong, c_ulonglong, c_void, CStr};
+use std::ffi::{c_double, c_int, c_long, c_longlong, c_ulong, c_ulonglong, c_void, CStr, CString};
 use std::marker::PhantomPinned;
 use std::mem::ManuallyDrop;
 use std::os::raw::{c_char, c_uint};
@@ -10,7 +10,8 @@ use std::sync::atomic::{self, AtomicBool, AtomicI32, AtomicPtr, AtomicU32, Order
 use std::sync::Mutex;
 
 use bindings::THD;
-use log::trace;
+use cstr::cstr;
+use log::{trace, warn};
 use mariadb_sys as bindings;
 
 use super::variables_parse::{CliMysqlValue, CliValue};
@@ -74,12 +75,13 @@ type SvUpdateFn =
 
 /// A wrapper for system variables. This won't be exposed externally.
 ///
-/// This provides the interface of update functions
-pub trait SysVarInterface: Sized {
+/// This provides the interface of update functions. Trait is unsafe because
+/// using the wrong structures would cause UB.
+pub unsafe trait SysVarInterface: Sized {
     /// The C struct representation, e.g. `sysvar_str_t`
-    type CStType;
+    type CStructType;
 
-    /// Intermediate type, pointed to by the CStType's `value` pointer
+    /// Intermediate type, pointed to by the CStructType's `value` pointer
     type Intermediate;
 
     /// Associated const with an optional function pointer to an update
@@ -91,6 +93,9 @@ pub trait SysVarInterface: Sized {
 
     /// Options to implement by default
     const DEFAULT_OPTS: i32;
+
+    /// C struct filled with default values.
+    const DEFAULT_C_STRUCT: Self::CStructType;
 
     /// Wrapper for the task of storing the result of the `check` function.
     /// Simply converts to our safe rust function "update".
@@ -110,12 +115,12 @@ pub trait SysVarInterface: Sized {
     }
 
     /// Update function: override this if it is pointed to by `UPDATE_FUNC`
-    unsafe fn update(&self, var: &Self::CStType, save: Option<&Self::Intermediate>) {
+    unsafe fn update(&self, var: &Self::CStructType, save: Option<&Self::Intermediate>) {
         unimplemented!()
     }
 }
 
-/// A string system variable
+/// A const string system variable
 ///
 /// Consider this very unstable because I don't 100% understand what the SQL
 /// side of things does with the malloc / const options
@@ -141,29 +146,157 @@ impl SysVarConstString {
     }
 }
 
-impl SysVarInterface for SysVarConstString {
-    type CStType = bindings::sysvar_str_t;
+unsafe impl SysVarInterface for SysVarConstString {
+    type CStructType = bindings::sysvar_str_t;
     type Intermediate = *mut c_char;
     const DEFAULT_OPTS: i32 = bindings::PLUGIN_VAR_STR as i32;
-    // const UPDATE_FUNC: Option<bindings::mysql_var_update_func> =
-    //     Some(Self::update_wrap as bindings::mysql_var_update_func);
+    const DEFAULT_C_STRUCT: Self::CStructType = Self::CStructType {
+        flags: 0,
+        name: ptr::null(),
+        comment: ptr::null(),
+        check: None,
+        update: None,
+        value: ptr::null_mut(),
+        def_val: cstr!("").as_ptr().cast_mut(),
+    };
+}
 
-    // unsafe fn update(var: &Self::CStType, target: &Self, save: &Self::Intermediate) {
-    //     target.0.store(*save, Ordering::SeqCst);
-    //     trace!("updated system variable to '{}'", target.get());
-    // }
+/// An editable c string
+///
+/// Note on race conditions:
+///
+/// There is a race if the C side reads data while being updated on the Rust
+/// side. No worse than what would exist if the plugin was written in C, but
+/// important to note it does exist.
+#[repr(C)]
+pub struct SysVarString {
+    /// This points to our c string
+    ptr: AtomicPtr<c_char>,
+    mutex: Mutex<Option<CString>>,
+}
+
+impl SysVarString {
+    pub const fn new() -> Self {
+        Self {
+            ptr: AtomicPtr::new(std::ptr::null_mut()),
+            mutex: Mutex::new(None),
+        }
+    }
+
+    /// Get the current value of this variable
+    pub fn get(&self) -> Option<String> {
+        let guard = &*self.mutex.lock().expect("failed to lock mutex");
+        let ptr = self.ptr.load(Ordering::SeqCst);
+
+        if !ptr.is_null() && guard.is_some() {
+            let cs = guard.as_ref().unwrap();
+            assert!(
+                ptr.cast_const() == cs.as_ptr(),
+                "pointer and c string unsynchronized"
+            );
+            Some(cstr_to_string(&cs))
+        } else if ptr.is_null() && guard.is_none() {
+            None
+        } else {
+            warn!("pointer {ptr:p} mismatch with guard {guard:?}");
+            // prefer the pointer, must have been set on the C side
+            let cs = unsafe { CStr::from_ptr(ptr) };
+            Some(cstr_to_string(cs))
+        }
+    }
+}
+
+unsafe impl SysVarInterface for SysVarString {
+    type CStructType = bindings::sysvar_str_t;
+    type Intermediate = *mut c_char;
+    const UPDATE_FUNC: Option<SvUpdateFn> = Some(Self::update_wrap);
+    const DEFAULT_OPTS: i32 = bindings::PLUGIN_VAR_STR as i32;
+    const DEFAULT_C_STRUCT: Self::CStructType = Self::CStructType {
+        flags: 0,
+        name: ptr::null(),
+        comment: ptr::null(),
+        check: None,
+        update: Some(Self::update_wrap),
+        value: ptr::null_mut(),
+        def_val: cstr!("").as_ptr().cast_mut(),
+    };
+
+    unsafe fn update(&self, var: &Self::CStructType, save: Option<&Self::Intermediate>) {
+        let to_save = save.map(|ptr| unsafe { CStr::from_ptr(*ptr).to_owned() });
+        let guard = &mut *self.mutex.lock().expect("failed to lock mutex");
+        *guard = to_save;
+        let new_ptr = guard
+            .as_deref()
+            .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());
+        self.ptr.store(new_ptr, Ordering::SeqCst);
+    }
+}
+
+fn cstr_to_string(cs: &CStr) -> String {
+    cs.to_str()
+        .unwrap_or_else(|_| panic!("got non-UTF8 string like {}", cs.to_string_lossy()))
+        .to_owned()
 }
 
 /// Macro to easily create implementations for all the atomics
 macro_rules! atomic_svinterface {
-    ($atomic_ty:ty, $cs_ty:ty, $inter_ty:ty, $opts:expr) => {
-        impl SysVarInterface for $atomic_ty {
-            type CStType = $cs_ty;
-            type Intermediate = $inter_ty;
-            const DEFAULT_OPTS: i32 = ($opts) as i32;
-            const UPDATE_FUNC: Option<SvUpdateFn> = Some(Self::update_wrap as SvUpdateFn);
+    // Special case for boolean, which doesn't have as many fields
+    (   $atomic_type:ty,
+        $c_struct_type:ty,
+        bool,
+        $default_options:expr $(,)?
+    ) => {
+        atomic_svinterface!{
+            $atomic_type,
+            $c_struct_type,
+            bool,
+            $default_options,
+            { def_val: false }
+        }
+    };
 
-            unsafe fn update(&self, var: &Self::CStType, save: Option<&Self::Intermediate>) {
+    // All other integer types have the same fields
+    (   $atomic_type:ty,
+        $c_struct_type:ty,
+        $inter_type:ty,
+        $default_options:expr $(,)?
+    ) => {
+        atomic_svinterface!{
+            $atomic_type,
+            $c_struct_type,
+            $inter_type,
+            $default_options,
+            { def_val: 0, min_val: <$inter_type>::MIN, max_val: <$inter_type>::MAX, blk_sz: 0 }
+        }
+    };
+
+    // Full generic implementation
+    (   $atomic_type:ty,                // e.g., AtomicI32
+        $c_struct_type:ty,              // e.g. sysvar_int_t
+        $inter_type:ty,                 // e.g. i32
+        $default_options:expr,          // e.g. PLUGIN_VAR_INT
+        { $( $extra_struct_fields:tt )* } $(,)?  // e.g. default, min, max fields
+    ) => {
+        unsafe impl SysVarInterface for $atomic_type {
+            type CStructType = $c_struct_type;
+            type Intermediate = $inter_type;
+            const DEFAULT_OPTS: i32 = ($default_options) as i32;
+            const UPDATE_FUNC: Option<SvUpdateFn> = Some(Self::update_wrap as SvUpdateFn);
+            const DEFAULT_C_STRUCT: Self::CStructType = Self::CStructType {
+                flags: 0,
+                name: ptr::null(),
+                comment: ptr::null(),
+                check: None,
+                update: None,
+                value: ptr::null_mut(),
+                $( $extra_struct_fields )*
+            };
+
+            unsafe fn update(&self, var: &Self::CStructType, save: Option<&Self::Intermediate>) {
+                trace!(
+                    "updated {} system variable to '{:?}'",
+                    std::any::type_name::<$atomic_type>(), save
+                );
                 // based on sql_plugin.cc, seems like there are no null integers
                 // (can't represent that anyway)
                 let new = save.expect("somehow got a null pointer");
@@ -178,13 +311,13 @@ atomic_svinterface!(
     atomic::AtomicBool,
     bindings::sysvar_bool_t,
     bool,
-    bindings::PLUGIN_VAR_BOOL
+    bindings::PLUGIN_VAR_BOOL,
 );
 atomic_svinterface!(
     atomic::AtomicI32,
     bindings::sysvar_int_t,
     c_int,
-    bindings::PLUGIN_VAR_INT
+    bindings::PLUGIN_VAR_INT,
 );
 atomic_svinterface!(
     atomic::AtomicU32,

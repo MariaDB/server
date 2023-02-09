@@ -34,6 +34,7 @@ use proc_macro2::{Literal, Span, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseBuffer, ParseStream};
 use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::token::Group;
 use syn::{
     bracketed, parse_macro_input, parse_quote, Attribute, DeriveInput, Error, Expr, ExprArray,
@@ -41,9 +42,7 @@ use syn::{
     Path, PathSegment, Token, Type, TypePath, TypeReference,
 };
 
-use crate::fields::sysvar::{
-    ALL_FIELDS, NUM_OPT_FIELDS, NUM_REQ_FIELDS, REQ_FIELDS, STR_OPT_FIELDS, STR_REQ_FIELDS,
-};
+use crate::fields::sysvar::{ALL_FIELDS, OPT_FIELDS, REQ_FIELDS};
 use crate::helpers::expect_litstr;
 
 #[derive(Clone, Copy, Debug)]
@@ -176,37 +175,59 @@ impl VariableInfo {
         let Some(vtype) = &self.vtype else {
             return Err(Error::new_spanned(&self.vtype, "missing required field 'vtype'"));
         };
-        let str_ty: Expr = parse_quote!(SysVarString);
-        let atomic_tys: [Expr; 11] = [
-            parse_quote!(AtomicBool),
-            parse_quote!(AtomicI8),
-            parse_quote!(AtomicI16),
-            parse_quote!(AtomicI32),
-            parse_quote!(AtomicI64),
-            parse_quote!(AtomicIsize),
-            parse_quote!(AtomicU8),
-            parse_quote!(AtomicU16),
-            parse_quote!(AtomicU32),
-            parse_quote!(AtomicU64),
-            parse_quote!(AtomicUsize),
-        ];
 
-        // let tmp: proc_macro2::TokenStream = ;
+        self.validate_correct_fields(REQ_FIELDS, OPT_FIELDS);
+
+        let ty_as_svwrap = quote! { <#vtype as ::mariadb::plugin::internals::SysVarInterface> };
         let name = expect_litstr(&self.name)?;
-        let st_ident = Ident::new(&format!("_st_sysvar_{}", name.value()), Span::call_site());
+        let ident = self.ident.as_ref().unwrap();
+        let opts = self.make_option_fields()?;
+        let flags = quote! { #ty_as_svwrap::DEFAULT_OPTS #opts };
+        let description = expect_litstr(&self.description)?;
 
-        if vtype == &str_ty {
-            Ok((st_ident.clone(), self.make_string_sysvar(&st_ident)?))
-        } else if atomic_tys.contains(vtype) {
-            Ok((st_ident.clone(), self.make_atomic_sysvar(&st_ident)?))
-        } else {
-            Err(Error::new_spanned(
-                &self.vtype,
-                "invalid variable type. Only 'SysVarString', 'SysVarConstString', and 'AtomicX' currently allowed.",
-            ))
-        }
+        let default = process_default_override(&self.default, "def_val")?;
+        let min = process_default_override(&self.min, "min_val")?;
+        let max = process_default_override(&self.max, "max_val")?;
+        let interval = process_default_override(&self.interval, "blk_sz")?;
+
+        let st_ident = Ident::new(&format!("_st_sysvar_{}", name.value()), Span::call_site());
+        // https://github.com/rust-lang/rust/issues/86935#issuecomment-1146670057
+        let ty_wrap = Ident::new(
+            &format!("_st_sysvar_Type{}", name.value()),
+            Span::call_site(),
+        );
+
+        let usynccell = quote! { ::mariadb::internals::UnsafeSyncCell };
+
+        let res = quote! {
+            type #ty_wrap<T> = T;
+
+            static #st_ident: #usynccell<#ty_wrap::<#ty_as_svwrap::CStructType>> = unsafe {
+                #usynccell::new(
+                    #ty_wrap::<#ty_as_svwrap::CStructType> {
+                        flags: #flags,
+                        name: ::mariadb::internals::cstr!(#name).as_ptr(),
+                        comment: ::mariadb::internals::cstr!(#description).as_ptr(),
+                        value: ::std::ptr::addr_of!(#ident).cast_mut().cast(), // *mut *mut c_char,
+
+                        #default
+                        #min
+                        #max
+                        #interval
+
+                        ..#ty_as_svwrap::DEFAULT_C_STRUCT
+                        // def_val: #default,
+                    }
+                )
+            };
+
+        };
+
+        Ok((st_ident.clone(), res))
     }
 
+    /// Take the options vector, parse it as an array, bitwise or the output,
+    /// cast to i32
     fn make_option_fields(&self) -> syn::Result<TokenStream> {
         let Some(input) = &self.options else {
             return Ok(TokenStream::new());
@@ -221,56 +242,6 @@ impl VariableInfo {
                 ::mariadb::bindings::PLUGIN_VAR_MASK as i32)
         };
         Ok(ret)
-    }
-
-    fn make_string_sysvar(&self, st_ident: &Ident) -> syn::Result<TokenStream> {
-        self.validate_correct_fields(STR_REQ_FIELDS, STR_OPT_FIELDS);
-
-        let opts = self.make_option_fields()?;
-        let flags = quote! { (::mariadb::bindings::PLUGIN_VAR_STR as i32) #opts };
-        let name = expect_litstr(&self.name)?;
-        let description = expect_litstr(&self.description)?;
-        let default = if let Some(def) = &self.default {
-            quote! { ::mariadb::internals::cstr!(#def).as_ptr().cast_mut() }
-        } else {
-            quote! { ::mariadb::internals::cstr!("").as_ptr().cast_mut() }
-        };
-        let disambig_name = quote! { ::std::sync::Mutex<String> };
-        let check_fn = quote! { None };
-        let update_fn = quote! { None };
-        // let update_fn = quote! {
-        //     Some(<::mariadb::plugin::SysVarString as
-        //         ::mariadb::plugin::internals::SysvarWrap>::update_wrap)
-        // };
-        // let check_fn = quote! { Some(<#disambig_name as ::mariadb::internals::SysVarWrap>::check) };
-        // let update_fn =
-        //     quote! { Some(<#disambig_name as ::mariadb::internals::SysVarWrap>::update) };
-        let ident = self.ident.as_ref().unwrap();
-        let res = quote! {
-            static #st_ident: ::mariadb::internals::UnsafeSyncCell<
-                ::mariadb::bindings::sysvar_str_t,
-            > = unsafe {
-                ::mariadb::internals::UnsafeSyncCell::new(
-                    ::mariadb::bindings::sysvar_str_t {
-                        flags: #flags,
-                        name: ::mariadb::internals::cstr!(#name).as_ptr(),
-                        comment: ::mariadb::internals::cstr!(#description).as_ptr(),
-                        check: #check_fn,
-                        update: #update_fn,
-                        value: ::std::ptr::addr_of!(#ident).cast_mut().cast(), // *mut *mut c_char,
-                        def_val: #default,
-                    }
-                )
-            };
-
-        };
-
-        Ok(res)
-    }
-
-    fn make_atomic_sysvar(&self, st_ident: &Ident) -> syn::Result<TokenStream> {
-        self.validate_correct_fields(NUM_REQ_FIELDS, NUM_OPT_FIELDS);
-        todo!()
     }
 
     fn make_showvar(&self) -> syn::Result<(Ident, TokenStream)> {
@@ -344,4 +315,28 @@ fn verify_field_order(fields: &[String]) -> Result<(), String> {
     Err(format!(
         "fields not in expected order. reorder as:\n{expected_order:?}",
     ))
+}
+
+/// Process "default override" style fields by these rules:
+///
+/// - If `field` is `None`, return an empty TokenStream
+/// - Enforce it is a literal
+/// - If it is a literal string, change it to a `cstr`
+///
+/// Might want to relax and take consts at some point, but that's someday...
+fn process_default_override(field: &Option<Expr>, fname: &str) -> syn::Result<TokenStream> {
+    let Some(f_inner) = field.as_ref() else {
+        return Ok(TokenStream::new());
+    };
+
+    let Expr::Lit(exprlit) = f_inner else {
+        return Err(Error::new_spanned(f_inner, "only literal values are allowed in this position"));
+    };
+
+    let fid = Ident::new(fname, f_inner.span());
+    if let syn::Lit::Str(litstr) = &exprlit.lit {
+        Ok(quote! { #fid: ::mariadb::internals::cstr!(#litstr).as_ptr().cast_mut(), })
+    } else {
+        Ok(quote! { #fid: #exprlit, })
+    }
 }
