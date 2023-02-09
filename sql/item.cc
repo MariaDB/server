@@ -10866,6 +10866,25 @@ table_map Item_direct_view_ref::not_null_tables() const
    return get_null_ref_table()->map;
 }
 
+void Item_direct_view_ref::print(String *str, enum_query_type query_type)
+{
+  /*
+    If the view/derived table was not merged then this field name must
+    be complemented with the view name/derived table alias.
+    For example, for "SELECT a FROM (SELECT a FROM t1) q" field `a` in the
+    select list must be printed as `q`.`a`.
+    Ancestor class Item_ident contains the correct table_name for that case.
+    But if the view was merged then the initial `q` does not make sense
+    any more so print the Item_ref contents. Field `a` will be printed
+    as `t1`.`a` then
+  */
+  if (!view->merged)
+    Item_ident::print(str, query_type);
+  else
+    Item_ref::print(str, query_type);
+
+}
+
 /*
   we add RAND_TABLE_BIT to prevent moving this item from HAVING to WHERE
 */

@@ -381,6 +381,7 @@ connection slave;
 DROP TABLES federated.t1, federated.t2, federated.t3, federated.t10,
    federated.t11;
 
+
 --echo # MDEV-25080: Allow pushdown of queries involving UNIONs
 --echo #   in outer select to foreign engines
 --echo #
