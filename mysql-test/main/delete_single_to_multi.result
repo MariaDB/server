@@ -344,11 +344,11 @@ where n_name='PERU'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
 1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
-1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	2	
-1	PRIMARY	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey	5	dbt3_s001.supplier.s_suppkey	100	Using where
+1	PRIMARY	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	11	
+1	PRIMARY	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (7%)	Using where; Using rowid filter
+1	PRIMARY	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	17	Using where
 1	PRIMARY	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_partkey	1	Using where
-1	PRIMARY	orders	eq_ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY|i_o_orderdate	4|4	dbt3_s001.lineitem.l_orderkey	1 (7%)	Using where; Using rowid filter
-1	PRIMARY	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
+1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
 select l_orderkey, l_linenumber, l_tax from lineitem where l_orderkey in (select o_orderkey from orders
 where o_custkey in
 (select c_custkey from customer
@@ -401,11 +401,11 @@ where n_name='PERU'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
 1	PRIMARY	nation	ref	PRIMARY,i_n_name	i_n_name	26	const	1	Using index condition
-1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	2	
-1	PRIMARY	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey	5	dbt3_s001.supplier.s_suppkey	100	Using where
+1	PRIMARY	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	11	
+1	PRIMARY	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (7%)	Using where; Using rowid filter
+1	PRIMARY	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	17	Using where
 1	PRIMARY	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_partkey	1	Using where
-1	PRIMARY	orders	eq_ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY|i_o_orderdate	4|4	dbt3_s001.lineitem.l_orderkey	1 (7%)	Using where; Using rowid filter
-1	PRIMARY	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
+1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
 delete from lineitem where l_orderkey in (select o_orderkey from orders
 where o_custkey in
 (select c_custkey from customer
@@ -467,7 +467,7 @@ c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-10-09' and '1993-06-08');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	customer	ALL	PRIMARY,i_c_nationkey	NULL	NULL	NULL	150	Using where
-1	PRIMARY	nation	eq_ref|filter	PRIMARY,i_n_regionkey	PRIMARY|i_n_regionkey	4|5	dbt3_s001.customer.c_nationkey	1 (40%)	Using where; Using rowid filter
+1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.customer.c_nationkey	1	Using where
 1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (9%)	Using where; FirstMatch(nation); Using rowid filter
 explain format=json
 select c_name, c_acctbal from customer where c_nationkey in (select n_nationkey from nation
@@ -499,14 +499,6 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["n_nationkey"],
           "ref": ["dbt3_s001.customer.c_nationkey"],
-          "rowid_filter": {
-            "range": {
-              "key": "i_n_regionkey",
-              "used_key_parts": ["n_regionkey"]
-            },
-            "rows": 10,
-            "selectivity_pct": 40
-          },
           "rows": 1,
           "filtered": 40,
           "attached_condition": "nation.n_regionkey in (1,2)"
@@ -590,7 +582,7 @@ c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-10-09' and '1993-06-08');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	customer	ALL	PRIMARY,i_c_nationkey	NULL	NULL	NULL	150	Using where
-1	PRIMARY	nation	eq_ref|filter	PRIMARY,i_n_regionkey	PRIMARY|i_n_regionkey	4|5	dbt3_s001.customer.c_nationkey	1 (40%)	Using where; Using rowid filter
+1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.customer.c_nationkey	1	Using where
 1	PRIMARY	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	11 (9%)	Using where; FirstMatch(nation); Using rowid filter
 explain format=json
 delete from customer where c_nationkey in (select n_nationkey from nation
@@ -622,14 +614,6 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["n_nationkey"],
           "ref": ["dbt3_s001.customer.c_nationkey"],
-          "rowid_filter": {
-            "range": {
-              "key": "i_n_regionkey",
-              "used_key_parts": ["n_regionkey"]
-            },
-            "rows": 10,
-            "selectivity_pct": 40
-          },
           "rows": 1,
           "filtered": 40,
           "attached_condition": "nation.n_regionkey in (1,2)"
@@ -2183,7 +2167,7 @@ delete from customer where c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-01-09' and '1992-03-08') returning c_name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	customer	ALL	NULL	NULL	NULL	NULL	141	Using where
-2	DEPENDENT SUBQUERY	orders	index_subquery|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	func	175 (2%)	Using where; Using rowid filter
+2	DEPENDENT SUBQUERY	orders	range	i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	28	Using index condition; Using where
 delete from customer where c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-01-09' and '1992-03-08') returning c_name;
 c_name
@@ -2296,7 +2280,7 @@ delete from customer where c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-01-09' and '1992-03-08') returning c_name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	customer	ALL	NULL	NULL	NULL	NULL	141	Using where
-2	DEPENDENT SUBQUERY	orders	index_subquery|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	func	175 (2%)	Using where; Using rowid filter
+2	DEPENDENT SUBQUERY	orders	range	i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	28	Using index condition; Using where
 delete from customer where c_custkey in (select o_custkey from orders
 where o_orderDATE between '1992-01-09' and '1992-03-08') returning c_name;
 c_name
@@ -2338,7 +2322,7 @@ where c_nationkey in (1,2))
 order by o_totalprice limit 500;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	orders	range	i_o_orderdate	i_o_orderdate	4	NULL	108	Using where; Using filesort
-2	DEPENDENT SUBQUERY	customer	unique_subquery|filter	PRIMARY,i_c_nationkey	PRIMARY|i_c_nationkey	4|5	func	1 (10%)	Using where; Using rowid filter
+2	DEPENDENT SUBQUERY	customer	unique_subquery	PRIMARY,i_c_nationkey	PRIMARY	4	func	1	Using where
 create table t as
 select * from orders where o_orderDATE between '1992-01-01' and '1992-06-30' and
 o_custkey in (select c_custkey from customer
