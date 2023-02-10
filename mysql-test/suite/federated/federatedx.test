@@ -2109,6 +2109,7 @@ CREATE VIEW v AS SELECT * FROM t1_fed;
 SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
 
 DROP TABLE t1_fed, t1, t2;
+DROP VIEW v;
 DROP SERVER s;
 
 source include/federated_cleanup.inc;

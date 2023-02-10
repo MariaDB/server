@@ -2371,6 +2371,7 @@ CREATE VIEW v AS SELECT * FROM t1_fed;
 SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
 a
 DROP TABLE t1_fed, t1, t2;
+DROP VIEW v;
 DROP SERVER s;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
