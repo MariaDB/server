@@ -1412,7 +1412,7 @@ public:
     : m_ot_ctx(ot_ctx_arg), m_is_active(FALSE)
   {}
 
-  virtual ~MDL_deadlock_handler() {}
+  virtual ~MDL_deadlock_handler() = default;
 
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,

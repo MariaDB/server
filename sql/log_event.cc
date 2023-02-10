@@ -154,7 +154,7 @@ public:
     reinit_io_cache(m_cache, WRITE_CACHE, 0L, FALSE, TRUE);
   }
 
-  ~Write_on_release_cache() {}
+  ~Write_on_release_cache() = default;
 
   bool flush_data()
   {
@@ -4159,9 +4159,7 @@ Ignorable_log_event::Ignorable_log_event(const uchar *buf,
   DBUG_VOID_RETURN;
 }
 
-Ignorable_log_event::~Ignorable_log_event()
-{
-}
+Ignorable_log_event::~Ignorable_log_event() = default;
 
 bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache, FILE *file)
 {

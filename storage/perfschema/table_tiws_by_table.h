@@ -76,8 +76,7 @@ protected:
   table_tiws_by_table();
 
 public:
-  ~table_tiws_by_table()
-  {}
+  ~table_tiws_by_table() = default;
 
 protected:
   void make_row(PFS_table_share *table_share);

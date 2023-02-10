@@ -104,13 +104,6 @@ fi
 case "${LSBNAME}"
 in
   # Debian
-  stretch)
-    # MDEV-16525 libzstd-dev-1.1.3 minimum version
-    sed -e '/libzstd-dev/d' \
-        -e 's/libcurl4/libcurl3/g' -i debian/control
-    remove_rocksdb_tools
-    disable_pmem
-    ;&
   buster)
     disable_libfmt
     replace_uring_with_aio

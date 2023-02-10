@@ -1944,7 +1944,7 @@ inline bool page_recv_t::trim(lsn_t start_lsn)
 {
   while (log.head)
   {
-    if (log.head->lsn >= start_lsn) return false;
+    if (log.head->lsn > start_lsn) return false;
     last_offset= 1; /* the next record must not be same_page */
     log_rec_t *next= log.head->next;
     recv_sys.free(log.head);
@@ -2570,8 +2570,10 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
             goto record_corrupted;
           static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
-          truncated_undo_spaces[space_id - srv_undo_space_id_start]=
-            { lsn, page_no };
+          /* The entire undo tablespace will be reinitialized by
+          innodb_undo_log_truncate=ON. Discard old log for all pages. */
+          trim({space_id, 0}, lsn);
+          truncated_undo_spaces[space_id - srv_undo_space_id_start]= page_no;
           if (undo_space_trunc)
             undo_space_trunc(space_id);
 #endif
@@ -3456,17 +3458,15 @@ void recv_sys_t::apply(bool last_batch)
 
     for (auto id= srv_undo_tablespaces_open; id--;)
     {
-      const trunc& t= truncated_undo_spaces[id];
-      if (t.lsn)
+      if (unsigned pages= truncated_undo_spaces[id])
       {
-        trim(page_id_t(id + srv_undo_space_id_start, 0), t.lsn);
-        if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
+        if (fil_space_t *space= fil_space_get(id + srv_undo_space_id_start))
         {
           ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
           fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
           ut_ad(file->is_open());
           os_file_truncate(file->name, file->handle,
-                           os_offset_t{t.pages} << srv_page_size_shift, true);
+                           os_offset_t{pages} << srv_page_size_shift, true);
         }
       }
     }

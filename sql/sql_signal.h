@@ -36,8 +36,7 @@ protected:
       m_set_signal_information(set)
   {}
 
-  virtual ~Sql_cmd_common_signal()
-  {}
+  virtual ~Sql_cmd_common_signal() = default;
 
   /**
     Evaluate each signal condition items for this statement.
@@ -84,8 +83,7 @@ public:
     : Sql_cmd_common_signal(cond, set)
   {}
 
-  virtual ~Sql_cmd_signal()
-  {}
+  virtual ~Sql_cmd_signal() = default;
 
   virtual enum_sql_command sql_command_code() const
   {
@@ -111,8 +109,7 @@ public:
     : Sql_cmd_common_signal(cond, set)
   {}
 
-  virtual ~Sql_cmd_resignal()
-  {}
+  virtual ~Sql_cmd_resignal() = default;
 
   virtual enum_sql_command sql_command_code() const
   {

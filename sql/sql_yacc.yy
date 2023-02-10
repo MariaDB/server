@@ -13328,6 +13328,8 @@ delete_part2:
           {
             Lex->last_table()->vers_conditions= Lex->vers_conditions;
             Lex->pop_select(); //main select
+            if (Lex->check_main_unit_semantics())
+              MYSQL_YYABORT;
           }
         ;
 
@@ -13364,6 +13366,8 @@ single_multi:
             if ($3)
               Select->order_list= *($3);
             Lex->pop_select(); //main select
+            if (Lex->check_main_unit_semantics())
+              MYSQL_YYABORT;
           }
         | table_wild_list
           {

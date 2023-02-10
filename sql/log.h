@@ -42,8 +42,8 @@ class TC_LOG
 {
   public:
   int using_heuristic_recover();
-  TC_LOG() {}
-  virtual ~TC_LOG() {}
+  TC_LOG() = default;
+  virtual ~TC_LOG() = default;
 
   virtual int open(const char *opt_name)=0;
   virtual void close()=0;
@@ -100,7 +100,7 @@ extern PSI_cond_key key_COND_prepare_ordered;
 class TC_LOG_DUMMY: public TC_LOG // use it to disable the logging
 {
 public:
-  TC_LOG_DUMMY() {}
+  TC_LOG_DUMMY() = default;
   int open(const char *opt_name)        { return 0; }
   void close()                          { }
   /*
@@ -308,7 +308,7 @@ class MYSQL_LOG
 {
 public:
   MYSQL_LOG();
-  virtual ~MYSQL_LOG() {}
+  virtual ~MYSQL_LOG() = default;
   void init_pthread_objects();
   void cleanup();
   bool open(
@@ -983,7 +983,7 @@ public:
 class Log_event_handler
 {
 public:
-  Log_event_handler() {}
+  Log_event_handler() = default;
   virtual bool init()= 0;
   virtual void cleanup()= 0;
 
@@ -997,7 +997,7 @@ public:
                            const char *command_type, size_t command_type_len,
                            const char *sql_text, size_t sql_text_len,
                            CHARSET_INFO *client_cs)= 0;
-  virtual ~Log_event_handler() {}
+  virtual ~Log_event_handler() = default;
 };
 
 

@@ -164,7 +164,7 @@ public:
     option_list(part_elem->option_list),
     option_struct(part_elem->option_struct)
   {}
-  ~partition_element() {}
+  ~partition_element() = default;
 
   part_column_list_val& get_col_val(uint idx)
   {

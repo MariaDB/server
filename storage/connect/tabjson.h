@@ -238,7 +238,7 @@ public:
 	PJSON GetRow(PGLOBAL g);
 
   // Default constructor not to be used
-  JSONCOL(void) {}
+  JSONCOL(void) = default;
 
   // Members
 	PGLOBAL G;										// Support of parse memory

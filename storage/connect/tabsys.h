@@ -108,7 +108,7 @@ class INICOL : public COLBLK {
 
  protected:
   // Default constructor not to be used
-  INICOL(void) {}
+  INICOL(void) = default;
 
   // Members
   char *Valbuf;                   // To the key value buffer
@@ -176,7 +176,7 @@ class XINCOL : public INICOL {
 
  protected:
   // Default constructor not to be used
-  XINCOL(void) {}
+  XINCOL(void) = default;
 
   // Members
   }; // end of class XINICOL

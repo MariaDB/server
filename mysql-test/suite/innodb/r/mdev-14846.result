@@ -31,11 +31,12 @@ pk	f1	f2	f3
 3	t	q	1
 5	z	t	NULL
 SET DEBUG_SYNC='now SIGNAL default_dml';
+SET DEBUG_SYNC='now SIGNAL con2_dml';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR default_dml';
 UPDATE t3 AS alias1 LEFT JOIN t3 AS alias2 ON ( alias1.f1 <> alias1.f2 ) SET alias1.f3 = 59 WHERE ( EXISTS ( SELECT t1.f3 FROM t1 WHERE t1.f1 = alias1.f1 ) ) OR alias2.f1 = 'h';
 connect  con2,localhost,root,,test;
-set debug_sync='now WAIT_FOR default_dml';
+set debug_sync='now WAIT_FOR con2_dml';
 SET DEBUG_SYNC='now SIGNAL con1_dml2';
 disconnect con2;
 connection con1;

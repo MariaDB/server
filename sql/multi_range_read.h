@@ -204,7 +204,7 @@ class Mrr_reader
 public:
   virtual int get_next(range_id_t *range_info) = 0;
   virtual int refill_buffer(bool initial) = 0;
-  virtual ~Mrr_reader() {}; /* just to remove compiler warning */
+  virtual ~Mrr_reader() = default; /* just to remove compiler warning */
 };
 
 

@@ -41,7 +41,7 @@ class THD;
 class Time_zone: public Sql_alloc 
 {
 public:
-  Time_zone() {}                              /* Remove gcc warning */
+  Time_zone() = default;                              /* Remove gcc warning */
   /**
     Converts local time in broken down MYSQL_TIME representation to 
     my_time_t (UTC seconds since Epoch) represenation.
@@ -66,7 +66,7 @@ public:
     We need this only for surpressing warnings, objects of this type are
     allocated on MEM_ROOT and should not require destruction.
   */
-  virtual ~Time_zone() {};
+  virtual ~Time_zone() = default;
 
 protected:
   static inline void adjust_leap_second(MYSQL_TIME *t);

@@ -33,7 +33,7 @@ PrefixCursor::PrefixCursor()
       cur_(0),
       end_(0) {}
 
-PrefixCursor::~PrefixCursor() {}
+PrefixCursor::~PrefixCursor() = default;
 
 void PrefixCursor::open(const Trie &trie,
                         const String &str,

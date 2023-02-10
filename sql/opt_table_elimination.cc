@@ -218,7 +218,7 @@ class Dep_value : public Sql_alloc
 {
 public:
   Dep_value(): bound(FALSE) {}
-  virtual ~Dep_value(){} /* purecov: inspected */ /* stop compiler warnings */
+  virtual ~Dep_value() = default; /* purecov: inspected */
   
   bool is_bound() { return bound; }
   void make_bound() { bound= TRUE; }
@@ -342,7 +342,7 @@ const size_t Dep_value::iterator_size=
 class Dep_module : public Sql_alloc
 {
 public:
-  virtual ~Dep_module(){}  /* purecov: inspected */ /* stop compiler warnings */
+  virtual ~Dep_module() = default;  /* purecov: inspected */
   
   /* Mark as bound. Currently is non-virtual and does nothing */
   void make_bound() {};

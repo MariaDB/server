@@ -59,7 +59,7 @@ protected:
 
 public:
   Aggregator (Item_sum *arg): item_sum(arg) {}
-  virtual ~Aggregator () {}                   /* Keep gcc happy */
+  virtual ~Aggregator () = default;                   /* Keep gcc happy */
 
   enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR };
   virtual Aggregator_type Aggrtype() = 0;
