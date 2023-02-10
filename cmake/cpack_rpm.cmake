@@ -208,7 +208,7 @@ SETA(CPACK_RPM_client_PACKAGE_CONFLICTS
   "MariaDB-server < 11.0.0")
 
 SETA(CPACK_RPM_common_PACKAGE_CONFLICTS
-  "MariaDB-server < 11.0.0")
+  "MariaDB-server < 10.6.1")
 
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
