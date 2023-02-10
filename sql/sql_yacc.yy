@@ -13374,7 +13374,6 @@ delete_part2:
           {
             LEX *lex= Lex;
             lex->last_table()->vers_conditions= lex->vers_conditions;
-            lex->pop_select(); //main select
             lex->sql_command= SQLCOM_DELETE;
             if (!(lex->m_sql_cmd=
                   new (thd->mem_root) Sql_cmd_delete(false)))
@@ -13382,6 +13381,8 @@ delete_part2:
             if (lex->check_main_unit_semantics())
               MYSQL_YYABORT;
           }
+          stmt_end
+          {}
         ;
 
 delete_single_table:
@@ -13432,7 +13433,6 @@ single_multi:
             LEX *lex= Lex;
             if ($3)
               Select->order_list= *($3);
-            lex->pop_select(); //main select
             lex->sql_command= SQLCOM_DELETE;
             if (!(lex->m_sql_cmd=
                   new (thd->mem_root) Sql_cmd_delete(false)))
@@ -13440,6 +13440,7 @@ single_multi:
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
           }
+          stmt_end {}
         | table_alias_ref_list
           {
             LEX *lex= Lex;
