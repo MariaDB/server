@@ -415,7 +415,7 @@ EXPLAIN
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	10	func,func	1	Using where
+2	DEPENDENT SUBQUERY	<derived3>	unique_subquery	distinct_key	distinct_key	10	func,func	1	Using where
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	
 4	UNION	t3	ALL	NULL	NULL	NULL	NULL	4	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	

@@ -1,0 +1,54 @@
+#
+# MDEV-23406: query with mutually recursive CTEs when big_tables=1
+#
+set @save_big_tables=@@big_tables;
+set big_tables=1;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+create table  folks(id int, name char(32), dob date, father int, mother int);
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null);
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+union
+select h.*, w.*
+from folks v, folks h, folks w
+where v.name = 'Me' and
+(v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+drop table folks;
+set big_tables=@save_big_tables;
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release

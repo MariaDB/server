@@ -14004,7 +14004,7 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
                                (uchar *) &first_keyuse,
                                FALSE))
           return TRUE;
-        table->reginfo.join_tab->keys.set_bit(table->s->keys);
+        table->reginfo.join_tab->keys.set_bit(table->s->keys - 1);
         tab= table->reginfo.join_tab;
         for (uint i=0; i < parts; i++)
           tab->key_dependent|= save_first_keyuse[i].used_tables;
@@ -14116,23 +14116,42 @@ void JOIN::drop_unused_derived_keys()
   {
     
     TABLE *tmp_tbl= tab->table;
-    if (!tmp_tbl)
+    /*
+      Skip placeholders and already created tables (we cannot change keys
+      for created tables)
+    */
+    if (!tmp_tbl || tmp_tbl->is_created())
       continue;
     if (!tmp_tbl->pos_in_table_list->is_materialized_derived())
       continue;
-    if (tmp_tbl->max_keys > 1 && !tab->is_ref_for_hash_join())
-      tmp_tbl->use_index(tab->ref.key);
-    if (tmp_tbl->s->keys)
+
+    /*
+      tmp_tbl->max_keys is the number of keys pre-allocated in
+      TABLE::alloc_keys().  Can be 0 if alloc_keys() was not called.
+
+      tmp_tbl->s->keys is number of keys defined for the table.
+      Normally 0 or 1 (= unique key)
+    */
+
+    if (likely(tmp_tbl->s->keys) && tab->ref.key >= 0 &&
+        !tab->is_ref_for_hash_join())
     {
-      if (tab->ref.key >= 0 && tab->ref.key < MAX_KEY)
-        tab->ref.key= 0;
-      else
+      if (tmp_tbl->s->keys > 1)
       {
-        tmp_tbl->s->keys= 0;
-        tmp_tbl->s->uniques= 0;
+        /* remove all keys except the chosen one and unique keys */
+        tmp_tbl->use_index(tab->ref.key, &tab->keys);
       }
+      /*
+        We dropped all keys except the chosen one and unique keys.
+        The choosen one is stored as the first key (number 0).
+      */
+      tab->ref.key= 0;
     }
-    tab->keys= (key_map) (tmp_tbl->s->keys || tmp_tbl->s->uniques ? 1 : 0);
+    else if (tmp_tbl->s->keys)
+    {
+      /* The query cannot use keys, remove all non unique keys */
+      tmp_tbl->use_index(-1, &tab->keys);
+    }
   }
 }
 
