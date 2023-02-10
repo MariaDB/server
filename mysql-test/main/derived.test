@@ -1130,6 +1130,11 @@ analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select 
 
 select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
 
+analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except ALL (select t3.a from t3 order by b))q  where t1.a=q.a;
+
+select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except ALL (select t3.a from t3 order by b))q  where t1.a=q.a;
+
+
 drop table t1,t2,t3;
 
 --echo #
@@ -1223,6 +1228,20 @@ SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2,
 SET @@IN_PREDICATE_CONVERSION_THRESHOLD=@@global.IN_PREDICATE_CONVERSION_THRESHOLD;
 SET @@OPTIMIZER_SWITCH=@@global.OPTIMIZER_SWITCH;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-30540 Wrong result with IN list length reaching
+--echo # IN_PREDICATE_CONVERSION_THRESHOLD
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 SELECT seq FROM seq_1_to_30;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SET IN_PREDICATE_CONVERSION_THRESHOLD=4;
+SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
+SET IN_PREDICATE_CONVERSION_THRESHOLD=100;
+SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
+drop table t1;
 
 --echo #
 --echo # End of 11.0 tests

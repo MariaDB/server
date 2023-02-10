@@ -6155,7 +6155,7 @@ explain select * from v_union,t2 where
 (v_union.a=1) and (v_union.a=t2.a) and (v_union.c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -6183,6 +6183,7 @@ EXPLAIN
           "table": {
             "table_name": "<derived2>",
             "access_type": "ALL",
+            "possible_keys": ["distinct_key"],
             "loops": 9,
             "rows": 40,
             "cost": "COST_REPLACED",
@@ -6363,7 +6364,7 @@ and ((v_union.c>800) or (v1.max_c>200));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
 1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	40	Using where; Using join buffer (incremental, BNL join)
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -6434,6 +6435,7 @@ EXPLAIN
           "table": {
             "table_name": "<derived2>",
             "access_type": "ALL",
+            "possible_keys": ["distinct_key"],
             "loops": 180,
             "rows": 40,
             "cost": "COST_REPLACED",
@@ -6536,7 +6538,7 @@ explain select * from v2_union as v,t2 where
 ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	6	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	6	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
@@ -6564,8 +6566,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -6739,7 +6741,7 @@ a	b	c	a	b	c	d
 explain select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	4	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -6765,8 +6767,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -6882,7 +6884,7 @@ a	b	c	a	b	c	d
 explain select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	4	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -6908,8 +6910,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -6992,7 +6994,7 @@ explain select * from v3_union as v,t2 where
 (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	4	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -7019,8 +7021,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -7101,7 +7103,7 @@ a	b	c	a	b	c	d
 explain select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	4	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -7127,8 +7129,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -7233,7 +7235,7 @@ explain select * from v4_union as v,t2 where
 (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	4	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -7260,8 +7262,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -13711,7 +13713,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -13737,8 +13739,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -13824,7 +13826,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -13851,6 +13853,7 @@ EXPLAIN
           "table": {
             "table_name": "<derived2>",
             "access_type": "ALL",
+            "possible_keys": ["distinct_key"],
             "loops": 9,
             "rows": 18,
             "cost": "COST_REPLACED",
@@ -13937,7 +13940,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -13964,6 +13967,7 @@ EXPLAIN
           "table": {
             "table_name": "<derived2>",
             "access_type": "ALL",
+            "possible_keys": ["distinct_key"],
             "loops": 9,
             "rows": 18,
             "cost": "COST_REPLACED",
@@ -14052,7 +14056,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14078,8 +14082,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -14168,7 +14172,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14194,8 +14198,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -14285,7 +14289,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14311,8 +14315,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -14407,7 +14411,7 @@ explain select * from v1,t2 where
 (v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14434,8 +14438,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -14717,7 +14721,7 @@ where
 ((d1.a<4) and (d1.c<200)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.b	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14753,7 +14757,7 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key1"],
+          "possible_keys": ["key1", "distinct_key"],
           "key": "key1",
           "key_length": "5",
           "used_key_parts": ["b"],
@@ -14853,7 +14857,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14879,8 +14883,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -14968,7 +14972,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -14995,6 +14999,7 @@ EXPLAIN
           "table": {
             "table_name": "<derived2>",
             "access_type": "ALL",
+            "possible_keys": ["distinct_key"],
             "loops": 9,
             "rows": 18,
             "cost": "COST_REPLACED",
@@ -15083,7 +15088,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	ALL	distinct_key	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15110,6 +15115,7 @@ EXPLAIN
           "table": {
             "table_name": "<derived2>",
             "access_type": "ALL",
+            "possible_keys": ["distinct_key"],
             "loops": 9,
             "rows": 18,
             "cost": "COST_REPLACED",
@@ -15202,7 +15208,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15228,8 +15234,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -15318,7 +15324,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15344,8 +15350,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -15437,7 +15443,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15463,8 +15469,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -15559,7 +15565,7 @@ explain select * from v1,t2 where
 (v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15586,8 +15592,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -15863,7 +15869,7 @@ where
 ((d1.a>4) and (d1.c>500)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.b	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -15899,7 +15905,7 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key1"],
+          "possible_keys": ["key1", "distinct_key"],
           "key": "key1",
           "key_length": "5",
           "used_key_parts": ["b"],
@@ -15998,7 +16004,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16027,8 +16033,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -16183,7 +16189,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16210,8 +16216,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -16335,7 +16341,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16362,8 +16368,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -16489,7 +16495,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16516,8 +16522,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -16641,7 +16647,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16668,8 +16674,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -16791,7 +16797,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -16820,8 +16826,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -16975,7 +16981,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -17005,8 +17011,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -17487,7 +17493,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17513,8 +17519,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -17610,7 +17616,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17636,8 +17642,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -17735,7 +17741,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	1	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -17761,8 +17767,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -17861,7 +17867,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.a	3	Using where
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
 4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
@@ -17888,8 +17894,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.a"],
@@ -18107,7 +18113,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	1	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.b	1	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	2	Using index condition
 3	UNION	t3	range	i1	i1	5	NULL	1	Using index condition
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -18133,8 +18139,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
@@ -18228,7 +18234,7 @@ a	b	c	a	b	c
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
+1	PRIMARY	<derived2>	ref	key1,distinct_key	key1	5	test.t2.b	2	Using where
 2	DERIVED	t3	range	i1	i1	5	NULL	1	Using index condition
 3	UNION	t3	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -18254,8 +18260,8 @@ EXPLAIN
         "table": {
           "table_name": "<derived2>",
           "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
+          "possible_keys": ["key1", "distinct_key"],
+          "key": "key1",
           "key_length": "5",
           "used_key_parts": ["b"],
           "ref": ["test.t2.b"],
@@ -21357,7 +21363,7 @@ on (t1.id = t2.ro_id AND t2.flag = 1)
 group by t1.id) dt);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
-1	PRIMARY	<derived3>	ref	key1	key1	4	test.t1.id	2	50.00	FirstMatch(t1)
+1	PRIMARY	<derived3>	ref	key1,distinct_key	key1	4	test.t1.id	2	50.00	FirstMatch(t1)
 3	DERIVED	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	Using temporary; Using filesort
 3	DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
 Warnings:
@@ -21470,17 +21476,21 @@ ANALYZE
       {
         "table": {
           "table_name": "<derived2>",
-          "access_type": "ALL",
+          "access_type": "const",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["const"],
           "loops": 1,
           "r_loops": 1,
-          "rows": 4,
-          "r_rows": 2,
+          "rows": 1,
+          "r_rows": 1,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
-          "r_filtered": 50,
-          "attached_condition": "v1.a = 3",
+          "r_filtered": 100,
           "materialized": {
             "query_block": {
               "union_result": {

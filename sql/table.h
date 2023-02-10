@@ -1678,7 +1678,7 @@ public:
                    bool unique);
   void create_key_part_by_field(KEY_PART_INFO *key_part_info,
                                 Field *field, uint fieldnr);
-  void use_index(int key_to_save);
+  void use_index(int key_to_save, key_map *map_to_update);
   void set_table_map(table_map map_arg, uint tablenr_arg)
   {
     map= map_arg;

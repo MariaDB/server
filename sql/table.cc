@@ -8193,7 +8193,7 @@ void TABLE::restore_blob_values(String *blob_storage)
   @param key_count  number of keys to allocate additionally
 
   @details
-  The function allocates memory  to fit additionally 'key_count' keys 
+  The function allocates memory to fit additionally 'key_count' keys
   for this table.
 
   @return FALSE   space was successfully allocated
@@ -8457,28 +8457,59 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
 
 /*
   @brief
-  Drop all indexes except specified one.
+  Drop all indexes except specified one and optionally unique keys.
 
-  @param key_to_save the key to save
+  @param  key_to_save   The key to save
+  @param  map_to_update Bitmap showing some of the table's keys. Update it
+                        to show the same keys, if they are not dropped.
+  @param  unique_keys   Keep unique keys
 
   @details
-  Drop all indexes on this table except 'key_to_save'. The saved key becomes
-  key #0. Memory occupied by key parts of dropped keys are freed.
-  If the 'key_to_save' is negative then all keys are freed.
+  Drop all indexes on this table except 'key_to_save' and unique keys.
+
+  The saved key becomes key #0. If key_to_save=-1 then only unique keys
+  remain.
 */
 
-void TABLE::use_index(int key_to_save)
+void TABLE::use_index(int key_to_save, key_map *map_to_update)
 {
-  uint i= 1;
   DBUG_ASSERT(!created && key_to_save < (int)s->keys);
-  if (key_to_save >= 0)
-    /* Save the given key. */
-    memmove(key_info, key_info + key_to_save, sizeof(KEY));
-  else
-    /* Drop all keys; */
-    i= 0;
+  uint saved_keys= 0, key_parts= 0;
+  key_map new_bitmap;
+  new_bitmap.clear_all();
 
-  s->keys= i;
+  /*
+    If we have key_to_save, move it to be key#0.
+  */
+  if (key_to_save != -1)
+  {
+    new_bitmap.set_bit(saved_keys);
+
+    KEY tmp_buff= key_info[saved_keys];
+    key_info[saved_keys]= key_info[key_to_save];
+    key_info[key_to_save]= tmp_buff;
+    saved_keys++;
+    key_parts= key_info[saved_keys].user_defined_key_parts;
+  }
+
+  /*
+    Now, move all unique keys to the front.
+  */
+  for (uint i= saved_keys; i < s->keys; i++)
+  {
+    if (key_info[i].flags & HA_NOSAME)
+    {
+      if (map_to_update->is_set(i))
+        new_bitmap.set_bit(saved_keys);
+      if (i != saved_keys)
+        key_info[saved_keys]= key_info[i];
+      key_parts+= key_info[saved_keys].user_defined_key_parts;
+      saved_keys++;
+    }
+  }
+  *map_to_update= new_bitmap;
+  s->keys= saved_keys;
+  s->key_parts= s->ext_key_parts= key_parts;
 }
 
 /*
