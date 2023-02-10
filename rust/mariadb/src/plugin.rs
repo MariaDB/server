@@ -84,7 +84,7 @@ pub mod prelude {
 pub mod internals {
     pub use super::encryption_wrapper::{WrapEncryption, WrapKeyMgr};
     pub use super::variables::SysVarInterface;
-    pub use super::wrapper::{new_null_st_maria_plugin, WrapInit};
+    pub use super::wrapper::{new_null_plugin_st, wrap_init_notype, WrapInit};
 }
 
 /// Defines possible licenses for plugins

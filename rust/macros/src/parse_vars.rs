@@ -27,24 +27,18 @@
 //! }
 //! ```
 
-#![allow(unused)]
-
 // use proc_macro::TokenStream;
-use proc_macro2::{Literal, Span, TokenStream, TokenTree};
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::parse::{Parse, ParseBuffer, ParseStream};
+use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::token::Group;
-use syn::{
-    bracketed, parse_macro_input, parse_quote, Attribute, DeriveInput, Error, Expr, ExprArray,
-    ExprLit, ExprStruct, FieldValue, Ident, ImplItem, ImplItemType, Item, ItemImpl, Lit, LitStr,
-    Path, PathSegment, Token, Type, TypePath, TypeReference,
-};
+use syn::{bracketed, parse_quote, Error, Expr, ExprStruct, Ident, Token, TypePath};
 
 use crate::fields::sysvar::{ALL_FIELDS, OPT_FIELDS, REQ_FIELDS};
 use crate::helpers::expect_litstr;
 
+#[allow(dead_code)] // showvar not yet used
 #[derive(Clone, Copy, Debug)]
 enum VarTypeInner {
     SysVar,
@@ -176,7 +170,7 @@ impl VariableInfo {
             return Err(Error::new_spanned(&self.vtype, "missing required field 'vtype'"));
         };
 
-        self.validate_correct_fields(REQ_FIELDS, OPT_FIELDS);
+        self.validate_correct_fields(REQ_FIELDS, OPT_FIELDS)?;
 
         let ty_as_svwrap = quote! { <#vtype as ::mariadb::plugin::internals::SysVarInterface> };
         let name = expect_litstr(&self.name)?;
@@ -266,7 +260,7 @@ impl VariableInfo {
             (&self.max, "max"),
             (&self.interval, "interval"),
         ];
-        let vtype = self.vtype.as_ref().unwrap();
+        let vtype = self.vtype.as_ref().unwrap().to_token_stream();
         let mut req = REQ_FIELDS.to_vec();
         req.extend_from_slice(required);
 
@@ -275,7 +269,7 @@ impl VariableInfo {
 
             if field_val.is_none() {
                 let msg = format!(
-                    "field '{fname}' is expected for variables of type {vtype:?}, but not provided"
+                    "field '{fname}' is expected for variables of type '{vtype}', but not provided"
                 );
                 return Err(Error::new(self.span.unwrap(), msg));
             }
@@ -284,7 +278,7 @@ impl VariableInfo {
         for (field, fname) in name_map {
             if field.is_some() && !req.contains(&fname) && !optional.contains(&fname) {
                 let msg =
-                    format!("field '{fname}' is not expected for variables of type {vtype:?}");
+                    format!("field '{fname}' is not expected for variables of type '{vtype}'");
                 return Err(Error::new_spanned(field.as_ref().unwrap(), msg));
             }
         }

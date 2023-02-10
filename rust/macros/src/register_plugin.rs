@@ -1,25 +1,17 @@
-//!
+//! Macro to register a plugin
 
-#![allow(unused)]
-
-use proc_macro2::{Literal, Span, TokenStream, TokenTree};
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::token::Group;
-use syn::{
-    parse_macro_input, parse_quote, Attribute, DeriveInput, Error, Expr, ExprLit, FieldValue,
-    Ident, ImplItem, ImplItemType, Item, ItemImpl, Lit, LitStr, Path, PathSegment, Token, Type,
-    TypePath, TypeReference,
-};
+use syn::{parse_macro_input, Error, Expr, FieldValue, Ident, Token};
 
 use crate::fields::plugin::{ALL_FIELDS, ENCR_OPT_FIELDS, ENCR_REQ_FIELDS, REQ_FIELDS};
 use crate::helpers::{expect_bool, expect_litstr, make_ident};
-use crate::parse_vars::{self, Variables};
+use crate::parse_vars::Variables;
 
 /// Entrypoint for this proc macro
 pub fn entry(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let tokens_pm2: proc_macro2::TokenStream = tokens.clone().into();
     let input = parse_macro_input!(tokens as PluginInfo);
     let plugindef = input.into_encryption_struct();
     match plugindef {
@@ -267,25 +259,16 @@ impl PluginInfo {
         let ptype = self.ptype.unwrap();
         let system_vars_ptr = variables.sysvar_field;
 
-        let init_fn_name = make_ident(&format!("_{}_init_fn", name.value()));
-
         // We always initialize the logger, maybe do init/deinit if struct requires
-        let fn_init = quote! { Some(#init_fn_name) };
-        let (fn_deinit, init_fn_body);
+        let (fn_deinit, fn_init);
         if let Some(init_ty) = self.init {
             let ty_as_init = quote! { <#init_ty as ::mariadb::plugin::internals::WrapInit> };
-            init_fn_body = quote! { ::mariadb::configure_logger!(); #ty_as_init::wrap_init(_p) };
+            fn_init = quote! { Some(#ty_as_init::wrap_init) };
             fn_deinit = quote! { Some(#ty_as_init::wrap_deinit) };
         } else {
-            init_fn_body = quote! { ::mariadb::configure_logger!(); 0 };
+            fn_init = quote! { Some(::mariadb::plugin::internals::wrap_init_notype) };
             fn_deinit = quote! { None };
         }
-
-        let init_fn = quote! {
-            unsafe extern "C" fn #init_fn_name(_p: *mut std::ffi::c_void) -> std::ffi::c_int {
-                #init_fn_body
-            }
-        };
 
         let plugin_struct = quote! {
             ::mariadb::bindings::st_maria_plugin {
@@ -307,7 +290,6 @@ impl PluginInfo {
 
         Ok(PluginDef {
             name: name.value(),
-            init_fn,
             info_struct,
             plugin_struct,
             variable_body: variables_body,
@@ -326,7 +308,6 @@ struct VariableBodies {
 /// applicable, plus the struct of `st_maria_plugin` that references it
 struct PluginDef {
     name: String,
-    init_fn: TokenStream,
     info_struct: TokenStream,
     plugin_struct: TokenStream,
     variable_body: TokenStream,
@@ -348,18 +329,16 @@ impl PluginDef {
         let size_val = quote! { ::std::mem::size_of::<#plugin_ty>() as ::std::ffi::c_int };
 
         let usynccell = quote! { ::mariadb::internals::UnsafeSyncCell };
-        let null_ps = quote! { ::mariadb::plugin::internals::new_null_st_maria_plugin() };
+        let null_ps = quote! { ::mariadb::plugin::internals::new_null_plugin_st() };
 
         let info_st = self.info_struct;
         let plugin_st = self.plugin_struct;
-        let init_fn = self.init_fn;
         let variable_body = self.variable_body;
 
         quote! { ::std::ptr::null_mut() };
 
         let ret: TokenStream = quote! {
             #info_st
-            #init_fn
             #variable_body
 
             // Different config based on statically or dynamically lynked

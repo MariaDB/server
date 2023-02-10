@@ -45,7 +45,7 @@ pub mod sysvar {
 
     /// Always required
     pub const REQ_FIELDS: &[&str] = &["ident", "vtype", "name", "description"];
-    pub const OPT_FIELDS: &[&str] = &["default", "min", "max", "interval"];
+    pub const OPT_FIELDS: &[&str] = &["default", "options", "min", "max", "interval"];
 
     // unused since we switched to full generics
     pub const _STR_REQ_FIELDS: &[&str] = &[];
