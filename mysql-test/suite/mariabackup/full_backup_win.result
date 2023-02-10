@@ -1,0 +1,12 @@
+#
+# MDEV-30492 Crash when use mariabackup.exe with config 'innodb_flush_method=async_unbuffered'
+#
+# xtrabackup backup
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+#
+# End of 10.4 tests
+#

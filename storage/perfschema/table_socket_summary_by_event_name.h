@@ -76,8 +76,7 @@ private:
   table_socket_summary_by_event_name();
 
 public:
-  ~table_socket_summary_by_event_name()
-  {}
+  ~table_socket_summary_by_event_name() = default;
 
 private:
   void make_row(PFS_socket_class *socket_class);

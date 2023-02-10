@@ -47,7 +47,7 @@ struct hstcpsvr_i;
 typedef std::auto_ptr<hstcpsvr_i> hstcpsvr_ptr;
 
 struct hstcpsvr_i {
-  virtual ~hstcpsvr_i() { }
+  virtual ~hstcpsvr_i() = default;
   virtual std::string start_listen() = 0;
   static hstcpsvr_ptr create(const config& conf);
 };

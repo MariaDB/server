@@ -195,7 +195,7 @@ public:
   /* True if the container does not contain any element */
   virtual bool is_empty() = 0;
 
-  virtual ~Rowid_filter_container() {}
+  virtual ~Rowid_filter_container() = default;
 };
 
 
@@ -232,7 +232,7 @@ public:
   */
   virtual bool check(char *elem) = 0;
 
-  virtual ~Rowid_filter() {}
+  virtual ~Rowid_filter() = default;
 
   bool is_empty() { return container->is_empty(); }
 

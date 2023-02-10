@@ -44,8 +44,7 @@ namespace mrn {
       match_columns_(match_columns) {
   }
 
-  QueryParser::~QueryParser() {
-  }
+  QueryParser::~QueryParser() = default;
 
   grn_rc QueryParser::parse(const char *query, size_t query_length) {
     MRN_DBUG_ENTER_METHOD();

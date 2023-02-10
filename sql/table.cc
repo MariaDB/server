@@ -8643,7 +8643,7 @@ bool is_simple_order(ORDER *order)
 class Turn_errors_to_warnings_handler : public Internal_error_handler
 {
 public:
-  Turn_errors_to_warnings_handler() {}
+  Turn_errors_to_warnings_handler() = default;
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,

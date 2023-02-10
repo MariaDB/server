@@ -12,9 +12,12 @@
 #
 
 --source include/master-slave.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 --connection slave
 --source include/stop_slave.inc
+--let $old_debug_dbug= `SELECT @@global.debug_dbug`
 --let $master_delay= 3
 --eval change master to master_delay=$master_delay, master_use_gtid=Slave_Pos
 --let $old_slave_threads= `SELECT @@GLOBAL.slave_parallel_threads`
@@ -82,11 +85,23 @@ sleep 3;
 --eval insert into t1 values ($insert_ctr)
 --inc $insert_ctr
 --let $ts_trx_after_ins= `SELECT UNIX_TIMESTAMP()`
+--source include/save_master_pos.inc
 
 --connection slave
 LOCK TABLES t1 WRITE;
 
+SET @@global.debug_dbug="+d,pause_sql_thread_on_next_event";
+
 START SLAVE IO_THREAD;
+
+--echo # Before we start processing the events, we ensure both transactions
+--echo # were written into the relay log. Otherwise, if the IO thread takes too
+--echo # long to queue the events, the sql thread can think it has caught up
+--echo # too quickly.
+SET DEBUG_SYNC='now WAIT_FOR paused_on_event';
+--source include/sync_io_with_master.inc
+SET @@global.debug_dbug="-d,pause_sql_thread_on_next_event";
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
 
 --echo # Wait for first transaction to complete SQL delay and begin execution..
 --let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock%' AND command LIKE 'Slave_Worker';
@@ -120,6 +135,8 @@ UNLOCK TABLES;
 --source include/stop_slave.inc
 --eval CHANGE MASTER TO master_delay=0
 --eval set @@GLOBAL.slave_parallel_threads=$old_slave_threads
+--eval SET @@global.debug_dbug="$old_debug_dbug"
+SET DEBUG_SYNC='RESET';
 --source include/start_slave.inc
 
 --connection master

@@ -153,7 +153,7 @@ class time_collector
 
 public:
   time_collector(utility& u): m_utility(&u) { flush(); }
-  ~time_collector() { }
+  ~time_collector() = default;
   uint32_t count(uint index) { return m_count[index]; }
   uint64_t total(uint index) { return m_total[index]; }
   void flush()

@@ -122,7 +122,7 @@ class DllExport PRXCOL : public COLBLK {
           char *Decode(PGLOBAL g, const char *cnm);
 
   // Default constructor not to be used
-  PRXCOL(void) {}
+  PRXCOL(void) = default;
 
   // Members
   PCOL     Colp;               // Points to matching table column

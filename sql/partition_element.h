@@ -159,7 +159,7 @@ public:
     empty(part_elem->empty),
     type(CONVENTIONAL)
   {}
-  ~partition_element() {}
+  ~partition_element() = default;
 
   part_column_list_val& get_col_val(uint idx)
   {

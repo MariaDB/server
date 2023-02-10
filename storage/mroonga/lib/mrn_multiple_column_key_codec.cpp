@@ -70,8 +70,7 @@ namespace mrn {
       key_info_(key_info) {
   }
 
-  MultipleColumnKeyCodec::~MultipleColumnKeyCodec() {
-  }
+  MultipleColumnKeyCodec::~MultipleColumnKeyCodec() = default;
 
   int MultipleColumnKeyCodec::encode(const uchar *mysql_key,
                                      uint mysql_key_length,

@@ -27,7 +27,7 @@ struct dbcontext_i;
 typedef std::auto_ptr<dbcontext_i> dbcontext_ptr;
 
 struct database_i {
-  virtual ~database_i() { }
+  virtual ~database_i() = default;
   virtual dbcontext_ptr create_context(bool for_write) volatile = 0;
   virtual void stop() volatile = 0;
   virtual const config& get_conf() const volatile = 0;
@@ -57,7 +57,7 @@ struct prep_stmt {
 };
 
 struct dbcallback_i {
-  virtual ~dbcallback_i () { }
+  virtual ~dbcallback_i() = default;
   virtual void dbcb_set_prep_stmt(size_t pst_id, const prep_stmt& v) = 0;
   virtual const prep_stmt *dbcb_get_prep_stmt(size_t pst_id) const = 0;
   virtual void dbcb_resp_short(uint32_t code, const char *msg) = 0;
@@ -111,7 +111,7 @@ struct cmd_exec_args {
 };
 
 struct dbcontext_i {
-  virtual ~dbcontext_i() { }
+  virtual ~dbcontext_i() = default;
   virtual void init_thread(const void *stack_bottom,
     volatile int& shutdown_flag) = 0;
   virtual void term_thread() = 0;

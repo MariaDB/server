@@ -67,8 +67,7 @@ protected:
   table_users();
 
 public:
-  ~table_users()
-  {}
+  ~table_users() = default;
 
 private:
   virtual void make_row(PFS_user *pfs);

@@ -285,7 +285,7 @@ public:
 	{
 	}
 #else
-	ut_allocator() {}
+	ut_allocator() = default;
 	ut_allocator(PSI_memory_key) {}
 #endif /* UNIV_PFS_MEMORY */
 

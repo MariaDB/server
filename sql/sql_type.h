@@ -393,7 +393,7 @@ class Dec_ptr
 {
 protected:
   my_decimal *m_ptr;
-  Dec_ptr() { }
+  Dec_ptr() = default;
 public:
   Dec_ptr(my_decimal *ptr) :m_ptr(ptr) { }
   bool is_null() const { return m_ptr == NULL; }
@@ -540,7 +540,7 @@ protected:
   {
     m_sec= m_usec= m_neg= m_truncated= 0;
   }
-  Sec6() { }
+  Sec6() = default;
   bool add_nanoseconds(uint nanoseconds)
   {
     DBUG_ASSERT(nanoseconds <= 1000000000);
@@ -700,7 +700,7 @@ protected:
     Sec6::make_from_int(nr);
     m_nsec= 0;
   }
-  Sec9() { }
+  Sec9() = default;
 public:
   Sec9(const my_decimal *d)
   {
@@ -2853,7 +2853,7 @@ class Timestamp_or_zero_datetime_native:
           public NativeBuffer<STRING_BUFFER_TIMESTAMP_BINARY_SIZE>
 {
 public:
-  Timestamp_or_zero_datetime_native() { }
+  Timestamp_or_zero_datetime_native() = default;
   Timestamp_or_zero_datetime_native(const Timestamp_or_zero_datetime &ts,
                                     uint decimals)
   {
@@ -3334,7 +3334,7 @@ public:
   Type_all_attributes(const Type_all_attributes &other)
    :Type_std_attributes(other)
   { }
-  virtual ~Type_all_attributes() {}
+  virtual ~Type_all_attributes() = default;
   virtual void set_maybe_null(bool maybe_null_arg)= 0;
   // Returns total number of decimal digits
   virtual uint decimal_precision() const= 0;
@@ -3346,7 +3346,7 @@ public:
 class Type_cmp_attributes
 {
 public:
-  virtual ~Type_cmp_attributes() { }
+  virtual ~Type_cmp_attributes() = default;
   virtual CHARSET_INFO *compare_collation() const= 0;
 };
 
@@ -3557,9 +3557,9 @@ enum vers_kind_t
 class Vers_type_handler
 {
 protected:
-  Vers_type_handler() {}
+  Vers_type_handler() = default;
 public:
-  virtual ~Vers_type_handler() {}
+  virtual ~Vers_type_handler() = default;
   virtual vers_kind_t kind() const
   {
     DBUG_ASSERT(0);
@@ -3856,7 +3856,7 @@ public:
     return false;
   }
   Type_handler() : m_name(0,0) {}
-  virtual ~Type_handler() {}
+  virtual ~Type_handler() = default;
   /**
     Determines MariaDB traditional scalar data types that always present
     in the server.
@@ -4373,7 +4373,7 @@ public:
 class Type_handler_row: public Type_handler
 {
 public:
-  virtual ~Type_handler_row() {}
+  virtual ~Type_handler_row() = default;
   const Name &default_value() const override;
   bool validate_implicit_default_value(THD *, const Column_definition &)
     const override
@@ -4777,7 +4777,7 @@ public:
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
                                   MYSQL_TIME *, date_mode_t fuzzydate) const
     override;
-  virtual ~Type_handler_numeric() { }
+  virtual ~Type_handler_numeric() = default;
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
@@ -4802,7 +4802,7 @@ public:
   {
     return DYN_COL_DOUBLE;
   }
-  virtual ~Type_handler_real_result() {}
+  virtual ~Type_handler_real_result() = default;
   const Type_handler *type_handler_for_comparison() const override;
   Field *make_table_field(MEM_ROOT *root,
                           const LEX_CSTRING *name,
@@ -4923,7 +4923,7 @@ public:
   {
     return DYN_COL_DECIMAL;
   }
-  virtual ~Type_handler_decimal_result() {};
+  virtual ~Type_handler_decimal_result() = default;
   const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *, Field *field, Item *item) const override
   {
@@ -5183,7 +5183,7 @@ public:
   }
   bool is_order_clause_position_type() const override { return true; }
   bool is_limit_clause_valid_type() const override { return true; }
-  virtual ~Type_handler_int_result() {}
+  virtual ~Type_handler_int_result() = default;
   const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const override;
   bool subquery_type_allows_materialization(const Item *inner,
@@ -5303,7 +5303,7 @@ protected:
 public:
   Item_result result_type() const override { return STRING_RESULT; }
   Item_result cmp_type() const override { return TIME_RESULT; }
-  virtual ~Type_handler_temporal_result() {}
+  virtual ~Type_handler_temporal_result() = default;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -5401,7 +5401,7 @@ public:
     return DYN_COL_STRING;
   }
   CHARSET_INFO *charset_for_protocol(const Item *item) const override;
-  virtual ~Type_handler_string_result() {}
+  virtual ~Type_handler_string_result() = default;
   const Type_handler *type_handler_for_comparison() const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const
     override;
@@ -5591,7 +5591,7 @@ public:
 class Type_handler_tiny: public Type_handler_general_purpose_int
 {
 public:
-  virtual ~Type_handler_tiny() {}
+  virtual ~Type_handler_tiny() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_TINY; }
   const Type_handler *type_handler_unsigned() const override;
   const Type_handler *type_handler_signed() const override;
@@ -5642,7 +5642,7 @@ public:
 class Type_handler_short: public Type_handler_general_purpose_int
 {
 public:
-  virtual ~Type_handler_short() {}
+  virtual ~Type_handler_short() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_SHORT; }
   const Type_handler *type_handler_unsigned() const override;
   const Type_handler *type_handler_signed() const override;
@@ -5693,7 +5693,7 @@ public:
 class Type_handler_long: public Type_handler_general_purpose_int
 {
 public:
-  virtual ~Type_handler_long() {}
+  virtual ~Type_handler_long() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_LONG; }
   const Type_handler *type_handler_unsigned() const override;
   const Type_handler *type_handler_signed() const override;
@@ -5755,7 +5755,7 @@ public:
 class Type_handler_longlong: public Type_handler_general_purpose_int
 {
 public:
-  virtual ~Type_handler_longlong() {}
+  virtual ~Type_handler_longlong() = default;
   enum_field_types field_type() const  override{ return MYSQL_TYPE_LONGLONG; }
   const Type_handler *type_handler_unsigned() const override;
   const Type_handler *type_handler_signed() const override;
@@ -5810,7 +5810,7 @@ public:
 class Type_handler_vers_trx_id: public Type_handler_ulonglong
 {
 public:
-  virtual ~Type_handler_vers_trx_id() {}
+  virtual ~Type_handler_vers_trx_id() = default;
   Field *make_table_field(MEM_ROOT *root,
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
@@ -5822,7 +5822,7 @@ public:
 class Type_handler_int24: public Type_handler_general_purpose_int
 {
 public:
-  virtual ~Type_handler_int24() {}
+  virtual ~Type_handler_int24() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_INT24; }
   const Type_handler *type_handler_unsigned() const override;
   const Type_handler *type_handler_signed() const override;
@@ -5867,7 +5867,7 @@ public:
 class Type_handler_year: public Type_handler_int_result
 {
 public:
-  virtual ~Type_handler_year() {}
+  virtual ~Type_handler_year() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_YEAR; }
   uint flags() const override { return UNSIGNED_FLAG; }
   protocol_send_type_t protocol_send_type() const override
@@ -5921,7 +5921,7 @@ public:
 class Type_handler_bit: public Type_handler_int_result
 {
 public:
-  virtual ~Type_handler_bit() {}
+  virtual ~Type_handler_bit() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_BIT; }
   uint flags() const override { return UNSIGNED_FLAG; }
   protocol_send_type_t protocol_send_type() const override
@@ -5986,7 +5986,7 @@ public:
 class Type_handler_float: public Type_handler_real_result
 {
 public:
-  virtual ~Type_handler_float() {}
+  virtual ~Type_handler_float() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_FLOAT; }
   protocol_send_type_t protocol_send_type() const override
   {
@@ -6040,7 +6040,7 @@ public:
 class Type_handler_double: public Type_handler_real_result
 {
 public:
-  virtual ~Type_handler_double() {}
+  virtual ~Type_handler_double() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_DOUBLE; }
   protocol_send_type_t protocol_send_type() const override
   {
@@ -6095,7 +6095,7 @@ public:
 class Type_handler_time_common: public Type_handler_temporal_result
 {
 public:
-  virtual ~Type_handler_time_common() { }
+  virtual ~Type_handler_time_common() = default;
   const Name &default_value() const override;
   enum_field_types field_type() const override { return MYSQL_TYPE_TIME; }
   enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr)
@@ -6217,7 +6217,7 @@ class Type_handler_time: public Type_handler_time_common
   static uint m_hires_bytes[MAX_DATETIME_PRECISION+1];
 public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
-  virtual ~Type_handler_time() {}
+  virtual ~Type_handler_time() = default;
   const Name version() const override { return version_mariadb53(); }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return MIN_TIME_WIDTH; }
@@ -6247,7 +6247,7 @@ public:
 class Type_handler_time2: public Type_handler_time_common
 {
 public:
-  virtual ~Type_handler_time2() {}
+  virtual ~Type_handler_time2() = default;
   const Name version() const override { return version_mysql56(); }
   enum_field_types real_field_type() const override { return MYSQL_TYPE_TIME2; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
@@ -6277,7 +6277,7 @@ public:
 class Type_handler_temporal_with_date: public Type_handler_temporal_result
 {
 public:
-  virtual ~Type_handler_temporal_with_date() {}
+  virtual ~Type_handler_temporal_with_date() = default;
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                     CHARSET_INFO *cs, bool send_error)
                                     const override;
@@ -6307,7 +6307,7 @@ public:
 class Type_handler_date_common: public Type_handler_temporal_with_date
 {
 public:
-  virtual ~Type_handler_date_common() {}
+  virtual ~Type_handler_date_common() = default;
   const Name &default_value() const override;
   const Type_handler *type_handler_for_comparison() const override;
   enum_field_types field_type() const override { return MYSQL_TYPE_DATE; }
@@ -6378,7 +6378,7 @@ public:
 class Type_handler_date: public Type_handler_date_common
 {
 public:
-  virtual ~Type_handler_date() {}
+  virtual ~Type_handler_date() = default;
   uint32 calc_pack_length(uint32 length) const override { return 4; }
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
@@ -6405,7 +6405,7 @@ public:
 class Type_handler_newdate: public Type_handler_date_common
 {
 public:
-  virtual ~Type_handler_newdate() {}
+  virtual ~Type_handler_newdate() = default;
   enum_field_types real_field_type() const override
   {
     return MYSQL_TYPE_NEWDATE;
@@ -6436,7 +6436,7 @@ public:
 class Type_handler_datetime_common: public Type_handler_temporal_with_date
 {
 public:
-  virtual ~Type_handler_datetime_common() {}
+  virtual ~Type_handler_datetime_common() = default;
   const Name &default_value() const override;
   const Type_handler *type_handler_for_comparison() const override;
   enum_field_types field_type() const override
@@ -6520,7 +6520,7 @@ class Type_handler_datetime: public Type_handler_datetime_common
   static uint m_hires_bytes[MAX_DATETIME_PRECISION + 1];
 public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
-  virtual ~Type_handler_datetime() {}
+  virtual ~Type_handler_datetime() = default;
   const Name version() const override { return version_mariadb53(); }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return MAX_DATETIME_WIDTH; }
@@ -6550,7 +6550,7 @@ public:
 class Type_handler_datetime2: public Type_handler_datetime_common
 {
 public:
-  virtual ~Type_handler_datetime2() {}
+  virtual ~Type_handler_datetime2() = default;
   const Name version() const override { return version_mysql56(); }
   enum_field_types real_field_type() const override
   {
@@ -6585,7 +6585,7 @@ class Type_handler_timestamp_common: public Type_handler_temporal_with_date
 protected:
   bool TIME_to_native(THD *, const MYSQL_TIME *from, Native *to, uint dec) const;
 public:
-  virtual ~Type_handler_timestamp_common() {}
+  virtual ~Type_handler_timestamp_common() = default;
   const Name &default_value() const override;
   const Type_handler *type_handler_for_comparison() const override;
   const Type_handler *type_handler_for_native_format() const override;
@@ -6687,7 +6687,7 @@ class Type_handler_timestamp: public Type_handler_timestamp_common
   static uint m_sec_part_bytes[MAX_DATETIME_PRECISION + 1];
 public:
   static uint sec_part_bytes(uint dec) { return m_sec_part_bytes[dec]; }
-  virtual ~Type_handler_timestamp() {}
+  virtual ~Type_handler_timestamp() = default;
   const Name version() const override { return version_mariadb53(); }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return MAX_DATETIME_WIDTH; }
@@ -6717,7 +6717,7 @@ public:
 class Type_handler_timestamp2: public Type_handler_timestamp_common
 {
 public:
-  virtual ~Type_handler_timestamp2() {}
+  virtual ~Type_handler_timestamp2() = default;
   const Name version() const override { return version_mysql56(); }
   enum_field_types real_field_type() const override
   {
@@ -6752,7 +6752,7 @@ public:
 class Type_handler_olddecimal: public Type_handler_decimal_result
 {
 public:
-  virtual ~Type_handler_olddecimal() {}
+  virtual ~Type_handler_olddecimal() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_DECIMAL; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override { return length; }
@@ -6786,7 +6786,7 @@ public:
 class Type_handler_newdecimal: public Type_handler_decimal_result
 {
 public:
-  virtual ~Type_handler_newdecimal() {}
+  virtual ~Type_handler_newdecimal() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_NEWDECIMAL; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override;
@@ -6830,7 +6830,7 @@ public:
 class Type_handler_null: public Type_handler_general_purpose_string
 {
 public:
-  virtual ~Type_handler_null() {}
+  virtual ~Type_handler_null() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_NULL; }
   enum_dynamic_column_type dyncol_type(const Type_all_attributes *attr)
                                        const override
@@ -6902,7 +6902,7 @@ public:
 class Type_handler_string: public Type_handler_longstr
 {
 public:
-  virtual ~Type_handler_string() {}
+  virtual ~Type_handler_string() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_STRING; }
   ulong KEY_pack_flags(uint column_nr) const override
   {
@@ -6957,7 +6957,7 @@ public:
 class Type_handler_var_string: public Type_handler_string
 {
 public:
-  virtual ~Type_handler_var_string() {}
+  virtual ~Type_handler_var_string() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_VAR_STRING; }
   enum_field_types real_field_type() const override { return MYSQL_TYPE_STRING; }
   enum_field_types traditional_merge_field_type() const override
@@ -6987,7 +6987,7 @@ public:
 class Type_handler_varchar: public Type_handler_longstr
 {
 public:
-  virtual ~Type_handler_varchar() {}
+  virtual ~Type_handler_varchar() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_VARCHAR; }
   ulong KEY_pack_flags(uint column_nr) const override
   {
@@ -7059,7 +7059,7 @@ public:
 class Type_handler_hex_hybrid: public Type_handler_varchar
 {
 public:
-  virtual ~Type_handler_hex_hybrid() {}
+  virtual ~Type_handler_hex_hybrid() = default;
   const Type_handler *cast_to_int_type_handler() const override;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
@@ -7102,7 +7102,7 @@ public:
 class Type_handler_blob_common: public Type_handler_longstr
 {
 public:
-  virtual ~Type_handler_blob_common() { }
+  virtual ~Type_handler_blob_common() = default;
   virtual uint length_bytes() const= 0;
   ulong KEY_pack_flags(uint column_nr) const override
   {
@@ -7179,7 +7179,7 @@ public:
 class Type_handler_tiny_blob: public Type_handler_blob_common
 {
 public:
-  virtual ~Type_handler_tiny_blob() {}
+  virtual ~Type_handler_tiny_blob() = default;
   uint length_bytes() const override { return 1; }
   enum_field_types field_type() const override { return MYSQL_TYPE_TINY_BLOB; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
@@ -7196,7 +7196,7 @@ public:
 class Type_handler_medium_blob: public Type_handler_blob_common
 {
 public:
-  virtual ~Type_handler_medium_blob() {}
+  virtual ~Type_handler_medium_blob() = default;
   uint length_bytes() const override { return 3; }
   enum_field_types field_type() const override
   { return MYSQL_TYPE_MEDIUM_BLOB; }
@@ -7214,7 +7214,7 @@ public:
 class Type_handler_long_blob: public Type_handler_blob_common
 {
 public:
-  virtual ~Type_handler_long_blob() {}
+  virtual ~Type_handler_long_blob() = default;
   uint length_bytes() const override { return 4; }
   enum_field_types field_type() const override { return MYSQL_TYPE_LONG_BLOB; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
@@ -7233,7 +7233,7 @@ public:
 class Type_handler_blob: public Type_handler_blob_common
 {
 public:
-  virtual ~Type_handler_blob() {}
+  virtual ~Type_handler_blob() = default;
   uint length_bytes() const override { return 2; }
   enum_field_types field_type() const override { return MYSQL_TYPE_BLOB; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
@@ -7277,7 +7277,7 @@ public:
 class Type_handler_typelib: public Type_handler_general_purpose_string
 {
 public:
-  virtual ~Type_handler_typelib() { }
+  virtual ~Type_handler_typelib() = default;
   enum_field_types field_type() const override { return MYSQL_TYPE_STRING; }
   const Type_handler *type_handler_for_item_field() const override;
   const Type_handler *cast_to_int_type_handler() const override;
@@ -7315,7 +7315,7 @@ public:
 class Type_handler_enum: public Type_handler_typelib
 {
 public:
-  virtual ~Type_handler_enum() {}
+  virtual ~Type_handler_enum() = default;
   enum_field_types real_field_type() const override { return MYSQL_TYPE_ENUM; }
   enum_field_types traditional_merge_field_type() const override
   {
@@ -7356,7 +7356,7 @@ public:
 class Type_handler_set: public Type_handler_typelib
 {
 public:
-  virtual ~Type_handler_set() {}
+  virtual ~Type_handler_set() = default;
   enum_field_types real_field_type() const override { return MYSQL_TYPE_SET; }
   enum_field_types traditional_merge_field_type() const override
   {
@@ -7402,7 +7402,7 @@ public:
 class Function_collection
 {
 public:
-  virtual ~Function_collection() {}
+  virtual ~Function_collection() = default;
   virtual bool init()= 0;
   virtual void cleanup()= 0;
   virtual Create_func *find_native_function_builder(THD *thd,
@@ -7414,11 +7414,8 @@ public:
 class Type_collection
 {
 public:
-  virtual ~Type_collection() {}
-  virtual bool init(Type_handler_data *data)
-  {
-    return false;
-  }
+  virtual ~Type_collection() = default;
+  virtual bool init(Type_handler_data *) { return false; }
   virtual const Type_handler *handler_by_name(const LEX_CSTRING &name) const= 0;
   virtual const Type_handler *aggregate_for_result(const Type_handler *h1,
                                                    const Type_handler *h2)
@@ -7611,7 +7608,7 @@ public:
     const Type_handler *m_handler1;
     const Type_handler *m_handler2;
     const Type_handler *m_result;
-    Pair() { }
+    Pair() = default;
     Pair(const Type_handler *handler1,
          const Type_handler *handler2,
          const Type_handler *result)

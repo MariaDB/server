@@ -56,7 +56,7 @@ public:
   derived_handler(THD *thd_arg, handlerton *ht_arg)
     : thd(thd_arg), ht(ht_arg), derived(0),table(0), tmp_table_param(0),
     unit(0), select(0) {}
-  virtual ~derived_handler() {}
+  virtual ~derived_handler() = default;
 
   /*
     Functions to scan data. All these returns 0 if ok, error code in case

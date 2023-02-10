@@ -190,8 +190,7 @@ protected:
 
   table_events_statements_common(const PFS_engine_table_share *share, void *pos);
 
-  ~table_events_statements_common()
-  {}
+  ~table_events_statements_common() = default;
 
   void make_row_part_1(PFS_events_statements *statement,
                        sql_digest_storage *digest);
@@ -225,8 +224,7 @@ protected:
   table_events_statements_current();
 
 public:
-  ~table_events_statements_current()
-  {}
+  ~table_events_statements_current() = default;
 
 private:
   friend class table_events_statements_history;
@@ -263,8 +261,7 @@ protected:
   table_events_statements_history();
 
 public:
-  ~table_events_statements_history()
-  {}
+  ~table_events_statements_history() = default;
 
 private:
   /** Table share lock. */
@@ -298,8 +295,7 @@ protected:
   table_events_statements_history_long();
 
 public:
-  ~table_events_statements_history_long()
-  {}
+  ~table_events_statements_history_long() = default;
 
 private:
   /** Table share lock. */

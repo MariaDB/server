@@ -51,8 +51,7 @@ protected:
   cursor_by_account(const PFS_engine_table_share *share);
 
 public:
-  ~cursor_by_account()
-  {}
+  ~cursor_by_account() = default;
 
 protected:
   virtual void make_row(PFS_account *account)= 0;

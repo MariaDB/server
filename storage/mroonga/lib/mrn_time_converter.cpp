@@ -33,11 +33,9 @@
 #define MRN_CLASS_NAME "mrn::TimeConverter"
 
 namespace mrn {
-  TimeConverter::TimeConverter() {
-  }
+  TimeConverter::TimeConverter() = default;
 
-  TimeConverter::~TimeConverter() {
-  }
+  TimeConverter::~TimeConverter() = default;
 
   time_t TimeConverter::tm_to_time_gm(struct tm *time, bool *truncated) {
     MRN_DBUG_ENTER_METHOD();

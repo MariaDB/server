@@ -257,7 +257,7 @@ protected:
   bool  SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm);
 
   // Default constructor not to be used
-  BSONCOL(void) {}
+  BSONCOL(void) = default;
 
   // Members
   TDBBSN *Tbp;                  // To the JSN table block
