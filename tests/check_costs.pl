@@ -234,7 +234,7 @@ sub test_engine()
     setup_engine($engine);
     setup($opt_init_query);
     $table= $base_table . "_$engine";
-    if (!defined($opt_skip_create))
+    if (!defined($opt_skip_create) || !check_if_table_exist($table))
     {
         my $index_type="";
 
@@ -270,7 +270,7 @@ sub test_engine()
                  ENGINE= $engine")
             or die "Got error on CREATE TABLE: $DBI::errstr";
     }
-    $cur_rows= get_row_count();
+    $cur_rows= get_row_count($table);
     if ($cur_rows == 0 || !defined($opt_skip_create))
     {
         $dbh->do("insert into $table select
@@ -976,6 +976,8 @@ $sth->execute || die "Got error on '$query': " . $dbh->errstr . "\n";;
 
 sub get_row_count()
 {
+    my ($table)= @_;
+    my ($query, $sth, $row);
     $query= "select count(*) from $table";
     $sth= $dbh->prepare($query) || die "Got error on '$query': " . $dbh->errstr . "\n";
     if (!$sth->execute)
@@ -994,6 +996,7 @@ sub get_row_count()
 sub get_variable()
 {
     my ($name)= @_;
+    my ($query, $sth, $row);
     $query= "select @@" . $name;
     if (!($sth= $dbh->prepare($query)))
     {
@@ -1002,4 +1005,19 @@ sub get_variable()
     $sth->execute || die "Got error on '$query': " . $dbh->errstr . "\n";;
     $row= $sth->fetchrow_arrayref();
     return $row->[0];
+}
+
+
+sub check_if_table_exist()
+{
+    my ($name)= @_;
+    my ($query,$sth);
+    $query= "select 1 from $name limit 1";
+    $sth= $dbh->prepare($query) || die "Got error on '$query': " . $dbh->errstr . "\n";
+    print $sth->fetchrow_arrayref();
+    if (!$sth->execute || !defined($sth->fetchrow_arrayref()))
+    {
+        return 0;               # Table does not exists
+    }
+    return 1;
 }
