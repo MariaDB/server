@@ -13,6 +13,10 @@ on:
 
 name: Rust Validation
 
+env:
+  RUST_BACKTRACE: "1"
+  CARGO_UNSTABLE_SPARSE_REGISTRY: true
+
 jobs:
   check:
     name: "Check (cargo check)"
@@ -46,8 +50,8 @@ jobs:
           include:
             - os: ubuntu-latest
               name: linux
-            # - os: windows-latest
-            #   name: windows
+            - os: windows-latest
+              name: windows
             # - os: macos-latest
             #   name: mac
 
@@ -70,11 +74,9 @@ jobs:
             CPackSourceConfig.cmake
             CTestTestfile.cmake
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - run: sudo apt-get update && sudo apt-get install cmake
-      - uses: dtolnay/rust-toolchain@stable
+      # - run: sudo apt-get update && sudo apt-get install cmake
+      - uses: dtolnay/rust-toolchain@nightly
       - run: cargo test --manifest-path rust/Cargo.toml
-        env:
-          RUST_BACKTRACE: "1"
 
 
   fmt:
