@@ -2906,7 +2906,11 @@ bool Item_exists_subselect::select_prepare_to_be_in()
   bool trans_res= FALSE;
   DBUG_ENTER("Item_exists_subselect::select_prepare_to_be_in");
   if (!optimizer &&
-      thd->lex->sql_command == SQLCOM_SELECT &&
+      (thd->lex->sql_command == SQLCOM_SELECT ||
+       thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+       thd->lex->sql_command == SQLCOM_DELETE_MULTI ||
+       thd->lex->sql_command == SQLCOM_UPDATE ||
+       thd->lex->sql_command == SQLCOM_DELETE) &&
       !unit->first_select()->is_part_of_union() &&
       optimizer_flag(thd, OPTIMIZER_SWITCH_EXISTS_TO_IN) &&
       (is_top_level_item() ||

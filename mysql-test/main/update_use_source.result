@@ -76,7 +76,8 @@ rollback;
 explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	a	ALL	NULL	NULL	NULL	NULL	8	
 start transaction;
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
@@ -316,8 +317,9 @@ rollback;
 #
 explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition; Using where
-2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	4	Using index
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	a	range	t1_c2	t1_c2	5	NULL	2	Using where; Using index
 start transaction;
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
@@ -557,8 +559,9 @@ rollback;
 #
 explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition; Using where
-2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	a	range	t1_c2	t1_c2	5	NULL	2	Using where; Using index
 start transaction;
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4
@@ -799,8 +802,9 @@ rollback;
 #
 explain update t1 set c1=0 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition; Using where
-2	DEPENDENT SUBQUERY	a	ref	t1_c2	t1_c2	5	test.t1.c2	1	Using index
+1	PRIMARY	t1	range	t1_c2	t1_c2	5	NULL	2	Using index condition
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	a	range	t1_c2	t1_c2	5	NULL	2	Using where; Using index
 start transaction;
 update t1 set c1=c1+10 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 affected rows: 4

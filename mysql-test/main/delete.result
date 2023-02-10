@@ -525,7 +525,38 @@ DELETE v2 FROM v2;
 ERROR HY000: Can not delete from join view 'test.v2'
 DROP VIEW v2, v1;
 DROP TABLE t1, t2;
-End of 10.10 tests
+End of 5.5 tests
+#
+# MDEV-30586: DELETE with WHERE containing nested subquery
+#             with set function aggregated in outer subquery
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+create table t2 (b int);
+insert into t2 values (2), (1), (4), (7);
+create table t3 (a int, b int);
+insert into t3 values (2,10), (7,30), (2,30), (1,10), (7,40);
+select * from t1
+where t1.a in (select t3.a from t3 group by t3.a
+having t3.a > any (select t2.b from t2
+where t2.b*10 < sum(t3.b)));
+a
+7
+delete from t1
+where t1.a in (select t3.a from t3 group by t3.a
+having t3.a > any (select t2.b from t2
+where t2.b*10 < sum(t3.b)));
+select * from t1
+where t1.a in (select t3.a from t3 group by t3.a
+having t3.a > any (select t2.b from t2
+where t2.b*10 < sum(t3.b)));
+a
+update t1 set t1.a=t1.a+10
+where t1.a in (select t3.a from t3 group by t3.a
+having t3.a > any (select t2.b from t2
+where t2.b*10 < sum(t3.b)));
+drop table t1,t2,t3;
+End of 10.4 tests
 #
 # MDEV-29428: DELETE with ORDER BY without LIMIT clause
 #
@@ -545,7 +576,8 @@ explain delete from t1
 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	a	ALL	NULL	NULL	NULL	NULL	8	
 delete from t1
 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3;
 select *from t1;
@@ -561,7 +593,8 @@ where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3
 order by c2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-2	DEPENDENT SUBQUERY	a	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	a	ALL	NULL	NULL	NULL	NULL	8	
 delete from t1
 where exists (select 'X' from t1 a where a.c2 = t1.c2) and c2 >= 3
 order by c2;
