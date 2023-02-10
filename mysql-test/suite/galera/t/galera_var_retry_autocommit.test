@@ -25,6 +25,8 @@ SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continu
 SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
 
 --connection node_2
+--let $wait_condition = SELECT count(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+--source include/wait_condition.inc
 TRUNCATE TABLE t1;
 
 --connection node_1
@@ -52,6 +54,8 @@ SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continu
 SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
 
 --connection node_2
+--let $wait_condition = SELECT count(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+--source include/wait_condition.inc
 TRUNCATE TABLE t1;
 
 --connection node_1a
@@ -85,6 +89,8 @@ SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continu
 SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
 
 --connection node_2
+--let $wait_condition = SELECT count(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+--source include/wait_condition.inc
 TRUNCATE TABLE t1;
 
 --connection node_1a
@@ -120,6 +126,11 @@ SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continu
 
 --send INSERT INTO t1 VALUES (5)
 
+--connection node_2
+--let $wait_condition = SELECT count(*)=1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+--source include/wait_condition.inc
+
+--connection node_1
 --disable_query_log
 --disable_result_log
 --let $count = 64
@@ -149,3 +160,4 @@ SELECT COUNT(*) FROM t1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL debug_dbug = NULL;
 DROP TABLE t1;
+

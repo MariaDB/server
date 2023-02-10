@@ -72,6 +72,8 @@ SET SESSION wsrep_retry_autocommit = 64;
 SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
 SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue EXECUTE 64';
 INSERT INTO t1 VALUES (5);
+connection node_2;
+connection node_1;
 connection node_1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
