@@ -7675,7 +7675,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   THD_STAGE_INFO(thd, stage_alter_inplace);
   DBUG_EXECUTE_IF("start_alter_delay_master", {
     debug_sync_set_action(thd,
-                          STRING_WITH_LEN("now wait_for alter_cont"));
+                          STRING_WITH_LEN("now wait_for alter_cont NO_CLEAR_EVENT"));
       });
 
   /* We can abort alter table for any table type */
@@ -10856,7 +10856,7 @@ do_continue:;
 
   DBUG_EXECUTE_IF("start_alter_delay_master", {
     debug_sync_set_action(thd,
-                          STRING_WITH_LEN("now wait_for alter_cont"));
+                          STRING_WITH_LEN("now wait_for alter_cont NO_CLEAR_EVENT"));
       });
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx.tables_opened,

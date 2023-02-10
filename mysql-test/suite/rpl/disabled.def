@@ -15,14 +15,3 @@ rpl_row_binlog_max_cache_size : MDEV-11092
 rpl_row_index_choice      : MDEV-11666
 rpl_auto_increment_update_failure  : disabled for now
 rpl_current_user          : waits for MDEV-22374 fix
-rpl_start_alter_1         : DEBUG_SYNC timeout
-rpl_start_alter_2         : DEBUG_SYNC timeout
-rpl_start_alter_3         : DEBUG_SYNC timeout
-rpl_start_alter_4         : DEBUG_SYNC timeout
-rpl_start_alter_5         : DEBUG_SYNC timeout
-rpl_start_alter_6         : DEBUG_SYNC timeout
-rpl_start_alter_7         : DEBUG_SYNC timeout
-rpl_start_alter_8         : DEBUG_SYNC timeout
-rpl_start_alter_mysqlbinlog_1 : DEBUG_SYNC timeout
-rpl_start_alter_mysqlbinlog_2 : DEBUG_SYNC timeout
-rpl_start_alter_restart_slave : DEBUG_SYNC timeout
