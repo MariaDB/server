@@ -206,6 +206,8 @@ SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "mytop")
 SETA(CPACK_RPM_client_PACKAGE_CONFLICTS
   "MariaDB-server < 11.0.0")
+SETA(CPACK_RPM_client_PACKAGE_REQUIRES
+  "MariaDB-common")
 
 SETA(CPACK_RPM_common_PACKAGE_CONFLICTS
   "MariaDB-server < 10.6.1")
@@ -361,8 +363,8 @@ IF(compat53 AND compat101)
   # Make sure that for these distributions all our rpms require
   # MariaDB-compat, that will replace mysql-libs-5.1
   IF(RPM MATCHES "(rhel|centos)[67]")
-    SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")
-    SET(CPACK_RPM_compat_PACKAGE_CONFLICTS "mariadb-libs < 1:10.1.0")
+    SETA(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")
+    SETA(CPACK_RPM_compat_PACKAGE_CONFLICTS "mariadb-libs < 1:10.1.0")
   ENDIF()
 ENDIF()
 
