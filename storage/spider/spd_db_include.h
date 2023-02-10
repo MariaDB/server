@@ -822,8 +822,8 @@ class spider_db_util
 {
 public:
   uint dbton_id;
-  spider_db_util() {}
-  virtual ~spider_db_util() {}
+  spider_db_util() = default;
+  virtual ~spider_db_util() = default;
   virtual int append_name(
     spider_string *str,
     const char *name,
@@ -970,7 +970,7 @@ public:
   uint dbton_id;
   SPIDER_DB_ROW *next_pos;
   spider_db_row(uint in_dbton_id) : dbton_id(in_dbton_id), next_pos(NULL) {}
-  virtual ~spider_db_row() {}
+  virtual ~spider_db_row() = default;
   virtual int store_to_field(
     Field *field,
     CHARSET_INFO *access_charset
@@ -1002,8 +1002,8 @@ public:
 class spider_db_result_buffer
 {
 public:
-  spider_db_result_buffer() {}
-  virtual ~spider_db_result_buffer() {}
+  spider_db_result_buffer() = default;
+  virtual ~spider_db_result_buffer() = default;
   virtual void clear() = 0;
   virtual bool check_size(
     longlong size
@@ -1016,7 +1016,7 @@ public:
   SPIDER_DB_CONN *db_conn;
   uint           dbton_id;
   spider_db_result(SPIDER_DB_CONN *in_db_conn);
-  virtual ~spider_db_result() {}
+  virtual ~spider_db_result() = default;
   virtual void set_limit(longlong value) {}
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
@@ -1083,7 +1083,7 @@ public:
   spider_db_conn(
     SPIDER_CONN *in_conn
   );
-  virtual ~spider_db_conn() {}
+  virtual ~spider_db_conn() = default;
   virtual int init() = 0;
   virtual void set_limit(longlong value) {}
   virtual bool is_connected() = 0;
@@ -1310,7 +1310,7 @@ public:
     st_spider_share *share,
     uint dbton_id
   ) : dbton_id(dbton_id), spider_share(share) {}
-  virtual ~spider_db_share() {}
+  virtual ~spider_db_share() = default;
   virtual int init() = 0;
   virtual uint get_column_name_length(
     uint field_index
@@ -1358,7 +1358,7 @@ public:
   spider_db_handler(ha_spider *spider, spider_db_share *db_share) :
     dbton_id(db_share->dbton_id), spider(spider), db_share(db_share),
     first_link_idx(-1) {}
-  virtual ~spider_db_handler() {}
+  virtual ~spider_db_handler() = default;
   virtual int init() = 0;
   virtual int append_index_hint(
     spider_string *str,
@@ -1857,7 +1857,7 @@ public:
   spider_db_share *db_share;
   spider_db_copy_table(spider_db_share *db_share) :
     dbton_id(db_share->dbton_id), db_share(db_share) {}
-  virtual ~spider_db_copy_table() {}
+  virtual ~spider_db_copy_table() = default;
   virtual int init() = 0;
   virtual void set_sql_charset(
     CHARSET_INFO *cs

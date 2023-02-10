@@ -245,8 +245,7 @@ class Sql_condition_identity: public Sql_state_errno_level,
                               public Sql_user_condition_identity
 {
 public:
-  Sql_condition_identity()
-  { }
+  Sql_condition_identity() = default;
   Sql_condition_identity(const Sql_state_errno_level &st,
                          const Sql_user_condition_identity &ucid)
    :Sql_state_errno_level(st),
@@ -447,8 +446,7 @@ private:
   }
 
   /** Destructor. */
-  ~Sql_condition()
-  {}
+  ~Sql_condition() = default;
 
   /**
     Copy optional condition items attributes.
@@ -869,8 +867,8 @@ public:
 class ErrConv: public ErrBuff
 {
 public:
-  ErrConv() {}
-  virtual ~ErrConv() {}
+  ErrConv() = default;
+  virtual ~ErrConv() = default;
   virtual LEX_CSTRING lex_cstring() const= 0;
   inline const char *ptr() const
   {

@@ -469,7 +469,7 @@ public:
   class Handler
   {
   public:
-    virtual ~Handler() { }
+    virtual ~Handler() = default;
     virtual String *val_str(Item_handled_func *, String *) const= 0;
     virtual String *val_str_ascii(Item_handled_func *, String *) const= 0;
     virtual double val_real(Item_handled_func *) const= 0;
@@ -3860,8 +3860,7 @@ public:
   Item_func_sp(THD *thd, Name_resolution_context *context_arg,
                sp_name *name, const Sp_handler *sph, List<Item> &list);
 
-  virtual ~Item_func_sp()
-  {}
+  virtual ~Item_func_sp() = default;
 
   void update_used_tables() override;
 

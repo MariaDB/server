@@ -24,7 +24,7 @@ struct hstcpsvr_worker_arg {
 };
 
 struct hstcpsvr_worker_i {
-  virtual ~hstcpsvr_worker_i() { }
+  virtual ~hstcpsvr_worker_i() = default;
   virtual void run() = 0;
   static hstcpsvr_worker_ptr create(const hstcpsvr_worker_arg& arg);
 };

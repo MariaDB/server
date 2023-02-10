@@ -43,8 +43,7 @@ protected:
   table_session_connect_attrs();
 
 public:
-  ~table_session_connect_attrs()
-  {}
+  ~table_session_connect_attrs() = default;
 
 private:
   /** Table share lock. */

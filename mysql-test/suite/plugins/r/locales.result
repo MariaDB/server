@@ -1,3 +1,4 @@
+SET names utf8;
 select * from information_schema.locales;
 ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOUSAND_SEP	ERROR_MESSAGE_LANGUAGE
 0	en_US	English - United States	9	9	.	,	english
@@ -52,7 +53,7 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 49	ta_IN	Tamil - India	10	8	.	,	english
 50	te_IN	Telugu - India	10	9	.	,	english
 51	th_TH	Thai - Thailand	10	8	.	,	english
-52	tr_TR	Turkish - Turkey	7	9	,	.	english
+52	tr_TR	Turkish - Türkiye	7	9	,	.	english
 53	uk_UA	Ukrainian - Ukraine	8	9	,	.	ukrainian
 54	ur_PK	Urdu - Pakistan	6	6	.	,	english
 55	vi_VN	Vietnamese - Vietnam	16	11	,	.	english
@@ -165,7 +166,7 @@ Id	Name	Description	Error_Message_Language
 49	ta_IN	Tamil - India	english
 50	te_IN	Telugu - India	english
 51	th_TH	Thai - Thailand	english
-52	tr_TR	Turkish - Turkey	english
+52	tr_TR	Turkish - Türkiye	english
 53	uk_UA	Ukrainian - Ukraine	ukrainian
 54	ur_PK	Urdu - Pakistan	english
 55	vi_VN	Vietnamese - Vietnam	english

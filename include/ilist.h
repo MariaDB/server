@@ -27,12 +27,11 @@
 // Derive your class from this struct to insert to a linked list.
 template <class Tag= void> struct ilist_node
 {
-  ilist_node() noexcept
 #ifndef DBUG_OFF
-      : next(NULL), prev(NULL)
+  ilist_node() noexcept : next(NULL), prev(NULL) {}
+#else
+  ilist_node() = default;
 #endif
-  {
-  }
 
   ilist_node(ilist_node *next, ilist_node *prev) noexcept
       : next(next), prev(prev)

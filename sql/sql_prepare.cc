@@ -4031,9 +4031,7 @@ Reprepare_observer::report_error(THD *thd)
 * Server_runnable
 *******************************************************************/
 
-Server_runnable::~Server_runnable()
-{
-}
+Server_runnable::~Server_runnable() = default;
 
 ///////////////////////////////////////////////////////////////////////////
 

@@ -393,6 +393,8 @@ static int add_collation(struct charset_info_st *cs)
                                   &my_charset_utf8mb4_unicode_ci,
                                   cs);
         newcs->m_ctype= my_charset_utf8mb4_unicode_ci.m_ctype;
+        if (init_state_maps(newcs))
+          return MY_XML_ERROR;
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED;
 #endif
       }

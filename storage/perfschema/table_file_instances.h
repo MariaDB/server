@@ -74,8 +74,7 @@ private:
   table_file_instances();
 
 public:
-  ~table_file_instances()
-  {}
+  ~table_file_instances() = default;
 
 private:
   void make_row(PFS_file *pfs);

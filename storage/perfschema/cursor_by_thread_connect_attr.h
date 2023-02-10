@@ -70,8 +70,7 @@ protected:
   cursor_by_thread_connect_attr(const PFS_engine_table_share *share);
 
 public:
-  ~cursor_by_thread_connect_attr()
-  {}
+  ~cursor_by_thread_connect_attr() = default;
 
 protected:
   virtual void make_row(PFS_thread *thread, uint ordinal)= 0;

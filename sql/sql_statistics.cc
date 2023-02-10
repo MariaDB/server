@@ -512,7 +512,7 @@ public:
   } 
 
 
-  virtual ~Stat_table() {}
+  virtual ~Stat_table() = default;
 
   /**
     @brief
@@ -1624,7 +1624,7 @@ protected:
 
 public:
   
-  Count_distinct_field() {}
+  Count_distinct_field() = default;
 
   /**
     @param

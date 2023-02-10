@@ -200,7 +200,7 @@ class ACL_USER :public ACL_USER_BASE,
 {
 public:
 
-  ACL_USER() { }
+  ACL_USER() = default;
   ACL_USER(THD *thd, const LEX_USER &combo,
            const Account_options &options,
            const privilege_t privileges);
@@ -338,7 +338,7 @@ class ACL_PROXY_USER :public ACL_ACCESS
     MYSQL_PROXIES_PRIV_GRANTOR,
     MYSQL_PROXIES_PRIV_TIMESTAMP } proxy_table_fields;
 public:
-  ACL_PROXY_USER () {};
+  ACL_PROXY_USER () = default;
 
   void init(const char *host_arg, const char *user_arg,
        const char *proxied_host_arg, const char *proxied_user_arg,
@@ -929,7 +929,7 @@ class User_table: public Grant_table_base
   virtual longlong get_password_lifetime () const = 0;
   virtual int set_password_lifetime (longlong x) const = 0;
 
-  virtual ~User_table() {}
+  virtual ~User_table() = default;
  private:
   friend class Grant_tables;
   virtual int setup_sysvars() const = 0;
@@ -1278,7 +1278,7 @@ class User_table_tabular: public User_table
     return 1;
   }
 
-  virtual ~User_table_tabular() {}
+  virtual ~User_table_tabular() = default;
  private:
   friend class Grant_tables;
 
@@ -1689,7 +1689,7 @@ class User_table_json: public User_table
   int set_password_expired (bool x) const
   { return x ? set_password_last_changed(0) : 0; }
 
-  ~User_table_json() {}
+  ~User_table_json() = default;
  private:
   friend class Grant_tables;
   static const uint JSON_SIZE=1024;
@@ -5316,7 +5316,7 @@ public:
   GRANT_NAME(const char *h, const char *d,const char *u,
              const char *t, privilege_t p, bool is_routine);
   GRANT_NAME (TABLE *form, bool is_routine);
-  virtual ~GRANT_NAME() {};
+  virtual ~GRANT_NAME() = default;
   virtual bool ok() { return privs != NO_ACL; }
   void set_user_details(const char *h, const char *d,
                         const char *u, const char *t,
@@ -11607,8 +11607,7 @@ public:
     : is_grave(FALSE)
   {}
 
-  virtual ~Silence_routine_definer_errors()
-  {}
+  virtual ~Silence_routine_definer_errors() = default;
 
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,

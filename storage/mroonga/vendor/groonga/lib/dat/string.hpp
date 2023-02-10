@@ -35,9 +35,7 @@ class GRN_DAT_API String {
   explicit String(const char (&str)[T])
       : ptr_(reinterpret_cast<const UInt8 *>(str)),
         length_(T - 1) {}
-  String(const String &rhs)
-      : ptr_(rhs.ptr_),
-        length_(rhs.length_) {}
+  String(const String &rhs) = default;
 
   String &operator=(const String &rhs) {
     set_ptr(rhs.ptr());

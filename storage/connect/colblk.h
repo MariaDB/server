@@ -177,7 +177,7 @@ class DllExport TIDBLK : public SPCBLK {
 
  protected:
   // Default constructor not to be used
-  TIDBLK(void) {}
+  TIDBLK(void) = default;
 
   // Members
   PCSZ  Tname;                      // The current table name
@@ -200,7 +200,7 @@ class DllExport PRTBLK : public SPCBLK {
 
  protected:
   // Default constructor not to be used
-  PRTBLK(void) {}
+  PRTBLK(void) = default;
 
   // Members
   PCSZ  Pname;                      // The current partition name
@@ -223,7 +223,7 @@ class DllExport SIDBLK : public SPCBLK {
 
  protected:
   // Default constructor not to be used
-  SIDBLK(void) {}
+  SIDBLK(void) = default;
 
   // Members
   PCSZ  Sname;                      // The current server name

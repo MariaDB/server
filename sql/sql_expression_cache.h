@@ -36,8 +36,8 @@ class Expression_cache :public Sql_alloc
 public:
   enum result {ERROR, HIT, MISS};
 
-  Expression_cache(){};
-  virtual ~Expression_cache() {};
+  Expression_cache()= default;
+  virtual ~Expression_cache() = default;
   /**
     Shall check the presence of expression value in the cache for a given
     set of values of the expression parameters.  Return the result of the

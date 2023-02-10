@@ -33,7 +33,7 @@ struct hstcpcli_i;
 typedef std::auto_ptr<hstcpcli_i> hstcpcli_ptr;
 
 struct hstcpcli_i {
-  virtual ~hstcpcli_i() { }
+  virtual ~hstcpcli_i() = default;
   virtual void close() = 0;
   virtual int reconnect() = 0;
   virtual bool stable_point() = 0;

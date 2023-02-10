@@ -136,14 +136,13 @@ public:
   void restore_env(THD *thd, Object_creation_ctx *backup_ctx);
 
 protected:
-  Object_creation_ctx() {}
+  Object_creation_ctx() = default;
   virtual Object_creation_ctx *create_backup_ctx(THD *thd) const = 0;
 
   virtual void change_env(THD *thd) const = 0;
 
 public:
-  virtual ~Object_creation_ctx()
-  { }
+  virtual ~Object_creation_ctx() = default;
 };
 
 /*************************************************************************/
@@ -550,7 +549,7 @@ protected:
 
 public:
   Table_check_intact(bool keys= false) : has_keys(keys) {}
-  virtual ~Table_check_intact() {}
+  virtual ~Table_check_intact() = default;
 
   /** Checks whether a table is intact. */
   bool check(TABLE *table, const TABLE_FIELD_DEF *table_def);
@@ -722,7 +721,7 @@ public:
 
 struct TABLE_SHARE
 {
-  TABLE_SHARE() {}                    /* Remove gcc warning */
+  TABLE_SHARE() = default;                    /* Remove gcc warning */
 
   /** Category of this table. */
   TABLE_CATEGORY table_category;
@@ -1264,7 +1263,7 @@ struct vers_select_conds_t;
 
 struct TABLE
 {
-  TABLE() {}                               /* Remove gcc warning */
+  TABLE() = default;                               /* Remove gcc warning */
 
   TABLE_SHARE	*s;
   handler	*file;
@@ -2182,7 +2181,7 @@ class Index_hint;
 
 struct TABLE_CHAIN
 {
-  TABLE_CHAIN() {}
+  TABLE_CHAIN() = default;
 
   TABLE_LIST **start_pos;
   TABLE_LIST ** end_pos;
@@ -2193,7 +2192,7 @@ struct TABLE_CHAIN
 
 struct TABLE_LIST
 {
-  TABLE_LIST() {}                          /* Remove gcc warning */
+  TABLE_LIST() = default;                          /* Remove gcc warning */
 
   enum prelocking_types
   {
@@ -2958,8 +2957,8 @@ class Item;
 class Field_iterator: public Sql_alloc
 {
 public:
-  Field_iterator() {}                         /* Remove gcc warning */
-  virtual ~Field_iterator() {}
+  Field_iterator() = default;                         /* Remove gcc warning */
+  virtual ~Field_iterator() = default;
   virtual void set(TABLE_LIST *)= 0;
   virtual void next()= 0;
   virtual bool end_of_fields()= 0;              /* Return 1 at end of list */
@@ -3020,7 +3019,7 @@ class Field_iterator_natural_join: public Field_iterator
   Natural_join_column *cur_column_ref;
 public:
   Field_iterator_natural_join() :cur_column_ref(NULL) {}
-  ~Field_iterator_natural_join() {}
+  ~Field_iterator_natural_join() = default;
   void set(TABLE_LIST *table);
   void next();
   bool end_of_fields() { return !cur_column_ref; }

@@ -81,7 +81,7 @@ public:
 
   span(const span &other) : data_(other.data_), size_(other.size_) {}
 
-  ~span(){};
+  ~span() = default;
 
   span &operator=(const span &other)
   {
