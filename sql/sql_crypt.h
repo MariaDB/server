@@ -30,12 +30,12 @@ class SQL_CRYPT :public Sql_alloc
   char decode_buff[256],encode_buff[256];
   uint shift;
  public:
-  SQL_CRYPT() {}
+  SQL_CRYPT() = default;
   SQL_CRYPT(ulong *seed)
   {
     init(seed);
   }
-  ~SQL_CRYPT() {}
+  ~SQL_CRYPT() = default;
   void init(ulong *seed);
   void reinit() { shift=0; rand=org_rand; }
   void encode(char *str, uint length);

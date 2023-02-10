@@ -8277,11 +8277,11 @@ ER_INVALID_DEFAULT_VALUE_FOR_FIELD  22007
         eng "Incorrect default value '%-.128T' for column '%.192s'"
         hindi "गलत डिफ़ॉल्ट मान '%-.128T' कॉलम '%.192s' के लिए"
 ER_KILL_QUERY_DENIED_ERROR
-        chi "你不是查询%lu的所有者"
-        eng "You are not owner of query %lu"
-        ger "Sie sind nicht Eigentümer von Abfrage %lu"
-        hindi "आप क्वेरी %lu के OWNER नहीं हैं"
-        rus "Вы не являетесь владельцем запроса %lu"
+        chi "你不是查询%lld的所有者"
+        eng "You are not owner of query %lld"
+        ger "Sie sind nicht Eigentümer von Abfrage %lld"
+        hindi "आप क्वेरी %lld के OWNER नहीं हैं"
+        rus "Вы не являетесь владельцем запроса %lld"
 ER_NO_EIS_FOR_FIELD
         chi "没有收集无关的统计信息列'%s'"
         eng "Engine-independent statistics are not collected for column '%s'"

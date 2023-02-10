@@ -34,7 +34,6 @@
       <Shortcut Id="startmenuHeidiSQL" Directory="ShortcutFolder" Name="HeidiSQL"  Target="[D.HeidiSQL]\heidisql.exe"/>
     </Component>
 
-
     <Component Id="component.HeidiSQL_libmysql.dll" Guid="*" Win64="no">
       <File Id="heidisql.libmysql.dll" Name="libmysql.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\libmysql.dll" />
     </Component>
@@ -62,6 +61,29 @@
     <Component Id="component.HeidiSQL_sqlite3.dll" Guid="*" Win64="no">
       <File Id="heidisql.sqlite3.dll" Name="sqlite3.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\sqlite3.dll" />
     </Component>
+
+    <Component Id="component.HeidiSQL_fbclient_4.0.dll" Guid="*" Win64="no">
+      <File Id="fbclient4.0.dll" Name="fbclient-4.0.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\fbclient-4.0.dll" />
+    </Component>
+    <Component Id="component.HeidiSQL_gds32_14.1.dll" Guid="*" Win64="no">
+      <File Id="gds32_14.1.dll" Name="gds32-14.1.dll" Source="${HEIDISQL_DOWNLOAD_DIR}\gds32-14.1.dll" />
+    </Component>
+    <Component Id="component.HeidiSQL_plink.exe" Guid="*" Win64="no">
+     <File Id="plink.exe" Name="plink.exe" Source="${HEIDISQL_DOWNLOAD_DIR}\plink.exe" />
+    </Component>
+
+    <Component Id="component.HeidiSQL_LICENSE_openssl" Guid="*" Win64="no">
+     <File Id="LICENSE_openssl" Name="LICENSE-openssl" Source="${HEIDISQL_DOWNLOAD_DIR}\LICENSE-openssl" />
+    </Component>
+
+    <?define functions_dblist=interbase;mariadb;mssql;mysql;postgresql;redshift;sqlite?>
+
+    <?foreach db in $(var.functions_dblist) ?>
+    <Component Id="component.HeidiSQL_functions_$(var.db).ini" Guid="*" Win64="no">
+     <File Id="functions_$(var.db).ini" Name="functions-$(var.db).ini"
+           Source="${HEIDISQL_DOWNLOAD_DIR}\functions-$(var.db).ini" />
+    </Component>
+    <?endforeach?>
 
     <Directory Id="D.HeidiSQL.plugins" Name="plugins">
       <?foreach dll in $(var.pluginlist) ?>
@@ -91,6 +113,13 @@
   <ComponentRef Id="component.HeidiSQL_libiconv_2.dll" />
   <ComponentRef Id="component.HeidiSQL_sqlite3.dll" />
   <ComponentRef Id="component.HeidiSQL_libmysql_6.1.dll" />
+  <ComponentRef Id="component.HeidiSQL_fbclient_4.0.dll" />
+  <ComponentRef Id="component.HeidiSQL_gds32_14.1.dll" />
+  <ComponentRef Id="component.HeidiSQL_plink.exe" />
+  <ComponentRef Id="component.HeidiSQL_LICENSE_openssl" />
+  <?foreach db in $(var.functions_dblist) ?>
+    <ComponentRef Id="component.HeidiSQL_functions_$(var.db).ini" />
+  <?endforeach?>
   <?foreach dll in $(var.pluginlist)?>
     <ComponentRef Id="component.HeidiSQL_$(var.dll)" />
   <?endforeach?>

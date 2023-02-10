@@ -307,7 +307,7 @@ public:
 
 private:
     explicit injector();
-    ~injector() { }             /* Nothing needs to be done */
+    ~injector() = default;             /* Nothing needs to be done */
     injector(injector const&);  /* You're not allowed to copy injector
                                    instances.
                                 */ 

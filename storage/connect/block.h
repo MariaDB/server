@@ -55,7 +55,7 @@ class DllExport BLOCK {
 	void operator delete(void*, long long) {}
 	void operator delete(void*) {}
 
-  virtual ~BLOCK() {}
+  virtual ~BLOCK() = default;
 }; // end of class BLOCK
 
 #endif   // !BLOCK_DEFINED

@@ -324,7 +324,7 @@ public:
   /* See RANGE_OPT_PARAM::alloced_sel_args */
   enum { MAX_SEL_ARGS = 16000 };
 
-  SEL_ARG() {}
+  SEL_ARG() = default;
   SEL_ARG(SEL_ARG &);
   SEL_ARG(Field *,const uchar *, const uchar *);
   SEL_ARG(Field *field, uint8 part, uchar *min_value, uchar *max_value,
@@ -934,7 +934,7 @@ public:
   uint used_key_parts;
 
   QUICK_SELECT_I();
-  virtual ~QUICK_SELECT_I(){};
+  virtual ~QUICK_SELECT_I() = default;;
 
   /*
     Do post-constructor initialization.

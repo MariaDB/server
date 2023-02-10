@@ -730,7 +730,7 @@ public:
 
   virtual void mark_used() = 0;
 
-  virtual ~Semi_join_strategy_picker() {} 
+  virtual ~Semi_join_strategy_picker() = default;
 };
 
 
@@ -1932,7 +1932,7 @@ public:
              null_ptr(arg.null_ptr), err(arg.err)
 
   {}
-  virtual ~store_key() {}			/** Not actually needed */
+  virtual ~store_key() = default;			/** Not actually needed */
   virtual enum Type type() const=0;
   virtual const char *name() const=0;
   virtual bool store_key_is_const() { return false; }

@@ -1533,9 +1533,7 @@ exit:
 }
 
 
-Item_func_spatial_operation::~Item_func_spatial_operation()
-{
-}
+Item_func_spatial_operation::~Item_func_spatial_operation() = default;
 
 
 String *Item_func_spatial_operation::val_str(String *str_value)

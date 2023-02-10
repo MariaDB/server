@@ -131,9 +131,7 @@ injector::transaction::binlog_pos injector::transaction::start_pos() const
 */
 
 /* This constructor is called below */
-inline injector::injector()
-{
-}
+inline injector::injector() = default;
 
 static injector *s_injector= 0;
 injector *injector::instance()

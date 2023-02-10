@@ -175,12 +175,8 @@ class Exception : public std::exception {
         file_(file),
         line_(line),
         what_((what != NULL) ? what : "") {}
-  Exception(const Exception &ex) throw()
-      : std::exception(ex),
-        file_(ex.file_),
-        line_(ex.line_),
-        what_(ex.what_) {}
-  virtual ~Exception() throw() {}
+  Exception(const Exception &ex) throw() = default;
+  virtual ~Exception() throw() = default;
 
   virtual ErrorCode code() const throw() = 0;
   virtual const char *file() const throw() {
@@ -208,7 +204,7 @@ class Error : public Exception {
       : Exception(file, line, what) {}
   Error(const Error &ex) throw()
       : Exception(ex) {}
-  virtual ~Error() throw() {}
+  virtual ~Error() throw() = default;
 
   virtual ErrorCode code() const throw() {
     return T;

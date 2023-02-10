@@ -654,12 +654,9 @@ static void make_key(TABLE* table, uchar** key, key_part_map* map, int parts) {
 } /* namespace Wsrep_schema_impl */
 
 
-Wsrep_schema::Wsrep_schema()
-{
-}
+Wsrep_schema::Wsrep_schema() = default;
 
-Wsrep_schema::~Wsrep_schema()
-{ }
+Wsrep_schema::~Wsrep_schema() = default;
 
 static void wsrep_init_thd_for_schema(THD *thd)
 {
