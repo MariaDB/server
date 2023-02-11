@@ -27,16 +27,6 @@ usr/bin/myisam_ftdump
 usr/bin/myisamchk
 usr/bin/myisamlog
 usr/bin/myisampack
-usr/bin/mysql_convert_table_format
-usr/bin/mysql_plugin
-usr/bin/mysql_secure_installation
-usr/bin/mysql_setpermission
-usr/bin/mysql_tzinfo_to_sql
-usr/bin/mysqlbinlog
-usr/bin/mysqld_multi
-usr/bin/mysqld_safe
-usr/bin/mysqld_safe_helper
-usr/bin/mysqlhotcopy
 usr/bin/wsrep_sst_common
 usr/bin/wsrep_sst_mariabackup
 usr/bin/wsrep_sst_mysqldump
@@ -80,9 +70,6 @@ usr/share/man/man1/myisam_ftdump.1
 usr/share/man/man1/myisamchk.1
 usr/share/man/man1/myisamlog.1
 usr/share/man/man1/myisampack.1
-usr/share/man/man1/mysqld_multi.1
-usr/share/man/man1/mysqld_safe.1
-usr/share/man/man1/mysqld_safe_helper.1
 usr/share/man/man1/wsrep_sst_common.1
 usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
