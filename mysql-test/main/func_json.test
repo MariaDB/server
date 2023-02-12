@@ -665,6 +665,7 @@ SELECT 1 + JSON_VALUE('{"nulltest": null}', '$.nulltest');
 SELECT NULL;
 SELECT JSON_EXTRACT('{"a":null, "b":10, "c":"null"}', '$.a');
 
+
 --echo #
 --echo # End of 10.3 tests
 --echo #
@@ -815,6 +816,14 @@ select JSON_DETAILED(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t
 select JSON_PRETTY(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
 select JSON_LOOSE(JSON_EXTRACT(a, '$**.analyzing_range_alternatives')) from t200;
 drop table t200;
+
+--echo #
+--echo # MDEV-24538: JSON_LENGTH does not return error upon wrong number of parameters
+--echo #
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_LENGTH('{"a":"b"}','$','$', 'foo');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_LENGTH();
 
 --echo #
 --echo # End of 10.4 tests
