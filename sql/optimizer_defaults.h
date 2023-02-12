@@ -91,7 +91,7 @@
   using and calling Rowid_filter_sorted_array::check() from the engine
 */
 #define ROWID_FILTER_PER_CHECK_MODIFIER 4       /* times key_copy_cost */
-#define ROWID_FILTER_PER_ELEMENT_MODIFIER 3     /* times rowid_compare_cost */
+#define ROWID_FILTER_PER_ELEMENT_MODIFIER 1     /* times rowid_compare_cost */
 
 /*
   Average disk seek time on a hard disk is 8-10 ms, which is also

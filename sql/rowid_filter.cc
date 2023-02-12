@@ -33,7 +33,7 @@ lookup_cost(Rowid_filter_container_type cont_type)
 {
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
-    return log(est_elements) * rowid_compare_cost + base_lookup_cost;
+    return log2(est_elements) * rowid_compare_cost + base_lookup_cost;
   default:
     DBUG_ASSERT(0);
     return 0;
@@ -161,9 +161,9 @@ Range_rowid_filter_cost_info::build_cost(Rowid_filter_container_type cont_type)
   switch (cont_type) {
   case SORTED_ARRAY_CONTAINER:
     /* Add cost of filling container and cost of sorting */
-    cost= (est_elements *
-           (costs->rowid_copy_cost +                      // Copying rowid
-            costs->rowid_cmp_cost * log2(est_elements))); // Sort
+    cost+= (est_elements *
+            (costs->rowid_copy_cost +                      // Copying rowid
+             costs->rowid_cmp_cost * log2(est_elements))); // Sort
     break;
   default:
     DBUG_ASSERT(0);

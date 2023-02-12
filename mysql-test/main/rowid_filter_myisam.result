@@ -126,7 +126,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1 <> pk2 AND pk1 = a2 )
 WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	101	100.00	Using where
-1	PRIMARY	t1	eq_ref|filter	PRIMARY,b1	PRIMARY|b1	4|4	test.t2.a2	1 (87%)	87.00	Using where; Using rowid filter
+1	PRIMARY	t1	eq_ref	PRIMARY,b1	PRIMARY	4	test.t2.a2	1	87.00	Using where
 2	SUBQUERY	t2	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using index condition
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`pk1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select max(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`pk2` <= 1) and `test`.`t2`.`a2` <> `test`.`t2`.`pk2`
@@ -158,14 +158,6 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["pk1"],
           "ref": ["test.t2.a2"],
-          "rowid_filter": {
-            "range": {
-              "key": "b1",
-              "used_key_parts": ["b1"]
-            },
-            "rows": 87,
-            "selectivity_pct": 87
-          },
           "loops": 101,
           "rows": 1,
           "cost": "COST_REPLACED",
@@ -613,28 +605,15 @@ ANALYZE
           "key": "idx1",
           "key_length": "256",
           "used_key_parts": ["nm"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx2",
-              "used_key_parts": ["fl2"]
-            },
-            "rows": 863,
-            "selectivity_pct": 8.63,
-            "r_rows": 1000,
-            "r_lookups": 44,
-            "r_selectivity_pct": 0,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
           "loops": 1,
           "r_loops": 1,
           "rows": 44,
-          "r_rows": 0,
+          "r_rows": 44,
           "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 8.630000114,
-          "r_filtered": 100,
+          "r_filtered": 0,
           "index_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'",
           "attached_condition": "t1.fl2 = 0"
         }
@@ -682,19 +661,6 @@ ANALYZE
           "key": "idx1",
           "key_length": "256",
           "used_key_parts": ["nm"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx2",
-              "used_key_parts": ["fl2"]
-            },
-            "rows": 853,
-            "selectivity_pct": 8.53,
-            "r_rows": 987,
-            "r_lookups": 0,
-            "r_selectivity_pct": 0,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
           "loops": 1,
           "r_loops": 1,
           "rows": 44,
