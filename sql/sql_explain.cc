@@ -1922,7 +1922,15 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   /* r_loops (not present in tabular output) */
   if (is_analyze)
   {
-    writer->add_member("r_loops").add_ll(tracker.get_loops());
+    ha_rows loops= tracker.get_loops();
+    writer->add_member("r_loops").add_ll(loops);
+
+    if (type == JT_EQ_REF) // max one row
+    {
+      ha_rows table_loops= op_tracker.get_loops();
+      if (table_loops != loops)
+        writer->add_member("r_table_loops").add_ll(table_loops);
+    }
   }
   
   /* `rows` */
