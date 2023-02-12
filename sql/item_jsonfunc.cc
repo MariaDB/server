@@ -4060,7 +4060,7 @@ bool Item_func_json_objectagg::add()
     result.append(", ");
 
   result.append("\"");
-  result.append(*key);
+  st_append_escaped(&result,key);
   result.append("\":");
 
   buf.length(0);
