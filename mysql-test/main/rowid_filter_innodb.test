@@ -37,6 +37,7 @@ insert into t1 values
   (81,'a','a',20),(82,'a','a',0),(83,'a','a',0),(84,'a','a',null),
   (85,'a','a',-1),(86,'a','a',5),(87,'a','a',null),(88,'a','a',160),
   (89,null,null,null),(90,'a','a',14785),(91,'a','a',0),(92,'a','a',null);
+insert into t1 values (100,null,null,null);
 
 analyze table t1;
 

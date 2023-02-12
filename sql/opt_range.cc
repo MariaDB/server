@@ -5130,13 +5130,13 @@ static void dbug_print_singlepoint_range(SEL_ARG **start, uint num)
     cost of sweep
 */
 
-static double get_sweep_read_cost(const PARAM *param, ha_rows records,
+static double get_sweep_read_cost(const PARAM *param, double records,
                                   bool add_time_for_compare)
 {
   DBUG_ENTER("get_sweep_read_cost");
 #ifndef OLD_SWEEP_COST
   handler *file= param->table->file;
-  IO_AND_CPU_COST engine_cost= file->ha_rnd_pos_call_time(records);
+  IO_AND_CPU_COST engine_cost= file->ha_rnd_pos_call_time(double2rows(ceil(records)));
   double cost;
   if (add_time_for_compare)
   {
@@ -5420,7 +5420,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   /* Calculate cost(rowid_to_row_scan) */
   {
     /* imerge_cost already includes WHERE_COST */
-    double sweep_cost= get_sweep_read_cost(param, non_cpk_scan_records, 0);
+    double sweep_cost= get_sweep_read_cost(param, rows2double(non_cpk_scan_records), 0);
     imerge_cost+= sweep_cost;
     trace_best_disjunct.
       add("rows", non_cpk_scan_records).
@@ -5572,7 +5572,7 @@ skip_to_ror_scan:
   roru_total_cost= (roru_index_costs +
                     rows2double(roru_total_records)*log((double)n_child_scans) *
                     ROWID_COMPARE_COST_THD(param->thd) / M_LN2 +
-                    get_sweep_read_cost(param, roru_total_records, 0));
+                    get_sweep_read_cost(param, rows2double(roru_total_records), 0));
 
   DBUG_PRINT("info", ("ROR-union: cost %g, %zu members",
                       roru_total_cost, n_child_scans));
@@ -6523,7 +6523,7 @@ bool check_index_intersect_extension(THD *thd,
     The cost after sweeep can be bigger than cutoff, but that is ok as the
     end cost can decrease when we add the next index.
   */
-  cost+= get_sweep_read_cost(common_info->param, records, 1);
+  cost+= get_sweep_read_cost(common_info->param, rows2double(records), 1);
 
   next->cost= cost;
   next->length= curr->length+1;
@@ -7197,8 +7197,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
   DBUG_PRINT("info", ("info->total_cost: %g", info->total_cost));
   if (!info->is_covering)
   {
-    double sweep_cost= get_sweep_read_cost(info->param,
-                                           double2rows(info->out_rows), 1);
+    double sweep_cost= get_sweep_read_cost(info->param, info->out_rows, 1);
     info->total_cost+= sweep_cost;
     trace_costs->add("disk_sweep_cost", sweep_cost);
     DBUG_PRINT("info", ("info->total_cost= %g", info->total_cost));
