@@ -1937,7 +1937,7 @@ MOD(seq, 100),
 seq_1_to_5000;
 explain select * from t1 partition (p1) where a=10 and b=10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	a,b	a|b	5|5	const	49 (1%)	Using where; Using rowid filter
+1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	1	Using intersect(a,b); Using where
 flush tables;
 select * from t1 partition (p1)where a=10 and b=10;
 pk	a	b	filler
