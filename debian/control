@@ -544,7 +544,8 @@ Provides: default-mysql-client,
           virtual-mysql-client
 Recommends: libdbd-mariadb-perl | libdbd-mysql-perl,
             libdbi-perl,
-            libterm-readkey-perl
+            libterm-readkey-perl,
+            mariadb-client-compat
 Description: MariaDB database client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -553,6 +554,81 @@ Description: MariaDB database client binaries
  .
  This package includes the client binaries and the additional tools
  innotop and mariadb-report (mysqlreport).
+
+Package: mariadb-client-compat
+Architecture: all
+Depends: mariadb-client (>= ${source:Version})
+Multi-Arch: foreign
+Description: MySQL compatibility links to mariadb-client binaries/scripts.
+Conflicts: mariadb-client (< 11.0.0),
+           mariadb-client-10.0,
+           mariadb-client-10.1,
+           mariadb-client-10.2,
+           mariadb-client-10.3,
+           mariadb-client-10.4,
+           mariadb-client-10.5,
+           mariadb-client-10.6,
+           mariadb-client-10.7,
+           mariadb-client-10.8,
+           mariadb-client-5.1,
+           mariadb-client-5.2,
+           mariadb-client-5.3,
+           mariadb-client-5.5,
+           mariadb-client-core (< 11.0.0),
+           mariadb-client-core-10.0,
+           mariadb-client-core-10.1,
+           mariadb-client-core-10.2,
+           mariadb-client-core-10.3,
+           mariadb-client-core-10.4,
+           mariadb-client-core-10.5,
+           mariadb-client-core-10.6,
+           mariadb-client-core-10.7,
+           mariadb-client-core-10.8,
+           mariadb-client-core-5.1,
+           mariadb-client-core-5.2,
+           mariadb-client-core-5.3,
+           mariadb-client-core-5.5,
+           mysql-client (<< 5.0.51),
+           mysql-client (<< 5.0.51),
+           mysql-client-5.0,
+           mysql-client-5.1,
+           mysql-client-5.5,
+           mysql-client-5.6,
+           mysql-client-5.7,
+           mysql-client-8.0,
+           mysql-client-core-5.0,
+           mysql-client-core-5.1,
+           mysql-client-core-5.5,
+           mysql-client-core-5.6,
+           mysql-client-core-5.7,
+           mysql-client-core-8.0,
+           mariadb-server (< 11.0.0),
+           mariadb-server-10.0,
+           mariadb-server-10.1,
+           mariadb-server-10.2,
+           mariadb-server-10.3,
+           mariadb-server-10.4,
+           mariadb-server-10.5,
+           mariadb-server-10.6,
+           mariadb-server-10.7,
+           mariadb-server-10.8,
+           mariadb-server-core (< 11.0.0),
+           mariadb-server-core-10.0,
+           mariadb-server-core-10.1,
+           mariadb-server-core-10.2,
+           mariadb-server-core-10.3,
+           mariadb-server-core-10.4,
+           mariadb-server-core-10.5,
+           mariadb-server-core-10.6,
+           mariadb-server-core-10.7,
+           mariadb-server-core-10.8,
+           mysql-server-core-8.0,
+           mysql-server-5.7,
+           percona-server-server-5.6,
+           percona-server-server,
+           percona-xtradb-cluster-server-5.6,
+           percona-xtradb-cluster-server-5.7,
+           percona-xtradb-cluster-server
 
 Package: mariadb-server-core
 Architecture: any
@@ -668,7 +744,8 @@ Suggests: mailx,
           mariadb-test,
           netcat-openbsd
 Recommends: libhtml-template-perl,
-            pv
+            pv,
+            mariadb-server-compat
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
@@ -771,6 +848,53 @@ Description: MariaDB database server binaries
  ease of use.
  .
  This package includes the server binaries.
+
+Package: mariadb-server-compat
+Architecture: all
+Depends: mariadb-server (>= ${source:Version}),
+Multi-Arch: foreign
+Description: MySQL compatibility links to mariadb-server binaries/scripts.
+Conflicts: mariadb-server-core (< 11.0.0),
+           mariadb-server-core-10.0,
+           mariadb-server-core-10.1,
+           mariadb-server-core-10.2,
+           mariadb-server-core-10.3,
+           mariadb-server-core-10.4,
+           mariadb-server-core-10.5,
+           mariadb-server-core-10.6,
+           mariadb-server-core-10.7,
+           mariadb-server-core-10.8,
+           mariadb-server-core-5.1,
+           mariadb-server-core-5.2,
+           mariadb-server-core-5.3,
+           mariadb-server-core-5.5,
+           mariadb-server (< 11.0.0),
+           mariadb-server-10.0,
+           mariadb-server-10.1,
+           mariadb-server-10.2,
+           mariadb-server-10.3,
+           mariadb-server-10.4,
+           mariadb-server-10.5,
+           mariadb-server-10.6,
+           mariadb-server-10.7,
+           mariadb-server-10.8,
+           mariadb-server-5.1,
+           mariadb-server-5.2,
+           mariadb-server-5.3,
+           mariadb-server-5.5,
+           mysql-server-5.0,
+           mysql-server-core-5.0,
+           mysql-server-core-5.1,
+           mysql-server-core-5.5,
+           mysql-server-core-5.6,
+           mysql-server-core-5.7,
+           mysql-server-core-8.0,
+           percona-server-server-5.6,
+           percona-server-server-5.7,
+           percona-server-server,
+           percona-xtradb-cluster-server-5.6,
+           percona-xtradb-cluster-server-5.7,
+           percona-xtradb-cluster-server
 
 Package: mariadb-backup
 Architecture: any
