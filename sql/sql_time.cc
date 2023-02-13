@@ -509,7 +509,14 @@ bool int_to_datetime_with_warn(THD *thd, const Longlong_hybrid &nr,
 my_time_t TIME_to_timestamp(THD *thd, const MYSQL_TIME *t, uint *error_code)
 {
   thd->used|= THD::TIME_ZONE_USED;
-  return thd->variables.time_zone->TIME_to_gmt_sec(t, error_code);
+  my_time_t ts= thd->variables.time_zone->TIME_to_gmt_sec(t, error_code);
+  if (*error_code == ER_WARN_DATA_OUT_OF_RANGE && ts == TIMESTAMP_MAX_VALUE)
+  {
+    ErrConvTime value(t);
+    thd->push_warning_truncated_wrong_value("timestamp", value.ptr());
+    *error_code= 0;
+  }
+  return ts;
 }
 
 

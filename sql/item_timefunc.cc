@@ -2793,11 +2793,17 @@ bool Item_func_convert_tz::get_date(THD *thd, MYSQL_TIME *ltime,
     return true;
 
   {
-    uint not_used;
-    my_time_tmp= from_tz->TIME_to_gmt_sec(ltime, &not_used);
+    uint error_code;
+    my_time_tmp= from_tz->TIME_to_gmt_sec(ltime, &error_code);
     ulong sec_part= ltime->second_part;
-    /* my_time_tmp is guaranteed to be in the allowed range */
-    if (my_time_tmp)
+    /*
+      my_time_tmp is guaranteed to be in the allowed range.
+      Don't perform the conversion in case the source DATETIME was above
+      TIMESTAMP_MAX_VALUE (and was truncated to TIMESTAMP_MAX_VALUE).
+    */   
+    if (my_time_tmp &&
+        (my_time_tmp != TIMESTAMP_MAX_VALUE ||
+         error_code != ER_WARN_DATA_OUT_OF_RANGE))
       to_tz->gmt_sec_to_TIME(ltime, my_time_tmp);
     /* we rely on the fact that no timezone conversion can change sec_part */
     ltime->second_part= sec_part;

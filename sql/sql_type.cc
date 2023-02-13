@@ -410,7 +410,7 @@ Timestamp_or_zero_datetime::Timestamp_or_zero_datetime(THD *thd,
                                                        const MYSQL_TIME *ltime,
                                                        uint *error_code)
  :Timestamp(thd, ltime, error_code),
-  m_is_zero_datetime(*error_code == ER_WARN_DATA_OUT_OF_RANGE)
+  m_is_zero_datetime(*error_code == ER_WARN_DATA_OUT_OF_RANGE && tv_sec == 0)
 {
   if (m_is_zero_datetime)
   {

@@ -25,6 +25,13 @@
 #include "mysql_time.h"
 #include "my_decimal_limits.h"
 
+/* Can't include mysqld_error.h, it needs mysys to build, thus hardcode 2 error values here. */
+#ifndef ER_WARN_DATA_OUT_OF_RANGE
+#define ER_WARN_DATA_OUT_OF_RANGE 1264
+#define ER_WARN_INVALID_TIMESTAMP 1299
+#endif
+
+
 C_MODE_START
 
 extern MYSQL_PLUGIN_IMPORT ulonglong log_10_int[20];
@@ -166,33 +173,67 @@ void my_init_time(void);
 
 
 /*
-  Function to check sanity of a TIMESTAMP value
+  Check if the given MYSQL_TIME value is not below the minimum possible
+  TIMESTAMP value.
+  This function doesn't make precise check, but rather a rough estimate.
 
-  DESCRIPTION
-    Check if a given MYSQL_TIME value fits in TIMESTAMP range.
-    This function doesn't make precise check, but rather a rough
-    estimate.
-
-  RETURN VALUES
-    TRUE   The value seems sane
-    FALSE  The MYSQL_TIME value is definitely out of range
+  @return FALSE - The value can be sane (further validation is needed).
+  @return TRUE  - The MYSQL_TIME value is definitely out of range
 */
 
-static inline my_bool validate_timestamp_range(const MYSQL_TIME *t)
+static inline my_bool MYSQL_TIME_below_min_timestamp(const MYSQL_TIME *t)
 {
-  if ((t->year > TIMESTAMP_MAX_YEAR || t->year < TIMESTAMP_MIN_YEAR) ||
-      (t->year == TIMESTAMP_MAX_YEAR && (t->month > 1 || t->day > 19)) ||
-      (t->year == TIMESTAMP_MIN_YEAR && (t->month < 12 || t->day < 31)))
-    return FALSE;
-
-  return TRUE;
+  return t->year < TIMESTAMP_MIN_YEAR ||
+         (t->year == TIMESTAMP_MIN_YEAR && (t->month < 12 || t->day < 31));
 }
 
-/* Can't include mysqld_error.h, it needs mysys to build, thus hardcode 2 error values here. */
-#ifndef ER_WARN_DATA_OUT_OF_RANGE
-#define ER_WARN_DATA_OUT_OF_RANGE 1264
-#define ER_WARN_INVALID_TIMESTAMP 1299
-#endif
+
+/*
+  Check if the given MYSQL_TIME value is not above the maximun possible
+  TIMESTAMP value.
+  This function doesn't make precise check, but rather a rough estimate.
+
+  @return FALSE - The value can be sane (further validation is needed).
+  @return TRUE  - The MYSQL_TIME value is definitely out of the range.
+*/
+
+static inline my_bool MYSQL_TIME_above_max_timestamp(const MYSQL_TIME *t)
+{
+  return t->year > TIMESTAMP_MAX_YEAR ||
+         (t->year == TIMESTAMP_MAX_YEAR && (t->month > 1 || t->day > 19));
+}
+
+
+/*
+  Check if the given MYSQL_TIME value is inside a valid TIMESTAMP range.
+  This function doesn't make precise check, but rather a rough estimate.
+
+  @param t             - The MYSQL_TIME to check.
+  @param [OUT] minmax  - The saturated timestamp value,
+                         if "t" is definitely outside of the TIMESTAMP range.
+
+  @returns  0                         - The value can be sane
+                                        (validation is still needed).
+  @returns  ER_WARN_DATA_OUT_OF_RANGE - The MYSQL_TIME value is definitely
+                                        out of the TIMESTAMP range
+*/
+static inline uint
+MYSQL_TIME_check_rough_timestamp_range(const MYSQL_TIME *t, my_time_t *minmax)
+{
+  if (MYSQL_TIME_below_min_timestamp(t))
+  {
+    *minmax= 0;
+    return ER_WARN_DATA_OUT_OF_RANGE;
+  }
+  if (MYSQL_TIME_above_max_timestamp(t))
+  {
+    *minmax= TIMESTAMP_MAX_VALUE;
+    return ER_WARN_DATA_OUT_OF_RANGE;
+  }
+  *minmax= 0; /* Safety */
+  return 0;
+}
+
 
 my_time_t 
 my_system_gmt_sec(const MYSQL_TIME *t, long *my_timezone, uint *error_code);

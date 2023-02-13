@@ -902,13 +902,8 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
   int shift= 0;
   DBUG_ENTER("TIME_to_gmt_sec");
 
-  if (!validate_timestamp_range(t))
-  {
-    *error_code= ER_WARN_DATA_OUT_OF_RANGE;
-    DBUG_RETURN(0);
-  }
-
-  *error_code= 0;
+  if ((*error_code= MYSQL_TIME_check_rough_timestamp_range(t, &local_t)))
+    DBUG_RETURN(local_t);
 
   /* We need this for correct leap seconds handling */
   if (t->second < SECS_PER_MIN)
@@ -953,7 +948,7 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
       limited my_time_t range.
     */
     *error_code= ER_WARN_DATA_OUT_OF_RANGE;
-    DBUG_RETURN(0);
+    DBUG_RETURN(local_t > sp->revts[sp->revcnt] ? TIMESTAMP_MAX_VALUE : 0);
   }
 
   /* binary search for our range */
@@ -970,7 +965,7 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
                                sp->revtis[i].rt_offset - saved_seconds))
     {
       *error_code= ER_WARN_DATA_OUT_OF_RANGE;
-      DBUG_RETURN(0);                           /* my_time_t overflow */
+      DBUG_RETURN(TIMESTAMP_MAX_VALUE);           /* my_time_t overflow */
     }
     local_t+= shift * SECS_PER_DAY;
   }
@@ -1368,12 +1363,8 @@ Time_zone_offset::TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const
     Check timestamp range.we have to do this as calling function relies on
     us to make all validation checks here.
   */
-  if (!validate_timestamp_range(t))
-  {
-    *error_code= ER_WARN_DATA_OUT_OF_RANGE;
-    return 0;
-  }
-  *error_code= 0;
+  if ((*error_code= MYSQL_TIME_check_rough_timestamp_range(t, &local_t)))
+    return local_t;
 
   /*
     Do a temporary shift of the boundary dates to avoid
@@ -1398,7 +1389,7 @@ Time_zone_offset::TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const
 
   /* range error*/
   *error_code= ER_WARN_DATA_OUT_OF_RANGE;
-  return 0;
+  return local_t > TIMESTAMP_MAX_VALUE ? TIMESTAMP_MAX_VALUE : 0;
 }
 
 

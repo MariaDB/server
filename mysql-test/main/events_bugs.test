@@ -204,12 +204,25 @@ CREATE PROCEDURE p_16 () CREATE EVENT e_16 ON SCHEDULE EVERY @a SECOND DO SET @a
 #
 # Start - 16396: Events: Distant-future dates become past dates
 #
---error ER_WRONG_VALUE
+
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2023-02-13 00:00:00');
+
 create event e_55 on schedule at 99990101000000 do drop table t;
---error ER_WRONG_VALUE
+show create event e_55;
+drop event e_55;
+
 create event e_55 on schedule every 10 hour starts 99990101000000 do drop table t;
---error ER_EVENT_ENDS_BEFORE_STARTS
+show create event e_55;
+drop event e_55;
+
 create event e_55 on schedule every 10 minute ends 99990101000000 do drop table t;
+show create event e_55;
+drop event e_55;
+
+SET time_zone=DEFAULT;
+SET timestamp=DEFAULT;
+
 --error ER_WRONG_VALUE
 create event e_55 on schedule at 10000101000000 do drop table t;
 

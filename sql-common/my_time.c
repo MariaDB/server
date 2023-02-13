@@ -1257,19 +1257,16 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
   MYSQL_TIME *t= &tmp_time;
   struct tm *l_time,tm_tmp;
   long diff, current_timezone;
+  my_time_t minmax;
+
+  if ((*error_code= MYSQL_TIME_check_rough_timestamp_range(t_src, &minmax)))
+    return minmax;
 
   /*
     Use temp variable to avoid trashing input data, which could happen in
     case of shift required for boundary dates processing.
   */
   memcpy(&tmp_time, t_src, sizeof(MYSQL_TIME));
-
-  if (!validate_timestamp_range(t))
-  {
-    *error_code= ER_WARN_DATA_OUT_OF_RANGE;
-    return 0;
-  }
-  *error_code= 0;
 
   /*
     Calculate the gmt time based on current time and timezone

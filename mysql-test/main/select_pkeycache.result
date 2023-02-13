@@ -3766,11 +3766,15 @@ AND t1.ts BETWEEN "2006-01-01" AND "2006-12-31";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	
 1	SIMPLE	t1	range	ts	ts	4	NULL	2	Using index condition; Using where
+Warnings:
+Warning	1292	Truncated incorrect timestamp value: '2999-12-31 00:00:00'
 SELECT * FROM t1 LEFT JOIN t2 ON (t1.a=t2.a) WHERE t1.a=30
 AND t1.ts BETWEEN t2.dt1 AND t2.dt2
 AND t1.ts BETWEEN "2006-01-01" AND "2006-12-31";
 a	ts	a	dt1	dt2
 30	2006-01-03 23:00:00	30	2006-01-01 00:00:00	2999-12-31 00:00:00
+Warnings:
+Warning	1292	Truncated incorrect timestamp value: '2999-12-31 00:00:00'
 DROP TABLE t1,t2;
 create table t1 (a bigint unsigned);
 insert into t1 values
