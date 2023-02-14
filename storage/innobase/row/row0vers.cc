@@ -860,6 +860,20 @@ row_vers_build_cur_vrow(
 	return(cur_vrow);
 }
 
+/** Find out whether data tuple has missing data type
+for virtualcolumn.
+@param tuple   data tuple
+@return true if tuple has missing column type */
+static bool dtuple_vcol_data_missing(const dtuple_t &tuple)
+{
+  for (ulint i= 0; i < tuple.n_v_fields; i++)
+  {
+    if (tuple.v_fields[i].type.mtype == DATA_MISSING)
+      return true;
+  }
+  return false;
+}
+
 /** Finds out if a version of the record, where the version >= the current
 purge view, should have ientry as its secondary index entry. We check
 if there is any not delete marked version of the record where the trx
@@ -1088,6 +1102,9 @@ unsafe_to_purge:
 
 		if (dict_index_has_virtual(index)) {
 			if (vrow) {
+				if (dtuple_vcol_data_missing(*vrow)) {
+					goto nochange_index;
+				}
 				/* Keep the virtual row info for the next
 				version, unless it is changed */
 				mem_heap_empty(v_heap);
@@ -1098,6 +1115,7 @@ unsafe_to_purge:
 			if (!cur_vrow) {
 				/* Nothing for this index has changed,
 				continue */
+nochange_index:
 				version = prev_version;
 				continue;
 			}
