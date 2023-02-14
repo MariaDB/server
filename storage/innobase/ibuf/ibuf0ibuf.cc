@@ -450,6 +450,10 @@ err_exit:
 		root = buf_block_get_frame(block);
 	}
 
+	DBUG_EXECUTE_IF("ibuf_init_corrupt",
+			err = DB_CORRUPTION;
+			goto err_exit;);
+
 	if (page_is_comp(root) || fil_page_get_type(root) != FIL_PAGE_INDEX
 	    || btr_page_get_index_id(root) != DICT_IBUF_ID_MIN) {
 		err = DB_CORRUPTION;

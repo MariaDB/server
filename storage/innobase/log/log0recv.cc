@@ -3642,6 +3642,11 @@ completed:
 				mysql_mutex_unlock(&log_sys.mutex);
 				return(DB_ERROR);
 			}
+
+			/* In case of multi-batch recovery,
+			redo log for the last batch is not
+			applied yet. */
+			ut_d(recv_sys.after_apply = false);
 		}
 	} else {
 		ut_ad(!rescan || recv_sys.pages.empty());
