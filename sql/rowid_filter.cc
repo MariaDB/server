@@ -472,8 +472,7 @@ void Range_rowid_filter_cost_info::trace_info(THD *thd)
   @param fetch_cost_factor  The cost of fetching 'records' rows
   @param index_only_cost    The cost of fetching 'records' rows with
                             index only reads
-  @param prev_records       How many row combinations we have in
-                            preceding tables
+  @param prev_records       How many index_read_calls() we expect to make
   @parma records_out        Will be updated to the minimum result rows for any
                             usable filter.
   @details
