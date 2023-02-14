@@ -1,6 +1,8 @@
 # Coding Standards
 
 This is a working document outlining the coding standard for the general MariaDB codebase.
+The document can be found in the 11.0 and newer trees in the root directory as "CODING_STANDARDS.md"
+
 It does not cover the coding standards for individual plugins, these should have their own coding standards documentation.
 
 ## Using Git with the MariaDB codebase
@@ -11,7 +13,7 @@ Git commit messages must conform to the 50/72 rule.
 This is a de facto git standard which is automatically enforced by some editors.
 This means:
 
-* 50 characters max for the first (description) line.
+* 50 characters max for the first (description) line (see exception later)
 * A blank line.
 * 72 characters max for every subsequent line.
 
@@ -26,7 +28,9 @@ the relative motion of conductors and fluxes, it’s produced by the
 modial interaction of magneto-reluctance and capacitive diractance.
 ```
 
-The commit messages are typically rendered in Markdown format, so markdown formatting is permitted for the message body.
+The only explicitly allowed exception to the 50-72 rules is that if the first line can be MDEV-###### title', even if the title would make the line longer than 50 characters.
+
+The commit messages are typically rendered in [Markdown format](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax), so markdown formatting is permitted for the message body.
 
 ### Branch handling
 
@@ -68,11 +72,13 @@ finalthing();
 #### Switch / Case statements
 
 For switch / case statements the `case` needs to be inline with the `switch`.
+Preferably switch (expr) should be followed by '{' on the same line to
+make the lineup of 'case:' nice:
+
 For example:
 
 ```cpp
-switch(level)
-{
+switch(level) {
 case ERROR:
   sql_print_error("Error: %s", message.c_ptr_safe());
   break;
@@ -125,6 +131,30 @@ The code need to be able to compile on multiple platforms using different compil
 ### Line lengths
 
 Lines should be no more than 80 characters.
+The reason for this is that it makes it easier to have multiple editor
+windows open side by side and still keep code readable without line
+wraps.
+
+When breaking long lines:
+- use '()' to group expressions so that the editor can automatically help
+  you with the indentation.
+- When breaking expressions, leave the operator (+,- etc) last on the previous
+  line.
+
+```cpp
+rows= tab->table->file->multi_range_read_info(tab->ref.key, 10, 20, tab->ref.key_parts, &bufsz, &flags, &cost);
+->
+rows= tab->table->file->multi_range_read_info(tab->ref.key, 10, 20,
+                                              tab->ref.key_parts, &bufsz,
+                                              &flags, &cost);
+```
+
+```cpp
+tmp= aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;
+->
+tmp= (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa+
+      bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb);
+```
 
 ### Comments
 
@@ -162,6 +192,8 @@ a = 1; // Incorrect for the server code,
        // ok for Storage Engines if they use it (aka Connect)
 ```
 
+The above makes it easy to use 'grep' to find all assignments to a variable.
+
 Please do not write conditions like this:
 
 ```cpp
@@ -175,6 +207,21 @@ if (*error_code == 0)
 // Or even better
 if (!*error_code)
 ```
+
+Only use one-character variables (i,j,k...) in short loops. For anything else
+use descriptive names!
+
+### Variable declarations
+
+Variables should be declared at the start of it's context (start of function, inside the 'if' statement.
+
+The benefits of this:
+- Code lines gets shorter
+- It is easier to see the stack space used by a function.
+- It is easer to find the declaration of the variable.
+- If one has to add an 'if (error) goto end' construct, one can do
+  that without having to move variable declarations around.
+
 
 ### Constant integers
 
