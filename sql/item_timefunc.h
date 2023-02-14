@@ -1567,7 +1567,7 @@ public:
 };
 
 
-class Item_func_timestamp_diff :public Item_longlong_func
+class Item_func_timestamp_diff :public Item_handled_func
 {
   bool check_arguments() const override
   { return check_argument_types_can_return_date(0, arg_count); }
@@ -1577,19 +1577,14 @@ public:
   interval_type get_int_type() const { return int_type; };
 public:
   Item_func_timestamp_diff(THD *thd, Item *a, Item *b, interval_type type_arg):
-    Item_longlong_func(thd, a, b), int_type(type_arg) {}
+    Item_handled_func(thd, a, b), int_type(type_arg) {}
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("timestampdiff") };
     return name;
   }
-  longlong val_int() override;
-  bool fix_length_and_dec(THD *thd) override
-  {
-    decimals=0;
-    set_maybe_null();
-    return FALSE;
-  }
+  Longlong_null datetime_diff();
+  bool fix_length_and_dec(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_timestamp_diff>(thd, this); }
@@ -1730,6 +1725,37 @@ public:
 };
 
 
+class Func_handler_date_add_interval_timestamp:
+        public Item_handled_func::Handler_timestamp,
+        public Func_handler_date_add_interval
+{
+public:
+  bool fix_length_and_dec(Item_handled_func *item) const override
+  {
+    uint dec= MY_MAX(item->arguments()[0]->datetime_precision(current_thd),
+                     interval_dec(item->arguments()[1], int_type(item)));
+    item->fix_attributes_datetime(dec);
+    return false;
+  }
+};
+
+
+class Func_handler_date_add_interval_timestamp_is_timestamp_plus_YYYYMM:
+        public Func_handler_date_add_interval_timestamp
+{
+public:
+  bool val_native(THD *thd, Item_handled_func *func, Native *to) const override;
+};
+
+
+class Func_handler_date_add_interval_timestamp_is_timestamp_plus_DDhhmmss:
+        public Func_handler_date_add_interval_timestamp
+{
+public:
+  bool val_native(THD *thd, Item_handled_func *func, Native *to) const override;
+};
+
+
 class Func_handler_date_add_interval_datetime_arg0_time:
         public Func_handler_date_add_interval_datetime
 {
@@ -1856,6 +1882,26 @@ public:
                                         it.get_mysql_time(), m_sign).
                                to_datetime(to)));
   }
+};
+
+
+class Func_handler_add_time_timestamp:
+        public Item_handled_func::Handler_timestamp,
+        public Func_handler_sign
+{
+public:
+  Func_handler_add_time_timestamp(int sign)
+   :Func_handler_sign(sign)
+  { }
+  bool fix_length_and_dec(Item_handled_func *item) const
+  {
+    THD *thd= current_thd;
+    uint dec0= item->arguments()[0]->datetime_precision(thd);
+    uint dec1= Interval_DDhhmmssff::fsp(thd, item->arguments()[1]);
+    item->fix_attributes_datetime(MY_MAX(dec0, dec1));
+    return false;
+  }
+  bool val_native(THD *thd, Item_handled_func *func, Native *to) const override;
 };
 
 

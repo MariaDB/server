@@ -546,10 +546,65 @@ public:
   {
     make_from_int(Longlong_hybrid(nr, unsigned_val));
   }
+  explicit Sec6(bool neg, ulonglong sec, ulong usec)
+   :m_sec(sec), m_usec(usec), m_neg(neg), m_truncated(false)
+  { }
+  explicit Sec6(bool neg, const struct timeval tv)
+   :m_sec(tv.tv_sec), m_usec(tv.tv_usec), m_neg(neg), m_truncated(false)
+  { }
+  explicit Sec6(const struct timeval tv)
+   :m_sec(tv.tv_sec), m_usec(tv.tv_usec), m_neg(false), m_truncated(false)
+  { }
   bool neg() const { return m_neg; }
   bool truncated() const { return m_truncated; }
   ulonglong sec() const { return m_sec; }
   long usec() const { return m_usec; }
+  ulonglong to_sec_usec_abs() const
+  {
+    return m_sec * 1000000ULL + m_usec;
+  }
+  longlong to_sec_usec() const
+  {
+    return (longlong) to_sec_usec_abs() * (m_neg ? -1LL : +1LL);
+  }
+
+  Sec6 operator-() const
+  {
+    DBUG_ASSERT(!m_truncated);
+    Sec6 res(*this);
+    res.m_neg= !res.m_neg;
+    return res;
+  }
+
+  Sec6 operator+(const Sec6 &rhs) const
+  {
+    if (m_neg == rhs.m_neg)
+    {
+      DBUG_ASSERT(!m_truncated);
+      DBUG_ASSERT(!rhs.m_truncated);
+      Sec6 res(*this);
+      res.m_sec+= rhs.m_sec;
+      res.m_usec+= rhs.m_usec;
+      if (res.m_usec > 1000000)
+      {
+        res.m_sec++;
+        res.m_usec-= 1000000;
+      }
+      return res;
+    }
+    longlong sec_usec= to_sec_usec() + rhs.to_sec_usec();
+    bool neg= sec_usec < 0;
+    if (neg)
+      sec_usec*= -1;
+    return Sec6(neg, (ulonglong) sec_usec / 1000000ULL,
+                     (ulonglong) sec_usec % 1000000ULL);
+  }
+
+  Sec6 operator-(const Sec6 &rhs) const
+  {
+    return *this + (-rhs);
+  }
+
   /**
     Converts Sec6 to MYSQL_TIME
     @param thd           current thd
@@ -650,6 +705,44 @@ public:
     ltime->second_part= m_usec;
     return false;
   }
+
+  /*
+    Convert to MariaDB interval units.
+    Only the whole part of the specified unit is returned (without fractions).
+    E.g. in case of INTERVAL_SECOND microseconds are not mixed to the result.
+  */
+  ulonglong DDhhmmssff_to_integer_units_abs(interval_type int_type) const
+  {
+    switch (int_type) {
+    case INTERVAL_WEEK:
+      return m_sec / SECONDS_IN_24H / 7ULL;
+    case INTERVAL_DAY:
+      return m_sec / SECONDS_IN_24H;
+    case INTERVAL_HOUR:
+      return m_sec / 3600ULL;
+    case INTERVAL_MINUTE:
+      return m_sec / 60ULL;
+    case INTERVAL_SECOND:
+      return m_sec;
+    case INTERVAL_MICROSECOND:
+      /*
+        In MySQL difference between any two valid datetime values
+        in microseconds fits into longlong.
+      */
+      return to_sec_usec_abs();
+    default:
+      break;
+    }
+    DBUG_ASSERT(0);
+    return 0;
+  }
+
+  longlong DDhhmmssff_to_integer_units(interval_type int_type) const
+  {
+    return (longlong) DDhhmmssff_to_integer_units_abs(int_type) *
+           (m_neg ? -1LL : +1LL);
+  }
+
   Sec6 &trunc(uint dec)
   {
     m_usec-= my_time_fraction_remainder(m_usec, dec);
@@ -663,6 +756,7 @@ public:
       my_snprintf(to, nbytes, "%s%llu", m_neg ? "-" : "", m_sec);
   }
   void make_truncated_warning(THD *thd, const char *type_str) const;
+  bool check_timestamp_range_with_warn(THD *thd) const;
 };
 
 
@@ -1492,6 +1586,17 @@ public:
                                                 dec));
     return str;
   }
+  ulonglong to_seconds_abs() const
+  {
+    return (ulonglong) MYSQL_TIME::hour * 60 * 60 +
+           (ulonglong) MYSQL_TIME::minute * 60 +
+           (ulonglong) MYSQL_TIME::second;
+  }
+  Sec6 to_sec6() const
+  {
+    DBUG_ASSERT(is_valid_interval_DDhhmmssff());
+    return Sec6(MYSQL_TIME::neg, to_seconds_abs(), MYSQL_TIME::second_part);
+  }
 };
 
 class Schema;
@@ -2157,6 +2262,11 @@ public:
      :Temporal_with_date::Options(fuzzydate)
     { }
   };
+  // Day number for '9999-12-31'
+  static constexpr uint MAX_DAY_NUMBER()
+  {
+    return 3652424;
+  }
 public:
   Date(Item *item, date_mode_t fuzzydate)
    :Date(current_thd, item, fuzzydate)
@@ -2765,6 +2875,46 @@ public:
     int warn= 0;
     return round(dec, mode, &warn);
   }
+  bool check_zero_timestamp_result_with_warn(THD *thd) const;
+  /*
+   Add an arbitrary interval.
+   Uses MYSQL_TIME representation internally.
+  */
+  bool add(THD *thd, interval_type int_type, const INTERVAL &interval);
+
+  /*
+    Add or subtract a simple interval represented as Timeval.
+  */
+  bool add(THD *thd, const Sec6 &rhs)
+  {
+    Sec6 res= Sec6(*this) + rhs;
+    if (res.check_timestamp_range_with_warn(thd))
+      return true;
+    *this= Timestamp(res.sec(), res.usec());
+    return false;
+  }
+  bool sub(THD *thd, const Sec6 &rhs)
+  {
+    Sec6 res= Sec6(*this) - rhs;
+    if (res.check_timestamp_range_with_warn(thd))
+      return true;
+    *this= Timestamp(res.sec(), res.usec());
+    return false;
+  }
+
+  Sec6 diff(const Timestamp &rhs) const
+  {
+    return Sec6(tv()) - Sec6(rhs.tv());
+  }
+
+};
+
+
+class Timestamp_null: public Timestamp, public Null_flag
+{
+public:
+  // TODO: change this to pass NO_ZERO_DATE instead of bool?
+  explicit Timestamp_null(THD *thd, Item *item, bool allow_zero_timestamp);
 };
 
 
@@ -2846,6 +2996,7 @@ public:
   {
     return length() == 0;
   }
+  bool check_zero_datetime_with_warn(THD *thd) const;
 };
 
 

@@ -769,7 +769,7 @@ SELECT DATE_ADD(a, INTERVAL 10 SECOND) FROM t1;
 DATE_ADD(a, INTERVAL 10 SECOND)
 NULL
 Warnings:
-Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
 DROP TABLE t1;
 #
 # MDEV-7824 [Bug #68041] Zero date can be inserted in strict no-zero mode through a default value
@@ -1347,4 +1347,211 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 #
 # End of 10.10 tests
+#
+#
+# Start of 11.0 tests
+#
+#
+# MDEV-15750 preserve MYSQL_TYPE_TIMESTAMP in temporal arithmetic
+#
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00');
+SELECT a, TIMESTAMPDIFF(SECOND,a,a) FROM t1;
+a	TIMESTAMPDIFF(SECOND,a,a)
+0000-00-00 00:00:00	NULL
+Warnings:
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
+SELECT a, TIMESTAMPADD(SECOND,0,a) FROM t1;
+a	TIMESTAMPADD(SECOND,0,a)
+0000-00-00 00:00:00	NULL
+Warnings:
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
+SELECT a, DATE_ADD(a, INTERVAL 0 SECOND) FROM t1;
+a	DATE_ADD(a, INTERVAL 0 SECOND)
+0000-00-00 00:00:00	NULL
+Warnings:
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
+SELECT a, DATE_SUB(a, INTERVAL 0 SECOND) FROM t1;
+a	DATE_SUB(a, INTERVAL 0 SECOND)
+0000-00-00 00:00:00	NULL
+Warnings:
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
+SELECT a + INTERVAL 0 SECOND FROM t1;
+a + INTERVAL 0 SECOND
+NULL
+Warnings:
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
+SELECT a - INTERVAL 0 SECOND FROM t1;
+a - INTERVAL 0 SECOND
+NULL
+Warnings:
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
+SELECT ADDTIME(a, '00:00:00') FROM t1;
+ADDTIME(a, '00:00:00')
+NULL
+Warnings:
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
+SELECT SUBTIME(a, '00:00:00') FROM t1;
+SUBTIME(a, '00:00:00')
+NULL
+Warnings:
+Warning	1525	Incorrect timestamp value: '0000-00-00 00:00:00'
+DROP TABLE t1;
+SET @@time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (from_unixtime(1));
+INSERT INTO t1 VALUES (from_unixtime(2));
+SELECT * FROM t1 ORDER BY a;
+a
+1970-01-01 00:00:01
+1970-01-01 00:00:02
+SELECT a, TIMESTAMPDIFF(SECOND,a,a) FROM t1 ORDER BY a;
+a	TIMESTAMPDIFF(SECOND,a,a)
+1970-01-01 00:00:01	0
+1970-01-01 00:00:02	0
+SELECT a, TIMESTAMPADD(SECOND,-1,a) FROM t1 ORDER BY a;
+a	TIMESTAMPADD(SECOND,-1,a)
+1970-01-01 00:00:01	NULL
+1970-01-01 00:00:02	1970-01-01 00:00:01
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, DATE_ADD(a, INTERVAL -1 SECOND) FROM t1 ORDER BY a;
+a	DATE_ADD(a, INTERVAL -1 SECOND)
+1970-01-01 00:00:01	NULL
+1970-01-01 00:00:02	1970-01-01 00:00:01
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, DATE_SUB(a, INTERVAL 1 SECOND) FROM t1 ORDER BY a;
+a	DATE_SUB(a, INTERVAL 1 SECOND)
+1970-01-01 00:00:01	NULL
+1970-01-01 00:00:02	1970-01-01 00:00:01
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, a + INTERVAL -1 SECOND FROM t1 ORDER BY a;
+a	a + INTERVAL -1 SECOND
+1970-01-01 00:00:01	NULL
+1970-01-01 00:00:02	1970-01-01 00:00:01
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, a - INTERVAL 1 SECOND FROM t1 ORDER BY a;
+a	a - INTERVAL 1 SECOND
+1970-01-01 00:00:01	NULL
+1970-01-01 00:00:02	1970-01-01 00:00:01
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, ADDTIME(a, '-00:00:01') FROM t1 ORDER BY a;
+a	ADDTIME(a, '-00:00:01')
+1970-01-01 00:00:01	NULL
+1970-01-01 00:00:02	1970-01-01 00:00:01
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, SUBTIME(a, '00:00:01') FROM t1 ORDER BY a;
+a	SUBTIME(a, '00:00:01')
+1970-01-01 00:00:01	NULL
+1970-01-01 00:00:02	1970-01-01 00:00:01
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+DROP TABLE t1;
+SET @@time_zone=DEFAULT;
+SET @@time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (from_unixtime(0x7FFFFFFE));
+INSERT INTO t1 VALUES (from_unixtime(0x7FFFFFFF));
+SELECT * FROM t1 ORDER BY a;
+a
+2038-01-19 03:14:06
+2038-01-19 03:14:07
+SELECT a, TIMESTAMPDIFF(SECOND,a,a) FROM t1 ORDER BY a;
+a	TIMESTAMPDIFF(SECOND,a,a)
+2038-01-19 03:14:06	0
+2038-01-19 03:14:07	0
+SELECT a, TIMESTAMPADD(SECOND,1,a) FROM t1 ORDER BY a;
+a	TIMESTAMPADD(SECOND,1,a)
+2038-01-19 03:14:06	2038-01-19 03:14:07
+2038-01-19 03:14:07	NULL
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, DATE_ADD(a, INTERVAL 1 SECOND) FROM t1 ORDER BY a;
+a	DATE_ADD(a, INTERVAL 1 SECOND)
+2038-01-19 03:14:06	2038-01-19 03:14:07
+2038-01-19 03:14:07	NULL
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, DATE_SUB(a, INTERVAL -1 SECOND) FROM t1 ORDER BY a;
+a	DATE_SUB(a, INTERVAL -1 SECOND)
+2038-01-19 03:14:06	2038-01-19 03:14:07
+2038-01-19 03:14:07	NULL
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, a + INTERVAL 1 SECOND FROM t1 ORDER BY a;
+a	a + INTERVAL 1 SECOND
+2038-01-19 03:14:06	2038-01-19 03:14:07
+2038-01-19 03:14:07	NULL
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, a - INTERVAL -1 SECOND FROM t1 ORDER BY a;
+a	a - INTERVAL -1 SECOND
+2038-01-19 03:14:06	2038-01-19 03:14:07
+2038-01-19 03:14:07	NULL
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, ADDTIME(a, '00:00:01') FROM t1 ORDER BY a;
+a	ADDTIME(a, '00:00:01')
+2038-01-19 03:14:06	2038-01-19 03:14:07
+2038-01-19 03:14:07	NULL
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+SELECT a, SUBTIME(a, '-00:00:01') FROM t1 ORDER BY a;
+a	SUBTIME(a, '-00:00:01')
+2038-01-19 03:14:06	2038-01-19 03:14:07
+2038-01-19 03:14:07	NULL
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+DROP TABLE t1;
+SET @@time_zone=DEFAULT;
+SET @@time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (from_unixtime(0x7FFFFFFE));
+INSERT INTO t1 VALUES (from_unixtime(0x7FFFFFFF));
+SELECT * FROM t1 ORDER BY a;
+a
+2038-01-19 03:14:06
+2038-01-19 03:14:07
+CREATE TABLE t2 AS SELECT
+a,
+TIMESTAMPDIFF(SECOND,a,a),
+TIMESTAMPADD(SECOND,1,a),
+DATE_ADD(a, INTERVAL 1 SECOND),
+DATE_SUB(a, INTERVAL -1 SECOND),
+a + INTERVAL 1 SECOND,
+a - INTERVAL -1 SECOND,
+ADDTIME(a, '00:00:01'),
+SUBTIME(a, '-00:00:01')
+FROM t1;
+Warnings:
+Warning	1441	Datetime function: timestamp field overflow
+Warning	1441	Datetime function: timestamp field overflow
+Warning	1441	Datetime function: timestamp field overflow
+Warning	1441	Datetime function: timestamp field overflow
+Warning	1441	Datetime function: timestamp field overflow
+Warning	1441	Datetime function: timestamp field overflow
+Warning	1441	Datetime function: timestamp field overflow
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` timestamp NULL DEFAULT NULL,
+  `TIMESTAMPDIFF(SECOND,a,a)` bigint(21) DEFAULT NULL,
+  `TIMESTAMPADD(SECOND,1,a)` timestamp NULL DEFAULT NULL,
+  `DATE_ADD(a, INTERVAL 1 SECOND)` timestamp NULL DEFAULT NULL,
+  `DATE_SUB(a, INTERVAL -1 SECOND)` timestamp NULL DEFAULT NULL,
+  `a + INTERVAL 1 SECOND` timestamp NULL DEFAULT NULL,
+  `a - INTERVAL -1 SECOND` timestamp NULL DEFAULT NULL,
+  `ADDTIME(a, '00:00:01')` timestamp NULL DEFAULT NULL,
+  `SUBTIME(a, '-00:00:01')` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t2;
+DROP TABLE t1;
+SET @@time_zone=DEFAULT;
+#
+# End of 11.0 tests
 #

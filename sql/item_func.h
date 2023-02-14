@@ -661,6 +661,52 @@ public:
   };
 
 
+  class Handler_timestamp: public Handler_temporal
+  {
+  protected:
+    Datetime to_datetime(THD *thd, Item_handled_func *item) const
+    {
+      Timestamp_or_zero_datetime_native_null ts(thd, item);
+      return Timestamp_or_zero_datetime(ts).to_datetime(thd);
+    }
+  public:
+    const Type_handler *return_type_handler(const Item_handled_func *) const
+    {
+      return &type_handler_timestamp2;
+    }
+    bool get_date(THD *thd, Item_handled_func *item,
+                  MYSQL_TIME *ltime, date_mode_t fuzzydate) const
+    {
+      // QQ: check fuzzydate???
+      return item->null_value= to_datetime(thd, item).copy_to_mysql_time(ltime);
+    }
+    double val_real(Item_handled_func *item) const
+    {
+      Datetime dt= to_datetime(current_thd, item);
+      item->null_value= !dt.is_valid_datetime();
+      return dt.to_double();
+    }
+    longlong val_int(Item_handled_func *item) const
+    {
+      Datetime dt= to_datetime(current_thd, item);
+      item->null_value= !dt.is_valid_datetime();
+      return dt.to_longlong();
+    }
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    {
+      Datetime dt= to_datetime(current_thd, item);
+      item->null_value= !dt.is_valid_datetime();
+      return dt.to_decimal(to);
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const
+    {
+      Datetime dt= to_datetime(current_thd, item);
+      item->null_value= !dt.is_valid_datetime();
+      return dt.to_string(to, item->decimals);
+    }
+  };
+
+
   class Handler_int: public Handler
   {
   public:
@@ -723,6 +769,22 @@ public:
       bool rc= Handler_slong::fix_length_and_dec(func);
       func->max_length= 2;
       return rc;
+    }
+  };
+
+  class Handler_slonglong: public Handler_int
+  {
+  public:
+    const Type_handler *return_type_handler(const Item_handled_func *item) const
+    {
+      return &type_handler_slonglong;
+    }
+    bool fix_length_and_dec(Item_handled_func *item) const
+    {
+      item->unsigned_flag= false;
+      item->collation= DTCollation_numeric();
+      item->fix_char_length(21);
+      return false;
     }
   };
 

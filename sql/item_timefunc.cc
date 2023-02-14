@@ -56,17 +56,24 @@
 #include <m_ctype.h>
 #include <time.h>
 
-/** Day number for Dec 31st, 9999. */
-#define MAX_DAY_NUMBER 3652424L
 
 Func_handler_date_add_interval_datetime_arg0_time
   func_handler_date_add_interval_datetime_arg0_time;
 
 Func_handler_date_add_interval_datetime func_handler_date_add_interval_datetime;
+
+Func_handler_date_add_interval_timestamp_is_timestamp_plus_YYYYMM
+  func_handler_date_add_interval_timestamp_is_timestamp_plus_YYYYMM;
+
+Func_handler_date_add_interval_timestamp_is_timestamp_plus_DDhhmmss
+  func_handler_date_add_interval_timestamp_is_timestamp_plus_DDhhmmss;
+
 Func_handler_date_add_interval_date     func_handler_date_add_interval_date;
 Func_handler_date_add_interval_time     func_handler_date_add_interval_time;
 Func_handler_date_add_interval_string   func_handler_date_add_interval_string;
 
+Func_handler_add_time_timestamp func_handler_add_time_timestamp_add(1);
+Func_handler_add_time_timestamp func_handler_add_time_timestamp_sub(-1);
 Func_handler_add_time_datetime func_handler_add_time_datetime_add(1);
 Func_handler_add_time_datetime func_handler_add_time_datetime_sub(-1);
 Func_handler_add_time_time     func_handler_add_time_time_add(1);
@@ -2848,10 +2855,24 @@ bool Item_date_add_interval::fix_length_and_dec(THD *thd)
   */
   arg0_field_type= args[0]->field_type();
 
-  if (arg0_field_type == MYSQL_TYPE_DATETIME ||
-      arg0_field_type == MYSQL_TYPE_TIMESTAMP)
+  if (arg0_field_type == MYSQL_TYPE_DATETIME)
   {
     set_func_handler(&func_handler_date_add_interval_datetime);
+  }
+  else if (arg0_field_type == MYSQL_TYPE_TIMESTAMP)
+  {
+    switch (int_type) {
+    case INTERVAL_YEAR:
+    case INTERVAL_QUARTER:
+    case INTERVAL_MONTH:
+    case INTERVAL_YEAR_MONTH:
+      set_func_handler(
+        &func_handler_date_add_interval_timestamp_is_timestamp_plus_YYYYMM);
+      break;
+    default:
+      set_func_handler(
+        &func_handler_date_add_interval_timestamp_is_timestamp_plus_DDhhmmss);
+    }
   }
   else if (arg0_field_type == MYSQL_TYPE_DATE)
   {
@@ -2873,6 +2894,72 @@ bool Item_date_add_interval::fix_length_and_dec(THD *thd)
   }
   set_maybe_null();
   return m_func_handler->fix_length_and_dec(this);
+}
+
+
+bool Func_handler_date_add_interval_timestamp_is_timestamp_plus_YYYYMM
+      ::val_native(THD *thd, Item_handled_func *func, Native *to) const
+{
+  Timestamp_null ts(thd, func->arguments()[0], false);
+  if ((func->null_value= ts.is_null()))
+    return true;
+  INTERVAL interval;
+  if (get_interval_value(thd, func->arguments()[1], int_type(func), &interval))
+    return func->null_value= true;
+
+  if (sub(func))
+    interval.neg = !interval.neg;
+
+  return func->null_value= ts.add(thd, int_type(func), interval) ||
+                           ts.check_zero_timestamp_result_with_warn(thd) ||
+                           ts.to_native(to, func->decimals);
+}
+
+
+bool Func_handler_date_add_interval_timestamp_is_timestamp_plus_DDhhmmss
+       ::val_native(THD *thd, Item_handled_func *func, Native *to) const
+{
+  Timestamp_null ts(thd, func->arguments()[0], false);
+  if ((func->null_value= ts.is_null()))
+    return true;
+  INTERVAL interval;
+  if (get_interval_value(thd, func->arguments()[1], int_type(func), &interval))
+    return func->null_value= true;
+
+  // Avoid overflow in INTERVAL::unsigned_DDhhmmssff_to_seconds()
+  if (interval.DDhhmmssff_to_days_abs() > Date::MAX_DAY_NUMBER())
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_DATETIME_FUNCTION_OVERFLOW,
+                        ER_THD(thd, ER_DATETIME_FUNCTION_OVERFLOW),
+                        "interval");
+    return func->null_value= true;
+  }
+
+  Sec6 sec6(interval.neg, interval.DDhhmmssff_to_integer_seconds_abs(),
+                          interval.second_part % 1000000);
+
+  return func->null_value=
+           (sub(func) ? ts.sub(thd, sec6) : ts.add(thd, sec6)) ||
+            ts.check_zero_timestamp_result_with_warn(thd) ||
+            ts.to_native(to, func->decimals);
+}
+
+
+bool Func_handler_add_time_timestamp
+       ::val_native(THD *thd, Item_handled_func *func, Native *to) const
+{
+  Timestamp_null ts(thd, func->arguments()[0], false);
+  if (ts.is_null())
+    return func->null_value= true;
+  Interval_DDhhmmssff it(thd, func->arguments()[1]);
+  if (!it.is_valid_interval_DDhhmmssff())
+    return (func->null_value= true);
+  return func->null_value=
+           (m_sign < 0 ? ts.sub(thd, it.to_sec6()) :
+                         ts.add(thd, it.to_sec6())) ||
+           ts.check_zero_timestamp_result_with_warn(thd) ||
+           ts.to_native(to, func->decimals);
 }
 
 
@@ -3467,11 +3554,15 @@ bool Item_func_add_time::fix_length_and_dec(THD *thd)
 
   arg0_field_type= args[0]->field_type();
   if (arg0_field_type == MYSQL_TYPE_DATE ||
-      arg0_field_type == MYSQL_TYPE_DATETIME ||
-      arg0_field_type == MYSQL_TYPE_TIMESTAMP)
+      arg0_field_type == MYSQL_TYPE_DATETIME)
   {
     set_func_handler(sign > 0 ? &func_handler_add_time_datetime_add :
                                 &func_handler_add_time_datetime_sub);
+  }
+  else if (arg0_field_type == MYSQL_TYPE_TIMESTAMP)
+  {
+    set_func_handler(sign > 0 ? &func_handler_add_time_timestamp_add :
+                                &func_handler_add_time_timestamp_sub);
   }
   else if (arg0_field_type == MYSQL_TYPE_TIME)
   {
@@ -3580,12 +3671,71 @@ longlong Item_func_microsecond::val_int()
 }
 
 
-longlong Item_func_timestamp_diff::val_int()
+/*
+  Generic TIMESTAMPDIFF implementation:
+    TIMESTAMPDIFF(int_type, datetime, datetime)
+    TIMESTAMPDIFF(int_type, datetime, timestamp)
+    TIMESTAMPDIFF(int_type, timestamp, datetime)
+
+  Special case:
+    TIMESTAMPDIFF(special_timestamp2_int_type, timestamp, timestamp)
+    special_timestamp2_int_type := YEAR | QUARTER | MONTH
+
+  All non-datetime arguments are converted to datetime before calculating.
+  DST changes for timestamp arguments are not taken into account.
+*/
+class Func_handler_datetime_diff: public Item_handled_func::Handler_slonglong
+{
+public:
+  bool fix_length_and_dec(Item_handled_func *func) const override
+  {
+     func->set_maybe_null();
+     return Handler_slonglong::fix_length_and_dec(func);
+  }
+  Longlong_null to_longlong_null(Item_handled_func *func) const override
+  {
+    return static_cast<Item_func_timestamp_diff*>(func)->datetime_diff();
+  }
+};
+
+
+/*
+  Fast and DST-change aware TIMESTAMPDIFF implementation for two
+  TIMESTAMP arguments in combination with the interval type which
+  does not need year or month for calculations:
+
+    TIMESTAMPDIFF(int_type, timestamp, timestamp)
+    int_type := WEEK | DAY | HOUR | MINUTE | SECOND | MICROSECOND
+*/
+class Func_handler_timestamp_diff: public Item_handled_func::Handler_slonglong
+{
+public:
+  bool fix_length_and_dec(Item_handled_func *func) const override
+  {
+     func->set_maybe_null();
+     return Handler_slonglong::fix_length_and_dec(func);
+  }
+  Longlong_null to_longlong_null(Item_handled_func *func) const override
+  {
+    THD *thd= current_thd;
+    Timestamp_null expr1(thd, func->arguments()[0], false);
+    if (expr1.is_null())
+      return Longlong_null();
+    Timestamp_null expr2(thd, func->arguments()[1], false);
+    if (expr2.is_null())
+      return Longlong_null();
+    interval_type it_type= static_cast<Item_func_timestamp_diff*>(func)->
+                              get_int_type();
+    return Longlong_null(expr2.diff(expr1).DDhhmmssff_to_integer_units(it_type));
+  }
+};
+
+
+Longlong_null Item_func_timestamp_diff::datetime_diff()
 {
   MYSQL_TIME ltime1, ltime2;
   ulonglong seconds;
   ulong microseconds;
-  long months= 0;
   int neg= 1;
   THD *thd= current_thd;
   Datetime::Options opt(TIME_NO_ZEROS, thd);
@@ -3594,7 +3744,7 @@ longlong Item_func_timestamp_diff::val_int()
 
   if (Datetime(thd, args[0], opt).copy_to_mysql_time(&ltime1) ||
       Datetime(thd, args[1], opt).copy_to_mysql_time(&ltime2))
-    goto null_date;
+    return Longlong_null();
 
   if (calc_time_diff(&ltime2,&ltime1, 1,
 		     &seconds, &microseconds))
@@ -3606,6 +3756,7 @@ longlong Item_func_timestamp_diff::val_int()
   {
     uint year_beg, year_end, month_beg, month_end, day_beg, day_end;
     uint years= 0;
+    long months= 0;
     uint second_beg, second_end, microsecond_beg, microsecond_end;
 
     if (neg == -1)
@@ -3653,38 +3804,48 @@ longlong Item_func_timestamp_diff::val_int()
 	     ((second_end < second_beg) ||
 	      (second_end == second_beg && microsecond_end < microsecond_beg)))
       months-= 1;
+    switch (int_type) {
+    case INTERVAL_YEAR:
+      return Longlong_null(months / 12 * neg);
+    case INTERVAL_QUARTER:
+      return Longlong_null(months / 3 * neg);
+    case INTERVAL_MONTH:
+      return Longlong_null(months * neg);
+    default:
+      break;
+    }
+    DBUG_ASSERT(0);
+    return Longlong_null();
   }
 
-  switch (int_type) {
-  case INTERVAL_YEAR:
-    return months/12*neg;
-  case INTERVAL_QUARTER:
-    return months/3*neg;
-  case INTERVAL_MONTH:
-    return months*neg;
-  case INTERVAL_WEEK:          
-    return ((longlong) (seconds / SECONDS_IN_24H / 7L)) * neg;
-  case INTERVAL_DAY:		
-    return ((longlong) (seconds / SECONDS_IN_24H)) * neg;
-  case INTERVAL_HOUR:		
-    return ((longlong) (seconds / 3600L)) * neg;
-  case INTERVAL_MINUTE:		
-    return ((longlong) (seconds / 60L)) * neg;
-  case INTERVAL_SECOND:		
-    return ((longlong) seconds) * neg;
-  case INTERVAL_MICROSECOND:
-    /*
-      In MySQL difference between any two valid datetime values
-      in microseconds fits into longlong.
-    */
-    return ((longlong) ((ulonglong) seconds * 1000000L + microseconds)) * neg;
-  default:
-    break;
-  }
+  return Longlong_null(Sec6(neg < 0, seconds, microseconds).
+                         DDhhmmssff_to_integer_units(int_type));
+}
 
-null_date:
-  null_value=1;
-  return 0;
+
+bool Item_func_timestamp_diff::fix_length_and_dec(THD *thd)
+{
+  static Func_handler_datetime_diff fh_datetime_diff;
+  static Func_handler_timestamp_diff fh_timestamp_diff;
+  if (args[0]->field_type() == MYSQL_TYPE_TIMESTAMP &&
+      args[1]->field_type() == MYSQL_TYPE_TIMESTAMP)
+  {
+    switch (int_type) {
+    case INTERVAL_WEEK:
+    case INTERVAL_DAY:
+    case INTERVAL_HOUR:
+    case INTERVAL_MINUTE:
+    case INTERVAL_SECOND:
+    case INTERVAL_MICROSECOND:
+      set_func_handler(&fh_timestamp_diff);
+      break;
+    default:
+      set_func_handler(&fh_datetime_diff);
+    }
+  }
+  else
+    set_func_handler(&fh_datetime_diff);
+  return m_func_handler->fix_length_and_dec(this);
 }
 
 

@@ -24,8 +24,6 @@
 #include <m_ctype.h>
 
 
-#define MAX_DAY_NUMBER 3652424L
-
 	/* Some functions to calculate dates */
 
 /*
@@ -236,7 +234,7 @@ bool get_date_from_daynr(long daynr,uint *ret_year,uint *ret_month,
   uchar *month_pos;
   DBUG_ENTER("get_date_from_daynr");
 
-  if (daynr < 366 || daynr > MAX_DAY_NUMBER)
+  if (daynr < 366 || daynr > Date::MAX_DAY_NUMBER())
     DBUG_RETURN(1);
 
   year= (uint) (daynr*100 / 36525L);
@@ -962,10 +960,7 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
     my_bool neg= 0;
     enum enum_mysql_timestamp_type time_type= ltime->time_type;
 
-    if (((ulonglong) interval.day +
-         (ulonglong) interval.hour / 24 +
-         (ulonglong) interval.minute / 24 / 60 +
-         (ulonglong) interval.second / 24 / 60 / 60) > MAX_DAY_NUMBER)
+    if (interval.DDhhmmss_to_days_abs() > Date::MAX_DAY_NUMBER())
       goto invalid_date;
 
     if (time_type != MYSQL_TIMESTAMP_TIME)

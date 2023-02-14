@@ -1,4 +1,9 @@
 
+# type_hrtime.inc uses expressions like TEMPORAL_TYPE+INTERVAL
+# In case of TIMESTAMP+INTERVAL, results depend on the current @@time_zone.
+# Make results deterministic.
+SET @@time_zone='+00:00';
+
 let type=timestamp;
 --source include/type_hrtime.inc
 

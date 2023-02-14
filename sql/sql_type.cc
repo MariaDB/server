@@ -401,6 +401,57 @@ bool Timestamp::to_TIME(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) const
 }
 
 
+
+bool Timestamp::check_zero_timestamp_result_with_warn(THD *thd) const
+{
+  if (!tv_sec && !tv_usec)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_DATETIME_FUNCTION_OVERFLOW,
+                        ER_THD(thd, ER_DATETIME_FUNCTION_OVERFLOW),
+                        "timestamp");
+    return true;
+  }
+  return false;
+}
+
+
+bool Sec6::check_timestamp_range_with_warn(THD *thd) const
+{
+  if (neg() || sec() > TIMESTAMP_MAX_VALUE)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_DATETIME_FUNCTION_OVERFLOW,
+                        ER_THD(thd, ER_DATETIME_FUNCTION_OVERFLOW),
+                        "timestamp");
+    return true;
+  }
+  return false;
+}
+
+
+bool Timestamp::add(THD *thd, interval_type int_type, const INTERVAL &interval)
+{
+  MYSQL_TIME mysql_time;
+  my_tz_OFFSET0->gmt_sec_to_TIME(&mysql_time, tv_sec);
+  mysql_time.second_part= tv_usec;
+  if (date_add_interval(thd, &mysql_time, int_type, interval))
+    return true;
+  uint error_code;
+  tv_sec= my_tz_OFFSET0->TIME_to_gmt_sec(&mysql_time, &error_code);
+  tv_usec= mysql_time.second_part;
+  if (error_code)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_DATETIME_FUNCTION_OVERFLOW,
+                        ER_THD(thd, ER_DATETIME_FUNCTION_OVERFLOW),
+                        "timestamp");
+    return true;
+  }
+  return false;
+};
+
+
 Timestamp::Timestamp(THD *thd, const MYSQL_TIME *ltime, uint *error_code)
  :Timeval(TIME_to_timestamp(thd, ltime, error_code), ltime->second_part)
 { }
@@ -419,6 +470,22 @@ Timestamp_or_zero_datetime::Timestamp_or_zero_datetime(THD *thd,
   }
   else if (*error_code == ER_WARN_INVALID_TIMESTAMP)
     *error_code= 0; // ltime fell into spring time gap, adjusted.
+}
+
+
+bool Timestamp_or_zero_datetime_native::
+       check_zero_datetime_with_warn(THD *thd) const
+{
+  if (is_zero_datetime())
+  {
+    char buff[]= "0000-00-00 00:00:00";
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE,
+                        ER_THD(thd, ER_WRONG_VALUE),
+                        "timestamp", buff);
+    return true;
+  }
+  return false;
 }
 
 
@@ -458,6 +525,19 @@ int Timestamp_or_zero_datetime_native::save_in_field(Field *field,
     return field->store_time_dec(zero.get_mysql_time(), decimals);
   }
   return field->store_timestamp_dec(Timestamp(*this).tv(), decimals);
+}
+
+
+Timestamp_null::Timestamp_null(THD *thd, Item *item, bool allow_zero_timestamp)
+ :Timestamp(0, 0), Null_flag(true)
+{
+  Timestamp_or_zero_datetime_native_null native(thd, item, false);
+  if (!native.is_null() &&
+      (allow_zero_timestamp || !native.check_zero_datetime_with_warn(thd)))
+  {
+    Timestamp::operator=(Timestamp(native));
+    m_is_null= false;
+  }
 }
 
 

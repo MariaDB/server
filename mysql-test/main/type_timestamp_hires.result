@@ -1,3 +1,4 @@
+SET @@time_zone='+00:00';
 SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a timestamp(7));

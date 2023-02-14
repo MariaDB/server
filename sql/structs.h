@@ -204,6 +204,29 @@ typedef struct {
   ulong year,month,day,hour;
   ulonglong minute,second,second_part;
   bool neg;
+  ulonglong DDhhmmss_to_integer_seconds_abs() const
+  {
+    return second +
+           (minute * 60) +
+           (hour * 60 * 60) +
+           ((ulonglong) day * 24 * 60 * 60);
+  }
+  ulonglong DDhhmmssff_to_integer_seconds_abs() const
+  {
+    return DDhhmmss_to_integer_seconds_abs() + second_part / 1000000;
+  }
+  ulonglong DDhhmmss_to_days_abs() const
+  {
+    return (ulonglong) day +
+           hour / 24 +
+           minute / 24 / 60 +
+           second / 24 / 60 / 60;
+  }
+  ulonglong DDhhmmssff_to_days_abs() const
+  {
+    return DDhhmmss_to_days_abs() +
+           second_part / 24 / 60 / 60 / 1000000;
+  }
 } INTERVAL;
 
 
