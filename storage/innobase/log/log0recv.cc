@@ -2692,7 +2692,22 @@ void recv_sys_t::apply(bool last_batch)
 
     fil_system.extend_to_recv_size();
 
+    /* Release the log_sys mutex in non-last batches of multi-batch
+    recovery mode and recv_sys.mutex before preallocating the
+    block because while preallocating the block which may initiate
+    log flush which requires log_sys mutex to acquire again, which
+    should be acquired before recv_sys.mutex in order to avoid
+    deadlocks. */
+    mutex_exit(&mutex);
+    if (!last_batch)
+      mysql_mutex_unlock(&log_sys.mutex);
+
+    mysql_mutex_assert_not_owner(&log_sys.mutex);
     buf_block_t *free_block= buf_LRU_get_free_block(false);
+
+    if (!last_batch)
+      mysql_mutex_lock(&log_sys.mutex);
+    mutex_enter(&mutex);
 
     for (map::iterator p= pages.begin(); p != pages.end(); )
     {
@@ -2708,7 +2723,10 @@ void recv_sys_t::apply(bool last_batch)
         if (UNIV_LIKELY(!!recover_low(page_id, p, mtr, free_block)))
         {
           mutex_exit(&mutex);
+          if (!last_batch) mysql_mutex_unlock(&log_sys.mutex);
+          mysql_mutex_assert_not_owner(&log_sys.mutex);
           free_block= buf_LRU_get_free_block(false);
+          if (!last_batch) mysql_mutex_lock(&log_sys.mutex);
           mutex_enter(&mutex);
           break;
         }
