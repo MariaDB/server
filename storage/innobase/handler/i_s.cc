@@ -5430,10 +5430,10 @@ static ST_FIELD_INFO innodb_sysindex_fields_info[]=
    0, 0, "", SKIP_OPEN_TABLE},
 #define SYS_INDEX_PAGE_NO	5
   {"PAGE_NO", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,
-   0, 0, "", SKIP_OPEN_TABLE},
+   0, MY_I_S_MAYBE_NULL, "", SKIP_OPEN_TABLE},
 #define SYS_INDEX_SPACE		6
   {"SPACE", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,
-   0, 0, "", SKIP_OPEN_TABLE},
+   0, MY_I_S_MAYBE_NULL, "", SKIP_OPEN_TABLE},
 #define SYS_INDEX_MERGE_THRESHOLD 7
   {"MERGE_THRESHOLD", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG,
    0, 0, "", SKIP_OPEN_TABLE},
@@ -5483,12 +5483,14 @@ i_s_dict_fill_sys_indexes(
 	if (index->page == FIL_NULL) {
 		fields[SYS_INDEX_PAGE_NO]->set_null();
 	} else {
+		fields[SYS_INDEX_PAGE_NO]->set_notnull();
 		OK(fields[SYS_INDEX_PAGE_NO]->store(index->page, true));
 	}
 
-	if (space_id == ULINT_UNDEFINED) {
+	if (space_id == FIL_NULL) {
 		fields[SYS_INDEX_SPACE]->set_null();
 	} else {
+		fields[SYS_INDEX_SPACE]->set_notnull();
 		OK(fields[SYS_INDEX_SPACE]->store(space_id, true));
 	}
 
