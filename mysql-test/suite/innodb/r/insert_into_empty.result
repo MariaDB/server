@@ -405,3 +405,21 @@ nb_corrupted_rows
 0
 DROP TABLE t1;
 # End of 10.7 tests
+#
+#  MDEV-30426  Assertion !rec_offs_nth_extern(offsets2, n)
+#	during bulk insert
+#
+CREATE TABLE t1(f1 TEXT NOT NULL, f2 TEXT NOT NULL,
+f3 TEXT NOT NULL, f4 TEXT NOT NULL,
+f5 TEXT NOT NULL, f6 TEXT NOT NULL,
+PRIMARY KEY(f6(10)))ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES
+(repeat('a', 200), repeat('b', 200), repeat('c', 200),
+repeat('d', 200), repeat('e', 200), repeat('f', 200)),
+(repeat('b', 20000), repeat('c', 16000), repeat('d', 12000),
+repeat('e', 12000), repeat('f', 12000), repeat('f', 12000));
+ERROR HY000: Got error 1 "Operation not permitted" during COMMIT
+COMMIT;
+DROP TABLE t1;
+# End of 10.8 tests
