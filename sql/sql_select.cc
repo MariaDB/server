@@ -349,6 +349,9 @@ static void fix_items_after_optimize(THD *thd, SELECT_LEX *select_lex);
 static void optimize_rownum(THD *thd, SELECT_LEX_UNIT *unit, Item *cond);
 static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
                                              Item *cond);
+static double prev_record_reads(const POSITION *positions, uint idx,
+                                table_map found_ref, double record_count,
+                                double *same_keys);
 
 #ifndef DBUG_OFF
 
@@ -8003,7 +8006,7 @@ apply_filter(THD *thd, TABLE *table, ALL_READ_COST *cost,
   /* We are going to read 'selectivity' fewer rows */
   adjusted_cost.row_cost.io*= selectivity;
   adjusted_cost.row_cost.cpu*= selectivity;
-  adjusted_cost.copy_cost*= selectivity;
+  adjusted_cost.copy_cost*= selectivity;        // Cost of copying row or key
   adjusted_cost.index_cost.cpu+= filter_lookup_cost;
 
   tmp= prev_records * WHERE_COST_THD(thd);
@@ -8085,15 +8088,18 @@ struct best_plan
   double records_read;                   // Records accessed
   double records_after_filter;           // Records_read + filter
   double records_out;                    // Smallest record count seen
+  double prev_record_reads;              // Save value from prev_record_reads
+  double identical_keys;                 // Save value from prev_record_reads
   Range_rowid_filter_cost_info *filter;  // Best filter
   KEYUSE *key;                           // Best key
   SplM_plan_info *spl_plan;
   table_map ref_depends_map;
+  ulonglong refills;                     // Join cache refills
   enum join_type type;
   uint forced_index;
   uint max_key_part;
   table_map found_ref;
-  bool uses_jbuf;
+  bool use_join_buffer;
 };
 
 
@@ -8145,6 +8151,7 @@ best_access_path(JOIN      *join,
   best.records_read= DBL_MAX;
   best.records_after_filter= DBL_MAX;
   best.records_out= table->stat_records() * table->cond_selectivity;
+  best.prev_record_reads= best.identical_keys= 0;
   best.filter= 0;
   best.key= 0;
   best.max_key_part= 0;
@@ -8152,10 +8159,10 @@ best_access_path(JOIN      *join,
   best.forced_index= MAX_KEY;
   best.found_ref= 0;
   best.ref_depends_map= 0;
-  best.uses_jbuf= FALSE;
+  best.refills= 0;
+  best.use_join_buffer= FALSE;
   best.spl_plan= 0;
 
-  pos->loops=        record_count;
   disable_jbuf= disable_jbuf || idx == join->const_tables;
 
   trace_wrapper.add_table_name(s);
@@ -8179,7 +8186,8 @@ best_access_path(JOIN      *join,
     KEYUSE *keyuse, *start_key= 0;
     uint max_key_part=0;
     enum join_type type= JT_UNKNOWN;
-    double cur_cost;
+    double cur_cost, copy_cost, cached_prev_record_reads= 0.0;
+    table_map cached_prev_ref= ~(table_map) 0;
 
     /* Test how we can use keys */
     rec= s->records/MATCHING_ROWS_IN_OTHER_TABLE;  // Assumed records/key
@@ -8203,6 +8211,8 @@ best_access_path(JOIN      *join,
       double startup_cost= s->startup_cost;
       double records_after_filter, records_best_filter, records;
       Range_rowid_filter_cost_info *filter= 0;
+      double prev_record_count= record_count;
+      double identical_keys= 0;
 
       if (is_hash_join_key_no(key))
       {
@@ -8244,6 +8254,7 @@ best_access_path(JOIN      *join,
             If 1. expression does not refer to forward tables
                2. we won't get two ref-or-null's
           */
+          double ignore;
           all_parts|= keyuse->keypart_map;
           if (!(remaining_tables & keyuse->used_tables) &&
               (!keyuse->validity_ref || *keyuse->validity_ref) &&
@@ -8260,13 +8271,19 @@ best_access_path(JOIN      *join,
             if (!keyuse->val->maybe_null() || keyuse->null_rejecting)
               notnull_part|=keyuse->keypart_map;
 
-            double tmp2= prev_record_reads(join_positions, idx,
-                                           (found_ref | keyuse->used_tables));
-            if (tmp2 < best_prev_record_reads)
+            if ((found_ref | keyuse->used_tables) != cached_prev_ref)
             {
+              cached_prev_ref= (found_ref | keyuse->used_tables);
+              cached_prev_record_reads=
+                prev_record_reads(join_positions, idx,
+                                  cached_prev_ref, record_count,
+                                  &ignore);
+            }
+            if (cached_prev_record_reads < best_prev_record_reads)
+            {
+              best_prev_record_reads= cached_prev_record_reads;
               best_part_found_ref= (keyuse->used_tables &
                                     ~join->const_table_map);
-              best_prev_record_reads= tmp2;
             }
             if (rec > keyuse->ref_table_rows)
               rec= keyuse->ref_table_rows;
@@ -8364,7 +8381,6 @@ best_access_path(JOIN      *join,
               (!(key_flags & HA_NULL_PART_KEY) ||            //  (2)
                all_key_parts == notnull_part))               //  (3)
           {
-            double adjusted_cost;
             /* Check that eq_ref_tables are correctly updated */
             DBUG_ASSERT(join->eq_ref_tables & table->map);
             type= JT_EQ_REF;
@@ -8382,14 +8398,12 @@ best_access_path(JOIN      *join,
               tmp= cost_for_index_read(thd, table, key, 1, 1);
             }
             /*
-              Calculate an adjusted cost based on how many records are read
-              This will be multipled by record_count.
+              Calculate how many record read calls will be made taking
+              into account that we will cache the last read row.
             */
-            adjusted_cost= (prev_record_reads(join_positions, idx, found_ref) /
-                            record_count);
-            set_if_smaller(adjusted_cost, 1.0);
-            tmp.row_cost.cpu*=   adjusted_cost;
-            tmp.index_cost.cpu*= adjusted_cost;
+            prev_record_count= prev_record_reads(join_positions, idx,
+                                                 found_ref, record_count,
+                                                 &identical_keys);
             records= 1.0;
           }
           else
@@ -8752,22 +8766,34 @@ best_access_path(JOIN      *join,
                                                records,
                                                file->cost(&tmp),
                                                file->cost(tmp.index_cost),
-                                               record_count,
+                                               prev_record_count,
                                                &records_best_filter);
         set_if_smaller(best.records_out, records_best_filter);
         if (filter)
           filter= filter->apply_filter(thd, table, &tmp,
                                        &records_after_filter,
                                        &startup_cost,
-                                       1, record_count);
+                                       1, prev_record_count);
       }
 
-      tmp.copy_cost+= records_after_filter * WHERE_COST_THD(thd);
-      cur_cost= file->cost_for_reading_multiple_times(record_count, &tmp);
-      cur_cost= COST_ADD(cur_cost, startup_cost);
+      /*
+        Take into account WHERE and setup cost.
+        We have to check the WHERE for all previous row combinations
+        (record_count).
+        'prev_record_count' is either 'record_count', or in case of
+        EQ_REF the estimated number of index_read() calls to the
+        engine when taking the one row read cache into account.
+      */
+      copy_cost= (record_count * records_after_filter * WHERE_COST_THD(thd) +
+                  startup_cost);
+
+      cur_cost= (file->cost_for_reading_multiple_times(prev_record_count, &tmp) +
+                 copy_cost);
 
       if (unlikely(trace_access_idx.trace_started()))
       {
+        if (prev_record_count != record_count)
+          trace_access_idx.add("prev_record_count", prev_record_count);
         trace_access_idx.
           add("rows", records_after_filter).
           add("cost", cur_cost);
@@ -8797,6 +8823,8 @@ best_access_path(JOIN      *join,
         best.records_after_filter= ((use_cond_selectivity > 1) ?
                                     records_after_filter :
                                     records_best_filter);
+        best.prev_record_reads= prev_record_count;
+        best.identical_keys= identical_keys;
         best.key= start_key;
         best.found_ref= found_ref;
         best.max_key_part= max_key_part;
@@ -8909,9 +8937,10 @@ best_access_path(JOIN      *join,
     best.records= rnd_records;
     best.key= hj_start_key;
     best.ref_depends_map= 0;
-    best.uses_jbuf= TRUE;
+    best.use_join_buffer= TRUE;
     best.filter= 0;
     best.type= JT_HASH;
+    best.refills= (ulonglong) ceil(refills);
     Json_writer_object trace_access_hash(thd);
     if (unlikely(trace_access_hash.trace_started()))
       trace_access_hash.
@@ -8978,7 +9007,8 @@ best_access_path(JOIN      *join,
     const char *scan_type= "";
     enum join_type type;
     uint forced_index= MAX_KEY;
-    bool force_plan= 0;
+    bool force_plan= 0, use_join_buffer= 0;
+    ulonglong refills= 1;
 
     /*
       Range optimizer never proposes a RANGE if it isn't better
@@ -9151,7 +9181,7 @@ best_access_path(JOIN      *join,
         s->cached_forced_index= forced_index;
       }
 
-      if ((table->map & join->outer_join) || disable_jbuf)
+      if (disable_jbuf || (table->map & join->outer_join))
       {
         /*
           Simple scan
@@ -9170,7 +9200,7 @@ best_access_path(JOIN      *join,
       else
       {
         /* Scan trough join cache */
-        double cmp_time, row_copy_cost, refills;
+        double cmp_time, row_copy_cost, tmp_refills;
 
         /*
           Note that the cost of checking all rows against the table specific
@@ -9179,10 +9209,11 @@ best_access_path(JOIN      *join,
         scan_type= "scan_with_join_cache";
 
         /* Calculate cost of refills */
-        refills= (1.0 + floor((double) cache_record_length(join,idx) *
-                              (record_count /
-                               (double) thd->variables.join_buff_size)));
-        cur_cost= COST_MULT(cur_cost, refills);
+        tmp_refills= (1.0 + floor((double) cache_record_length(join,idx) *
+                                  (record_count /
+                                   (double) thd->variables.join_buff_size)));
+        cur_cost= COST_MULT(cur_cost, tmp_refills);
+        refills= (ulonglong) tmp_refills;
 
         /* We come here only if there are already rows in the join cache */
         DBUG_ASSERT(idx != join->const_tables);
@@ -9202,6 +9233,7 @@ best_access_path(JOIN      *join,
                    ((idx - join->const_tables) * row_copy_cost +
                     WHERE_COST_THD(thd)));
         cur_cost= COST_ADD(cur_cost, cmp_time);
+        use_join_buffer= 1;
       }
     }
 
@@ -9260,8 +9292,8 @@ best_access_path(JOIN      *join,
       best.filter= filter;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best.ref_depends_map= 0;
-      best.uses_jbuf= MY_TEST(!disable_jbuf && !((table->map &
-                                                  join->outer_join)));
+      best.use_join_buffer= use_join_buffer;
+      best.refills= (ulonglong) ceil(refills);
       best.spl_plan= 0;
       best.type= type;
       trace_access_scan.add("chosen", true);
@@ -9282,10 +9314,13 @@ best_access_path(JOIN      *join,
   crash_if_first_double_is_bigger(best.records_out, best.records_read);
 
   /* Update the cost information for the current partial plan */
+  pos->loops=        record_count;
   pos->records_init= best.records_read;
   pos->records_after_filter= best.records_after_filter;
   pos->records_read= best.records;
   pos->records_out=  best.records_out;
+  pos->prev_record_reads= best.prev_record_reads;
+  pos->identical_keys=   best.identical_keys;
   pos->read_time=    best.cost;
   pos->key=          best.key;
   pos->forced_index= best.forced_index;
@@ -9293,11 +9328,12 @@ best_access_path(JOIN      *join,
   pos->table=        s;
   pos->ref_depend_map= best.ref_depends_map;
   pos->loosescan_picker.loosescan_key= MAX_KEY;
-  pos->use_join_buffer= best.uses_jbuf;
+  pos->use_join_buffer= best.use_join_buffer;
   pos->spl_plan= best.spl_plan;
   pos->range_rowid_filter_info= best.filter;
   pos->key_dependent= (best.type == JT_EQ_REF ? (table_map) 0 :
                        key_dependent & remaining_tables);
+  pos->refills=  best.refills;
 
   loose_scan_opt.save_to_position(s, record_count, loose_scan_pos);
 
@@ -11570,89 +11606,241 @@ cache_record_length(JOIN *join,uint idx)
   return length;
 }
 
-
 /*
-  Get the number of different row combinations for subset of partial join
+  Estimate the number of engine ha_index_read_calls for EQ_REF tables
+  when taking into account the one-row-cache in join_read_always_key()
 
   SYNOPSIS
-    prev_record_reads()
-      join       The join structure
-      idx        Number of tables in the partial join order (i.e. the
-                 partial join order is in join->positions[0..idx-1])
-      found_ref  Bitmap of tables for which we need to find # of distinct
-                 row combinations.
+    @param position      All previous tables best_access_path() information.
+    @param idx           Number of (previous) tables in positions.
+    @param record_count  Number of incoming record combinations
+    @param found_ref     Bitmap of tables that is used to construct the key
+                         used with the index read.
+
+    @return # The number of estimated calls that cannot be cached by the
+              the one-row-cache. In other words, number of expected
+              calls to engine ha_read_read_map().
+              Between 1 and record_count or 0 if record_count == 0
 
   DESCRIPTION
-    Given a partial join order (in join->positions[0..idx-1]) and a subset of
-    tables within that join order (specified in found_ref), find out how many
-    distinct row combinations of subset tables will be in the result of the
-    partial join order.
-     
-    This is used as follows: Suppose we have a table accessed with a ref-based
-    method. The ref access depends on current rows of tables in found_ref.
-    We want to count # of different ref accesses. We assume two ref accesses
-    will be different if at least one of access parameters is different.
-    Example: consider a query
+    The one-row-cache gives a great benefit when there are multiple consecutive
+    calls to ha_index_read() with the same key. In this case we can skip
+    calling the engine (and in the future also skip to check the key
+    condition), which can notably increase the performance.
 
-    SELECT * FROM t1, t2, t3 WHERE t1.key=c1 AND t2.key=c2 AND t3.key=t1.field
+    Assuming most of the rows are cached, there is no notable saving to be
+    made trying to calculate the total number of distinct key values that will
+    be used. The performance of a ha_index_read_call() is about the same even
+    if we repeatedly read the same set of rows.
 
-    and a join order:
-      t1,  ref access on t1.key=c1
-      t2,  ref access on t2.key=c2       
-      t3,  ref access on t3.key=t1.field 
-    
-    For t1: n_ref_scans = 1, n_distinct_ref_scans = 1
-    For t2: n_ref_scans = records_read(t1), n_distinct_ref_scans=1
-    For t3: n_ref_scans = records_read(t1)*records_read(t2)
-            n_distinct_ref_scans = #records_read(t1)
-    
-    The reason for having this function (at least the latest version of it)
-    is that we need to account for buffering in join execution. 
-    
-    An edge-case example: if we have a non-first table in join accessed via
-    ref(const) or ref(param) where there is a small number of different
-    values of param, then the access will likely hit the disk cache and will
-    not require any disk seeks.
-    
-    The proper solution would be to assume an LRU disk cache of some size,
-    calculate probability of cache hits, etc. For now we just count
-    identical ref accesses as one.
+    This code works by calculating the number of identical key sequences
+    found in the record stream.
+    The number of expected distinct calls can then be calculated as
+    records_count / sequences.
 
-  RETURN 
-    Expected number of row combinations
+    Some things to note:
+     - record_count == PRODUCT(records_out) over all tables[0...idx-1]
+     - position->prev_record_reads contains the number of identical
+       sequences found for previous EQ_REF tables.
+
+    Assume a join prefix of t1,t2,t3,t4 and t4 is an EQ_REF table.
+    We have the following combinations that we have to consider:
+
+======
+1) No JOIN_CACHE usage, tables depend only on one previous table
+
+   Row combinations are generated as:
+   - for all rows in t1
+     - for all rows in t2
+       - for all rows in t3
+   or
+   t1.1,t2.1,t3.1, t1.1,t2.1,t3.2, t1.1,t2.1,t3.3...  # Only t3 row changes
+   (until no more rows in t3., ie t3.records_out times)
+   t1.1,t2.2,t3.1, t1.1,t2.2,t3.2, t1.1,t2.2,t3.3...  # t2.2 read
+   (above repeated until no more rows in t2 and t3)
+   t1.2,t2.1,t3.1, t1.2,t2.1,t3.2, t1.2,t2.1,t3.3...  # t1.2 read
+
+   If t4 is an EQ_REF table that is depending of one of the
+   previous tables, the number of identical keys can be calculated
+   as the multiplication of records_out of the tables in between
+   the t4 and its first dependency.
+
+   Let's consider cases where t4 depends on different previous tables:
+   WHERE t4.a=t3.a
+     no caching as t3 can change for each row
+     engine_calls: record_count
+
+   WHERE t4.a=t2.a
+     t4 is not depending on t3. The number of repeated rows are:
+     t1.1,t2.1,t3.1       to t1.1,t2.1,t3.last   # t3.records_out rows
+     t1.1,t2.2,t3.1       to t1.1,t2.2,t3.last   # t3.records_out rows
+     ...
+     t1.2,t2.1,t3.1       to t1.2,t2.1,t3.last
+     ...
+     t1.last,t2.last.t3.1 to t1.last,t2.last.1,t3.last
+
+     For each combination of t1 and t2 there are t3.records_out repeated
+     rows with equal key value
+     engine_calls: record_count / t3.records_out calls =
+                    t1.records_out * t2.records_out
+
+   WHERE t4.a=t1.a
+     The repeated sequences:
+     t1.1,t2.1,t3.1 to t1.1,t2.last,t3.last
+     t1.2,t2.1,t3.1 to t2.1,t2.last,t3.last
+     repeated rows: t2.records_out * t3.records_out
+     engine_calls: record_count/repeated_rows = t1.records_out
+
+   If t4 depends on a table that uses EQ_REF access, we can multipy that
+   table's repeated_rows with current table's repeated_rows to take that
+   into account.
+
+=====
+2) Keys depending on multiple tables
+
+   In this case we have to stop searching after we find the first
+   table we depend upon.
+   We have to also disregard the number of repeated rows for the
+   found table. This can be seen from (assuming tables t1...t6):
+
+   WHERE t6.a=t4.a and t6.a=t3.a and t4.a= t2.a
+   - Here t4 is not depending on t3 (and thus there is a
+     t3.records_out identical keys for t4). However t6 key will
+     change for each t3 row and t6 cannot thus use
+     t3.identical_keys
+
+   WHERE t4.key_part1=t1.a and t4.key_part2= t3.a
+     As t4.key_part2 will change for every row, one-row-cache will not
+     be hit
+
+   WHERE t4.key_part1=t1.a and t4.key_part2= t2.a
+     t4.key will change when t1 or t2 changes
+     This is the same case as above for WHERE t4.a = t2.a
+      engine_calls: record_count / t3.records_out calls
+
+=====
+3) JOIN_CACHE is used
+
+   If any table is using join_cache as this changes the row
+   combinations seen by following tables.  Using join cache for a
+   table T# will have T# rows repeated for the next table as many
+   times there are combinations in the cache. The the cache will
+   re-read and the operations repeats 'refill-1' number of times.
+
+   Table rows from table just before T# will come in 'random order',
+   from the point of the next tables.
+
+   Assuming t3 is using a cache, t4 will see the rows coming in the
+   following order:
+   t1.1,t2.1,t3.1, t1.1,t2.2,t3.1, t1.1,t2.3,t3.1...
+   (t3.1 repeated 't2.records_out' times)
+   t1.2,t2.1,t3.1, t1.2,t2.2,t3.1, t1.2,t2.3,t3.1...
+   (Next row in t1 used)
+   t1.1,t2.1,t3.2, t1.1,t2.2,t3.2, t1.1,t2.3,t3.2...
+   (Restarting all t1 & t2 combinations for t3.2)
+
+   WHERE t4.a=t3.a
+   - There is a repeated sequence of t3.records_out rows for
+     each t1,t2 row combination.
+     engine_calls= record_count / t3.records_out
+
+   WHERE t4.a=t2.a
+     t2 changes for each row
+     engine_calls= record_count
+
+   WHERE t4.a=t1.a
+     repeated rows= t2.records_out
+     engine_calls= record_count / t2.records_out
+
+   A refill of the join cache will restart the row sequences
+   (we have 'refill' more sequences), so we will have to do 'refill' times
+   more engine read calls.
+
+=====
+   Expectations of the accuracy of the return value
+
+   - The value is always between 1 and record_count
+   - The returned value should almost always larger than the true number of
+     engine calls.
+
+   - Assuming that every row has different values for all other columns for
+     echo unique key value and record_count is accurate:
+     - If a table is depending on multiple tables, the return value may be
+       notable larger than real value.
+     - If there is no join cache the value should be exact.
+     - If there is a join cache, but no refills calculated or done then
+       the value should be exact.
+     - If there was more join_cache refills than was calculated, the value
+       may be slightly to low.
+     - If the number of refills is equal or less than was calculated the value
+       should be larger than the expected engine read calls. The more refills,
+       the less exact the number will be.
 */
 
-double
-prev_record_reads(const POSITION *positions, uint idx, table_map found_ref)
+static double
+prev_record_reads(const POSITION *position, uint idx, table_map found_ref,
+                  double record_count, double *identical_keys)
 {
-  double found=1.0;
-  const POSITION *pos_end= positions - 1;
-  for (const POSITION *pos= positions + idx - 1; pos != pos_end; pos--)
+  double found= 1.0;
+  const POSITION *pos_end= position - 1;
+  const POSITION *cur_pos= position + idx;
+
+  /* Safety against const tables */
+  if (unlikely(!found_ref))
+    goto end;
+
+  for (const POSITION *pos= cur_pos-1; pos != pos_end; pos--)
   {
-    if (pos->table->table->map & found_ref)
+    if (found_ref & pos->table->table->map)
     {
-      found_ref|= pos->ref_depend_map;
-      /* 
-        For the case of "t1 LEFT JOIN t2 ON ..." where t2 is a const table 
-        with no matching row we will get position[t2].records_read==0. 
-        Actually the size of output is one null-complemented row, therefore 
-        we will use value of 1 whenever we get records_read==0.
-
-        Note
-        - the above case can't occur if inner part of outer join has more 
-          than one table: table with no matches will not be marked as const.
-
-        - Ideally we should add 1 to records_read for every possible null-
-          complemented row. We're not doing it because: 1. it will require
-          non-trivial code and add overhead. 2. The value of records_read
-          is an inprecise estimate and adding 1 (or, in the worst case,
-          #max_nested_outer_joins=64-1) will not make it any more precise.
+      /* Found a table we depend on */
+      found_ref= ~pos->table->table->map;
+      if (!found_ref)
+      {
+        /*
+          No more dependencies. We can use the cached values to improve things
+          a bit
+        */
+        if (pos->type == JT_EQ_REF)
+          found= COST_MULT(found, pos->identical_keys);
+        else if (pos->use_join_buffer)
+          found= COST_MULT(found, pos->loops / pos->refills);
+      }
+      break;
+    }
+    if (unlikely(pos->use_join_buffer))
+    {
+      /* Each refill can change the cached key */
+      found/= pos->refills;
+    }
+    else
+    {
+      /*
+        We are not depending on the current table.
+        There are 'records_out' rows with identical rows
+        value for our depending tables.
       */
-      if (pos->records_out)
-        found= COST_MULT(found, pos->records_out);
+      found= COST_MULT(found, pos->records_out);
     }
   }
-  return found;
+
+  /*
+    In most case found should <= record_count.
+
+    However if there was a reduction of rows (records_out < 1) before
+    the referencing table then found could be >= record_count.
+    To get resonable numbers, we limit prev_record_read to be between
+    1.0 and record_count as we have to always do at least one read
+    anyway.
+  */
+
+end:
+  if (unlikely(found > record_count))
+    found= record_count;
+  if (unlikely(found <= 1.0))
+    found= 1.0;
+  *identical_keys= found;
+  return record_count / found;
 }
 
 
