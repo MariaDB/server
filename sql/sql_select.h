@@ -410,7 +410,7 @@ typedef struct st_join_table {
   uint          index;
   uint		status;				///< Save status for cache
   uint		used_fields;
-  uint          cached_covering_key;            /* Set by estimate_scan_time() */
+  uint          cached_covering_key;            // Set by estimate_scan_time()
   ulong         used_fieldlength;
   ulong         max_used_fieldlength;
   uint          used_blobs;
@@ -1012,6 +1012,12 @@ public:
   */
   double records_out;
 
+  /* record combinations before this table */
+  double record_combinations;
+
+  /* Values from prev_record_reads call for EQ_REF table*/
+  double        prev_record_reads, identical_keys;
+
   /* The selectivity of the pushed down conditions */
   double cond_selectivity;
 
@@ -1060,6 +1066,7 @@ public:
   LooseScan_picker          loosescan_picker;
   Sj_materialization_picker sjmat_picker;
 
+  ulonglong refills;
   /*
     Current optimization state: Semi-join strategy to be used for this
     and preceding join tables.
@@ -2518,7 +2525,6 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
                            TMP_ENGINE_COLUMNDEF **recinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
-double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse,
