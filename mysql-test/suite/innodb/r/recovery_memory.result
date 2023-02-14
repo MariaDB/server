@@ -1,3 +1,7 @@
+call mtr.add_suppression("InnoDB: The change buffer is corrupted");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted at srv0start.cc");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
 CREATE TABLE t1(c TEXT, KEY(c(3072)))ENGINE=InnoDB;
 CREATE PROCEDURE dorepeat()
 LOOP
@@ -9,4 +13,20 @@ connect con1,localhost,root,,,;
 CALL dorepeat();
 connection default;
 # restart: --innodb_buffer_pool_size=5242880
+DROP TABLE t1;
+DROP PROCEDURE dorepeat;
+#
+# MDEV-30552  InnoDB recovery crashes when error
+#        handling scenario
+#
+SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT * FROM seq_1_to_65536;
+# restart: --innodb_buffer_pool_size=5242880 --debug_dbug=+d,ibuf_init_corrupt
+# restart
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;

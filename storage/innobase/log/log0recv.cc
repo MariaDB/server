@@ -747,8 +747,10 @@ static struct
   bool reinit_all()
   {
 retry:
+    mysql_mutex_unlock(&log_sys.mutex);
     bool fail= false;
     buf_block_t *free_block= buf_LRU_get_free_block(false);
+    mysql_mutex_lock(&log_sys.mutex);
     mysql_mutex_lock(&recv_sys.mutex);
 
     for (auto d= defers.begin(); d != defers.end(); )
@@ -3287,7 +3289,21 @@ void recv_sys_t::apply(bool last_batch)
 
     fil_system.extend_to_recv_size();
 
+    /* We must release log_sys.mutex and recv_sys.mutex before
+    invoking buf_LRU_get_free_block(). Allocating a block may initiate
+    a redo log write and therefore acquire log_sys.mutex. To avoid
+    deadlocks, log_sys.mutex must not be acquired while holding
+    recv_sys.mutex. */
+    mysql_mutex_unlock(&mutex);
+    if (!last_batch)
+      mysql_mutex_unlock(&log_sys.mutex);
+
+    mysql_mutex_assert_not_owner(&log_sys.mutex);
     buf_block_t *free_block= buf_LRU_get_free_block(false);
+
+    if (!last_batch)
+      mysql_mutex_lock(&log_sys.mutex);
+    mysql_mutex_lock(&mutex);
 
     for (map::iterator p= pages.begin(); p != pages.end(); )
     {
@@ -3334,7 +3350,12 @@ erase_for_space:
         {
 next_free_block:
           mysql_mutex_unlock(&mutex);
+          if (!last_batch)
+            mysql_mutex_unlock(&log_sys.mutex);
+          mysql_mutex_assert_not_owner(&log_sys.mutex);
           free_block= buf_LRU_get_free_block(false);
+          if (!last_batch)
+            mysql_mutex_lock(&log_sys.mutex);
           mysql_mutex_lock(&mutex);
           break;
         }
@@ -4305,6 +4326,11 @@ completed:
 				mysql_mutex_unlock(&log_sys.mutex);
 				return(DB_ERROR);
 			}
+
+			/* In case of multi-batch recovery,
+			redo log for the last batch is not
+			applied yet. */
+			ut_d(recv_sys.after_apply = false);
 		}
 	} else {
 		ut_ad(!rescan || recv_sys.pages.empty());
