@@ -2886,3 +2886,50 @@ drop table tm, t;
 --echo #
 --echo # End of 10.8 tests
 --echo #
+
+--echo #
+--echo # MDEV-28602 Wrong result with outer join, merged derived table and view
+--echo #
+
+drop table if exists t1, t2;
+create table t1 (
+  Election int(10) unsigned NOT NULL
+);
+
+insert into t1 (Election) values (1);
+ 
+create table t2 (
+  VoteID int(10),
+  ElectionID int(10),
+  UserID int(10)
+);
+
+insert into t2 (ElectionID, UserID) values (2,  30), (3, 30);
+#  INSERT INTO t2 (ElectionID, UserID) VALUES (1,  30);
+drop view if exists v1;
+create view v1 as select * from t1
+  left join ( select 'Y' AS Voted, ElectionID from t2 ) AS T 
+    on T.ElectionID = t1.Election
+limit 9;
+# limit X causes merge algorithm select as opposed to temp table
+select * from v1;
+drop table t1, t2;
+drop view v1;
+
+# and another contrived example showing a bit of heirarchy
+
+drop view if exists v10, v20;
+drop table if exists t10, t20, t30;
+create table t10 (a int);
+create table t20 (b int);
+insert into t10 values (1),(2);
+insert into t20 values (1),(3);
+create view v10 as select *, 'U' as u from t10 left join (select 'Y' as y, t20.b from t20) dt1 on t10.a= dt1.b limit 3;
+create table t30 (c int);
+insert into t30 values (1),(3);
+create view v20 as select * from t30 left join (select 'X' as x, v10.u, v10.y, v10.b from v10) dt2 on t30.c=dt2.b limit 6;
+select * from v20 limit 9;
+drop view v10, v20;
+drop table t10, t20, t30;
+
+--echo # End of 10.11 tests
