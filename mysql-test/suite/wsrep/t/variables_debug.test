@@ -8,7 +8,7 @@
 --let $galera_version=26.4.11
 source include/check_galera_version.inc;
 
-source include/galera_variables_ok.inc;
+source include/galera_variables_ok_debug.inc;
 
 --replace_column 2 #
 SHOW GLOBAL STATUS LIKE 'wsrep%';

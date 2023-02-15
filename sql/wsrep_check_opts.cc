@@ -85,7 +85,7 @@ int wsrep_check_opts()
     }
   }
 
-  if (strcasecmp(wsrep_provider, "NONE"))
+  if (strcasecmp(wsrep_provider, WSREP_NONE))
   {
     if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
     {
