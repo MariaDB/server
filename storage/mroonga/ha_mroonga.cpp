@@ -4308,6 +4308,7 @@ int ha_mroonga::wrapper_open(const char *name, int mode, uint open_options)
     wrap_handler->set_ha_share_ref(&table->s->ha_share);
 #endif
     error = wrap_handler->ha_open(table, name, mode, open_options);
+    wrap_handler->set_optimizer_costs(ha_thd());
   } else {
     if (!(wrap_handler = parent_for_clone->wrap_handler->clone(name,
       mem_root_for_clone)))
@@ -12313,6 +12314,7 @@ ha_rows ha_mroonga::wrapper_multi_range_read_info_const(uint keyno,
                                                         uint n_ranges,
                                                         uint *bufsz,
                                                         uint *flags,
+                                                        ha_rows limit,
                                                         Cost_estimate *cost)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -12320,7 +12322,8 @@ ha_rows ha_mroonga::wrapper_multi_range_read_info_const(uint keyno,
   KEY *key_info = &(table->key_info[keyno]);
   if (mrn_is_geo_key(key_info)) {
     rows = handler::multi_range_read_info_const(keyno, seq, seq_init_param,
-                                                n_ranges, bufsz, flags, cost);
+                                                n_ranges, bufsz, flags, limit,
+                                                cost);
     DBUG_RETURN(rows);
   }
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
@@ -12329,7 +12332,7 @@ ha_rows ha_mroonga::wrapper_multi_range_read_info_const(uint keyno,
     set_pk_bitmap();
   rows = wrap_handler->multi_range_read_info_const(keyno, seq, seq_init_param,
                                                    n_ranges, bufsz, flags,
-                                                   cost);
+                                                   limit, cost);
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
   DBUG_RETURN(rows);
@@ -12341,20 +12344,21 @@ ha_rows ha_mroonga::storage_multi_range_read_info_const(uint keyno,
                                                         uint n_ranges,
                                                         uint *bufsz,
                                                         uint *flags,
+                                                        ha_rows limit,
                                                         Cost_estimate *cost)
 {
   MRN_DBUG_ENTER_METHOD();
   ha_rows rows = handler::multi_range_read_info_const(keyno, seq,
                                                       seq_init_param,
                                                       n_ranges, bufsz, flags,
-                                                      cost);
+                                                      limit, cost);
   DBUG_RETURN(rows);
 }
 
 ha_rows ha_mroonga::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                 void *seq_init_param,
                                                 uint n_ranges, uint *bufsz,
-                                                uint *flags,
+                                                uint *flags, ha_rows limit,
                                                 Cost_estimate *cost)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -12363,11 +12367,11 @@ ha_rows ha_mroonga::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   {
     rows = wrapper_multi_range_read_info_const(keyno, seq, seq_init_param,
                                                n_ranges, bufsz,
-                                               flags, cost);
+                                               flags, limit, cost);
   } else {
     rows = storage_multi_range_read_info_const(keyno, seq, seq_init_param,
                                                n_ranges, bufsz,
-                                               flags, cost);
+                                               flags, limit, cost);
   }
   DBUG_RETURN(rows);
 }
@@ -13008,9 +13012,9 @@ int ha_mroonga::truncate()
   DBUG_RETURN(error);
 }
 
-double ha_mroonga::wrapper_scan_time()
+IO_AND_CPU_COST ha_mroonga::wrapper_scan_time()
 {
-  double res;
+  IO_AND_CPU_COST res;
   MRN_DBUG_ENTER_METHOD();
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
@@ -13020,17 +13024,16 @@ double ha_mroonga::wrapper_scan_time()
   DBUG_RETURN(res);
 }
 
-double ha_mroonga::storage_scan_time()
+IO_AND_CPU_COST ha_mroonga::storage_scan_time()
 {
   MRN_DBUG_ENTER_METHOD();
-  double time = handler::scan_time();
-  DBUG_RETURN(time);
+  DBUG_RETURN(handler::scan_time());
 }
 
-double ha_mroonga::scan_time()
+IO_AND_CPU_COST ha_mroonga::scan_time()
 {
   MRN_DBUG_ENTER_METHOD();
-  double time;
+  IO_AND_CPU_COST time;
   if (share->wrapper_mode)
   {
     time = wrapper_scan_time();
@@ -13040,50 +13043,86 @@ double ha_mroonga::scan_time()
   DBUG_RETURN(time);
 }
 
-double ha_mroonga::wrapper_read_time(uint index, uint ranges, ha_rows rows)
+IO_AND_CPU_COST ha_mroonga::wrapper_rnd_pos_time(ha_rows rows)
 {
-  double res;
+  IO_AND_CPU_COST res;
+  MRN_DBUG_ENTER_METHOD();
+  MRN_SET_WRAP_SHARE_KEY(share, table->s);
+  MRN_SET_WRAP_TABLE_KEY(this, table);
+  res = wrap_handler->rnd_pos_time(rows);
+  MRN_SET_BASE_SHARE_KEY(share, table->s);
+  MRN_SET_BASE_TABLE_KEY(this, table);
+  DBUG_RETURN(res);
+}
+
+IO_AND_CPU_COST ha_mroonga::storage_rnd_pos_time(ha_rows rows)
+{
+  MRN_DBUG_ENTER_METHOD();
+  IO_AND_CPU_COST time = handler::rnd_pos_time(rows);
+  DBUG_RETURN(time);
+}
+
+
+IO_AND_CPU_COST ha_mroonga::rnd_pos_time(ha_rows rows)
+{
+  MRN_DBUG_ENTER_METHOD();
+  IO_AND_CPU_COST time;
+  if (share->wrapper_mode)
+  {
+    time = wrapper_rnd_pos_time(rows);
+  } else {
+    time = storage_rnd_pos_time(rows);
+  }
+  DBUG_RETURN(time);
+}
+
+
+IO_AND_CPU_COST ha_mroonga::wrapper_keyread_time(uint index, ulong ranges,
+                                                 ha_rows rows, ulonglong blocks)
+{
+  IO_AND_CPU_COST res;
   MRN_DBUG_ENTER_METHOD();
   if (index < MAX_KEY) {
     KEY *key_info = &(table->key_info[index]);
     if (mrn_is_geo_key(key_info)) {
-      res = handler::read_time(index, ranges, rows);
+      res = handler::keyread_time(index, ranges, rows, blocks);
       DBUG_RETURN(res);
     }
     MRN_SET_WRAP_SHARE_KEY(share, table->s);
     MRN_SET_WRAP_TABLE_KEY(this, table);
-    res = wrap_handler->read_time(share->wrap_key_nr[index], ranges, rows);
+    res = wrap_handler->keyread_time(share->wrap_key_nr[index], ranges, rows, blocks);
     MRN_SET_BASE_SHARE_KEY(share, table->s);
     MRN_SET_BASE_TABLE_KEY(this, table);
   } else {
     MRN_SET_WRAP_SHARE_KEY(share, table->s);
     MRN_SET_WRAP_TABLE_KEY(this, table);
-    res = wrap_handler->read_time(index, ranges, rows);
+    res = wrap_handler->keyread_time(index, ranges, rows, blocks);
     MRN_SET_BASE_SHARE_KEY(share, table->s);
     MRN_SET_BASE_TABLE_KEY(this, table);
   }
   DBUG_RETURN(res);
 }
 
-double ha_mroonga::storage_read_time(uint index, uint ranges, ha_rows rows)
+IO_AND_CPU_COST ha_mroonga::storage_keyread_time(uint index, ulong ranges, ha_rows rows, ulonglong blocks)
 {
   MRN_DBUG_ENTER_METHOD();
-  double time = handler::read_time(index, ranges, rows);
+  IO_AND_CPU_COST time = handler::keyread_time(index, ranges, rows, blocks);
   DBUG_RETURN(time);
 }
 
-double ha_mroonga::read_time(uint index, uint ranges, ha_rows rows)
+IO_AND_CPU_COST ha_mroonga::keyread_time(uint index, ulong ranges, ha_rows rows, ulonglong blocks)
 {
   MRN_DBUG_ENTER_METHOD();
-  double time;
+  IO_AND_CPU_COST time;
   if (share->wrapper_mode)
   {
-    time = wrapper_read_time(index, ranges, rows);
+    time = wrapper_keyread_time(index, ranges, rows, blocks);
   } else {
-    time = storage_read_time(index, ranges, rows);
+    time = storage_keyread_time(index, ranges, rows, blocks);
   }
   DBUG_RETURN(time);
 }
+
 
 #ifdef MRN_HANDLER_HAVE_KEYS_TO_USE_FOR_SCANNING
 const key_map *ha_mroonga::wrapper_keys_to_use_for_scanning()

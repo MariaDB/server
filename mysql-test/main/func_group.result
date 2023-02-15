@@ -1820,7 +1820,7 @@ CREATE TABLE t1(f1 YEAR(4));
 INSERT INTO t1 VALUES (0000),(2001);
 (SELECT MAX(f1) FROM t1) UNION (SELECT MAX(f1) FROM t1);
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def				MAX(f1)	MAX(f1)	13	4	4	Y	32864	0	63
+def				MAX(f1)	MAX(f1)	13	4	4	Y	49248	0	63
 MAX(f1)
 2001
 DROP TABLE t1;
@@ -1856,9 +1856,8 @@ NULL
 EXPLAIN EXTENDED
 SELECT MAX(a) FROM t1 WHERE (1,2) IN (SELECT a,b FROM t2 WHERE b<5) and a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	20.00	Using where; FirstMatch
 1	PRIMARY	t1	range	a	a	4	NULL	3	100.00	Using where; Using index; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	select max(`test`.`t1`.`a`) AS `MAX(a)` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`a` = 1 and `test`.`t2`.`b` = 2 and `test`.`t1`.`a` < 10
 SELECT MAX(a) FROM t1 WHERE (1,2) IN (SELECT a,b FROM t2 WHERE b<5) and a<10;

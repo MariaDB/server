@@ -383,7 +383,7 @@ void print_sjm(SJ_MATERIALIZATION_INFO *sjm)
   }
   fprintf(DBUG_FILE, "  }\n");
   fprintf(DBUG_FILE, "  materialize_cost= %g\n",
-          sjm->materialization_cost.total_cost());
+          sjm->materialization_cost);
   fprintf(DBUG_FILE, "  rows= %g\n", sjm->rows);
   fprintf(DBUG_FILE, "}\n");
   DBUG_UNLOCK_FILE;
@@ -698,14 +698,15 @@ void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
     {
       keyuse_elem.add("index", keyuse->table->key_info[keyuse->key].name);
     }
-    keyuse_elem.add("field", (keyuse->keypart == FT_KEYPART) ? "<fulltext>":
-                                        (keyuse->is_for_hash_join() ?
-                                        keyuse->table->field[keyuse->keypart]
-                                                     ->field_name.str :
-                                        keyuse->table->key_info[keyuse->key]
-                                          .key_part[keyuse->keypart]
-                                          .field->field_name.str));
-    keyuse_elem.add("equals",keyuse->val);
-    keyuse_elem.add("null_rejecting",keyuse->null_rejecting);
+    keyuse_elem.
+      add("field", (keyuse->keypart == FT_KEYPART) ? "<fulltext>":
+          (keyuse->is_for_hash_join() ?
+           keyuse->table->field[keyuse->keypart]
+           ->field_name.str :
+           keyuse->table->key_info[keyuse->key]
+           .key_part[keyuse->keypart]
+           .field->field_name.str)).
+      add("equals",keyuse->val).
+      add("null_rejecting",keyuse->null_rejecting);
   }
 }

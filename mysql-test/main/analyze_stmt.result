@@ -258,7 +258,7 @@ drop table t1;
 create table t1 (i int);
 analyze delete from t1 returning *;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	0.00	100.00	100.00	
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 drop table t1;
 #
 # MDEV-6396: ANALYZE INSERT/REPLACE is accepted, but does not produce a plan
@@ -314,7 +314,7 @@ insert into t2 values (0),(1);
 analyze select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	Using where
-1	SIMPLE	t2	ref	a	a	5	test.t1.a	2	0.20	100.00	100.00	Using index
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	1	0.20	100.00	100.00	Using index
 drop table t1,t2;
 #
 # MDEV-8063: Unconditional ANALYZE DELETE does not delete rows

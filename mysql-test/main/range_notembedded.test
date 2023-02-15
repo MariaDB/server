@@ -122,6 +122,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (notification_type_id,item_id,item_parent_id,user_id)
 );
 insert into t1 values (1,1,1,1), (2,2,2,2), (3,3,3,3);
+insert into t1 select seq,seq,seq,seq from seq_10_to_30;
 
 let $consts=`select group_concat(concat("'",seq,"'")) from seq_1_to_4642`;
 

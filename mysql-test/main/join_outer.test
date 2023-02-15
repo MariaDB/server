@@ -1813,7 +1813,7 @@ create table t2 (a int, b int, c int, key(b), key(c));
 insert into t2 select 
   @a:=A.a + 10*B.a+100*C.a,
   IF(@a<900, NULL, @a),
-  IF(@a<500, NULL, @a)
+  IF(@a<400, NULL, @a)
 from t1 A, t1 B, t1 C;
 
 delete from t1 where a=0;

@@ -5235,6 +5235,24 @@ static int rocksdb_check_version(handlerton *hton,
 
   return (create_id == ver);
 }
+
+/*
+  Setup costs factors for RocksDB to be able to approximate how many
+  ms different opperations takes. See cost functions in handler.h how
+  the different variables are used
+*/
+
+static void rocksdb_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /* See optimizer_costs.txt for how these are calculated */
+  costs->row_next_find_cost= 0.00015161;
+  costs->row_lookup_cost=    0.00150453;
+  costs->key_next_find_cost= 0.00025108;
+  costs->key_lookup_cost=    0.00079369;
+  costs->row_copy_cost=      0.00006087;
+}
+
+
 /*
   Storage Engine initialization function, invoked when plugin is loaded.
 */
@@ -5343,6 +5361,7 @@ static int rocksdb_init_func(void *const p) {
   rocksdb_hton->savepoint_rollback = rocksdb_rollback_to_savepoint;
   rocksdb_hton->savepoint_rollback_can_release_mdl =
       rocksdb_rollback_to_savepoint_can_release_mdl;
+  rocksdb_hton->update_optimizer_costs= rocksdb_update_optimizer_costs;
 #ifdef MARIAROCKS_NOT_YET
   rocksdb_hton->update_table_stats = rocksdb_update_table_stats;
 #endif // MARIAROCKS_NOT_YET
@@ -14631,16 +14650,24 @@ bool ha_rocksdb::use_read_free_rpl() const {
 }
 #endif // MARIAROCKS_NOT_YET
 
-double ha_rocksdb::read_time(uint index, uint ranges, ha_rows rows) {
+IO_AND_CPU_COST ha_rocksdb::keyread_time(uint index, ulong ranges,
+                                         ha_rows rows,
+                                         ulonglong blocks) {
   DBUG_ENTER_FUNC();
-
-  if (index != table->s->primary_key) {
-    /* Non covering index range scan */
-    DBUG_RETURN(handler::read_time(index, ranges, rows));
-  }
-
-  DBUG_RETURN((rows / 20.0) + 1);
+  IO_AND_CPU_COST cost;
+  cost= handler::keyread_time(index, ranges, rows, blocks);
+  cost.io/= 4;                        // Assume 75% compression (75% less IO)
+  DBUG_RETURN(cost);
 }
+
+
+ulonglong ha_rocksdb::index_blocks(uint index, uint ranges, ha_rows rows)
+{
+  size_t len= table->key_storage_length(index);
+  ulonglong blocks= (rows * len / 4) / stats.block_size + ranges; // 75 % compression
+  return blocks * stats.block_size / IO_SIZE;
+}
+
 
 void ha_rocksdb::print_error(int error, myf errflag) {
   if (error == HA_ERR_ROCKSDB_STATUS_BUSY) {

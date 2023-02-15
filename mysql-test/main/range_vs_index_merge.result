@@ -1077,7 +1077,7 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	index_merge	Country,CountryPopulation,CountryName,CityName	CountryName,CityName	38,35	NULL	28	Using sort_union(CountryName,CityName); Using where
+1	SIMPLE	City	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	28	Using index condition
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1325,11 +1325,11 @@ WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
 AND (Population >= 100000 AND Population < 120000)
 ORDER BY Population LIMIT 5;
 ID	Name	Country	Population
+3792	Tartu	EST	101246
+518	Basildon	GBR	100924
 519	Worthing	GBR	100000
 638	al-Arish	EGY	100447
-518	Basildon	GBR	100924
 707	Marbella	ESP	101144
-3792	Tartu	EST	101246
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
@@ -1750,6 +1750,9 @@ SELECT * FROM t1,t2,t3
 WHERE (t2.f3 = 1 OR t3.f1=t2.f1) AND t3.f1 <> t2.f2 AND t3.f2 = t2.f4;
 f1	f1	f2	f3	f4	f1	f2
 DROP TABLE t1,t2,t3;
+#
+# LP bug #823301: index merge sort union with possible index scan
+#
 CREATE TABLE t1 (
 a int, b int, c int, d int,
 PRIMARY KEY(b), INDEX idx1(d), INDEX idx2(d,b,c)
@@ -1766,7 +1769,7 @@ EXPLAIN
 SELECT * FROM t1 
 WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY,idx1,idx2	NULL	NULL	NULL	9	Using where
+1	SIMPLE	t1	range	PRIMARY,idx1,idx2	idx1	5	NULL	5	Using index condition; Using where
 SELECT * FROM t1 
 WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 a	b	c	d
@@ -1780,7 +1783,7 @@ EXPLAIN
 SELECT * FROM t1 
 WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY,idx1,idx2	NULL	NULL	NULL	9	Using where
+1	SIMPLE	t1	range	PRIMARY,idx1,idx2	idx1	5	NULL	5	Using index condition; Using where
 SELECT * FROM t1 
 WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 a	b	c	d
@@ -1894,37 +1897,6 @@ INDEX (Percentage)
 DROP INDEX Country ON City;
 CREATE INDEX CountryName ON City(Country,Name);
 CREATE INDEX Name ON City(Name);
-select * from City
-where
-Country='FIN' AND Name IN ('Lahti','Imatra') OR
-Country='RUS' AND Name IN ('St Petersburg', 'Moscow') OR
-Country='SWE' AND Name IN ('Stockholm', 'Uppsala') OR
-Country='DEU' AND Name IN ('Berlin', 'Bonn') OR
-Country='BEL' AND Name IN ('Antwerpen', 'Gent') OR
-Country='PRT' AND Name IN ('Braga', 'Porto') OR
-Country='FRA' AND Name IN ('Paris', 'Marcel') OR
-Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
-Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
-Country='ITA' AND Name IN ('Napoli', 'Venezia');
-ID	Name	Country	Population
-175	Antwerpen	BEL	446525
-176	Gent	BEL	224180
-3068	Berlin	DEU	3386667
-3087	Bonn	DEU	301048
-3242	Lahti	FIN	96921
-2974	Paris	FRA	2125246
-1466	Napoli	ITA	1002619
-1474	Venezia	ITA	277305
-2808	Bergen	NOR	230948
-2807	Oslo	NOR	508726
-2928	Warszawa	POL	1615369
-2931	Wroclaw	POL	636765
-2918	Braga	PRT	90535
-2915	Porto	PRT	273060
-3580	Moscow	RUS	8389200
-3581	St Petersburg	RUS	4694000
-3048	Stockholm	SWE	750348
-3051	Uppsala	SWE	189569
 explain select * from City
 where
 Country='FIN' AND Name IN ('Lahti','Imatra') OR
@@ -1939,5 +1911,36 @@ Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
 Country='ITA' AND Name IN ('Napoli', 'Venezia');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	City	range	CountryName,Name	CountryName	38	NULL	20	Using index condition
+select * from City
+where
+Country='FIN' AND Name IN ('Lahti','Imatra') OR
+Country='RUS' AND Name IN ('St Petersburg', 'Moscow') OR
+Country='SWE' AND Name IN ('Stockholm', 'Uppsala') OR
+Country='DEU' AND Name IN ('Berlin', 'Bonn') OR
+Country='BEL' AND Name IN ('Antwerpen', 'Gent') OR
+Country='PRT' AND Name IN ('Braga', 'Porto') OR
+Country='FRA' AND Name IN ('Paris', 'Marcel') OR
+Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
+Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
+Country='ITA' AND Name IN ('Napoli', 'Venezia');
+ID	Name	Country	Population
+1466	Napoli	ITA	1002619
+1474	Venezia	ITA	277305
+175	Antwerpen	BEL	446525
+176	Gent	BEL	224180
+2807	Oslo	NOR	508726
+2808	Bergen	NOR	230948
+2915	Porto	PRT	273060
+2918	Braga	PRT	90535
+2928	Warszawa	POL	1615369
+2931	Wroclaw	POL	636765
+2974	Paris	FRA	2125246
+3048	Stockholm	SWE	750348
+3051	Uppsala	SWE	189569
+3068	Berlin	DEU	3386667
+3087	Bonn	DEU	301048
+3242	Lahti	FIN	96921
+3580	Moscow	RUS	8389200
+3581	St Petersburg	RUS	4694000
 DROP DATABASE world;
 set session optimizer_switch='index_merge_sort_intersection=default';

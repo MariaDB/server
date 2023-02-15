@@ -957,8 +957,6 @@ SELECT * FROM t1 INTO v_a, v_b, v_c;
 SELECT v_a, v_b, v_c;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 v_a	v_b	v_c
 1	b1	2001-01-01 10:20:30.123

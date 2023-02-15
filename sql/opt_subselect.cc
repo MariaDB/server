@@ -35,6 +35,7 @@
 #include "sql_test.h"
 #include <my_bit.h>
 #include "opt_trace.h"
+#include "optimizer_defaults.h"
 
 /*
   This file contains optimizations for semi-join subqueries.
@@ -448,7 +449,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred);
 static bool convert_subq_to_jtbm(JOIN *parent_join, 
                                  Item_in_subselect *subq_pred, bool *remove);
 static TABLE_LIST *alloc_join_nest(THD *thd);
-static uint get_tmp_table_rec_length(Ref_ptr_array p_list, uint elements);
+static uint get_tmp_table_rec_length(Ref_ptr_array p_list, uint elements,
+                                     bool *blobs_used);
 bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables);
 static SJ_MATERIALIZATION_INFO *
 at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
@@ -664,17 +666,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         DBUG_RETURN(-1);
       }
     }
-    /* Check if any table is not supporting comparable rowids */
-    {
-      List_iterator_fast<TABLE_LIST> li(select_lex->outer_select()->leaf_tables);
-      TABLE_LIST *tbl;
-      while ((tbl = li++))
-      {
-        TABLE *table= tbl->table;
-        if (table && table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
-          join->not_usable_rowid_map|= table->map;
-      }
-    }
 
     DBUG_PRINT("info", ("Checking if subq can be converted to semi-join"));
     /*
@@ -696,9 +687,10 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         11. It is first optimisation (the subquery could be moved from ON
             clause during first optimisation and then be considered for SJ
             on the second when it is too late)
-        12. All tables supports comparable rowids.
-            This is needed for DuplicateWeedout strategy to work (which
-            is the catch-all semi-join strategy so it must be applicable).
+
+      There are also other requirements which cannot be checked at this phase,
+      yet. They are checked later in convert_join_subqueries_to_semijoins(),
+      look for calls to block_conversion_to_sj().
     */
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
         in_subs &&                                                    // 1
@@ -713,8 +705,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
-        select_lex->first_cond_optimization &&                        // 11
-        join->not_usable_rowid_map == 0)                              // 12
+        select_lex->first_cond_optimization)                          // 11
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -910,8 +901,10 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
                                               outer,
                                               converted_from_in_predicate))
     {
-      trace_transform.add("possible", false);
-      trace_transform.add("cause", "types mismatch");
+      if (unlikely(trace_transform.trace_started()))
+        trace_transform.
+          add("possible", false).
+          add("cause", "types mismatch");
       DBUG_RETURN(FALSE);
     }
   }
@@ -933,8 +926,10 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
   {
     in_subs->types_allow_materialization= TRUE;
     in_subs->sjm_scan_allowed= all_are_fields;
-    trace_transform.add("sjm_scan_allowed", all_are_fields)
-                   .add("possible", true);
+    if (unlikely(trace_transform.trace_started()))
+      trace_transform.
+        add("sjm_scan_allowed", all_are_fields).
+        add("possible", true);
     DBUG_PRINT("info",("subquery_types_allow_materialization: ok, allowed"));
     DBUG_RETURN(TRUE);
   }
@@ -1224,7 +1219,36 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     }
   }
 
-  if (join->select_options & SELECT_STRAIGHT_JOIN)
+  /*
+    Compute join->not_usable_rowid_map.
+    The idea is:
+    - DuplicateWeedout strategy requires that one is able to get the rowid
+      (call h->position()) for tables in the parent select. Obtained Rowid
+      values must be stable across table scans.
+      = Rowids are typically available. The only known exception is federatedx
+        tables.
+    - The optimizer requires that DuplicateWeedout strategy is always
+      applicable. It is the only strategy that is applicable for any join
+      order. The optimizer is not prepared for the situation where it has
+      constructed a join order and then it turns out that there's no semi-join
+      strategy that can be used for it.
+
+    Because of the above, we will not use semi-joins if the parent select has
+    tables which do not support rowids.
+  */
+  {
+    List_iterator_fast<TABLE_LIST> li(join->select_lex->leaf_tables);
+    TABLE_LIST *tbl;
+    while ((tbl = li++))
+    {
+      TABLE *table= tbl->table;
+      if (table && table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+        join->not_usable_rowid_map|= table->map;
+    }
+  }
+
+  if (join->select_options & SELECT_STRAIGHT_JOIN ||
+      join->not_usable_rowid_map != 0)
   {
     /* Block conversion to semijoins for all candidates */ 
     li.rewind();
@@ -1294,8 +1318,10 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                           in_subq->get_select_lex()->select_number,
                           "IN (SELECT)", "semijoin");
-      trace_transform.add("converted_to_semi_join", false)
-                     .add("cause", "subquery attached to the ON clause");
+      if (unlikely(trace_transform.trace_started()))
+        trace_transform.
+          add("converted_to_semi_join", false).
+          add("cause", "subquery attached to the ON clause");
       break;
     }
 
@@ -1307,9 +1333,10 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       if (join->table_count + 
           in_subq->unit->first_select()->join->table_count >= MAX_TABLES)
       {
-        trace_transform.add("converted_to_semi_join", false);
-        trace_transform.add("cause",
-                            "table in parent join now exceeds MAX_TABLES");
+        if (unlikely(trace_transform.trace_started()))
+          trace_transform.
+            add("converted_to_semi_join", false).
+            add("cause", "table in parent join now exceeds MAX_TABLES");
         break;
       }
       if (convert_subq_to_sj(join, in_subq))
@@ -1441,6 +1468,7 @@ void get_delayed_table_estimates(TABLE *table,
   Item_in_subselect *item= table->pos_in_table_list->jtbm_subselect;
   Table_function_json_table *table_function=
                                table->pos_in_table_list->table_function;
+  handler *file= table->file;
 
   if (table_function)
   {
@@ -1460,9 +1488,11 @@ void get_delayed_table_estimates(TABLE *table,
   /* Calculate cost of scanning the temptable */
   double data_size= COST_MULT(item->jtbm_record_count,
                               hash_sj_engine->tmp_table->s->reclength);
-  /* Do like in handler::scan_time() */
-  *scan_time= ((data_size/table->file->stats.block_size+2) *
-               table->file->avg_io_cost());
+
+  /* Do like in handler::ha_scan_and_compare_time, but ignore the where cost */
+  *scan_time= ((data_size/IO_SIZE *  table->file->DISK_READ_COST *
+                table->file->DISK_READ_RATIO) +
+               *out_rows * file->ROW_COPY_COST);
 }
 
 
@@ -2490,8 +2520,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           !sj_nest->sj_subq_pred->is_correlated && 
            sj_nest->sj_subq_pred->types_allow_materialization)
       {
-        join->emb_sjm_nest= sj_nest;
-        if (choose_plan(join, all_table_map &~join->const_table_map))
+        if (choose_plan(join, all_table_map &~join->const_table_map, sj_nest))
           DBUG_RETURN(TRUE); /* purecov: inspected */
         /*
           The best plan to run the subquery is now in join->best_positions,
@@ -2507,24 +2536,13 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
         sjm->is_used= FALSE;
         double subjoin_out_rows, subjoin_read_time;
 
-        /*
-        join->get_partial_cost_and_fanout(n_tables + join->const_tables,
-                                          table_map(-1),
-                                          &subjoin_read_time, 
-                                          &subjoin_out_rows);
-        */
-        join->get_prefix_cost_and_fanout(n_tables, 
+        join->get_prefix_cost_and_fanout(n_tables,
                                          &subjoin_read_time,
                                          &subjoin_out_rows);
 
-        sjm->materialization_cost.convert_from_cost(subjoin_read_time);
+        sjm->materialization_cost=subjoin_read_time;
         sjm->rows_with_duplicates= sjm->rows= subjoin_out_rows;
         
-        // Don't use the following list because it has "stale" items. use
-        // ref_pointer_array instead:
-        //
-        //List<Item> &right_expr_list= 
-        //  sj_nest->sj_subq_pred->unit->first_select()->item_list;
         /*
           Adjust output cardinality estimates. If the subquery has form
 
@@ -2557,8 +2575,12 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           int tableno;
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
-            rows= COST_MULT(rows,
-			    join->map2table[tableno]->table->opt_range_condition_rows);
+          {
+            ha_rows tbl_rows=join->map2table[tableno]->
+                             table->opt_range_condition_rows;
+
+            rows= COST_MULT(rows, rows2double(tbl_rows));
+          }
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy((uchar*) sjm->positions,
@@ -2568,33 +2590,43 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
         /*
           Calculate temporary table parameters and usage costs
         */
+        bool blobs_used;
         uint rowlen= get_tmp_table_rec_length(subq_select->ref_pointer_array,
-                                              subq_select->item_list.elements);
-        double lookup_cost= get_tmp_table_lookup_cost(join->thd,
-                                                      subjoin_out_rows, rowlen);
-        double write_cost= get_tmp_table_write_cost(join->thd,
-                                                    subjoin_out_rows, rowlen);
+                                              subq_select->item_list.elements,
+                                              &blobs_used);
+        TMPTABLE_COSTS cost= get_tmp_table_costs(join->thd,
+                                                 subjoin_out_rows, rowlen,
+                                                 blobs_used, 1);
+        double scan_cost, total_cost;
+        double row_copy_cost= ROW_COPY_COST_THD(thd);
 
         /*
           Let materialization cost include the cost to write the data into the
-          temporary table:
+          temporary table. Note that smj->materialization_cost already includes
+          row copy and compare costs of finding the original row.
         */ 
-        sjm->materialization_cost.add_io(subjoin_out_rows, write_cost);
-        
+        sjm->materialization_cost+=subjoin_out_rows * cost.write + cost.create;
+
         /*
           Set the cost to do a full scan of the temptable (will need this to 
-          consider doing sjm-scan):
-        */ 
-        sjm->scan_cost.reset();
-        sjm->scan_cost.add_io(sjm->rows, lookup_cost);
+          consider doing sjm-scan). See ha_scan_time() for the basics of
+          the calculations.
+          We don't need to check the where clause for each row, so no
+          WHERE_COST is needed.
+        */
+        scan_cost= (rowlen * (double) sjm->rows) / cost.block_size;
+        total_cost= (scan_cost * cost.cache_hit_ratio * cost.avg_io_cost +
+                     TABLE_SCAN_SETUP_COST_THD(thd) +
+                     row_copy_cost * sjm->rows);
+        sjm->scan_cost=total_cost;
 
-        sjm->lookup_cost.convert_from_cost(lookup_cost);
+        /* When reading a row, we have also to check the where clause */
+        sjm->lookup_cost= cost.lookup + WHERE_COST_THD(thd);
         sj_nest->sj_mat_info= sjm;
         DBUG_EXECUTE("opt", print_sjm(sjm););
       }
     }
   }
-  join->emb_sjm_nest= NULL;
   DBUG_RETURN(FALSE);
 }
 
@@ -2616,11 +2648,13 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
     Length of the temptable record, in bytes
 */
 
-static uint get_tmp_table_rec_length(Ref_ptr_array p_items, uint elements)
+static uint get_tmp_table_rec_length(Ref_ptr_array p_items, uint elements,
+                                     bool *blobs_used)
 {
   uint len= 0;
   Item *item;
-  //List_iterator<Item> it(items);
+
+  *blobs_used= 0;
   for (uint i= 0; i < elements ; i++)
   {
     item = p_items[i];
@@ -2643,6 +2677,8 @@ static uint get_tmp_table_rec_length(Ref_ptr_array p_items, uint elements)
         len += 8;
       else
         len += item->max_length;
+      if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+        *blobs_used= 1;
       break;
     case DECIMAL_RESULT:
       len += 10;
@@ -2658,46 +2694,62 @@ static uint get_tmp_table_rec_length(Ref_ptr_array p_items, uint elements)
 
 
 /**
-  The cost of a lookup into a unique hash/btree index on a temporary table
-  with 'row_count' rows each of size 'row_size'.
+  The cost of a create, write and read into a unique hash/btree index on
+  a temporary table with 'row_count' rows each of size 'row_size'.
 
   @param thd  current query context
   @param row_count  number of rows in the temp table
   @param row_size   average size in bytes of the rows
 
-  @return  the cost of one lookup
+  @return  The cost of using the temporary table
+
+  TODO:
+  This is an optimistic estimate. We are not taking into account:
+   - That we first write into a memory and then overflow to disk.
+   - If binary trees would be used for heap tables.
+   - The addition cost of writing a row to memory/disk and possible
+     index reorganization.
 */
 
-double
-get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size)
+TMPTABLE_COSTS
+get_tmp_table_costs(THD *thd, double row_count, uint row_size, bool blobs_used,
+                    bool add_copy_cost)
 {
-  if (row_count > thd->variables.max_heap_table_size / (double) row_size)
-    return (double) DISK_TEMPTABLE_LOOKUP_COST;
+  TMPTABLE_COSTS cost;
+  /* From heap_prepare_hp_create_info(), assuming one hash key used */
+  row_size+= sizeof(char*)*2;
+  row_size= MY_ALIGN(MY_MAX(row_size, sizeof(char*)) + 1, sizeof(char*));
+
+  if (row_count > thd->variables.max_heap_table_size / (double) row_size ||
+      blobs_used)
+  {
+    double row_copy_cost= (add_copy_cost ?
+                           tmp_table_optimizer_costs.row_copy_cost :
+                           0);
+    /* Disk based table */
+    cost.lookup=          ((tmp_table_optimizer_costs.key_lookup_cost *
+                            tmp_table_optimizer_costs.disk_read_ratio) +
+                           row_copy_cost);
+    cost.write=           cost.lookup;
+    cost.create=          DISK_TEMPTABLE_CREATE_COST;
+    cost.block_size=      DISK_TEMPTABLE_BLOCK_SIZE;
+    cost.avg_io_cost=     tmp_table_optimizer_costs.disk_read_cost;
+    cost.cache_hit_ratio= tmp_table_optimizer_costs.disk_read_ratio;
+  }
   else
-    return (double) HEAP_TEMPTABLE_LOOKUP_COST;
-}
-
-/**
-  The cost of writing a row into a temporary table with 'row_count' unique
-  rows each of size 'row_size'.
-
-  @param thd  current query context
-  @param row_count  number of rows in the temp table
-  @param row_size   average size in bytes of the rows
-
-  @return  the cost of writing one row
-*/
-
-double
-get_tmp_table_write_cost(THD *thd, double row_count, uint row_size)
-{
-  double lookup_cost= get_tmp_table_lookup_cost(thd, row_count, row_size);
-  /*
-    TODO:
-    This is an optimistic estimate. Add additional costs resulting from
-    actually writing the row to memory/disk and possible index reorganization.
-  */
-  return lookup_cost;
+  {
+    /* Values are as they are in heap.h */
+    double row_copy_cost= (add_copy_cost ?
+                           heap_optimizer_costs.row_copy_cost :
+                           0);
+    cost.lookup=          HEAP_TEMPTABLE_LOOKUP_COST + row_copy_cost;
+    cost.write=           cost.lookup;
+    cost.create=          HEAP_TEMPTABLE_CREATE_COST;
+    cost.block_size=      1;
+    cost.avg_io_cost=     0;
+    cost.cache_hit_ratio= 0;
+  }
+  return cost;
 }
 
 
@@ -2942,9 +2994,16 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
                 2. using strategy Z is cheaper, but it only removes
                    fanout from semijoin X.
                 3. We have no clue what to do about fanount of semi-join Y.
+
+          For the first iteration read_time will always be bigger than
+          *current_read_time (as the 'strategy' is an addition to the
+          chosen plan) .  If a strategy was picked
+          (dusp_producing_tables & handled_fanout is true), then
+          *current_read_time is updated and the cost for the next
+          strategy can be smaller than *current_read_time.
         */
         if ((dups_producing_tables & handled_fanout) ||
-            (read_time < *current_read_time &&
+            (read_time + COST_EPS < *current_read_time &&
              !(handled_fanout & pos->inner_tables_handled_with_other_sjs)))
         {
           DBUG_ASSERT(pos->sj_strategy != sj_strategy);
@@ -3142,9 +3201,9 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 
       mat_read_time=
         COST_ADD(prefix_cost,
-                 COST_ADD(mat_info->materialization_cost.total_cost(),
+                 COST_ADD(mat_info->materialization_cost,
                           COST_MULT(prefix_rec_count,
-                                    mat_info->lookup_cost.total_cost())));
+                                    mat_info->lookup_cost)));
 
       /*
         NOTE: When we pick to use SJM[-Scan] we don't memcpy its POSITION
@@ -3158,8 +3217,9 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       *strategy= SJ_OPT_MATERIALIZE;
       if (unlikely(trace.trace_started()))
       {
-        trace.add("records", *record_count);
-        trace.add("read_time", *read_time);
+        trace.
+          add("rows", *record_count).
+          add("cost", *read_time);
       }
       return TRUE;
     }
@@ -3193,9 +3253,9 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     /* Add materialization cost */
     prefix_cost=
       COST_ADD(prefix_cost,
-               COST_ADD(mat_info->materialization_cost.total_cost(),
+               COST_ADD(mat_info->materialization_cost,
                         COST_MULT(prefix_rec_count,
-                                  mat_info->scan_cost.total_cost())));
+                                  mat_info->scan_cost)));
     prefix_rec_count= COST_MULT(prefix_rec_count, mat_info->rows);
     
     uint i;
@@ -3212,10 +3272,8 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       best_access_path(join, join->positions[i].table, rem_tables,
                        join->positions, i,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy);
-      prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_read);
+      prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_out);
       prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
-      prefix_cost= COST_ADD(prefix_cost,
-                            prefix_rec_count / TIME_FOR_COMPARE);
       //TODO: take into account join condition selectivity here
     }
 
@@ -3240,8 +3298,9 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     *handled_fanout= mat_nest->sj_inner_tables;
     if (unlikely(trace.trace_started()))
     {
-      trace.add("records", *record_count);
-      trace.add("read_time", *read_time);
+      trace.
+        add("rows", *record_count).
+        add("cost", *read_time);
     }
     return TRUE;
   }
@@ -3340,8 +3399,9 @@ bool LooseScan_picker::check_qep(JOIN *join,
     *handled_fanout= first->table->emb_sj_nest->sj_inner_tables;
     if (unlikely(trace.trace_started()))
     {
-      trace.add("records", *record_count);
-      trace.add("read_time", *read_time);
+      trace.
+        add("rows", *record_count).
+        add("cost", *read_time);
     }
     return TRUE;
   }
@@ -3432,13 +3492,13 @@ bool Firstmatch_picker::check_qep(JOIN *join,
             optimizer_flag(join->thd, OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE))
         {
           /* 
-            An important special case: only one inner table, and @@optimizer_switch
-            allows join buffering.
+            An important special case: only one inner table, and
+            @@optimizer_switch allows join buffering.
              - read_time is the same (i.e. FirstMatch doesn't add any cost
              - remove fanout added by the last table
           */
           if (*record_count)
-            *record_count /= join->positions[idx].records_read;
+            *record_count /= join->positions[idx].records_out;
         }
         else
         {
@@ -3458,8 +3518,9 @@ bool Firstmatch_picker::check_qep(JOIN *join,
         *strategy= SJ_OPT_FIRST_MATCH;
         if (unlikely(trace.trace_started()))
         {
-          trace.add("records", *record_count);
-          trace.add("read_time", *read_time);
+          trace.
+            add("rows", *record_count).
+            add("cost", *read_time);
         }
         return TRUE;
       }
@@ -3469,6 +3530,56 @@ bool Firstmatch_picker::check_qep(JOIN *join,
     invalidate_firstmatch_prefix();
   return FALSE;
 }
+
+
+/*
+  Duplicate_weedout strategy is described at
+  https://mariadb.com/kb/en/duplicateweedout-strategy/
+
+  The idea is that if one has a subquery of type:
+
+  select *
+    from Country
+  where
+    Country.code IN (select City.Country
+                     from City
+                     where
+                     ...)
+
+  Before semi join optimization it was executed this way:
+  - Scan rows in Country
+    - For each accepted row, execute the sub query with
+      'Country.code = City.Country' added to the WHERE clause and with
+      LIMIT 1
+
+  With semi join optimization it can be converted to the following semi join.
+
+  select * from Country semi-join City
+  where Country.code = City.Country and ...
+
+  This is executed as:
+
+  - Scan rows in Country
+    - Scan rows in City with 'Country.code = City.Country' added to the
+      subquery WHERE clause. Stop scanning after the first match.
+
+  or
+
+  - Create temporary table to store City.Country (with a unique key)
+  - Scan rows in City (according to plan for City) and put them into the
+    temporary table
+  - Scan the temporary table
+    - Do index lookup in Country table with City.Country
+
+With Duplicate_weedout we would try to instead do:
+
+ - Create temporary table to hold unique rowid's for the Country
+  - Scan rows in City (according to plan for City)
+    - Scan rows in Country (according to plan for Country)
+      - Write Country.id rowid to temporary table. If there was no
+        conflicting row in the temporary table, accept the row combination.
+  - Delete temporary table
+*/
 
 
 void Duplicate_weedout_picker::set_from_prev(POSITION *prev)
@@ -3535,46 +3646,42 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     */
     uint first_tab= first_dupsweedout_table;
     double dups_cost;
-    double prefix_rec_count;
+    double first_weedout_table_rec_count;
     double sj_inner_fanout= 1.0;
     double sj_outer_fanout= 1.0;
     uint temptable_rec_size;
-    Json_writer_object trace(join->thd);
-    trace.add("strategy", "DuplicateWeedout");
 
     if (first_tab == join->const_tables)
     {
-      prefix_rec_count= 1.0;
+      first_weedout_table_rec_count= 1.0;
       temptable_rec_size= 0;
       dups_cost= 0.0;
     }
     else
     {
       dups_cost= join->positions[first_tab - 1].prefix_cost;
-      prefix_rec_count= join->positions[first_tab - 1].prefix_record_count;
+      first_weedout_table_rec_count=
+        join->positions[first_tab - 1].prefix_record_count;
       temptable_rec_size= 8; /* This is not true but we'll make it so */
     }
     
     table_map dups_removed_fanout= 0;
-    double current_fanout= prefix_rec_count;
     for (uint j= first_dupsweedout_table; j <= idx; j++)
     {
       POSITION *p= join->positions + j;
-      current_fanout= COST_MULT(current_fanout, p->records_read);
-      dups_cost= COST_ADD(dups_cost,
-                          COST_ADD(p->read_time,
-                                   current_fanout / TIME_FOR_COMPARE));
+      dups_cost= COST_ADD(dups_cost, p->read_time);
+
       if (p->table->emb_sj_nest)
       {
-        sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_read);
+        sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_out);
         dups_removed_fanout |= p->table->table->map;
       }
       else
       {
+        sj_outer_fanout= COST_MULT(sj_outer_fanout, p->records_out);
         /* Ensure that table supports comparable rowids */
         DBUG_ASSERT(!(p->table->table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID));
 
-        sj_outer_fanout= COST_MULT(sj_outer_fanout, p->records_read);
         temptable_rec_size += p->table->table->file->ref_length;
       }
     }
@@ -3583,32 +3690,38 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       Add the cost of temptable use. The table will have sj_outer_fanout
       records, and we will make 
       - sj_outer_fanout table writes
-      - sj_inner_fanout*sj_outer_fanout  lookups.
+      - sj_inner_fanout*sj_outer_fanout lookups.
 
+      There is no row copy cost (as we are only copying rowid) and no
+      compare cost (as we are only checking if the row exists by
+      checking if we got a write error.
     */
-    double one_lookup_cost= get_tmp_table_lookup_cost(join->thd,
-                                                      sj_outer_fanout,
-                                                      temptable_rec_size);
-    double one_write_cost= get_tmp_table_write_cost(join->thd,
-                                                    sj_outer_fanout,
-                                                    temptable_rec_size);
-
-    double write_cost= COST_MULT(join->positions[first_tab].prefix_record_count,
-                                 sj_outer_fanout * one_write_cost);
-    double full_lookup_cost=
-             COST_MULT(join->positions[first_tab].prefix_record_count,
-                       COST_MULT(sj_outer_fanout,
-                                 sj_inner_fanout * one_lookup_cost));
-    dups_cost= COST_ADD(dups_cost, COST_ADD(write_cost, full_lookup_cost));
+    TMPTABLE_COSTS one_cost= get_tmp_table_costs(join->thd,
+                                                 sj_outer_fanout,
+                                                 temptable_rec_size,
+                                                 0, 0);
+    double write_cost= (one_cost.create +
+                        first_weedout_table_rec_count * sj_outer_fanout * one_cost.write);
+    double full_lookup_cost= (first_weedout_table_rec_count* sj_outer_fanout *
+                              sj_inner_fanout * one_cost.lookup);
+    *read_time= dups_cost + write_cost + full_lookup_cost;
     
-    *read_time= dups_cost;
-    *record_count= prefix_rec_count * sj_outer_fanout;
+    *record_count= first_weedout_table_rec_count * sj_outer_fanout;
     *handled_fanout= dups_removed_fanout;
     *strategy= SJ_OPT_DUPS_WEEDOUT;
-    if (unlikely(trace.trace_started()))
+    if (unlikely(join->thd->trace_started()))
     {
-      trace.add("records", *record_count);
-      trace.add("read_time", *read_time);
+      Json_writer_object trace(join->thd);
+      trace.
+        add("strategy", "DuplicateWeedout").
+        add("prefix_row_count", first_weedout_table_rec_count).
+        add("tmp_table_rows", sj_outer_fanout).
+        add("sj_inner_fanout", sj_inner_fanout).
+        add("rows", *record_count).
+        add("dups_cost", dups_cost).
+        add("write_cost", write_cost).
+        add("full_lookup_cost", full_lookup_cost).
+        add("total_cost", *read_time);
     }
     return TRUE;
   }
@@ -3657,33 +3770,37 @@ void JOIN::dbug_verify_sj_inner_tables(uint prefix_size) const
 */
 
 void restore_prev_sj_state(const table_map remaining_tables, 
-                                  const JOIN_TAB *tab, uint idx)
+                           const JOIN_TAB *tab, uint idx)
 {
   TABLE_LIST *emb_sj_nest;
 
-  if (tab->emb_sj_nest)
+  if ((emb_sj_nest= tab->emb_sj_nest))
   {
-    table_map subq_tables= tab->emb_sj_nest->sj_inner_tables;
+    table_map subq_tables= emb_sj_nest->sj_inner_tables;
     tab->join->sjm_lookup_tables &= ~subq_tables;
-  }
 
-  if (!tab->join->emb_sjm_nest && (emb_sj_nest= tab->emb_sj_nest))
-  {
-    table_map subq_tables= emb_sj_nest->sj_inner_tables &
-                           ~tab->join->const_table_map;
-    /* If we're removing the last SJ-inner table, remove the sj-nest */
-    if ((remaining_tables & subq_tables) == subq_tables)
+    if (!tab->join->emb_sjm_nest)
     {
-      // All non-const tables of the SJ nest are in the remaining_tables.
-      // we are not in the nest anymore.
-      tab->join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
-    }
-    else
-    {
-      // Semi-join nest has:
-      // - a table being removed (not in the prefix)
-      // - some tables in the prefix.
-      tab->join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;
+      table_map subq_tables= (emb_sj_nest->sj_inner_tables &
+                              ~tab->join->const_table_map);
+      /* If we're removing the last SJ-inner table, remove the sj-nest */
+      if ((remaining_tables & subq_tables) == subq_tables)
+      {
+        /*
+          All non-const tables of the SJ nest are in the remaining_tables.
+          we are not in the nest anymore.
+        */
+        tab->join->cur_sj_inner_tables &= ~emb_sj_nest->sj_inner_tables;
+      }
+      else
+      {
+        /*
+          Semi-join nest has:
+          - a table being removed (not in the prefix)
+          - some tables in the prefix.
+        */
+        tab->join->cur_sj_inner_tables |= emb_sj_nest->sj_inner_tables;
+      }
     }
   }
 
@@ -3795,6 +3912,8 @@ at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
 
 static void recalculate_prefix_record_count(JOIN *join, uint start, uint end)
 {
+  DBUG_ASSERT(start >= join->const_tables);
+
   for (uint j= start; j < end ;j++)
   {
     double prefix_count;
@@ -3802,7 +3921,7 @@ static void recalculate_prefix_record_count(JOIN *join, uint start, uint end)
       prefix_count= 1.0;
     else
       prefix_count= COST_MULT(join->best_positions[j-1].prefix_record_count,
-			      join->best_positions[j-1].records_read);
+			      join->best_positions[j-1].records_out);
 
     join->best_positions[j].prefix_record_count= prefix_count;
   }
@@ -3954,7 +4073,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
                          join->best_positions, i,
                          FALSE, prefix_rec_count,
                          join->best_positions + i, &dummy);
-        prefix_rec_count *= join->best_positions[i].records_read;
+        prefix_rec_count *= join->best_positions[i].records_out;
         rem_tables &= ~join->best_positions[i].table->table->map;
       }
     }
@@ -3966,7 +4085,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       join->best_positions[first].n_sj_tables= tablenr - first + 1;
       POSITION dummy; // For loose scan paths
       double record_count= (first== join->const_tables)? 1.0: 
-                           join->best_positions[tablenr - 1].prefix_record_count;
+                           join->best_positions[first - 1].prefix_record_count;
       
       table_map rem_tables= remaining_tables;
       uint idx;
@@ -3996,7 +4115,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
                             TRUE /* no jbuf */,
                             record_count, join->best_positions + idx, &dummy);
         }
-        record_count *= join->best_positions[idx].records_read;
+        record_count *= join->best_positions[idx].records_out;
         rem_tables &= ~join->best_positions[idx].table->table->map;
       }
     }
@@ -4007,7 +4126,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       POSITION *first_pos= join->best_positions + first;
       POSITION loose_scan_pos; // For loose scan paths
       double record_count= (first== join->const_tables)? 1.0: 
-                           join->best_positions[tablenr - 1].prefix_record_count;
+                           join->best_positions[first - 1].prefix_record_count;
       
       table_map rem_tables= remaining_tables;
       uint idx;
@@ -4048,13 +4167,14 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
              */
              if (join->best_positions[idx].key)
              {
+               DBUG_ASSERT(join->best_positions[idx].type != JT_RANGE);
                delete join->best_positions[idx].table->quick;
                join->best_positions[idx].table->quick= NULL;
              }
            }
         }
         rem_tables &= ~join->best_positions[idx].table->table->map;
-        record_count *= join->best_positions[idx].records_read;
+        record_count *= join->best_positions[idx].records_out;
       }
       first_pos->sj_strategy= SJ_OPT_LOOSE_SCAN;
       first_pos->n_sj_tables= my_count_bits(first_pos->table->emb_sj_nest->sj_inner_tables);
@@ -4777,7 +4897,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     DBUG_PRINT("info",("Creating group key in temporary table"));
     share->keys=1;
     share->uniques= MY_TEST(using_unique_constraint);
-    table->key_info=keyinfo;
+    table->key_info= share->key_info= keyinfo;
     keyinfo->key_part=key_part_info;
     keyinfo->flags=HA_NOSAME;
     keyinfo->usable_key_parts= keyinfo->user_defined_key_parts= 1;
@@ -5271,7 +5391,8 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
               Got a table that's not within any semi-join nest. This is a case
               like this:
 
-              SELECT * FROM ot1, nt1 WHERE ot1.col IN (SELECT expr FROM it1, it2)
+              SELECT * FROM ot1, nt1 WHERE
+              ot1.col IN (SELECT expr FROM it1, it2)
 
               with a join order of 
 
@@ -6531,17 +6652,13 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     IN/ALL/ANY optimizations are not applicable for so called fake select
     (this select exists only to filter results of union if it is needed).
   */
-  if (select_lex == select_lex->master_unit()->fake_select_lex)
-    return 0;
-
-  if (is_in_subquery())
-  {
-    in_subs= unit->item->get_IN_subquery();
-    if (in_subs->create_in_to_exists_cond(this))
-      return true;
-  }
-  else
+  if (select_lex == select_lex->master_unit()->fake_select_lex ||
+      likely(!is_in_subquery()))
     return false;
+
+  in_subs= unit->item->get_IN_subquery();
+  if (in_subs->create_in_to_exists_cond(this))
+    return true;
 
   /* A strategy must be chosen earlier. */
   DBUG_ASSERT(in_subs->has_strategy());
@@ -6573,6 +6690,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     /* The cost of the IN->EXISTS strategy. */
     double in_exists_strategy_cost;
     double dummy;
+    const char *strategy;
 
     /*
       A. Estimate the number of rows of the outer table that will be filtered
@@ -6634,7 +6752,6 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
 
       /* Get the cost of the modified IN-EXISTS plan. */
       inner_read_time_2= inner_join->best_read;
-
     }
     else
     {
@@ -6646,39 +6763,58 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       C. Compute execution costs.
     */
     /* C.1 Compute the cost of the materialization strategy. */
-    //uint rowlen= get_tmp_table_rec_length(unit->first_select()->item_list);
-    uint rowlen= get_tmp_table_rec_length(ref_ptrs, 
-                                          select_lex->item_list.elements);
-    /* The cost of writing one row into the temporary table. */
-    double write_cost= get_tmp_table_write_cost(thd, inner_record_count_1,
-                                                rowlen);
-    /* The cost of a lookup into the unique index of the materialized table. */
-    double lookup_cost= get_tmp_table_lookup_cost(thd, inner_record_count_1,
-                                                  rowlen);
+    bool blobs_used;
+    uint rowlen= get_tmp_table_rec_length(ref_ptrs,
+                                          select_lex->item_list.elements,
+                                          &blobs_used);
+    /* The cost of using the temp table */
+    TMPTABLE_COSTS cost= get_tmp_table_costs(thd, inner_record_count_1,
+                                             rowlen, blobs_used, 1);
     /*
       The cost of executing the subquery and storing its result in an indexed
       temporary table.
     */
-    double materialization_cost= COST_ADD(inner_read_time_1,
-                                          COST_MULT(write_cost,
-                                                    inner_record_count_1));
+    double materialization_cost=
+      COST_ADD(cost.create,
+               COST_ADD(inner_read_time_1,
+                        COST_MULT((cost.write + WHERE_COST_THD(thd)),
+                                  inner_record_count_1)));
 
-    materialize_strategy_cost= COST_ADD(materialization_cost,
-                                        COST_MULT(outer_lookup_keys,
-                                                  lookup_cost));
+    materialize_strategy_cost=
+      COST_ADD(materialization_cost,
+               COST_MULT(outer_lookup_keys, cost.lookup));
 
     /* C.2 Compute the cost of the IN=>EXISTS strategy. */
-    in_exists_strategy_cost= COST_MULT(outer_lookup_keys, inner_read_time_2);
+    in_exists_strategy_cost=
+      COST_MULT(outer_lookup_keys, inner_read_time_2);
 
     /* C.3 Compare the costs and choose the cheaper strategy. */
     if (materialize_strategy_cost >= in_exists_strategy_cost)
+    {
       in_subs->set_strategy(SUBS_IN_TO_EXISTS);
+      strategy= "in_to_exists";
+    }
     else
+    {
       in_subs->set_strategy(SUBS_MATERIALIZATION);
+      strategy= "materialization";
+    }
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object trace_wrapper(thd);
+      Json_writer_object trace_subquery(thd, "subquery_plan");
+      trace_subquery.
+        add("rows", inner_record_count_1).
+        add("materialization_cost", materialize_strategy_cost).
+        add("in_exist_cost", in_exists_strategy_cost).
+        add("choosen", strategy);
+    }
 
     DBUG_PRINT("info",
-               ("mat_strategy_cost: %.2f, mat_cost: %.2f, write_cost: %.2f, lookup_cost: %.2f",
-                materialize_strategy_cost, materialization_cost, write_cost, lookup_cost));
+               ("mat_strategy_cost: %.2f  mat_cost: %.2f  write_cost: %.2f  "
+                "lookup_cost: %.2f",
+                materialize_strategy_cost, materialization_cost, cost.write,
+                cost.lookup));
     DBUG_PRINT("info",
                ("inx_strategy_cost: %.2f, inner_read_time_2: %.2f",
                 in_exists_strategy_cost, inner_read_time_2));
@@ -6704,6 +6840,13 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       implementation, fall back to IN-TO-EXISTS.
     */
     in_subs->set_strategy(SUBS_IN_TO_EXISTS);
+
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object trace_wrapper(thd);
+      Json_writer_object trace_subquery(thd, "subquery_plan_revert");
+      trace_subquery.add("choosen", "in_to_exists");
+    }
   }
 
   if (in_subs->test_strategy(SUBS_MATERIALIZATION))

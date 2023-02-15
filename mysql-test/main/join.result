@@ -65,7 +65,7 @@ id	id
 NULL	75
 explain select t1.id,t2.id from t2 left join t1 on t1.id>=74 and t1.id<=0 where t2.id=75 and t1.id is null;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t1	const	PRIMARY	NULL	NULL	NULL	0	Impossible ON condition
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 explain select t1.id, t2.id from t1, t2 where t2.id = t1.id and t1.id <0 and t1.id > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -258,7 +258,7 @@ name varchar(255) default NULL,
 PRIMARY KEY  (id)
 ) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1,'s1'),(2,'s2'),(3,'s3'),(4,'s4'),(5,'s5');
-select t1.*, t2.*  from t1, t2 where t2.id=t1.t2_id limit 2;
+select straight_join t1.*, t2.*  from t2, t1 where t2.id=t1.t2_id limit 2;
 t1_id	t2_id	type	cost_unit	min_value	max_value	t3_id	item_id	id	name
 12	5	Percent	Cost	-1	0	-1	-1	5	s5
 14	4	Percent	Cost	-1	0	-1	-1	4	s4
@@ -883,7 +883,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	a,b	NULL	NULL	NULL	1000	Using where
 1	SIMPLE	t3	ref	b	b	5	test.t2.b	1	
 drop table t1, t2, t3;
-create table t1 (a int);
+create table t1 (a int) engine=myisam;
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2 (a int, b int, primary key(a));
 insert into t2 select @v:=A.a+10*B.a, @v  from t1 A, t1 B;
@@ -892,13 +892,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
 show status like 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	4.016090
+Last_query_cost	0.011600
 select 'The cost of accessing t1 (dont care if it changes' '^';
 The cost of accessing t1 (dont care if it changes
 The cost of accessing t1 (dont care if it changes^
 select 'vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv' Z;
 Z
 vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv
+select @@myisam.optimizer_disk_read_ratio;
+@@myisam.optimizer_disk_read_ratio
+0.020000
+set global myisam.optimizer_disk_read_ratio=0;
 explain select * from t1, t2 A, t2 B where A.a = t1.a and B.a=A.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
@@ -906,10 +910,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	B	eq_ref	PRIMARY	PRIMARY	4	test.A.b	1	
 show status like 'Last_query_cost';
 Variable_name	Value
-Last_query_cost	28.016090
-select '^^: The above should be ~= 20 + cost(select * from t1). Value less than 20 is an error' Z;
+Last_query_cost	0.046590
+select '^^: The above should be ~= 40 + cost(select * from t1). Value less than 40 is an error' Z;
 Z
-^^: The above should be ~= 20 + cost(select * from t1). Value less than 20 is an error
+^^: The above should be ~= 40 + cost(select * from t1). Value less than 40 is an error
+set global myisam.optimizer_disk_read_ratio=default;
+select @@myisam.optimizer_disk_read_ratio;
+@@myisam.optimizer_disk_read_ratio
+0.020000
 drop table t1, t2;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 CREATE TABLE t2 (c INT PRIMARY KEY, d INT);
@@ -1107,7 +1115,7 @@ ON t4.a = t5.a
 ON t1.a = t3.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t3	ref	a	a	5	test.t1.a	2	Using where; Using index
+1	SIMPLE	t3	ref	a	a	5	test.t1.a	1	Using where; Using index
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	0	Using where
 1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	0	Using where
 1	SIMPLE	t6	ALL	NULL	NULL	NULL	NULL	0	Using where
@@ -1274,13 +1282,17 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+explain SELECT * FROM t1 JOIN t2 ON t1.v = t2.v WHERE t2.v IS NULL ORDER BY 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	ix2	ix2	5	const	2	Using index condition; Using temporary; Using filesort
+1	SIMPLE	t1	ref	ix1	ix1	5	test.t2.v	1	
 FLUSH STATUS;
 SELECT * FROM t1 JOIN t2 ON t1.v = t2.v WHERE t2.v IS NULL ORDER BY 1;
 pk	v	pk	v
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	14
+Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -1323,9 +1335,9 @@ FROM t4 JOIN
 (t1 JOIN t3 ON t3.ref_t1=t1.c1 JOIN t2 ON t2.ref_t1=t1.c1)
 ON t4.ref_t1=t1.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t4.ref_t1	1	
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 EXPLAIN
 SELECT * 
@@ -1334,9 +1346,9 @@ FROM t4 STRAIGHT_JOIN
 ON t4.ref_t1=t1.c1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t4.ref_t1	1	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
 drop table t1,t2,t3,t4;
 End of 5.2 tests
 #
@@ -1474,7 +1486,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	D	system	PRIMARY	NULL	NULL	NULL	1	
 1	SIMPLE	DSAR	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	DSA	ref	PRIMARY	PRIMARY	4	const	3	Using where; Using index
-1	SIMPLE	DT	ALL	t_id	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	DT	ref	t_id	t_id	2	test.DSA.t_id	1	Using where
 SELECT * FROM t5 DU, t1 D, t4 DT, t2 DSA, t3 DSAR
 WHERE DU.dog_id=D.dog_id AND D.dog_id=DT.dog_id AND D.birthday=DT.birthday AND
 DT.t_id=DSA.t_id AND DT.birthday=DSA.birthday AND DSA.dog_id=DSAR.dog_id;
@@ -3424,3 +3436,24 @@ COUNT(*)
 2
 DROP TABLE t1, t2, t3;
 # End of 10.5 tests
+#
+# MDEV-30256 Wrong result (missing rows) upon join with empty table
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (c INT PRIMARY KEY);
+EXPLAIN SELECT * FROM t1 LEFT JOIN t2 JOIN t3 ON (t2.b >= t3.c) ON (t1.a < t2.b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t3	index	PRIMARY	PRIMARY	4	NULL	0	Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
+SELECT * FROM t1 LEFT JOIN t2 JOIN t3 ON (t2.b >= t3.c) ON (t1.a < t2.b);
+a	b	c
+1	NULL	NULL
+2	NULL	NULL
+DROP TABLE t1,t2,t3;
+#
+# End of 11.0 tests
+#

@@ -7,6 +7,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -16,7 +17,9 @@ EXPLAIN
           "key": "col1",
           "key_length": "21",
           "used_key_parts": ["col1"],
+          "loops": 1,
           "rows": 2,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.col1 >= 'a'"
         }
@@ -38,7 +41,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 2,
-                "cost": 2.547733708,
+                "cost": 0.003808422,
                 "chosen": true
             }
         ],

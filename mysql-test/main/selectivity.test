@@ -67,7 +67,9 @@ customer, lineitem, nation, orders, part, partsupp, region, supplier;
 --enable_query_log
 
 --echo === Q2 ===
-
+#  "or p_size =19999" is added to avoid symmetry between
+#     region (5 rows * 20% selectivity) = 1 and
+#     part (200 rows * 0.5% selectivity) = 1
 set optimizer_use_condition_selectivity=5;
 explain extended
 select
@@ -77,7 +79,7 @@ from
 where
 	p_partkey = ps_partkey
 	and s_suppkey = ps_suppkey
-	and p_size = 9
+	and (p_size = 9 or p_size =19999)
 	and p_type like '%TIN'
 	and s_nationkey = n_nationkey
 	and n_regionkey = r_regionkey
@@ -1111,8 +1113,10 @@ drop function f1;
 --echo #
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
-select (rand(1)*1000)/10, (rand(1001)*1000)/20 from seq_1_to_1000;
-analyze table t1 persistent for all;
+select (rand(1)*1000)/30, (rand(1001)*1000)/40 from seq_1_to_1000;
+analyze table t1 ;
+select count(*) from t1 where b=2;
+select count(*) from t1 where a in (17,51,5);
 
 --echo # Check what info the optimizer has about selectivities
 explain extended select * from t1 use index () where a in (17,51,5);
@@ -1120,6 +1124,13 @@ explain extended select * from t1 use index () where b=2;
 
 --echo # Now, the equality is used for ref access, while the range condition
 --echo # gives selectivity data
+explain extended select * from t1 where a in (17,51,5) and b=2;
+truncate table t1;
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
+select count(*) from t1 where b=2;
+select count(*) from t1 where a in (17,51,5);
 explain extended select * from t1 where a in (17,51,5) and b=2;
 drop table t1;
 
@@ -1232,16 +1243,15 @@ eval $query;
 set optimizer_use_condition_selectivity=2;
 eval explain extended $query;
 eval $query;
+analyze table t1;
+eval explain extended $query;
 set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
 
 drop table t1,t2,t3;
 
-
 --echo #
 --echo # MDEV-20519: Query plan regression with optimizer_use_condition_selectivity=4
 --echo #
-
-
 
 create table t1 (id int, a int, PRIMARY KEY(id), key(a));
 insert into t1 select seq,seq from seq_1_to_100;
@@ -1334,3 +1344,35 @@ DROP TABLE t1;
 #
 --source include/restore_charset.inc
 set @@global.histogram_size=@save_histogram_size;
+
+--echo #
+--echo # MDEV-20595
+--echo # Assertion `0 < sel && sel <= 2.0' failed in table_cond_selectivity
+--echo #
+
+create table t1 (id int, a int, PRIMARY KEY(id), key(a));
+insert into t1 select seq,seq from seq_1_to_100;
+create table t2 (id int, a int, b int, PRIMARY KEY(id), key(a), key(b));
+insert into t2 select seq,seq,seq from seq_1_to_100;
+
+set optimizer_use_condition_selectivity=2;
+EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-30360 Assertion `cond_selectivity <= 1.000000001' failed in get_range_limit_read_cost
+--echo # with LIMIT .. OFFSET
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY(b), KEY(a)) engine=myisam;
+INSERT INTO t1 VALUES
+(3,'a'),(2,'g'),(5,'v'),(9,'n'),(6,'u'),
+(7,'s'),(0,'z'),(3,'z'),(NULL,'m'),(6,'r');
+
+CREATE TABLE t2 (pk INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1),(2);
+
+SELECT STRAIGHT_JOIN pk FROM t1 JOIN t2 ON a = pk WHERE b >= 'A' ORDER BY t2.pk LIMIT 8 OFFSET 1;
+
+DROP TABLE t1, t2;

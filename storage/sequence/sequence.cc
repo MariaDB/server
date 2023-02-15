@@ -64,45 +64,53 @@ public:
   Sequence_share *seqs;
   ha_seq(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg), seqs(0) { }
-  ulonglong table_flags() const
+  ulonglong table_flags() const override
   { return HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE; }
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
-             HA_CREATE_INFO *create_info)
+             HA_CREATE_INFO *create_info) override
   { return HA_ERR_WRONG_COMMAND; }
 
-  int open(const char *name, int mode, uint test_if_locked);
-  int close(void);
-  int delete_table(const char *name)
+  int open(const char *name, int mode, uint test_if_locked) override;
+  int close(void) override;
+  int delete_table(const char *name) override
   {
     return 0;
   }
-  THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type);
+  THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type)
+    override;
 
   /* table scan */
-  int rnd_init(bool scan);
-  int rnd_next(unsigned char *buf);
-  void position(const uchar *record);
-  int rnd_pos(uchar *buf, uchar *pos);
-  int info(uint flag);
-
+  int rnd_init(bool scan) override;
+  int rnd_next(unsigned char *buf) override;
+  void position(const uchar *record) override;
+  int rnd_pos(uchar *buf, uchar *pos) override;
+  int info(uint flag) override;
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows,
+                               ulonglong blocks) override
+  {
+    /* Avoids assert in total_cost() and makes DBUG_PRINT more consistent */
+    return {0,0};
+  }
+  IO_AND_CPU_COST scan_time() override
+  {
+    /* Avoids assert in total_cost() and makes DBUG_PRINT more consistent */
+    return {0, 0};
+  }
   /* indexes */
-  ulong index_flags(uint inx, uint part, bool all_parts) const
+  ulong index_flags(uint inx, uint part, bool all_parts) const override
   { return HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER |
            HA_READ_RANGE | HA_KEYREAD_ONLY; }
-  uint max_supported_keys() const { return 1; }
+  uint max_supported_keys() const override { return 1; }
   int index_read_map(uchar *buf, const uchar *key, key_part_map keypart_map,
-                     enum ha_rkey_function find_flag);
-  int index_next(uchar *buf);
-  int index_prev(uchar *buf);
-  int index_first(uchar *buf);
-  int index_last(uchar *buf);
+                     enum ha_rkey_function find_flag) override;
+  int index_next(uchar *buf) override;
+  int index_prev(uchar *buf) override;
+  int index_first(uchar *buf) override;
+  int index_last(uchar *buf) override;
   ha_rows records_in_range(uint inx, const key_range *start_key,
-                           const key_range *end_key, page_range *pages);
-  double scan_time() { return (double)nvalues(); }
-  double read_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
-  double keyread_time(uint index, uint ranges, ha_rows rows) { return (double)rows; }
+                           const key_range *end_key, page_range *pages) override;
 
 private:
   void set(uchar *buf);
@@ -492,6 +500,17 @@ int ha_seq_group_by_handler::next_row()
   DBUG_RETURN(0);
 }
 
+static void sequence_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  costs->disk_read_cost= 0;
+  costs->disk_read_ratio= 0.0;                // No disk
+  costs->key_next_find_cost=
+    costs->key_lookup_cost=
+    costs->key_copy_cost=
+    costs->row_next_find_cost=
+    costs->row_lookup_cost=
+    costs->row_copy_cost= 0.0000062391530550;
+}
 
 /*****************************************************************************
   Initialize the interface between the sequence engine and MariaDB
@@ -518,6 +537,7 @@ static int init(void *p)
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
     dummy_savepoint;
   hton->create_group_by= create_group_by_handler;
+  hton->update_optimizer_costs= sequence_update_optimizer_costs;
   return 0;
 }
 

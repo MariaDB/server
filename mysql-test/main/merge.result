@@ -2804,8 +2804,6 @@ CREATE TABLE tm1 (c1 INT) ENGINE=MRG_MYISAM UNION=(t1)
 INSERT_METHOD=LAST;
 CREATE TRIGGER tm1_ai AFTER INSERT ON tm1
 FOR EACH ROW SELECT max(c1) FROM t1 INTO @var;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 LOCK TABLE tm1 WRITE, t1 WRITE;
 INSERT INTO tm1 VALUES (1);
 SELECT * FROM tm1;
@@ -2830,8 +2828,6 @@ CREATE TABLE tm1 (c1 INT) ENGINE=MRG_MYISAM UNION=(t1,t2,t3,t4,t5)
 INSERT_METHOD=LAST;
 CREATE TRIGGER t2_au AFTER UPDATE ON t2
 FOR EACH ROW SELECT MAX(c1) FROM t1 INTO @var;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE FUNCTION f1() RETURNS INT
 RETURN (SELECT MAX(c1) FROM t4);
 LOCK TABLE tm1 WRITE, t1 WRITE, t2 WRITE, t3 WRITE, t4 WRITE, t5 WRITE;
@@ -3928,4 +3924,35 @@ a
 drop table tm, t;
 #
 # End of 10.8 tests
+#
+#
+# MDEV-30088 Assertion `cond_selectivity <= 1.0' failed in get_range_limit_read_cost
+#
+CREATE TABLE t1 (a TIMESTAMP, KEY(a)) ENGINE=MRG_MyISAM;
+explain SELECT a, COUNT(*) FROM t1 WHERE a >= '2000-01-01 00:00:00' GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+SELECT a, COUNT(*) FROM t1 WHERE a >= '2000-01-01 00:00:00' GROUP BY a;
+a	COUNT(*)
+DROP TABLE t1;
+#
+# MDEV-30525: Assertion `ranges > 0' fails in IO_AND_CPU_COST handler::keyread_time
+#
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT, KEY(a)) ENGINE=MyISAM;
+CREATE TABLE tm (a INT, KEY(a)) ENGINE=MRG_MyISAM UNION=(t1,t2);
+SELECT DISTINCT a FROM tm WHERE a > 50;
+a
+DROP TABLE tm, t1, t2;
+#
+# MDEV-30568 Assertion `cond_selectivity <= 1.000000001' failed in get_range_limit_read_cost
+#
+CREATE TABLE t1 (f INT, KEY(f)) ENGINE=MyISAM;
+CREATE TABLE t2 (f INT, KEY(f)) ENGINE=MyISAM;
+CREATE TABLE tm (f INT, KEY(f)) ENGINE=MERGE UNION = (t1, t2);
+SELECT DISTINCT f FROM tm WHERE f IN (47, 126, 97, 48, 73, 0);
+f
+DROP TABLE tm, t1, t2;
+#
+# End of 11.0 tests
 #

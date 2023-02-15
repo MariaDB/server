@@ -225,9 +225,10 @@ user_id int(10) unsigned NOT NULL DEFAULT 0,
 PRIMARY KEY (notification_type_id,item_id,item_parent_id,user_id)
 );
 insert into t1 values (1,1,1,1), (2,2,2,2), (3,3,3,3);
+insert into t1 select seq,seq,seq,seq from seq_10_to_30;
 # Run crashing query
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	2	NULL	3	Using where
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	2	NULL	5	Using where
 drop table t1;
 #
 # MDEV-25069: Assertion `root->weight >= ...' failed in SEL_ARG::tree_delete #2

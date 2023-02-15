@@ -376,16 +376,16 @@ void mi_set_index_cond_func(MI_INFO *info, index_cond_func_t func,
 {
   info->index_cond_func= func;
   info->index_cond_func_arg= func_arg;
+  info->has_cond_pushdown= (info->index_cond_func || info->rowid_filter_func);
 }
 
 void mi_set_rowid_filter_func(MI_INFO *info,
                               rowid_filter_func_t check_func,
-                              rowid_filter_is_active_func_t is_active_func,
                               void *func_arg)
 {
   info->rowid_filter_func= check_func;
-  info->rowid_filter_is_active_func= is_active_func;
   info->rowid_filter_func_arg= func_arg;
+  info->has_cond_pushdown= (info->index_cond_func || info->rowid_filter_func);
 }
 
 /*

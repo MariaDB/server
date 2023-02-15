@@ -477,6 +477,7 @@ INSERT INTO t1 VALUES ('o'),('s'),('j'),('s'),('y'),('s'),('l'),
 set histogram_type=json_hb;
 analyze table t1 persistent for all;
 --echo # filtered must not be negative:
+--source include/explain-no-costs.inc
 explain format=json select * from t1 where a > 'y';
 
 drop table t1;

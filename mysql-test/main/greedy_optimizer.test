@@ -441,9 +441,9 @@ WHERE t100.K=t10.I
   AND t10000.K=t10.I;
 --source include/check_qep.inc
 
-#####
-# Expect all variants of EQ joining t100 & t10000 with T10
-# to have same cost # handler_reads:
+--echo #####
+--echo # Expect all variants of EQ joining t100 & t10000 with T10
+--echo # to have same cost # handler_reads:
 let $query=
 SELECT COUNT(*) FROM t10,t100,t10000
 WHERE t100.K=t10.I
@@ -493,12 +493,12 @@ WHERE t100.K=t10.I
 --source include/check_qep.inc
 
 
-#####
-## EQ_REF Should be executed before table scan(ALL)
-## - Independent of #records in table being EQ_REF-joined
-#####
-#####
-# Expect: Join EQ_REF(t100) before ALL(t10000)
+--echo #####
+--echo ## EQ_REF Should be executed before table scan(ALL)
+--echo ## - Independent of #records in table being EQ_REF-joined
+--echo #####
+--echo #####
+--echo # Expect: Join EQ_REF(t100) before ALL(t10000)
 let $query=
 SELECT STRAIGHT_JOIN COUNT(*) FROM t10,t100,t10000
 WHERE t100.K=t10.I
@@ -517,8 +517,8 @@ WHERE t100.K=t10.I
   AND t10000.I=t10.I;
 --source include/check_qep.inc
 
-#####
-# Expect: Join EQ_REF(t10000) before ALL(t100) (star-join)
+--echo #####
+--echo # Expect: Join EQ_REF(t10000) before ALL(t100) (star-join)
 let $query=
 SELECT STRAIGHT_JOIN COUNT(*) FROM t10,t10000,t100
 WHERE t100.I=t10.I
@@ -662,7 +662,7 @@ WHERE t100.K=t10.I
 ## Expect this QEP, cost & #handler_read
 # Expected QEP: 'join EQ_REF(X) on X.K=t10.I' before 'cross' ALL(Y)
 let $query=
-SELECT STRAIGHT_JOIN COUNT(*) FROM t10,t10000 x,t10000 y
+SELECT STRAIGHT_JOIN COUNT(*) FROM t10000 y, t10, t10000 x
 WHERE x.k=t10.i;
 --source include/expect_qep.inc
 

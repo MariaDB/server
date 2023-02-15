@@ -4,6 +4,7 @@
 
 --source include/have_stat_tables.inc
 --source include/have_partition.inc
+--source include/have_sequence.inc
 
 select @@global.use_stat_tables;
 select @@session.use_stat_tables;
@@ -140,6 +141,7 @@ group by nation, o_year
 order by nation, o_year desc;
 
 eval EXPLAIN $Q9;
+eval EXPLAIN EXTENDED $Q9;
 eval $Q9;
 
 

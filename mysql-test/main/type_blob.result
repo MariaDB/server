@@ -690,18 +690,18 @@ id	txt
 2	Chevy 
 select * from t1 where txt > 'Chevy';
 id	txt
-4	Honda
-5	Subaru
-6	Honda
 7	Ford
+4	Honda
+6	Honda
+5	Subaru
 select * from t1 where txt >= 'Chevy';
 id	txt
 1	Chevy
 2	Chevy 
-4	Honda
-5	Subaru
-6	Honda
 7	Ford
+4	Honda
+6	Honda
+5	Subaru
 alter table t1 modify column txt blob;
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

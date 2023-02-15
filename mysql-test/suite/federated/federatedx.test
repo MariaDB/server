@@ -2090,4 +2090,25 @@ DROP SERVER s;
 
 --echo # End of 10.5 tests
 
+--echo #
+--echo # MDEV-30569: Assertion ...ha_table_flags() failed in Duplicate_weedout_picker::check_qep
+--echo #
+
+evalp create server s foreign data wrapper mysql options
+  (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+
+CREATE TABLE t1_fed ENGINE=FEDERATED CONNECTION='s/t1';
+CREATE VIEW v AS SELECT * FROM t1_fed;
+
+SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
+
+DROP TABLE t1_fed, t1, t2;
+DROP SERVER s;
+
 source include/federated_cleanup.inc;

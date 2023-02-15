@@ -339,6 +339,33 @@ static void myrg_set_external_ref(MYRG_INFO *m_info, void *ext_ref_arg)
   }
 }
 
+IO_AND_CPU_COST ha_myisammrg::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost= handler::rnd_pos_time(rows);
+  /*
+    Row data is notcached. costs.row_lookup_cost includes the cost of
+    the reading the row from system (probably cached by the OS).
+  */
+  cost.io= 0;
+  return cost;
+}
+
+IO_AND_CPU_COST ha_myisammrg::keyread_time(uint index, ulong ranges,
+                                           ha_rows rows,
+                                           ulonglong blocks)
+{
+  IO_AND_CPU_COST cost= handler::keyread_time(index, ranges, rows, blocks);
+  if (!blocks)
+  {
+    cost.io*= file->tables;
+    cost.cpu*= file->tables;
+  }
+  /* Add the cost of having to do a key lookup in all trees */
+  if (file->tables)
+    cost.cpu+= (file->tables-1) * (ranges * KEY_LOOKUP_COST);
+  return cost;
+}
+
 /**
   Open a MERGE parent table, but not its children.
 
@@ -1744,6 +1771,12 @@ int myisammrg_panic(handlerton *hton, ha_panic_function flag)
   return myrg_panic(flag);
 }
 
+static void myisammrg_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  myisam_update_optimizer_costs(costs);
+}
+
+
 static int myisammrg_init(void *p)
 {
   handlerton *myisammrg_hton;
@@ -1759,7 +1792,7 @@ static int myisammrg_init(void *p)
   myisammrg_hton->panic= myisammrg_panic;
   myisammrg_hton->flags= HTON_NO_PARTITION;
   myisammrg_hton->tablefile_extensions= ha_myisammrg_exts;
-
+  myisammrg_hton->update_optimizer_costs= myisammrg_update_optimizer_costs;
   return 0;
 }
 

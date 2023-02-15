@@ -1033,6 +1033,9 @@ void Explain_select::print_explain_json(Explain_query *query,
     writer->add_member("select_id").add_ll(select_id);
     add_linkage(writer);
 
+    if (cost != 0.0)
+      writer->add_member("cost").add_double(cost);
+
     if (is_analyze && time_tracker.get_loops())
     {
       writer->add_member("r_loops").add_ll(time_tracker.get_loops());
@@ -1379,10 +1382,12 @@ double Explain_table_access::get_r_filtered()
 }
 
 
-int Explain_table_access::print_explain(select_result_sink *output, uint8 explain_flags, 
+int Explain_table_access::print_explain(select_result_sink *output,
+                                        uint8 explain_flags,
                                         bool is_analyze,
                                         uint select_id, const char *select_type,
-                                        bool using_temporary, bool using_filesort)
+                                        bool using_temporary,
+                                        bool using_filesort)
 {
   THD *thd= output->thd; // note: for SHOW EXPLAIN, this is target thd.
   MEM_ROOT *mem_root= thd->mem_root;
@@ -1911,6 +1916,9 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     rowid_filter->print_explain_json(query, writer, is_analyze);
   }
 
+  if (loops != 0.0)
+    writer->add_member("loops").add_double(loops);
+
   /* r_loops (not present in tabular output) */
   if (is_analyze)
   {
@@ -1940,7 +1948,13 @@ void Explain_table_access::print_explain_json(Explain_query *query,
       else
         writer->add_null();
     }
+  }
 
+  if (cost != 0.0)
+    writer->add_member("cost").add_double(cost);
+
+  if (is_analyze)
+  {
     if (op_tracker.get_loops())
     {
       double total_time= op_tracker.get_time_ms();
@@ -2011,6 +2025,9 @@ void Explain_table_access::print_explain_json(Explain_query *query,
         writer->add_double(jbuf_tracker.get_filtered_after_where()*100.0);
       else
         writer->add_null();
+
+      writer->add_member("r_unpack_time_ms");
+      writer->add_double(jbuf_unpack_tracker.get_time_ms());
     }
   }
 

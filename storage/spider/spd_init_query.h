@@ -544,11 +544,7 @@ static LEX_STRING spider_init_queries[] = {
 /*
     "  if @server_name = 'MariaDB' and"
     "    ("
-    "      @server_major_version > 10 or"
-    "      ("
-    "        @server_major_version = 10 and"
-    "        @server_minor_version >= 999"
-    "      )"
+    "      @server_major_version > 11"
     "    )"
     "  then"
     "    create table if not exists mysql.spider_rewrite_tables("
@@ -806,13 +802,9 @@ static LEX_STRING spider_init_queries[] = {
   Install spider_rewrite plugin
 */
 /*
-    "  if @server_name = 'MariaDB' and"
+    "  if @server_name = 'MariaDB' and "
     "    ("
-    "      @server_major_version > 10 or"
-    "      ("
-    "        @server_major_version = 10 and"
-    "        @server_minor_version >= 999"
-    "      )"
+    "      @server_major_version > 11"
     "    )"
     "  then"
     "    set @have_spider_i_s_rewrite_plugin := 0;"

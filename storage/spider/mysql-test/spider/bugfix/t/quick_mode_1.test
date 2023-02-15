@@ -74,6 +74,7 @@ TRUNCATE TABLE mysql.general_log;
 TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
+explain SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
 
 --connection child2_1

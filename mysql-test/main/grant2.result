@@ -452,8 +452,6 @@ INSERT INTO t2 VALUES (1);
 DROP FUNCTION IF EXISTS f2;
 CREATE FUNCTION f2 () RETURNS INT
 BEGIN DECLARE v INT; SELECT s1 FROM t2 INTO v; RETURN v; END//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT f2();
 f2()
 1

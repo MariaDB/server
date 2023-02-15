@@ -129,6 +129,9 @@ version_patch	FUNCTION
 create_synonym_db	PROCEDURE
 diagnostics	PROCEDURE
 execute_prepared_stmt	PROCEDURE
+optimizer_switch_choice	PROCEDURE
+optimizer_switch_off	PROCEDURE
+optimizer_switch_on	PROCEDURE
 ps_setup_disable_background_threads	PROCEDURE
 ps_setup_disable_consumer	PROCEDURE
 ps_setup_disable_instrument	PROCEDURE

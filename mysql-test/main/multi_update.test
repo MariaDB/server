@@ -1121,12 +1121,15 @@ INSERT INTO t1 (part,a,b) VALUES (0,0,0),(1,1,1),(2,2,2);
 INSERT INTO t2 (part,a,b) VALUES (0,0,0),(1,1,1),(2,2,2);
 
 --echo # Expecting partition "Current"
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=3 WHERE t2.part=0 AND t1.part=0;
 
 --echo # Expecting partition "Relevant"
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=2 WHERE t2.part=1 AND t1.part=1;
 
 --echo # Expecting partition "Archive"
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=3 WHERE t2.part=2 AND t1.part=2;
 
 DROP TABLES t1, t2;

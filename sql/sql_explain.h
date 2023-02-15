@@ -216,6 +216,7 @@ public:
     message(NULL),
     having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
+    cost(0.0),
     time_tracker(is_analyze),
     aggr_tree(NULL)
   {}
@@ -249,9 +250,10 @@ public:
   bool using_temporary;
   bool using_filesort;
 
+  double cost;
   /* ANALYZE members */
   Time_and_counter_tracker time_tracker;
-  
+
   /* 
     Part of query plan describing sorting, temp.table usage, and duplicate 
     removal
@@ -753,9 +755,11 @@ public:
 class Explain_table_access : public Sql_alloc
 {
 public:
-  Explain_table_access(MEM_ROOT *root) :
+  Explain_table_access(MEM_ROOT *root, bool timed) :
     derived_select_number(0),
     non_merged_sjm_number(0),
+    cost(0.0),
+    loops(0.0),
     extra_tags(root),
     range_checked_fer(NULL),
     full_scan_on_null_key(false),
@@ -766,6 +770,7 @@ public:
     pushed_index_cond(NULL),
     sjm_nest(NULL),
     pre_join_sort(NULL),
+    jbuf_unpack_tracker(timed),
     rowid_filter(NULL)
   {}
   ~Explain_table_access() { delete sjm_nest; }
@@ -823,6 +828,10 @@ public:
   ha_rows rows;
   double filtered;
 
+  /* Total cost incurred during one execution of this select */
+  double cost;
+
+  double loops;
   /* 
     Contents of the 'Extra' column. Some are converted into strings, some have
     parameters, values for which are stored below.
@@ -874,6 +883,7 @@ public:
   Gap_time_tracker extra_time_tracker;
 
   Table_access_tracker jbuf_tracker;
+  Time_and_counter_tracker jbuf_unpack_tracker;
   
   Explain_rowid_filter *rowid_filter;
 

@@ -92,6 +92,7 @@ typedef ulonglong nested_join_map;
 #define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
 #define tmp_file_prefix_length 4
 #define TMP_TABLE_KEY_EXTRA 8
+#define ROCKSDB_DIRECTORY_NAME "#rocksdb"
 
 /**
   Enumerate possible types of a table from re-execution
@@ -813,6 +814,7 @@ struct TABLE_SHARE
     return is_view   ? view_pseudo_hton :
            db_plugin ? plugin_hton(db_plugin) : NULL;
   }
+  OPTIMIZER_COSTS optimizer_costs;      /* Copy of get_optimizer_costs() */
   enum row_type row_type;		/* How rows are stored */
   enum Table_type table_type;
   enum tmp_table_type tmp_table;
@@ -888,6 +890,7 @@ struct TABLE_SHARE
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
   bool long_unique_table;
+  bool optimizer_costs_inited;
 
   ulong table_map_id;                   /* for row-based replication */
 
@@ -1194,6 +1197,7 @@ struct TABLE_SHARE
   void set_overlapped_keys();
   void set_ignored_indexes();
   key_map usable_indexes(THD *thd);
+  void update_optimizer_costs(handlerton *hton);
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -1391,13 +1395,18 @@ public:
   {
     uint        key_parts;
     uint        ranges;
-    ha_rows     rows;
-    double      cost;
+    ha_rows     rows, max_index_blocks, max_row_blocks;
+    Cost_estimate cost;
+    /* Selectivity, in case of filters */
+    double      selectivity;
+    bool        first_key_part_has_only_one_value;
+
     /*
-      If there is a range access by i-th index then the cost of
-      index only access for it is stored in index_only_costs[i]
+      Cost of fetching keys with index only read and returning them to the
+      sql level.
     */
-    double      index_only_cost;
+    double index_only_fetch_cost(TABLE *table);
+    void get_costs(ALL_READ_COST *cost);
   } *opt_range;
   /* 
      Bitmaps of key parts that =const for the duration of join execution. If
@@ -1483,6 +1492,9 @@ public:
     bytes, it would take up 4.
   */
   bool force_index;
+
+  /* Flag set when the statement contains FORCE INDEX FOR JOIN */
+  bool force_index_join;
 
   /**
     Flag set when the statement contains FORCE INDEX FOR ORDER BY
@@ -1719,6 +1731,12 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf, bool ignore_warnings);
+  inline size_t key_storage_length(uint index)
+  {
+    if (is_clustering_key(index))
+      return s->stored_rec_length;
+    return key_info[index].key_length + file->ref_length;
+  }
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool ignore_errors);
   void evaluate_update_default_function();
@@ -1783,10 +1801,12 @@ public:
   void prune_range_rowid_filters();
   void trace_range_rowid_filters(THD *thd) const;
   Range_rowid_filter_cost_info *
-  best_range_rowid_filter_for_partial_join(uint access_key_no,
-                                           double records,
-                                           double access_cost_factor);
-
+  best_range_rowid_filter(uint access_key_no,
+                          double records,
+                          double fetch_cost,
+                          double index_only_cost,
+                          double prev_records,
+                          double *records_out);
   /**
     System Versioning support
    */
@@ -1839,7 +1859,44 @@ public:
     DBUG_ASSERT(s->period.name);
     return field[s->period.end_fieldno];
   }
+  inline void set_cond_selectivity(double selectivity)
+  {
+    DBUG_ASSERT(selectivity >= 0.0 && selectivity <= 1.0);
+    cond_selectivity= selectivity;
+    DBUG_PRINT("info", ("cond_selectivity: %g", cond_selectivity));
+  }
+  inline void multiply_cond_selectivity(double selectivity)
+  {
+    DBUG_ASSERT(selectivity >= 0.0 && selectivity <= 1.0);
+    cond_selectivity*= selectivity;
+    DBUG_PRINT("info", ("cond_selectivity: %g", cond_selectivity));
+  }
+  inline void set_opt_range_condition_rows(ha_rows rows)
+  {
+    if (opt_range_condition_rows > rows)
+      opt_range_condition_rows= rows;
+  }
 
+  /* Return true if the key is a clustered key */
+  inline bool is_clustering_key(uint index) const
+  {
+    return key_info[index].index_flags & HA_CLUSTERED_INDEX;
+  }
+
+  /*
+    Return true if we can use rowid filter with this index
+    rowid filter can be used if
+    - filter pushdown is supported by the engine for the index. If this is set then
+      file->ha_table_flags() should not contain HA_NON_COMPARABLE_ROWID!
+    - The index is not a clustered primary index
+  */
+
+  inline bool can_use_rowid_filter(uint index) const
+  {
+    return ((key_info[index].index_flags &
+             (HA_DO_RANGE_FILTER_PUSHDOWN | HA_CLUSTERED_INDEX)) ==
+            HA_DO_RANGE_FILTER_PUSHDOWN);
+  }
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
@@ -1936,7 +1993,8 @@ class IS_table_read_plan;
 #define DTYPE_MERGE                  4U
 #define DTYPE_MATERIALIZE            8U
 #define DTYPE_MULTITABLE             16U
-#define DTYPE_MASK                   (DTYPE_VIEW|DTYPE_TABLE|DTYPE_MULTITABLE)
+#define DTYPE_IN_PREDICATE           32U
+#define DTYPE_MASK                   (DTYPE_VIEW|DTYPE_TABLE|DTYPE_MULTITABLE|DTYPE_IN_PREDICATE)
 
 /*
   Phases of derived tables/views handling, see sql_derived.cc
@@ -2583,9 +2641,8 @@ struct TABLE_LIST
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */
-  bool		straight;		/* optimize with prev table */
+  bool          straight;		/* optimize with prev table */
   bool          updating;               /* for replicate-do/ignore table */
-  bool		force_index;		/* prefer index over table scan */
   bool          ignore_leaves;          /* preload only non-leaf nodes */
   bool          crashed;                /* Table was found crashed */
   bool          skip_locked;            /* Skip locked in view defination */

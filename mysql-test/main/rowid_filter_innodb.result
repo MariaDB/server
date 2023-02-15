@@ -80,6 +80,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -97,7 +98,9 @@ EXPLAIN
             "rows": 605,
             "selectivity_pct": 10.07493755
           },
+          "loops": 1,
           "rows": 510,
+          "cost": "COST_REPLACED",
           "filtered": 10.07493782,
           "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
           "attached_condition": "lineitem.l_quantity > 45"
@@ -121,6 +124,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -145,9 +149,11 @@ ANALYZE
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
           },
+          "loops": 1,
           "r_loops": 1,
           "rows": 510,
           "r_rows": 60,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 10.07493782,
@@ -235,6 +241,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -244,7 +251,9 @@ EXPLAIN
           "key": "i_l_shipdate",
           "key_length": "4",
           "used_key_parts": ["l_shipDATE"],
+          "loops": 1,
           "rows": 510,
+          "cost": "COST_REPLACED",
           "filtered": 10.07493782,
           "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
           "attached_condition": "lineitem.l_quantity > 45"
@@ -268,6 +277,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -279,9 +289,11 @@ ANALYZE
           "key": "i_l_shipdate",
           "key_length": "4",
           "used_key_parts": ["l_shipDATE"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 510,
           "r_rows": 510,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 10.07493782,
@@ -372,6 +384,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -386,7 +399,9 @@ EXPLAIN
           "key": "i_l_shipdate",
           "key_length": "4",
           "used_key_parts": ["l_shipDATE"],
+          "loops": 1,
           "rows": 98,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
           "using_index": true
@@ -401,7 +416,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 98,
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 4.733333111,
           "attached_condition": "orders.o_totalprice between 200000 and 230000"
         }
@@ -427,6 +444,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -443,9 +461,11 @@ ANALYZE
           "key": "i_l_shipdate",
           "key_length": "4",
           "used_key_parts": ["l_shipDATE"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 98,
           "r_rows": 98,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -463,9 +483,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 98,
           "r_loops": 98,
           "rows": 1,
           "r_rows": 1,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 4.733333111,
@@ -507,6 +529,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -521,7 +544,9 @@ EXPLAIN
           "key": "i_l_shipdate",
           "key_length": "4",
           "used_key_parts": ["l_shipDATE"],
+          "loops": 1,
           "rows": 98,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'",
           "using_index": true
@@ -536,7 +561,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 98,
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 4.733333111,
           "attached_condition": "orders.o_totalprice between 200000 and 230000"
         }
@@ -562,6 +589,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -578,9 +606,11 @@ ANALYZE
           "key": "i_l_shipdate",
           "key_length": "4",
           "used_key_parts": ["l_shipDATE"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 98,
           "r_rows": 98,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -598,9 +628,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 98,
           "r_loops": 98,
           "rows": 1,
           "r_rows": 1,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 4.733333111,
@@ -644,6 +676,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -667,7 +700,9 @@ EXPLAIN
             "rows": 605,
             "selectivity_pct": 10.07493755
           },
+          "loops": 1,
           "rows": 510,
+          "cost": "COST_REPLACED",
           "filtered": 10.07493782,
           "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
           "attached_condition": "lineitem.l_quantity > 45"
@@ -682,7 +717,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 51.38218152,
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 9.600000381,
           "attached_condition": "orders.o_totalprice between 180000 and 230000"
         }
@@ -710,6 +747,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -740,9 +778,11 @@ ANALYZE
             "r_buffer_size": "REPLACED",
             "r_filling_time_ms": "REPLACED"
           },
+          "loops": 1,
           "r_loops": 1,
           "rows": 510,
           "r_rows": 60,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 10.07493782,
@@ -760,9 +800,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 51.38218152,
           "r_loops": 60,
           "rows": 1,
           "r_rows": 1,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 9.600000381,
@@ -812,6 +854,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -821,7 +864,9 @@ EXPLAIN
           "key": "i_o_totalprice",
           "key_length": "9",
           "used_key_parts": ["o_totalprice"],
+          "loops": 1,
           "rows": 144,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "orders.o_totalprice between 180000 and 230000",
           "using_index": true
@@ -842,7 +887,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 144,
           "rows": 4,
+          "cost": "COST_REPLACED",
           "filtered": 0.855656624,
           "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30' and lineitem.l_quantity > 45"
         }
@@ -870,6 +917,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -881,9 +929,11 @@ ANALYZE
           "key": "i_o_totalprice",
           "key_length": "9",
           "used_key_parts": ["o_totalprice"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 144,
           "r_rows": 144,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -907,9 +957,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 144,
           "r_loops": 144,
           "rows": 4,
           "r_rows": 6.625,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 0.855656624,
@@ -942,6 +994,14 @@ o_orderkey	l_linenumber	l_shipdate	l_quantity	o_totalprice
 5829	5	1997-01-31	49	183734.56
 5895	2	1997-04-27	47	201419.83
 5895	3	1997-03-15	49	201419.83
+set statement optimizer_switch='rowid_filter=on' for EXPLAIN SELECT STRAIGHT_JOIN o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
+FROM lineitem JOIN orders ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
+l_quantity > 45 AND
+o_totalprice between 180000 and 230000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	range|filter	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity,i_l_quantity	i_l_shipdate|i_l_quantity	4|9	NULL	510 (10%)	Using index condition; Using where; Using rowid filter
+1	SIMPLE	orders	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -957,6 +1017,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -966,7 +1027,9 @@ EXPLAIN
           "key": "i_o_totalprice",
           "key_length": "9",
           "used_key_parts": ["o_totalprice"],
+          "loops": 1,
           "rows": 71,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "orders.o_totalprice between 200000 and 230000",
           "using_index": true
@@ -986,7 +1049,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 71,
           "rows": 4,
+          "cost": "COST_REPLACED",
           "filtered": 8.492922783,
           "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
         }
@@ -1012,6 +1077,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -1023,9 +1089,11 @@ ANALYZE
           "key": "i_o_totalprice",
           "key_length": "9",
           "used_key_parts": ["o_totalprice"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 71,
           "r_rows": 71,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -1048,9 +1116,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 71,
           "r_loops": 71,
           "rows": 4,
           "r_rows": 6.704225352,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 8.492922783,
@@ -1118,6 +1188,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1127,7 +1198,9 @@ EXPLAIN
           "key": "i_o_totalprice",
           "key_length": "9",
           "used_key_parts": ["o_totalprice"],
+          "loops": 1,
           "rows": 71,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "orders.o_totalprice between 200000 and 230000",
           "using_index": true
@@ -1147,7 +1220,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 71,
           "rows": 4,
+          "cost": "COST_REPLACED",
           "filtered": 8.492922783,
           "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
         }
@@ -1173,6 +1248,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -1184,9 +1260,11 @@ ANALYZE
           "key": "i_o_totalprice",
           "key_length": "9",
           "used_key_parts": ["o_totalprice"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 71,
           "r_rows": 71,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -1209,9 +1287,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 71,
           "r_loops": 71,
           "rows": 4,
           "r_rows": 6.704225352,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 8.492922783,
@@ -1290,6 +1370,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1305,7 +1386,9 @@ EXPLAIN
           "key": "i_l_receiptdate",
           "key_length": "4",
           "used_key_parts": ["l_receiptDATE"],
+          "loops": 1,
           "rows": 18,
+          "cost": "COST_REPLACED",
           "filtered": 0.566194832,
           "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
           "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
@@ -1320,7 +1403,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 1,
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 5.666666508,
           "attached_condition": "orders.o_totalprice between 200000 and 250000"
         }
@@ -1350,6 +1435,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -1367,9 +1453,11 @@ ANALYZE
           "key": "i_l_receiptdate",
           "key_length": "4",
           "used_key_parts": ["l_receiptDATE"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 18,
           "r_rows": 18,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 0.566194832,
@@ -1387,9 +1475,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 1,
           "r_loops": 7,
           "rows": 1,
           "r_rows": 1,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 5.666666508,
@@ -1427,6 +1517,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1442,7 +1533,9 @@ EXPLAIN
           "key": "i_l_receiptdate",
           "key_length": "4",
           "used_key_parts": ["l_receiptDATE"],
+          "loops": 1,
           "rows": 18,
+          "cost": "COST_REPLACED",
           "filtered": 0.566194832,
           "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
           "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
@@ -1457,7 +1550,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 1,
           "rows": 1,
+          "cost": "COST_REPLACED",
           "filtered": 5.666666508,
           "attached_condition": "orders.o_totalprice between 200000 and 250000"
         }
@@ -1487,6 +1582,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -1504,9 +1600,11 @@ ANALYZE
           "key": "i_l_receiptdate",
           "key_length": "4",
           "used_key_parts": ["l_receiptDATE"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 18,
           "r_rows": 18,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 0.566194832,
@@ -1524,9 +1622,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["o_orderkey"],
           "ref": ["dbt3_s001.lineitem.l_orderkey"],
+          "loops": 1,
           "r_loops": 7,
           "rows": 1,
           "r_rows": 1,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 5.666666508,
@@ -1571,6 +1671,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1580,7 +1681,9 @@ EXPLAIN
           "key": "i_o_totaldiscount",
           "key_length": "9",
           "used_key_parts": ["o_totaldiscount"],
+          "loops": 1,
           "rows": 41,
+          "cost": "COST_REPLACED",
           "filtered": 3.333333254,
           "index_condition": "orders.o_totaldiscount between 18000 and 20000",
           "attached_condition": "orders.o_totalprice between 200000 and 220000"
@@ -1600,7 +1703,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 1.366666667,
           "rows": 4,
+          "cost": "COST_REPLACED",
           "filtered": 3.047460556,
           "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
         }
@@ -1630,6 +1735,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -1641,9 +1747,11 @@ ANALYZE
           "key": "i_o_totaldiscount",
           "key_length": "9",
           "used_key_parts": ["o_totaldiscount"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 41,
           "r_rows": 41,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 3.333333254,
@@ -1666,9 +1774,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 1.366666667,
           "r_loops": 1,
           "rows": 4,
           "r_rows": 6,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 3.047460556,
@@ -1709,6 +1819,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1718,7 +1829,9 @@ EXPLAIN
           "key": "i_o_totaldiscount",
           "key_length": "9",
           "used_key_parts": ["o_totaldiscount"],
+          "loops": 1,
           "rows": 41,
+          "cost": "COST_REPLACED",
           "filtered": 3.333333254,
           "index_condition": "orders.o_totaldiscount between 18000 and 20000",
           "attached_condition": "orders.o_totalprice between 200000 and 220000"
@@ -1738,7 +1851,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 1.366666667,
           "rows": 4,
+          "cost": "COST_REPLACED",
           "filtered": 3.047460556,
           "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
         }
@@ -1768,6 +1883,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -1779,9 +1895,11 @@ ANALYZE
           "key": "i_o_totaldiscount",
           "key_length": "9",
           "used_key_parts": ["o_totaldiscount"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 41,
           "r_rows": 41,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 3.333333254,
@@ -1804,9 +1922,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 1.366666667,
           "r_loops": 1,
           "rows": 4,
           "r_rows": 6,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 3.047460556,
@@ -1850,6 +1970,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -1864,7 +1985,9 @@ EXPLAIN
           "key": "i_o_totaldiscount",
           "key_length": "9",
           "used_key_parts": ["o_totaldiscount"],
+          "loops": 1,
           "rows": 41,
+          "cost": "REPLACED",
           "filtered": "REPLACED",
           "index_condition": "orders.o_totaldiscount between 18000 and 20000",
           "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
@@ -1884,7 +2007,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 1,
           "rows": 4,
+          "cost": "REPLACED",
           "filtered": "REPLACED",
           "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
         }
@@ -1914,6 +2039,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -1930,9 +2056,11 @@ ANALYZE
           "key": "i_o_totaldiscount",
           "key_length": "9",
           "used_key_parts": ["o_totaldiscount"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 41,
           "r_rows": 41,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": "REPLACED",
@@ -1955,9 +2083,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 4,
           "r_rows": 6,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": "REPLACED",
@@ -1998,6 +2128,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2012,7 +2143,9 @@ EXPLAIN
           "key": "i_o_totaldiscount",
           "key_length": "9",
           "used_key_parts": ["o_totaldiscount"],
+          "loops": 1,
           "rows": 41,
+          "cost": "REPLACED",
           "filtered": "REPLACED",
           "index_condition": "orders.o_totaldiscount between 18000 and 20000",
           "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
@@ -2032,7 +2165,9 @@ EXPLAIN
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 1,
           "rows": 4,
+          "cost": "REPLACED",
           "filtered": "REPLACED",
           "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
         }
@@ -2062,6 +2197,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -2078,9 +2214,11 @@ ANALYZE
           "key": "i_o_totaldiscount",
           "key_length": "9",
           "used_key_parts": ["o_totaldiscount"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 41,
           "r_rows": 41,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": "REPLACED",
@@ -2103,9 +2241,11 @@ ANALYZE
           "key_length": "4",
           "used_key_parts": ["l_orderkey"],
           "ref": ["dbt3_s001.orders.o_orderkey"],
+          "loops": 1,
           "r_loops": 1,
           "rows": 4,
           "r_rows": 6,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": "REPLACED",
@@ -2133,703 +2273,6 @@ ALTER TABLE orders DROP COLUMN o_totaldiscount;
 DROP VIEW v1;
 DROP DATABASE dbt3_s001;
 use test;
-#
-# MDEV-18816: potential range filter for one join table with
-#             impossible WHERE for another
-#
-create table t1 (
-pk int not null primary key, c2 varchar(10) , i1 int,key (c2)
-) engine=myisam;
-insert into t1 values  (1,'a',-5),(2,'a',null);
-create table t2 (
-pk int, i1 int, c1 varchar(30) , key c1 (c1(30)), key i1 (i1)
-) engine=myisam;
-insert into t2 values
-(1,-5,'a'),(2,null,'a'),(3,null,'a'),(4,null,'a'),(5,5,'a'),(6,null,'a'),
-(7,4,'a'),(8,55,'a'),(9,null,'a'),(10,null,'a'),(11,null,'a'),(12,-5,'a'),
-(13,-5,'a'),(14,null,'a'),(15,null,'a'),(16,-5,'a'),(17,-5,'a');
-select 1
-from t1
-left join
-t2 join t1 as t1_a on t2.i1 = t1_a.pk
-on t1.c2 = t2.c1
-where t1_a.pk is null and t1_a.i1 != 3;
-1
-explain extended select 1
-from t1
-left join
-t2 join t1 as t1_a on t2.i1 = t1_a.pk
-on t1.c2 = t2.c1
-where t1_a.pk is null and t1_a.i1 != 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-Warnings:
-Note	1003	select 1 AS `1` from `test`.`t1` join `test`.`t2` join `test`.`t1` `t1_a` where 0
-drop table t1,t2;
-#
-# MDEV-18640: TABLE::prune_range_rowid_filters: Conditional jump or
-#             move depends on uninitialized value
-#
-CREATE TABLE t1 (
-pk INT, i INT, PRIMARY KEY (pk), KEY (pk,i)
-) ENGINE=MyISAM;
-INSERT INTO t1 VALUES (1,10), (7,70), (2,20);
-SELECT * FROM t1 WHERE pk < 5;
-pk	i
-1	10
-2	20
-DROP TABLE t1;
-#
-# MDEV-18956: Possible rowid filter for subquery for which
-#             in_to_exists strategy has been chosen
-#
-CREATE TABLE t1 (pk int) engine=myisam ;
-INSERT INTO t1 VALUES (1),(2);
-CREATE TABLE t2 (
-pk int auto_increment PRIMARY KEY,
-i1 int, i2 int, c2 varchar(1),
-KEY (i1), KEY (i2)
-) engine=myisam;
-INSERT INTO t2 VALUES
-(1,8,6,'t'),(2,5,7,'i'),(3,4,4,'h'),(4,207,38,'d'),(5,183,206,'b'),
-(6,7,null,'o'),(7,1,2,'j'),(8,17,36,'s'),(9,4,5,'q'),(10,0,6,'l'),
-(11,1,9,'j'),(12,5,6,'y'),(13,null,0,'i'),(14,7,7,'x'),(15,5,2,'u');
-SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
-pk
-EXPLAIN EXTENDED
-SELECT * FROM t1 HAVING (7, 9) IN (SELECT t2.i1, t2.i2 FROM t2 WHERE t2.i1 = 3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
-2	SUBQUERY	t2	ref	i1,i2	i1	5	const	1	100.00	Using index condition; Using where
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` having 0
-DROP TABLE t1,t2;
-#
-# MDEV-19255: rowid range filter built for range condition
-#             that uses in expensive subquery
-#
-CREATE TABLE t1 (
-pk1 INT PRIMARY KEY, a1 INT, b1 VARCHAR(1), KEY(a1), KEY(b1)
-) ENGINE=MyISAM;
-INSERT INTO t1 VALUES
-(10,0,'z'),(11,3,'j'),(12,8,'f'),(13,8,'p'),(14,6,'w'),(15,0,'c'),(16,1,'j'),
-(17,1,'f'),(18,5,'v'),(19,3,'f'),(20,2,'q'),(21,8,'y'),(22,0,'a'),(23,9,'w'),
-(24,3,'e'),(25,1,'b'),(26,9,'r'),(27,2,'k'),(28,5,'c'),(29,3,'k'),(30,9,'b'),
-(31,8,'j'),(32,1,'t'),(33,8,'n'),(34,3,'z'),(35,0,'u'),(36,3,'a'),(37,3,'g'),
-(38,1,'f'),(39,6,'p'),(40,6,'m'),(41,6,'t'),(42,7,'i'),(43,4,'h'),(44,3,'d'),
-(45,2,'b'),(46,1,'o'),(47,2,'j'),(48,6,'s'),(49,5,'q'),(50,6,'l'),(51,9,'j'),
-(52,6,'y'),(53,0,'i'),(54,7,'x'),(55,2,'u'),(56,6,'t'),(57,4,'b'),(58,5,'m'),
-(59,4,'x'),(60,8,'x'),(61,6,'v'),(62,8,'m'),(63,4,'j'),(64,8,'z'),(65,2,'a'),
-(66,9,'i'),(67,4,'g'),(68,8,'h'),(69,1,'p'),(70,8,'a'),(71,0,'x'),(72,2,'s'),
-(73,6,'k'),(74,0,'m'),(75,6,'e'),(76,9,'y'),(77,7,'d'),(78,7,'w'),(79,6,'y'),
-(80,9,'s'),(81,9,'x'),(82,6,'l'),(83,9,'f'),(84,8,'x'),(85,1,'p'),(86,7,'y'),
-(87,6,'p'),(88,1,'g'),(89,3,'c'),(90,5,'h'),(91,3,'p'),(92,2,'b'),(93,1,NULL),
-(94,3,NULL),(95,2,'y'),(96,7,'s'),(97,7,'x'),(98,6,'i'),(99,9,'t'),(100,5,'j'),
-(101,0,'u'),(102,7,'r'),(103,2,'x'),(104,8,'e'),(105,8,'i'),(106,5,'q'),
-(107,8,'z'),(108,3,'k'),(109,65,NULL);
-CREATE TABLE t2 (pk2 INT PRIMARY KEY, a2 INT, b2 VARCHAR(1)) ENGINE=MyISAM;
-INSERT INTO t2 VALUES (1,1,'i');
-INSERT INTO t2 SELECT * FROM t1;
-INSERT INTO t1 SELECT pk1+200, a1, b1 FROM t1;
-INSERT INTO t1 SELECT pk1+400, a1, b1 FROM t1;
-ANALYZE TABLE t1,t2 PERSISTENT FOR ALL;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	OK
-test.t2	analyze	status	Engine-independent statistics collected
-test.t2	analyze	status	OK
-SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
-WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
-pk1	a1	b1	pk2	a2	b2
-17	1	f	16	1	j
-37	3	g	36	3	a
-105	8	i	104	8	e
-EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
-WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	101	100.00	Using where
-1	PRIMARY	t1	ref	a1,b1	a1	5	test.t2.a2	36	28.75	Using where
-2	SUBQUERY	t2	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using index condition
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`a1` AS `a1`,`test`.`t1`.`b1` AS `b1`,`test`.`t2`.`pk2` AS `pk2`,`test`.`t2`.`a2` AS `a2`,`test`.`t2`.`b2` AS `b2` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a1` = `test`.`t2`.`a2` and `test`.`t1`.`b1` <= (/* select#2 */ select max(`test`.`t2`.`b2`) from `test`.`t2` where `test`.`t2`.`pk2` <= 1) and `test`.`t1`.`pk1` + 1 = `test`.`t2`.`pk2` + 2
-EXPLAIN FORMAT=JSON SELECT * FROM t1 INNER JOIN t2 ON ( pk1+1 = pk2+2 AND a1 = a2 )
-WHERE b1 <= ( SELECT MAX(b2) FROM t2 WHERE pk2 <= 1 );
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "rows": 101,
-          "filtered": 100,
-          "attached_condition": "t2.a2 is not null"
-        }
-      },
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ref",
-          "possible_keys": ["a1", "b1"],
-          "key": "a1",
-          "key_length": "5",
-          "used_key_parts": ["a1"],
-          "ref": ["test.t2.a2"],
-          "rows": 36,
-          "filtered": 28.75,
-          "attached_condition": "t1.b1 <= (subquery#2) and t1.pk1 + 1 = t2.pk2 + 2"
-        }
-      }
-    ],
-    "subqueries": [
-      {
-        "query_block": {
-          "select_id": 2,
-          "nested_loop": [
-            {
-              "table": {
-                "table_name": "t2",
-                "access_type": "range",
-                "possible_keys": ["PRIMARY"],
-                "key": "PRIMARY",
-                "key_length": "4",
-                "used_key_parts": ["pk2"],
-                "rows": 1,
-                "filtered": 100,
-                "index_condition": "t2.pk2 <= 1"
-              }
-            }
-          ]
-        }
-      }
-    ]
-  }
-}
-DROP TABLE t1,t2;
-#
-# MDEV-21794: Optimizer flag rowid_filter leads to long query
-#
-create table t10(a int);
-insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table t11(a int);
-insert into t11 select A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
-CREATE TABLE t1 (
-el_id int(10) unsigned NOT NULL ,
-el_index blob NOT NULL,
-el_index_60 varbinary(60) NOT NULL,
-filler blob,
-PRIMARY KEY (el_id),
-KEY el_index (el_index(60)),
-KEY el_index_60 (el_index_60,el_id)
-);
-insert into t1
-select
-A.a+1000*B.a,
-A.a+1000*B.a + 10000,
-A.a+1000*B.a + 10000,
-'filler-data-filler-data'
-from
-t11 A, t10 B;
-analyze table t1 persistent for all;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'el_index'
-test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'filler'
-test.t1	analyze	status	OK
-# This must not use rowid_filter with key=el_index|el_index_60:
-explain
-select * from t1
-where el_index like '10%' and (el_index_60 like '10%' or el_index_60 like '20%');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	el_index,el_index_60	el_index	62	NULL	1000	Using where
-drop table t10, t11, t1;
-#
-# MDEV-22160: SIGSEGV in st_join_table::save_explain_data on SELECT
-#
-set @save_optimizer_switch= @@optimizer_switch;
-SET @@optimizer_switch="index_merge_sort_union=OFF";
-CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b));
-INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-ANALYZE table t1 PERSISTENT FOR ALL;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	OK
-explain
-SELECT * FROM t1 WHERE a > 0 AND b=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range|filter	a,b	a|b	5|5	NULL	64 (29%)	Using index condition; Using where; Using rowid filter
-SELECT * FROM t1 WHERE a > 0 AND b=0;
-a	b
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-1	0
-drop table t1;
-SET @@optimizer_switch=@save_optimizer_switch;
-#
-# MDEV-28846: Poor performance when rowid filter contains no elements
-#
-create table t1 (
-pk int primary key auto_increment,
-nm varchar(32),
-fl1 tinyint default 0,
-fl2 tinyint default 0,
-index idx1(nm, fl1),
-index idx2(fl2)
-) engine=myisam;
-create table name (
-pk int primary key auto_increment,
-nm bigint
-) engine=myisam;
-create table flag2 (
-pk int primary key auto_increment,
-fl2 tinyint
-) engine=myisam;
-insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
-insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
-insert into t1(nm,fl2)
-select nm, fl2 from name, flag2 where name.pk = flag2.pk;
-analyze table t1 persistent for all;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	Table is already up to date
-select '500%' as a;
-a
-500%
-set optimizer_switch='rowid_filter=on';
-explain
-select * from t1  where nm like '500%' AND fl2 = 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx1	35	NULL	1	Using index condition; Using where
-analyze format=json
-select * from t1  where nm like '500%' AND fl2 = 0;
-ANALYZE
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "select_id": 1,
-    "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "range",
-          "possible_keys": ["idx1", "idx2"],
-          "key": "idx1",
-          "key_length": "35",
-          "used_key_parts": ["nm"],
-          "r_loops": 1,
-          "rows": 1,
-          "r_rows": 1,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 49.20000076,
-          "r_filtered": 100,
-          "index_condition": "t1.nm like '500%'",
-          "attached_condition": "t1.fl2 = 0"
-        }
-      }
-    ]
-  }
-}
-select * from t1  where nm like '500%' AND fl2 = 0;
-pk	nm	fl1	fl2
-517	500	0	0
-truncate table name;
-truncate table flag2;
-truncate table t1;
-insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
-insert into flag2(fl2) select seq mod 2 from seq_1_to_1000 order by rand(19);
-insert into t1(nm,fl2)
-select nm, fl2 from name, flag2 where name.pk = flag2.pk;
-analyze table t1 persistent for all;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	Table is already up to date
-set optimizer_switch='rowid_filter=off';
-explain
-select * from t1  where nm like '500%' AND fl2 = 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx1	35	NULL	1	Using index condition; Using where
-analyze format=json
-select * from t1  where nm like '500%' AND fl2 = 0;
-ANALYZE
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "select_id": 1,
-    "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "range",
-          "possible_keys": ["idx1", "idx2"],
-          "key": "idx1",
-          "key_length": "35",
-          "used_key_parts": ["nm"],
-          "r_loops": 1,
-          "rows": 1,
-          "r_rows": 1,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 49.20000076,
-          "r_filtered": 100,
-          "index_condition": "t1.nm like '500%'",
-          "attached_condition": "t1.fl2 = 0"
-        }
-      }
-    ]
-  }
-}
-select * from t1  where nm like '500%' AND fl2 = 0;
-pk	nm	fl1	fl2
-517	500	0	0
-truncate table name;
-truncate table flag2;
-truncate table t1;
-insert into name(nm) select seq from seq_1_to_1000 order by rand(17);
-insert into flag2(fl2) select seq mod 10 from seq_1_to_1000 order by rand(19);
-insert into t1(nm,fl2)
-select nm, fl2 from name, flag2 where name.pk = flag2.pk;
-analyze table t1 persistent for all;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	Table is already up to date
-select '607%' as a;
-a
-607%
-set optimizer_switch='rowid_filter=on';
-explain
-select * from t1  where nm like '607%' AND fl2 = 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx1	35	NULL	1	Using index condition; Using where
-select * from t1  where nm like '607%' AND fl2 = 0;
-pk	nm	fl1	fl2
-721	607	0	0
-truncate table name;
-truncate table flag2;
-truncate table t1;
-insert into name(nm) select seq from seq_1_to_10000 order by rand(17);
-insert into flag2(fl2) select seq mod 100 from seq_1_to_10000 order by rand(19);
-insert into t1(nm,fl2)
-select nm, fl2 from name, flag2 where name.pk = flag2.pk;
-analyze table t1 persistent for all;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	Table is already up to date
-select '75%' as a;
-a
-75%
-set optimizer_switch='rowid_filter=on';
-explain
-select * from t1  where nm like '75%' AND fl2 = 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	idx1,idx2	idx2|idx1	2|35	const	55 (1%)	Using where; Using rowid filter
-analyze format=json
-select * from t1  where nm like '75%' AND fl2 = 0;
-ANALYZE
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "select_id": 1,
-    "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ref",
-          "possible_keys": ["idx1", "idx2"],
-          "key": "idx2",
-          "key_length": "2",
-          "used_key_parts": ["fl2"],
-          "ref": ["const"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx1",
-              "used_key_parts": ["nm"]
-            },
-            "rows": 115,
-            "selectivity_pct": 1.15,
-            "r_rows": 111,
-            "r_lookups": 100,
-            "r_selectivity_pct": 2,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
-          "r_loops": 1,
-          "rows": 55,
-          "r_rows": 2,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 1.149999976,
-          "r_filtered": 100,
-          "attached_condition": "t1.nm like '75%'"
-        }
-      }
-    ]
-  }
-}
-select * from t1  where nm like '75%' AND fl2 = 0;
-pk	nm	fl1	fl2
-4543	7503	0	0
-7373	7518	0	0
-drop table name, flag2;
-drop table t1;
-create table t1 (
-pk int primary key auto_increment,
-nm char(255),
-fl1 tinyint default 0,
-fl2 int default 0,
-index idx1(nm, fl1),
-index idx2(fl2)
-) engine=myisam;
-create table name (
-pk int primary key auto_increment,
-nm bigint
-) engine=myisam;
-create table flag2 (
-pk int primary key auto_increment,
-fl2 int
-) engine=myisam;
-insert into name(nm) select seq from seq_1_to_10000 order by rand(17);
-insert into flag2(fl2) select seq mod 10 from seq_1_to_10000 order by rand(19);
-insert into t1(nm,fl2)
-select nm, fl2 from name, flag2 where name.pk = flag2.pk;
-analyze table t1 persistent for all;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	Table is already up to date
-select * from t1
-where
-(
-nm like '3400%' or nm like '3402%' or nm like '3403%' or
-nm like '3404%' or nm like '3405%' or nm like '3406%' or nm like '3407%' or
-nm like '3409%' or
-nm like '3411%' or nm like '3412%' or nm like '3413%' or
-nm like '3414%' or nm like '3415%' or nm like '3416%' or nm like '3417%' or
-nm like '3418%' or nm like '3419%' or
-nm like '3421%' or nm like '3422%' or nm like '3423%' or
-nm like '3424%' or nm like '3425%' or nm like '3426%' or nm like '3427%' or
-nm like '3428%' or nm like '3429%' or
-nm like '3430%' or nm like '3431%' or nm like '3432%' or nm like '3433%' or
-nm like '3434%' or nm like '3435%' or nm like '3436%' or nm like '3437%' or
-nm like '3439%' or
-nm like '3440%' or nm like '3441%' or nm like '3442%' or nm like '3443%' or
-nm like '3444%' or nm like '3445%' or nm like '3446%' or nm like '3447%' or
-nm like '3448%'
-) and fl2 = 0;
-pk	nm	fl1	fl2
-analyze format=json select * from t1
-where
-(
-nm like '3400%' or nm like '3402%' or nm like '3403%' or
-nm like '3404%' or nm like '3405%' or nm like '3406%' or nm like '3407%' or
-nm like '3409%' or
-nm like '3411%' or nm like '3412%' or nm like '3413%' or
-nm like '3414%' or nm like '3415%' or nm like '3416%' or nm like '3417%' or
-nm like '3418%' or nm like '3419%' or
-nm like '3421%' or nm like '3422%' or nm like '3423%' or
-nm like '3424%' or nm like '3425%' or nm like '3426%' or nm like '3427%' or
-nm like '3428%' or nm like '3429%' or
-nm like '3430%' or nm like '3431%' or nm like '3432%' or nm like '3433%' or
-nm like '3434%' or nm like '3435%' or nm like '3436%' or nm like '3437%' or
-nm like '3439%' or
-nm like '3440%' or nm like '3441%' or nm like '3442%' or nm like '3443%' or
-nm like '3444%' or nm like '3445%' or nm like '3446%' or nm like '3447%' or
-nm like '3448%'
-) and fl2 = 0;
-ANALYZE
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "select_id": 1,
-    "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ref",
-          "possible_keys": ["idx1", "idx2"],
-          "key": "idx2",
-          "key_length": "5",
-          "used_key_parts": ["fl2"],
-          "ref": ["const"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx1",
-              "used_key_parts": ["nm"]
-            },
-            "rows": 44,
-            "selectivity_pct": 0.44,
-            "r_rows": 44,
-            "r_lookups": 1000,
-            "r_selectivity_pct": 0,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
-          "r_loops": 1,
-          "rows": 863,
-          "r_rows": 0,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 0.439999998,
-          "r_filtered": 100,
-          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
-        }
-      }
-    ]
-  }
-}
-create table t0 select * from t1  where nm like '34%';
-delete from t1 using t1,t0 where t1.nm=t0.nm;
-analyze format=json select * from t1
-where
-(
-nm like '3400%' or nm like '3402%' or nm like '3403%' or
-nm like '3404%' or nm like '3405%' or nm like '3406%' or nm like '3407%' or
-nm like '3409%' or
-nm like '3411%' or nm like '3412%' or nm like '3413%' or
-nm like '3414%' or nm like '3415%' or nm like '3416%' or nm like '3417%' or
-nm like '3418%' or nm like '3419%' or
-nm like '3421%' or nm like '3422%' or nm like '3423%' or
-nm like '3424%' or nm like '3425%' or nm like '3426%' or nm like '3427%' or
-nm like '3428%' or nm like '3429%' or
-nm like '3430%' or nm like '3431%' or nm like '3432%' or nm like '3433%' or
-nm like '3434%' or nm like '3435%' or nm like '3436%' or nm like '3437%' or
-nm like '3439%' or
-nm like '3440%' or nm like '3441%' or nm like '3442%' or nm like '3443%' or
-nm like '3444%' or nm like '3445%' or nm like '3446%' or nm like '3447%' or
-nm like '3448%'
-) and fl2 = 0;
-ANALYZE
-{
-  "query_optimization": {
-    "r_total_time_ms": "REPLACED"
-  },
-  "query_block": {
-    "select_id": 1,
-    "r_loops": 1,
-    "r_total_time_ms": "REPLACED",
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ref",
-          "possible_keys": ["idx1", "idx2"],
-          "key": "idx2",
-          "key_length": "5",
-          "used_key_parts": ["fl2"],
-          "ref": ["const"],
-          "rowid_filter": {
-            "range": {
-              "key": "idx1",
-              "used_key_parts": ["nm"]
-            },
-            "rows": 44,
-            "selectivity_pct": 0.44,
-            "r_rows": 0,
-            "r_lookups": 0,
-            "r_selectivity_pct": 0,
-            "r_buffer_size": "REPLACED",
-            "r_filling_time_ms": "REPLACED"
-          },
-          "r_loops": 1,
-          "rows": 853,
-          "r_rows": 0,
-          "filtered": 0.439999998,
-          "r_filtered": 100,
-          "attached_condition": "t1.nm like '3400%' or t1.nm like '3402%' or t1.nm like '3403%' or t1.nm like '3404%' or t1.nm like '3405%' or t1.nm like '3406%' or t1.nm like '3407%' or t1.nm like '3409%' or t1.nm like '3411%' or t1.nm like '3412%' or t1.nm like '3413%' or t1.nm like '3414%' or t1.nm like '3415%' or t1.nm like '3416%' or t1.nm like '3417%' or t1.nm like '3418%' or t1.nm like '3419%' or t1.nm like '3421%' or t1.nm like '3422%' or t1.nm like '3423%' or t1.nm like '3424%' or t1.nm like '3425%' or t1.nm like '3426%' or t1.nm like '3427%' or t1.nm like '3428%' or t1.nm like '3429%' or t1.nm like '3430%' or t1.nm like '3431%' or t1.nm like '3432%' or t1.nm like '3433%' or t1.nm like '3434%' or t1.nm like '3435%' or t1.nm like '3436%' or t1.nm like '3437%' or t1.nm like '3439%' or t1.nm like '3440%' or t1.nm like '3441%' or t1.nm like '3442%' or t1.nm like '3443%' or t1.nm like '3444%' or t1.nm like '3445%' or t1.nm like '3446%' or t1.nm like '3447%' or t1.nm like '3448%'"
-        }
-      }
-    ]
-  }
-}
-drop table t0;
-set optimizer_switch='rowid_filter=default';
-drop table name, flag2;
-drop table t1;
-set @@use_stat_tables=@save_use_stat_tables;
 SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
 #
 # MDEV-18755: possible RORI-plan and possible plan with range filter
@@ -2888,6 +2331,7 @@ EXPLAIN
         {
           "query_block": {
             "select_id": 1,
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
@@ -2906,7 +2350,9 @@ EXPLAIN
                     "rows": 1,
                     "selectivity_pct": 1.587301587
                   },
+                  "loops": 1,
                   "rows": 1,
+                  "cost": "COST_REPLACED",
                   "filtered": 1.587301612,
                   "index_condition": "t1.f1 is null",
                   "attached_condition": "t1.f2 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
@@ -2919,6 +2365,7 @@ EXPLAIN
           "query_block": {
             "select_id": 2,
             "operation": "UNION",
+            "cost": "COST_REPLACED",
             "nested_loop": [
               {
                 "table": {
@@ -2937,7 +2384,9 @@ EXPLAIN
                     "rows": 1,
                     "selectivity_pct": 1.587301587
                   },
+                  "loops": 1,
                   "rows": 1,
+                  "cost": "COST_REPLACED",
                   "filtered": 1.587301612,
                   "index_condition": "t1.f1 is null",
                   "attached_condition": "t1.f2 is null and (t1.f2 between 'a' and 'z' or t1.f1 = 'a')"
@@ -2966,8 +2415,8 @@ id	y	x
 1	2	1
 explain extended select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
-1	SIMPLE	t2	index_merge	x,y	y,x	5,5	NULL	1	100.00	Using intersect(y,x); Using where; Using index
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	#	#	
+1	SIMPLE	t2	ref|filter	x,y	y|x	5|5	const	#	#	Using where; Using rowid filter
 Warnings:
 Note	1003	select 1 AS `id`,`test`.`t2`.`y` AS `y`,`test`.`t2`.`x` AS `x` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`y` = 2 and `test`.`t2`.`x` = 1
 drop table t1, t2;
@@ -3004,7 +2453,7 @@ count(*)
 5
 explain extended select count(*) from t1 where a between 21 and 30 and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	b,a	b	5	const	24	9.60	Using where
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	24 (10%)	9.60	Using where; Using rowid filter
 Warnings:
 Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` between 21 and 30
 select * from t1 where a between 21 and 30 and b=2;
@@ -3041,12 +2490,12 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN EXTENDED
-SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range|filter	b,c	b|c	13|1027	NULL	5 (42%)	41.67	Using index condition; Using where; Using filesort; Using rowid filter
+1	SIMPLE	t1	range|filter	b,c	b|c	13|1027	NULL	5 (21%)	20.83	Using index condition; Using where; Using filesort; Using rowid filter
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'k' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
-SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'e' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+SELECT a FROM t1 WHERE c < 'e' AND b > 't' ORDER BY a;
 a
 1
 5
@@ -3513,7 +2962,7 @@ SELECT * FROM t1
 WHERE (a BETWEEN 9 AND 10 OR a IS NULL) AND (b BETWEEN 9 AND 10 OR b = 9)
 ORDER BY pk LIMIT 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	index	a,b	PRIMARY	4	NULL	75	54.55	Using where
+1	SIMPLE	t1	index	a,b	PRIMARY	4	NULL	73	56.05	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where (`test`.`t1`.`a` between 9 and 10 or `test`.`t1`.`a` is null) and (`test`.`t1`.`b` between 9 and 10 or `test`.`t1`.`b` = 9) order by `test`.`t1`.`pk` limit 1
 ANALYZE
@@ -3715,7 +3164,7 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where
-1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	24	14.46	Using where
+1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	24 (14%)	14.46	Using where; Using rowid filter
 Warnings:
 Note	1003	select `test`.`t`.`id` AS `id`,`test`.`fi`.`id` AS `id`,`test`.`fi`.`aceid` AS `aceid`,`test`.`fi`.`clid` AS `clid`,`test`.`fi`.`fh` AS `fh` from `test`.`acli` `t` join `test`.`acei` `a` join `test`.`filt` `fi` where `test`.`t`.`tp` = 121 and `test`.`a`.`atp` = 1 and `test`.`fi`.`aceid` = `test`.`a`.`id` and `test`.`a`.`aclid` = `test`.`t`.`id` and `test`.`t`.`rid` = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and `test`.`fi`.`fh` in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)
 set statement optimizer_switch='rowid_filter=on' for select t.id, fi.*
@@ -3831,7 +3280,7 @@ fi.fh in (6311439873746261694,-397087483897438286,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t	index_merge	PRIMARY,acli_rid,acli_tp	acli_tp,acli_rid	2,767	NULL	2	100.00	Using intersect(acli_tp,acli_rid); Using where; Using index
 1	SIMPLE	a	ref	PRIMARY,acei_aclid	acei_aclid	8	test.t.id	1	100.00	Using where; Using join buffer (flat, BKA join); Rowid-ordered scan
-1	SIMPLE	fi	ref	filt_aceid,filt_fh	filt_aceid	8	test.a.id	24	14.46	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan
+1	SIMPLE	fi	ref|filter	filt_aceid,filt_fh	filt_aceid|filt_fh	8|8	test.a.id	24 (14%)	14.46	Using where; Using join buffer (incremental, BKA join); Rowid-ordered scan; Using rowid filter
 Warnings:
 Note	1003	select `test`.`t`.`id` AS `id`,`test`.`fi`.`id` AS `id`,`test`.`fi`.`aceid` AS `aceid`,`test`.`fi`.`clid` AS `clid`,`test`.`fi`.`fh` AS `fh` from `test`.`acli` `t` join `test`.`acei` `a` join `test`.`filt` `fi` where `test`.`t`.`tp` = 121 and `test`.`a`.`atp` = 1 and `test`.`fi`.`aceid` = `test`.`a`.`id` and `test`.`a`.`aclid` = `test`.`t`.`id` and `test`.`t`.`rid` = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and `test`.`fi`.`fh` in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)
 set statement optimizer_switch='rowid_filter=on' for select t.id, fi.*
@@ -3892,6 +3341,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "nested_loop": [
@@ -3917,9 +3367,11 @@ ANALYZE
               }
             ]
           },
+          "loops": 1,
           "r_loops": 1,
           "rows": 2,
           "r_rows": 3,
+          "cost": "REPLACED",
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
@@ -3938,9 +3390,11 @@ ANALYZE
             "key_length": "8",
             "used_key_parts": ["aclid"],
             "ref": ["test.t.id"],
+            "loops": 2,
             "r_loops": 1,
             "rows": 1,
             "r_rows": 3,
+            "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
             "filtered": 100,
@@ -3951,7 +3405,8 @@ ANALYZE
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan",
           "attached_condition": "a.atp = 1",
-          "r_filtered": 100
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED"
         }
       },
       {
@@ -3964,9 +3419,24 @@ ANALYZE
             "key_length": "8",
             "used_key_parts": ["aceid"],
             "ref": ["test.a.id"],
+            "rowid_filter": {
+              "range": {
+                "key": "filt_fh",
+                "used_key_parts": ["fh"]
+              },
+              "rows": 81,
+              "selectivity_pct": 14.46428571,
+              "r_rows": 80,
+              "r_lookups": 80,
+              "r_selectivity_pct": 40,
+              "r_buffer_size": "REPLACED",
+              "r_filling_time_ms": "REPLACED"
+            },
+            "loops": 3.5384,
             "r_loops": 1,
             "rows": 24,
-            "r_rows": 80,
+            "r_rows": 32,
+            "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
             "filtered": 14.46428585,
@@ -3977,7 +3447,8 @@ ANALYZE
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan",
           "attached_condition": "fi.fh in (6311439873746261694,-397087483897438286,8518228073041491534,-5420422472375069774)",
-          "r_filtered": 40
+          "r_filtered": 100,
+          "r_unpack_time_ms": "REPLACED"
         }
       }
     ]
@@ -4016,6 +3487,16 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
+WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	ref|filter	c1,i1	c1|i1	3|5	func	38 (25%)	25.00	Using where; Full scan on NULL key; Using rowid filter
+2	DEPENDENT SUBQUERY	a1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`c1` AS `c1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`c1`,`test`.`t1`.`pk`>(<in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#2 */ select `test`.`t2`.`c1` from `test`.`t2` join `test`.`t1` `a1` where `test`.`t2`.`i1` = `test`.`t1`.`pk` and `test`.`t2`.`i1` between 3 and 5 and trigcond(<cache>(`test`.`t1`.`c1`) = `test`.`t2`.`c1`))))
 SELECT * FROM t1
 WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
 WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
@@ -4080,16 +3561,6 @@ pk	c1
 128	y
 129	NULL
 133	NULL
-EXPLAIN EXTENDED SELECT * FROM t1
-WHERE t1.c1 NOT IN (SELECT t2.c1 FROM t2, t1 AS a1
-WHERE t2.i1 = t1.pk AND t2.i1 BETWEEN 3 AND 5);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ref	c1,i1	i1	5	test.t1.pk	20	100.00	Using index condition; Using where
-2	DEPENDENT SUBQUERY	a1	ALL	NULL	NULL	NULL	NULL	60	100.00	Using join buffer (flat, BNL join)
-Warnings:
-Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`c1` AS `c1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`c1`,`test`.`t1`.`pk`>(<in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#2 */ select `test`.`t2`.`c1` from `test`.`t2` join `test`.`t1` `a1` where `test`.`t2`.`i1` = `test`.`t1`.`pk` and `test`.`t2`.`i1` between 3 and 5 and trigcond(<cache>(`test`.`t1`.`c1`) = `test`.`t2`.`c1`))))
 DROP TABLE t1,t2;
 set global innodb_stats_persistent= @stats.save;
 # End of 10.4 tests

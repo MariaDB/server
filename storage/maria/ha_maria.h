@@ -77,8 +77,6 @@ public:
   { return max_supported_key_length(); }
   enum row_type get_row_type() const override final;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share) override final;
-  virtual double scan_time() override final;
-
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override final;
   int write_row(const uchar * buf) override;
@@ -114,6 +112,8 @@ public:
   int remember_rnd_pos() override final;
   int restart_rnd_next(uchar * buf) override final;
   void position(const uchar * record) override final;
+  void update_optimizer_costs(OPTIMIZER_COSTS *costs) override final;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override final;
   int info(uint) override final;
   int info(uint, my_bool);
   int extra(enum ha_extra_function operation) override final;
@@ -175,7 +175,8 @@ public:
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost) override final;
+                                      uint *flags, ha_rows limit,
+                                      Cost_estimate *cost) override final;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz,
                                 uint *flags, Cost_estimate *cost) override final;
@@ -183,6 +184,8 @@ public:
 
   /* Index condition pushdown implementation */
   Item *idx_cond_push(uint keyno, Item* idx_cond) override final;
+  bool rowid_filter_push(Rowid_filter* rowid_filter) override;
+  void rowid_filter_changed() override;
 
   int find_unique_row(uchar *record, uint unique_idx) override final;
 

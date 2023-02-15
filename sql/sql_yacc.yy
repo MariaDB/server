@@ -8277,7 +8277,7 @@ assign_to_keycache_parts:
 
 key_cache_name:
           ident    { $$= $1; }
-        | DEFAULT  { $$ = default_key_cache_base; }
+        | DEFAULT  { $$ = default_base; }
         ;
 
 preload:
@@ -12502,13 +12502,8 @@ opt_procedure_or_into:
           }
         | into opt_select_lock_type
           {
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                ER_WARN_DEPRECATED_SYNTAX,
-                                ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
-                                "<select expression> INTO <destination>;",
-                                "'SELECT <select list> INTO <destination>"
-                                " FROM...'");
             $$= $2;
+            status_var_increment(thd->status_var.feature_into_outfile);
           }
         ;
 
@@ -12731,6 +12726,7 @@ into_destination:
                          new (thd->mem_root)
                          select_export(thd, lex->exchange))))
               MYSQL_YYABORT;
+            status_var_increment(thd->status_var.feature_into_outfile);
           }
           opt_load_data_charset
           { Lex->exchange->cs= $4; }
@@ -12753,6 +12749,7 @@ into_destination:
         | select_var_list_init
           {
             Lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
+            status_var_increment(thd->status_var.feature_into_variable);
           }
         ;
 

@@ -312,6 +312,9 @@ a	b
 15	1
 47	1
 DROP TABLE t1;
+#
+# Test of problem with IN on many different keyparts. (Bug #4157)
+#
 CREATE TABLE t1 (
 id int( 11 ) unsigned NOT NULL AUTO_INCREMENT ,
 line int( 5 ) unsigned NOT NULL default '0',
@@ -328,10 +331,17 @@ KEY `LINES` ( owner, tableid, content, id ) ,
 KEY recount( owner, line ) 
 ) ENGINE = MYISAM;
 INSERT into t1 (owner,id,columnid,line) values (11,15,15,1),(11,13,13,5);
+INSERT into t1 (owner,id,columnid,line) select 11,seq+20,seq,seq from seq_1_to_100;
+explain SELECT id, columnid, tableid, content, showid, line, ordinal FROM t1 WHERE owner=11 AND ((columnid IN ( 15, 13, 14 ) AND line IN ( 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 31 )) OR (columnid IN ( 13, 14 ) AND line IN ( 15 ))) LIMIT 0 , 30;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	PRIMARY,menu,COLUMN,LINES,recount	COLUMN	4	const	11	Using index condition
 SELECT id, columnid, tableid, content, showid, line, ordinal FROM t1 WHERE owner=11 AND ((columnid IN ( 15, 13, 14 ) AND line IN ( 1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 31 )) OR (columnid IN ( 13, 14 ) AND line IN ( 15 ))) LIMIT 0 , 30;
 id	columnid	tableid	content	showid	line	ordinal
-15	15	1	188	1	1	0
 13	13	1	188	1	5	0
+15	15	1	188	1	1	0
+33	13	1	188	1	13	0
+34	14	1	188	1	14	0
+35	15	1	188	1	15	0
 drop table t1;
 create  table t1 (id int(10) primary key);
 insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -726,7 +736,7 @@ WHERE
 v.oxrootid ='d8c4177d09f8b11f5.52725521' AND
 s.oxleft > v.oxleft AND s.oxleft < v.oxright;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	v	ALL	OXLEFT,OXRIGHT,OXROOTID	NULL	NULL	NULL	12	Using where
+1	SIMPLE	v	ref	OXLEFT,OXRIGHT,OXROOTID	OXROOTID	34	const	6	Using index condition
 1	SIMPLE	s	ALL	OXLEFT	NULL	NULL	NULL	12	Range checked for each record (index map: 0x4)
 SELECT s.oxid FROM t1 v, t1 s 
 WHERE
@@ -1239,14 +1249,16 @@ insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2 (a int, b int, filler char(100));
 insert into t2 select A.a + 10 * (B.a + 10 * C.a), 10, 'filler' from t1 A,
 t1 B, t1 C where A.a < 5;
-insert into t2 select 1000, b, 'filler' from t2;
+insert into t2 select 1000, b, 'filler' from t2 limit 50;
+select count(*) from t2;
+count(*)
+550
 alter table t2 add index (a,b);
-select 'In following EXPLAIN the access method should be ref, #rows~=500 (and not 2)' Z;
-Z
-In following EXPLAIN the access method should be ref, #rows~=500 (and not 2)
+# In following EXPLAIN the access method should be ref, #rows~=50
+# (and not 2) when we are not using rowid-ordered scans
 explain select * from t2 where a=1000 and b<11;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	a	a	5	const	503	Using index condition
+1	SIMPLE	t2	range	a	a	10	NULL	63	Using index condition; Rowid-ordered scan
 drop table t1, t2;
 CREATE TABLE t1( a INT, b INT, KEY( a, b ) );
 CREATE TABLE t2( a INT, b INT, KEY( a, b ) );
@@ -2415,6 +2427,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2424,7 +2437,9 @@ EXPLAIN
           "key": "idx",
           "key_length": "10",
           "used_key_parts": ["a", "b"],
+          "loops": 1,
           "rows": 6,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t1.b) in (<cache>((2,3)),<cache>((3,3)),<cache>((8,8)),<cache>((7,7)))",
           "mrr_type": "Rowid-ordered scan"
@@ -2480,6 +2495,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2489,7 +2505,9 @@ EXPLAIN
           "key": "idx",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 5,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t1.b + t1.a) in (<cache>((4,9)),<cache>((8,8)),<cache>((7,7)))",
           "mrr_type": "Rowid-ordered scan"
@@ -2511,6 +2529,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2520,7 +2539,9 @@ EXPLAIN
           "key": "idx",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 5,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t1.b) in ((4,t1.a - 1),(8,t1.a + 8),(7,t1.a + 7))",
           "mrr_type": "Rowid-ordered scan"
@@ -2556,6 +2577,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2565,7 +2587,9 @@ EXPLAIN
           "key": "idx1",
           "key_length": "5",
           "used_key_parts": ["d"],
+          "loops": 1,
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 60,
           "index_condition": "t2.d is not null",
           "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((2,2)))",
@@ -2581,7 +2605,9 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
+          "loops": 1.8,
           "rows": 8,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -2635,6 +2661,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2644,7 +2671,9 @@ EXPLAIN
           "key": "idx1",
           "key_length": "5",
           "used_key_parts": ["d"],
+          "loops": 1,
           "rows": 8,
+          "cost": "COST_REPLACED",
           "filtered": 14.42307663,
           "index_condition": "t2.d is not null",
           "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
@@ -2660,8 +2689,10 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
+          "loops": 1.153846154,
           "rows": 8,
-          "filtered": 100
+          "cost": "COST_REPLACED",
+          "filtered": 73.17073059
         }
       }
     ]
@@ -2670,60 +2701,60 @@ EXPLAIN
 select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 a	b	c	d	e	f
-3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
+3	2	uuua	3	3	i
+3	2	uuuw	3	3	i
+3	2	uuuw	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxw	3	3	i
 3	3	zyxw	3	3	i
 3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
-7	7	xxxyy	7	7	h
+3	3	zzza	3	3	i
+3	3	zzzz	3	3	i
+3	3	zzzz	3	3	i
 7	7	xxxya	7	7	h
-7	8	xxxxx	7	7	h
+7	7	xxxyy	7	7	h
 7	8	xxxxa	7	7	h
-3	2	uuuw	3	3	i
-3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
-3	3	zyxw	3	3	i
-3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
+7	8	xxxxx	7	7	h
 prepare stmt from "select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1";
 execute stmt;
 a	b	c	d	e	f
-3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
+3	2	uuua	3	3	i
+3	2	uuuw	3	3	i
+3	2	uuuw	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxw	3	3	i
 3	3	zyxw	3	3	i
 3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
-7	7	xxxyy	7	7	h
+3	3	zzza	3	3	i
+3	3	zzzz	3	3	i
+3	3	zzzz	3	3	i
 7	7	xxxya	7	7	h
-7	8	xxxxx	7	7	h
+7	7	xxxyy	7	7	h
 7	8	xxxxa	7	7	h
-3	2	uuuw	3	3	i
-3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
-3	3	zyxw	3	3	i
-3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
+7	8	xxxxx	7	7	h
 execute stmt;
 a	b	c	d	e	f
-3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
+3	2	uuua	3	3	i
+3	2	uuuw	3	3	i
+3	2	uuuw	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxa	3	3	i
+3	3	zyxw	3	3	i
 3	3	zyxw	3	3	i
 3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
-7	7	xxxyy	7	7	h
+3	3	zzza	3	3	i
+3	3	zzzz	3	3	i
+3	3	zzzz	3	3	i
 7	7	xxxya	7	7	h
-7	8	xxxxx	7	7	h
+7	7	xxxyy	7	7	h
 7	8	xxxxa	7	7	h
-3	2	uuuw	3	3	i
-3	2	uuua	3	3	i
-3	3	zzzz	3	3	i
-3	3	zyxw	3	3	i
-3	3	zzza	3	3	i
-3	3	zyxa	3	3	i
+7	8	xxxxx	7	7	h
 deallocate prepare stmt;
 insert into t1 select * from t1;
 # join order: (t2,t1) with ref access of t1
@@ -2739,6 +2770,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2748,7 +2780,9 @@ EXPLAIN
           "key": "idx1",
           "key_length": "5",
           "used_key_parts": ["d"],
+          "loops": 1,
           "rows": 7,
+          "cost": "COST_REPLACED",
           "filtered": 6.730769157,
           "index_condition": "t2.d is not null",
           "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
@@ -2764,7 +2798,9 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
+          "loops": 1,
           "rows": 11,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -2774,14 +2810,14 @@ EXPLAIN
 select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 a	b	c	d	e	f
-7	7	xxxyy	7	7	h
+7	7	xxxya	7	7	h
 7	7	xxxya	7	7	h
 7	7	xxxyy	7	7	h
-7	7	xxxya	7	7	h
-7	8	xxxxx	7	7	h
+7	7	xxxyy	7	7	h
+7	8	xxxxa	7	7	h
 7	8	xxxxa	7	7	h
 7	8	xxxxx	7	7	h
-7	8	xxxxa	7	7	h
+7	8	xxxxx	7	7	h
 alter table t2 drop index idx1, drop index idx2, add index idx3(d,e);
 # join order: (t2,t1) with ref access of t1
 # range access to t2 by 2-component keys for index idx3
@@ -2796,6 +2832,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2805,7 +2842,9 @@ EXPLAIN
           "key": "idx3",
           "key_length": "10",
           "used_key_parts": ["d", "e"],
+          "loops": 1,
           "rows": 5,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t2.d is not null",
           "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
@@ -2821,7 +2860,9 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["a"],
           "ref": ["test.t2.d"],
+          "loops": 5,
           "rows": 11,
+          "cost": "COST_REPLACED",
           "filtered": 100
         }
       }
@@ -2852,6 +2893,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2861,7 +2903,9 @@ EXPLAIN
           "key": "idx",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 15,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.a is not null",
           "mrr_type": "Rowid-ordered scan"
@@ -2876,7 +2920,9 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["d"],
           "ref": ["test.t1.a"],
+          "loops": 15,
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t2.e) in ((4,t1.a + 1),(7,t1.a + 1),(8,t1.a + 1)) and octet_length(t2.f) = 1"
         }
@@ -2887,22 +2933,22 @@ EXPLAIN
 select * from t1,t2
 where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
 a	b	c	d	e	f
-4	5	ww	4	5	a
-7	8	xxxxx	7	8	b
-4	3	zyx	4	5	a
-7	7	xxxyy	7	8	b
-4	5	wa	4	5	a
-7	8	xxxxa	7	8	b
 4	3	zya	4	5	a
-7	7	xxxya	7	8	b
-4	5	ww	4	5	a
-7	8	xxxxx	7	8	b
-4	3	zyx	4	5	a
-7	7	xxxyy	7	8	b
-4	5	wa	4	5	a
-7	8	xxxxa	7	8	b
 4	3	zya	4	5	a
+4	3	zyx	4	5	a
+4	3	zyx	4	5	a
+4	5	wa	4	5	a
+4	5	wa	4	5	a
+4	5	ww	4	5	a
+4	5	ww	4	5	a
 7	7	xxxya	7	8	b
+7	7	xxxya	7	8	b
+7	7	xxxyy	7	8	b
+7	7	xxxyy	7	8	b
+7	8	xxxxa	7	8	b
+7	8	xxxxa	7	8	b
+7	8	xxxxx	7	8	b
+7	8	xxxxx	7	8	b
 # join order: (t1,t2) with ref access of t2
 # no range access
 explain select * from t1,t2
@@ -2916,13 +2962,16 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
           "table_name": "t1",
           "access_type": "ALL",
           "possible_keys": ["idx"],
+          "loops": 1,
           "rows": 144,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "t1.a is not null"
         }
@@ -2936,7 +2985,9 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["d"],
           "ref": ["test.t1.a"],
+          "loops": 144,
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "(t1.a,t2.e) in ((t2.e,t1.a + 1),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
         }
@@ -2947,14 +2998,14 @@ EXPLAIN
 select * from t1,t2
 where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
 a	b	c	d	e	f
-7	8	xxxxx	7	7	h
+7	7	xxxya	7	7	h
+7	7	xxxya	7	7	h
+7	7	xxxyy	7	7	h
 7	7	xxxyy	7	7	h
 7	8	xxxxa	7	7	h
-7	7	xxxya	7	7	h
-7	8	xxxxx	7	7	h
-7	7	xxxyy	7	7	h
 7	8	xxxxa	7	7	h
-7	7	xxxya	7	7	h
+7	8	xxxxx	7	7	h
+7	8	xxxxx	7	7	h
 # join order: (t1,t2) with ref access of t2
 # range access to t1 by 1-component keys for index idx
 explain select * from t1,t2
@@ -2970,6 +3021,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -2979,7 +3031,9 @@ EXPLAIN
           "key": "idx",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 12,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.a is not null",
           "attached_condition": "(t1.a,2) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and octet_length(t1.c) = 1",
@@ -2995,7 +3049,9 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["d"],
           "ref": ["test.t1.a"],
+          "loops": 12,
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "octet_length(t2.f) = 1"
         }
@@ -3054,6 +3110,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "nested_loop": [
       {
         "table": {
@@ -3076,7 +3133,9 @@ EXPLAIN
           "key": "idx",
           "key_length": "5",
           "used_key_parts": ["a"],
+          "loops": 1,
           "rows": 12,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "index_condition": "t1.a is not null",
           "attached_condition": "(t1.a,1 + 1) in (<cache>((2,2)),<cache>((7,7)),<cache>((8,8))) and octet_length(t1.c) = 1",
@@ -3092,7 +3151,9 @@ EXPLAIN
           "key_length": "5",
           "used_key_parts": ["d"],
           "ref": ["test.t1.a"],
+          "loops": 12,
           "rows": 3,
+          "cost": "COST_REPLACED",
           "filtered": 100,
           "attached_condition": "octet_length(t2.f) = 1"
         }
@@ -3370,7 +3431,7 @@ insert into t2 select A.a + B.a*10 + C.a*100 from ten A, ten B,ten C where A.a +
 # expected type=range, rows=1487 , reason=using index dives
 analyze SELECT * FROM t1 where a in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	1487	1199.00	100.00	100.00	Using where; Using index
+1	SIMPLE	t1	index	a	a	5	NULL	2000	2000.00	74.35	59.95	Using where; Using index
 insert into t2 values (200),(201);
 # expected type=range, rows=201 , reason=using index statistics
 analyze SELECT * FROM t1 where a in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,200,201);

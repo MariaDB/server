@@ -85,14 +85,14 @@ with t as (select a, count(*) from t1 where b >= 'c' group by a)
 select * from t2,t where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 explain
 select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
 where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # specivication of t contains having
 with t as (select a, count(*) from t1 where b >= 'c'
@@ -150,16 +150,14 @@ explain
 with t as (select a from t1 where a<5)
 select * from t2 where c in (select a from t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
 explain
 select * from t2 
 where c in (select a from (select a from t1 where a<5) as t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
 # materialized t is used in a subquery
 with t as (select count(*) as c from t1 where b >= 'c' group by a)
 select * from t2 where c in (select c from t);
@@ -175,7 +173,7 @@ with t as (select count(*) as c from t1 where b >= 'c' group by a)
 select * from t2 where c in (select c from t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
+1	PRIMARY	<derived2>	ref	key0	key0	8	test.t2.c	1	Using where; FirstMatch(t2)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 explain
 select * from t2
@@ -183,7 +181,7 @@ where c in (select c from (select count(*) as c from t1
 where b >= 'c' group by a) as t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	8	test.t2.c	1	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # two references to t specified by a query
 # selecting a field:  both in main query
@@ -369,7 +367,7 @@ select c as a from t2 where c < 4)
 select * from t2,t where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -381,7 +379,7 @@ select c as a from t2 where c < 4) as t
 where t2.c=t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -597,7 +595,7 @@ explain
 select * from v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # with clause in the specification of a view that whose definition
 # table alias for a with table
@@ -2300,14 +2298,14 @@ WHERE col1 IN ( SELECT col FROM t );
 SELECT * FROM tt;
 col2
 2018-10-01
-2018-10-01
 2017-10-01
+2018-10-01
 SELECT t4.col1
 FROM tt, t4
 WHERE t4.col2 = tt.col2 AND t4.col1 IN ( SELECT col FROM t );
 col1
-8
 4
+8
 DROP TABLE t,tt;
 CALL SP1();
 col1

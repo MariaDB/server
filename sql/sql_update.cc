@@ -581,8 +581,10 @@ int mysql_update(THD *thd,
   set_statistics_for_table(thd, table);
 
   select= make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
-  if (unlikely(error || !limit || thd->is_error() ||
-               (select && select->check_quick(thd, safe_update, limit))))
+  if (unlikely(error || thd->is_error() || !limit ||
+               (select && select->check_quick(thd, safe_update, limit)) ||
+               table->stat_records() == 0))
+
   {
     query_plan.set_impossible_where();
     if (thd->lex->describe || thd->lex->analyze_stmt)
@@ -833,15 +835,15 @@ int mysql_update(THD *thd,
         table->use_all_columns();
 
       /*
-	We are doing a search on a key that is updated. In this case
-	we go trough the matching rows, save a pointer to them and
-	update these in a separate loop based on the pointer.
+        We are doing a search on a key that is updated. In this case
+        we go trough the matching rows, save a pointer to them and
+        update these in a separate loop based on the pointer.
       */
       explain->buf_tracker.on_scan_init();
       IO_CACHE tempfile;
       if (open_cached_file(&tempfile, mysql_tmpdir,TEMP_PREFIX,
-			   DISK_BUFFER_SIZE, MYF(MY_WME)))
-	goto err;
+                           DISK_CHUNK_SIZE, MYF(MY_WME)))
+        goto err;
 
       /* If quick select is used, initialize it before retrieving rows. */
       if (select && select->quick && select->quick->reset())
@@ -2271,6 +2273,7 @@ static bool safe_update_on_fly(THD *thd, JOIN_TAB *join_tab,
   case JT_REF:
   case JT_REF_OR_NULL:
     return !is_key_used(table, join_tab->ref.key, table->write_set);
+  case JT_RANGE:
   case JT_ALL:
     if (bitmap_is_overlapping(&table->tmp_set, table->write_set))
       return FALSE;

@@ -26,6 +26,12 @@ explain SELECT COUNT(*) FROM lineitem WHERE l_orderkey BETWEEN 111 AND 262 OR ( 
 
 SELECT COUNT(*) FROM lineitem WHERE l_orderkey BETWEEN 111 AND 262 OR ( l_orderkey BETWEEN 152 AND  672 AND l_linenumber BETWEEN 4 AND 9 );
 
+--echo #
+--echo # MDEV-30486 Table is not eliminated in bb-11.0
+--echo #
+
+explain SELECT c_custkey, c_name AS currency2 FROM partsupp LEFT JOIN part ON ( p_partkey = ps_partkey ) JOIN supplier ON (s_suppkey = ps_suppkey) JOIN lineitem ON ( ps_suppkey = l_suppkey ) JOIN orders ON ( l_orderkey = o_orderkey ) JOIN customer ON ( o_custkey = c_custkey ) HAVING c_custkey > 150;
+
 DROP DATABASE dbt3_s001;
 
 --echo #

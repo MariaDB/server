@@ -207,8 +207,6 @@ DROP TABLE t1;
 # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -220,8 +218,6 @@ a
 DROP TABLE t1;
 # Problem # 2 : if you write and read ucs2 data to a file they're lost
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
 (@b) SET a=REVERSE(@b);
@@ -4368,6 +4364,7 @@ id INT(11) DEFAULT NULL,
 date_column DATE DEFAULT NULL,
 KEY(date_column));
 INSERT INTO t1 VALUES (1,'2010-09-01'),(2,'2010-10-01');
+INSERT INTO t1 VALUES (3,'2012-09-01'),(4,'2012-10-01'),(5,'2012-10-01');
 EXPLAIN SELECT * FROM t1 WHERE date_column BETWEEN '2010-09-01' AND '2010-10-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	date_column	date_column	4	NULL	2	Using index condition

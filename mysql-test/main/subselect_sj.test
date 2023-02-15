@@ -70,13 +70,13 @@ explain extended select * from t1 where a in (select t10.pk from t10, t12 where 
 
 --echo subqueries within outer joins go into ON expr.
 # TODO: psergey: check if case conversions like those are ok (it broke on  windows)
---replace_result a A b B
+--replace_result a A b B explain explain table table possible possible
 explain extended
 select * from t1 left join (t2 A, t2 B) on ( A.a= t1.a and B.a in (select pk from t10));
 
 # TODO: psergey: check if case conversions like those are ok (it broke on  windows)
 --echo t2 should be wrapped into OJ-nest, so we have "t1 LJ (t2 J t10)"
---replace_result a A b B
+--replace_result a A b B explain explain table table possible possible
 explain extended
 select * from t1 left join t2 on (t2.a= t1.a and t2.a in (select pk from t10));
 
@@ -739,6 +739,7 @@ INSERT INTO t1 VALUES (1,'o','ffff','ffff','ffoo','ffff','ffff','ffff','ffff','f
 
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 VALUES (1,'i','iiii','iiii','iiii','iiii','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))')), (2,'f','ffff','ffff','ffff','ffff','ffff','ffff','ffff','ffff','ffff',GeomFromText('POLYGON((0 0, 0 2, 2 2, 2 0, 0 0))'));
+insert into t2 (pk) values (-1),(0);
 
 # Test that materialization is skipped for semijoins where materialized
 # table would contain GEOMETRY or different kinds of BLOB/TEXT columns
@@ -1425,7 +1426,7 @@ drop table t1,t2;
 --echo # BUG#787299: Valgrind complains on a join query with two IN subqueries
 --echo #
 create table t1 (a int);
-insert into t1 values (1), (2), (3);
+insert into t1 values (1), (2), (3),(1000),(2000);
 create table t2 as select * from t1;
 select * from t1 A, t1 B
  where A.a = B.a and A.a in (select a from t2 C) and B.a in (select a from t2 D);
@@ -1739,7 +1740,7 @@ DROP TABLE t1,t2,t3;
 
 --echo #
 --echo # BUG#803457: Wrong result with semijoin + view + outer join in maria-5.3-subqueries-mwl90
---echo #   (Original testcase)
+--echo #   (Original, slightly modified testcase)
 --echo #
 
 CREATE TABLE t1 (f1 int, f2 int );
@@ -1753,15 +1754,13 @@ INSERT INTO t3 VALUES (2,0),(4,0),(0,NULL),(4,0),(8,0);
 
 CREATE TABLE t4 ( f2 int, KEY (f2) );
 INSERT INTO t4 VALUES (0),(NULL);
-
-CREATE VIEW v4 AS SELECT DISTINCT f2 FROM t4 ;
+INSERT INTO t4 VALUES (0),(NULL),(-1),(-2),(-3);
 
 --echo # The following must not have outer joins:
 explain extended
-SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4); 
-SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4); 
+SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4 where f2 = 0 or f2 IS NULL); 
+SELECT * FROM t1 NATURAL LEFT JOIN (t2, t3) WHERE t2.f3 IN (SELECT * FROM t4 where f2 = 0 or f2 IS NULL);
 
-drop view v4;
 drop table t1, t2, t3, t4;
 
 --echo #
@@ -2249,6 +2248,7 @@ INSERT INTO t1 VALUES
 CREATE TABLE t2 ( a INT, b INT, KEY(a)) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (3,20),(2,21),(3,22);
 
+--sorted_result
 SELECT *
 FROM t1 AS alias1, t1 AS alias2
 WHERE ( alias1.c, alias2.c )
@@ -2292,16 +2292,17 @@ INSERT INTO t1 VALUES
 
 CREATE TABLE t2 ( c INT, d INT, KEY(c) );
 INSERT INTO t2 VALUES
-  (1,2),(2,1),(3,3),(4,2),(5,5),(6,3),(7,1);
+  (1,2),(2,1),(3,3),(4,2),(5,5),(6,3),(7,1),(11,11);
 
 analyze table t1,t2;
 explain
 SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
-  ( SELECT b, d FROM t1, t2 WHERE b = c );
+  ( SELECT b, d FROM t1 as t3, t2 as t4 WHERE b = c );
+--sorted_result
 SELECT a, b, d FROM t1, t2
 WHERE ( b, d ) IN
-  ( SELECT b, d FROM t1, t2 WHERE b = c );
+  ( SELECT b, d FROM t1 as t3, t2 as t4 WHERE b = c );
 
 DROP TABLE t1, t2;
 
@@ -2449,6 +2450,7 @@ EXPLAIN
 SELECT * FROM t1 AS t1_1, t1 AS t1_2
   WHERE (t1_1.a, t1_2.a) IN ( SELECT a, b FROM v1 );
 
+--sorted_result
 SELECT * FROM t1 AS t1_1, t1 AS t1_2
   WHERE (t1_1.a, t1_2.a) IN ( SELECT a, b FROM v1 );
 

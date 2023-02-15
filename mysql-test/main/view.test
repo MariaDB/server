@@ -1093,10 +1093,11 @@ insert into t1 values (1);
 update v2 set s1 = 1;
 select * from v2;
 select * from t2;
-# scheck how VIEWs with subqueries work with prepared statements
+# check how VIEWs with subqueries work with prepared statements
 prepare stmt1 from "select * from v2;";
 execute stmt1;
 insert into t1 values (0);
+--sorted_result
 execute stmt1;
 deallocate prepare stmt1;
 drop view v2;
@@ -1880,7 +1881,9 @@ CREATE VIEW v1 AS SELECT id, f FROM t1 WHERE id <= 2;
 INSERT INTO t1 VALUES (2, 'foo2');
 INSERT INTO t1 VALUES (1, 'foo1');
 
+--sorted_result
 SELECT * FROM v1;
+--sorted_result
 SELECT * FROM v1;
 
 DROP VIEW v1;
@@ -4162,12 +4165,18 @@ FLUSH STATUS;
 SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
 SHOW STATUS LIKE 'Handler_read_%';
 
+analyze table t1,t2;
+explain extended SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
+
 CREATE VIEW v AS SELECT * FROM t2;
 EXPLAIN EXTENDED
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 FLUSH STATUS;
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 SHOW STATUS LIKE 'Handler_read_%';
+
+set statement optimizer_where_cost=100 FOR explain extended SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
+
 DROP VIEW v;
 
 DROP TABLE t1, t2;

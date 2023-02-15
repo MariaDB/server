@@ -1235,7 +1235,6 @@ void THD::init()
     avoid temporary tables replication failure.
   */
   variables.pseudo_thread_id= thread_id;
-
   variables.default_master_connection.str= default_master_connection_buff;
   ::strmake(default_master_connection_buff,
             global_system_variables.default_master_connection.str,

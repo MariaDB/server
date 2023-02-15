@@ -103,7 +103,7 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   if (!max_elements)
     max_elements= 1;
 
-  (void) open_cached_file(&file, mysql_tmpdir,TEMP_PREFIX, DISK_BUFFER_SIZE,
+  (void) open_cached_file(&file, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
                           MYF(MY_WME));
 }
 
@@ -156,10 +156,10 @@ inline double log2_n_fact(double x)
     the same length, so each of total_buf_size elements will be added to a sort
     heap with (n_buffers-1) elements. This gives the comparison cost:
 
-      total_buf_elems* log2(n_buffers) / TIME_FOR_COMPARE_ROWID;
+      total_buf_elems* log2(n_buffers) * ROWID_COMPARE_COST;
 */
 
-static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
+static double get_merge_buffers_cost(THD *thd, uint *buff_elems, uint elem_size,
                                      uint *first, uint *last,
                                      double compare_factor)
 {
@@ -170,9 +170,9 @@ static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
 
   size_t n_buffers= last - first + 1;
 
-  /* Using log2(n)=log(n)/log(2) formula */
-  return 2*((double)total_buf_elems*elem_size) / IO_SIZE +
-     total_buf_elems*log((double) n_buffers) / (compare_factor * M_LN2);
+  return (2*((double)total_buf_elems*elem_size) / IO_SIZE *
+          default_optimizer_costs.disk_read_cost +
+          total_buf_elems*log2((double) n_buffers) * compare_factor);
 }
 
 
@@ -185,6 +185,7 @@ static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
 
   SYNOPSIS
     get_merge_many_buffs_cost()
+      thd           THD, used to get disk_read_cost
       buffer        buffer space for temporary data, at least
                     Unique::get_cost_calc_buff_size bytes
       maxbuffer     # of full buffers
@@ -203,7 +204,8 @@ static double get_merge_buffers_cost(uint *buff_elems, uint elem_size,
     Cost of merge in disk seeks.
 */
 
-static double get_merge_many_buffs_cost(uint *buffer,
+static double get_merge_many_buffs_cost(THD *thd,
+                                        uint *buffer,
                                         uint maxbuffer, uint max_n_elems,
                                         uint last_n_elems, int elem_size,
                                         double compare_factor)
@@ -231,13 +233,13 @@ static double get_merge_many_buffs_cost(uint *buffer,
       uint lastbuff= 0;
       for (i = 0; i <= (int) maxbuffer - MERGEBUFF*3/2; i += MERGEBUFF)
       {
-        total_cost+=get_merge_buffers_cost(buff_elems, elem_size,
+        total_cost+=get_merge_buffers_cost(thd, buff_elems, elem_size,
                                            buff_elems + i,
                                            buff_elems + i + MERGEBUFF-1,
                                            compare_factor);
 	lastbuff++;
       }
-      total_cost+=get_merge_buffers_cost(buff_elems, elem_size,
+      total_cost+=get_merge_buffers_cost(thd, buff_elems, elem_size,
                                          buff_elems + i,
                                          buff_elems + maxbuffer,
                                          compare_factor);
@@ -246,7 +248,7 @@ static double get_merge_many_buffs_cost(uint *buffer,
   }
 
   /* Simulate final merge_buff call. */
-  total_cost += get_merge_buffers_cost(buff_elems, elem_size,
+  total_cost += get_merge_buffers_cost(thd, buff_elems, elem_size,
                                        buff_elems, buff_elems + maxbuffer,
                                        compare_factor);
   return total_cost;
@@ -304,7 +306,7 @@ static double get_merge_many_buffs_cost(uint *buffer,
       these will be random seeks.
 */
 
-double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
+double Unique::get_use_cost(THD *thd, uint *buffer, size_t nkeys, uint key_size,
                             size_t max_in_memory_size,
                             double compare_factor,
                             bool intersect_fl, bool *in_memory)
@@ -312,7 +314,7 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
   size_t max_elements_in_tree;
   size_t last_tree_elems;
   size_t   n_full_trees; /* number of trees in unique - 1 */
-  double result;
+  double result, disk_read_cost;
 
   max_elements_in_tree= ((size_t) max_in_memory_size /
                          ALIGN_SIZE(sizeof(TREE_ELEMENT)+key_size));
@@ -327,7 +329,7 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
   result= 2*log2_n_fact(last_tree_elems + 1.0);
   if (n_full_trees)
     result+= n_full_trees * log2_n_fact(max_elements_in_tree + 1.0);
-  result /= compare_factor;
+  result *= compare_factor;
 
   DBUG_PRINT("info",("unique trees sizes: %u=%u*%u + %u", (uint)nkeys,
                      (uint)n_full_trees, 
@@ -345,14 +347,15 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
     First, add cost of writing all trees to disk, assuming that all disk
     writes are sequential.
   */
-  result += DISK_SEEK_BASE_COST * n_full_trees *
-              ceil(((double) key_size)*max_elements_in_tree / IO_SIZE);
-  result += DISK_SEEK_BASE_COST * ceil(((double) key_size)*last_tree_elems / IO_SIZE);
+  disk_read_cost= default_optimizer_costs.disk_read_cost;
+  result += disk_read_cost * n_full_trees *
+              ceil(((double) key_size)*max_elements_in_tree / DISK_CHUNK_SIZE);
+  result += disk_read_cost * ceil(((double) key_size)*last_tree_elems / DISK_CHUNK_SIZE);
 
   /* Cost of merge */
   if (intersect_fl)
     key_size+= sizeof(element_count);
-  double merge_cost= get_merge_many_buffs_cost(buffer, (uint)n_full_trees,
+  double merge_cost= get_merge_many_buffs_cost(thd, buffer, (uint)n_full_trees,
                                                (uint)max_elements_in_tree,
                                                (uint)last_tree_elems, key_size,
                                                compare_factor);
@@ -361,7 +364,7 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
     Add cost of reading the resulting sequence, assuming there were no
     duplicate elements.
   */
-  result += ceil((double)key_size*nkeys/IO_SIZE);
+  result+= (ceil((double)key_size*nkeys/IO_SIZE) * disk_read_cost);
 
   return result;
 }
@@ -716,12 +719,12 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
 
   /* Open cached file for table records if it isn't open */
   if (! my_b_inited(outfile) &&
-      open_cached_file(outfile,mysql_tmpdir,TEMP_PREFIX,READ_RECORD_BUFFER,
+      open_cached_file(outfile, mysql_tmpdir, TEMP_PREFIX, DISK_CHUNK_SIZE,
                        MYF(MY_WME)))
     return 1;
 
   bzero((char*) &sort_param,sizeof(sort_param));
-  sort_param.max_rows= elements;
+  sort_param.limit_rows= elements;
   sort_param.sort_form= table;
   sort_param.rec_length= sort_param.sort_length= sort_param.ref_length=
    full_size;

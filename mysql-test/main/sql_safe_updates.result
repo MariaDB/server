@@ -9,18 +9,23 @@ select @@sql_safe_updates;
 #
 create table t1 (a int, b int, primary key (a), key (b));
 update t1 set b=2 where a=1 or b=2;
-ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
 explain update t1 set b=2 where a=1 or b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 delete from t1 where a=1 or b=2;
-ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
 explain delete from t1 where a=1 or b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+explain update t1 set b=2 where a=1 or b=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,b	PRIMARY,b	4,5	NULL	2	Using union(PRIMARY,b); Using where; Using buffer
 update t1 set b=2 where a=1 or b=2;
+set @@optimizer_switch="index_merge=off";
+update t1 set b=2 where a=1 or b=2;
+ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
 delete from t1 where a=1 or b=2;
+ERROR HY000: You are using safe update mode and you tried to update a table without a WHERE that uses a KEY column
 drop table t1;
 #
 # End of 10.3 tests

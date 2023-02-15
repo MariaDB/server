@@ -124,7 +124,12 @@ public:
   /*
      Called in test_quick_select to determine if indexes should be used.
    */
-  virtual double scan_time() { return (double) (stats.records+stats.deleted) / 20.0+10; }
+  virtual IO_AND_CPU_COST scan_time()
+  {
+    return
+    { (double) ((share->saved_data_file_length + IO_SIZE-1))/ IO_SIZE,
+        (stats.records+stats.deleted) * ROW_NEXT_FIND_COST };
+  }
   /* The next method will never be called */
   virtual bool fast_key_read() { return 1;}
   /* 

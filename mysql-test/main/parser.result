@@ -764,11 +764,8 @@ SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
 # "INTO" clause tests
 SELECT 1 FROM t1 INTO @var17727401;
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 FROM DUAL INTO @var17727401;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT 1 INTO @var17727401;
 SELECT 1 INTO @var17727401 FROM t1;
 Warnings:
@@ -784,7 +781,6 @@ Warnings:
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1 INTO @var17727401;
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 FROM t1 WHERE 1 INTO @var17727401 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1' at line 1
@@ -804,7 +800,6 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401) UNION (SELECT 1 FROM t1 INTO t1)' at line 1
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 INTO @var17727401;
 Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 Warning	1329	No data - zero rows fetched, selected, or processed
 SELECT 1 INTO @var17727401 FROM t1 PROCEDURE ANALYSE();
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE()' at line 1

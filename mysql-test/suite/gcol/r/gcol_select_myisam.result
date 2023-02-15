@@ -146,7 +146,7 @@ count(distinct c)
 3
 explain select count(distinct c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	c	5	NULL	6	Using index for group-by
+1	SIMPLE	t1	range	NULL	c	5	NULL	5	Using index for group-by
 ###
 ### filesort & range-based utils
 ###
@@ -792,18 +792,18 @@ PRIMARY KEY (pk),
 KEY (col_int_key)
 );
 INSERT INTO cc (col_int_nokey) VALUES (0),(1),(7),(0),(4),(5);
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	cc	range	col_int_key	col_int_key	5	NULL	#	#
-SELECT pk FROM cc WHERE col_int_key > 3;
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
 pk
 5
 6
 3
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	cc	range	col_int_key	col_int_key	5	NULL	#	#
-SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
 pk
 3
 5
@@ -1325,11 +1325,10 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1381,11 +1380,10 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1439,11 +1437,10 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1506,11 +1503,10 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN

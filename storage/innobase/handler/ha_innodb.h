@@ -105,10 +105,10 @@ public:
 
 	int close(void) override;
 
-	double scan_time() override;
-
-	double read_time(uint index, uint ranges, ha_rows rows) override;
-
+#ifdef NOT_USED
+	IO_AND_CPU_COST scan_time() override;
+        double rnd_pos_time(ha_rows rows) override;
+#endif
 	int write_row(const uchar * buf) override;
 
 	int update_row(const uchar * old_data, const uchar * new_data) override;
@@ -383,6 +383,7 @@ public:
 		uint			n_ranges,
 		uint*			bufsz,
 		uint*			flags,
+                ha_rows                 limit,
 		Cost_estimate*		cost) override;
 
 	/** Initialize multi range read and get information.

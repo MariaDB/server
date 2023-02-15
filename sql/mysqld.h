@@ -330,7 +330,7 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_logger, key_LOCK_manager,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
-  key_LOCK_status,
+  key_LOCK_status, key_LOCK_optimizer_costs,
   key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
@@ -759,7 +759,8 @@ extern mysql_mutex_t
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_active_mi, LOCK_manager, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages,  LOCK_backup_log;
+       LOCK_prepared_stmt_count, LOCK_error_messages,  LOCK_backup_log,
+       LOCK_optimizer_costs;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
@@ -794,6 +795,18 @@ enum options_mysqld
   OPT_BINLOG_IGNORE_DB,
   OPT_BIN_LOG,
   OPT_BOOTSTRAP,
+  OPT_COSTS_DISK_READ_COST,
+  OPT_COSTS_INDEX_BLOCK_COPY_COST,
+  OPT_COSTS_KEY_CMP_COST,
+  OPT_COSTS_KEY_COPY_COST,
+  OPT_COSTS_KEY_LOOKUP_COST,
+  OPT_COSTS_KEY_NEXT_FIND_COST,
+  OPT_COSTS_DISK_READ_RATIO,
+  OPT_COSTS_ROW_COPY_COST,
+  OPT_COSTS_ROW_LOOKUP_COST,
+  OPT_COSTS_ROW_NEXT_FIND_COST,
+  OPT_COSTS_ROWID_CMP_COST,
+  OPT_COSTS_ROWID_COPY_COST,
   OPT_EXPIRE_LOGS_DAYS,
   OPT_BINLOG_EXPIRE_LOGS_SECONDS,
   OPT_CONSOLE,

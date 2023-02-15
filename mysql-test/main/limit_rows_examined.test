@@ -277,9 +277,9 @@ create view v1 as
 select * from t1 where c1 IN (select * from t2 where c2 > ' ');
 
 select * from v1;
-select * from v1 LIMIT ROWS EXAMINED 17;
-select * from v1 LIMIT ROWS EXAMINED 16;
-select * from v1 LIMIT ROWS EXAMINED 11;
+select * from v1 LIMIT ROWS EXAMINED 10;
+select * from v1 LIMIT ROWS EXAMINED 8;
+select * from v1 LIMIT ROWS EXAMINED 3;
 
 drop view v1;
 

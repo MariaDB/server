@@ -4019,6 +4019,26 @@ skip_buffering_tweak:
 	DBUG_RETURN(0);
 }
 
+
+/*********************************************************************//**
+Setup costs factors for InnoDB to be able to approximate how many
+ms different opperations takes. See cost functions in handler.h how
+the different variables are used */
+
+static void innobase_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    The following number was found by check_costs.pl when using 1M rows
+    and all rows are cached. See optimizer_costs.txt for details
+  */
+  costs->row_next_find_cost= 0.00007013;
+  costs->row_lookup_cost=    0.00076597;
+  costs->key_next_find_cost= 0.00009900;
+  costs->key_lookup_cost=    0.00079112;
+  costs->row_copy_cost=      0.00006087;
+}
+
+
 /** Initialize the InnoDB storage engine plugin.
 @param[in,out]	p	InnoDB handlerton
 @return error code
@@ -4085,6 +4105,8 @@ static int innodb_init(void* p)
 	/* System Versioning */
 	innobase_hton->prepare_commit_versioned
 		= innodb_prepare_commit_versioned;
+
+        innobase_hton->update_optimizer_costs= innobase_update_optimizer_costs;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -5017,13 +5039,11 @@ ha_innobase::index_flags(
 	}
 
 	ulong flags= key == table_share->primary_key
-		? HA_CLUSTERED_INDEX : 0;
+		? HA_CLUSTERED_INDEX : HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN;
 
 	flags |= HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER
-		| HA_READ_RANGE | HA_KEYREAD_ONLY
-		| HA_DO_INDEX_COND_PUSHDOWN
-		| HA_DO_RANGE_FILTER_PUSHDOWN;
-
+              | HA_READ_RANGE
+              | HA_DO_INDEX_COND_PUSHDOWN;
 	return(flags);
 }
 
@@ -9444,6 +9464,11 @@ ha_innobase::ft_init()
 	if (!trx_is_started(trx)) {
 		trx->will_lock = true;
 	}
+
+        /* If there is an FTS scan in progress, stop it */
+        fts_result_t* result =  (reinterpret_cast<NEW_FT_INFO*>(ft_handler))->ft_result;
+        if (result)
+                result->current= NULL;
 
 	DBUG_RETURN(rnd_init(false));
 }
@@ -14287,13 +14312,15 @@ ha_innobase::estimate_rows_upper_bound()
 	DBUG_RETURN((ha_rows) estimate);
 }
 
+
 /*********************************************************************//**
 How many seeks it will take to read through the table. This is to be
 comparable to the number returned by records_in_range so that we can
 decide if we should scan the table or use keys.
 @return estimated time measured in disk seeks */
 
-double
+#ifdef NOT_USED
+IO_AND_CPU_COST
 ha_innobase::scan_time()
 /*====================*/
 {
@@ -14313,24 +14340,28 @@ ha_innobase::scan_time()
 		TODO: This will be further improved to return some approximate
 		estimate but that would also needs pre-population of stats
 		structure. As of now approach is in sync with MyISAM. */
-		return(ulonglong2double(stats.data_file_length) / IO_SIZE + 2);
+          return { (ulonglong2double(stats.data_file_length) / IO_SIZE * DISK_READ_COST), 0.0 };
 	}
 
 	ulint	stat_clustered_index_size;
-
+        IO_AND_CPU_COST cost;
 	ut_a(m_prebuilt->table->stat_initialized);
 
 	stat_clustered_index_size =
 		m_prebuilt->table->stat_clustered_index_size;
 
-	return((double) stat_clustered_index_size);
+        cost.io= (double) stat_clustered_index_size * DISK_READ_COST;
+        cost.cpu= 0;
+	return(cost);
 }
+#endif
 
 /******************************************************************//**
 Calculate the time it takes to read a set of ranges through an index
 This enables us to optimise reads for clustered indexes.
 @return estimated time measured in disk seeks */
 
+#ifdef NOT_USED
 double
 ha_innobase::read_time(
 /*===================*/
@@ -14355,8 +14386,33 @@ ha_innobase::read_time(
 		return(time_for_scan);
 	}
 
-	return(ranges + (double) rows / (double) total_rows * time_for_scan);
+	return(ranges * KEY_LOOKUP_COST + (double) rows / (double) total_rows * time_for_scan);
 }
+
+/******************************************************************//**
+Calculate the time it takes to read a set of rows with primary key.
+*/
+
+IO_AND_CPU_COST
+ha_innobase::rnd_pos_time(ha_rows rows)
+{
+	ha_rows total_rows;
+
+	/* Assume that the read time is proportional to the scan time for all
+	rows + at most one seek per range. */
+
+	IO_AND_CPU_COST	time_for_scan = scan_time();
+
+	if ((total_rows = estimate_rows_upper_bound()) < rows) {
+
+		return(time_for_scan);
+	}
+        double frac= (double) rows + (double) rows / (double) total_rows;
+        time_for_scan.io*= frac;
+        time_for_scan.cpu*= frac;
+	return(time_for_scan);
+}
+#endif
 
 /*********************************************************************//**
 Calculates the key number used inside MySQL for an Innobase index.
@@ -14834,13 +14890,6 @@ ha_innobase::info_low(
 				ulong	rec_per_key_int = static_cast<ulong>(
 					innodb_rec_per_key(index, j,
 							   stats.records));
-
-				/* Since MySQL seems to favor table scans
-				too much over index searches, we pretend
-				index selectivity is 2 times better than
-				our estimate: */
-
-				rec_per_key_int = rec_per_key_int / 2;
 
 				if (rec_per_key_int == 0) {
 					rec_per_key_int = 1;
@@ -19919,6 +19968,7 @@ ha_innobase::multi_range_read_info_const(
 	uint		n_ranges,
 	uint*		bufsz,
 	uint*		flags,
+        ha_rows         limit,
 	Cost_estimate*	cost)
 {
 	/* See comments in ha_myisam::multi_range_read_info_const */
@@ -19928,8 +19978,9 @@ ha_innobase::multi_range_read_info_const(
 		*flags |= HA_MRR_USE_DEFAULT_IMPL;
 	}
 
-	ha_rows res= m_ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
-			bufsz, flags, cost);
+	ha_rows res= m_ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param,
+                                               n_ranges,
+                                               bufsz, flags, limit, cost);
 	return res;
 }
 

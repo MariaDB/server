@@ -1541,8 +1541,6 @@ NULL
 (select 2) union (select 1 into @var);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'into @var)' at line 1
 (select 1) union (select 1) into @var;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 (select 2) union (select 1) into @var;
 ERROR 42000: Result consisted of more than one row
 CREATE TABLE t1 (a int);
@@ -1675,14 +1673,8 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file6' FROM t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM t1' at line 1
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO @v ;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file5';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file6';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a INTO @v FROM t1 UNION SELECT a FROM t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT a FROM t1' at line 1
 SELECT a INTO OUTFILE 'union.out.file7' FROM t1 UNION SELECT a FROM t1;
@@ -2783,3 +2775,70 @@ drop table t1;
 #
 # End of 10.3 tests
 #
+
+# check union all & union disctinct
+
+select 1 as res union select 2 union select 1 union select 2;
+res
+1
+2
+select 1 as res union distinct select 2 union distinct select 1 union distinct select 2;
+res
+1
+2
+select 1 as res union all select 2 union all select 1 union all select 2;
+res
+1
+2
+1
+2
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union select 2;
+res
+1
+2
+3
+4
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union distinct select 2;
+res
+1
+2
+3
+4
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2;
+res
+1
+2
+2
+3
+3
+4
+2
+select 1 as res union all select 2 union distinct select 1 union all select 2;
+res
+1
+2
+2
+select 1 as res union select 2 union all select 1 union distinct select 3;
+res
+1
+2
+3
+select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2;
+res
+1
+2
+3
+2
+select 1 as res union select 2 union all select 1 union distinct select 3 union all select 2 union distinct select 5;
+res
+1
+2
+3
+5
+select truncate(seq/2,0)+1 as res from seq_1_to_6 union all select 2 union all select 1 union distinct select 3 union all select 2;
+res
+1
+2
+3
+4
+2

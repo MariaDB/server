@@ -1094,20 +1094,51 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
   }
   else
   {
-    flags= HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
-          HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN;
+    flags= (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE |
+            HA_READ_ORDER | HA_KEYREAD_ONLY | HA_DO_INDEX_COND_PUSHDOWN |
+            HA_DO_RANGE_FILTER_PUSHDOWN);
   }
   return flags;
 }
 
 
-double ha_maria::scan_time()
+/*
+  Update costs that are unique for this TABLE instance
+*/
+
+void ha_maria::update_optimizer_costs(OPTIMIZER_COSTS *costs)
 {
-  if (file->s->data_file_type == BLOCK_RECORD)
-    return (ulonglong2double(stats.data_file_length - file->s->block_size) /
-            file->s->block_size) + 2;
-  return handler::scan_time();
+  /*
+    Default costs for Aria with BLOCK_FORMAT is the same as MariaDB default
+    costs.
+  */
+  if (file->s->data_file_type != BLOCK_RECORD)
+  {
+    /*
+      MyISAM format row lookup costs are slow as the row data is on a not
+      cached file. Costs taken from ha_myisam.cc
+    */
+    costs->row_next_find_cost= 0.000063539;
+    costs->row_lookup_cost=    0.001014818;
+  }
 }
+
+
+IO_AND_CPU_COST ha_maria::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost= handler::rnd_pos_time(rows);
+  /* file may be 0 if this is an internal temporary file that is not yet opened */
+  if (file && file->s->data_file_type != BLOCK_RECORD)
+  {
+    /*
+      Row data is not cached. costs.row_lookup_cost includes the cost of
+      the reading the row from system (probably cached by the OS).
+    */
+    cost.io= 0;
+  }
+  return cost;
+}
+
 
 /*
   We need to be able to store at least 2 keys on an index page as the
@@ -2505,10 +2536,12 @@ int ha_maria::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   end_range= NULL;
   if (index == pushed_idx_cond_keyno)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
 
   error= maria_rkey(file, buf, index, key, keypart_map, find_flag);
 
-  ma_set_index_cond_func(file, NULL, 0);
+  ma_reset_index_filter_functions(file);
   return error;
 }
 
@@ -2582,18 +2615,22 @@ int ha_maria::index_next_same(uchar * buf,
 
 int ha_maria::index_init(uint idx, bool sorted)
 {
-  active_index=idx;
+  active_index= idx;
   if (pushed_idx_cond_keyno == idx)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
   return 0;
 }
 
-
 int ha_maria::index_end()
 {
+  /*
+    in_range_check_pushed_down and index_id_cond_keyno are reset in
+    handler::cancel_pushed_idx_cond()
+  */
   active_index=MAX_KEY;
-  ma_set_index_cond_func(file, NULL, 0);
-  in_range_check_pushed_down= FALSE;
+  ma_reset_index_filter_functions(file);
   ds_mrr.dsmrr_close();
   return 0;
 }
@@ -2690,15 +2727,21 @@ int ha_maria::info(uint flag)
     share->db_record_offset= maria_info.record_offset;
     if (share->key_parts)
     {
-      ulong *to= table->key_info[0].rec_per_key, *end;
       double *from= maria_info.rec_per_key;
-      for (end= to+ share->key_parts ; to < end ; to++, from++)
-        *to= (ulong) (*from + 0.5);
+      KEY *key, *key_end;
+      for (key= table->key_info, key_end= key + share->keys;
+           key < key_end ; key++)
+      {
+        ulong *to= key->rec_per_key;
+        for (ulong *end= to+ key->user_defined_key_parts ;
+             to < end ;
+             to++, from++)
+          *to= (ulong) (*from + 0.5);
+      }
     }
-
     /*
-       Set data_file_name and index_file_name to point at the symlink value
-       if table is symlinked (Ie;  Real name is not same as generated name)
+      Set data_file_name and index_file_name to point at the symlink value
+      if table is symlinked (Ie;  Real name is not same as generated name)
     */
     data_file_name= index_file_name= 0;
     fn_format(name_buff, file->s->open_file_name.str, "", MARIA_NAME_DEXT,
@@ -2781,7 +2824,7 @@ int ha_maria::extra(enum ha_extra_function operation)
 
 int ha_maria::reset(void)
 {
-  ma_set_index_cond_func(file, NULL, 0);
+  ma_reset_index_filter_functions(file);
   ds_mrr.dsmrr_close();
   if (file->trn)
   {
@@ -3839,6 +3882,10 @@ bool ha_maria::is_changed() const
   return file->state->changed;
 }
 
+static void aria_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+}
+
 
 static int ha_maria_init(void *p)
 {
@@ -3871,6 +3918,7 @@ static int ha_maria_init(void *p)
   maria_hton->show_status= maria_show_status;
   maria_hton->prepare_for_backup= maria_prepare_for_backup;
   maria_hton->end_backup= maria_end_backup;
+  maria_hton->update_optimizer_costs= aria_update_optimizer_costs;
 
   /* TODO: decide if we support Maria being used for log tables */
   maria_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES |
@@ -4171,7 +4219,8 @@ int ha_maria::multi_range_read_next(range_id_t *range_info)
 ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                void *seq_init_param,
                                                uint n_ranges, uint *bufsz,
-                                               uint *flags, Cost_estimate *cost)
+                                              uint *flags, ha_rows limit,
+                                              Cost_estimate *cost)
 {
   /*
     This call is here because there is no location where this->table would
@@ -4180,7 +4229,7 @@ ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   */
   ds_mrr.init(this, table);
   return ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
-                                 flags, cost);
+                                 flags, limit, cost);
 }
 
 ha_rows ha_maria::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
@@ -4230,6 +4279,26 @@ Item *ha_maria::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
     ma_set_index_cond_func(file, handler_index_cond_check, this);
   return NULL;
 }
+
+bool ha_maria::rowid_filter_push(Rowid_filter* rowid_filter)
+{
+  /* This will be used in index_init() */
+  pushed_rowid_filter= rowid_filter;
+  return false;
+}
+
+
+/* Enable / disable rowid filter depending if it's active or not */
+
+void ha_maria::rowid_filter_changed()
+{
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    ma_set_rowid_filter_func(file, handler_rowid_filter_check, this);
+  else
+    ma_set_rowid_filter_func(file, NULL, this);
+}
+
+
 
 /**
   Find record by unique constrain (used in temporary tables)

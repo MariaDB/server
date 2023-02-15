@@ -50,6 +50,7 @@
 #include "authors.h"
 #include "contributors.h"
 #include "sql_partition.h"
+#include "optimizer_defaults.h"
 #ifdef HAVE_EVENT_SCHEDULER
 #include "events.h"
 #include "event_data_objects.h"
@@ -8895,6 +8896,10 @@ bool optimize_schema_tables_reads(JOIN *join)
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
+    /*
+      The following is true for the temporary table that will hold the
+      final result.
+    */
     if (!tab->table || !tab->table->pos_in_table_list)
       continue;
 
@@ -8966,6 +8971,10 @@ bool get_schema_tables_result(JOIN *join,
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
+    /*
+      The following is true for the temporary table that will hold the
+      final result.
+    */
     if (!tab->table || !tab->table->pos_in_table_list)
       break;
 
@@ -9192,6 +9201,49 @@ int fill_key_cache_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   int res= process_key_caches(run_fill_key_cache_tables, tables->table);
 
+  DBUG_RETURN(res);
+}
+
+
+/* Ensure we return 'OPTIMIZER_COST_UNDEF' if cost < 0 */
+
+static double fix_cost(double cost)
+{
+  return cost < 0 ? OPTIMIZER_COST_UNDEF : cost;
+}
+
+static int run_fill_optimizer_costs_tables(const LEX_CSTRING *name,
+                                           const OPTIMIZER_COSTS *costs,
+                                           TABLE *table)
+{
+  THD *thd= table->in_use;
+  DBUG_ENTER("run_fill_optimizer_costs_tables");
+
+  restore_record(table, s->default_values);
+  table->field[0]->store(name->str, name->length, system_charset_info);
+  table->field[1]->store(fix_cost(costs->disk_read_cost*1000.0));
+  table->field[2]->store(fix_cost(costs->index_block_copy_cost*1000.0));
+  table->field[3]->store(fix_cost(costs->key_cmp_cost*1000.0));
+  table->field[4]->store(fix_cost(costs->key_copy_cost*1000.0));
+  table->field[5]->store(fix_cost(costs->key_lookup_cost*1000.0));
+  table->field[6]->store(fix_cost(costs->key_next_find_cost*1000.0));
+  table->field[7]->store(fix_cost(costs->disk_read_ratio));
+  table->field[8]->store(fix_cost(costs->row_copy_cost*1000.0));
+  table->field[9]->store(fix_cost(costs->row_lookup_cost*1000.0));
+  table->field[10]->store(fix_cost(costs->row_next_find_cost*1000.0));
+  table->field[11]->store(fix_cost(costs->rowid_cmp_cost*1000.0));
+  table->field[12]->store(fix_cost(costs->rowid_copy_cost*1000.0));
+
+  DBUG_RETURN(schema_table_store_record(thd, table));
+}
+
+
+int fill_optimizer_costs_tables(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_optimizer_costs_tables");
+
+  int res= process_optimizer_costs(run_fill_optimizer_costs_tables,
+                                   tables->table);
   DBUG_RETURN(res);
 }
 
@@ -9824,6 +9876,25 @@ ST_FIELD_INFO keycache_fields_info[]=
 };
 
 
+ST_FIELD_INFO optimizer_costs_fields_info[]=
+{
+  Column("ENGINE",                              Varchar(NAME_LEN),NOT_NULL),
+  Column("OPTIMIZER_DISK_READ_COST",            Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_INDEX_BLOCK_COPY_COST",     Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_KEY_COMPARE_COST",          Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_KEY_COPY_COST",             Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_KEY_LOOKUP_COST",           Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_KEY_NEXT_FIND_COST",        Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_DISK_READ_RATIO",           Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_ROW_COPY_COST",             Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_ROW_LOOKUP_COST",           Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_ROW_NEXT_FIND_COST",        Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_ROWID_COMPARE_COST",        Decimal(906), NOT_NULL),
+  Column("OPTIMIZER_ROWID_COPY_COST",           Decimal(906), NOT_NULL),
+  CEnd()
+};
+
+
 ST_FIELD_INFO show_explain_tabular_fields_info[]=
 {
   Column("id",            SLonglong(3),                  NULLABLE, "id"),
@@ -9962,6 +10033,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"OPEN_TABLES", Show::open_tables_fields_info, 0,
    fill_open_tables, make_old_format, 0, -1, -1, 1, 0},
+  {"OPTIMIZER_COSTS", Show::optimizer_costs_fields_info, 0,
+   fill_optimizer_costs_tables, 0, 0, -1,-1, 0, 0},
   {"OPTIMIZER_TRACE", Show::optimizer_trace_info, 0,
      fill_optimizer_trace_info, NULL, NULL, -1, -1, false, 0},
   {"PARAMETERS", Show::parameters_fields_info, 0,

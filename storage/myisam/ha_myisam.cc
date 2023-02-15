@@ -804,6 +804,17 @@ ulong ha_myisam::index_flags(uint inx, uint part, bool all_parts) const
   return flags;
 }
 
+IO_AND_CPU_COST ha_myisam::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST cost= handler::rnd_pos_time(rows);
+  /*
+    Row data is not cached. costs.row_lookup_cost includes the cost of
+    the reading the row from system (probably cached by the OS).
+  */
+  cost.io= 0;
+  return cost;
+}
+
 
 /* Name is here without an extension */
 int ha_myisam::open(const char *name, int mode, uint test_if_locked)
@@ -1960,9 +1971,8 @@ int ha_myisam::index_init(uint idx, bool sorted)
   active_index=idx;
   if (pushed_idx_cond_keyno == idx)
     mi_set_index_cond_func(file, handler_index_cond_check, this);
-  if (pushed_rowid_filter)
-    mi_set_rowid_filter_func(file, handler_rowid_filter_check,
-                             handler_rowid_filter_is_active, this);
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    mi_set_rowid_filter_func(file, handler_rowid_filter_check, this);
   return 0; 
 }
 
@@ -1970,11 +1980,10 @@ int ha_myisam::index_init(uint idx, bool sorted)
 int ha_myisam::index_end()
 {
   DBUG_ENTER("ha_myisam::index_end");
-  active_index=MAX_KEY;
-  //pushed_idx_cond_keyno= MAX_KEY;
+  active_index= MAX_KEY;
   mi_set_index_cond_func(file, NULL, 0);
   in_range_check_pushed_down= FALSE;
-  mi_set_rowid_filter_func(file, NULL, NULL, 0);
+  mi_set_rowid_filter_func(file, NULL, 0);
   ds_mrr.dsmrr_close();
 #if !defined(DBUG_OFF) && defined(SQL_SELECT_FIXED_FOR_UPDATE)
   file->update&= ~HA_STATE_AKTIV;               // Forget active row
@@ -2010,9 +2019,8 @@ int ha_myisam::index_read_idx_map(uchar *buf, uint index, const uchar *key,
   end_range= NULL;
   if (index == pushed_idx_cond_keyno)
     mi_set_index_cond_func(file, handler_index_cond_check, this);
-  if (pushed_rowid_filter)
-    mi_set_rowid_filter_func(file, handler_rowid_filter_check,
-                             handler_rowid_filter_is_active, this);
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    mi_set_rowid_filter_func(file, handler_rowid_filter_check, this);
   res= mi_rkey(file, buf, index, key, keypart_map, find_flag);
   mi_set_index_cond_func(file, NULL, 0);
   return res;
@@ -2144,9 +2152,17 @@ int ha_myisam::info(uint flag)
     share->keys_for_keyread.intersect(share->keys_in_use);
     share->db_record_offset= misam_info.record_offset;
     if (share->key_parts)
-      memcpy((char*) table->key_info[0].rec_per_key,
-	     (char*) misam_info.rec_per_key,
-             sizeof(table->key_info[0].rec_per_key[0])*share->key_parts);
+    {
+      ulong *from= misam_info.rec_per_key;
+      KEY *key, *key_end;
+      for (key= table->key_info, key_end= key + share->keys;
+           key < key_end ; key++)
+      {
+        memcpy(key->rec_per_key, from,
+               key->user_defined_key_parts * sizeof(*from));
+        from+= key->user_defined_key_parts;
+      }
+    }
     if (table_share->tmp_table == NO_TMP_TABLE)
       mysql_mutex_unlock(&table_share->LOCK_share);
   }
@@ -2577,6 +2593,22 @@ static int myisam_drop_table(handlerton *hton, const char *path)
   return mi_delete_table(path);
 }
 
+
+void myisam_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    MyISAM row lookup costs are slow as the row data is not cached
+    The following numbers where found by check_costs.pl when using 1M rows
+    and all rows are cached. See optimizer_costs.txt
+  */
+  costs->row_next_find_cost=   0.000063539;
+  costs->row_lookup_cost=      0.001014818;
+  costs->key_next_find_cost=   0.000090585;
+  costs->key_lookup_cost=      0.000550142;
+  costs->key_copy_cost=        0.000015685;
+}
+
+
 static int myisam_init(void *p)
 {
   handlerton *hton;
@@ -2596,6 +2628,7 @@ static int myisam_init(void *p)
   hton->create= myisam_create_handler;
   hton->drop_table= myisam_drop_table;
   hton->panic= myisam_panic;
+  hton->update_optimizer_costs= myisam_update_optimizer_costs;
   hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   hton->tablefile_extensions= ha_myisam_exts;
   mi_killed= mi_killed_in_mariadb;
@@ -2635,7 +2668,8 @@ int ha_myisam::multi_range_read_next(range_id_t *range_info)
 ha_rows ha_myisam::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                void *seq_init_param, 
                                                uint n_ranges, uint *bufsz,
-                                               uint *flags, Cost_estimate *cost)
+                                               uint *flags, ha_rows limit,
+                                               Cost_estimate *cost)
 {
   /*
     This call is here because there is no location where this->table would
@@ -2644,7 +2678,7 @@ ha_rows ha_myisam::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   */
   ds_mrr.init(this, table);
   return ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
-                                 flags, cost);
+                                 flags, limit, cost);
 }
 
 ha_rows ha_myisam::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
@@ -2699,11 +2733,22 @@ Item *ha_myisam::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
 
 bool ha_myisam::rowid_filter_push(Rowid_filter* rowid_filter)
 {
+  /* This will be used in index_init() */
   pushed_rowid_filter= rowid_filter;
-  mi_set_rowid_filter_func(file, handler_rowid_filter_check,
-			   handler_rowid_filter_is_active, this);
   return false;
 }
+
+
+/* Enable / disable rowid filter depending if it's active or not */
+
+void ha_myisam::rowid_filter_changed()
+{
+  if (pushed_rowid_filter && handler_rowid_filter_is_active(this))
+    mi_set_rowid_filter_func(file, handler_rowid_filter_check, this);
+  else
+    mi_set_rowid_filter_func(file, NULL, this);
+}
+
 
 struct st_mysql_storage_engine myisam_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };

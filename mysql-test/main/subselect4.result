@@ -265,7 +265,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2c.i FROM t2c WHERE t2c.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	2	Using index; Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	1	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE NULL NOT IN (SELECT t2c.i FROM t2c WHERE t2c.pk = t1.pk);
 pk	i
 SELECT * FROM t1 WHERE NULL     IN (SELECT t2c.i FROM t2c WHERE t2c.pk = t1.pk) IS UNKNOWN;
@@ -335,7 +335,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	2	Using index; Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	1	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 pk	i
 0	10
@@ -714,8 +714,7 @@ WHERE ( t1.f10 ) IN ( SELECT f11 FROM t2 GROUP BY f11 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT * FROM t1
 WHERE f3 = (
 SELECT t1.f3 FROM t1
@@ -729,8 +728,7 @@ WHERE ( f10, f10 ) IN ( SELECT f11, f11 FROM t2 GROUP BY f11 ));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	<subquery3>	eq_ref	distinct_key	distinct_key	8	func,func	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 SELECT * FROM t1
 WHERE f3 = (
 SELECT f3 FROM t1
@@ -1172,7 +1170,7 @@ WHERE (t2.pk = t1.pk) AND t2.pk IN (SELECT f2 FROM t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	system	PRIMARY	NULL	NULL	NULL	1	
 1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	
-2	DEPENDENT SUBQUERY	t1	index_subquery	f2	f2	4	func	2	Using index
+2	DEPENDENT SUBQUERY	t1	index_subquery	f2	f2	4	func	1	Using index
 SELECT t1.f3, MAX(t1.f2)
 FROM t1, t2
 WHERE (t2.pk = t1.pk) AND t2.pk IN (SELECT f2 FROM t1);
@@ -1249,7 +1247,7 @@ drop table t1, t2;
 #
 CREATE TABLE t1 (c1 varchar(1) DEFAULT NULL);
 CREATE TABLE t2 (c1 varchar(1) DEFAULT NULL);
-INSERT INTO t2 VALUES ('k'), ('d');
+INSERT INTO t2 VALUES ('k'), ('d'),('x');
 CREATE TABLE t3 (c1 varchar(1) DEFAULT NULL);
 INSERT INTO t3 VALUES ('a'), ('b'), ('c');
 CREATE TABLE t4 (c1 varchar(1) primary key);
@@ -1262,16 +1260,16 @@ EXPLAIN
 SELECT * FROM t1 RIGHT JOIN t2 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t1)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 SELECT * FROM t1 RIGHT JOIN t2 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 EXPLAIN
 SELECT * FROM t2 LEFT JOIN t1 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t1)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 SELECT * FROM t2 LEFT JOIN t1 ON t1.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 SET optimizer_switch='materialization=on';
@@ -1279,19 +1277,18 @@ EXPLAIN
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.c1) LEFT JOIN t3 on t3.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary; End temporary
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.c1) LEFT JOIN t3 on t3.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1	c1
 EXPLAIN
 SELECT * FROM t4 LEFT JOIN t2 ON t4.c1 WHERE 's' IN (SELECT c1 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t4	index	NULL	PRIMARY	3	NULL	2	Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t4	index	NULL	PRIMARY	3	NULL	2	Using index; Using join buffer (flat, BNL join)
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM t4 LEFT JOIN t2 ON t4.c1 WHERE 's' IN (SELECT c1 FROM t2);
 c1	c1
 SET optimizer_switch=@save_optimizer_switch;
@@ -2755,12 +2752,21 @@ INSERT INTO t4 VALUES
 ('w'),('w'),('x'),('x'), (NULL),(NULL);
 SET @save_join_cache_level=@@join_cache_level;
 SET join_cache_level=0;
+explain select 1
+from t2 join t1 on
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	index	NULL	v1	9	NULL	5	Using index
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	MATERIALIZED	t1	ref	v1	v1	4	test.t3.v2	1	Using index
+2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	50	
 select 1
 from t2 join t1 on
-('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 500;
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 10;
 1
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 3020 rows, which exceeds LIMIT ROWS EXAMINED (500). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least 14 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
 SET join_cache_level= @save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 #
@@ -2790,9 +2796,8 @@ set names 'utf8';
 EXPLAIN
 SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abc',1), ('def', 2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func,func	1	Using where
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived3>	ref	key1	key1	4	test.t2.b	1	Using where; FirstMatch(t2)
 3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
@@ -2902,8 +2907,8 @@ WHERE tn.key1 IN ('1','2','3','4','5','6','7','8','9','10')
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	hist	ALL	NULL	NULL	NULL	NULL	100	Using where
-2	DEPENDENT SUBQUERY	tms	range	PRIMARY	PRIMARY	32	NULL	10	Using where; Using index
-2	DEPENDENT SUBQUERY	tn	eq_ref	PRIMARY	PRIMARY	32	test.tms.key1	1	Using where
+2	DEPENDENT SUBQUERY	tn	range	PRIMARY	PRIMARY	32	NULL	10	Using index condition; Using where
+2	DEPENDENT SUBQUERY	tms	eq_ref	PRIMARY	PRIMARY	32	test.tn.key1	1	Using index
 set optimizer_switch=@tmp_os;
 drop table t1, t10, t11;
 #
@@ -2922,6 +2927,7 @@ ANALYZE
   },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "duplicate_removal": {
@@ -2931,9 +2937,11 @@ ANALYZE
             "table": {
               "table_name": "t1",
               "access_type": "ALL",
+              "loops": 1,
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
+              "cost": "REPLACED",
               "r_table_time_ms": "REPLACED",
               "r_other_time_ms": "REPLACED",
               "filtered": 100,
@@ -2948,6 +2956,7 @@ ANALYZE
               "r_loops": 0,
               "query_block": {
                 "select_id": 2,
+                "cost": "REPLACED",
                 "r_loops": 1,
                 "r_total_time_ms": "REPLACED",
                 "nested_loop": [
@@ -2955,9 +2964,11 @@ ANALYZE
                     "table": {
                       "table_name": "t1",
                       "access_type": "ALL",
+                      "loops": 1,
                       "r_loops": 1,
                       "rows": 2,
                       "r_rows": 2,
+                      "cost": "REPLACED",
                       "r_table_time_ms": "REPLACED",
                       "r_other_time_ms": "REPLACED",
                       "filtered": 100,
@@ -2970,6 +2981,7 @@ ANALYZE
                   {
                     "query_block": {
                       "select_id": 3,
+                      "cost": "REPLACED",
                       "r_loops": 1,
                       "r_total_time_ms": "REPLACED",
                       "nested_loop": [
@@ -2977,9 +2989,11 @@ ANALYZE
                           "table": {
                             "table_name": "t1",
                             "access_type": "ALL",
+                            "loops": 1,
                             "r_loops": 1,
                             "rows": 2,
                             "r_rows": 2,
+                            "cost": "REPLACED",
                             "r_table_time_ms": "REPLACED",
                             "r_other_time_ms": "REPLACED",
                             "filtered": 100,
@@ -3132,10 +3146,9 @@ where b in (select c from t3
 group by (select a from t1 where a = 1) in (select d from t4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where 1
+Note	1003	select `test`.`t2`.`b` AS `b` from `test`.`t2` semi join (`test`.`t3`) where `test`.`t3`.`c` = `test`.`t2`.`b`
 select b from t2
 where b in (select c from t3
 group by (select a from t1 where a = 1) in (select d from t4));

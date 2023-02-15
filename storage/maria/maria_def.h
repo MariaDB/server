@@ -213,7 +213,6 @@ extern int maria_rsame_with_pos(MARIA_HA *file, uchar *record,
 extern int maria_update(MARIA_HA *file, const uchar *old,
                         const uchar *new_record);
 extern int maria_write(MARIA_HA *file, const uchar *buff);
-extern MARIA_RECORD_POS maria_position(MARIA_HA *file);
 extern int maria_status(MARIA_HA *info, MARIA_INFO *x, uint flag);
 extern int maria_lock_database(MARIA_HA *file, int lock_type);
 extern int maria_delete_table(const char *name);
@@ -1011,6 +1010,7 @@ struct st_maria_handler
   my_bool switched_transactional;
   /* If transaction will autocommit */
   my_bool autocommit;
+  my_bool has_cond_pushdown;
 #ifdef _WIN32
   my_bool owned_by_merge;               /* This Maria table is part of a merge union */
 #endif
@@ -1022,6 +1022,8 @@ struct st_maria_handler
   my_bool create_unique_index_by_sort;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
+  rowid_filter_func_t rowid_filter_func;   /* rowid filter check function */
+  void *rowid_filter_func_arg;         /* parameter for the func */
 };
 
 /* Table options for the Aria and S3 storage engine */
@@ -1063,6 +1065,7 @@ struct ha_table_option_struct
 #define STATE_IN_REPAIR  	 1024U /* We are running repair on table */
 #define STATE_CRASHED_PRINTED	 2048U
 #define STATE_DATA_FILE_FULL     4096U
+#define STATE_HAS_LSN            8192U /* Some page still has LSN */
 
 #define STATE_CRASHED_FLAGS (STATE_CRASHED | STATE_CRASHED_ON_REPAIR | STATE_CRASHED_PRINTED)
 
@@ -1346,7 +1349,11 @@ extern int _ma_read_rnd_no_record(MARIA_HA *info, uchar *buf,
                                   MARIA_RECORD_POS filepos,
                                   my_bool skip_deleted_blocks);
 my_off_t _ma_no_keypos_to_recpos(MARIA_SHARE *share, my_off_t pos);
-
+/* Get position to last record */
+static inline MARIA_RECORD_POS maria_position(MARIA_HA *info)
+{
+  return info->cur_row.lastpos;
+}
 extern my_bool _ma_ck_write(MARIA_HA *info, MARIA_KEY *key);
 extern my_bool _ma_enlarge_root(MARIA_HA *info, MARIA_KEY *key,
                                 MARIA_RECORD_POS *root);
@@ -1733,7 +1740,25 @@ extern my_bool maria_flush_log_for_page_none(PAGECACHE_IO_HOOK_ARGS *args);
 extern PAGECACHE *maria_log_pagecache;
 extern void ma_set_index_cond_func(MARIA_HA *info, index_cond_func_t func,
                                    void *func_arg);
-check_result_t ma_check_index_cond(MARIA_HA *info, uint keynr, uchar *record);
+extern void ma_set_rowid_filter_func(MARIA_HA *info,
+                                     rowid_filter_func_t check_func,
+                                     void *func_arg);
+static inline void ma_reset_index_filter_functions(MARIA_HA *info)
+{
+  info->index_cond_func= NULL;
+  info->rowid_filter_func= NULL;
+  info->has_cond_pushdown= 0;
+}
+check_result_t ma_check_index_cond_real(MARIA_HA *info, uint keynr,
+                                        uchar *record);
+static inline check_result_t ma_check_index_cond(MARIA_HA *info, uint keynr,
+                                                 uchar *record)
+{
+  if (!info->has_cond_pushdown)
+    return CHECK_POS;
+  return ma_check_index_cond_real(info, keynr, record);
+}
+
 
 extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);

@@ -11,8 +11,6 @@ insert into t1 values (null);
 select count(*) from t1 into @a;
 return @a;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 reset master;
 insert into t2 values (bug23333(),1);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'

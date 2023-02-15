@@ -2,13 +2,15 @@
 # DuplicateElimination strategy test
 #
 
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
       @@innodb_stats_persistent_sample_pages;
 
 set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
---source include/have_innodb.inc
 
 set @subselect_sj2_tmp= @@optimizer_switch;
 set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on';
@@ -48,7 +50,7 @@ create table t2 (
 insert into t2 select a, a/2 from t0;
 insert into t2 select a+10, a+10/2 from t0;
 
-select * from t1;
+insert into t1 values (1030,30),(1031,31),(1032,32),(1033,33);
 select * from t2;
 explain select * from t2 where b in (select a from t1);
 select * from t2 where b in (select a from t1);
@@ -87,6 +89,7 @@ insert into t3 select
   A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a 
 from t0 A, t0 B where B.a <5;
 
+analyze table t3 persistent for all;
 --replace_column 9 #
 explain select * from t3 where b in (select a from t0);
 select * from t3 where b in (select A.a+B.a from t0 A, t0 B where B.a<5);
@@ -96,15 +99,15 @@ set max_heap_table_size= @save_max_heap_table_size;
 
 # O2I join orders, with shortcutting: 
 explain select * from t1 where a in (select b from t2);
-select * from t1;
 select * from t1 where a in (select b from t2);
 
 drop table t1, t2, t3;
 # (no need for anything in range/index_merge/DS-MRR) 
 
-#
-# Test join buffering
-#
+--echo #
+--echo # Test join buffering
+--echo #
+
 set @save_join_buffer_size = @@join_buffer_size;
 set join_buffer_size= 8192;
 
@@ -255,6 +258,7 @@ INSERT INTO t3 VALUES
 # Disable materialization to avoid races between query plans
 set @bug35674_save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='materialization=off';
+
 EXPLAIN
 SELECT Name FROM t2 
   WHERE t2.Code IN (SELECT Country FROM t1 WHERE Population > 5000000)
@@ -1121,26 +1125,35 @@ INSERT INTO t1 VALUES
 (16,'n',3),(17,'r',2),(18,'v',1),(19,'p',0);
 
 CREATE TABLE t2 (
-  pk INT, d VARCHAR(1), e INT,
+  pk INT, d VARCHAR(1), e INT, f int,
   PRIMARY KEY(pk), KEY(d,e)
 ) ENGINE=InnoDB;
 
-INSERT INTO t2 VALUES
+INSERT INTO t2 (pk,d,e) VALUES
 (1,'x',1),(2,'d',2),(3,'r',3),(4,'f',4),(5,'y',5),
 (6,'u',6),(7,'m',7),(8,'k',8),(9,'o',9),(10,'w',1),
 (11,'m',2),(12,'q',3),(13,'m',4),(14,'d',5),
 (15,'g',6),(16,'x',7),(17,'f',8);
+update t2 set f=pk/2;
 
 analyze table t1,t2;
 
+--echo # Original query, changed because of new optimizations
 explain
 SELECT * FROM t1 WHERE b IN (
   SELECT d FROM t2, t1
   WHERE a = d AND ( pk < 2 OR d = 'z' )
 );
+
+explain
 SELECT * FROM t1 WHERE b IN (
   SELECT d FROM t2, t1
-  WHERE a = d AND ( pk < 2 OR d = 'z' )
+  WHERE a = d AND ( pk < 2 OR d = 'z' ) and f > 0
+);
+
+SELECT * FROM t1 WHERE b IN (
+  SELECT d FROM t2, t1
+  WHERE a = d AND ( pk < 2 OR d = 'z' ) and f > 0
 );
 
 DROP TABLE t1, t2;
@@ -1310,8 +1323,6 @@ SELECT * FROM t1 WHERE 9 IN ( SELECT b FROM t2 WHERE 1 IN ( SELECT MIN(c) FROM t
 SELECT * FROM t1 WHERE 9 IN ( SELECT b FROM t2 WHERE 1 IN ( SELECT MIN(c) FROM t3 ) );
 
 DROP TABLE t1,t2,t3;
-
---source include/have_innodb.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1,t2,t3,t4;

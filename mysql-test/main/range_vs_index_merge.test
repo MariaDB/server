@@ -659,7 +659,7 @@ let $cond =
 (Name='Lugansk' AND Country='UKR') OR          
 (Name='Caracas' AND Country='VEN') OR  
 (Name='Samara' AND Country='RUS') OR  
-(Name='Seattle' AND Country='USA'); 
+(Name='Seattle' AND Country='USA');
 
 eval
 EXPLAIN SELECT Name, Country, Population FROM City WHERE
@@ -714,6 +714,7 @@ SELECT * FROM City
 ORDER BY Population LIMIT 5;
 
 FLUSH STATUS;
+--sorted_result
 SELECT * FROM City
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
         AND (Population >= 100000 AND Population < 120000)
@@ -1174,9 +1175,9 @@ SELECT * FROM t1,t2,t3
 
 DROP TABLE t1,t2,t3;
 
-#
-# LP bug #823301: index merge sort union with possible index scan  
-#              
+--echo #
+--echo # LP bug #823301: index merge sort union with possible index scan
+--echo #
 
 CREATE TABLE t1 (
   a int, b int, c int, d int,
@@ -1192,12 +1193,14 @@ SET SESSION optimizer_switch='index_merge_sort_union=off';
 EXPLAIN
 SELECT * FROM t1 
   WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
+--sorted_result
 SELECT * FROM t1 
   WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 SET SESSION optimizer_switch='index_merge_sort_union=on';
 EXPLAIN
 SELECT * FROM t1 
   WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
+--sorted_result
 SELECT * FROM t1 
   WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 SET SESSION optimizer_switch=DEFAULT;
@@ -1320,12 +1323,11 @@ where
  Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
  Country='ITA' AND Name IN ('Napoli', 'Venezia');
 
-eval $q;
 eval explain $q;
-
+--sorted_result
+eval $q;
 
 DROP DATABASE world;
 
 #the following command must be the last one in the file
 set session optimizer_switch='index_merge_sort_intersection=default';
-

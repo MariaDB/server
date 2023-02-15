@@ -100,7 +100,6 @@ typedef my_bool (*my_get_one_option)(const struct my_option *, const char *, con
 typedef void *(*my_getopt_value)(const char *, uint, const struct my_option *,
                                  int *);
 
-
 extern char *disabled_my_option;
 extern char *autoset_my_option;
 extern my_bool my_getopt_print_errors;

@@ -42,6 +42,7 @@
                                        // RESOLVED_AGAINST_ALIAS, ...
 #include "sql_expression_cache.h"
 #include "sql_lex.h"                   // empty_clex_str
+#include "my_json_writer.h"            // for dbug_print_opt_trace()
 
 const String my_null_string("NULL", 4, default_charset_info);
 const String my_default_string("DEFAULT", 7, default_charset_info);
@@ -411,7 +412,7 @@ int Item::save_str_value_in_field(Field *field, String *result)
 
 
 Item::Item(THD *thd):
-  name(null_clex_str), orig_name(0), is_expensive_cache(-1)
+  name(null_clex_str), orig_name(null_clex_str), is_expensive_cache(-1)
 {
   DBUG_ASSERT(thd);
   base_flags= item_base_t::FIXED;
@@ -444,7 +445,7 @@ Item::Item(THD *thd):
 */
 
 Item::Item():
-  name(null_clex_str), orig_name(0), is_expensive_cache(-1)
+  name(null_clex_str), orig_name(null_clex_str), is_expensive_cache(-1)
 {
   DBUG_ASSERT(!mysqld_server_started);          // Created early
   base_flags= item_base_t::FIXED;
@@ -552,11 +553,8 @@ void Item::cleanup()
   DBUG_PRINT("enter", ("this: %p", this));
   marker= MARKER_UNUSED;
   join_tab_idx= MAX_TABLES;
-  if (orig_name)
-  {
-    name.str=    orig_name;
-    name.length= strlen(orig_name);
-  }
+  if (orig_name.str)
+    name= orig_name;
   DBUG_VOID_RETURN;
 }
 
@@ -6348,6 +6346,24 @@ Item_equal *Item_field::find_item_equal(COND_EQUAL *cond_equal)
 }
 
 
+/*
+  Check if field is is equal to current field or any of the fields in
+  item_equal
+*/
+
+bool Item_field::contains(Field *field_arg)
+{
+  if (field == field_arg)
+    return 1;
+  /*
+    Check if there is a multiple equality that allows to infer that field
+    (see also: compute_part_of_sort_key_for_equals)
+  */
+  if (item_equal && item_equal->contains(field_arg))
+    return 1;
+  return 0;
+}
+
 /**
   Set a pointer to the multiple equality the field reference belongs to
   (if any).
@@ -10871,6 +10887,29 @@ const char *dbug_print_item(Item *item)
   else
     return "Couldn't fit into buffer";
 }
+
+
+/*
+  Return the optimizer trace collected so far for the current thread.
+*/
+
+const char *dbug_print_opt_trace()
+{
+  if (current_thd)
+  {
+    if (current_thd->opt_trace.is_started())
+    {
+      String *s= const_cast<String *>(current_thd->opt_trace
+                    .get_current_json()->output.get_string());
+      return s->c_ptr();
+    }
+    else
+      return "Trace empty";
+  }
+  else
+    return "No Thread";
+}
+
 
 const char *dbug_print_select(SELECT_LEX *sl)
 {

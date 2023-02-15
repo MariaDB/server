@@ -6575,7 +6575,7 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
                                                   RANGE_SEQ_IF *seq,
                                                   void *seq_init_param,
                                                   uint n_ranges, uint *bufsz,
-                                                  uint *mrr_mode,
+                                                  uint *mrr_mode, ha_rows limit,
                                                   Cost_estimate *cost)
 {
   int error;
@@ -6629,14 +6629,14 @@ ha_rows ha_partition::multi_range_read_info_const(uint keyno,
       ha_rows tmp_rows;
       uint tmp_mrr_mode;
       m_mrr_buffer_size[i]= 0;
-      part_cost.reset();
+      part_cost.reset(*file);
       tmp_mrr_mode= *mrr_mode;
       tmp_rows= (*file)->
         multi_range_read_info_const(keyno, &m_part_seq_if,
                                     &m_partition_part_key_multi_range_hld[i],
                                     m_part_mrr_range_length[i],
                                     &m_mrr_buffer_size[i],
-                                    &tmp_mrr_mode, &part_cost);
+                                    &tmp_mrr_mode, limit, &part_cost);
       if (tmp_rows == HA_POS_ERROR)
       {
         m_part_spec= save_part_spec;
@@ -6680,7 +6680,7 @@ ha_rows ha_partition::multi_range_read_info(uint keyno, uint n_ranges,
     {
       ha_rows tmp_rows;
       m_mrr_buffer_size[i]= 0;
-      part_cost.reset();
+      part_cost.reset(*file);
       if ((tmp_rows= (*file)->multi_range_read_info(keyno, n_ranges, keys,
                                                     key_parts,
                                                     &m_mrr_buffer_size[i],
@@ -9737,16 +9737,28 @@ uint ha_partition::get_biggest_used_partition(uint *part_index)
     time for scan
 */
 
-double ha_partition::scan_time()
+IO_AND_CPU_COST ha_partition::scan_time()
 {
-  double scan_time= 0;
+  IO_AND_CPU_COST scan_time= {0,0};
   uint i;
   DBUG_ENTER("ha_partition::scan_time");
 
   for (i= bitmap_get_first_set(&m_part_info->read_partitions);
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
-    scan_time+= m_file[i]->scan_time();
+  {
+    IO_AND_CPU_COST cost= m_file[i]->scan_time();
+    scan_time.io+=  cost.io;
+    scan_time.cpu+= cost.cpu;
+  }
+  if (m_tot_parts)
+  {
+    /*
+      Add TABLE_SCAN_SETUP_COST for partitions to make cost similar to
+      in ha_scan_time()
+    */
+    scan_time.cpu+= TABLE_SCAN_SETUP_COST * (m_tot_parts - 1);
+  }
   DBUG_RETURN(scan_time);
 }
 
@@ -9760,31 +9772,75 @@ double ha_partition::scan_time()
   @return time for scanning index inx
 */
 
-double ha_partition::key_scan_time(uint inx)
+IO_AND_CPU_COST ha_partition::key_scan_time(uint inx, ha_rows rows)
 {
-  double scan_time= 0;
+  IO_AND_CPU_COST scan_time= {0,0};
   uint i;
+  uint partitions= bitmap_bits_set(&m_part_info->read_partitions);
+  ha_rows rows_per_part;
   DBUG_ENTER("ha_partition::key_scan_time");
+
+  if (partitions == 0)
+    DBUG_RETURN(scan_time);
+  set_if_bigger(rows, 1);
+  rows_per_part= (rows + partitions - 1)/partitions;
+
   for (i= bitmap_get_first_set(&m_part_info->read_partitions);
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
-    scan_time+= m_file[i]->key_scan_time(inx);
+  {
+    IO_AND_CPU_COST cost= m_file[i]->key_scan_time(inx, rows_per_part);
+    scan_time.io+=  cost.io;
+    scan_time.cpu+= cost.cpu;
+  }
   DBUG_RETURN(scan_time);
 }
 
 
-double ha_partition::keyread_time(uint inx, uint ranges, ha_rows rows)
+IO_AND_CPU_COST ha_partition::keyread_time(uint inx, ulong ranges, ha_rows rows,
+                                           ulonglong blocks)
 {
-  double read_time= 0;
+  IO_AND_CPU_COST read_time= {0,0};
   uint i;
+  uint partitions= bitmap_bits_set(&m_part_info->read_partitions);
   DBUG_ENTER("ha_partition::keyread_time");
-  if (!ranges)
-    DBUG_RETURN(handler::keyread_time(inx, ranges, rows));
+  if (partitions == 0)
+    DBUG_RETURN(read_time);
+
+  ha_rows rows_per_part= (rows + partitions - 1)/partitions;
   for (i= bitmap_get_first_set(&m_part_info->read_partitions);
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
-    read_time+= m_file[i]->keyread_time(inx, ranges, rows);
+  {
+    IO_AND_CPU_COST cost= m_file[i]->keyread_time(inx, ranges, rows_per_part,
+                                                  blocks);
+    read_time.io+= cost.io;
+    read_time.cpu+= cost.cpu;
+  }
+  /* Add that we have to do a key lookup for all ranges in all partitions */
+  read_time.cpu= (partitions-1) * ranges * KEY_LOOKUP_COST;
   DBUG_RETURN(read_time);
+}
+
+
+IO_AND_CPU_COST ha_partition::rnd_pos_time(ha_rows rows)
+{
+  IO_AND_CPU_COST read_time= {0,0};
+  uint i;
+  uint partitions= bitmap_bits_set(&m_part_info->read_partitions);
+  if (partitions == 0)
+    return read_time;
+
+  ha_rows rows_per_part= (rows + partitions - 1)/partitions;
+  for (i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+  {
+    IO_AND_CPU_COST cost= m_file[i]->rnd_pos_time(rows_per_part);
+    read_time.io+=  cost.io;
+    read_time.cpu+= cost.cpu;
+  }
+  return read_time;
 }
 
 
@@ -9844,6 +9900,8 @@ ha_rows ha_partition::records_in_range(uint inx, const key_range *min_key,
     if (estimated_rows && checked_rows &&
         checked_rows >= min_rows_to_check)
     {
+      /* We cannot use page ranges when there is more than one partion */
+      *pages= unused_page_range;
       DBUG_PRINT("info",
                  ("records_in_range(inx %u): %lu (%lu * %lu / %lu)",
                   inx,
@@ -9857,6 +9915,8 @@ ha_rows ha_partition::records_in_range(uint inx, const key_range *min_key,
   DBUG_PRINT("info", ("records_in_range(inx %u): %lu",
                       inx,
                       (ulong) estimated_rows));
+  /* We cannot use page ranges when there is more than one partion */
+  *pages= unused_page_range;
   DBUG_RETURN(estimated_rows);
 }
 
@@ -9884,33 +9944,6 @@ ha_rows ha_partition::estimate_rows_upper_bound()
     }
   } while (*(++file));
   DBUG_RETURN(tot_rows);
-}
-
-
-/*
-  Get time to read
-
-  SYNOPSIS
-    read_time()
-    index                Index number used
-    ranges               Number of ranges
-    rows                 Number of rows
-
-  RETURN VALUE
-    time for read
-
-  DESCRIPTION
-    This will be optimised later to include whether or not the index can
-    be used with partitioning. To achieve we need to add another parameter
-    that specifies how many of the index fields that are bound in the ranges.
-    Possibly added as a new call to handlers.
-*/
-
-double ha_partition::read_time(uint index, uint ranges, ha_rows rows)
-{
-  DBUG_ENTER("ha_partition::read_time");
-
-  DBUG_RETURN(get_open_file_sample()->read_time(index, ranges, rows));
 }
 
 
@@ -12134,6 +12167,38 @@ ha_partition::can_convert_nocopy(const Field &field,
       return false;
   }
   return true;
+}
+
+/*
+  Get table costs for the current statement that should be stored in
+  handler->cost variables.
+
+  When we want to support many different table handlers, we should set
+  m_file[i]->costs to point to an unique cost structure per open
+  instance and call something similar as
+  TABLE_SHARE::update_optimizer_costs(handlerton *hton) and
+  handler::update_optimizer_costs(&costs) on it.
+*/
+
+
+void ha_partition::set_optimizer_costs(THD *thd)
+{
+  handler::set_optimizer_costs(thd);
+  for (uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->read_partitions, i))
+    m_file[i]->set_optimizer_costs(thd);
+}
+
+/*
+  Get unique table costs for the first instance of the handler and store
+  in table->share
+*/
+
+void ha_partition::update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  uint i= bitmap_get_first_set(&m_part_info->read_partitions);
+  m_file[i]->update_optimizer_costs(costs);
 }
 
 struct st_mysql_storage_engine partition_storage_engine=

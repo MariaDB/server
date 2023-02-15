@@ -593,6 +593,9 @@ create table t1 ( a tinytext, b char(1), index idx (a(1),b) );
 insert into t1 values (null,''), (null,'');
 explain select count(*) from t1 where a is null;
 select count(*) from t1 where a is null;
+insert into t1 values (1,''), (2,'');
+explain select count(*) from t1 where a is null;
+set statement optimizer_scan_setup_cost= 0 for explain select count(*) from t1 where a is null;
 drop table t1;
 
 #
@@ -1676,6 +1679,9 @@ DROP TABLE t1, t2, t3;
 --echo #
 --echo # BUG#51307 - widespread corruption with partitions and insert...select
 --echo #
+
+call mtr.add_suppression("Enabling keys got errno 12 on test.t1, retrying");
+
 CREATE TABLE t1(a CHAR(255), KEY(a));
 SELECT * FROM t1, t1 AS a1;
 SET myisam_sort_buffer_size=4;
@@ -1909,4 +1915,39 @@ drop table t;
 
 --echo #
 --echo # End of 10.8 tests
+--echo #
+
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY(pk), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,NULL),(2,NULL),(3,1),(4,5);
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='index_merge_sort_intersection=on';
+SELECT pk FROM t1 WHERE pk > 2 AND a IS NULL;
+SET @@optimizer_switch= @save_optimizer_switch;
+drop table t1;
+
+--echo #
+--echo # MDEV-30104 Server crashes in handler_rowid_filter_check upon ANALYZE TABLE
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2); # Optional, fails either way
+
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2); # Optional, fails either way
+
+CREATE TABLE t4 (pk INT, f CHAR(8), PRIMARY KEY(pk), KEY(f)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,'o'),(2,'x');
+
+ANALYZE TABLE t1, t2, t3, t4 PERSISTENT FOR ALL; # Optional, fails either way
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON 1) ON 2 IN (SELECT pk FROM t4 WHERE f < 's');
+
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+
+DROP TABLE t1, t2, t3, t4;
+
+--echo #
+--echo # End of 11.0 tests
 --echo #

@@ -906,6 +906,8 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     */
     thd->thread_stack= (char*) &thd;
     thd->store_globals();
+    thd->set_query_inner((char*) STRING_WITH_LEN("intern:Events::init"),
+                         default_charset_info);
     /*
       Set current time for the thread that handles events.
       Current time is stored in data member start_time of THD class.

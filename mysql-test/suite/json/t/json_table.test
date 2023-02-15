@@ -69,6 +69,7 @@ insert into t1 select * from t1;
 
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='firstmatch=off';
+--sorted_result
 select * from 
   json_table('[{"color": "blue", "price": 50},
                      {"color": "red", "price": 100}]',
@@ -144,6 +145,7 @@ create view v2 as select * from   json_table('[{"co\\\\lor": "blue", "price": 50
 select * from v2;
 drop view v2;
 
+--source include/explain-no-costs.inc
 explain format=json select * from
   json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
 explain select * from

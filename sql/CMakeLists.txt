@@ -175,6 +175,7 @@ SET (SQL_SOURCE
                sql_tvc.cc sql_tvc.h
                opt_split.cc
                rowid_filter.cc rowid_filter.h
+               optimizer_costs.h optimizer_defaults.h
                opt_trace.cc
                table_cache.cc encryption.cc temporary_tables.cc
                json_table.cc

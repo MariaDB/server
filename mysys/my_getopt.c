@@ -897,7 +897,9 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       goto ret;
     };
   }
+
   validate_value(opts->name, argument, option_file);
+
   DBUG_RETURN(0);
 
 ret:

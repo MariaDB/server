@@ -353,6 +353,14 @@ typedef struct st_dynamic_array
   myf malloc_flags;
 } DYNAMIC_ARRAY;
 
+
+typedef struct st_dynamic_array_append
+{
+  DYNAMIC_ARRAY *array;
+  uchar *pos, *end;
+} DYNAMIC_ARRAY_APPEND;
+
+
 typedef struct st_my_tmpdir
 {
   DYNAMIC_ARRAY full_list;
@@ -782,7 +790,7 @@ extern int flush_write_cache(RECORD_CACHE *info);
 extern void handle_recived_signals(void);
 
 extern sig_handler my_set_alarm_variable(int signo);
-extern my_bool radixsort_is_appliccable(uint n_items, size_t size_of_element);
+extern my_bool radixsort_is_applicable(uint n_items, size_t size_of_element);
 extern void my_string_ptr_sort(uchar *base,uint items,size_t size);
 extern void radixsort_for_str_ptr(uchar* base[], uint number_of_elements,
 				  size_t size_of_element,uchar *buffer[]);
@@ -856,6 +864,10 @@ extern void freeze_size(DYNAMIC_ARRAY *array);
 #define push_dynamic(A,B) insert_dynamic((A),(B))
 #define reset_dynamic(array) ((array)->elements= 0)
 #define sort_dynamic(A,cmp) my_qsort((A)->buffer, (A)->elements, (A)->size_of_element, (cmp))
+extern void init_append_dynamic(DYNAMIC_ARRAY_APPEND *append,
+                                DYNAMIC_ARRAY *array);
+extern my_bool append_dynamic(DYNAMIC_ARRAY_APPEND *append,
+                              const void * element);
 
 extern my_bool init_dynamic_string(DYNAMIC_STRING *str, const char *init_str,
 				   size_t init_alloc,size_t alloc_increment);

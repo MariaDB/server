@@ -2062,8 +2062,6 @@ $$
 CALL p1.p1();
 @a
 11
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1.p1();
 @a
 12
@@ -2095,8 +2093,6 @@ BEGIN
 SELECT MAX(a) FROM t1 INTO @a;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1.p1();
 @a
 11
@@ -2130,8 +2126,6 @@ BEGIN
 SELECT 1 FROM t1 INTO @a;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1.p1();
 ERROR 42S02: Table 'test.t1' doesn't exist
 SELECT p1.f1();
@@ -2690,9 +2684,6 @@ SELECT * FROM t1 INTO b;
 SELECT b.a, b.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1.p1;
 b.a	b.b
 10	b
