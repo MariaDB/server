@@ -224,7 +224,7 @@ SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "MariaDB-client >= 10.6.1")
 
 IF(WITH_WSREP)
-  SETA(CPACK_RPM_server_PACKAGE_REQUIRES
+  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS
     "galera-4" "rsync" "lsof" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
 ENDIF()
