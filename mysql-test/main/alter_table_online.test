@@ -1,5 +1,6 @@
 --source include/binlog_combinations.inc
 --source include/have_innodb.inc
+--source include/not_embedded.inc
 
 --echo #
 --echo # alter ignore cannot be done online
