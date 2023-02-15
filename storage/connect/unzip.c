@@ -379,6 +379,10 @@ extern int ZEXPORT unzStringFileNameCompare (const char*  fileName1,
 #define BUFREADCOMMENT (0x400)
 #endif
 
+#ifndef CENTRALDIRINVALID
+#define CENTRALDIRINVALID ((ZPOS64_T)(-1))
+#endif
+
 /*
   Locate the Central directory of a zipfile (at the end, just before
     the global comment)
@@ -388,10 +392,10 @@ local ZPOS64_T unz64local_SearchCentralDir(const zlib_filefunc64_32_def* pzlib_f
     ZPOS64_T uSizeFile;
     ZPOS64_T uBackRead;
     ZPOS64_T uMaxBack=0xffff; /* maximum size of global comment */
-    ZPOS64_T uPosFound=0;
+    ZPOS64_T uPosFound=CENTRALDIRINVALID;
 
     if (ZSEEK64(*pzlib_filefunc_def,filestream,0,ZLIB_FILEFUNC_SEEK_END) != 0)
-        return 0;
+        return CENTRALDIRINVALID;
 
 
     uSizeFile = ZTELL64(*pzlib_filefunc_def,filestream);
@@ -401,7 +405,7 @@ local ZPOS64_T unz64local_SearchCentralDir(const zlib_filefunc64_32_def* pzlib_f
 
     buf = (unsigned char*)ALLOC(BUFREADCOMMENT+4);
     if (buf==NULL)
-        return 0;
+        return CENTRALDIRINVALID;
 
     uBackRead = 4;
     while (uBackRead<uMaxBack)
@@ -431,7 +435,7 @@ local ZPOS64_T unz64local_SearchCentralDir(const zlib_filefunc64_32_def* pzlib_f
                 break;
             }
 
-        if (uPosFound!=0)
+        if (uPosFound!=CENTRALDIRINVALID)
             break;
     }
     TRYFREE(buf);
@@ -449,12 +453,12 @@ local ZPOS64_T unz64local_SearchCentralDir64(const zlib_filefunc64_32_def* pzlib
     ZPOS64_T uSizeFile;
     ZPOS64_T uBackRead;
     ZPOS64_T uMaxBack=0xffff; /* maximum size of global comment */
-    ZPOS64_T uPosFound=0;
+    ZPOS64_T uPosFound=CENTRALDIRINVALID;
     uLong uL;
                 ZPOS64_T relativeOffset;
 
     if (ZSEEK64(*pzlib_filefunc_def,filestream,0,ZLIB_FILEFUNC_SEEK_END) != 0)
-        return 0;
+        return CENTRALDIRINVALID;
 
 
     uSizeFile = ZTELL64(*pzlib_filefunc_def,filestream);
@@ -464,7 +468,7 @@ local ZPOS64_T unz64local_SearchCentralDir64(const zlib_filefunc64_32_def* pzlib
 
     buf = (unsigned char*)ALLOC(BUFREADCOMMENT+4);
     if (buf==NULL)
-        return 0;
+        return CENTRALDIRINVALID;
 
     uBackRead = 4;
     while (uBackRead<uMaxBack)
@@ -494,47 +498,47 @@ local ZPOS64_T unz64local_SearchCentralDir64(const zlib_filefunc64_32_def* pzlib
                 break;
             }
 
-        if (uPosFound!=0)
+        if (uPosFound!=CENTRALDIRINVALID)
             break;
     }
     TRYFREE(buf);
-    if (uPosFound == 0)
-        return 0;
+    if (uPosFound == CENTRALDIRINVALID)
+        return CENTRALDIRINVALID;
 
     /* Zip64 end of central directory locator */
     if (ZSEEK64(*pzlib_filefunc_def,filestream, uPosFound,ZLIB_FILEFUNC_SEEK_SET)!=0)
-        return 0;
+        return CENTRALDIRINVALID;
 
     /* the signature, already checked */
     if (unz64local_getLong(pzlib_filefunc_def,filestream,&uL)!=UNZ_OK)
-        return 0;
+        return CENTRALDIRINVALID;
 
     /* number of the disk with the start of the zip64 end of  central directory */
     if (unz64local_getLong(pzlib_filefunc_def,filestream,&uL)!=UNZ_OK)
-        return 0;
+        return CENTRALDIRINVALID;
     if (uL != 0)
-        return 0;
+        return CENTRALDIRINVALID;
 
     /* relative offset of the zip64 end of central directory record */
     if (unz64local_getLong64(pzlib_filefunc_def,filestream,&relativeOffset)!=UNZ_OK)
-        return 0;
+        return CENTRALDIRINVALID;
 
     /* total number of disks */
     if (unz64local_getLong(pzlib_filefunc_def,filestream,&uL)!=UNZ_OK)
-        return 0;
+        return CENTRALDIRINVALID;
     if (uL != 1)
-        return 0;
+        return CENTRALDIRINVALID;
 
     /* Goto end of central directory record */
     if (ZSEEK64(*pzlib_filefunc_def,filestream, relativeOffset,ZLIB_FILEFUNC_SEEK_SET)!=0)
-        return 0;
+        return CENTRALDIRINVALID;
 
      /* the signature */
     if (unz64local_getLong(pzlib_filefunc_def,filestream,&uL)!=UNZ_OK)
-        return 0;
+        return CENTRALDIRINVALID;
 
     if (uL != 0x06064b50)
-        return 0;
+        return CENTRALDIRINVALID;
 
     return relativeOffset;
 }
@@ -587,7 +591,7 @@ local unzFile unzOpenInternal(const void *path,
         return NULL;
 
     central_pos = unz64local_SearchCentralDir64(&us.z_filefunc,us.filestream);
-    if (central_pos)
+    if (central_pos!=CENTRALDIRINVALID)
     {
         uLong uS;
         ZPOS64_T uL64;
@@ -649,7 +653,7 @@ local unzFile unzOpenInternal(const void *path,
     else
     {
         central_pos = unz64local_SearchCentralDir(&us.z_filefunc,us.filestream);
-        if (central_pos==0)
+        if (central_pos==CENTRALDIRINVALID)
             err=UNZ_ERRNO;
 
         us.isZip64 = 0;
