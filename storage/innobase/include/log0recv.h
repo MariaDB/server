@@ -266,9 +266,15 @@ private:
   @param lsn     log sequence number of the shrink operation */
   inline void trim(const page_id_t page_id, lsn_t lsn);
 
-  /** Truncated undo tablespace size for which truncate has been logged
-  (indexed by page_id_t::space() - srv_undo_space_id_start), or 0 */
-  unsigned truncated_undo_spaces[127];
+  /** Undo tablespaces for which truncate has been logged
+  (indexed by page_id_t::space() - srv_undo_space_id_start) */
+  struct trunc
+  {
+    /** log sequence number of FILE_CREATE, or 0 if none */
+    lsn_t lsn;
+    /** truncated size of the tablespace, or 0 if not truncated */
+    unsigned pages;
+  } truncated_undo_spaces[127];
 
 public:
   /** The contents of the doublewrite buffer */
