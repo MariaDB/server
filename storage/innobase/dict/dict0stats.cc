@@ -632,52 +632,54 @@ dict_stats_table_clone_create(
 			continue;
 		}
 
-		dict_index_t*	idx;
+		dict_index_t*	idx = index->clone();
 
-		idx = (dict_index_t*) mem_heap_zalloc(heap, sizeof(*idx));
+		// idx = (dict_index_t*) mem_heap_zalloc(heap, sizeof(*idx));
 
-		MEM_CHECK_DEFINED(&index->id, sizeof(index->id));
-		idx->id = index->id;
+		// MEM_CHECK_DEFINED(&index->id, sizeof(index->id));
+		// idx->id = index->id;
 
-		idx->name = mem_heap_strdup(heap, index->name);
+		// idx->name = mem_heap_strdup(heap, index->name);
 
-		idx->table = t;
+		// idx->table = t;
 
-		idx->type = index->type;
+		// idx->type = index->type;
 
-		idx->to_be_dropped = 0;
+		// idx->to_be_dropped = 0;
 
-		idx->online_status = ONLINE_INDEX_COMPLETE;
-		idx->set_committed(true);
+		// idx->online_status = ONLINE_INDEX_COMPLETE;
+		// idx->set_committed(true);
 
-		idx->n_uniq = index->n_uniq;
+		// idx->n_uniq = index->n_uniq;
 
-		idx->fields = (dict_field_t*) mem_heap_zalloc(
-			heap, idx->n_uniq * sizeof(idx->fields[0]));
+		// idx->fields = (dict_field_t*) mem_heap_zalloc(
+		// 	heap, idx->n_uniq * sizeof(idx->fields[0]));
 
-		for (ulint i = 0; i < idx->n_uniq; i++) {
-			idx->fields[i].name = mem_heap_strdup(
-				heap, index->fields[i].name);
-		}
+		// for (ulint i = 0; i < idx->n_uniq; i++) {
+		// 	idx->fields[i].name = mem_heap_strdup(
+		// 		heap, index->fields[i].name);
+    //   idx->fields[i].col
+		// }
 
 		/* hook idx into t->indexes */
 		UT_LIST_ADD_LAST(t->indexes, idx);
 
-		idx->stat_n_diff_key_vals = (ib_uint64_t*) mem_heap_zalloc(
-			heap,
-			idx->n_uniq * sizeof(idx->stat_n_diff_key_vals[0]));
+		// idx->stat_n_diff_key_vals = (ib_uint64_t*) mem_heap_zalloc(
+		// 	heap,
+		// 	idx->n_uniq * sizeof(idx->stat_n_diff_key_vals[0]));
 
-		idx->stat_n_sample_sizes = (ib_uint64_t*) mem_heap_zalloc(
-			heap,
-			idx->n_uniq * sizeof(idx->stat_n_sample_sizes[0]));
+		// idx->stat_n_sample_sizes = (ib_uint64_t*) mem_heap_zalloc(
+		// 	heap,
+		// 	idx->n_uniq * sizeof(idx->stat_n_sample_sizes[0]));
 
-		idx->stat_n_non_null_key_vals = (ib_uint64_t*) mem_heap_zalloc(
-			heap,
-			idx->n_uniq * sizeof(idx->stat_n_non_null_key_vals[0]));
-		ut_d(idx->magic_n = DICT_INDEX_MAGIC_N);
+		// idx->stat_n_non_null_key_vals = (ib_uint64_t*) mem_heap_zalloc(
+		// 	heap,
+		// 	idx->n_uniq * sizeof(idx->stat_n_non_null_key_vals[0]));
+		// ut_d(idx->magic_n = DICT_INDEX_MAGIC_N);
 
-		idx->stat_defrag_n_page_split = 0;
-		idx->stat_defrag_n_pages_freed = 0;
+		// idx->stat_defrag_n_page_split = 0;
+		// idx->stat_defrag_n_pages_freed = 0;
+    // idx->cached = index->cached;
 	}
 
 	ut_d(t->magic_n = DICT_TABLE_MAGIC_N);

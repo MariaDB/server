@@ -80,6 +80,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "btr0defragment.h"
 #include "dict0crea.h"
 #include "dict0stats.h"
+#include "../dict/dict0stats.cc"
 #include "dict0stats_bg.h"
 #include "fil0fil.h"
 #include "fsp0fsp.h"
@@ -93,6 +94,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "os0file.h"
 #include "page0zip.h"
 #include "row0import.h"
+#include "../row/row0import.cc"
 #include "row0ins.h"
 #include "row0log.h"
 #include "row0merge.h"
@@ -5823,19 +5825,55 @@ ha_innobase::open(const char* name, int, uint)
 	THD*	thd = ha_thd();
 	dict_table_t* ib_table = open_dict_table(name, norm_name, is_part,
 						 DICT_ERR_IGNORE_FK_NOKEY);
+  // bool try_import = false;
 
 	DEBUG_SYNC(thd, "ib_open_after_dict_open");
 
 	if (NULL == ib_table) {
-
-		if (is_part) {
-			sql_print_error("Failed to open table %s.\n",
-					norm_name);
-		}
-		set_my_errno(ENOENT);
-
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-	}
+    /** check .cfg file exists. If exists then fetch the old table name */
+    table_name_t table_name(const_cast<char*>(name));
+    FILE* file = fopen(fil_make_filepath(fil_path_to_mysql_datadir,
+                                         table_name, CFG,
+                                         fil_path_to_mysql_datadir != nullptr),
+                       "rb");
+    row_import cfg;
+    if (!(row_import_read_meta_data(file, thd, cfg)))
+    {
+      /** open_dict_table using old table name */
+      const char *old_name = reinterpret_cast<const char *>(cfg.m_table_name);
+      char old_norm_name[FN_REFLEN];
+      normalize_table_name(old_norm_name, old_name);
+      dict_table_t *old_table = open_dict_table(old_name, old_norm_name, is_part, DICT_ERR_IGNORE_FK_NOKEY);
+      /** clone the table object and change the table name,*/
+      ib_table = dict_stats_table_clone_create(old_table);
+      for (dict_index_t* index = dict_table_get_first_index(ib_table);
+           index != NULL;
+           index = dict_table_get_next_index(index))
+      {
+        index->table= ib_table;
+      }
+      ib_table->n_cols = old_table->n_cols;
+      ib_table->name = table_name;
+      ib_table->flags2 |= DICT_TF2_DISCARDED;
+      ib_table->acquire();
+      ib_table->file_unreadable = true;
+      // try_import = true;
+      // m_prebuilt = row_create_prebuilt(ib_table, table->s->reclength);
+      // m_prebuilt->default_rec = table->s->default_values;
+      // ut_ad(m_prebuilt->default_rec);
+      // m_prebuilt->m_mysql_table = table;
+      // discard_or_import_tablespace(false);
+    } else
+    {
+      if (is_part)
+      {
+        sql_print_error("Failed to open table %s.\n", norm_name);
+      }
+      set_my_errno(ENOENT);
+      
+      DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+    }
+  }
 
 	size_t n_fields = omits_virtual_cols(*table_share)
 		? table_share->stored_fields : table_share->fields;
@@ -5909,6 +5947,9 @@ ha_innobase::open(const char* name, int, uint)
 	ut_ad(m_prebuilt->default_rec);
 
 	m_prebuilt->m_mysql_table = table;
+
+  // if (try_import)
+  //   discard_or_import_tablespace(false);
 
 	/* Looks like MySQL-3.23 sometimes has primary key number != 0 */
 	m_primary_key = table->s->primary_key;
