@@ -1,0 +1,184 @@
+--source include/have_innodb.inc
+
+let MYSQLD_DATADIR = `SELECT @@datadir`;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let $MYSQLD_DATADIR = `SELECT @@datadir`;
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+
+call mtr.add_suppression('.*Assertion.*failed.');
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t2` is set as discarded.');
+call mtr.add_suppression('InnoDB: ./test/t2.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd: Index for table 't2' is corrupt; try to repair it");
+
+--echo # Recovery from crashes
+--echo ## Creation of stub succeeds; server crashes; second import attempt succeeds
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+UNLOCK TABLES;
+SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+# Write file to make mysql-test-run.pl expect crash
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+ALTER TABLE t2 IMPORT TABLESPACE;
+--echo # Restart mysqld after the crash and reconnect.
+--source include/start_mysqld.inc
+ALTER TABLE t2 IMPORT TABLESPACE;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+
+--echo ## Creation of stub succeeds; server crashes; drop stub succeeds
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+UNLOCK TABLES;
+SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+# Write file to make mysql-test-run.pl expect crash
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+ALTER TABLE t2 IMPORT TABLESPACE;
+--echo # Restart mysqld after the crash and reconnect.
+--source include/start_mysqld.inc
+DROP TABLE t1, t2;
+
+--echo # Recovery from corruption
+--echo ## Recovery from corruption, with cfg
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+UNLOCK TABLES;
+
+--echo # corrupting the 0th page
+perl;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+my $file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+# Replace all 0 bits with 1 bits.
+$page =~ s/\x0/\x1/g;
+sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close FILE or die "close";
+EOF
+
+--error ER_INTERNAL_ERROR
+ALTER TABLE t2 IMPORT TABLESPACE;
+DROP TABLE t1, t2;
+
+
+--echo ## Recovery from corruption, without cfg
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+UNLOCK TABLES;
+
+--echo # corrupting the 0th page
+perl;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+my $file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+# Replace all 0 bits with 1 bits.
+$page =~ s/\x0/\x1/g;
+sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close FILE or die "close";
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t2 IMPORT TABLESPACE;
+DROP TABLE t1, t2;
+
+--echo #recovery from crash and corruption
+--echo ## Creation of stub succeeds; server crashes; ibd corrupted; second import attempt fails; drops table
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+UNLOCK TABLES;
+SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+# Write file to make mysql-test-run.pl expect crash
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+ALTER TABLE t2 IMPORT TABLESPACE;
+
+--echo # corrupting the 0th page
+perl;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+my $file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+# Replace all 0 bits with 1 bits.
+$page =~ s/\x0/\x1/g;
+sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close FILE or die "close";
+EOF
+
+--echo # Restart mysqld after the crash and reconnect.
+--source include/start_mysqld.inc
+
+--error ER_INTERNAL_ERROR
+ALTER TABLE t2 IMPORT TABLESPACE;
+DROP TABLE t1, t2;
+
+
+--echo ## Creation of stub without .cfg succeeds; server crashes; ibd corrupted; second import attempt fails; drops table
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+UNLOCK TABLES;
+SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+# Write file to make mysql-test-run.pl expect crash
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+ALTER TABLE t2 IMPORT TABLESPACE;
+
+--echo # corrupting the 0th page
+perl;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+my $file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+# Replace all 0 bits with 1 bits.
+$page =~ s/\x0/\x1/g;
+sysseek(FILE, 0, 0) || die "Unable to seek $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close FILE or die "close";
+EOF
+
+--echo # Restart mysqld after the crash and reconnect.
+--source include/start_mysqld.inc
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t2 IMPORT TABLESPACE;
+DROP TABLE t1, t2;
+
