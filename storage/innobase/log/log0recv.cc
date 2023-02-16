@@ -2429,7 +2429,8 @@ same_page:
           /* The entire undo tablespace will be reinitialized by
           innodb_undo_log_truncate=ON. Discard old log for all pages. */
           trim({space_id, 0}, recovered_lsn);
-          truncated_undo_spaces[space_id - srv_undo_space_id_start]= page_no;
+          truncated_undo_spaces[space_id - srv_undo_space_id_start]=
+            { recovered_lsn, page_no };
           if (undo_space_trunc)
             undo_space_trunc(space_id);
 #endif
@@ -3274,15 +3275,22 @@ void recv_sys_t::apply(bool last_batch)
 
     for (auto id= srv_undo_tablespaces_open; id--;)
     {
-      if (unsigned pages= truncated_undo_spaces[id])
+      const trunc& t= truncated_undo_spaces[id];
+      if (t.lsn)
       {
-        if (fil_space_t *space= fil_space_get(id + srv_undo_space_id_start))
+        /* The entire undo tablespace will be reinitialized by
+        innodb_undo_log_truncate=ON. Discard old log for all pages.
+        Even though we recv_sys_t::parse() already invoked trim(),
+        this will be needed in case recovery consists of multiple batches
+        (there was an invocation with !last_batch). */
+        trim({id + srv_undo_space_id_start, 0}, t.lsn);
+        if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
         {
           ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
           fil_node_t *file= UT_LIST_GET_FIRST(space->chain);
           ut_ad(file->is_open());
           os_file_truncate(file->name, file->handle,
-                           os_offset_t{pages} << srv_page_size_shift, true);
+                           os_offset_t{t.pages} << srv_page_size_shift, true);
         }
       }
     }
