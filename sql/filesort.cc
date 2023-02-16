@@ -159,7 +159,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   MYSQL_FILESORT_START(table->s->db.str, table->s->table_name.str);
   DEBUG_SYNC(thd, "filesort_start");
 
-  if (!(sort= new SORT_INFO))
+  if (!(sort= new SORT_INFO))    // Note that this is not automatically freed!
     return 0;
 
   if (subselect && subselect->filesort_buffer.is_allocated())
@@ -186,10 +186,6 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   sort->addon_buf=    param.addon_buf;
   sort->addon_field=  param.addon_field;
   sort->unpack=       unpack_addon_fields;
-  if (multi_byte_charset &&
-      !(param.tmp_buffer= (char*) my_malloc(param.sort_length,
-                                            MYF(MY_WME | MY_THREAD_SPECIFIC))))
-    goto err;
 
   if (select && select->quick)
     thd->inc_status_sort_range();
@@ -253,6 +249,9 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     }
     tracker->report_sort_buffer_size(sort->sort_buffer_size());
   }
+
+  if (param.tmp_buffer.alloc(param.sort_length))
+    goto err;
 
   if (open_cached_file(&buffpek_pointers,mysql_tmpdir,TEMP_PREFIX,
 		       DISK_BUFFER_SIZE, MYF(MY_WME)))
@@ -337,7 +336,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   error= 0;
 
   err:
-  my_free(param.tmp_buffer);
+  param.tmp_buffer.free();
   if (!subselect || !subselect->is_uncacheable())
   {
     sort->free_sort_buffer();
@@ -977,17 +976,15 @@ static inline void store_length(uchar *to, uint length, uint pack_length)
 void
 Type_handler_string_result::make_sort_key(uchar *to, Item *item,
                                           const SORT_FIELD_ATTR *sort_field,
-                                          Sort_param *param) const
+                                          String *tmp_buffer) const
 {
   CHARSET_INFO *cs= item->collation.collation;
   bool maybe_null= item->maybe_null;
 
   if (maybe_null)
     *to++= 1;
-  char *tmp_buffer= param->tmp_buffer ? param->tmp_buffer : (char*) to;
-  String tmp(tmp_buffer, param->tmp_buffer ? param->sort_length :
-                                             sort_field->length, cs);
-  String *res= item->str_result(&tmp);
+
+  Binary_string *res= item->str_result(tmp_buffer);
   if (!res)
   {
     if (maybe_null)
@@ -1015,11 +1012,11 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
     size_t tmp_length=
 #endif
     cs->coll->strnxfrm(cs, to, sort_field->length,
-                                   item->max_char_length() *
-                                   cs->strxfrm_multiply,
-                                   (uchar*) res->ptr(), res->length(),
-                                   MY_STRXFRM_PAD_WITH_SPACE |
-                                   MY_STRXFRM_PAD_TO_MAXLEN);
+                       item->max_char_length() *
+                       cs->strxfrm_multiply,
+                       (uchar*) res->ptr(), res->length(),
+                       MY_STRXFRM_PAD_WITH_SPACE |
+                       MY_STRXFRM_PAD_TO_MAXLEN);
     DBUG_ASSERT(tmp_length == sort_field->length);
   }
   else
@@ -1050,7 +1047,7 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
 void
 Type_handler_int_result::make_sort_key(uchar *to, Item *item,
                                        const SORT_FIELD_ATTR *sort_field,
-                                       Sort_param *param) const
+                                       String *tmp_buffer) const
 {
   longlong value= item->val_int_result();
   make_sort_key_longlong(to, item->maybe_null, item->null_value,
@@ -1061,7 +1058,7 @@ Type_handler_int_result::make_sort_key(uchar *to, Item *item,
 void
 Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_buffer) const
 {
   MYSQL_TIME buf;
   // This is a temporal type. No nanoseconds. Rounding mode is not important.
@@ -1083,7 +1080,7 @@ Type_handler_temporal_result::make_sort_key(uchar *to, Item *item,
 void
 Type_handler_timestamp_common::make_sort_key(uchar *to, Item *item,
                                              const SORT_FIELD_ATTR *sort_field,
-                                             Sort_param *param) const
+                                             String *tmp_buffer) const
 {
   THD *thd= current_thd;
   uint binlen= my_timestamp_binary_length(item->decimals);
@@ -1147,7 +1144,7 @@ Type_handler::make_sort_key_longlong(uchar *to,
 void
 Type_handler_decimal_result::make_sort_key(uchar *to, Item *item,
                                            const SORT_FIELD_ATTR *sort_field,
-                                           Sort_param *param) const
+                                           String *tmp_buffer) const
 {
   my_decimal dec_buf, *dec_val= item->val_decimal_result(&dec_buf);
   if (item->maybe_null)
@@ -1167,7 +1164,7 @@ Type_handler_decimal_result::make_sort_key(uchar *to, Item *item,
 void
 Type_handler_real_result::make_sort_key(uchar *to, Item *item,
                                         const SORT_FIELD_ATTR *sort_field,
-                                        Sort_param *param) const
+                                        String *tmp_buffer) const
 {
   double value= item->val_result();
   if (item->maybe_null)
@@ -1205,7 +1202,8 @@ static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos)
     else
     {						// Item
       sort_field->item->type_handler()->make_sort_key(to, sort_field->item,
-                                                      sort_field, param);
+                                                      sort_field,
+                                                      &param->tmp_buffer);
       if ((maybe_null= sort_field->item->maybe_null))
         to++;
     }

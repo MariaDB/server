@@ -3734,7 +3734,7 @@ public:
 
   virtual void make_sort_key(uchar *to, Item *item,
                              const SORT_FIELD_ATTR *sort_field,
-                             Sort_param *param) const= 0;
+                             String *tmp) const= 0;
   virtual void sortlength(THD *thd,
                           const Type_std_attributes *item,
                           SORT_FIELD_ATTR *attr) const= 0;
@@ -4120,7 +4120,7 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
-  void make_sort_key(uchar *, Item *, const SORT_FIELD_ATTR *, Sort_param *)
+  void make_sort_key(uchar *, Item *, const SORT_FIELD_ATTR *, String *tmp)
     const override
   {
     MY_ASSERT_UNREACHABLE();
@@ -4431,7 +4431,7 @@ public:
                                             const Item *outer,
                                             bool is_in_predicate) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const;
+                     String *tmp) const;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
@@ -4519,7 +4519,7 @@ public:
                                             bool is_in_predicate) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const;
+                     String *tmp) const;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
@@ -4745,7 +4745,7 @@ public:
                                             bool is_in_predicate) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const;
+                     String *tmp) const;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
@@ -4834,7 +4834,7 @@ public:
   Item_result cmp_type() const { return TIME_RESULT; }
   virtual ~Type_handler_temporal_result() = default;
   void make_sort_key(uchar *to, Item *item,  const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const;
+                     String *tmp) const;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
@@ -4921,7 +4921,7 @@ public:
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const;
+                     String *tmp) const;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
@@ -5953,7 +5953,7 @@ public:
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const;
+                     String *tmp) const;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;

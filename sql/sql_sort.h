@@ -19,6 +19,7 @@
 #include "my_base.h"                            /* ha_rows */
 #include <my_sys.h>                             /* qsort2_cmp */
 #include "queues.h"
+#include "sql_string.h"
 
 typedef struct st_buffpek BUFFPEK;
 
@@ -82,14 +83,20 @@ public:
 
   uchar *unique_buff;
   bool not_killable;
-  char* tmp_buffer;
+  String tmp_buffer;
   // The fields below are used only by Unique class.
   qsort2_cmp compare;
   BUFFPEK_COMPARE_CONTEXT cmp_context;
 
   Sort_param()
   {
-    memset(this, 0, sizeof(*this));
+    memset(reinterpret_cast<void*>(this), 0, sizeof(*this));
+    tmp_buffer.set_thread_specific();
+    /*
+      Fix memset() clearing the charset.
+      TODO: The constructor should be eventually rewritten not to use memset().
+    */
+    tmp_buffer.set_charset(&my_charset_bin);
   }
   void init_for_filesort(uint sortlen, TABLE *table,
                          ha_rows maxrows, bool sort_positions);

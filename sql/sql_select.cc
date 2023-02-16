@@ -244,10 +244,12 @@ static bool find_field_in_item_list (Field *field, void *data);
 static bool find_field_in_order_list (Field *field, void *data);
 int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
 static int remove_dup_with_compare(THD *thd, TABLE *entry, Field **field,
-				   Item *having);
+                                   SORT_FIELD *sortorder, ulong keylength,
+                                   Item *having);
 static int remove_dup_with_hash_index(THD *thd,TABLE *table,
-				      uint field_count, Field **first_field,
-				      ulong key_length,Item *having);
+                                      uint field_count, Field **first_field,
+                                      SORT_FIELD *sortorder,
+                                      ulong key_length,Item *having);
 static bool cmp_buffer_with_ref(THD *thd, TABLE *table, TABLE_REF *tab_ref);
 static bool setup_new_fields(THD *thd, List<Item> &fields,
 			     List<Item> &all_fields, ORDER *new_order);
@@ -24208,39 +24210,70 @@ JOIN_TAB::remove_duplicates()
 
 {
   bool error;
-  ulong keylength= 0;
-  uint field_count;
+  ulong keylength= 0, sort_field_keylength= 0;
+  uint field_count, item_count;
   List<Item> *fields= (this-1)->fields;
+  Item *item;
   THD *thd= join->thd;
-
+  SORT_FIELD *sortorder, *sorder;
   DBUG_ENTER("remove_duplicates");
 
   DBUG_ASSERT(join->aggr_tables > 0 && table->s->tmp_table != NO_TMP_TABLE);
   THD_STAGE_INFO(join->thd, stage_removing_duplicates);
 
-  //join->explain->ops_tracker.report_duplicate_removal();
-
-  table->reginfo.lock_type=TL_WRITE;
+  if (!(sortorder= (SORT_FIELD*) my_malloc((fields->elements+1) *
+                                           sizeof(SORT_FIELD),
+                                           MYF(MY_WME))))
+    DBUG_RETURN(TRUE);
 
   /* Calculate how many saved fields there is in list */
-  field_count=0;
-  List_iterator<Item> it(*fields);
-  Item *item;
-  while ((item=it++))
-  {
-    if (item->get_tmp_table_field() && ! item->const_item())
-      field_count++;
-  }
+  field_count= item_count= 0;
 
-  if (!field_count && !(join->select_options & OPTION_FOUND_ROWS) && !having) 
-  {                    // only const items with no OPTION_FOUND_ROWS
+  List_iterator<Item> it(*fields);
+  for (sorder= sortorder ; (item=it++) ;)
+  {
+    if (!item->const_item())
+    {
+      if (item->get_tmp_table_field())
+      {
+        /* Field is stored in temporary table, skipp */
+        field_count++;
+      }
+      else
+      {
+        /* Item is not stored in temporary table, remember it */
+        sorder->field= 0;                       // Safety, not used
+        sorder->item= item;
+        /* Calculate sorder->length */
+        item->type_handler()->sortlength(thd, item, sorder);
+        sorder++;
+        item_count++;
+      }
+    }
+  }
+  sorder->item= 0;                                 // End marker
+
+  if ((field_count + item_count == 0) && ! having &&
+      !(join->select_options & OPTION_FOUND_ROWS))
+  {
+    // only const items with no OPTION_FOUND_ROWS
     join->unit->select_limit_cnt= 1;		// Only send first row
+    my_free(sortorder);
     DBUG_RETURN(false);
   }
+
+  /*
+    The table contains first fields that will be in the output, then
+    temporary results pointed to by the fields list.
+    Example: SELECT DISTINCT sum(a), sum(d) > 2 FROM ...
+    In this case the temporary table contains sum(a), sum(d).
+  */
 
   Field **first_field=table->field+table->s->fields - field_count;
   for (Field **ptr=first_field; *ptr; ptr++)
     keylength+= (*ptr)->sort_length() + (*ptr)->maybe_null();
+  for (SORT_FIELD *ptr= sortorder ; ptr->item ; ptr++)
+    sort_field_keylength+= ptr->length + (ptr->item->maybe_null ? 1 : 0);
 
   /*
     Disable LIMIT ROWS EXAMINED in order to avoid interrupting prematurely
@@ -24251,29 +24284,78 @@ JOIN_TAB::remove_duplicates()
     thd->reset_killed();
 
   table->file->info(HA_STATUS_VARIABLE);
+  table->reginfo.lock_type=TL_WRITE;
+
   if (table->s->db_type() == heap_hton ||
       (!table->s->blob_fields &&
        ((ALIGN_SIZE(keylength) + HASH_OVERHEAD) * table->file->stats.records <
 	thd->variables.sortbuff_size)))
-    error=remove_dup_with_hash_index(join->thd, table, field_count, first_field,
-				     keylength, having);
+    error= remove_dup_with_hash_index(join->thd, table, field_count,
+                                      first_field, sortorder,
+                                      keylength + sort_field_keylength, having);
   else
-    error=remove_dup_with_compare(join->thd, table, first_field, having);
+    error=remove_dup_with_compare(join->thd, table, first_field, sortorder,
+                                  sort_field_keylength, having);
 
   if (join->select_lex != join->select_lex->master_unit()->fake_select_lex)
     thd->lex->set_limit_rows_examined();
   free_blobs(first_field);
+  my_free(sortorder);
   DBUG_RETURN(error);
 }
 
 
+/*
+  Create a sort/compare key from items
+
+  Key is of fixed length and binary comparable
+*/
+
+static uchar *make_sort_key(SORT_FIELD *sortorder, uchar *key_buffer,
+                            String *tmp_value)
+{
+  for (SORT_FIELD *ptr= sortorder ; ptr->item ; ptr++)
+  {
+    ptr->item->type_handler()->make_sort_key(key_buffer,
+                                             ptr->item,
+                                             ptr, tmp_value);
+    key_buffer+= (ptr->item->maybe_null ? 1 : 0) + ptr->length;
+  }
+  return key_buffer;
+}
+
+
+/*
+  Remove duplicates by comparing all rows with all other rows
+
+   @param thd          THD
+   @param table        Temporary table
+   @param first_field  Pointer to fields in temporary table that are part of
+                       distinct, ends with null pointer
+   @param sortorder    An array of Items part of distsinct. Terminated with an
+                       element N with sortorder[N]->item=NULL.
+   @param keylength    Length of key produced by sortorder
+   @param having       Having expression (NULL if no having)
+*/
+
 static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
+                                   SORT_FIELD *sortorder, ulong keylength,
 				   Item *having)
 {
   handler *file=table->file;
-  uchar *record=table->record[0];
+  uchar *record=table->record[0], *key_buffer, *key_buffer2;
+  char *tmp_buffer;
   int error;
+  String tmp_value;
   DBUG_ENTER("remove_dup_with_compare");
+
+  if (unlikely(!my_multi_malloc(MYF(MY_WME),
+                                &key_buffer, keylength,
+                                &key_buffer2, keylength,
+                                &tmp_buffer, keylength+1,
+                                NullS)))
+    DBUG_RETURN(1);
+  tmp_value.set(tmp_buffer, keylength, &my_charset_bin);
 
   if (unlikely(file->ha_rnd_init_with_error(1)))
     DBUG_RETURN(1);
@@ -24283,8 +24365,8 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
   {
     if (unlikely(thd->check_killed()))
     {
-      error=0;
-      goto err;
+      error= 1;
+      goto end;
     }
     if (unlikely(error))
     {
@@ -24303,9 +24385,10 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     {
       my_message(ER_OUTOFMEMORY, ER_THD(thd,ER_OUTOFMEMORY),
                  MYF(ME_FATAL));
-      error=0;
-      goto err;
+      error= 1;
+      goto end;
     }
+    make_sort_key(sortorder, key_buffer, &tmp_value);
     store_record(table,record[1]);
 
     /* Read through rest of file and mark duplicated rows deleted */
@@ -24318,7 +24401,10 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
 	  break;
 	goto err;
       }
-      if (compare_record(table, first_field) == 0)
+      make_sort_key(sortorder, key_buffer2, &tmp_value);
+      if (compare_record(table, first_field) == 0 &&
+          (!keylength ||
+           memcmp(key_buffer, key_buffer2, keylength) == 0))
       {
 	if (unlikely((error= file->ha_delete_row(record))))
 	  goto err;
@@ -24337,38 +24423,52 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
       goto err;
   }
 
+  error= 0;
+end:
+  my_free(key_buffer);
   file->extra(HA_EXTRA_NO_CACHE);
   (void) file->ha_rnd_end();
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
+
 err:
-  file->extra(HA_EXTRA_NO_CACHE);
-  (void) file->ha_rnd_end();
-  if (error)
-    file->print_error(error,MYF(0));
-  DBUG_RETURN(1);
+  DBUG_ASSERT(error);
+  file->print_error(error,MYF(0));
+  goto end;
 }
 
 
 /**
-  Generate a hash index for each row to quickly find duplicate rows.
+   Generate a hash index for each row to quickly find duplicate rows.
 
-  @note
-    Note that this will not work on tables with blobs!
+   @param thd          THD
+   @param table        Temporary table
+   @param field_count  Number of fields part of distinct
+   @param first_field  Pointer to fields in temporary table that are part of
+                       distinct, ends with null pointer
+   @param sortorder    An array of Items part of distsinct. Terminated with an
+                       element N with sortorder[N]->item=NULL.
+   @param keylength    Length of hash key
+   @param having       Having expression (NULL if no having)
+
+   @note
+   Note that this will not work on tables with blobs!
 */
 
 static int remove_dup_with_hash_index(THD *thd, TABLE *table,
 				      uint field_count,
 				      Field **first_field,
+                                      SORT_FIELD *sortorder,
 				      ulong key_length,
 				      Item *having)
 {
   uchar *key_buffer, *key_pos, *record=table->record[0];
+  char *tmp_buffer;
   int error;
   handler *file= table->file;
   ulong extra_length= ALIGN_SIZE(key_length)-key_length;
   uint *field_lengths, *field_length;
   HASH hash;
-  Field **ptr;
+  String tmp_value;
   DBUG_ENTER("remove_dup_with_hash_index");
 
   if (unlikely(!my_multi_malloc(MYF(MY_WME),
@@ -24376,11 +24476,14 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
                                 (uint) ((key_length + extra_length) *
                                         (long) file->stats.records),
                                 &field_lengths,
-                                (uint) (field_count*sizeof(*field_lengths)),
+                                (uint) (field_count * sizeof(*field_lengths)),
+                                &tmp_buffer, key_length+1,
                                 NullS)))
     DBUG_RETURN(1);
 
-  for (ptr= first_field, field_length=field_lengths ; *ptr ; ptr++)
+  tmp_value.set(tmp_buffer, key_length, &my_charset_bin);
+  field_length= field_lengths;
+  for (Field **ptr= first_field ; *ptr ; ptr++)
     (*field_length++)= (*ptr)->sort_length();
 
   if (unlikely(my_hash_init(&hash, &my_charset_bin,
@@ -24394,7 +24497,7 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
   if (unlikely((error= file->ha_rnd_init(1))))
     goto err;
 
-  key_pos=key_buffer;
+  key_pos= key_buffer;
   for (;;)
   {
     uchar *org_key_pos;
@@ -24419,11 +24522,14 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     /* copy fields to key buffer */
     org_key_pos= key_pos;
     field_length=field_lengths;
-    for (ptr= first_field ; *ptr ; ptr++)
+    for (Field **ptr= first_field ; *ptr ; ptr++)
     {
       (*ptr)->make_sort_key(key_pos, *field_length);
       key_pos+= (*ptr)->maybe_null() + *field_length++;
     }
+    /* Copy result fields not stored in table to key buffer */
+    key_pos= make_sort_key(sortorder, key_pos, &tmp_value);
+
     /* Check if it exists before */
     if (my_hash_search(&hash, org_key_pos, key_length))
     {

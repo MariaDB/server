@@ -1070,3 +1070,40 @@ UNION
 1
 drop table t1;
 End of 5.5 tests
+#
+# MDEV-20057 Distinct SUM on CROSS JOIN and grouped returns wrong result
+#
+create table t1 (c int, d int);
+insert into t1 values (5, 1), (0, 3);
+select distinct sum(distinct 1), sum(t1.d) > 2 from (t1 e join t1) group by t1.c;
+sum(distinct 1)	sum(t1.d) > 2
+1	1
+1	0
+select distinct sum(distinct 1), sum(t1.d) > 2, t1.c from (t1 e join t1) group by t1.c;
+sum(distinct 1)	sum(t1.d) > 2	c
+1	1	0
+1	0	5
+insert into t1 values (6,6);
+select distinct sum(distinct 1), sum(t1.d) > 5 from (t1 e join t1) group by t1.c;
+sum(distinct 1)	sum(t1.d) > 5
+1	1
+1	0
+select distinct sum(distinct 1), sum(t1.d) > 5, t1.c from (t1 e join t1) group by t1.c;
+sum(distinct 1)	sum(t1.d) > 5	c
+1	1	0
+1	0	5
+1	1	6
+set @@sort_buffer_size=1024;
+insert into t1 select -seq,-seq from seq_1_to_100;
+select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000 from (t1 e join t1) group by t1.c having t1.c > -2 ;
+sum(distinct 1)	sum(t1.d) > 2	length(group_concat(t1.d)) > 1000
+1	0	0
+1	1	0
+select distinct sum(distinct 1), sum(t1.d) > 2, length(group_concat(t1.d)) > 1000,t1.c from (t1 e join t1) group by t1.c having t1.c > -2;
+sum(distinct 1)	sum(t1.d) > 2	length(group_concat(t1.d)) > 1000	c
+1	0	0	-1
+1	1	0	0
+1	1	0	5
+1	1	0	6
+drop table t1;
+# End of 10.4 tests
