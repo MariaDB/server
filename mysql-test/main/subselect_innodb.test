@@ -594,7 +594,7 @@ select
       concat(id, '-', key1, '-', col1)
     FROM t2
     WHERE t2.key1 = t1.a
-    ORDER BY t2.key2 ASC LIMIT 1)
+    ORDER BY t2.key2 ASC LIMIT 1) as subq
 from 
   t1;
 
