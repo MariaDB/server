@@ -3512,7 +3512,7 @@ public:
   {
     return Sql_mode_dependency(0, field->value_depends_on_sql_mode());
   }
-  bool hash_not_null(Hasher *hasher)
+  bool hash_not_null(Hasher *hasher) override
   {
     if (field->is_null())
       return true;
