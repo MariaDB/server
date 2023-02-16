@@ -789,7 +789,7 @@ corrupted:
 		goto corrupted;
 	}
 
-	if (index->is_readable()) {
+	if (!(index->table->flags2 & DICT_TF2_DISCARDED) && index->is_readable()) {
 		index->set_modified(mtr);
 
 		node->page_no = btr_create(

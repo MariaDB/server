@@ -5823,10 +5823,33 @@ ha_innobase::open(const char* name, int, uint)
 	THD*	thd = ha_thd();
 	dict_table_t* ib_table = open_dict_table(name, norm_name, is_part,
 						 DICT_ERR_IGNORE_FK_NOKEY);
+  bool importing = false;
 
 	DEBUG_SYNC(thd, "ib_open_after_dict_open");
 
-	if (NULL == ib_table) {
+  if (NULL == ib_table)
+  {
+    HA_CREATE_INFO create_info;
+    create_info.init();
+    create_info.importing_tablespace = true;
+    trx_t *trx= innobase_trx_allocate(thd);
+    trx_start_for_ddl(trx);
+    lock_sys_tables(trx);
+    row_mysql_lock_data_dictionary(trx);
+    create(name, table, &create_info, true, trx);
+    // create(name, table, &create_info, false, trx);
+    trx->commit();
+    row_mysql_unlock_data_dictionary(trx);
+    // ib_table = open_dict_table(name, norm_name, is_part,
+    //                            DICT_ERR_IGNORE_FK_NOKEY);
+    ib_table = open_dict_table(name, norm_name, is_part,
+                               DICT_ERR_IGNORE_TABLESPACE);
+    ib_table->flags2 |= DICT_TF2_DISCARDED;
+    importing = true;
+    DEBUG_SYNC(thd, "ib_open_after_import_tablespace");
+  }
+
+  if (NULL == ib_table) {
 
 		if (is_part) {
 			sql_print_error("Failed to open table %s.\n",
@@ -5910,7 +5933,7 @@ ha_innobase::open(const char* name, int, uint)
 
 	m_prebuilt->m_mysql_table = table;
 
-	/* Looks like MySQL-3.23 sometimes has primary key number != 0 */
+  /* Looks like MySQL-3.23 sometimes has primary key number != 0 */
 	m_primary_key = table->s->primary_key;
 
 	key_used_on_scan = m_primary_key;
@@ -6025,6 +6048,13 @@ ha_innobase::open(const char* name, int, uint)
 
 	/* Index block size in InnoDB: used by MySQL in query optimization */
 	stats.block_size = static_cast<uint>(srv_page_size);
+
+  if (importing)
+  {
+		info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST
+		     | HA_STATUS_OPEN);
+    discard_or_import_tablespace(false);
+  }
 
 	const my_bool for_vc_purge = THDVAR(thd, background_thread);
 
@@ -11557,6 +11587,10 @@ index_bad:
 				(uint) m_create_info->key_block_size);
 		}
 	}
+
+  // If we are trying to import a tablespace, mark tablespace as discarded
+  if (m_create_info->importing_tablespace)
+    m_flags2 |= DICT_TF2_DISCARDED;
 
 	row_type = m_create_info->row_type;
 
