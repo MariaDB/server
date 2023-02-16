@@ -53,7 +53,7 @@ template <class Compare>
 struct Lex_cstring_with_compare : public Lex_cstring
 {
 public:
-  Lex_cstring_with_compare() {}
+  Lex_cstring_with_compare() = default;
   Lex_cstring_with_compare(const char *_str, size_t _len) :
     Lex_cstring(_str, _len)
   { }

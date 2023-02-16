@@ -1223,7 +1223,7 @@ public:
 	}
 
 	/** Destructor */
-	~rec_printer() override {}
+	~rec_printer() override = default;
 
 private:
 	/** Copy constructor */

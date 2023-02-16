@@ -142,7 +142,7 @@ public:
                                        Json_writer *writer, bool is_analyze,
                                        bool no_tmp_tbl);
   bool print_explain_json_cache(Json_writer *writer, bool is_analyze);
-  virtual ~Explain_node(){}
+  virtual ~Explain_node() = default;
 };
 
 
@@ -289,7 +289,7 @@ class Explain_aggr_node : public Sql_alloc
 {
 public:
   virtual enum_explain_aggr_node_type get_type()= 0;
-  virtual ~Explain_aggr_node() {}
+  virtual ~Explain_aggr_node() = default;
   Explain_aggr_node *child;
 };
 

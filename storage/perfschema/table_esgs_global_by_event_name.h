@@ -76,8 +76,7 @@ protected:
   table_esgs_global_by_event_name();
 
 public:
-  ~table_esgs_global_by_event_name()
-  {}
+  ~table_esgs_global_by_event_name() = default;
 
 protected:
   void make_row(PFS_stage_class *klass);

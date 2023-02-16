@@ -118,7 +118,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 */
 
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables);
-static void sql_kill(THD *thd, longlong id, killed_state state, killed_type type);
+static void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type);
 static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
 static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables);
 static bool execute_show_status(THD *, TABLE_LIST *);
@@ -5538,7 +5538,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                    MYF(0));
         goto error;
       }
-      sql_kill(thd, it->val_int(), lex->kill_signal, lex->kill_type);
+      sql_kill(thd, (my_thread_id) it->val_int(), lex->kill_signal, lex->kill_type);
     }
     else
       sql_kill_user(thd, get_current_user(thd, lex->users_list.head()),
@@ -9170,12 +9170,12 @@ THD *find_thread_by_id(longlong id, bool query_id)
 */
 
 uint
-kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type type)
+kill_one_thread(THD *thd, my_thread_id id, killed_state kill_signal, killed_type type)
 {
   THD *tmp;
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
-  DBUG_PRINT("enter", ("id: %lld  signal: %d", id, kill_signal));
+  DBUG_PRINT("enter", ("id: %lld  signal: %d", (long long) id, kill_signal));
   tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY);
   if (!tmp)
     DBUG_RETURN(error);
@@ -9348,7 +9348,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 */
 
 static
-void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
+void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
   uint error;
 #ifdef WITH_WSREP

@@ -122,7 +122,7 @@ class Rdb_mutex_factory : public rocksdb::TransactionDBMutexFactory {
  public:
   Rdb_mutex_factory(const Rdb_mutex_factory &) = delete;
   Rdb_mutex_factory &operator=(const Rdb_mutex_factory &) = delete;
-  Rdb_mutex_factory() {}
+  Rdb_mutex_factory() = default;
   /*
     Override parent class's virtual methods of interrest.
   */
@@ -137,7 +137,7 @@ class Rdb_mutex_factory : public rocksdb::TransactionDBMutexFactory {
     return std::make_shared<Rdb_cond_var>();
   }
 
-  virtual ~Rdb_mutex_factory() override {}
+  virtual ~Rdb_mutex_factory() override = default;
 };
 
 }  // namespace myrocks

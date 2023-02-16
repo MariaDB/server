@@ -1378,3 +1378,31 @@ a
 bar
 foo
 DROP TABLE t;
+#
+# MDEV-30324: Wrong result upon SELECT DISTINCT .. WITH TIES using index
+#
+CREATE TABLE t1 (a int, b char(3), KEY (a));
+INSERT INTO t1 VALUES (2,'foo'),(3,'bar'),(3,'bar'),(3,'zzz');
+EXPLAIN SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 1 ROWS WITH TIES;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	5	NULL	1	Using temporary
+SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 1 ROWS WITH TIES;
+a	b
+2	foo
+EXPLAIN SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 2 ROWS WITH TIES;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	5	NULL	2	Using temporary
+SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 2 ROWS WITH TIES;
+a	b
+2	foo
+3	bar
+3	zzz
+EXPLAIN SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 3 ROWS WITH TIES;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+SELECT DISTINCT a, b FROM t1 ORDER BY a FETCH FIRST 3 ROWS WITH TIES;
+a	b
+2	foo
+3	bar
+3	zzz
+DROP TABLE t1;

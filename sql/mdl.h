@@ -60,7 +60,7 @@ typedef unsigned short mdl_bitmap_t;
 class MDL_context_owner
 {
 public:
-  virtual ~MDL_context_owner() {}
+  virtual ~MDL_context_owner() = default;
 
   /**
     Enter a condition wait.
@@ -471,7 +471,7 @@ public:
   {
     mdl_key_init(namespace_arg, db_arg, name_arg);
   }
-  MDL_key() {} /* To use when part of MDL_request. */
+  MDL_key() = default; /* To use when part of MDL_request. */
 
   /**
     Get thread state name to be used in case when we have to
@@ -640,7 +640,7 @@ public:
 
   virtual bool inspect_edge(MDL_context *dest) = 0;
   virtual ~MDL_wait_for_graph_visitor();
-  MDL_wait_for_graph_visitor() {}
+  MDL_wait_for_graph_visitor() = default;
 };
 
 /**
@@ -799,7 +799,7 @@ private:
 class MDL_savepoint
 {
 public:
-  MDL_savepoint() {};
+  MDL_savepoint() = default;;
 
 private:
   MDL_savepoint(MDL_ticket *stmt_ticket, MDL_ticket *trans_ticket)

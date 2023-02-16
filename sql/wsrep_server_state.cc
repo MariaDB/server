@@ -51,8 +51,7 @@ Wsrep_server_state::Wsrep_server_state(const std::string& name,
   , m_service(*this)
 { }
 
-Wsrep_server_state::~Wsrep_server_state()
-{ }
+Wsrep_server_state::~Wsrep_server_state() = default;
 
 void Wsrep_server_state::init_once(const std::string& name,
                                    const std::string& incoming_address,

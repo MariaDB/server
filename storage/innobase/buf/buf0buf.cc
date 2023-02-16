@@ -1940,28 +1940,22 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
   buf_pool.page_hash.replace(chain, bpage, dpage);
 }
 
-/** Register a watch for a page identifier. The caller must hold an
-exclusive page hash latch. The *hash_lock may be released,
-relocated, and reacquired.
-@param id         page identifier
-@param chain      hash table chain with exclusively held page_hash
-@return a buffer pool block corresponding to id
-@retval nullptr   if the block was not present, and a watch was installed */
-inline buf_page_t *buf_pool_t::watch_set(const page_id_t id,
-                                         buf_pool_t::hash_chain &chain)
+buf_page_t *buf_pool_t::watch_set(const page_id_t id,
+                                  buf_pool_t::hash_chain &chain)
 {
   ut_ad(&chain == &page_hash.cell_get(id.fold()));
-  ut_ad(page_hash.lock_get(chain).is_write_locked());
+  page_hash.lock_get(chain).lock();
 
-retry:
-  if (buf_page_t *bpage= page_hash.get(id, chain))
+  buf_page_t *bpage= page_hash.get(id, chain);
+
+  if (bpage)
   {
-    if (!watch_is_sentinel(*bpage))
-      /* The page was loaded meanwhile. */
-      return bpage;
-    /* Add to an existing watch. */
+got_block:
     bpage->fix();
-    return nullptr;
+    if (watch_is_sentinel(*bpage))
+      bpage= nullptr;
+    page_hash.lock_get(chain).unlock();
+    return bpage;
   }
 
   page_hash.lock_get(chain).unlock();
@@ -1990,25 +1984,23 @@ retry:
     w->set_state(buf_page_t::UNFIXED + 1);
     w->id_= id;
 
-    buf_page_t *bpage= page_hash.get(id, chain);
+    page_hash.lock_get(chain).lock();
+    bpage= page_hash.get(id, chain);
     if (UNIV_LIKELY_NULL(bpage))
     {
       w->set_state(buf_page_t::NOT_USED);
-      page_hash.lock_get(chain).lock();
       mysql_mutex_unlock(&mutex);
-      goto retry;
+      goto got_block;
     }
 
-    page_hash.lock_get(chain).lock();
     ut_ad(w->state() == buf_page_t::UNFIXED + 1);
     buf_pool.page_hash.append(chain, w);
     mysql_mutex_unlock(&mutex);
+    page_hash.lock_get(chain).unlock();
     return nullptr;
   }
 
   ut_error;
-  mysql_mutex_unlock(&mutex);
-  return nullptr;
 }
 
 /** Stop watching whether a page has been read in.
@@ -2456,16 +2448,13 @@ loop:
 	case BUF_PEEK_IF_IN_POOL:
 		return nullptr;
 	case BUF_GET_IF_IN_POOL_OR_WATCH:
-		/* We cannot easily use a memory transaction here. */
-		hash_lock.lock();
+		/* Buffer-fixing inside watch_set() will prevent eviction */
 		block = reinterpret_cast<buf_block_t*>
 			(buf_pool.watch_set(page_id, chain));
-		/* buffer-fixing will prevent eviction */
-		state = block ? block->page.fix() : 0;
-		hash_lock.unlock();
 
 		if (block) {
-			goto got_block;
+			state = block->page.state();
+			goto got_block_fixed;
 		}
 
 		return nullptr;
@@ -2504,6 +2493,7 @@ loop:
 got_block:
 	ut_ad(!block->page.in_zip_hash);
 	state++;
+got_block_fixed:
 	ut_ad(state > buf_page_t::FREED);
 
 	if (state > buf_page_t::READ_FIX && state < buf_page_t::WRITE_FIX) {
@@ -2713,24 +2703,19 @@ re_evict:
 		const bool evicted = buf_LRU_free_page(&block->page, true);
 		space->release();
 
+		if (!evicted) {
+			block->fix();
+		}
+
+		mysql_mutex_unlock(&buf_pool.mutex);
+
 		if (evicted) {
-			page_hash_latch& hash_lock
-				= buf_pool.page_hash.lock_get(chain);
-			hash_lock.lock();
-			mysql_mutex_unlock(&buf_pool.mutex);
-			/* We may set the watch, as it would have
-			been set if the page were not in the
-			buffer pool in the first place. */
-			block= reinterpret_cast<buf_block_t*>(
-				mode == BUF_GET_IF_IN_POOL_OR_WATCH
-				? buf_pool.watch_set(page_id, chain)
-				: buf_pool.page_hash.get(page_id, chain));
-			hash_lock.unlock();
+			if (mode == BUF_GET_IF_IN_POOL_OR_WATCH) {
+				buf_pool.watch_set(page_id, chain);
+			}
 			return(NULL);
 		}
 
-		block->fix();
-		mysql_mutex_unlock(&buf_pool.mutex);
 		buf_flush_sync();
 
 		state = block->page.state();
@@ -3439,8 +3424,7 @@ or decrypt/decompress just failed.
 @retval	DB_SUCCESS		if page has been read and is not corrupted
 @retval	DB_PAGE_CORRUPTED	if page based on checksum check is corrupted
 @retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-@retval	DB_TABLESPACE_DELETED	if accessed tablespace is not found */
+after decryption normal page checksum does not match. */
 static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
                                       const fil_node_t &node)
 {
@@ -3497,7 +3481,8 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 @param node     data file
 @return whether the operation succeeded
 @retval DB_PAGE_CORRUPTED    if the checksum fails
-@retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
+@retval DB_DECRYPTION_FAILED if the page cannot be decrypted
+@retval DB_FAIL              if the page contains the wrong ID */
 dberr_t buf_page_t::read_complete(const fil_node_t &node)
 {
   const page_id_t expected_id{id()};

@@ -34763,6 +34763,11 @@ create_tailoring(struct charset_info_st *cs,
   {
     src_uca= &my_uca_v520;
     cs->caseinfo= &my_unicase_unicode520;
+    if (cs->mbminlen == 1 && cs->mbmaxlen >=3)
+    {
+      cs->caseup_multiply= 2;
+      cs->casedn_multiply= 2;
+    }
   }
   else if (rules.version == 1400)     /* Unicode-14.0.0 */
   {
@@ -36611,8 +36616,8 @@ struct charset_info_st my_charset_utf8mb3_myanmar_uca_ci=
     NULL,                /* state_map    */
     NULL,                /* ident_map    */
     8,                   /* strxfrm_multiply */
-    1,                   /* caseup_multiply  */
-    1,                   /* casedn_multiply  */
+    2,                   /* caseup_multiply  */
+    2,                   /* casedn_multiply  */
     1,                   /* mbminlen     */
     3,                   /* mbmaxlen     */
     9,                   /* min_sort_char */
@@ -36644,8 +36649,8 @@ struct charset_info_st my_charset_utf8mb3_unicode_520_ci=
     NULL,                /* state_map    */
     NULL,                /* ident_map    */
     8,                   /* strxfrm_multiply */
-    1,                   /* caseup_multiply  */
-    1,                   /* casedn_multiply  */
+    2,                   /* caseup_multiply  */
+    2,                   /* casedn_multiply  */
     1,                   /* mbminlen     */
     3,                   /* mbmaxlen     */
     9,                   /* min_sort_char */
@@ -36676,8 +36681,8 @@ struct charset_info_st my_charset_utf8mb3_thai_520_w2=
     NULL,                /* state_map    */
     NULL,                /* ident_map    */
     4,                   /* strxfrm_multiply */
-    1,                   /* caseup_multiply  */
-    1,                   /* casedn_multiply  */
+    2,                   /* caseup_multiply  */
+    2,                   /* casedn_multiply  */
     1,                   /* mbminlen     */
     3,                   /* mbmaxlen     */
     9,                   /* min_sort_char */
@@ -36774,8 +36779,8 @@ struct charset_info_st my_charset_utf8mb3_unicode_520_nopad_ci=
     NULL,                               /* state_map        */
     NULL,                               /* ident_map        */
     8,                                  /* strxfrm_multiply */
-    1,                                  /* caseup_multiply  */
-    1,                                  /* casedn_multiply  */
+    2,                                  /* caseup_multiply  */
+    2,                                  /* casedn_multiply  */
     1,                                  /* mbminlen         */
     3,                                  /* mbmaxlen         */
     9,                                  /* min_sort_char    */
@@ -37589,8 +37594,8 @@ struct charset_info_st my_charset_utf8mb4_myanmar_uca_ci=
     NULL,               /* state_map    */
     NULL,               /* ident_map    */
     8,                  /* strxfrm_multiply */
-    1,                  /* caseup_multiply  */
-    1,                  /* casedn_multiply  */
+    2,                  /* caseup_multiply  */
+    2,                  /* casedn_multiply  */
     1,                  /* mbminlen     */
     4,                  /* mbmaxlen     */
     9,                  /* min_sort_char */
@@ -37621,8 +37626,8 @@ struct charset_info_st my_charset_utf8mb4_thai_520_w2=
     NULL,                /* state_map    */
     NULL,                /* ident_map    */
     4,                   /* strxfrm_multiply */
-    1,                   /* caseup_multiply  */
-    1,                   /* casedn_multiply  */
+    2,                   /* caseup_multiply  */
+    2,                   /* casedn_multiply  */
     1,                   /* mbminlen     */
     4,                   /* mbmaxlen     */
     9,                   /* min_sort_char */
@@ -37653,8 +37658,8 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_ci=
     NULL,                /* state_map    */
     NULL,                /* ident_map    */
     8,                   /* strxfrm_multiply */
-    1,                   /* caseup_multiply  */
-    1,                   /* casedn_multiply  */
+    2,                   /* caseup_multiply  */
+    2,                   /* casedn_multiply  */
     1,                   /* mbminlen     */
     4,                   /* mbmaxlen     */
     9,                   /* min_sort_char */
@@ -37752,8 +37757,8 @@ struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci=
     NULL,                           /* state_map        */
     NULL,                           /* ident_map        */
     8,                              /* strxfrm_multiply */
-    1,                              /* caseup_multiply  */
-    1,                              /* casedn_multiply  */
+    2,                              /* caseup_multiply  */
+    2,                              /* casedn_multiply  */
     1,                              /* mbminlen         */
     4,                              /* mbmaxlen         */
     9,                              /* min_sort_char    */

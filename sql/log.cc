@@ -215,7 +215,7 @@ public:
     m_message[0]= '\0';
   }
 
-  virtual ~Silence_log_table_errors() {}
+  virtual ~Silence_log_table_errors() = default;
 
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
@@ -772,14 +772,10 @@ end:
 }
 
 
-Log_to_csv_event_handler::Log_to_csv_event_handler()
-{
-}
+Log_to_csv_event_handler::Log_to_csv_event_handler() = default;
 
 
-Log_to_csv_event_handler::~Log_to_csv_event_handler()
-{
-}
+Log_to_csv_event_handler::~Log_to_csv_event_handler() = default;
 
 
 void Log_to_csv_event_handler::cleanup()

@@ -781,7 +781,8 @@ public:
   @param node     data file
   @return whether the operation succeeded
   @retval DB_PAGE_CORRUPTED    if the checksum fails
-  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
+  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted
+  @retval DB_FAIL              if the page contains the wrong ID */
   dberr_t read_complete(const fil_node_t &node);
 
   /** Note that a block is no longer dirty, while not removing
@@ -1043,7 +1044,7 @@ even after we release the buffer pool mutex. */
 class HazardPointer
 {
 public:
-  virtual ~HazardPointer() {}
+  virtual ~HazardPointer() = default;
 
   /** @return current value */
   buf_page_t *get() const { mysql_mutex_assert_owner(m_mutex); return m_hp; }
@@ -1082,16 +1083,15 @@ protected:
 class FlushHp : public HazardPointer
 {
 public:
-  ~FlushHp() override {}
+  ~FlushHp() override = default;
 
   /** Adjust the value of hp. This happens when some
   other thread working on the same list attempts to
   remove the hp from the list.
   @param bpage  buffer block to be compared */
+  MY_ATTRIBUTE((nonnull))
   void adjust(const buf_page_t *bpage) override
   {
-    ut_ad(bpage != NULL);
-
     /* We only support reverse traversal for now. */
     if (is_hp(bpage))
       m_hp= UT_LIST_GET_PREV(list, m_hp);
@@ -1103,15 +1103,15 @@ public:
 /** Class implementing buf_pool.LRU hazard pointer */
 class LRUHp : public HazardPointer {
 public:
-  ~LRUHp() override {}
+  ~LRUHp() override = default;
 
   /** Adjust the value of hp. This happens when some
   other thread working on the same list attempts to
   remove the hp from the list.
   @param bpage  buffer block to be compared */
+  MY_ATTRIBUTE((nonnull))
   void adjust(const buf_page_t *bpage) override
   {
-    ut_ad(bpage);
     /** We only support reverse traversal for now. */
     if (is_hp(bpage))
       m_hp= UT_LIST_GET_PREV(LRU, m_hp);
@@ -1126,8 +1126,7 @@ itr in that position and the other thread can start scan from
 there */
 class LRUItr : public LRUHp {
 public:
-  LRUItr() : LRUHp() {}
-  ~LRUItr() override {}
+  ~LRUItr() override = default;
 
   /** Select from where to start a scan. If we have scanned
   too deep into the LRU list it resets the value to the tail
@@ -1479,14 +1478,12 @@ public:
     return !watch_is_sentinel(*page_hash.get(id, chain));
   }
 
-  /** Register a watch for a page identifier. The caller must hold an
-  exclusive page hash latch. The *hash_lock may be released,
-  relocated, and reacquired.
+  /** Register a watch for a page identifier.
   @param id         page identifier
-  @param chain      hash table chain with exclusively held page_hash
-  @return a buffer pool block corresponding to id
-  @retval nullptr   if the block was not present, and a watch was installed */
-  inline buf_page_t *watch_set(const page_id_t id, hash_chain &chain);
+  @param chain      page_hash.cell_get(id.fold())
+  @return a buffer page corresponding to id
+  @retval nullptr   if the block was not present in page_hash */
+  buf_page_t *watch_set(const page_id_t id, hash_chain &chain);
 
   /** Stop watching whether a page has been read in.
   watch_set(id) must have returned nullptr before.

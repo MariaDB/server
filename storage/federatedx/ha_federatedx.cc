@@ -1819,7 +1819,7 @@ int ha_federatedx::open(const char *name, int mode, uint test_if_locked)
 class Net_error_handler : public Internal_error_handler
 {
 public:
-  Net_error_handler() {}
+  Net_error_handler() = default;
 
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,

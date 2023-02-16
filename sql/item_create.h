@@ -63,9 +63,9 @@ public:
 
 protected:
   /** Constructor */
-  Create_func() {}
+  Create_func() = default;
   /** Destructor */
-  virtual ~Create_func() {}
+  virtual ~Create_func() = default;
 };
 
 
@@ -88,9 +88,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_func_arg0() {}
+  Create_func_arg0() = default;
   /** Destructor. */
-  virtual ~Create_func_arg0() {}
+  virtual ~Create_func_arg0() = default;
 };
 
 
@@ -114,9 +114,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_func_arg1() {}
+  Create_func_arg1() = default;
   /** Destructor. */
-  virtual ~Create_func_arg1() {}
+  virtual ~Create_func_arg1() = default;
 };
 
 
@@ -141,9 +141,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_func_arg2() {}
+  Create_func_arg2() = default;
   /** Destructor. */
-  virtual ~Create_func_arg2() {}
+  virtual ~Create_func_arg2() = default;
 };
 
 
@@ -169,9 +169,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_func_arg3() {}
+  Create_func_arg3() = default;
   /** Destructor. */
-  virtual ~Create_func_arg3() {}
+  virtual ~Create_func_arg3() = default;
 };
 
 
@@ -203,9 +203,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_native_func() {}
+  Create_native_func() = default;
   /** Destructor. */
-  virtual ~Create_native_func() {}
+  virtual ~Create_native_func() = default;
 };
 
 
@@ -246,9 +246,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_qfunc() {}
+  Create_qfunc() = default;
   /** Destructor. */
-  virtual ~Create_qfunc() {}
+  virtual ~Create_qfunc() = default;
 };
 
 
@@ -295,9 +295,9 @@ public:
 
 protected:
   /** Constructor. */
-  Create_udf_func() {}
+  Create_udf_func() = default;
   /** Destructor. */
-  virtual ~Create_udf_func() {}
+  virtual ~Create_udf_func() = default;
 };
 #endif
 

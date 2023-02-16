@@ -349,7 +349,7 @@ protected:
 	my_bool AddPath(void);
 
 	// Default constructor not to be used
-	JSNX(void) {}
+	JSNX(void) = default;
 
 	// Members
 	PJSON    Row;

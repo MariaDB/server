@@ -78,8 +78,7 @@ protected:
   table_esms_by_digest();
 
 public:
-  ~table_esms_by_digest()
-  {}
+  ~table_esms_by_digest() = default;
 
 protected:
   void make_row(PFS_statements_digest_stat*);

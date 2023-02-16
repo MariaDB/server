@@ -21,7 +21,7 @@ PQRYRES VirColumns(PGLOBAL g, bool info);
 class DllExport VIRDEF : public TABDEF {  /* Logical table description */
  public:
   // Constructor
-	VIRDEF(void) {}
+	VIRDEF(void) = default;
 
   // Implementation
   virtual const char *GetType(void) {return "VIRTUAL";}
@@ -86,7 +86,7 @@ class VIRCOL : public COLBLK {
 
  protected:
   // Default constructor not to be used
-  VIRCOL(void) {}
+  VIRCOL(void) = default;
 
   // No additional members
   }; // end of class VIRCOL
