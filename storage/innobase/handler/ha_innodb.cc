@@ -293,6 +293,27 @@ get_row_format(
 	}
 }
 
+/** Convert the InnoDB ROW_FORMAT from rec_format_enum to row_type.
+@param[in]  from  ROW_FORMAT as a rec_format_enum
+@return the row_type representation of ROW_FORMAT. */
+static enum row_type from_rec_format(const rec_format_enum from)
+{
+  switch (from)
+  {
+  case REC_FORMAT_COMPACT:
+    return ROW_TYPE_COMPACT;
+  case REC_FORMAT_DYNAMIC:
+    return ROW_TYPE_DYNAMIC;
+  case REC_FORMAT_REDUNDANT:
+    return ROW_TYPE_REDUNDANT;
+  case REC_FORMAT_COMPRESSED:
+    return ROW_TYPE_COMPRESSED;
+  /* Impossible. */
+  default:
+    return ROW_TYPE_DEFAULT;
+  }
+}
+
 static ulong	innodb_default_row_format = DEFAULT_ROW_FORMAT_DYNAMIC;
 
 /** Possible values for system variable "innodb_stats_method". The values
@@ -1889,6 +1910,59 @@ static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 
 #define normalize_table_name(a,b) \
 	normalize_table_name_c_low(a,b,IF_WIN(true,false))
+
+
+/** Prepare the create info to create a new stub table for import.
+@param[in]	thd		Connection
+@param[in]	name		Table name, format: "db/table_name".
+@param[in,out]	create_info	The create info for creating a stub.
+@return	0 if success else error number. */
+static int prepare_create_stub_for_import(THD *thd, const char *name,
+                                          HA_CREATE_INFO& create_info)
+{
+  DBUG_ENTER("prepare_create_stub_for_import");
+  char norm_name[FN_REFLEN];
+  normalize_table_name(norm_name, name);
+  FetchIndexRootPages fetchIndexRootPages(name);
+  if (fil_tablespace_iterate(fil_path_to_mysql_datadir, name,
+                             IO_BUFFER_SIZE(srv_page_size),
+                             fetchIndexRootPages)
+      != DB_SUCCESS)
+  {
+    sql_print_error("InnoDB: failed to get row format from ibd for %s.\n",
+                    norm_name);
+    DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
+  }
+  create_info.init();
+  /* get the row format from ibd. */
+  create_info.row_type = fetchIndexRootPages.m_row_format;
+  /* if .cfg exists, get the row format from cfg, and compare with
+  ibd, report error if different, except when cfg reports
+  compact/dynamic and ibd reports not_used (indicating either compact
+  or dynamic but not sure) */
+  enum rec_format_enum rec_format_from_cfg;
+  if (get_row_type_from_cfg(fil_path_to_mysql_datadir, name, thd,
+                            rec_format_from_cfg)
+      == DB_SUCCESS)
+  {
+    /* if ibd reports not_used but cfg reports compact or dynamic, go
+    with cfg. */
+    if (create_info.row_type != from_rec_format(rec_format_from_cfg) &&
+        !((rec_format_from_cfg == REC_FORMAT_COMPACT ||
+           rec_format_from_cfg == REC_FORMAT_DYNAMIC) &&
+          create_info.row_type == ROW_TYPE_NOT_USED))
+    {
+      sql_print_error(
+              "InnoDB: cfg and ibd disagree on row format for table %s.\n",
+              norm_name);
+      DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
+    }
+    else
+      create_info.row_type= from_rec_format(rec_format_from_cfg);
+  } else if (create_info.row_type == ROW_TYPE_NOT_USED)
+    create_info.row_type = ROW_TYPE_DYNAMIC;
+  DBUG_RETURN(0);
+}
 
 ulonglong ha_innobase::table_version() const
 {
@@ -5844,8 +5918,23 @@ ha_innobase::open(const char* name, int, uint)
 
 	DEBUG_SYNC(thd, "ib_open_after_dict_open");
 
-	if (NULL == ib_table) {
+	/* If the table does not exist and we are trying to import, create a
+	"stub" table similar to the effects of CREATE TABLE followed by ALTER
+	TABLE ... DISCARD TABLESPACE. */
+	if (!ib_table && thd_ddl_options(thd)->import_tablespace())
+        {
+                HA_CREATE_INFO create_info;
+                if (int err= prepare_create_stub_for_import(thd, name,
+                                                            create_info))
+                        DBUG_RETURN(err);
+                create(name, table, &create_info, true, nullptr);
+		DBUG_EXECUTE_IF("die_after_create_stub_for_import", ut_ad(0););
+                ib_table = open_dict_table(name, norm_name, is_part,
+                                           DICT_ERR_IGNORE_FK_NOKEY);
+                DEBUG_SYNC(thd, "ib_open_after_create_stub_for_import");
+        }
 
+        if (NULL == ib_table) {
 		if (is_part) {
 			sql_print_error("Failed to open table %s.\n",
 					norm_name);
@@ -10568,6 +10657,11 @@ create_table_info_t::create_table_def()
 				      ? doc_id_col : n_cols - num_v;
 	}
 
+        /* Assume the tablespace is not available until we are able to
+        import it.*/
+        if (thd_ddl_options(m_thd)->import_tablespace())
+                table->file_unreadable = true;
+
 	if (DICT_TF_HAS_DATA_DIR(m_flags)) {
 		ut_a(strlen(m_remote_path));
 
@@ -11580,6 +11674,11 @@ index_bad:
 				(uint) m_create_info->key_block_size);
 		}
 	}
+
+        /* If we are trying to import a tablespace, mark tablespace as
+        discarded. */
+        if (thd_ddl_options(m_thd)->import_tablespace())
+                m_flags2 |= DICT_TF2_DISCARDED;
 
 	row_type = m_create_info->row_type;
 
@@ -13132,7 +13231,8 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   }
 
   if (!error)
-    error= info.create_table(own_trx);
+    error= info.create_table(own_trx &&
+                             !thd_ddl_options(ha_thd())->import_tablespace());
 
   if (own_trx || (info.flags2() & DICT_TF2_TEMPORARY))
   {
@@ -13154,7 +13254,8 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
 
       if (!error)
       {
-        dict_stats_update(info.table(), DICT_STATS_EMPTY_TABLE);
+        if (!thd_ddl_options(ha_thd())->import_tablespace())
+          dict_stats_update(info.table(), DICT_STATS_EMPTY_TABLE);
         if (!info.table()->is_temporary())
           log_write_up_to(trx->commit_lsn, true);
         info.table()->release();

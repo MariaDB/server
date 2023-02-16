@@ -2118,8 +2118,9 @@ public:
 	process of altering partitions */
 	unsigned                                skip_alter_undo:1;
 
-	/*!< whether this is in a single-table tablespace and the .ibd
-	file is missing or page decryption failed and page is corrupted */
+	/** whether this is in a single-table tablespace and the .ibd file
+	is believed to be missing or page decryption failed and page is
+	corrupted */
 	unsigned				file_unreadable:1;
 
 	/** TRUE if the table object has been added to the dictionary cache. */

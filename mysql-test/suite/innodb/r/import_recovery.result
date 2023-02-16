@@ -1,0 +1,79 @@
+call mtr.add_suppression('.*Assertion.*failed.');
+call mtr.add_suppression('InnoDB: Tablespace for table `test`.`t2` is set as discarded.');
+call mtr.add_suppression('InnoDB: ./test/t2.ibd: Page 0 at offset 0 looks corrupted.');
+call mtr.add_suppression("mariadbd: Index for table 't2' is corrupt; try to repair it");
+# Recovery from crashes
+## Creation of stub succeeds; server crashes; second import attempt succeeds
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Lost connection to server during query
+# Restart mysqld after the crash and reconnect.
+# restart
+ALTER TABLE t2 IMPORT TABLESPACE;
+SELECT * FROM t2;
+a
+42
+DROP TABLE t1, t2;
+## Creation of stub succeeds; server crashes; drop stub succeeds
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Lost connection to server during query
+# Restart mysqld after the crash and reconnect.
+# restart
+DROP TABLE t1, t2;
+# Recovery from corruption
+## Recovery from corruption, with cfg
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+# corrupting the 0th page
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Error importing tablespace for table `test`.`t2` : Data structure corruption
+DROP TABLE t1, t2;
+## Recovery from corruption, without cfg
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+# corrupting the 0th page
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x15, .ibd file contains 0x1010115.)
+DROP TABLE t1, t2;
+#recovery from crash and corruption
+## Creation of stub succeeds; server crashes; ibd corrupted; second import attempt fails; drops table
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Lost connection to server during query
+# corrupting the 0th page
+# Restart mysqld after the crash and reconnect.
+# restart
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Error importing tablespace for table `test`.`t2` : Data structure corruption
+DROP TABLE t1, t2;
+## Creation of stub without .cfg succeeds; server crashes; ibd corrupted; second import attempt fails; drops table
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+SET DEBUG_DBUG='+d,die_after_create_stub_for_import';
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Lost connection to server during query
+# corrupting the 0th page
+# Restart mysqld after the crash and reconnect.
+# restart
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x15, .ibd file contains 0x1010115.)
+DROP TABLE t1, t2;
