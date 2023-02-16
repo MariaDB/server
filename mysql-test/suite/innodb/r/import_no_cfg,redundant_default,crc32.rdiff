@@ -1,0 +1,16 @@
+--- ../src/mysql-test/suite/innodb/r/import_no_cfg.result	2023-03-14 11:31:09.269493326 +1100
++++ ../src/mysql-test/suite/innodb/r/import_no_cfg,redundant_default,crc32.result~	2023-03-14 11:31:09.409488871 +1100
+@@ -2,6 +2,7 @@
+ # MDEV-26137 ALTER TABLE IMPORT enhancement
+ #
+ SET GLOBAL innodb_default_row_format='redundant';
++SET GLOBAL innodb_checksum_algorithm=crc32;
+ CREATE TABLE t1 (a int) ENGINE=InnoDB ;
+ INSERT INTO t1 VALUES(42);
+ FLUSH TABLES t1 FOR EXPORT;
+@@ -19,4 +20,5 @@
+ a
+ 42
+ DROP TABLE t1, t2;
++SET GLOBAL innodb_checksum_algorithm=default;
+ SET GLOBAL innodb_default_row_format=default;
