@@ -678,5 +678,16 @@ SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-29179 Condition pushdown from HAVING into WHERE is not shown in optimizer trace
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(1), KEY (a), KEY(b,a)) ENGINE=MEMORY;
+INSERT INTO t1 VALUES (4,'n'),(1,'h'),(NULL,'w');
+SET optimizer_trace= 'enabled=on';
+SELECT b, a FROM t1 WHERE b <> 'p' OR a = 4 GROUP BY b, a HAVING a <= 7;
+SELECT json_detailed(json_extract(trace, '$**.steps[*].join_optimization.steps[*].condition_pushdown_from_having') ), JSON_VALID(trace) FROM information_schema.optimizer_trace;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

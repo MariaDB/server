@@ -2118,6 +2118,10 @@ JOIN::optimize_inner()
                                                   select_lex->attach_to_conds,
                                                   &cond_value);
       sel->attach_to_conds.empty();
+      Json_writer_object wrapper(thd);
+      Json_writer_object pushd(thd, "condition_pushdown_from_having");
+      pushd.add("conds", conds);
+      pushd.add("having", having);
     }
   }
 
