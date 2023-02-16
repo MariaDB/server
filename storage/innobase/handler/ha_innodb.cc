@@ -5844,7 +5844,27 @@ ha_innobase::open(const char* name, int, uint)
 
 	DEBUG_SYNC(thd, "ib_open_after_dict_open");
 
-	if (NULL == ib_table) {
+  // TODO: thd_sql_command() is a weak check. We should also check it
+  // is an importing.
+  if (!ib_table && thd_sql_command(thd) == SQLCOM_ALTER_TABLE)
+  {
+    HA_CREATE_INFO create_info;
+    create_info.init();
+    create_info.importing_tablespace = true;
+    trx_t *trx= innobase_trx_allocate(thd);
+    trx_start_for_ddl(trx);
+    lock_sys_tables(trx);
+    row_mysql_lock_data_dictionary(trx);
+    create(name, table, &create_info, true, trx);
+    trx->commit();
+    row_mysql_unlock_data_dictionary(trx);
+    trx->free();
+    ib_table = open_dict_table(name, norm_name, is_part,
+                               DICT_ERR_IGNORE_TABLESPACE);
+    DEBUG_SYNC(thd, "ib_open_after_import_tablespace");
+  }
+
+  if (NULL == ib_table) {
 
 		if (is_part) {
 			sql_print_error("Failed to open table %s.\n",
@@ -10568,6 +10588,12 @@ create_table_info_t::create_table_def()
 				      ? doc_id_col : n_cols - num_v;
 	}
 
+  /* Set file_unreadable to avoid is_readable() assertion
+     errors. Semantically we assume the tablespace is not available
+     until we are able to import it.*/
+  if (m_create_info->importing_tablespace)
+    table->file_unreadable = true;
+
 	if (DICT_TF_HAS_DATA_DIR(m_flags)) {
 		ut_a(strlen(m_remote_path));
 
@@ -11580,6 +11606,10 @@ index_bad:
 				(uint) m_create_info->key_block_size);
 		}
 	}
+
+  // If we are trying to import a tablespace, mark tablespace as discarded
+  if (m_create_info->importing_tablespace)
+    m_flags2 |= DICT_TF2_DISCARDED;
 
 	row_type = m_create_info->row_type;
 

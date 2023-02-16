@@ -2232,6 +2232,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
   sequence_definition *seq_create_info;
+  bool importing_tablespace; // Whether we are attempting to import tablespace
 
   void init()
   {
