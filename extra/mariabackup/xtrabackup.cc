@@ -3159,7 +3159,7 @@ static void log_copying_thread()
   my_thread_end();
 }
 
-/** whether io_watching_thread() is active; protected by log_sys.mutex */
+/** whether io_watching_thread() is active; protected by recv_sys.mutex */
 static bool have_io_watching_thread;
 
 /* io throttle watching (rough) */
