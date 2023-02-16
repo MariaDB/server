@@ -1012,9 +1012,6 @@ public:
   */
   double records_out;
 
-  /* record combinations before this table */
-  double record_combinations;
-
   /* Values from prev_record_reads call for EQ_REF table*/
   double        prev_record_reads, identical_keys;
 
@@ -1028,6 +1025,7 @@ public:
   */
   double read_time;
 
+  /* record combinations before this table */
   double loops;
 
   double    prefix_record_count;

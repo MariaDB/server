@@ -738,8 +738,8 @@ alter table t3 add primary key(id), add key(a);
 The following must use loose index scan over t3, key a:
 explain select count(a) from t2 where a in ( SELECT  a FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	a	a	5	NULL	1000	Using where; Using index
-1	PRIMARY	t3	ref	a	a	5	test.t2.a	30	Using index; FirstMatch(t2)
+1	PRIMARY	t3	index	a	a	5	NULL	30000	Using where; Using index; LooseScan
+1	PRIMARY	t2	ref	a	a	5	test.t3.a	1	Using index
 select count(a) from t2 where a in ( SELECT  a FROM t3);
 count(a)
 1000

@@ -294,14 +294,30 @@ public:
     }
   }
 
-  void save_to_position(JOIN_TAB *tab, double record_count, POSITION *pos)
+  void save_to_position(JOIN_TAB *tab, double record_count,
+                        double *records_out,
+                        POSITION *pos)
   {
     pos->read_time=       best_loose_scan_cost;
     if (best_loose_scan_cost != DBL_MAX)
     {
+      /*
+        best_loose_scan_records can be smaller than records_out in
+        the case where we use index statistics on a result column
+        to estimate the number of unique row combinations.
+        Example from selectivity.test:
+          SELECT * from t1 where t1.c2 in (select a.c2 from t1 a)
+                 and c2 >= 3 order by c2;
+          In this case range optimizer tells us that a has records_out of 5
+          while index statistics tells us that a.c2 has only 4 unique
+          values.
+      */
+      set_if_smaller(*records_out, best_loose_scan_records);
+
       pos->loops= record_count;
       pos->records_read=    best_loose_scan_records;
-      pos->records_init= pos->records_out= pos->records_read;
+      pos->records_init=    pos->records_read;
+      pos->records_out=     *records_out;
       pos->key=             best_loose_scan_start_key;
       pos->cond_selectivity= 1.0;
       pos->loosescan_picker.loosescan_key=   best_loose_scan_key;

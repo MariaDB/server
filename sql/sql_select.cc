@@ -8151,7 +8151,6 @@ best_access_path(JOIN      *join,
   best.use_join_buffer= FALSE;
   best.spl_plan= 0;
 
-  pos->loops=        record_count;
   disable_jbuf= disable_jbuf || idx == join->const_tables;
 
   trace_wrapper.add_table_name(s);
@@ -9303,8 +9302,8 @@ best_access_path(JOIN      *join,
   crash_if_first_double_is_bigger(best.records_out, best.records_read);
 
   /* Update the cost information for the current partial plan */
+  pos->loops=        record_count;
   pos->records_init= best.records_read;
-  pos->record_combinations= record_count;
   pos->records_after_filter= best.records_after_filter;
   pos->records_read= best.records;
   pos->records_out=  best.records_out;
@@ -9324,7 +9323,8 @@ best_access_path(JOIN      *join,
                        key_dependent & remaining_tables);
   pos->refills=  best.refills;
 
-  loose_scan_opt.save_to_position(s, record_count, loose_scan_pos);
+  loose_scan_opt.save_to_position(s, record_count, &pos->records_out,
+                                  loose_scan_pos);
 
   if (!best.key &&
       idx == join->const_tables &&              // First table
@@ -11793,7 +11793,7 @@ prev_record_reads(const POSITION *position, uint idx, table_map found_ref,
         if (pos->type == JT_EQ_REF)
           found= COST_MULT(found, pos->identical_keys);
         else if (pos->use_join_buffer)
-          found= COST_MULT(found, pos->record_combinations / pos->refills);
+          found= COST_MULT(found, pos->loops / pos->refills);
       }
       break;
     }
