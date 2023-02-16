@@ -39,6 +39,7 @@ static bool provider_plugin_enabled= false;
 
 /* Prototype for provider system variables */
 static char *dummy_str= 0;
+__attribute__((unused))
 static MYSQL_SYSVAR_STR(proto_string, dummy_str, 0, 0, 0, 0, "");
 
 
