@@ -2653,7 +2653,7 @@ dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
 
   mtr.start();
   if (!space->is_owner())
-    mtr.s_lock_space(space);
+    mtr.x_lock_space(space);
 
   if (page >= space->free_limit || page >= space->size_in_header);
   else if (const buf_block_t *b=

@@ -1677,8 +1677,9 @@ fil_crypt_get_page_throttle(
 		return NULL;
 	}
 
-	if (DB_SUCCESS_LOCKED_REC
-	    != fseg_page_is_allocated(space, state->offset)) {
+	if (offset % (zip_size ? zip_size : srv_page_size)
+	    && DB_SUCCESS_LOCKED_REC
+	    != fseg_page_is_allocated(space, offset)) {
 		/* page is already freed */
 		return NULL;
 	}
