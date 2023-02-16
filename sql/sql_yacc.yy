@@ -7212,6 +7212,7 @@ alter_commands:
             Lex->m_sql_cmd= new (thd->mem_root)
               Sql_cmd_discard_import_tablespace(
                 Sql_cmd_discard_import_tablespace::IMPORT_TABLESPACE);
+            Lex->create_info.add(DDL_options_st::OPT_IMPORT_TABLESPACE);
             if (unlikely(Lex->m_sql_cmd == NULL))
               MYSQL_YYABORT;
           }
