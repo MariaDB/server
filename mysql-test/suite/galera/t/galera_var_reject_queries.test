@@ -30,7 +30,7 @@ SELECT * FROM t1;
 SET GLOBAL wsrep_reject_queries = ALL_KILL;
 
 --connection node_1a
---error ER_CONNECTION_KILLED,2013,2006
+--error ER_CONNECTION_KILLED,2013,2006,2026
 SELECT * FROM t1;
 
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1

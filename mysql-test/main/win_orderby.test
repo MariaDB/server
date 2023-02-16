@@ -33,3 +33,58 @@ limit 4;
 --disable_view_protocol
 
 drop table t0,t1;
+
+
+--echo #
+--echo # MDEV-30052: Crash with a query containing nested WINDOW clauses
+--echo #
+
+CREATE TABLE t1 (c INT);
+insert into t1 values (1),(2);
+UPDATE t1 SET c=1
+WHERE c=2
+ORDER BY
+  (1 IN ((
+      SELECT *
+      FROM (SELECT * FROM t1) AS v1
+      GROUP BY c
+      WINDOW v2 AS (ORDER BY
+                      (SELECT *
+                       FROM t1
+                       GROUP BY c
+                       WINDOW v3 AS (PARTITION BY c)
+                      )
+                    )
+    ))
+  );
+drop table t1;
+
+--echo #
+--echo # MDEV-29359: Server crashed with heap-use-after-free in
+--echo # Field::is_null(long long) const (Just testcase)
+--echo #
+
+CREATE TABLE t1 (id int);
+INSERT INTO t1 VALUES (-1),(0),(84);
+
+SELECT
+  id IN (SELECT id
+         FROM t1
+         WINDOW w AS (ORDER BY (SELECT  1
+                                FROM t1
+                                WHERE
+                                  EXISTS ( SELECT id
+                                           FROM t1
+                                           GROUP BY id
+                                           WINDOW w2 AS (ORDER BY id)
+                                          )
+                                )
+                      )
+         )
+FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

@@ -16,3 +16,61 @@ ERROR 42S02: Table 'test.t2' doesn't exist
 show status like "Empty_queries";
 Variable_name	Value
 Empty_queries	2
+# End of 4.1 tests
+#
+# MDEV-30333 Wrong result with not_null_range_scan and LEFT JOIN with empty table
+#
+set @save_optimizer_switch=@@optimizer_switch;
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 (b) VALUES (1),(2);
+CREATE TABLE t2 (c INT) ENGINE=MyISAM;
+SET optimizer_switch= 'not_null_range_scan=off';
+explain extended SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` is null order by `test`.`t1`.`b`
+SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+b
+1
+2
+SET optimizer_switch = 'not_null_range_scan=on';
+explain extended SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` is null order by `test`.`t1`.`b`
+SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+b
+1
+2
+flush tables;
+SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+b
+1
+2
+drop table t1,t2;
+# Second test in MDEV-30333
+CREATE TABLE t1 (a int, b varchar(10)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (69,'foo'),(71,'bar');
+CREATE TABLE t2 (c int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (d int, e int, KEY(e)) ENGINE=MyISAM;
+SELECT * FROM t1 LEFT JOIN t2 LEFT JOIN t3 ON t3.e = t3.d ON 1;
+a	b	c	d	e
+69	foo	1	NULL	NULL
+71	bar	1	NULL	NULL
+69	foo	2	NULL	NULL
+71	bar	2	NULL	NULL
+SET optimizer_switch = 'not_null_range_scan=on';
+SELECT * FROM t1 LEFT JOIN t2 LEFT JOIN t3 ON t3.e = t3.d ON 1;
+a	b	c	d	e
+69	foo	1	NULL	NULL
+71	bar	1	NULL	NULL
+69	foo	2	NULL	NULL
+71	bar	2	NULL	NULL
+DROP TABLE t1, t2, t3;
+set @@optimizer_switch=@save_optimizer_switch;
+End of 10.5 tests

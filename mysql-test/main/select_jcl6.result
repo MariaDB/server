@@ -5700,6 +5700,62 @@ EXECUTE stmt;
 COUNT(DISTINCT a)
 3
 DROP TABLE t1;
+#
+# MDEV-29294: Assertion `functype() == ((Item_cond *) new_item)->functype()'
+#             failed in Item_cond::remove_eq_conds on SELECT
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+# Test for nested OR conditions:
+SELECT * FROM t1 WHERE a = 1 AND
+(3 = 0 OR (SELECT a = 1 OR (SELECT 3 WHERE a = a) = 3));
+a
+1
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a = 1 AND
+(3 = 0 OR (SELECT a = 1 OR (SELECT 3 WHERE a = a) = 3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using temporary
+3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #1
+Note	1249	Select 2 was reduced during optimization
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and (1 or <expr_cache><`test`.`t1`.`a`>((/* select#3 */ select 3 from DUAL  where `test`.`t1`.`a` = `test`.`t1`.`a`)) = 3)
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE a = 1 AND
+  (3 = 0 OR (SELECT a = 1 OR (SELECT 3 WHERE a = a) = 3))';
+EXECUTE stmt;
+a
+1
+EXECUTE stmt;
+a
+1
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a = 1 AND
+(3 = 0 OR (SELECT a = 1 OR (SELECT 3 WHERE a = a) = 3));
+SELECT * FROM v1;
+a
+1
+# Test for nested AND conditions:
+SELECT * FROM t1 WHERE a = 1 OR
+(3 = 3 AND (SELECT a = 1 AND (SELECT 3 WHERE a = a) = 3));
+a
+1
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE a = 1 OR
+  (3 = 3 AND (SELECT a = 1 AND (SELECT 3 WHERE a = a) = 3))';
+EXECUTE stmt;
+a
+1
+EXECUTE stmt;
+a
+1
+CREATE VIEW v2 AS SELECT * FROM t1 WHERE a = 1 OR
+(3 = 3 AND (SELECT a = 1 AND (SELECT 3 WHERE a = a) = 3));
+SELECT * FROM v2;
+a
+1
+DROP TABLE t1;
+DROP VIEW v1, v2;
 End of 10.0 tests
 set join_cache_level=default;
 set @@optimizer_switch=@save_optimizer_switch_jcl6;

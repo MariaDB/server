@@ -1247,8 +1247,7 @@ class Buffered_log : public Sql_alloc
 public:
   Buffered_log(enum loglevel level, const char *message);
 
-  ~Buffered_log()
-  {}
+  ~Buffered_log() = default;
 
   void print(void);
 
@@ -1308,11 +1307,9 @@ void Buffered_log::print()
 class Buffered_logs
 {
 public:
-  Buffered_logs()
-  {}
+  Buffered_logs() = default;
 
-  ~Buffered_logs()
-  {}
+  ~Buffered_logs() = default;
 
   void init();
   void cleanup();
@@ -2782,11 +2779,9 @@ void close_connection(THD *thd, uint sql_errno)
     thd->protocol->net_send_error(thd, sql_errno, ER_DEFAULT(sql_errno), NULL);
     thd->print_aborted_warning(lvl, ER_DEFAULT(sql_errno));
   }
-  else
-    thd->print_aborted_warning(lvl, (thd->main_security_ctx.user ?
-                                     "This connection closed normally" :
-                                     "This connection closed normally without"
-                                      " authentication"));
+  else if (!thd->main_security_ctx.user)
+    thd->print_aborted_warning(lvl, "This connection closed normally without"
+                                    " authentication");
 
   thd->disconnect();
 
@@ -5140,12 +5135,11 @@ static int init_server_components()
     else // full wsrep initialization
     {
       // add basedir/bin to PATH to resolve wsrep script names
-      char* const tmp_path= (char*)my_alloca(strlen(mysql_home) +
-                                             strlen("/bin") + 1);
+      size_t tmp_path_size= strlen(mysql_home) + 5; /* including "/bin" */
+      char* const tmp_path= (char*)my_alloca(tmp_path_size);
       if (tmp_path)
       {
-        strcpy(tmp_path, mysql_home);
-        strcat(tmp_path, "/bin");
+        snprintf(tmp_path, tmp_path_size, "%s/bin", mysql_home);
         wsrep_prepend_PATH(tmp_path);
       }
       else
@@ -5988,8 +5982,9 @@ int mysqld_main(int argc, char **argv)
     char real_server_version[2 * SERVER_VERSION_LENGTH + 10];
 
     set_server_version(real_server_version, sizeof(real_server_version));
-    strcat(real_server_version, "' as '");
-    strcat(real_server_version, server_version);
+    safe_strcat(real_server_version, sizeof(real_server_version), "' as '");
+    safe_strcat(real_server_version, sizeof(real_server_version),
+		server_version);
 
     sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname,
                           real_server_version,
@@ -7982,7 +7977,8 @@ static int mysql_init_variables(void)
     }
     else
       my_path(prg_dev, my_progname, "mysql/bin");
-    strcat(prg_dev,"/../");			// Remove 'bin' to get base dir
+    // Remove 'bin' to get base dir
+    safe_strcat(prg_dev, sizeof(prg_dev), "/../");
     cleanup_dirname(mysql_home,prg_dev);
   }
 #else

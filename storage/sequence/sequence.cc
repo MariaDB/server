@@ -390,7 +390,7 @@ public:
       // Reset limit because we are handling it now
       orig_lim->set_unlimited();
     }
-  ~ha_seq_group_by_handler() {}
+  ~ha_seq_group_by_handler() = default;
   int init_scan() { first_row= 1 ; return 0; }
   int next_row();
   int end_scan()  { return 0; }

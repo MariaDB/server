@@ -82,7 +82,7 @@ class DllExport BINCOL : public DOSCOL {
   static  void SetEndian(void); 
 
  protected:
-  BINCOL(void) {}    // Default constructor not to be used
+  BINCOL(void) = default;    // Default constructor not to be used
 
   // Members
   static char Endian;         // The host endian setting (L or B)

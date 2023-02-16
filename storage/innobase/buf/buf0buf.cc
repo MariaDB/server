@@ -3075,8 +3075,7 @@ or decrypt/decompress just failed.
 @retval	DB_SUCCESS		if page has been read and is not corrupted
 @retval	DB_PAGE_CORRUPTED	if page based on checksum check is corrupted
 @retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-@retval	DB_TABLESPACE_DELETED	if accessed tablespace is not found */
+after decryption normal page checksum does not match. */
 static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
                                       const fil_node_t &node)
 {
@@ -3133,7 +3132,8 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 @param node     data file
 @return whether the operation succeeded
 @retval DB_PAGE_CORRUPTED    if the checksum fails
-@retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
+@retval DB_DECRYPTION_FAILED if the page cannot be decrypted
+@retval DB_FAIL              if the page contains the wrong ID */
 dberr_t buf_page_t::read_complete(const fil_node_t &node)
 {
   const page_id_t expected_id{id()};

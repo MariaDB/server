@@ -337,9 +337,14 @@ static bool wsrep_sst_complete (THD*                thd,
   if ((state == Wsrep_server_state::s_joiner ||
        state == Wsrep_server_state::s_initialized))
   {
-    Wsrep_server_state::instance().sst_received(client_service,
-       rcode);
-    WSREP_INFO("SST succeeded for position %s", start_pos_buf);
+    if (Wsrep_server_state::instance().sst_received(client_service, rcode))
+    {
+      failed= true;
+    }
+    else
+    {
+      WSREP_INFO("SST succeeded for position %s", start_pos_buf);
+    }
   }
   else
   {

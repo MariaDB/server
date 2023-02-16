@@ -2283,11 +2283,9 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
 
   if (unlikely(error))
   {
-    /*
-      trans_rollback above does not rollback XA transactions
-      (todo/fixme consider to do so.
-    */
-    if (thd->transaction->xid_state.is_explicit_XA())
+    // leave alone any XA prepared transactions
+    if (thd->transaction->xid_state.is_explicit_XA() &&
+        thd->transaction->xid_state.get_state_code() != XA_PREPARED)
       xa_trans_force_rollback(thd);
 
     thd->release_transactional_locks();

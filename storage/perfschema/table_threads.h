@@ -110,8 +110,7 @@ protected:
   table_threads();
 
 public:
-  ~table_threads()
-  {}
+  ~table_threads() = default;
 
 private:
   virtual void make_row(PFS_thread *pfs);

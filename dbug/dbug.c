@@ -86,7 +86,7 @@
 #include <m_string.h>
 #include <errno.h>
 #ifdef HAVE_gcov
-extern void __gcov_flush();
+#include <gcov.h>
 #endif
 
 #ifndef DBUG_OFF
@@ -511,7 +511,7 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     stack->delay= stack->next->delay;
     stack->maxdepth= stack->next->maxdepth;
     stack->sub_level= stack->next->sub_level;
-    strcpy(stack->name, stack->next->name);
+    safe_strcpy(stack->name, sizeof(stack->name), stack->next->name);
     stack->out_file= stack->next->out_file;
     stack->out_file->used++;
     if (stack->next == &init_settings)
@@ -2212,7 +2212,7 @@ void _db_suicide_()
   fprintf(stderr, "SIGKILL myself\n");
   fflush(stderr);
 #ifdef HAVE_gcov
-  __gcov_flush();
+  __gcov_dump();
 #endif
 
   retval= kill(getpid(), SIGKILL);
@@ -2262,7 +2262,7 @@ my_bool _db_my_assert(const char *file, int line, const char *msg)
     fprintf(stderr, "%s:%d: assert: %s\n", file, line, msg);
     fflush(stderr);
 #ifdef HAVE_gcov
-    __gcov_flush();
+    __gcov_dump();
 #endif
   }
   return a;

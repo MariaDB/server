@@ -4,9 +4,6 @@ connection master;
 set global binlog_alter_two_phase=true;
 connection slave;
 include/stop_slave.inc
-change master to master_use_gtid= current_pos;
-Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
 set global gtid_strict_mode=1;
 # Legacy Master Slave
 connect master_node,127.0.0.1,root,,$db_name, $M_port;

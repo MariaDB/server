@@ -1046,7 +1046,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1254,7 +1254,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1517,7 +1517,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1714,7 +1714,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -1911,7 +1911,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -2108,7 +2108,7 @@ Taiwan	NULL
 Tanzania	NULL
 Thailand	NULL
 Czech Republic	NULL
-Turkey	NULL
+Türkiye	NULL
 Uganda	NULL
 Ukraine	NULL
 Hungary	NULL
@@ -2752,7 +2752,7 @@ SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND City.Population > 3000000;
 Name	Name
 Alexandria	Egypt
-Ankara	Turkey
+Ankara	Türkiye
 Baghdad	Iraq
 Bangkok	Thailand
 Berlin	Germany
@@ -2766,7 +2766,7 @@ Delhi	India
 Dhaka	Bangladesh
 Harbin	China
 Ho Chi Minh City	Vietnam
-Istanbul	Turkey
+Istanbul	Türkiye
 Jakarta	Indonesia
 Jokohama [Yokohama]	Japan
 Kanton [Guangzhou]	China
@@ -2809,7 +2809,7 @@ SELECT City.Name, Country.Name FROM City,Country
 WHERE City.Country=Country.Code AND City.Population > 3000000;
 Name	Name
 Alexandria	Egypt
-Ankara	Turkey
+Ankara	Türkiye
 Baghdad	Iraq
 Bangkok	Thailand
 Berlin	Germany
@@ -2823,7 +2823,7 @@ Delhi	India
 Dhaka	Bangladesh
 Harbin	China
 Ho Chi Minh City	Vietnam
-Istanbul	Turkey
+Istanbul	Türkiye
 Jakarta	Indonesia
 Jokohama [Yokohama]	Japan
 Kanton [Guangzhou]	China

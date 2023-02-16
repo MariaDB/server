@@ -10831,7 +10831,7 @@ table_map Item_direct_view_ref::used_tables() const
     table_map used= (*ref)->used_tables();
     return (used ?
             used :
-            ((null_ref_table != NO_NULL_TABLE) ?
+            (null_ref_table != NO_NULL_TABLE && !null_ref_table->const_table ?
              null_ref_table->map :
              (table_map)0 ));
   }

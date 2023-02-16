@@ -766,10 +766,9 @@ corrupted:
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
 	if (n_core && !index->is_primary() && !index->table->is_temporary()) {
-		page_update_max_trx_id(new_block,
-				       new_page_zip,
+		page_update_max_trx_id(new_block, nullptr,
 				       page_get_max_trx_id(block->page.frame),
-				       mtr);
+                                       mtr);
 	}
 
 	if (new_page_zip) {

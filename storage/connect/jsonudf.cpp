@@ -4756,7 +4756,7 @@ char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if ((arp = (PJAR)JsonNew(g, TYPE_JAR)) &&
 					(bsp = JbinAlloc(g, args, initid->max_length, arp))) {
-				strcat(bsp->Msg, " array");
+				safe_strcat(bsp->Msg, sizeof(bsp->Msg), " array");
 
 				for (uint i = 0; i < args->arg_count; i++)
 					arp->AddArrayValue(g, MakeValue(g, args, i));
@@ -4833,7 +4833,7 @@ char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			arp->InitArray(gb);
 
 			if ((bsp = JbinAlloc(g, args, initid->max_length, top))) {
-				strcat(bsp->Msg, " array");
+				safe_strcat(bsp->Msg, sizeof(bsp->Msg), " array");
 				bsp->Jsp = arp;
 			}	// endif bsp
 
@@ -5054,7 +5054,7 @@ char *jbin_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 
 				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
-					strcat(bsp->Msg, " object");
+					safe_strcat(bsp->Msg, sizeof(bsp->Msg), " object");
 
 			} else
 				bsp = NULL;
@@ -5110,7 +5110,7 @@ char *jbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 						objp->SetKeyValue(g, jvp, MakeKey(g, args, i));
 
 				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
-					strcat(bsp->Msg, " object");
+					safe_strcat(bsp->Msg, sizeof(bsp->Msg), " object");
 
 			} else
 				bsp = NULL;
@@ -5169,7 +5169,7 @@ char *jbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					objp->SetKeyValue(g, MakeValue(g, args, i + 1), MakePSZ(g, args, i));
 
 				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
-					strcat(bsp->Msg, " object");
+					safe_strcat(bsp->Msg, sizeof(bsp->Msg), " object");
 
 			} else
 				bsp = NULL;
@@ -5391,7 +5391,7 @@ char *jbin_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif CheckMemory
 
 		if ((bsp = JbinAlloc(g, args, initid->max_length, jarp)))
-			strcat(bsp->Msg, " array");
+			safe_strcat(bsp->Msg, sizeof(bsp->Msg), " array");
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5466,7 +5466,7 @@ char *jbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		jsp = (jvp->GetJsp()) ? jvp->GetJsp() : JvalNew(g, TYPE_JVAL, jvp->GetValue(g));
 
 		if ((bsp = JbinAlloc(g, args, initid->max_length, jsp)))
-			strcat(bsp->Msg, " item");
+			safe_strcat(bsp->Msg, sizeof(bsp->Msg), " item");
 		else
 			*error = 1;
 
@@ -5826,7 +5826,7 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		pretty = pty;
 
 	if ((bsp = JbinAlloc(g, args, len, jsp))) {
-		strcat(bsp->Msg, " file");
+		safe_strcat(bsp->Msg, sizeof(bsp->Msg), " file");
 		bsp->Filename = fn;
 		bsp->Pretty = pretty;
 	} else {
@@ -6162,9 +6162,8 @@ char* JUP::UnprettyJsonFile(PGLOBAL g, char *fn, char *outfn, int lrecl) {
 	/*  Parse the json file and allocate its tree structure.                         */
 	/*********************************************************************************/
 	if (!(fs = fopen(outfn, "wb"))) {
-		snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR),
-			"w", (int)errno, outfn);
-		strcat(strcat(g->Message, ": "), strerror(errno));
+		snprintf(g->Message, sizeof(g->Message), MSG(OPEN_MODE_ERROR)": %s",
+			"w", (int)errno, outfn, strerror(errno));
 		CloseMemMap(mm.memory, len);
 		return NULL;
 	} // endif fs

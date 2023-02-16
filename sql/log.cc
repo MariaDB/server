@@ -215,7 +215,7 @@ public:
     m_message[0]= '\0';
   }
 
-  virtual ~Silence_log_table_errors() {}
+  virtual ~Silence_log_table_errors() = default;
 
   virtual bool handle_condition(THD *thd,
                                 uint sql_errno,
@@ -772,14 +772,10 @@ end:
 }
 
 
-Log_to_csv_event_handler::Log_to_csv_event_handler()
-{
-}
+Log_to_csv_event_handler::Log_to_csv_event_handler() = default;
 
 
-Log_to_csv_event_handler::~Log_to_csv_event_handler()
-{
-}
+Log_to_csv_event_handler::~Log_to_csv_event_handler() = default;
 
 
 void Log_to_csv_event_handler::cleanup()
@@ -1801,6 +1797,7 @@ int binlog_init(void *p)
     binlog_hton->prepare= binlog_prepare;
     binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
   }
+
   binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_NO_ROLLBACK;
   return 0;
 }
@@ -2119,7 +2116,9 @@ int binlog_commit_by_xid(handlerton *hton, XID *xid)
   THD *thd= current_thd;
 
   if (thd->is_current_stmt_binlog_disabled())
-    return 0;
+  {
+    return thd->wait_for_prior_commit();
+  }
 
   /* the asserted state can't be reachable with xa commit */
   DBUG_ASSERT(!thd->get_stmt_da()->is_error() ||
@@ -2151,7 +2150,9 @@ int binlog_rollback_by_xid(handlerton *hton, XID *xid)
   THD *thd= current_thd;
 
   if (thd->is_current_stmt_binlog_disabled())
-    return 0;
+  {
+    return thd->wait_for_prior_commit();
+  }
 
   if (thd->get_stmt_da()->is_error() &&
       thd->get_stmt_da()->sql_errno() == ER_XA_RBROLLBACK)

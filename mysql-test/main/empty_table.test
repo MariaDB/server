@@ -21,4 +21,38 @@ drop table t1;
 select * from t2;
 show status like "Empty_queries";
 
-# End of 4.1 tests
+--echo # End of 4.1 tests
+
+--echo #
+--echo # MDEV-30333 Wrong result with not_null_range_scan and LEFT JOIN with empty table
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 (b) VALUES (1),(2);
+CREATE TABLE t2 (c INT) ENGINE=MyISAM;
+SET optimizer_switch= 'not_null_range_scan=off'; # Default
+explain extended SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+SET optimizer_switch = 'not_null_range_scan=on';
+explain extended SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+flush tables;
+SELECT b FROM t1 LEFT JOIN t2 ON t2.c = a WHERE a IS NULL ORDER BY b;
+drop table t1,t2;
+
+--echo # Second test in MDEV-30333
+
+CREATE TABLE t1 (a int, b varchar(10)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (69,'foo'),(71,'bar');
+CREATE TABLE t2 (c int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (d int, e int, KEY(e)) ENGINE=MyISAM;
+SELECT * FROM t1 LEFT JOIN t2 LEFT JOIN t3 ON t3.e = t3.d ON 1;
+SET optimizer_switch = 'not_null_range_scan=on';
+SELECT * FROM t1 LEFT JOIN t2 LEFT JOIN t3 ON t3.e = t3.d ON 1;
+DROP TABLE t1, t2, t3;
+set @@optimizer_switch=@save_optimizer_switch;
+
+--echo End of 10.5 tests
+

@@ -4256,6 +4256,21 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     int exec_res;
     Log_event_type typ= ev->get_type_code();
 
+    DBUG_EXECUTE_IF(
+        "pause_sql_thread_on_next_event",
+        {
+          /*
+            Temporarily unlock data_lock so we can check-in with the IO thread
+          */
+          mysql_mutex_unlock(&rli->data_lock);
+          DBUG_ASSERT(!debug_sync_set_action(
+              thd,
+              STRING_WITH_LEN(
+                  "now SIGNAL paused_on_event WAIT_FOR sql_thread_continue")));
+          DBUG_SET("-d,pause_sql_thread_on_next_event");
+          mysql_mutex_lock(&rli->data_lock);
+        });
+
     /*
       Even if we don't execute this event, we keep the master timestamp,
       so that seconds behind master shows correct delta (there are events
@@ -4269,10 +4284,10 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       the user might be surprised to see a claim that the slave is up to date
       long before those queued events are actually executed.
      */
-    if (!rli->mi->using_parallel() &&
-        !(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
+    if ((!rli->mi->using_parallel()) && event_can_update_last_master_timestamp(ev))
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
+      rli->sql_thread_caught_up= false;
       DBUG_ASSERT(rli->last_master_timestamp >= 0);
     }
 
@@ -4324,6 +4339,17 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     if (rli->mi->using_parallel())
     {
+      if (unlikely((rli->last_master_timestamp == 0 ||
+                    rli->sql_thread_caught_up) &&
+                   event_can_update_last_master_timestamp(ev)))
+      {
+        if (rli->last_master_timestamp < ev->when)
+        {
+          rli->last_master_timestamp= ev->when;
+          rli->sql_thread_caught_up= false;
+        }
+      }
+
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
       /*
         In parallel replication, we need to update the relay log position
@@ -4344,7 +4370,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         This is the case for pre-10.0 events without GTID, and for handling
         slave_skip_counter.
       */
-      if (!(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
+      if (event_can_update_last_master_timestamp(ev))
       {
         /*
           Ignore FD's timestamp as it does not reflect the slave execution
@@ -4352,7 +4378,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           data modification event execution last long all this time
           Seconds_Behind_Master is zero.
         */
-        if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
+        if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT &&
+            rli->last_master_timestamp < ev->when)
           rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
 
         DBUG_ASSERT(rli->last_master_timestamp >= 0);
@@ -7406,7 +7433,6 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
 
       if (hot_log)
         mysql_mutex_unlock(log_lock);
-      rli->sql_thread_caught_up= false;
       DBUG_RETURN(ev);
     }
     if (opt_reckless_slave)                     // For mysql-test
@@ -7570,7 +7596,6 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         rli->relay_log.wait_for_update_relay_log(rli->sql_driver_thd);
         // re-acquire data lock since we released it earlier
         mysql_mutex_lock(&rli->data_lock);
-        rli->sql_thread_caught_up= false;
         continue;
       }
       /*
@@ -7761,12 +7786,19 @@ event(errno: %d  cur_log->error: %d)",
   {
     sql_print_information("Error reading relay log event: %s",
                           "slave SQL thread was killed");
-    DBUG_RETURN(0);
+    goto end;
   }
 
 err:
   if (errmsg)
     sql_print_error("Error reading relay log event: %s", errmsg);
+
+end:
+  /*
+    Set that we are not caught up so if there is a hang/problem on restart,
+    Seconds_Behind_Master will still grow.
+  */
+  rli->sql_thread_caught_up= false;
   DBUG_RETURN(0);
 }
 #ifdef WITH_WSREP

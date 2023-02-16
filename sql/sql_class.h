@@ -247,6 +247,29 @@ public:
 };
 
 
+class Recreate_info
+{
+  ha_rows m_records_copied;
+  ha_rows m_records_duplicate;
+public:
+  Recreate_info()
+   :m_records_copied(0),
+    m_records_duplicate(0)
+  { }
+  Recreate_info(ha_rows records_copied,
+                ha_rows records_duplicate)
+   :m_records_copied(records_copied),
+    m_records_duplicate(records_duplicate)
+  { }
+  ha_rows records_copied() const { return m_records_copied; }
+  ha_rows records_duplicate() const { return m_records_duplicate; }
+  ha_rows records_processed() const
+  {
+    return m_records_copied + m_records_duplicate;
+  }
+};
+
+
 #define TC_HEURISTIC_RECOVER_COMMIT   1
 #define TC_HEURISTIC_RECOVER_ROLLBACK 2
 extern ulong tc_heuristic_recover;
@@ -452,7 +475,7 @@ public:
     invisible(false), without_overlaps(false)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
-  virtual ~Key() {}
+  virtual ~Key() = default;
   /* Equality comparison of keys (ignoring name) */
   friend bool foreign_key_prefix(Key *a, Key *b);
   /**
@@ -1180,7 +1203,7 @@ public:
   Query_arena() { INIT_ARENA_DBUG_INFO; }
 
   virtual Type type() const;
-  virtual ~Query_arena() {};
+  virtual ~Query_arena() = default;
 
   inline bool is_stmt_prepare() const { return state == STMT_INITIALIZED; }
   inline bool is_stmt_prepare_or_first_sp_execute() const
@@ -1231,7 +1254,7 @@ public:
   Query_arena_memroot() : Query_arena()
   {}
 
-  virtual ~Query_arena_memroot() {}
+  virtual ~Query_arena_memroot() = default;
 };
 
 
@@ -1381,7 +1404,7 @@ public:
   my_bool query_cache_is_applicable;
 
   /* This constructor is called for backup statements */
-  Statement() {}
+  Statement() = default;
 
   Statement(LEX *lex_arg, MEM_ROOT *mem_root_arg,
             enum enum_state state_arg, ulong id_arg);
@@ -1893,7 +1916,7 @@ protected:
     m_prev_internal_handler(NULL)
   {}
 
-  virtual ~Internal_error_handler() {}
+  virtual ~Internal_error_handler() = default;
 
 public:
   /**
@@ -1951,7 +1974,7 @@ public:
     /* Ignore error */
     return TRUE;
   }
-  Dummy_error_handler() {}                    /* Remove gcc warning */
+  Dummy_error_handler() = default;                    /* Remove gcc warning */
 };
 
 
@@ -1988,7 +2011,7 @@ public:
 class Drop_table_error_handler : public Internal_error_handler
 {
 public:
-  Drop_table_error_handler() {}
+  Drop_table_error_handler() = default;
 
 public:
   bool handle_condition(THD *thd,
@@ -2029,7 +2052,7 @@ private:
 class Turn_errors_to_warnings_handler : public Internal_error_handler
 {
 public:
-  Turn_errors_to_warnings_handler() {}
+  Turn_errors_to_warnings_handler() = default;
   bool handle_condition(THD *thd,
                         uint sql_errno,
                         const char* sqlstate,
@@ -4364,6 +4387,8 @@ public:
   inline bool vio_ok() const { return TRUE; }
   inline bool is_connected() { return TRUE; }
 #endif
+
+   void my_ok_with_recreate_info(const Recreate_info &info, ulong warn_count);
   /**
     Mark the current error as fatal. Warning: this does not
     set any error, it sets a property of the error, so must be
@@ -5727,7 +5752,7 @@ public:
     example for a duplicate row entry written to a temp table.
   */
   virtual int send_data(List<Item> &items)=0;
-  virtual ~select_result_sink() {};
+  virtual ~select_result_sink() = default;
   void reset(THD *thd_arg) { thd= thd_arg; }
 };
 
@@ -5759,7 +5784,7 @@ public:
   ha_rows est_records;  /* estimated number of records in the result */
   select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
   void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
-  virtual ~select_result() {};
+  virtual ~select_result() = default;
   /**
     Change wrapped select_result.
 
@@ -6277,6 +6302,12 @@ public:
   uint  sum_func_count;   
   uint  hidden_field_count;
   uint	group_parts,group_length,group_null_parts;
+
+  /*
+    If we're doing a GROUP BY operation, shows which one is used:
+    true  TemporaryTableWithPartialSums algorithm (see end_update()).
+    false OrderedGroupBy algorithm (see end_write_group()).
+  */
   uint	quick_group;
   /**
     Enabled when we have atleast one outer_sum_func. Needed when used
@@ -7000,7 +7031,7 @@ class user_var_entry
 {
   CHARSET_INFO *m_charset;
  public:
-  user_var_entry() {}                         /* Remove gcc warning */
+  user_var_entry() = default;                         /* Remove gcc warning */
   LEX_CSTRING name;
   char *value;
   size_t length;
@@ -7121,7 +7152,7 @@ public:
   enum type { SESSION_VAR, LOCAL_VAR, PARAM_VAR };
   type scope;
   my_var(const LEX_CSTRING *j, enum type s) : name(*j), scope(s) { }
-  virtual ~my_var() {}
+  virtual ~my_var() = default;
   virtual bool set(THD *thd, Item *val) = 0;
   virtual my_var_sp *get_my_var_sp() { return NULL; }
 };
@@ -7142,7 +7173,7 @@ public:
     : my_var(j, LOCAL_VAR),
       m_rcontext_handler(rcontext_handler),
       m_type_handler(type_handler), offset(o), sp(s) { }
-  ~my_var_sp() { }
+  ~my_var_sp() = default;
   bool set(THD *thd, Item *val);
   my_var_sp *get_my_var_sp() { return this; }
   const Type_handler *type_handler() const
@@ -7172,7 +7203,7 @@ class my_var_user: public my_var {
 public:
   my_var_user(const LEX_CSTRING *j)
     : my_var(j, SESSION_VAR) { }
-  ~my_var_user() { }
+  ~my_var_user() = default;
   bool set(THD *thd, Item *val);
 };
 
@@ -7185,7 +7216,7 @@ public:
   select_dumpvar(THD *thd_arg)
    :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL)
   { var_list.empty(); }
-  ~select_dumpvar() {}
+  ~select_dumpvar() = default;
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool send_eof();

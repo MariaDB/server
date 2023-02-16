@@ -31,7 +31,7 @@ public:
   Atomic_counter(const Atomic_counter<Type> &rhs)
   { m_counter.store(rhs, std::memory_order_relaxed); }
   Atomic_counter(Type val): m_counter(val) {}
-  Atomic_counter() {}
+  Atomic_counter() = default;
 
   Type operator++(int) { return add(1); }
   Type operator--(int) { return sub(1); }

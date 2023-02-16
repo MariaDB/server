@@ -311,7 +311,7 @@ btr_get_size_and_reserved(
 		return ULINT_UNDEFINED;
 	}
 
-	mtr->s_lock_space(index->table->space);
+	mtr->x_lock_space(index->table->space);
 
 	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					+ root->page.frame, used, mtr);

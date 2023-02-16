@@ -73,8 +73,7 @@ protected:
   table_setup_timers();
 
 public:
-  ~table_setup_timers()
-  {}
+  ~table_setup_timers() = default;
 
 private:
   /** Table share lock. */

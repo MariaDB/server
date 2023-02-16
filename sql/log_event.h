@@ -2599,7 +2599,7 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
 
   Intvar_log_event(const uchar *buf,
                    const Format_description_log_event *description_event);
-  ~Intvar_log_event() {}
+  ~Intvar_log_event() = default;
   Log_event_type get_type_code() { return INTVAR_EVENT;}
   const char* get_var_type_name();
   int get_data_size() { return  9; /* sizeof(type) + sizeof(val) */;}
@@ -2680,7 +2680,7 @@ class Rand_log_event: public Log_event
 
   Rand_log_event(const uchar *buf,
                  const Format_description_log_event *description_event);
-  ~Rand_log_event() {}
+  ~Rand_log_event() = default;
   Log_event_type get_type_code() { return RAND_EVENT;}
   int get_data_size() { return 16; /* sizeof(ulonglong) * 2*/ }
 #ifdef MYSQL_SERVER
@@ -2709,7 +2709,7 @@ public:
                 const Format_description_log_event *description_event):
    Log_event(buf, description_event) {}
 
-  ~Xid_apply_log_event() {}
+  ~Xid_apply_log_event() = default;
   bool is_valid() const { return 1; }
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -2760,7 +2760,7 @@ public:
 
   Xid_log_event(const uchar *buf,
                 const Format_description_log_event *description_event);
-  ~Xid_log_event() {}
+  ~Xid_log_event() = default;
   Log_event_type get_type_code() { return XID_EVENT;}
   int get_data_size() { return sizeof(xid); }
 #ifdef MYSQL_SERVER
@@ -2905,7 +2905,7 @@ public:
 #endif
   XA_prepare_log_event(const uchar *buf,
                        const Format_description_log_event *description_event);
-  ~XA_prepare_log_event() {}
+  ~XA_prepare_log_event() = default;
   Log_event_type get_type_code() { return XA_PREPARE_LOG_EVENT; }
   bool is_valid() const { return m_xid.formatID != -1; }
   int get_data_size()
@@ -2980,7 +2980,7 @@ public:
 
   User_var_log_event(const uchar *buf, uint event_len,
                      const Format_description_log_event *description_event);
-  ~User_var_log_event() {}
+  ~User_var_log_event() = default;
   Log_event_type get_type_code() { return USER_VAR_EVENT;}
 #ifdef MYSQL_SERVER
   bool write();
@@ -3030,7 +3030,7 @@ public:
                  const Format_description_log_event *description_event):
     Log_event(buf, description_event)
   {}
-  ~Stop_log_event() {}
+  ~Stop_log_event() = default;
   Log_event_type get_type_code() { return STOP_EVENT;}
   bool is_valid() const { return 1; }
 
@@ -3325,7 +3325,7 @@ public:
 #endif
   Gtid_log_event(const uchar *buf, uint event_len,
                  const Format_description_log_event *description_event);
-  ~Gtid_log_event() { }
+  ~Gtid_log_event() = default;
   Log_event_type get_type_code() { return GTID_EVENT; }
   enum_logged_status logged_status() { return LOGGED_NO_DATA; }
   int get_data_size()
@@ -3500,7 +3500,7 @@ public:
   Append_block_log_event(const uchar *buf, uint event_len,
                          const Format_description_log_event
                          *description_event);
-  ~Append_block_log_event() {}
+  ~Append_block_log_event() = default;
   Log_event_type get_type_code() { return APPEND_BLOCK_EVENT;}
   int get_data_size() { return  block_len + APPEND_BLOCK_HEADER_LEN ;}
   bool is_valid() const { return block != 0; }
@@ -3541,7 +3541,7 @@ public:
 
   Delete_file_log_event(const uchar *buf, uint event_len,
                         const Format_description_log_event* description_event);
-  ~Delete_file_log_event() {}
+  ~Delete_file_log_event() = default;
   Log_event_type get_type_code() { return DELETE_FILE_EVENT;}
   int get_data_size() { return DELETE_FILE_HEADER_LEN ;}
   bool is_valid() const { return file_id != 0; }
@@ -3581,7 +3581,7 @@ public:
   Begin_load_query_log_event(const uchar *buf, uint event_len,
                              const Format_description_log_event
                              *description_event);
-  ~Begin_load_query_log_event() {}
+  ~Begin_load_query_log_event() = default;
   Log_event_type get_type_code() { return BEGIN_LOAD_QUERY_EVENT; }
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -3639,7 +3639,7 @@ public:
   Execute_load_query_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event);
-  ~Execute_load_query_log_event() {}
+  ~Execute_load_query_log_event() = default;
 
   Log_event_type get_type_code() { return EXECUTE_LOAD_QUERY_EVENT; }
   bool is_valid() const { return Query_log_event::is_valid() && file_id != 0; }
@@ -3677,7 +3677,7 @@ public:
   {}
   /* constructor for hopelessly corrupted events */
   Unknown_log_event(): Log_event(), what(ENCRYPTED) {}
-  ~Unknown_log_event() {}
+  ~Unknown_log_event() = default;
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
   Log_event_type get_type_code() { return UNKNOWN_EVENT;}
   bool is_valid() const { return 1; }

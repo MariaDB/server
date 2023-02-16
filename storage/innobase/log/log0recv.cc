@@ -725,8 +725,10 @@ static struct
   bool reinit_all()
   {
 retry:
+    log_sys.latch.wr_unlock();
     bool fail= false;
     buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
     mysql_mutex_lock(&recv_sys.mutex);
 
     for (auto d= defers.begin(); d != defers.end(); )
@@ -1859,7 +1861,7 @@ inline bool page_recv_t::trim(lsn_t start_lsn)
 {
   while (log.head)
   {
-    if (log.head->lsn >= start_lsn) return false;
+    if (log.head->lsn > start_lsn) return false;
     last_offset= 1; /* the next record must not be same_page */
     log_rec_t *next= log.head->next;
     recv_sys.free(log.head);
@@ -2485,6 +2487,9 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
             goto record_corrupted;
           static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
+          /* The entire undo tablespace will be reinitialized by
+          innodb_undo_log_truncate=ON. Discard old log for all pages. */
+          trim({space_id, 0}, lsn);
           truncated_undo_spaces[space_id - srv_undo_space_id_start]=
             { lsn, page_no };
           if (undo_space_trunc)
@@ -3364,7 +3369,12 @@ void recv_sys_t::apply(bool last_batch)
       const trunc& t= truncated_undo_spaces[id];
       if (t.lsn)
       {
-        trim(page_id_t(id + srv_undo_space_id_start, 0), t.lsn);
+        /* The entire undo tablespace will be reinitialized by
+        innodb_undo_log_truncate=ON. Discard old log for all pages.
+        Even though we recv_sys_t::parse() already invoked trim(),
+        this will be needed in case recovery consists of multiple batches
+        (there was an invocation with !last_batch). */
+        trim({id + srv_undo_space_id_start, 0}, t.lsn);
         if (fil_space_t *space = fil_space_get(id + srv_undo_space_id_start))
         {
           ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
@@ -3378,7 +3388,20 @@ void recv_sys_t::apply(bool last_batch)
 
     fil_system.extend_to_recv_size();
 
+    /* We must release log_sys.latch and recv_sys.mutex before
+    invoking buf_LRU_get_free_block(). Allocating a block may initiate
+    a redo log write and therefore acquire log_sys.latch. To avoid
+    deadlocks, log_sys.latch must not be acquired while holding
+    recv_sys.mutex. */
+    mysql_mutex_unlock(&mutex);
+    if (!last_batch)
+      log_sys.latch.wr_unlock();
+
     buf_block_t *free_block= buf_LRU_get_free_block(have_no_mutex);
+
+    if (!last_batch)
+      log_sys.latch.wr_lock(SRW_LOCK_CALL);
+    mysql_mutex_lock(&mutex);
 
     for (map::iterator p= pages.begin(); p != pages.end(); )
     {
@@ -3425,7 +3448,11 @@ erase_for_space:
         {
 next_free_block:
           mysql_mutex_unlock(&mutex);
+          if (!last_batch)
+            log_sys.latch.wr_unlock();
           free_block= buf_LRU_get_free_block(have_no_mutex);
+          if (!last_batch)
+            log_sys.latch.wr_lock(SRW_LOCK_CALL);
           mysql_mutex_lock(&mutex);
           break;
         }
@@ -4143,6 +4170,11 @@ read_only_recovery:
 			    || recv_sys.is_corrupt_fs()) {
 				goto err_exit;
 			}
+
+			/* In case of multi-batch recovery,
+			redo log for the last batch is not
+			applied yet. */
+			ut_d(recv_sys.after_apply = false);
 		}
 	} else {
 		ut_ad(recv_sys.pages.empty());

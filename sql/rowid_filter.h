@@ -191,7 +191,7 @@ public:
   virtual void sort (int (*cmp) (void *ctxt, const void *el1, const void *el2),
                      void *cmp_arg) = 0;
 
-  virtual ~Rowid_filter_container() {}
+  virtual ~Rowid_filter_container() = default;
 };
 
 
@@ -228,7 +228,7 @@ public:
   */
   virtual bool check(char *elem) = 0;
 
-  virtual ~Rowid_filter() {}
+  virtual ~Rowid_filter() = default;
 
   bool is_empty() { return container->is_empty(); }
 

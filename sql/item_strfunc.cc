@@ -1848,6 +1848,18 @@ bool Item_func_ucase::fix_length_and_dec(THD *thd)
 }
 
 
+bool Item_func_left::hash_not_null(Hasher *hasher)
+{
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
+  String *str= val_str(&buf);
+  DBUG_ASSERT((str == NULL) == null_value);
+  if (!str)
+    return true;
+  hasher->add(collation.collation, str->ptr(), str->length());
+  return false;
+}
+
+
 String *Item_func_left::val_str(String *str)
 {
   DBUG_ASSERT(fixed());

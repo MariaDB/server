@@ -99,7 +99,7 @@ public:
           on_check_function on_check_func, on_update_function on_update_func,
           const char *substitute);
 
-  virtual ~sys_var() {}
+  virtual ~sys_var() = default;
 
   /**
     All the cleanup procedures should be performed here
@@ -280,8 +280,8 @@ protected:
 class set_var_base :public Sql_alloc
 {
 public:
-  set_var_base() {}
-  virtual ~set_var_base() {}
+  set_var_base() = default;
+  virtual ~set_var_base() = default;
   virtual int check(THD *thd)=0;           /* To check privileges etc. */
   virtual int update(THD *thd)=0;                  /* To set the value */
   virtual int light_check(THD *thd) { return check(thd); }   /* for PS */

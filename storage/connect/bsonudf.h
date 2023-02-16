@@ -143,7 +143,7 @@ protected:
 	my_bool AddPath(void);
 
 	// Default constructor not to be used
-	BJNX(void) {}
+	BJNX(void) = default;
 
 	// Members
 	PBVAL    Row;

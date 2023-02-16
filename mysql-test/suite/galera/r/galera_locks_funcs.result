@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t (c DOUBLE,c2 INT,PRIMARY KEY(c)) ENGINE=InnoDB;
+INSERT INTO t values (1,1);
+SELECT GET_LOCK('a',1);
+ERROR 42000: This version of MariaDB doesn't yet support 'GET_LOCK in cluster (WSREP_ON=ON)'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1235	This version of MariaDB doesn't yet support 'GET_LOCK in cluster (WSREP_ON=ON)'
+SELECT * FROM t;
+c	c2
+1	1
+SELECT RELEASE_LOCK('a');
+ERROR 42000: This version of MariaDB doesn't yet support 'RELEASE_LOCK in cluster (WSREP_ON=ON)'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1235	This version of MariaDB doesn't yet support 'RELEASE_LOCK in cluster (WSREP_ON=ON)'
+SELECT RELEASE_ALL_LOCKS();
+ERROR 42000: This version of MariaDB doesn't yet support 'RELEASE_ALL_LOCKS in cluster (WSREP_ON=ON)'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1235	This version of MariaDB doesn't yet support 'RELEASE_ALL_LOCKS in cluster (WSREP_ON=ON)'
+COMMIT;
+DROP TABLE t;

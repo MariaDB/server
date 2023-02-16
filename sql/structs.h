@@ -981,7 +981,7 @@ public:
 class Load_data_outvar
 {
 public:
-  virtual ~Load_data_outvar() {}
+  virtual ~Load_data_outvar() = default;
   virtual bool load_data_set_null(THD *thd, const Load_data_param *param)= 0;
   virtual bool load_data_set_value(THD *thd, const char *pos, uint length,
                                    const Load_data_param *param)= 0;
@@ -995,7 +995,7 @@ public:
 class Timeval: public timeval
 {
 protected:
-  Timeval() { }
+  Timeval() = default;
 public:
   Timeval(my_time_t sec, ulong usec)
   {

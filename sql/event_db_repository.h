@@ -71,7 +71,7 @@ class Event_parse_data;
 class Event_db_repository
 {
 public:
-  Event_db_repository(){}
+  Event_db_repository() = default;
 
   bool
   create_event(THD *thd, Event_parse_data *parse_data,

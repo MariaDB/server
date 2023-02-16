@@ -158,8 +158,8 @@ IF(WIN32)
   OPTION(SIGNCODE "Sign executables and dlls with digital certificate" OFF)
   MARK_AS_ADVANCED(SIGNCODE)
   IF(SIGNCODE)
-   SET(SIGNTOOL_PARAMETERS
-     /a /t http://timestamp.globalsign.com/?signature=sha2
+   SET(SIGNTOOL_PARAMETERS 
+     /a /fd SHA256 /t http://timestamp.globalsign.com/?signature=sha2
      CACHE STRING "parameters for signtool (list)")
     IF(NOT SIGNTOOL_EXECUTABLE)
       FILE(GLOB path_list

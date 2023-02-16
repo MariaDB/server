@@ -1133,3 +1133,73 @@ EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=2 WHERE t2.part=1 AND
 EXPLAIN FORMAT=JSON UPDATE t2 JOIN t1 USING(a) SET t2.part=3 WHERE t2.part=2 AND t1.part=2;
 
 DROP TABLES t1, t2;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-28538: multi-table UPDATE/DELETE with possible exists-to-in
+--echo #
+
+create table t1 (c1 int, c2 int, c3 int, index idx(c2));
+insert into t1 values
+(1,1,1),(3,2,2),(1,3,3),
+(2,1,4),(2,2,5),(4,3,6),
+(2,4,7),(2,5,8);
+
+create table t2 (c1 int, c2 int, c3 int, index idx(c2));
+insert into t2 values
+(1,7,1),(1,8,2),(1,3,3),
+(2,1,4),(2,2,5),(2,3,6),
+(2,4,7),(2,5,8);
+
+create table t3 (c1 int, c2 int, c3 int, index idx(c2));
+insert into t3 values
+(1,1,1),(1,2,2),(1,3,3),
+(2,1,4),(2,2,5),(2,3,6),
+(2,4,7),(2,5,8);
+insert into t3 select c1+1, c2+2, c3 from t3;
+insert into t3 select c1, c2+2, c3  from t3;
+
+analyze table t1,t2,t3 persistent for all;
+
+let $c=
+  t1.c2 = t3.c2 and
+  t1.c1 > 1 and
+  exists (select 'X' from t2 where t2.c1 = t1.c1 and t2.c2 > 4);
+
+let $q1=
+select * from t1,t3
+where $c;
+
+eval explain $q1;
+
+let $q2=
+delete from t1 using t1,t3
+where $c;
+
+eval explain $q2;
+
+let $q3=
+update t1,t3 set t1.c1 = t1.c1+10
+where $c;
+
+eval explain $q3;
+
+create table t as select * from t1;
+
+eval $q1;
+select * from t1;
+
+eval $q2;
+select * from t1;
+
+truncate table t1;
+insert into t1 select * from t;
+analyze table t1 persistent for all;
+
+eval $q3;
+select * from t1;
+
+drop table t1,t2,t3,t;
+
+--echo # End of 10.4 tests

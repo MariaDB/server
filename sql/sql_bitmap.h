@@ -90,7 +90,7 @@ public:
    or to call set_all()/clear_all()/set_prefix()
    to initialize bitmap.
   */
-  Bitmap() { }
+  Bitmap() = default;
 
   explicit Bitmap(uint prefix)
   {

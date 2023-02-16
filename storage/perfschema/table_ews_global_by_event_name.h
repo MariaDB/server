@@ -104,8 +104,7 @@ protected:
   table_ews_global_by_event_name();
 
 public:
-  ~table_ews_global_by_event_name()
-  {}
+  ~table_ews_global_by_event_name() = default;
 
 protected:
   void make_mutex_row(PFS_mutex_class *klass);

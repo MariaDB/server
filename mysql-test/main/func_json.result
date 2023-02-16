@@ -1623,6 +1623,21 @@ id	doc
 {"$oid":"611c0a463b150154132f6636"}	{ "_id" : { "$oid" : "611c0a463b150154132f6636" }, "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : [ { "a" : 1.0 } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] } ] }
 DROP TABLE arrNestTest;
 #
+# MDEV-30412 JSON_OBJECTAGG doesn't escape double quote in key
+#
+SELECT JSON_OBJECTAGG('"', 1);
+JSON_OBJECTAGG('"', 1)
+{"\"":1}
+SELECT JSON_OBJECTAGG('\"', 1);
+JSON_OBJECTAGG('\"', 1)
+{"\"":1}
+SELECT JSON_OBJECTAGG('\\', 1);
+JSON_OBJECTAGG('\\', 1)
+{"\\":1}
+#
+# End of 10.5 tests
+#
+#
 # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
 #
 CREATE TABLE t (a VARCHAR(8));
@@ -1649,7 +1664,7 @@ JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3')	JSON_SET(JSON_OBJECT(l1, 
 {"k1": "v1", "k2": "v2", "k3": "v3"}	{"k1": "v1", "k2": "new v2"}	{"k1": "v1", "k2": "new v2"}
 DROP TABLE t;
 #
-# End of 10.5 tests
+# End of 10.6 tests
 #
 #
 # Beginning of 10.9 tests
@@ -2536,9 +2551,6 @@ JSON_EXTRACT(j, '$[*]')
 [{"key1": 3, "key2": 3}, {"key3": 3, "key4": 3}, {"key5": 3}]
 DROP TABLE t1;
 #
-# End of 10.9 Test
-#
-#
 # MDEV-29381: JSON paths containing dashes are reported as syntax errors in procedures
 #
 SELECT JSON_EXTRACT('{ "my-key": 1 }', '$."my-key"');
@@ -2547,3 +2559,6 @@ JSON_EXTRACT('{ "my-key": 1 }', '$."my-key"')
 SELECT JSON_EXTRACT('{ "my-key": 1 }', '$.my-key');
 JSON_EXTRACT('{ "my-key": 1 }', '$.my-key')
 1
+#
+# End of 10.9 Test
+#

@@ -121,7 +121,7 @@ class DllExport CSVCOL : public DOSCOL {
 
  protected:
   // Default constructor not to be used
-  CSVCOL(void) {}
+  CSVCOL(void) = default;
 
   // Members
   int Fldnum;               // Field ordinal number (0 based)

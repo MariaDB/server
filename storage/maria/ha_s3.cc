@@ -233,7 +233,7 @@ ha_create_table_option s3_table_option_list[]=
 
 
 ha_s3::ha_s3(handlerton *hton, TABLE_SHARE *table_arg)
-  :ha_maria(hton, table_arg), in_alter_table(S3_NO_ALTER)
+  :ha_maria(hton, table_arg), in_alter_table(S3_NO_ALTER), open_args(NULL)
 {
   /* Remove things that S3 doesn't support */
   int_table_flags&= ~(HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |

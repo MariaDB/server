@@ -101,7 +101,7 @@ struct table_name_t
 	char*	m_name;
 
 	/** Default constructor */
-	table_name_t() {}
+	table_name_t() = default;
 	/** Constructor */
 	table_name_t(char* name) : m_name(name) {}
 

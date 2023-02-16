@@ -42,6 +42,8 @@
 #include <fcntl.h>
 #endif  // !_WIN32
 
+#include <m_string.h>
+
 /***********************************************************************/
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
@@ -194,7 +196,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
   if (Header == 2)
   {
     PlugRemoveType(filename, filename);
-    strncat(filename, ".blk", _MAX_PATH - strlen(filename));
+    safe_strcat(filename, sizeof(filename), ".blk");
   }
 
   if ((h = global_open(g, MSGID_CANNOT_OPEN, filename, O_RDONLY)) == -1
@@ -251,7 +253,7 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
 
   } else {      // Header == 2
     PlugRemoveType(filename, filename);
-    strncat(filename, ".blk", _MAX_PATH - strlen(filename));
+    safe_strcat(filename, sizeof(filename), ".blk");
     s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "wb");
   } // endif Header
 
@@ -587,7 +589,7 @@ bool VCTFAM::InitInsert(PGLOBAL g)
 				htrc("Exception %d: %s\n", n, g->Message);
 			rc = true;
 		} catch (const char *msg) {
-			strncpy(g->Message, msg, sizeof(g->Message));
+			safe_strcpy(g->Message, sizeof(msg), msg);
 			rc = true;
 		} // end catch
 
@@ -891,8 +893,7 @@ bool VCTFAM::OpenTempFile(PGLOBAL g)
   /*********************************************************************/
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
   PlugRemoveType(tempname, tempname);
-  strncat(tempname, ".t", _MAX_PATH - strlen(tempname));
-
+  safe_strcat(tempname, sizeof(tempname), ".t");
   if (MaxBlk) {
     if (MakeEmptyFile(g, tempname))
       return true;
@@ -1562,7 +1563,7 @@ bool VCMFAM::InitInsert(PGLOBAL g)
 		  htrc("Exception %d: %s\n", n, g->Message);
 		rc = true;
   } catch (const char *msg) {
-	  strncpy(g->Message, msg, sizeof(g->Message));
+	  safe_strcpy(g->Message, sizeof(g->Message), msg);
 		rc = true;
   } // end catch
 
@@ -2082,10 +2083,10 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
       // Allocate all that is needed to move lines and make Temp
       if (UseTemp) {
         Tempat = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
-        strcpy(Tempat, Colfn);
+        safe_strcpy(Tempat, _MAX_PATH, Colfn);
         PlugSetPath(Tempat, Tempat, Tdbp->GetPath());
         PlugRemoveType(Tempat, Tempat);
-        strncat(Tempat, ".t", _MAX_PATH - strlen(Tempat));
+        safe_strcat(Tempat, _MAX_PATH, ".t");
         T_Fbs = (PFBLOCK *)PlugSubAlloc(g, NULL, Ncol * sizeof(PFBLOCK));
         } // endif UseTemp
 
@@ -2460,7 +2461,7 @@ int VECFAM::RenameTempFile(PGLOBAL g)
       snprintf(filename, _MAX_PATH, Colfn, i+1);
       PlugSetPath(filename, filename, Tdbp->GetPath());
       PlugRemoveType(filetemp, filename);
-      strncat(filetemp, ".ttt", _MAX_PATH - strlen(filetemp));
+      safe_strcat(filetemp, sizeof(filetemp), ".ttt");
       remove(filetemp);   // May still be there from previous error
   
       if (rename(filename, filetemp)) {    // Save file for security
@@ -3221,7 +3222,7 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   if (Header == 2)
   {
     PlugRemoveType(filename, filename);
-    strncat(filename, ".blk", _MAX_PATH - strlen(filename));
+    safe_strcat(filename, sizeof(filename), ".blk");
   }
 
 #if defined(_WIN32)
@@ -3300,7 +3301,7 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
   } else       // Header == 2
   {
     PlugRemoveType(filename, filename);
-    strncat(filename, ".blk", _MAX_PATH - strlen(filename));
+    safe_strcat(filename, sizeof(filename), ".blk");
   }
 
   if (h == INVALID_HANDLE_VALUE) {
@@ -3398,7 +3399,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                 FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                 (LPTSTR)filename, sizeof(filename), NULL);
-  strncat(g->Message, filename, sizeof(g->Message) - strlen(g->Message));
+  safe_strcat(g->Message, sizeof(g->Message), filename);
 
   if (h != INVALID_HANDLE_VALUE)
     CloseHandle(h);
@@ -3534,7 +3535,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)filename, sizeof(filename), NULL);
-    strncat(g->Message, filename, sizeof(g->Message) - strlen(g->Message));
+    safe_strcat(g->Message, sizeof(g->Message), filename);
     } // endif Hfile
 
   if (trace(1))
@@ -3622,8 +3623,8 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = errno;
-    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, mode, filename);
-    strncat(g->Message, strerror(errno), sizeof(g->Message) - strlen(g->Message));
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR)"%s", rc, mode,
+             filename, strerror(errno));
     } // endif Hfile
 
   if (trace(1))
@@ -3967,7 +3968,7 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   tempname = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
   PlugSetPath(tempname, To_File, Tdbp->GetPath());
   PlugRemoveType(tempname, tempname);
-  strncat(tempname, ".t", _MAX_PATH - strlen(tempname));
+  safe_strcat(tempname, _MAX_PATH, ".t");
 
   if (!MaxBlk)
     remove(tempname);       // Be sure it does not exist yet
@@ -3986,7 +3987,7 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
               FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
               (LPTSTR)tempname, _MAX_PATH, NULL);
-    strncat(g->Message, tempname, sizeof(g->Message) - strlen(g->Message));
+    safe_strcat(g->Message, sizeof(g->Message), tempname);
     return true;
     } // endif Tfile
 #else    // UNIX
@@ -3996,8 +3997,8 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
 
   if (Tfile == INVALID_HANDLE_VALUE) {
     int rc = errno;
-    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR), rc, MODE_INSERT, tempname);
-    strncat(g->Message, strerror(errno), sizeof(g->Message) - strlen(g->Message));
+    snprintf(g->Message, sizeof(g->Message), MSG(OPEN_ERROR) "%s", rc, MODE_INSERT,
+             tempname, strerror(errno));
     return true;
     } //endif Tfile
 #endif   // UNIX

@@ -36,7 +36,7 @@ class ha_heap final : public handler
   my_bool internal_table;
 public:
   ha_heap(handlerton *hton, TABLE_SHARE *table);
-  ~ha_heap() {}
+  ~ha_heap() = default;
   handler *clone(const char *name, MEM_ROOT *mem_root) override;
   const char *index_type(uint inx) override
   {

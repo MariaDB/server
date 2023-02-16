@@ -43,8 +43,7 @@ protected:
   table_session_account_connect_attrs();
 
 public:
-  ~table_session_account_connect_attrs()
-  {}
+  ~table_session_account_connect_attrs() = default;
 
 protected:
   virtual bool thread_fits(PFS_thread *thread);

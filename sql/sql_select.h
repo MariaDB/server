@@ -777,7 +777,7 @@ public:
 
   virtual void mark_used() = 0;
 
-  virtual ~Semi_join_strategy_picker() {} 
+  virtual ~Semi_join_strategy_picker() = default;
 };
 
 
@@ -1559,12 +1559,30 @@ public:
     (set in make_join_statistics())
   */
   bool impossible_where; 
-  List<Item> all_fields; ///< to store all fields that used in query
+
+  /*
+    All fields used in the query processing.
+
+    Initially this is a list of fields from the query's SQL text.
+
+    Then, ORDER/GROUP BY and Window Function code add columns that need to
+    be saved to be available in the post-group-by context. These extra columns
+    are added to the front, because this->all_fields points to the suffix of
+    this list.
+  */
+  List<Item> all_fields;
   ///Above list changed to use temporary table
   List<Item> tmp_all_fields1, tmp_all_fields2, tmp_all_fields3;
   ///Part, shared with list above, emulate following list
   List<Item> tmp_fields_list1, tmp_fields_list2, tmp_fields_list3;
-  List<Item> &fields_list; ///< hold field list passed to mysql_select
+
+  /*
+    The original field list as it was passed to mysql_select(). This refers
+    to select_lex->item_list.
+    CAUTION: this list is a suffix of this->all_fields list, that is, it shares
+    elements with that list!
+  */
+  List<Item> &fields_list;
   List<Item> procedure_fields_list;
   int error;
 
@@ -1960,7 +1978,7 @@ public:
              null_ptr(arg.null_ptr), err(arg.err)
 
   {}
-  virtual ~store_key() {}			/** Not actually needed */
+  virtual ~store_key() = default;			/** Not actually needed */
   virtual enum Type type() const=0;
   virtual const char *name() const=0;
   virtual bool store_key_is_const() { return false; }

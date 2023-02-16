@@ -68,9 +68,7 @@ class ha_example: public handler
 
 public:
   ha_example(handlerton *hton, TABLE_SHARE *table_arg);
-  ~ha_example()
-  {
-  }
+  ~ha_example() = default;
 
   /** @brief
     The name of the index type that will be used for display.

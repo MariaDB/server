@@ -344,7 +344,7 @@ public:
   {
     return complete_ring() || complete_poly();
   }
-  virtual ~Gcalc_shape_transporter() {}
+  virtual ~Gcalc_shape_transporter() = default;
 };
 
 

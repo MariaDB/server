@@ -50,7 +50,7 @@ class Ack_receiver : public Repl_semi_sync_base
 {
 public:
   Ack_receiver();
-  ~Ack_receiver() {}
+  ~Ack_receiver() = default;
   void cleanup();
   /**
      Notify ack receiver to receive acks on the dump session.
