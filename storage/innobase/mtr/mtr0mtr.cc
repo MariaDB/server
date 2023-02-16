@@ -52,9 +52,6 @@ void mtr_memo_slot_t::release() const
     static_cast<fil_space_t*>(object)->set_committed_size();
     static_cast<fil_space_t*>(object)->x_unlock();
     break;
-  case MTR_MEMO_SPACE_S_LOCK:
-    static_cast<fil_space_t*>(object)->s_unlock();
-    break;
   default:
     buf_page_t *bpage= static_cast<buf_page_t*>(object);
     ut_d(const auto s=)
@@ -263,9 +260,6 @@ void mtr_t::release_unlogged()
       static_cast<fil_space_t*>(slot.object)->set_committed_size();
       static_cast<fil_space_t*>(slot.object)->x_unlock();
       break;
-    case MTR_MEMO_SPACE_S_LOCK:
-      static_cast<fil_space_t*>(slot.object)->s_unlock();
-      break;
     case MTR_MEMO_X_LOCK:
     case MTR_MEMO_SX_LOCK:
       static_cast<index_lock*>(slot.object)->
@@ -405,9 +399,6 @@ void mtr_t::commit()
         case MTR_MEMO_SPACE_X_LOCK:
           static_cast<fil_space_t*>(slot.object)->set_committed_size();
           static_cast<fil_space_t*>(slot.object)->x_unlock();
-          break;
-        case MTR_MEMO_SPACE_S_LOCK:
-          static_cast<fil_space_t*>(slot.object)->s_unlock();
           break;
         case MTR_MEMO_X_LOCK:
         case MTR_MEMO_SX_LOCK:
@@ -1200,18 +1191,14 @@ bool mtr_t::have_u_or_x_latch(const buf_block_t &block) const
 
 /** Check if we are holding exclusive tablespace latch
 @param space  tablespace to search for
-@param shared whether to look for shared latch, instead of exclusive
 @return whether space.latch is being held */
-bool mtr_t::memo_contains(const fil_space_t& space, bool shared) const
+bool mtr_t::memo_contains(const fil_space_t& space) const
 {
-  const mtr_memo_type_t type= shared
-    ? MTR_MEMO_SPACE_S_LOCK : MTR_MEMO_SPACE_X_LOCK;
-
   for (const mtr_memo_slot_t &slot : m_memo)
   {
-    if (slot.object == &space && slot.type == type)
+    if (slot.object == &space && slot.type == MTR_MEMO_SPACE_X_LOCK)
     {
-      ut_ad(shared || space.is_owner());
+      ut_ad(space.is_owner());
       return true;
     }
   }

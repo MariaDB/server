@@ -283,17 +283,6 @@ struct mtr_t {
     memo_push(lock, MTR_MEMO_SX_LOCK);
   }
 
-  /** Acquire a tablespace S-latch.
-  @param space  tablespace */
-  void s_lock_space(fil_space_t *space)
-  {
-    ut_ad(space->purpose == FIL_TYPE_TEMPORARY ||
-          space->purpose == FIL_TYPE_IMPORT ||
-          space->purpose == FIL_TYPE_TABLESPACE);
-    memo_push(space, MTR_MEMO_SPACE_S_LOCK);
-    space->s_lock();
-  }
-
   /** Acquire an exclusive tablespace latch.
   @param space  tablespace */
   void x_lock_space(fil_space_t *space);
@@ -355,9 +344,8 @@ public:
 
   /** Check if we are holding tablespace latch
   @param space  tablespace to search for
-  @param shared whether to look for shared latch, instead of exclusive
   @return whether space.latch is being held */
-  bool memo_contains(const fil_space_t& space, bool shared= false) const
+  bool memo_contains(const fil_space_t& space) const
     MY_ATTRIBUTE((warn_unused_result));
 #ifdef UNIV_DEBUG
   /** Check if we are holding an rw-latch in this mini-transaction
@@ -410,7 +398,7 @@ public:
       break;
     case MTR_MEMO_MODIFY:
     case MTR_MEMO_S_LOCK: case MTR_MEMO_X_LOCK: case MTR_MEMO_SX_LOCK:
-    case MTR_MEMO_SPACE_X_LOCK: case MTR_MEMO_SPACE_S_LOCK:
+    case MTR_MEMO_SPACE_X_LOCK:
       ut_ad("invalid type" == 0);
     }
 #endif

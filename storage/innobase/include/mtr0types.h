@@ -342,8 +342,6 @@ enum mtr_memo_type_t {
 	MTR_MEMO_SX_LOCK = RW_SX_LATCH << 5,
 
 	/** wr_lock() on fil_space_t::latch */
-	MTR_MEMO_SPACE_X_LOCK = MTR_MEMO_SX_LOCK << 1,
-	/** rd_lock() on fil_space_t::latch */
-	MTR_MEMO_SPACE_S_LOCK = MTR_MEMO_SX_LOCK << 2
+	MTR_MEMO_SPACE_X_LOCK = MTR_MEMO_SX_LOCK << 1
 };
 #endif /* !UNIV_INNOCHECKSUM */

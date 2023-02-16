@@ -1068,6 +1068,18 @@ SELECT * FROM arrNestTest;
 DROP TABLE arrNestTest;
 
 --echo #
+--echo # MDEV-30412 JSON_OBJECTAGG doesn't escape double quote in key
+--echo #
+
+SELECT JSON_OBJECTAGG('"', 1);
+SELECT JSON_OBJECTAGG('\"', 1);
+SELECT JSON_OBJECTAGG('\\', 1);
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
 --echo # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
 --echo #
 
@@ -1077,7 +1089,6 @@ INSERT INTO t VALUES ('foo'),('bar');
 SELECT JSON_ARRAYAGG(a) AS f FROM v;
 DROP VIEW v;
 DROP TABLE t;
-
 
 --echo #
 --echo # MDEV-29264 JSON functions overflow error based ON LONGTEXT field
@@ -1090,6 +1101,5 @@ SELECT JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3'),JSON_SET(JSON_OBJE
 DROP TABLE t;
 
 --echo #
---echo # End of 10.5 tests
+--echo # End of 10.6 tests
 --echo #
-

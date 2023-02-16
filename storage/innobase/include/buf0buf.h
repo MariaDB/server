@@ -769,7 +769,8 @@ public:
   @param node     data file
   @return whether the operation succeeded
   @retval DB_PAGE_CORRUPTED    if the checksum fails
-  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
+  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted
+  @retval DB_FAIL              if the page contains the wrong ID */
   dberr_t read_complete(const fil_node_t &node);
 
   /** Note that a block is no longer dirty, while not removing
@@ -1465,14 +1466,12 @@ public:
     return !watch_is_sentinel(*page_hash.get(id, chain));
   }
 
-  /** Register a watch for a page identifier. The caller must hold an
-  exclusive page hash latch. The *hash_lock may be released,
-  relocated, and reacquired.
+  /** Register a watch for a page identifier.
   @param id         page identifier
-  @param chain      hash table chain with exclusively held page_hash
-  @return a buffer pool block corresponding to id
-  @retval nullptr   if the block was not present, and a watch was installed */
-  inline buf_page_t *watch_set(const page_id_t id, hash_chain &chain);
+  @param chain      page_hash.cell_get(id.fold())
+  @return a buffer page corresponding to id
+  @retval nullptr   if the block was not present in page_hash */
+  buf_page_t *watch_set(const page_id_t id, hash_chain &chain);
 
   /** Stop watching whether a page has been read in.
   watch_set(id) must have returned nullptr before.

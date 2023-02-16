@@ -1344,7 +1344,8 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
   /*
     Try NO_CLEAR_EVENT.
   */
-  if (!my_strcasecmp(system_charset_info, token, "NO_CLEAR_EVENT")) {
+  if (!my_strcasecmp(system_charset_info, token, "NO_CLEAR_EVENT"))
+  {
     action->clear_event= false;
     /* Get next token. If none follows, set action. */
     if (!(ptr = debug_sync_token(&token, &token_length, ptr, action_end))) goto set_action;
@@ -1634,8 +1635,8 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 
 
       /*
-        Wait until global signal string matches the wait_for string.
-        Interrupt when thread or query is killed or facility disabled.
+        Wait until the signal set contains the wait_for string.
+        Interrupt when thread or query is killed or facility is disabled.
         The facility can become disabled when some thread cannot get
         the required dynamic memory allocated.
       */
