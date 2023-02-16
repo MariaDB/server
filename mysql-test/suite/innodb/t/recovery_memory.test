@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/big_test.inc
 --source include/have_sequence.inc
+--source include/maybe_debug.inc
 call mtr.add_suppression("InnoDB: The change buffer is corrupted");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted at srv0start.cc");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
@@ -30,12 +31,20 @@ DROP PROCEDURE dorepeat;
 --echo # MDEV-30552  InnoDB recovery crashes when error
 --echo #        handling scenario
 --echo #
+if ($have_debug) {
 SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
+let $restart_parameters=--innodb_buffer_pool_size=5242880 --debug_dbug="+d,ibuf_init_corrupt";
+}
+if (!$have_debug) {
+--echo SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
+let $restart_parameters=--innodb_buffer_pool_size=5242880;
+}
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;
+let $restart_noprint=1;
 let $shutdown_timeout=0;
-let $restart_parameters=--innodb_buffer_pool_size=5242880 --debug_dbug="+d,ibuf_init_corrupt";
 --source include/restart_mysqld.inc
+let $restart_noprint=0;
 let $restart_parameters=;
 --source include/restart_mysqld.inc
 SHOW CREATE TABLE t1;

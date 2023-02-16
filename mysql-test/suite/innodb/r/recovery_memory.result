@@ -22,7 +22,7 @@ DROP PROCEDURE dorepeat;
 SET DEBUG_DBUG="+d,ib_log_checkpoint_avoid_hard";
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;
-# restart: --innodb_buffer_pool_size=5242880 --debug_dbug=+d,ibuf_init_corrupt
+# restart: with restart_parameters
 # restart
 SHOW CREATE TABLE t1;
 Table	Create Table
