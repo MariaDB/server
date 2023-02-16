@@ -773,7 +773,8 @@ public:
   @param node     data file
   @return whether the operation succeeded
   @retval DB_PAGE_CORRUPTED    if the checksum fails
-  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
+  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted
+  @retval DB_FAIL              if the page contains the wrong ID */
   dberr_t read_complete(const fil_node_t &node);
 
   /** Note that a block is no longer dirty, while not removing
