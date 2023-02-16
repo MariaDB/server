@@ -326,8 +326,8 @@ class Load_log_processor
     }
 
 public:
-  Load_log_processor() {}
-  ~Load_log_processor() {}
+  Load_log_processor() = default;
+  ~Load_log_processor() = default;
 
   int init()
   {

@@ -31,11 +31,9 @@ public:
   /**
     Constructor, used to represent a TRUNCATE statement.
   */
-  Sql_cmd_truncate_table()
-  {}
+  Sql_cmd_truncate_table() = default;
 
-  virtual ~Sql_cmd_truncate_table()
-  {}
+  virtual ~Sql_cmd_truncate_table() = default;
 
   /**
     Execute a TRUNCATE statement at runtime.

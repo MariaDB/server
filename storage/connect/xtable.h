@@ -264,7 +264,7 @@ class DllExport CATCOL : public COLBLK {
 	virtual void ReadColumn(PGLOBAL g);
 
  protected:
-  CATCOL(void) {}              // Default constructor not to be used
+  CATCOL(void) = default;              // Default constructor not to be used
 
   // Members
   PTDBCAT Tdbp;                // Points to ODBC table block

@@ -331,6 +331,9 @@ nothing_read:
 		/* The i/o was already completed in space->io() */
 		*err = bpage->read_complete(*fio.node);
 		space->release();
+		if (*err == DB_FAIL) {
+			*err = DB_PAGE_CORRUPTED;
+		}
 	}
 
 	return true;

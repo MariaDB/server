@@ -165,7 +165,7 @@ public:
 
 protected:
 	// Default constructor not to be used
-	BJSON(void) {}
+	BJSON(void) = default;
 }; // end of class BJSON
 
 /***********************************************************************/
@@ -203,5 +203,5 @@ protected:
 	bool  comma;				 // True if Pretty = 1
 
 	// Default constructor not to be used
-	BDOC(void) {}
+	BDOC(void) = default;
 }; // end of class BDOC

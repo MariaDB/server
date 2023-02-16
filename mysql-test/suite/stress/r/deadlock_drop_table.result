@@ -19,11 +19,12 @@ a	b	c
 1	NULL	NULL
 set debug_sync='now SIGNAL go';
 set debug_sync='now WAIT_FOR parked2';
-set debug_sync='before_wait_for_refs SIGNAL waiting WAIT_FOR go2';
+set debug_sync='before_wait_for_refs SIGNAL waiting WAIT_FOR go3';
 drop table t1;;
 connection con2;
 set debug_sync='now WAIT_FOR waiting';
 set debug_sync='now SIGNAL go2';
+set debug_sync='now SIGNAL go3';
 connection default;
 connection con1;
 connection default;

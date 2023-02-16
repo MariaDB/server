@@ -237,7 +237,7 @@ class DIRCOL : public COLBLK {
 
  protected:
   // Default constructor not to be used
-  DIRCOL(void) {}
+  DIRCOL(void) = default;
 #if defined(_WIN32)
 	void SetTimeValue(PGLOBAL g, FILETIME& ftime);
 #endif   // _WIN32

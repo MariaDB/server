@@ -77,7 +77,7 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
 //        PFIL   Copy(PTABS t);
 
  protected:
-  FILTER(void) {}       // Standard constructor not to be used
+  FILTER(void) = default;       // Standard constructor not to be used
   void Constr(PGLOBAL g, OPVAL opc, int opm, PPARM *tp);
 
   // Members

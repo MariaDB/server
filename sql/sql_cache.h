@@ -91,7 +91,7 @@ typedef my_bool (*qc_engine_callback)(THD *thd, const char *table_key,
 */
 struct Query_cache_block_table
 {
-  Query_cache_block_table() {}                /* Remove gcc warning */
+  Query_cache_block_table() = default;                /* Remove gcc warning */
 
   /**
     This node holds a position in a static table list belonging
@@ -122,7 +122,7 @@ struct Query_cache_block_table
 
 struct Query_cache_block
 {
-  Query_cache_block() {}                      /* Remove gcc warning */
+  Query_cache_block() = default;                      /* Remove gcc warning */
   enum block_type {FREE, QUERY, RESULT, RES_CONT, RES_BEG,
 		   RES_INCOMPLETE, TABLE, INCOMPLETE};
 
@@ -161,7 +161,7 @@ struct Query_cache_query
   uint8 ready;
   ulonglong hit_count;
 
-  Query_cache_query() {}                      /* Remove gcc warning */
+  Query_cache_query() = default;                      /* Remove gcc warning */
   inline void init_n_lock();
   void unlock_n_destroy();
   inline ulonglong found_rows()		   { return limit_found_rows; }
@@ -197,7 +197,7 @@ struct Query_cache_query
 
 struct Query_cache_table
 {
-  Query_cache_table() {}                      /* Remove gcc warning */
+  Query_cache_table() = default;                      /* Remove gcc warning */
   char *tbl;
   uint32 key_len;
   uint8 suffix_len;                          /* For partitioned tables */
@@ -240,7 +240,7 @@ struct Query_cache_table
 
 struct Query_cache_result
 {
-  Query_cache_result() {}                     /* Remove gcc warning */
+  Query_cache_result() = default;                     /* Remove gcc warning */
   Query_cache_block *query;
 
   inline uchar* data()
@@ -266,7 +266,7 @@ extern "C" void query_cache_invalidate_by_MyISAM_filename(const char* filename);
 
 struct Query_cache_memory_bin
 {
-  Query_cache_memory_bin() {}                 /* Remove gcc warning */
+  Query_cache_memory_bin() = default;                 /* Remove gcc warning */
 #ifndef DBUG_OFF
   size_t size;
 #endif
@@ -285,7 +285,7 @@ struct Query_cache_memory_bin
 
 struct Query_cache_memory_bin_step
 {
-  Query_cache_memory_bin_step() {}            /* Remove gcc warning */
+  Query_cache_memory_bin_step() = default;            /* Remove gcc warning */
   size_t size;
   size_t increment;
   size_t idx;

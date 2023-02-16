@@ -110,7 +110,7 @@ class DllExport VCTCOL : public DOSCOL {
   virtual void ReadBlock(PGLOBAL g);
   virtual void WriteBlock(PGLOBAL g);
 
-  VCTCOL(void) {}        // Default constructor not to be used
+  VCTCOL(void) = default;        // Default constructor not to be used
 
   // Members
   PVBLK Blk;             // Block buffer

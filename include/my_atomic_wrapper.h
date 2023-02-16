@@ -39,7 +39,7 @@ public:
   Atomic_relaxed(const Atomic_relaxed<Type> &rhs)
   { m.store(rhs, std::memory_order_relaxed); }
   Atomic_relaxed(Type val) : m(val) {}
-  Atomic_relaxed() {}
+  Atomic_relaxed() = default;
 
   Type load(std::memory_order o= std::memory_order_relaxed) const
   { return m.load(o); }

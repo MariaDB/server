@@ -725,9 +725,12 @@ cmp_rec_rec_simple(
 	/* If we ran out of fields, the ordering columns of rec1 were
 	equal to rec2. Issue a duplicate key error if needed. */
 
-	if (!null_eq && table && dict_index_is_unique(index)) {
-		/* Report erroneous row using new version of table. */
-		innobase_rec_to_mysql(table, rec1, index, offsets1);
+	if (!null_eq && index->is_unique()) {
+		if (table) {
+			/* Report erroneous row using new version
+			of table. */
+			innobase_rec_to_mysql(table, rec1, index, offsets1);
+		}
 		return(0);
 	}
 

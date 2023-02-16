@@ -351,7 +351,7 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
       if (display)
         printf("Copying frm file %s\n", filename);
 
-      end= strmov(aws_path_end,"/frm");
+      strmov(aws_path_end,"/frm");
       convert_frm_to_s3_format(alloc_block);
 
       /* Note that frm is not compressed! */
@@ -1232,7 +1232,7 @@ static void convert_index_to_s3_format(uchar *header, ulong block_size,
   uchar *base_pos;
   uint  base_offset;
 
-  memcpy(state.header.file_version, header, sizeof(state.header));
+  memcpy(&state.header, header, sizeof(state.header));
   base_offset= mi_uint2korr(state.header.base_pos);
   base_pos= header + base_offset;
 
@@ -1251,7 +1251,7 @@ static void convert_index_to_disk_format(uchar *header)
   uchar *base_pos;
   uint  base_offset;
 
-  memcpy(state.header.file_version, header, sizeof(state.header));
+  memcpy(&state.header, header, sizeof(state.header));
   base_offset= mi_uint2korr(state.header.base_pos);
   base_pos= header + base_offset;
 

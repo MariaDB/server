@@ -146,8 +146,7 @@ protected:
 
   table_events_waits_common(const PFS_engine_table_share *share, void *pos);
 
-  ~table_events_waits_common()
-  {}
+  ~table_events_waits_common() = default;
 
   void clear_object_columns();
   int make_table_object_columns(PFS_events_waits *wait);
@@ -182,8 +181,7 @@ protected:
   table_events_waits_current();
 
 public:
-  ~table_events_waits_current()
-  {}
+  ~table_events_waits_current() = default;
 
 private:
   friend class table_events_waits_history;
@@ -219,8 +217,7 @@ protected:
   table_events_waits_history();
 
 public:
-  ~table_events_waits_history()
-  {}
+  ~table_events_waits_history() = default;
 
 private:
   /** Table share lock. */
@@ -253,8 +250,7 @@ protected:
   table_events_waits_history_long();
 
 public:
-  ~table_events_waits_history_long()
-  {}
+  ~table_events_waits_history_long() = default;
 
 private:
   /** Table share lock. */

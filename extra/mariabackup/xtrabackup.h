@@ -27,6 +27,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "changed_page_bitmap.h"
 #include <set>
 
+#define XB_TOOL_NAME "mariadb-backup"
+
 struct xb_delta_info_t
 {
 	xb_delta_info_t(ulint page_size, ulint zip_size, uint32_t space_id)

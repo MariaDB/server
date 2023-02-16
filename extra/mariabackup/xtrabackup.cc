@@ -1290,7 +1290,7 @@ struct my_option xb_client_options[]= {
 
     {"rsync", OPT_RSYNC,
      "Uses the rsync utility to optimize local file "
-     "transfers. When this option is specified, innobackupex uses rsync "
+     "transfers. When this option is specified, " XB_TOOL_NAME " uses rsync "
      "to copy all non-InnoDB files instead of spawning a separate cp for "
      "each file, which can be much faster for servers with a large number "
      "of databases or tables.  This option cannot be used together with "
@@ -1398,7 +1398,7 @@ struct my_option xb_client_options[]= {
 
     {"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
      "This option specifies which types of queries are allowed to complete "
-     "before innobackupex will issue the global lock. Default is all.",
+     "before " XB_TOOL_NAME " will issue the global lock. Default is all.",
      (uchar *) &opt_lock_wait_query_type, (uchar *) &opt_lock_wait_query_type,
      &query_type_typelib, GET_ENUM, REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0,
      0},
@@ -1418,26 +1418,26 @@ struct my_option xb_client_options[]= {
      NULL, NULL, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"kill-long-queries-timeout", OPT_KILL_LONG_QUERIES_TIMEOUT,
-     "This option specifies the number of seconds innobackupex waits "
+     "This option specifies the number of seconds " XB_TOOL_NAME " waits "
      "between starting FLUSH TABLES WITH READ LOCK and killing those "
      "queries that block it. Default is 0 seconds, which means "
-     "innobackupex will not attempt to kill any queries.",
+     XB_TOOL_NAME " will not attempt to kill any queries.",
      (uchar *) &opt_kill_long_queries_timeout,
      (uchar *) &opt_kill_long_queries_timeout, 0, GET_UINT, REQUIRED_ARG, 0, 0,
      0, 0, 0, 0},
 
     {"ftwrl-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
-     "This option specifies time in seconds that innobackupex should wait "
+     "This option specifies time in seconds that " XB_TOOL_NAME " should wait "
      "for queries that would block FTWRL before running it. If there are "
-     "still such queries when the timeout expires, innobackupex terminates "
-     "with an error. Default is 0, in which case innobackupex does not "
+     "still such queries when the timeout expires, " XB_TOOL_NAME " terminates "
+     "with an error. Default is 0, in which case " XB_TOOL_NAME " does not "
      "wait for queries to complete and starts FTWRL immediately.",
      (uchar *) &opt_lock_wait_timeout, (uchar *) &opt_lock_wait_timeout, 0,
      GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
     {"ftwrl-wait-threshold", OPT_LOCK_WAIT_THRESHOLD,
      "This option specifies the query run time threshold which is used by "
-     "innobackupex to detect long-running queries with a non-zero value "
+     XB_TOOL_NAME " to detect long-running queries with a non-zero value "
      "of --ftwrl-wait-timeout. FTWRL is not started until such "
      "long-running queries exist. This option has no effect if "
      "--ftwrl-wait-timeout is 0. Default value is 60 seconds.",
@@ -1918,6 +1918,17 @@ xb_get_one_option(const struct my_option *opt,
     break;
 
   case OPT_INNODB_FLUSH_METHOD:
+#ifdef _WIN32
+    /* From: storage/innobase/handler/ha_innodb.cc:innodb_init_params */
+    switch (srv_file_flush_method) {
+    case SRV_ALL_O_DIRECT_FSYNC + 1 /* "async_unbuffered"="unbuffered" */:
+      srv_file_flush_method= SRV_ALL_O_DIRECT_FSYNC;
+      break;
+    case SRV_ALL_O_DIRECT_FSYNC + 2 /* "normal"="fsync" */:
+      srv_file_flush_method= SRV_FSYNC;
+      break;
+    }
+#endif
     ut_a(srv_file_flush_method
 	 <= IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT_NO_FSYNC));
     ADD_PRINT_PARAM_OPT(innodb_flush_method_names[srv_file_flush_method]);
@@ -3104,7 +3115,8 @@ static bool xtrabackup_copy_logfile()
     mysql_mutex_lock(&recv_sys.mutex);
   }
 
-  msg(">> log scanned up to (" LSN_PF ")", recv_sys.lsn);
+  if (verbose)
+    msg(">> log scanned up to (" LSN_PF ")", recv_sys.lsn);
   return false;
 }
 
@@ -3147,7 +3159,7 @@ static void log_copying_thread()
   my_thread_end();
 }
 
-/** whether io_watching_thread() is active; protected by log_sys.mutex */
+/** whether io_watching_thread() is active; protected by recv_sys.mutex */
 static bool have_io_watching_thread;
 
 /* io throttle watching (rough) */

@@ -25,8 +25,8 @@ namespace dat {
 
 class GRN_DAT_API Cursor {
  public:
-  Cursor() {}
-  virtual ~Cursor() {}
+  Cursor() = default;
+  virtual ~Cursor() = default;
 
   virtual void close() = 0;
 

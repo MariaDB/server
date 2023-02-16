@@ -35,9 +35,19 @@ connection master;
 insert into t1 values (1);
 # Sleep 3 to create gap between events
 insert into t1 values (2);
+include/save_master_pos.inc
 connection slave;
 LOCK TABLES t1 WRITE;
+SET @@global.debug_dbug="+d,pause_sql_thread_on_next_event";
 START SLAVE IO_THREAD;
+# Before we start processing the events, we ensure both transactions
+# were written into the relay log. Otherwise, if the IO thread takes too
+# long to queue the events, the sql thread can think it has caught up
+# too quickly.
+SET DEBUG_SYNC='now WAIT_FOR paused_on_event';
+include/sync_io_with_master.inc
+SET @@global.debug_dbug="-d,pause_sql_thread_on_next_event";
+SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
 # Wait for first transaction to complete SQL delay and begin execution..
 # Validate SBM calculation doesn't use the second transaction because SQL thread shouldn't have gone idle..
 # ..and that SBM wasn't calculated using prior committed transactions
@@ -50,6 +60,8 @@ UNLOCK TABLES;
 include/stop_slave.inc
 CHANGE MASTER TO master_delay=0;
 set @@GLOBAL.slave_parallel_threads=4;
+SET @@global.debug_dbug="";
+SET DEBUG_SYNC='RESET';
 include/start_slave.inc
 connection master;
 DROP TABLE t1;

@@ -330,6 +330,7 @@ public:
 
   // Returns offset to substring or -1
   int strstr(const Binary_string &search, uint32 offset=0);
+  int strstr(const char *search, uint32 search_length, uint32 offset=0);
   // Returns offset to substring or -1
   int strrstr(const Binary_string &search, uint32 offset=0);
 
@@ -803,7 +804,7 @@ public:
 class String: public Charset, public Binary_string
 {
 public:
-  String() { }
+  String() = default;
   String(size_t length_arg) :Binary_string(length_arg)
   { }
   /*
@@ -817,9 +818,7 @@ public:
   String(char *str, size_t len, CHARSET_INFO *cs)
    :Charset(cs), Binary_string(str, len)
   { }
-  String(const String &str)
-   :Charset(str), Binary_string(str)
-  { }
+  String(const String &str) = default;
 
   void set(String &str,size_t offset,size_t arg_length)
   {

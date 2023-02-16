@@ -197,9 +197,7 @@ end:
   Server_side_cursor
 ****************************************************************************/
 
-Server_side_cursor::~Server_side_cursor()
-{
-}
+Server_side_cursor::~Server_side_cursor() = default;
 
 
 void Server_side_cursor::operator delete(void *ptr, size_t size)

@@ -51,8 +51,7 @@ protected:
   cursor_by_thread(const PFS_engine_table_share *share);
 
 public:
-  ~cursor_by_thread()
-  {}
+  ~cursor_by_thread() = default;
 
 protected:
   virtual void make_row(PFS_thread *thread)= 0;

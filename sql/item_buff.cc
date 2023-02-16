@@ -61,7 +61,7 @@ Cached_item *new_Cached_item(THD *thd, Item *item, bool pass_through_ref)
   }
 }
 
-Cached_item::~Cached_item() {}
+Cached_item::~Cached_item() = default;
 
 /**
   Compare with old value and replace value with new value.

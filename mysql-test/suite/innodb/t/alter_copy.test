@@ -57,7 +57,7 @@ ALTER TABLE t ADD INDEX(b,c,d,a),ADD INDEX(b,c,a,d),ADD INDEX(b,a,c,d),ADD INDEX
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR hung';
 let $shutdown_timeout=0;
---let $restart_parameters= --innodb-force-recovery=3
+--let $restart_parameters= --innodb-force-recovery=3 --debug_dbug="+d,recv_ran_out_of_buffer"
 --source include/restart_mysqld.inc
 disconnect hang;
 let $shutdown_timeout=;

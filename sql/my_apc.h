@@ -92,7 +92,7 @@ public:
   public:
     /* This function will be called in the target thread */
     virtual void call_in_target_thread()= 0;
-    virtual ~Apc_call() {}
+    virtual ~Apc_call() = default;
   };
   
   /* Make a call in the target thread (see function definition for details) */

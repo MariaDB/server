@@ -376,7 +376,7 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
       ptr= NULL;
       if (my_flags & MY_WME)
       {
-        if (large_page_size)
+        if (large_page_size && errno == ENOMEM)
         {
           my_printf_error(EE_OUTOFMEMORY,
                           "Couldn't allocate %zu bytes (Large/HugeTLB memory "
