@@ -33,7 +33,7 @@ IdCursor::IdCursor()
       end_(INVALID_KEY_ID),
       count_(0) {}
 
-IdCursor::~IdCursor() {}
+IdCursor::~IdCursor() = default;
 
 void IdCursor::open(const Trie &trie,
                     const String &min_str,

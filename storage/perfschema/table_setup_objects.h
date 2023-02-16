@@ -92,8 +92,7 @@ protected:
   table_setup_objects();
 
 public:
-  ~table_setup_objects()
-  {}
+  ~table_setup_objects() = default;
 
 private:
   void make_row(PFS_setup_object *pfs);

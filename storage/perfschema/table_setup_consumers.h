@@ -77,8 +77,7 @@ protected:
   table_setup_consumers();
 
 public:
-  ~table_setup_consumers()
-  {}
+  ~table_setup_consumers() = default;
 
 private:
   /** Table share lock. */

@@ -343,7 +343,7 @@ public:
     part_field_list.empty();
     subpart_field_list.empty();
   }
-  ~partition_info() {}
+  ~partition_info() = default;
 
   partition_info *get_clone(THD *thd, bool empty_data_and_index_file= FALSE);
   bool set_named_partition_bitmap(const char *part_name, size_t length);

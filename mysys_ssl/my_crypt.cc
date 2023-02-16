@@ -101,7 +101,7 @@ public:
   uchar source_tail[MY_AES_BLOCK_SIZE];
 
   MyCTX_nopad() : MyCTX() { }
-  ~MyCTX_nopad() { }
+  ~MyCTX_nopad() = default;
 
   int init(const EVP_CIPHER *cipher, int encrypt, const uchar *key, uint klen,
            const uchar *iv, uint ivlen)

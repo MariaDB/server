@@ -125,7 +125,7 @@ public:
                 MEM_ROOT *mem_root_arg);
 
   /** We don't call member destructors, they all are POD types. */
-  ~Ed_result_set() {}
+  ~Ed_result_set() = default;
 
   size_t get_field_count() const { return m_column_count; }
 

@@ -1753,8 +1753,8 @@ public:
     These constructor and destructor serve for creation/destruction
     of Query_tables_list instances which are used as backup storage.
   */
-  Query_tables_list() {}
-  ~Query_tables_list() {}
+  Query_tables_list() = default;
+  ~Query_tables_list() = default;
 
   /* Initializes (or resets) Query_tables_list object for "real" use. */
   void reset_query_tables_list(bool init);
@@ -2419,13 +2419,9 @@ class Lex_input_stream
                   const char *str, const char *end, int sep);
   my_charset_conv_wc_mb get_escape_func(THD *thd, my_wc_t sep) const;
 public:
-  Lex_input_stream()
-  {
-  }
+  Lex_input_stream() = default;
 
-  ~Lex_input_stream()
-  {
-  }
+  ~Lex_input_stream() = default;
 
   /**
      Object initializer. Must be called before usage.
@@ -3008,7 +3004,7 @@ public:
 protected:
   bool save_explain_data_intern(MEM_ROOT *mem_root, Explain_update *eu, bool is_analyze);
 public:
-  virtual ~Update_plan() {}
+  virtual ~Update_plan() = default;
 
   Update_plan(MEM_ROOT *mem_root_arg) : 
     impossible_where(false), no_partitions(false), 
@@ -3062,7 +3058,7 @@ enum password_exp_type
 
 struct Account_options: public USER_RESOURCES
 {
-  Account_options() { }
+  Account_options() = default;
 
   void reset()
   {
@@ -4849,14 +4845,13 @@ class Set_signal_information
 {
 public:
   /** Empty default constructor, use clear() */
- Set_signal_information() {} 
+ Set_signal_information() = default; 
 
   /** Copy constructor. */
   Set_signal_information(const Set_signal_information& set);
 
   /** Destructor. */
-  ~Set_signal_information()
-  {}
+  ~Set_signal_information() = default;
 
   /** Clear all items. */
   void clear();
@@ -4979,8 +4974,7 @@ public:
     return m_lip.init(thd, buff, length);
   }
 
-  ~Parser_state()
-  {}
+  ~Parser_state() = default;
 
   Lex_input_stream m_lip;
   Yacc_state m_yacc;

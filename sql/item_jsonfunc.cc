@@ -4239,7 +4239,7 @@ bool Item_func_json_objectagg::add()
     result.append(STRING_WITH_LEN(", "));
 
   result.append('"');
-  result.append(*key);
+  st_append_escaped(&result,key);
   result.append(STRING_WITH_LEN("\":"));
 
   buf.length(0);

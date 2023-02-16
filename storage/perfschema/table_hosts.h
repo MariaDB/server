@@ -67,8 +67,7 @@ protected:
   table_hosts();
 
 public:
-  ~table_hosts()
-  {}
+  ~table_hosts() = default;
 
 private:
   virtual void make_row(PFS_host *pfs);

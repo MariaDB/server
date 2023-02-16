@@ -20,15 +20,12 @@ set debug_sync='now WAIT_FOR parked';
 select * from t1;
 set debug_sync='now SIGNAL go';
 set debug_sync='now WAIT_FOR parked2';
-set debug_sync='before_wait_for_refs SIGNAL waiting WAIT_FOR go2';
+set debug_sync='before_wait_for_refs SIGNAL waiting WAIT_FOR go3';
 --send drop table t1;
 --connection con2
 set debug_sync='now WAIT_FOR waiting';
 set debug_sync='now SIGNAL go2';
-
-# Write out show processlist if the debug sync point times out
-let $wait_condition= select count(*)=0 from information_schema.processlist where state like "%debug%";
-source include/wait_condition.inc;
+set debug_sync='now SIGNAL go3';
 
 --connection default
 --reap

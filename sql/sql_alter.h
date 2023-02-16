@@ -372,11 +372,9 @@ protected:
   /**
     Constructor.
   */
-  Sql_cmd_common_alter_table()
-  {}
+  Sql_cmd_common_alter_table() = default;
 
-  virtual ~Sql_cmd_common_alter_table()
-  {}
+  virtual ~Sql_cmd_common_alter_table() = default;
 
   virtual enum_sql_command sql_command_code() const
   {
@@ -395,11 +393,9 @@ public:
   /**
     Constructor, used to represent a ALTER TABLE statement.
   */
-  Sql_cmd_alter_table()
-  {}
+  Sql_cmd_alter_table() = default;
 
-  ~Sql_cmd_alter_table()
-  {}
+  ~Sql_cmd_alter_table() = default;
 
   Storage_engine_name *option_storage_engine_name() { return this; }
 
@@ -421,8 +417,7 @@ public:
    :DDL_options(options)
   {}
 
-  ~Sql_cmd_alter_sequence()
-  {}
+  ~Sql_cmd_alter_sequence() = default;
 
   enum_sql_command sql_command_code() const
   {

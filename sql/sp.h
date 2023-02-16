@@ -119,7 +119,7 @@ public: // TODO: make it private or protected
                                        const;
 
 public:
-  virtual ~Sp_handler() {}
+  virtual ~Sp_handler() = default;
   static const Sp_handler *handler(enum enum_sql_command cmd);
   static const Sp_handler *handler(enum_sp_type type);
   static const Sp_handler *handler(MDL_key::enum_mdl_namespace ns);

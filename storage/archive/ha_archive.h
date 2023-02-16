@@ -87,9 +87,7 @@ class ha_archive final : public handler
 
 public:
   ha_archive(handlerton *hton, TABLE_SHARE *table_arg);
-  ~ha_archive()
-  {
-  }
+  ~ha_archive() = default;
   const char *index_type(uint inx) { return "NONE"; }
   ulonglong table_flags() const
   {

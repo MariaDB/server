@@ -33,7 +33,7 @@ class GRN_DAT_API Array {
   }
   template <UInt32 U>
   explicit Array(T (&array)[U]) : ptr_(array), size_(U) {}
-  ~Array() {}
+  ~Array() = default;
 
   const T &operator[](UInt32 i) const {
     GRN_DAT_DEBUG_THROW_IF(i >= size_);

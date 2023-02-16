@@ -1490,7 +1490,7 @@ invalid:
 			goto invalid;
 		}
 
-		mtr.s_lock_space(index->table->space);
+		mtr.x_lock_space(index->table->space);
 
 		ulint dummy, size;
 		index->stat_index_size
@@ -2696,7 +2696,7 @@ empty_index:
 	}
 
 	uint16_t root_level = btr_page_get_level(root->page.frame);
-	mtr.s_lock_space(index->table->space);
+	mtr.x_lock_space(index->table->space);
 	ulint dummy, size;
 	result.index_size
 		= fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF

@@ -64,9 +64,7 @@ protected:
   // The buffer that stores the in-memory binary representation
   char m_buffer[NATIVE_LEN];
 
-  // Non-initializing constructor
-  FixedBinTypeStorage()
-  { }
+  FixedBinTypeStorage() = default;
 
   FixedBinTypeStorage & set_zero()
   {

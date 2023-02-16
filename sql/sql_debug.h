@@ -22,7 +22,7 @@
 class Debug_key: public String
 {
 public:
-  Debug_key() { };
+  Debug_key() = default;
   void print(THD *thd) const
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,

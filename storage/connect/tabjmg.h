@@ -118,7 +118,7 @@ public:
 
 protected:
 	// Default constructor not to be used
-	JMGCOL(void) {}
+	JMGCOL(void) = default;
 //char *GetProjPath(PGLOBAL g);
 //char *Mini(PGLOBAL g, const bson_t *bson, bool b);
 

@@ -30,8 +30,7 @@ namespace mrn {
       field_(field) {
   }
 
-  FieldNormalizer::~FieldNormalizer() {
-  }
+  FieldNormalizer::~FieldNormalizer() = default;
 
   bool FieldNormalizer::should_normalize() {
     MRN_DBUG_ENTER_METHOD();

@@ -51,7 +51,7 @@ ADD INDEX(a,b,d), ADD INDEX(a,d,b), ADD INDEX(b,c,d), ADD INDEX(b,d,c),
 ALGORITHM=COPY;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR hung';
-# restart: --innodb-force-recovery=3
+# restart: --innodb-force-recovery=3 --debug_dbug=+d,recv_ran_out_of_buffer
 disconnect hang;
 FTS_INDEX_1.ibd
 FTS_INDEX_2.ibd
