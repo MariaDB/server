@@ -11925,6 +11925,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     rgi.tables_to_lock= &rpl_table;
 
     rgi.m_table_map.set_table(from->s->table_map_id, to);
+    void *tl_buff = thd->alloc(sizeof (TABLE_LIST));
+    to->pos_in_table_list = new(tl_buff) TABLE_LIST(to, TL_WRITE_ALLOW_WRITE);
 
     DBUG_ASSERT(binlog->is_open());
 
