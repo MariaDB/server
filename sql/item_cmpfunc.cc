@@ -7833,3 +7833,4 @@ Item *Item_equal::multiple_equality_transformer(THD *thd, uchar *arg)
     break;
   }
 }
+

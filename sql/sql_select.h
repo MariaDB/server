@@ -1920,6 +1920,7 @@ private:
   void free_pushdown_handlers(List<TABLE_LIST>& join_list);
   void init_join_cache_and_keyread();
   bool transform_in_predicates_into_equalities(THD *thd);
+  bool transform_date_conds_into_sargable();
   bool transform_all_conds_and_on_exprs(THD *thd,
                                         Item_transformer transformer);
   bool transform_all_conds_and_on_exprs_in_join_list(THD *thd,

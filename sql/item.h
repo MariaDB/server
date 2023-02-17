@@ -2514,6 +2514,8 @@ public:
   { return this; }
   virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
   { return this; }
+  virtual Item* date_conds_transformer(THD *thd, uchar *arg)
+  { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const
@@ -4514,12 +4516,14 @@ public:
   int save_in_field(Field *field, bool no_conversions) override;
   longlong val_int() override;
   double val_real() override { return (double)val_int(); }
-  void set(longlong packed, enum_mysql_timestamp_type ts_type);
+  void set(const MYSQL_TIME *datetime) { ltime= *datetime; }
+  void set_from_packed(longlong packed, enum_mysql_timestamp_type ts_type);
   bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate) override
   {
     *to= ltime;
     return false;
   }
+  void print(String *str, enum_query_type query_type) override;
 };
 
 
