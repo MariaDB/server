@@ -9177,6 +9177,7 @@ int TABLE::update_default_fields(bool ignore_errors)
     if (!field->has_explicit_value())
     {
       if (field->default_value &&
+          !(field->default_value->flags & VCOL_IGNORE_DEFAULT) &&
           (field->default_value->flags || field->flags & BLOB_FLAG))
         res|= (field->default_value->expr->save_in_field(field, 0) < 0);
       if (!ignore_errors && res)

@@ -5063,6 +5063,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           if (field->stored_in_db())
             bitmap_set_bit(table->write_set, field->field_index);
         }
+        else if (field->default_value)
+        {
+          field->default_value->flags|= VCOL_IGNORE_DEFAULT;
+        }
       }
 
       this->slave_exec_mode= slave_exec_mode_options; // fix the mode
@@ -6989,9 +6993,8 @@ static bool record_compare(TABLE *table)
   /*
     Determine if the optimized check is possible (and we can
     goto record_compare_exit).
-    We should ensure that all extra columns (i.e. fieldnr > master_columns)
-    have explicit values. If not, we will exclude them from comparison,
-    as they can contain non-deterministic values.
+    We should ensure that all columns have explicit values. If not, we will
+    exclude them from comparison, as they can contain non-deterministic values.
    */
   bool all_values_set= bitmap_is_set_all(&table->has_value_set);
 
@@ -7050,6 +7053,53 @@ static bool record_compare(TABLE *table)
 record_compare_exit:
   return result;
 }
+/**
+  Traverses default item expr of a field, and underlying field's default values.
+  If it is an extra field and has no value replicated, then its default expr
+  should be also checked.
+ */
+class Rpl_key_part_checker: public Field_enumerator
+{
+  uint master_columns;
+  Field *next_number_field;
+  bool field_usable=true;
+public:
+
+
+  void visit_field(Item_field *item) override
+  {
+    if (!field_usable)
+      return;
+    field_usable= check_field(item->field);
+  }
+
+  bool check_field(Field *f)
+  {
+    if (f->has_explicit_value())
+      return true;
+
+    // Master columns that are not sent can't be used even if they have defaults
+    // PRIMARY KEY AUTO_INCREMENT is also skipped
+    if (f->field_index < master_columns || f == next_number_field)
+      return false;
+
+    Virtual_column_info *computed= f->vcol_info ? f->vcol_info
+                                   : f->default_value;
+
+    if (computed == NULL)
+      return true; // No DEFAULT, or constant DEFAULT
+
+    // Deterministic DEFAULT or vcol expression
+    return !(computed->flags & VCOL_NOT_STRICTLY_DETERMINISTIC)
+           && !computed->expr->walk(&Item::enumerate_field_refs_processor,
+                                    false, this)
+           && field_usable;
+  }
+
+  Rpl_key_part_checker(uint master_columns, Field *next_number_field):
+    master_columns(master_columns), next_number_field(next_number_field)
+  {}
+};
 
 /**
   Newly added fields with non-deterministic defaults (i.e. DEFAULT(RANDOM()),
@@ -7061,18 +7111,11 @@ static uint get_usable_key_parts(const KEY *key, uint master_columns)
 {
   TABLE *table= key->table;
   uint p= 0;
+  Rpl_key_part_checker key_part_checker(master_columns,
+                                        table->found_next_number_field);
   for (;p < key->ext_key_parts; p++)
   {
-    Field *f= key->key_part[p].field;
-    uint non_deterministic_default= f->default_value &&
-                                    f->default_value->flags
-                                     | VCOL_NOT_STRICTLY_DETERMINISTIC;
-
-    if (f->has_explicit_value())
-      continue;
-
-    if (f->field_index >= master_columns
-        && (non_deterministic_default || table->found_next_number_field == f))
+    if (!key_part_checker.check_field(key->key_part[p].field))
       break;
   }
   return p;
@@ -7095,7 +7138,7 @@ int Rows_log_event::find_key(Rpl_table_data *table_data)
   DBUG_ENTER("Rows_log_event::find_key");
   DBUG_ASSERT(m_table);
 
-  #ifdef DBUG_TRACE
+#ifndef DBUG_OFF
   auto _ = make_scope_exit([this]() {
     DBUG_EXECUTE_IF("rpl_report_chosen_key",
                     push_warning_printf(m_table->in_use,
@@ -7104,7 +7147,7 @@ int Rows_log_event::find_key(Rpl_table_data *table_data)
                                         m_key_nr == MAX_KEY ?
                                         -1 : m_key_nr););
   });
-  #endif
+#endif
 
   const int master_cols= get_master_cols();
 
@@ -7608,7 +7651,7 @@ int Rows_log_event::do_before_lookup_row_operations(const rpl_group_info *rgi,
   return m_key == NULL ? HA_ERR_OUT_OF_MEM : 0;
 }
 
-int 
+int
 Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi,
                                                 Rpl_table_data *table_data)
 {
