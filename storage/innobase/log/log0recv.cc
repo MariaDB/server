@@ -3147,10 +3147,12 @@ func_exit:
 }
 
 /** Read pages for which log needs to be applied.
-@param page_id	first page identifier to read
-@param i        iterator to recv_sys.pages */
+@param page_id    first page identifier to read
+@param i          iterator to recv_sys.pages
+@param last_batch whether it is possible to write more redo log */
 TRANSACTIONAL_TARGET
-static void recv_read_in_area(page_id_t page_id, recv_sys_t::map::iterator i)
+static void recv_read_in_area(page_id_t page_id, recv_sys_t::map::iterator i,
+                              bool last_batch)
 {
   uint32_t page_nos[32];
   ut_ad(page_id == i->first);
@@ -3170,7 +3172,9 @@ static void recv_read_in_area(page_id_t page_id, recv_sys_t::map::iterator i)
   if (p != page_nos)
   {
     mysql_mutex_unlock(&recv_sys.mutex);
+    if (!last_batch) log_sys.latch.wr_unlock();
     buf_read_recv_pages(page_id.space(), {page_nos, p});
+    if (!last_batch) log_sys.latch.wr_lock(SRW_LOCK_CALL);
     mysql_mutex_lock(&recv_sys.mutex);
   }
 }
@@ -3459,7 +3463,7 @@ next_free_block:
         ut_ad(p == pages.end() || p->first > page_id);
         continue;
       case page_recv_t::RECV_NOT_PROCESSED:
-        recv_read_in_area(page_id, p);
+        recv_read_in_area(page_id, p, last_batch);
       }
       p= pages.lower_bound(page_id);
       /* Ensure that progress will be made. */
