@@ -720,6 +720,9 @@ struct my_charset_handler_st
   */
   my_charset_conv_wc_mb native_to_mb;
   my_charset_conv_wc_mb wc_to_printable;
+
+  uint (*caseup_multiply)(CHARSET_INFO *cs);
+  uint (*casedn_multiply)(CHARSET_INFO *cs);
 };
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
@@ -756,8 +759,6 @@ struct charset_info_st
   const uchar  *state_map;
   const uchar  *ident_map;
   uint      strxfrm_multiply;
-  uchar     caseup_multiply;
-  uchar     casedn_multiply;
   uint      mbminlen;
   uint      mbmaxlen;
   /*
@@ -825,6 +826,16 @@ struct charset_info_st
                 char *dst, size_t dstlen) const
   {
     return (cset->casedn)(this, src, srclen, dst, dstlen);
+  }
+
+  uint caseup_multiply() const
+  {
+    return (cset->caseup_multiply)(this);
+  }
+
+  uint casedn_multiply() const
+  {
+    return (cset->casedn_multiply)(this);
   }
 
   size_t long10_to_str(char *dst, size_t dstlen,

@@ -67611,7 +67611,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_well_formed_char_length_eucjpms,
     my_copy_fix_mb,
     my_native_to_mb_eucjpms,
-    my_wc_to_printable_generic
+    my_wc_to_printable_generic,
+    my_casefold_multiply_1,
+    my_casefold_multiply_2
 };
 
 
@@ -67635,8 +67637,6 @@ struct charset_info_st my_charset_eucjpms_japanese_ci=
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
-    1,			/* caseup_multiply  */
-    2,			/* casedn_multiply  */
     1,			/* mbminlen     */
     3,			/* mbmaxlen     */
     0,			/* min_sort_char */
@@ -67668,8 +67668,6 @@ struct charset_info_st my_charset_eucjpms_bin=
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
-    1,			/* caseup_multiply  */
-    2,			/* casedn_multiply  */
     1,			/* mbminlen     */
     3,			/* mbmaxlen     */
     0,			/* min_sort_char */
@@ -67701,8 +67699,6 @@ struct charset_info_st my_charset_eucjpms_japanese_nopad_ci=
     NULL,                /* state_map        */
     NULL,                /* ident_map        */
     1,                   /* strxfrm_multiply */
-    1,                   /* caseup_multiply  */
-    2,                   /* casedn_multiply  */
     1,                   /* mbminlen         */
     3,                   /* mbmaxlen         */
     0,                   /* min_sort_char    */
@@ -67734,8 +67730,6 @@ struct charset_info_st my_charset_eucjpms_nopad_bin=
     NULL,                /* state_map        */
     NULL,                /* ident_map        */
     1,                   /* strxfrm_multiply */
-    1,                   /* caseup_multiply  */
-    2,                   /* casedn_multiply  */
     1,                   /* mbminlen         */
     3,                   /* mbmaxlen         */
     0,                   /* min_sort_char    */

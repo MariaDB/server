@@ -13,6 +13,14 @@ INSERT INTO case_folding (code) VALUES
 (0x26B),
 (0x271),
 (0x27D);
+
+INSERT INTO case_folding (code) VALUES
+(0x0049) /* LATIN CAPITAL LETTER I */,
+(0x0069) /* LATIN SMALL LETTER I */,
+(0x0130) /* LATIN CAPITAL LETTER I WITH DOT ABOVE */,
+(0x0131) /* LATIN SMALL LETTER DOTLESS I */
+;
+
 UPDATE case_folding SET c=CHAR(code USING ucs2);
 SELECT HEX(code), HEX(LOWER(c)), HEX(UPPER(c)), c FROM case_folding;
 DROP TABLE case_folding;

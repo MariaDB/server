@@ -3693,8 +3693,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3726,8 +3724,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3759,8 +3755,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3792,8 +3786,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3825,8 +3817,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3858,8 +3848,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3891,8 +3879,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3924,8 +3910,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3957,8 +3941,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3990,8 +3972,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4023,8 +4003,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4056,8 +4034,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4089,8 +4065,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4122,8 +4096,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4155,8 +4127,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4188,8 +4158,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4221,8 +4189,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4254,8 +4220,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4287,8 +4251,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4320,8 +4282,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4353,8 +4313,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4386,8 +4344,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4419,8 +4375,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4452,8 +4406,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4485,8 +4437,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4518,8 +4468,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4551,8 +4499,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4584,8 +4530,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4617,8 +4561,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4650,8 +4592,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4683,8 +4623,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4716,8 +4654,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4749,8 +4685,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4782,8 +4716,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4815,8 +4747,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4848,8 +4778,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4881,8 +4809,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4914,8 +4840,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4947,8 +4871,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4980,8 +4902,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5013,8 +4933,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5046,8 +4964,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5079,8 +4995,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5112,8 +5026,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5145,8 +5057,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5178,8 +5088,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5211,8 +5119,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5244,8 +5150,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5277,8 +5181,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5310,8 +5212,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5343,8 +5243,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5376,8 +5274,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5409,8 +5305,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5442,8 +5336,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5475,8 +5367,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5508,8 +5398,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5541,8 +5429,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5574,8 +5460,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5607,8 +5491,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5640,8 +5522,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5673,8 +5553,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5706,8 +5584,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5739,8 +5615,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5772,8 +5646,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5805,8 +5677,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5838,8 +5708,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5871,8 +5739,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5904,8 +5770,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5937,8 +5801,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5970,8 +5832,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6003,8 +5863,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6036,8 +5894,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6069,8 +5925,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6102,8 +5956,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6135,8 +5987,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6168,8 +6018,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6201,8 +6049,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6234,8 +6080,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6267,8 +6111,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6300,8 +6142,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6333,8 +6173,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6366,8 +6204,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6399,8 +6235,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6432,8 +6266,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6465,8 +6297,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6498,8 +6328,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6531,8 +6359,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6564,8 +6390,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6597,8 +6421,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6630,8 +6452,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6663,8 +6483,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6696,8 +6514,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6729,8 +6545,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6762,8 +6576,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6795,8 +6607,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6828,8 +6638,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6861,8 +6669,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6894,8 +6700,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6927,8 +6731,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6960,8 +6762,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6993,8 +6793,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7026,8 +6824,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7059,8 +6855,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7092,8 +6886,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7125,8 +6917,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7158,8 +6948,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7191,8 +6979,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7223,8 +7009,6 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */

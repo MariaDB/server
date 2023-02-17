@@ -6489,7 +6489,7 @@ innobase_fts_casedn_str(
 	char*		dst,	/*!< in: buffer for result string */
 	size_t		dst_len)/*!< in: buffer size */
 {
-	if (cs->casedn_multiply == 1) {
+	if (cs->casedn_multiply() == 1) {
 		memcpy(dst, src, src_len);
 		dst[src_len] = 0;
 		my_casedn_str(cs, dst);

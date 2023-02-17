@@ -621,8 +621,6 @@ struct charset_info_st my_charset_latin2_czech_cs =
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     4,			/* strxfrm_multiply */
-    1,                  /* caseup_multiply  */
-    1,                  /* casedn_multiply  */
     1,			/* mbminlen   */
     1,			/* mbmaxlen  */
     0,			/* min_sort_char */

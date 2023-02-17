@@ -1486,8 +1486,6 @@ static my_bool
 my_cset_init_8bit(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
 {
   cs->state|= my_8bit_charset_flags_from_data(cs);
-  cs->caseup_multiply= 1;
-  cs->casedn_multiply= 1;
   cs->pad_char= ' ';
   if (!cs->to_lower || !cs->to_upper || !cs->m_ctype || !cs->tab_to_uni)
     return TRUE;
@@ -2147,7 +2145,9 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
-    my_wc_to_printable_8bit
+    my_wc_to_printable_8bit,
+    my_casefold_multiply_1,
+    my_casefold_multiply_1
 };
 
 MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =

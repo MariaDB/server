@@ -125,8 +125,8 @@ size_t
 my_casedn_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
                     char *dst, size_t dstlen)
 {
-  DBUG_ASSERT(dstlen >= srclen * cs->casedn_multiply); 
-  DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
+  DBUG_ASSERT(dstlen >= srclen * cs->cset->casedn_multiply(cs));
+  DBUG_ASSERT(src != dst || cs->cset->casedn_multiply(cs) == 1);
   return my_casefold_mb(cs, src, srclen, dst, dstlen, cs->to_lower, 0);
 }
 
@@ -135,8 +135,8 @@ size_t
 my_caseup_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
              char *dst, size_t dstlen)
 {
-  DBUG_ASSERT(dstlen >= srclen * cs->caseup_multiply);
-  DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
+  DBUG_ASSERT(dstlen >= srclen * cs->cset->caseup_multiply(cs));
+  DBUG_ASSERT(src != dst || cs->cset->caseup_multiply(cs) == 1);
   return my_casefold_mb(cs, src, srclen, dst, dstlen, cs->to_upper, 1);
 }
 

@@ -399,8 +399,6 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
   fprintf(f,"  NULL,                       /* state map     */\n");
   fprintf(f,"  NULL,                       /* ident map     */\n");
   fprintf(f,"  1,                          /* strxfrm_multiply*/\n");
-  fprintf(f,"  1,                          /* caseup_multiply*/\n");
-  fprintf(f,"  1,                          /* casedn_multiply*/\n");
   fprintf(f,"  1,                          /* mbminlen      */\n");
   fprintf(f,"  1,                          /* mbmaxlen      */\n");
   fprintf(f,"  0,                          /* min_sort_char */\n");

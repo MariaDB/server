@@ -601,7 +601,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_8bit,
   my_copy_8bit,
   my_wc_mb_bin,
-  my_wc_to_printable_generic
+  my_wc_to_printable_generic,
+  my_casefold_multiply_1,
+  my_casefold_multiply_1
 };
 
 
@@ -624,8 +626,6 @@ struct charset_info_st my_charset_bin =
     NULL,			/* state_map    */
     NULL,			/* ident_map    */
     1,				/* strxfrm_multiply */
-    1,                          /* caseup_multiply  */
-    1,                          /* casedn_multiply  */
     1,				/* mbminlen      */
     1,				/* mbmaxlen      */
     0,				/* min_sort_char */

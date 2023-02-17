@@ -4278,7 +4278,7 @@ fts_add_token(
 
 		t_str.f_n_char = str.f_n_char;
 
-		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply + 1;
+		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply() + 1;
 
 		t_str.f_str = static_cast<byte*>(
 			mem_heap_alloc(heap, t_str.f_len));
