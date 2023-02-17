@@ -2257,6 +2257,8 @@ JOIN::optimize_inner()
       }
 
   transform_in_predicates_into_equalities(thd);
+  if (thd->lex->are_date_funcs_used())
+    transform_date_conds_into_sargable();
 
   conds= optimize_cond(this, conds, join_list, ignore_on_expr,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
@@ -31090,6 +31092,20 @@ bool JOIN::transform_in_predicates_into_equalities(THD *thd)
   DBUG_ENTER("JOIN::transform_in_predicates_into_equalities");
   DBUG_RETURN(transform_all_conds_and_on_exprs(
       thd, &Item::in_predicate_to_equality_transformer));
+}
+
+
+/**
+  @brief
+    Rewrite datetime comparison conditions into sargable.
+    See details in the description for class Date_cmp_func_rewriter
+*/
+
+bool JOIN::transform_date_conds_into_sargable()
+{
+  DBUG_ENTER("JOIN::transform_date_conds_into_sargable");
+  DBUG_RETURN(transform_all_conds_and_on_exprs(
+      thd, &Item::date_conds_transformer));
 }
 
 

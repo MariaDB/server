@@ -462,6 +462,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("year") };
     return name;
   }
+  enum Functype functype() const override { return YEAR_FUNC; }
   enum_monotonicity_info get_monotonicity_info() const override;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp) override;
   bool fix_length_and_dec(THD *thd) override
@@ -1334,6 +1335,7 @@ public:
   {
     print_cast_temporal(str, query_type);
   }
+  enum Functype functype() const override { return DATE_FUNC; }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool fix_length_and_dec(THD *thd) override
   {
@@ -2025,6 +2027,4 @@ public:
     return false;
   }
 };
-
-
 #endif /* ITEM_TIMEFUNC_INCLUDED */

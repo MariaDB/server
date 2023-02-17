@@ -2320,6 +2320,20 @@ public:
   bool uses_stored_routines() const
   { return sroutines_list.elements != 0; }
 
+  void set_date_funcs_used_flag()
+  {
+    date_funcs_used_flag= true;
+  }
+
+  /*
+    Returns TRUE if date functions such as YEAR(), MONTH() or DATE()
+    are used in this LEX
+  */
+  bool are_date_funcs_used() const
+  {
+    return date_funcs_used_flag;
+  }
+
 private:
 
   /**
@@ -2360,6 +2374,12 @@ private:
     be accessed while executing a statement.
   */
   uint32 stmt_accessed_table_flag;
+
+  /*
+    Flag indicating that date functions such as YEAR(), MONTH() or DATE() are
+    used in this LEX
+  */
+  bool date_funcs_used_flag= false;
 };
 
 

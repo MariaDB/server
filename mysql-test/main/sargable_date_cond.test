@@ -1,0 +1,539 @@
+#
+# MDEV-8320: Allow index usage for DATE(datetime_column) = const
+#
+
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+--enable_warnings
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 from t0 A, t0 B;
+
+create table t2 (pk int primary key, a datetime, b date, key(a), key(b));
+insert into t2
+select
+  A.a*10+B.a,
+  date_add(date_add('2017-01-01', interval A.a*8 day), interval B.a hour),
+  date_add('2017-01-01', interval A.a*7 day)
+from t1 A, t0 B;
+
+--echo #
+--echo # "YEAR(datetime_col) CMP year_value", basic checks
+--echo #
+let $q= select count(*) from t2 where year(a) < 2018;
+eval $q;
+select count(*) from t2 where a < '2018-01-01';
+explain format=json select * from t2 force index(a) where year(a) <  2018;
+--echo # Check rewrite for a prepared statement:
+execute immediate 
+  "explain format=json select * from t2 force index(a) where year(a) < ?"
+  using 2018;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+--echo # Prepared statement with a placeholder
+prepare stmt from "select count(*) from t2 where year(a) < ?";
+execute stmt using 2018;
+execute stmt using 2017;
+
+let $q= select count(*) from t2 where year(a) <= 2018;
+eval $q;
+select count(*) from t2 where a < '2019-01-01';
+explain format=json select * from t2 force index(a) where year(a) <= 2018;
+execute immediate 
+  "explain format=json select * from t2 force index(a) where year(a) <= ?"
+  using 2018;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where year(a) <= ?";
+execute stmt using 2018;
+execute stmt using 2017;
+
+
+let $q= select count(*) from t2 where year(a) > 2018;
+eval $q;
+select count(*) from t2 where a > '2018-12-31 23:59:59.999999';
+explain format=json select * from t2 force index(a) where year(a) >  2018;
+execute immediate 
+  "explain format=json select * from t2 force index(a) where year(a) > ?"
+  using 2018;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where year(a) > ?";
+execute stmt using 2018;
+execute stmt using 2017;
+
+let $q= select count(*) from t2 where year(a) >= 2018;
+eval $q;
+select count(*) from t2 where a >= '2018-01-01';
+explain format=json select * from t2 force index(a) where year(a) >= 2018;
+execute immediate 
+  "explain format=json select * from t2 force index(a) where year(a) >= ?"
+  using 2018;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where year(a) >= ?";
+execute stmt using 2018;
+execute stmt using 2019;
+
+let $q= select count(*) from t2 where year(a) = 2017;
+eval $q;
+select count(*) from t2 where a >= '2017-01-01' and a < '2018-01-01';
+explain format=json select * from t2 force index(a) where year(a) =  2017;
+execute immediate 
+  "explain format=json select * from t2 force index(a) where year(a) = ?"
+  using 2017;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where year(a) = ?";
+execute stmt using 2017;
+execute stmt using 2019;
+
+--echo #
+--echo # "YEAR(datetime_col) CMP year_value", reverse argument order
+--echo #
+let $q= select count(*) from t2 where 2017 < year(a);
+eval $q;
+select count(*) from t2 where a >= '2018-01-01';
+explain format=json select * from t2 force index(a) where 2017 <  year(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? < year(a)"
+  using 2017;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? < year(a)";
+execute stmt using 2017;
+execute stmt using 2018;
+
+let $q= select count(*) from t2 where 2018 <= year(a);
+select count(*) from t2 where a >= '2018-01-01';
+explain format=json select * from t2 force index(a) where 2018 <= year(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? <= year(a)"
+  using 2018;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? <= year(a)";
+execute stmt using 2018;
+execute stmt using 2019;
+
+let $q= select count(*) from t2 where 2018 > year(a);
+eval $q;
+select count(*) from t2 where a < '2018-01-01';
+explain format=json select * from t2 force index(a) where 2018 >  year(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? > year(a)"
+  using 2018;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? > year(a)";
+execute stmt using 2018;
+execute stmt using 2019;
+
+let $q= select count(*) from t2 where 2018 >= year(a);
+select count(*) from t2 where a < '2019-01-01';
+explain format=json select * from t2 force index(a) where 2018 >= year(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? >= year(a)"
+  using 2018;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? >= year(a)";
+execute stmt using 2018;
+execute stmt using 2019;
+
+let $q= select count(*) from t2 where 2018 =  year(a);
+eval $q;
+select count(*) from t2 where a >= '2018-01-01' and a < '2019-01-01';
+explain format=json select * from t2 force index(a) where 2018 =  year(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? = year(a)"
+  using 2018;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? = year(a)";
+execute stmt using 2018;
+execute stmt using 2019;
+
+--echo #
+--echo # "DATE(datetime_col) CMP date_value", basic checks
+--echo #
+let $q= select count(*) from t2 where date(a) < '2017-06-01';
+eval $q;
+select count(*) from t2 where a < '2017-06-01';
+explain format=json select * from t2 force index(a) where date(a)< '2017-06-01';
+execute immediate 
+  "explain format=json select * from t2 force index(a) where date(a) < ?"
+  using '2017-06-01';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where date(a) < ?";
+execute stmt using '2017-06-01';
+execute stmt using '2017-06-05';
+
+let $q= select count(*) from t2 where date(a) <= '2017-06-03';
+eval $q;
+select count(*) from t2 where a < '2017-06-04';
+explain format=json select * from t2 force index(a) where date(a)<='2017-06-04';
+execute immediate 
+  "explain format=json select * from t2 force index(a) where date(a) <= ?"
+  using '2017-06-04';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where date(a) <= ?";
+execute stmt using '2017-06-03';
+execute stmt using '2017-06-10';
+
+let $q= select count(*) from t2 where date(a) > '2018-06-01';
+eval $q;
+select count(*) from t2 where a >= '2018-06-02';
+explain format=json select * from t2 force index(a) where date(a)> '2018-06-01';
+execute immediate 
+  "explain format=json select * from t2 force index(a) where date(a) > ?"
+  using '2018-06-01';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where date(a) > ?";
+execute stmt using '2018-06-01';
+execute stmt using '2018-06-05';
+
+let $q= select count(*) from t2 where date(a) >= '2018-06-01';
+eval $q;
+select count(*) from t2 where a >= '2018-06-01';
+explain format=json select * from t2 force index(a) where date(a)>='2018-06-01';
+execute immediate 
+  "explain format=json select * from t2 force index(a) where date(a) >= ?"
+  using '2018-06-01';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where date(a) >= ?";
+execute stmt using '2018-06-01';
+execute stmt using '2018-06-10';
+
+let $q= select count(*) from t2 where date(a) = '2017-06-02';
+eval $q;
+select count(*) from t2 where a >= '2017-06-02' and a < '2017-06-03';
+explain format=json select * from t2 force index(a) where date(a)= '2017-06-02';
+execute immediate 
+  "explain format=json select * from t2 force index(a) where date(a) = ?"
+  using '2017-06-02';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where date(a) = ?";
+execute stmt using '2017-06-02';
+execute stmt using '2017-06-05';
+
+--echo #
+--echo # "DATE(datetime_col) CMP date_value", reverse order
+--echo #
+let $q= select count(*) from t2 where '2017-06-01' > date(a);
+eval $q;
+select count(*) from t2 where '2017-06-01' > a;
+explain format=json select * from t2 force index(a) where '2017-06-01' > date(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? > date(a)"
+  using '2017-06-01';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? > date(a)";
+execute stmt using '2017-06-01';
+execute stmt using '2017-06-05';
+
+let $q= select count(*) from t2 where '2017-06-03' >= date(a);
+eval $q;
+select count(*) from t2 where '2017-06-03' >= a;
+explain format=json select * from t2 force index(a) where '2017-06-03' >= date(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? >= date(a)"
+  using '2017-06-03';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? >= date(a)";
+execute stmt using '2017-06-03';
+execute stmt using '2017-06-12';
+
+let $q= select count(*) from t2 where '2018-06-01' < date(a);
+eval $q;
+select count(*) from t2 where '2018-06-02' <= a;
+explain format=json select * from t2 force index(a) where '2018-06-01' < date(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? < date(a)"
+  using '2017-06-01';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? < date(a)";
+execute stmt using '2018-06-02';
+execute stmt using '2018-06-15';
+
+let $q= select count(*) from t2 where '2018-06-01' <= date(a);
+eval $q;
+select count(*) from t2 where '2018-06-01' <= a;
+explain format=json select * from t2 force index(a) where '2018-06-01' <= date(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? <= date(a)"
+  using '2017-06-01';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? <= date(a)";
+execute stmt using '2018-06-01';
+execute stmt using '2018-06-15';
+
+let $q= select count(*) from t2 where '2017-06-02' = date(a);
+eval $q;
+select count(*) from t2 where a >= '2017-06-02' and a < '2017-06-03';
+explain format=json select * from t2 force index(a) where '2017-06-02' = date(a);
+execute immediate 
+  "explain format=json select * from t2 force index(a) where ? = date(a)"
+  using '2017-06-02';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where ? = date(a)";
+execute stmt using '2017-06-03';
+execute stmt using '2017-06-10';
+
+--echo # Check rewrite of a more complicated query
+explain format=json select * from t2 as t21 force index(a),
+  t2 as t22 force index(a)
+  where year(t21.a) < 2018 and t21.b > '2017-11-01'
+  and date(t22.a) >= '2017-02-01' and t22.b > '2017-11-01';
+
+--echo #
+--echo # Incorrect const values processing (no rewrite is possible)
+--echo #
+explain format=json select * from t2 where year(a) = -1;
+explain format=json select * from t2 where year(a) > -5;
+explain format=json select * from t2 where year(a) < -1;
+explain format=json select * from t2 where year(a) <= 10000;
+explain format=json select * from t2 where year(a) >= 10020;
+explain format=json select * from t2 where date(a) = '10000-01-01';
+explain format=json select * from t2 where date(a) < '-1-01-01';
+
+--echo #
+--echo # Try DATE function and DATE (not DATETIME) column:
+--echo #
+let $q= select count(*) from t2 where date(b)< '2017-06-03';
+eval $q;
+select count(*) from t2 where b < '2017-06-03';
+explain format=json select * from t2 force index(b) where date(b)< '2017-06-03';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where date(b) < ?";
+execute stmt using '2017-06-03';
+execute stmt using '2017-06-10';
+
+let $q= select count(*) from t2 force index(b) where date(b)= '2017-06-04';
+eval $q;
+select count(*) from t2 where b >= '2017-06-04' and b < '2017-06-05';
+explain format=json select * from t2 force index(b) where date(b)='2017-06-04';
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+prepare stmt from "select count(*) from t2 where date(b) = ?";
+execute stmt using '2017-06-04';
+execute stmt using '2017-06-10';
+
+--echo #
+--echo # Check actual query results
+--echo #
+insert into t2 values (10001,'2006-12-31 23:59:59','2006-12-31');
+insert into t2 values (10002,'2007-01-01 00:00:00','2007-01-01');
+insert into t2 values (10003,'2007-12-31 23:59:59','2007-12-31');
+insert into t2 values (10004,'2008-01-01 00:00:00','2008-01-01');
+
+explain format=json
+select * from t2 force index(b) where year(b)=2007;
+select * from t2 force index(b) where year(b)=2007;
+
+insert into t2 values (10010,'2006-12-31 00:00:00','2006-12-31');
+insert into t2 values (10011,'2006-12-30 23:59:59','2006-12-30');
+
+explain format=json
+select * from t2 force index(a) where date(a)='2006-12-31';
+select * from t2 force index(a) where date(a)='2006-12-31';
+
+--echo #
+--echo # Test the TIMESTAMP column
+--echo #
+create table t3 (a timestamp, b date, key(a));
+# Insert data starting from 2016 since that year had a leap second
+# (https://en.wikipedia.org/wiki/Leap_second)
+set time_zone="UTC"; # To make sure we avoid daylight saving time shifts
+insert into t3
+  select
+    timestampadd(hour, B.a, date_add('2016-01-01', interval A.a*8 day)),
+    date_add('2016-01-01', interval A.a*7 day)
+  from t1 A, t0 B;
+
+--echo # Results of those two queries must be equal:
+let $q= select count(*) from t3 force index(a) where year(a)= 2016;
+eval $q;
+--echo # The result must be the same as this query's:
+select count(*) from t3 force index(a) where a >= '2016-01-01 00:00:00'
+    and a <= '2016-12-31 23:59:59.999999';
+explain format=json
+  select count(*) from t3 force index(a) where year(a)= 2016;
+--echo # Check rewrite for a prepared statement:
+execute immediate
+  "explain format=json select * from t3 force index(a) where year(a) < ?"
+  using 2017;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+eval create or replace view v1 as $q;
+select * from v1;
+eval create or replace procedure sp() $q;
+call sp();
+call sp();
+--echo # Prepared statement with a placeholder
+prepare stmt from "select count(*) from t3 where year(a) < ?";
+execute stmt using 2017;
+execute stmt using 2018;
+set time_zone= @@global.time_zone;
+
+--echo #
+--echo # Incorrect const values processing (no rewrite is possible)
+--echo #
+explain format=json select * from t2 where year(a) = -1;
+explain format=json select * from t2 where year(a) > -5;
+explain format=json select * from t2 where year(a) < -1;
+explain format=json select * from t2 where year(a) <= 10000;
+explain format=json select * from t2 where year(a) >= 10020;
+explain format=json select * from t2 where date(a) = '10000-01-01';
+explain format=json select * from t2 where date(a) < '-1-01-01';
+
+drop table t0,t1,t2,t3;
+drop view v1;
+drop procedure sp;

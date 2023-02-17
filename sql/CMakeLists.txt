@@ -109,7 +109,9 @@ SET (SQL_SOURCE
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
-               opt_range.cc opt_sum.cc
+               opt_range.cc
+               opt_rewrite_date_cmp.cc
+               opt_sum.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc

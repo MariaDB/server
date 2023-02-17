@@ -25,6 +25,7 @@
 
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
 #include "item.h"
+#include "opt_rewrite_date_cmp.h"
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
 inline Item_result item_cmp_type(const Item *a, const Item *b)
@@ -790,6 +791,8 @@ public:
   friend class  Arg_comparator;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_eq>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -839,6 +842,8 @@ public:
   Item *negated_item(THD *thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_ge>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 
@@ -859,6 +864,8 @@ public:
   Item *negated_item(THD *thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_gt>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 
@@ -879,6 +886,8 @@ public:
   Item *negated_item(THD *thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_le>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 
@@ -899,6 +908,8 @@ public:
   Item *negated_item(THD *thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_lt>(thd, this); }
+  Item* date_conds_transformer(THD *thd, uchar *arg) override
+  { return do_date_conds_transformation(thd, this); }
 };
 
 
@@ -1585,7 +1596,7 @@ public:
   {
     packed_longlong *val= reinterpret_cast<packed_longlong*>(base)+pos;
     Item_datetime *dt= static_cast<Item_datetime*>(item);
-    dt->set(val->val, type_handler()->mysql_timestamp_type());
+    dt->set_from_packed(val->val, type_handler()->mysql_timestamp_type());
   }
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
 };
