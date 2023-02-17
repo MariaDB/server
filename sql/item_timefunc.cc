@@ -1212,28 +1212,19 @@ longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
 }
 
 
-bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
+bool Item_func_unix_timestamp::get_timestamp_value(longlong *seconds,
                                                    ulong *second_part)
 {
   DBUG_ASSERT(fixed());
-  if (args[0]->type() == FIELD_ITEM)
-  {						// Optimize timestamp field
-    Field *field=((Item_field*) args[0])->field;
-    if (field->type() == MYSQL_TYPE_TIMESTAMP)
-    {
-      if ((null_value= field->is_null()))
-        return 1;
-      *seconds= field->get_timestamp(second_part);
-      return 0;
-    }
+  Datetime_from_temporal dt(current_thd, args[0], TIME_CONV_NONE);
+  if ((null_value = !dt.is_valid_datetime()))
+  {
+    return true;
   }
 
-  Timestamp_or_zero_datetime_native_null native(current_thd, args[0], true);
-  if ((null_value= native.is_null() || native.is_zero_datetime()))
-    return true;
-  Timestamp tm(native);
-  *seconds= tm.tv().tv_sec;
-  *second_part= tm.tv().tv_usec;
+  *second_part = dt.fraction_remainder(TIME_SECOND_PART_DIGITS);
+  Datetime epoch(my_time_t(0), *second_part, current_thd->variables.time_zone);
+  *seconds = dt.to_seconds() - epoch.to_seconds();
   return false;
 }
 
@@ -1244,7 +1235,7 @@ longlong Item_func_unix_timestamp::int_op()
     return (longlong) current_thd->query_start();
   
   ulong second_part;
-  my_time_t seconds;
+  longlong seconds;
   if (get_timestamp_value(&seconds, &second_part))
     return 0;
 
@@ -1255,7 +1246,7 @@ longlong Item_func_unix_timestamp::int_op()
 my_decimal *Item_func_unix_timestamp::decimal_op(my_decimal* buf)
 {
   ulong second_part;
-  my_time_t seconds;
+  longlong seconds;
   if (get_timestamp_value(&seconds, &second_part))
     return 0;
 
@@ -2753,14 +2744,14 @@ bool Item_func_from_unixtime::get_date(THD *thd, MYSQL_TIME *ltime,
   bzero((char *)ltime, sizeof(*ltime));
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
 
-  VSec9 sec(thd, args[0], "unixtime", TIMESTAMP_MAX_VALUE);
-  DBUG_ASSERT(sec.is_null() || sec.sec() <= TIMESTAMP_MAX_VALUE);
+  VSec9 sec(thd, args[0], "unixtime", MY_TIME_T_MAX);
+  DBUG_ASSERT(sec.is_null() || sec.sec() <= MY_TIME_T_MAX);
 
   if (sec.is_null() || sec.truncated() || sec.neg())
     return (null_value= 1);
 
   sec.round(MY_MIN(decimals, TIME_SECOND_PART_DIGITS), thd->temporal_round_mode());
-  if (sec.sec() > TIMESTAMP_MAX_VALUE)
+  if (sec.sec() > MY_TIME_T_MAX)
     return (null_value= true); // Went out of range after rounding
 
   tz->gmt_sec_to_TIME(ltime, (my_time_t) sec.sec());
