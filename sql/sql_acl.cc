@@ -59,6 +59,7 @@
 #include "wsrep_mysqld.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
+
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 

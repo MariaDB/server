@@ -3963,7 +3963,7 @@ static int init_common_variables()
     exit(1);
   }
 #endif
-  
+
   if (init_thread_environment() || mysql_init_variables())
     exit(1);
 
