@@ -8928,7 +8928,7 @@ best_access_path(JOIN      *join,
     best.use_join_buffer= TRUE;
     best.filter= 0;
     best.type= JT_HASH;
-    best.refills= refills;
+    best.refills= (ulonglong) ceil(refills);
     Json_writer_object trace_access_hash(thd);
     if (unlikely(trace_access_hash.trace_started()))
       trace_access_hash.
@@ -21183,6 +21183,8 @@ bool Create_tmp_table::finalize(THD *thd,
     share->keys_in_use.set_bit(0);
     keyinfo->key_part= m_key_part_info;
     keyinfo->flags=HA_NOSAME | HA_BINARY_PACK_KEY | HA_PACK_KEY;
+    if (share->uniques)
+      keyinfo->flags|= HA_UNIQUE_HASH;
     keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->usable_key_parts=keyinfo->user_defined_key_parts=
       param->group_parts;
@@ -21281,6 +21283,7 @@ bool Create_tmp_table::finalize(THD *thd,
     */
     DBUG_PRINT("info",("hidden_field_count: %d", param->hidden_field_count));
 
+    keyinfo->flags= 0;
     if (m_blobs_count[distinct])
     {
       /*
@@ -21289,6 +21292,7 @@ bool Create_tmp_table::finalize(THD *thd,
         used for lookups.
       */
       share->uniques= 1;
+      keyinfo->flags|= HA_UNIQUE_HASH;
     }
     keyinfo->user_defined_key_parts= m_field_count[distinct] +
        (share->uniques ? MY_TEST(null_pack_length[distinct]) : 0);
@@ -21306,7 +21310,8 @@ bool Create_tmp_table::finalize(THD *thd,
     share->keys_in_use.set_bit(0);
     table->key_info= table->s->key_info= keyinfo;
     keyinfo->key_part= m_key_part_info;
-    keyinfo->flags=HA_NOSAME | HA_NULL_ARE_EQUAL | HA_BINARY_PACK_KEY | HA_PACK_KEY;
+    keyinfo->flags|= (HA_NOSAME | HA_NULL_ARE_EQUAL | HA_BINARY_PACK_KEY |
+                      HA_PACK_KEY);
     keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->key_length= 0;  // Will compute the sum of the parts below.
     keyinfo->name= distinct_key;
@@ -21753,13 +21758,13 @@ bool open_tmp_table(TABLE *table)
 */
 
 
-bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
+bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options)
 {
   int error;
-  MARIA_KEYDEF keydef;
+  MARIA_KEYDEF *keydefs= 0, *keydef;
   MARIA_UNIQUEDEF uniquedef;
   TABLE_SHARE *share= table->s;
   MARIA_CREATE_INFO create_info;
@@ -21767,99 +21772,112 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 
   if (share->keys)
   {						// Get keys for ni_create
-    bool using_unique_constraint=0;
-    HA_KEYSEG *seg= (HA_KEYSEG*) alloc_root(&table->mem_root,
-                                            sizeof(*seg) * keyinfo->user_defined_key_parts);
-    if (!seg)
+    HA_KEYSEG *seg;
+    DBUG_ASSERT(share->key_parts);
+
+    if (!(multi_alloc_root(&table->mem_root,
+                           &seg, sizeof(*seg) * share->key_parts,
+                           &keydefs, sizeof(*keydefs) * share->keys,
+                           NullS)))
       goto err;
+    keydef= keydefs;
 
-    bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
-    /*
-       Note that a similar check is performed during
-       subquery_types_allow_materialization. See MDEV-7122 for more details as
-       to why. Whenever this changes, it must be updated there as well, for
-       all tmp_table engines.
-    */
-    if (keyinfo->key_length > table->file->max_key_length() ||
-	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
-	share->uniques)
+    DBUG_ASSERT(share->keys == 1);
+    share->uniques= 0;                          // Will be adjusted below
+    bzero(seg, sizeof(*seg) * share->key_parts);
+
+    /* Note that share->keys may change in the loop ! */
+    for (KEY *keyinfo= org_keyinfo, *end_keyinfo= keyinfo + share->keys;
+         keyinfo < end_keyinfo ;
+         keyinfo++)
     {
-      if (!share->uniques && !(keyinfo->flags & HA_NOSAME))
+      /*
+        Note that a similar check is performed during
+        subquery_types_allow_materialization. See MDEV-7122 for more details as
+        to why. Whenever this changes, it must be updated there as well, for
+        all tmp_table engines.
+      */
+      if (keyinfo->key_length > table->file->max_key_length() ||
+          keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
+          (keyinfo->flags & HA_UNIQUE_HASH))
       {
-        my_error(ER_INTERNAL_ERROR, MYF(0),
-                 "Using too big key for internal temp tables");
-        DBUG_RETURN(1);
-      }
+        if (!(keyinfo->flags & (HA_NOSAME | HA_UNIQUE_HASH)))
+        {
+          my_error(ER_INTERNAL_ERROR, MYF(0),
+                   "Using too big key for internal temp tables");
+          DBUG_RETURN(1);
+        }
+        /* Can't create a key; Make a unique constraint instead of a key */
+        share->keys--;
+        share->key_parts-=     keyinfo->user_defined_key_parts;
+        share->ext_key_parts-= keyinfo->ext_key_parts;
+        share->uniques= 1;
+        bzero((char*) &uniquedef,sizeof(uniquedef));
+        uniquedef.keysegs= keyinfo->user_defined_key_parts;
+        uniquedef.seg=seg;
+        uniquedef.null_are_equal=1;
+        keyinfo->flags|= HA_UNIQUE_HASH;
+        keyinfo->algorithm= HA_KEY_ALG_UNIQUE_HASH;
 
-      /* Can't create a key; Make a unique constraint instead of a key */
-      share->keys=    0;
-      share->key_parts= share->ext_key_parts= 0;
-      share->uniques= 1;
-      using_unique_constraint=1;
-      bzero((char*) &uniquedef,sizeof(uniquedef));
-      uniquedef.keysegs=keyinfo->user_defined_key_parts;
-      uniquedef.seg=seg;
-      uniquedef.null_are_equal=1;
+        /* Create extra column for hash value */
+        bzero((uchar*) *recinfo,sizeof(**recinfo));
+        (*recinfo)->type=   FIELD_CHECK;
+        (*recinfo)->length= MARIA_UNIQUE_HASH_LENGTH;
+        (*recinfo)++;
 
-      /* Create extra column for hash value */
-      bzero((uchar*) *recinfo,sizeof(**recinfo));
-      (*recinfo)->type=   FIELD_CHECK;
-      (*recinfo)->length= MARIA_UNIQUE_HASH_LENGTH;
-      (*recinfo)++;
-
-      /* Avoid warnings from valgrind */
-      bzero(table->record[0]+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
-      bzero(share->default_values+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
-      share->reclength+= MARIA_UNIQUE_HASH_LENGTH;
-    }
-    else
-    {
-      /* Create a key */
-      bzero((char*) &keydef,sizeof(keydef));
-      keydef.flag= keyinfo->flags & HA_NOSAME;
-      keydef.keysegs=  keyinfo->user_defined_key_parts;
-      keydef.seg= seg;
-    }
-    for (uint i=0; i < keyinfo->user_defined_key_parts ; i++,seg++)
-    {
-      Field *field=keyinfo->key_part[i].field;
-      seg->flag=     0;
-      seg->language= field->charset()->number;
-      seg->length=   keyinfo->key_part[i].length;
-      seg->start=    keyinfo->key_part[i].offset;
-      if (field->flags & BLOB_FLAG)
-      {
-	seg->type=
-	((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
-	 HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
-	seg->bit_start= (uint8)(field->pack_length() -
-                                portable_sizeof_char_ptr);
-	seg->flag= HA_BLOB_PART;
-	seg->length=0;			// Whole blob in unique constraint
+        /* Avoid warnings from valgrind */
+        bzero(table->record[0]+ share->reclength, MARIA_UNIQUE_HASH_LENGTH);
+        bzero(share->default_values+ share->reclength,
+              MARIA_UNIQUE_HASH_LENGTH);
+        share->reclength+= MARIA_UNIQUE_HASH_LENGTH;
       }
       else
       {
-	seg->type= keyinfo->key_part[i].type;
-        /* Tell handler if it can do suffic space compression */
-	if (field->real_type() == MYSQL_TYPE_STRING &&
-	    keyinfo->key_part[i].length > 32)
-	  seg->flag|= HA_SPACE_PACK;
+        /* Create a key */
+        bzero((char*) keydef,sizeof(*keydef));
+        /*
+          We are using a GROUP BY on something that contains NULL
+          In this case we have to tell Aria that two NULL should
+          on INSERT be regarded at the same value.
+        */
+        keydef->flag= (keyinfo->flags & HA_NOSAME) | HA_NULL_ARE_EQUAL;
+        keydef->keysegs=  keyinfo->user_defined_key_parts;
+        keydef->seg= seg;
+        keydef++;
       }
-      if (!(field->flags & NOT_NULL_FLAG))
+      for (uint i=0; i < keyinfo->user_defined_key_parts ; i++,seg++)
       {
-	seg->null_bit= field->null_bit;
-	seg->null_pos= (uint) (field->null_ptr - (uchar*) table->record[0]);
-	/*
-	  We are using a GROUP BY on something that contains NULL
-	  In this case we have to tell Aria that two NULL should
-	  on INSERT be regarded at the same value
-	*/
-	if (!using_unique_constraint)
-	  keydef.flag|= HA_NULL_ARE_EQUAL;
+        Field *field=keyinfo->key_part[i].field;
+        seg->flag=     0;
+        seg->language= field->charset()->number;
+        seg->length=   keyinfo->key_part[i].length;
+        seg->start=    keyinfo->key_part[i].offset;
+        if (field->flags & BLOB_FLAG)
+        {
+          seg->type=
+            ((keyinfo->key_part[i].key_type & FIELDFLAG_BINARY) ?
+             HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2);
+          seg->bit_start= (uint8)(field->pack_length() -
+                                  portable_sizeof_char_ptr);
+          seg->flag= HA_BLOB_PART;
+          seg->length=0;		// Whole blob in unique constraint
+        }
+        else
+        {
+          seg->type= keyinfo->key_part[i].type;
+          /* Tell handler if it can do suffic space compression */
+          if (field->real_type() == MYSQL_TYPE_STRING &&
+              keyinfo->key_part[i].length > 32)
+            seg->flag|= HA_SPACE_PACK;
+        }
+        if (!(field->flags & NOT_NULL_FLAG))
+        {
+          seg->null_bit= field->null_bit;
+          seg->null_pos= (uint) (field->null_ptr - (uchar*) table->record[0]);
+        }
       }
-    }
-    if (share->keys)
       keyinfo->index_flags= table->file->index_flags(0, 0, 1);
+    }
   }
   bzero((char*) &create_info,sizeof(create_info));
   create_info.data_file_length= table->in_use->variables.tmp_disk_table_size;
@@ -21905,7 +21923,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     }
 
     if (unlikely((error= maria_create(share->path.str, file_type, share->keys,
-                                      &keydef, (uint) (*recinfo-start_recinfo),
+                                      keydefs, (uint) (*recinfo-start_recinfo),
                                       start_recinfo, share->uniques, &uniquedef,
                                       &create_info, create_flags))))
     {
@@ -21958,7 +21976,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 
 /* Create internal MyISAM temporary table */
 
-bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
+bool create_internal_tmp_table(TABLE *table, KEY *org_keyinfo,
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo,
                                ulonglong options)
@@ -21973,11 +21991,12 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   {						// Get keys for ni_create
     bool using_unique_constraint=0;
     HA_KEYSEG *seg= (HA_KEYSEG*) alloc_root(&table->mem_root,
-                                            sizeof(*seg) * keyinfo->user_defined_key_parts);
+                                            sizeof(*seg) *
+                                            share->user_defined_key_parts);
     if (!seg)
       goto err;
 
-    bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
+    bzero(seg, sizeof(*seg) * share->user_defined_key_parts);
     /*
        Note that a similar check is performed during
        subquery_types_allow_materialization. See MDEV-7122 for more details as
@@ -22623,6 +22642,8 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
                            TMP_ENGINE_COLUMNDEF **recinfo,
                            ulonglong options)
 {
+  DBUG_ASSERT(table->s->keys == 0 || table->key_info == keyinfo);
+  DBUG_ASSERT(table->s->keys <= 1);
   if (table->s->db_type() == TMP_ENGINE_HTON)
   {
     /*

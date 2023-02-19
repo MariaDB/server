@@ -8473,9 +8473,14 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
 
 void TABLE::use_index(int key_to_save, key_map *map_to_update)
 {
+#ifndef NEW
   DBUG_ASSERT(!created && key_to_save < (int)s->keys);
   uint saved_keys= 0, key_parts= 0;
   key_map new_bitmap;
+  DBUG_ENTER("TABLE::use_index");
+  DBUG_PRINT("enter", ("key_to_save: %d  keys: %u  uniques: %u",
+                       key_to_save, s->keys, s->uniques));
+
   new_bitmap.clear_all();
 
   /*
@@ -8485,11 +8490,14 @@ void TABLE::use_index(int key_to_save, key_map *map_to_update)
   {
     new_bitmap.set_bit(saved_keys);
 
-    KEY tmp_buff= key_info[saved_keys];
-    key_info[saved_keys]= key_info[key_to_save];
-    key_info[key_to_save]= tmp_buff;
-    saved_keys++;
+    if (key_to_save != 0)                        // Avoid not needed copy
+    {
+      KEY tmp_buff= key_info[saved_keys];
+      key_info[saved_keys]= key_info[key_to_save];
+      key_info[key_to_save]= tmp_buff;
+    }
     key_parts= key_info[saved_keys].user_defined_key_parts;
+    saved_keys++;
   }
 
   /*
@@ -8497,7 +8505,7 @@ void TABLE::use_index(int key_to_save, key_map *map_to_update)
   */
   for (uint i= saved_keys; i < s->keys; i++)
   {
-    if (key_info[i].flags & HA_NOSAME)
+    if (key_info[i].flags & (HA_NOSAME | HA_UNIQUE_HASH))
     {
       if (map_to_update->is_set(i))
         new_bitmap.set_bit(saved_keys);
@@ -8510,6 +8518,26 @@ void TABLE::use_index(int key_to_save, key_map *map_to_update)
   *map_to_update= new_bitmap;
   s->keys= saved_keys;
   s->key_parts= s->ext_key_parts= key_parts;
+#else
+  uint i= 1;
+   DBUG_ASSERT(!created && key_to_save < (int)s->keys);
+  if (key_to_save >= 0)
+  {
+    /* Save the given key. */
+    memmove(key_info, key_info + key_to_save, sizeof(KEY));
+    map_to_update->clear_all();
+    map_to_update->set_bit(0);
+  }
+  else
+  {
+    /* Drop all keys; */
+    i= 0;
+    map_to_update->clear_all();
+  }
+  s->keys= i;
+  s->uniques= 0;
+#endif
+  DBUG_VOID_RETURN;
 }
 
 /*
