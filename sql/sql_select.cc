@@ -5357,7 +5357,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   /* Initialize POSITION objects */
   for (i=0 ; i <= table_count ; i++)
     (void) new ((char*) (join->positions + i)) POSITION;
-  for (i=0 ; i <= sort_space ; i++)
+  for (i=0 ; i < sort_space ; i++)
     (void) new ((char*) (join->sort_positions + i)) POSITION;
 
   join->best_ref= stat_vector;
@@ -20631,6 +20631,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   */
   if (param->precomputed_group_by)
     copy_func_count+= param->sum_func_count;
+  param->copy_func_count= copy_func_count;
   
   init_sql_alloc(key_memory_TABLE, &own_root, TABLE_ALLOC_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
@@ -20837,8 +20838,9 @@ bool Create_tmp_table::add_fields(THD *thd,
         We here distinguish between UNION and multi-table-updates by the fact
         that in the later case group is set to the row pointer.
 
-        The test for item->marker == 4 is ensure we don't create a group-by
-        key over a bit field as heap tables can't handle that.
+        The test for item->marker == MARKER_NULL_KEY is ensure we
+        don't create a group-by key over a bit field as heap tables
+        can't handle that.
       */
       DBUG_ASSERT(!param->schema_table);
       Field *new_field=
@@ -20905,6 +20907,7 @@ bool Create_tmp_table::add_fields(THD *thd,
         new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
     }
   }
+
   DBUG_ASSERT(fieldnr == m_field_count[other] + m_field_count[distinct]);
   DBUG_ASSERT(m_blob_count == m_blobs_count[other] + m_blobs_count[distinct]);
   share->fields= fieldnr;
@@ -20912,7 +20915,9 @@ bool Create_tmp_table::add_fields(THD *thd,
   table->field[fieldnr]= 0;                     // End marker
   share->blob_field[m_blob_count]= 0;           // End marker
   copy_func[0]= 0;                              // End marker
+  DBUG_ASSERT((copy_func - param->items_to_copy) <= param->copy_func_count);
   param->func_count= (uint) (copy_func - param->items_to_copy);
+
   share->column_bitmap_size= bitmap_buffer_size(share->fields);
 
   thd->mem_root= mem_root_save;

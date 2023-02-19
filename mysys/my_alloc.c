@@ -25,6 +25,11 @@
 #include <sys/mman.h>
 #endif
 
+#ifndef DBUG_OFF
+/* Put a protected barrier after every element when using multi_alloc_root() */
+#define ALLOC_BARRIER
+#endif
+
 #undef EXTRA_DEBUG
 #define EXTRA_DEBUG
 
@@ -396,6 +401,9 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   {
     length= va_arg(args, uint);
     tot_length+= ALIGN_SIZE(length);
+#ifdef ALLOC_BARRIER
+    tot_length+= ALIGN_SIZE(1);
+#endif
   }
   va_end(args);
 
@@ -409,6 +417,10 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
     *ptr= res;
     length= va_arg(args, uint);
     res+= ALIGN_SIZE(length);
+#ifdef ALLOC_BARRIER
+    TRASH_FREE(res, ALIGN_SIZE(1));
+    res+= ALIGN_SIZE(1);
+#endif
   }
   va_end(args);
   DBUG_RETURN((void*) start);
