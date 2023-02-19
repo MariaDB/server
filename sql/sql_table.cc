@@ -2001,7 +2001,7 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
       in the binary log. We log this for non temporary tables, as the slave
       may use a filter to ignore queries for a specific database.
     */
-    error= thd->binlog_query(THD::STMT_QUERY_TYPE, 
+    error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                              query.ptr(), query.length(),
                              FALSE, FALSE, temporary_table, 0) > 0;
   }
@@ -9960,8 +9960,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     has been already processed.
   */
   table_list->required_type= TABLE_TYPE_NORMAL;
-  
-  
+
+
   if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED
       || alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE
       || thd->locked_tables_mode == LTM_LOCK_TABLES
@@ -11933,14 +11933,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     rpl_group_info rgi(&rli);
     RPL_TABLE_LIST rpl_table(to, TL_WRITE, from, table_event.get_table_def(),
                              copy, copy_end);
-    Cache_flip_event_log *binlog= from->s->online_alter_binlog;
+    DBUG_ASSERT(to->pos_in_table_list == NULL);
+    to->pos_in_table_list= &rpl_table;
     rgi.thd= thd;
     rgi.tables_to_lock= &rpl_table;
 
     rgi.m_table_map.set_table(from->s->table_map_id, to);
-    void *tl_buff = thd->alloc(sizeof (TABLE_LIST));
-    to->pos_in_table_list = new(tl_buff) TABLE_LIST(to, TL_WRITE_ALLOW_WRITE);
 
+    Cache_flip_event_log *binlog= from->s->online_alter_binlog;
     DBUG_ASSERT(binlog->is_open());
 
     rli.relay_log.description_event_for_exec=
@@ -11966,6 +11966,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
 
     thd->transaction->all.ha_list = trx_info_save;
+    to->pos_in_table_list= NULL; // Safety
   }
   else if (unlikely(online)) // error was on copy stage
   {
@@ -11981,7 +11982,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
        T2: binlog_commit: DBUG_ASSERT(binlog); is issued.
     */
     // Ignore the return result. We already have an error.
-    thd->mdl_context.upgrade_shared_lock(from->mdl_ticket, 
+    thd->mdl_context.upgrade_shared_lock(from->mdl_ticket,
                                          MDL_SHARED_NO_WRITE,
                                          thd->variables.lock_wait_timeout);
   }
