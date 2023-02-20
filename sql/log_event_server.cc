@@ -7073,7 +7073,7 @@ uint Rows_log_event::find_key_parts(const KEY *key) const
   const bool online_alter= tl->m_online_alter_copy_fields;
   uint p;
 
-  if (!m_table->s->keys_in_use.is_set(key - m_table->key_info))
+  if (!m_table->s->keys_in_use.is_set(uint(key - m_table->key_info)))
     return 0;
 
   if (!online_alter)
