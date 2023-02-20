@@ -3590,7 +3590,9 @@ bool JOIN::make_aggr_tables_info()
 
       if (gbh)
       {
-        if (!(pushdown_query= new (thd->mem_root) Pushdown_query(select_lex, gbh)))
+        TABLE *table;
+        if (!(pushdown_query= new (thd->mem_root) Pushdown_query(select_lex,
+                                                                 gbh)))
           DBUG_RETURN(1);
         /*
           We must store rows in the tmp table if we need to do an ORDER BY
@@ -3610,12 +3612,13 @@ bool JOIN::make_aggr_tables_info()
 
         if (!(curr_tab->tmp_table_param= new TMP_TABLE_PARAM(tmp_table_param)))
           DBUG_RETURN(1);
-        TABLE* table= create_tmp_table(thd, curr_tab->tmp_table_param,
-                                       all_fields,
-                                       NULL, distinct,
-                                       TRUE, select_options, HA_ROWS_MAX,
-                                       &empty_clex_str, !need_tmp,
-                                       keep_row_order);
+        curr_tab->tmp_table_param->func_count= all_fields.elements;
+        table= create_tmp_table(thd, curr_tab->tmp_table_param,
+                                all_fields,
+                                NULL, distinct,
+                                TRUE, select_options, HA_ROWS_MAX,
+                                &empty_clex_str, !need_tmp,
+                                keep_row_order);
         if (!table)
           DBUG_RETURN(1);
 
@@ -28458,6 +28461,11 @@ bool JOIN::rollup_init()
   Item **ref_array;
 
   tmp_table_param.quick_group= 0;	// Can't create groups in tmp table
+  /*
+    Each group can potentially be replaced with Item_func_rollup_const() which
+    needs a copy_func placeholder.
+  */
+  tmp_table_param.func_count+= send_group_parts;
   rollup.state= ROLLUP::STATE_INITED;
 
   /*
@@ -28481,7 +28489,6 @@ bool JOIN::rollup_init()
     return true;
 
   ref_array= (Item**) (rollup.ref_pointer_arrays+send_group_parts);
-
 
   /*
     Prepare space for field list for the different levels
@@ -28645,7 +28652,6 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
 
     /* Point to first hidden field */
     uint ref_array_ix= fields_arg.elements-1;
-
 
     /* Remember where the sum functions ends for the previous level */
     sum_funcs_end[pos+1]= *func;
