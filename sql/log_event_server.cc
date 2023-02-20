@@ -7115,7 +7115,7 @@ int Rows_log_event::find_key(const rpl_group_info *rgi)
 {
   DBUG_ASSERT(m_table);
   RPL_TABLE_LIST *tl= (RPL_TABLE_LIST*)m_table->pos_in_table_list;
-  uint i, best_key_nr, best_usable_key_parts;
+  uint i, best_key_nr= 0, best_usable_key_parts= 0;
   KEY *key;
   ulong UNINIT_VAR(best_rec_per_key), tmp;
   DBUG_ENTER("Rows_log_event::find_key");
