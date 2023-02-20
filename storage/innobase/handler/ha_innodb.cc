@@ -14617,7 +14617,7 @@ ha_innobase::info_low(
 	ib_table = m_prebuilt->table;
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
-	if (!ib_table->is_readable()) {
+	if ((ib_table->flags2 & DICT_TF2_DISCARDED) || !ib_table->is_readable()) {
 		ib_table->stats_mutex_lock();
 		ib_table->stat_initialized = true;
 		ib_table->stat_n_rows = 0;
