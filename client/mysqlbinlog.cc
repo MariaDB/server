@@ -1887,6 +1887,11 @@ static void cleanup()
   my_free_open_file_info();
   load_processor.destroy();
   mysql_server_end();
+  if (opt_flashback)
+  {
+    delete_dynamic(&binlog_events);
+    delete_dynamic(&events_in_stmt);
+  }
   DBUG_VOID_RETURN;
 }
 
