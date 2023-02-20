@@ -5,6 +5,7 @@
 # respective log file specified by --result-file, and shown on-disk. This test
 # ensures that the log files on disk, created by mariadb-binlog, have the most
 # up-to-date events from the master.
+# Option --raw works only with --read-from-remote-server, otherwise returns error.
 #
 # Methodology:
 #   On the master, rotate to a newly active binlog file and write an event to
@@ -19,6 +20,14 @@
 
 --source include/linux.inc
 --source include/have_log_bin.inc
+
+--echo #
+--echo # MDEV-30698 Cover missing test cases for mariadb-binlog options
+--echo #            --raw [and] --flashback
+--echo #
+# Test --raw format without -R (--read-from-remote-server)
+--error 1 # Error 1 operation not permitted
+--exec $MYSQL_BINLOG --raw --user=root --host=127.0.0.1 --port=$MASTER_MYPORT --stop-never --result-file=$MYSQLTEST_VARDIR/tmp/ master-bin.000001
 
 # Create newly active log
 CREATE TABLE t1 (a int);
