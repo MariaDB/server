@@ -257,9 +257,13 @@ drop table t1;
 --echo #
 
 create table t1 (a int);
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+insert t1 values (1);
 alter table t1 add column b binary(32) generated always as (random_bytes(a));
-alter table t1 add column b binary(32) default (random_bytes(a));
+select a,length(b) from t1;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+alter table t1 add index (b);
+alter table t1 add column c binary(32) default (random_bytes(a));
+select a,length(b),length(c) from t1;
 drop table t1;
 
 --echo #
