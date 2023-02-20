@@ -16,6 +16,7 @@ set -e
 # Buildbot, running the test suite from installed .debs on a clean VM.
 export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
+# shellcheck source=/dev/null
 source ./VERSION
 # General CI optimizations to keep build output smaller
 if [[ $GITLAB_CI ]]
@@ -91,20 +92,20 @@ fi
 # If not known, use 'unknown' in .deb version identifier
 if [ -z "${LSBID}" ]
 then
-    LSBID="unknown"
+  LSBID="unknown"
 fi
 
 case "${LSBNAME}"
 in
   # Debian
-  buster)
+  "buster")
     replace_uring_with_aio
     if [ ! "$architecture" = amd64 ]
     then
       disable_pmem
     fi
     ;&
-  bullseye|bookworm)
+  "bullseye"|"bookworm")
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
     # so no removal is necessary.
     if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
@@ -116,19 +117,19 @@ in
       replace_uring_with_aio
     fi
     ;&
-  sid)
+  "sid")
     # The default packaging should always target Debian Sid, so in this case
     # there is intentionally no customizations whatsoever.
     ;;
   # Ubuntu
-  bionic)
+  "bionic")
     remove_rocksdb_tools
     [ "$architecture" != amd64 ] && disable_pmem
     ;&
-  focal)
+  "focal")
     replace_uring_with_aio
     ;&
-  impish|jammy|kinetic)
+  "impish"|"jammy"|"kinetic")
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
     # ubuntu doesn't support mips64el yet, so keep this just
     # in case something changes.
@@ -169,17 +170,34 @@ dch -b -D "${LSBNAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --co
 
 echo "Creating package version ${VERSION} ... "
 
+BUILDPACKAGE_DPKGCMD=""
+
 # Use eatmydata is available to build faster with less I/O, skipping fsync()
 # during the entire build process (safe because a build can always be restarted)
 if which eatmydata > /dev/null
 then
-  BUILDPACKAGE_PREPEND=eatmydata
+  BUILDPACKAGE_DPKGCMD="eatmydata"
+fi
+
+BUILDPACKAGE_DPKGCMD+="dpkg-buildpackage"
+
+# Using dpkg-buildpackage args
+# -us Allow unsigned sources
+# -uc Allow unsigned changes
+# -I  Tar ignore
+BUILDPACKAGE_DPKG_ARGS=(-us -uc -I)
+
+# There can be also extra flags that are appended to args
+if [ -n "$BUILDPACKAGE_FLAGS" ]
+then
+  read -ra BUILDPACKAGE_TMP_ARGS <<< "$BUILDPACKAGE_FLAGS"
+  BUILDPACKAGE_DPKG_ARGS=("${BUILDPACKAGE_DPKG_ARGS[@]} ${BUILDPACKAGE_TMP_ARGS[@]}")
 fi
 
 # Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files
 # will be ignored by dpkg-source when creating the tar.gz source package.
-fakeroot $BUILDPACKAGE_PREPEND dpkg-buildpackage -us -uc -I $BUILDPACKAGE_FLAGS
+fakeroot -- "${BUILDPACKAGE_DPKGCMD}" "${BUILDPACKAGE_DPKG_ARGS[@]}"
 
 # If the step above fails due to missing dependencies, you can manually run
 #   sudo mk-build-deps debian/control -r -i
