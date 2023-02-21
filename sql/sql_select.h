@@ -1022,6 +1022,7 @@ public:
   */
   double read_time;
 
+  /* record combinations before this table */
   double loops;
 
   double    prefix_record_count;

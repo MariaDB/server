@@ -2011,3 +2011,57 @@ INSERT INTO t2 VALUES (1),(2);
 SELECT STRAIGHT_JOIN pk FROM t1 JOIN t2 ON a = pk WHERE b >= 'A' ORDER BY t2.pk LIMIT 8 OFFSET 1;
 pk
 DROP TABLE t1, t2;
+#
+# MDEV-30659 Server crash on EXPLAIN SELECT/SELECT on table with
+# engine Aria for LooseScan Strategy
+#
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+c2 integer, c3 integer) engine=aria;
+insert into t1(c1,c2,c3)
+values (1,1,1), (1,2,2), (1,3,3),
+(2,1,4), (2,2,5), (2,3,6),
+(2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and
+c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	range	t1_c2	t1_c2	5	NULL	5	Using where; Using index; LooseScan
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	test.a.c2	1	
+drop table t1;
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+c2 integer, c3 integer) engine=aria;
+create trigger trg_t1 before update on t1 for each row
+begin
+set new.old_c1=old.c1;
+set new.old_c2=old.c2;
+end;
+/
+insert into t1 (c1,c2,c3) values
+(1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+create table t2 as select * from t1;
+truncate table t1;
+insert into t1 select * from t2;
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	range	t1_c2	t1_c2	5	NULL	5	Using where; Using index; LooseScan
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	test.a.c2	1	
+drop trigger trg_t1;
+drop table t1,t2;
+create table t1 (old_c1 integer, old_c2 integer, c1 integer,
+c2 integer, c3 integer) engine=aria;
+insert into t1 (c1,c2,c3) values
+(1,1,1), (1,2,2), (1,3,3), (2,1,4), (2,2,5), (2,3,6), (2,4,7), (2,5,8);
+create index t1_c2 on t1 (c2,c1);
+create table t2 as select * from t1;
+truncate table t1;
+insert into t1 select * from t2;
+explain select * from t1 where t1.c2 in (select a.c2 from t1 a) and c2 >= 3 order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	range	t1_c2	t1_c2	5	NULL	5	Using where; Using index; LooseScan
+1	PRIMARY	t1	ref	t1_c2	t1_c2	5	test.a.c2	2	
+drop table t1,t2;

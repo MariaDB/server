@@ -8155,7 +8155,6 @@ best_access_path(JOIN      *join,
   best.uses_jbuf= FALSE;
   best.spl_plan= 0;
 
-  pos->loops=        record_count;
   disable_jbuf= disable_jbuf || idx == join->const_tables;
 
   trace_wrapper.add_table_name(s);
@@ -9282,6 +9281,7 @@ best_access_path(JOIN      *join,
   crash_if_first_double_is_bigger(best.records_out, best.records_read);
 
   /* Update the cost information for the current partial plan */
+  pos->loops=        record_count;
   pos->records_init= best.records_read;
   pos->records_after_filter= best.records_after_filter;
   pos->records_read= best.records;
@@ -9299,7 +9299,8 @@ best_access_path(JOIN      *join,
   pos->key_dependent= (best.type == JT_EQ_REF ? (table_map) 0 :
                        key_dependent & remaining_tables);
 
-  loose_scan_opt.save_to_position(s, record_count, loose_scan_pos);
+  loose_scan_opt.save_to_position(s, record_count, pos->records_out,
+                                  loose_scan_pos);
 
   if (!best.key &&
       idx == join->const_tables &&              // First table
@@ -30525,9 +30526,8 @@ static bool get_range_limit_read_cost(const POSITION *pos,
         cond_selectivity= best_rows / range_rows;
       else
         cond_selectivity= 1.0;
-#if 0 // FIXME: cond_selectivity=8/4 = 2 in main.update_use_source
+
       DBUG_ASSERT(cond_selectivity <= 1.000000001);
-#endif
       set_if_smaller(cond_selectivity, 1.0);
 
       /*
