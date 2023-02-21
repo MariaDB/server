@@ -365,34 +365,55 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 
 void sp_lex_keeper::free_lex(THD *thd)
 {
+  /*
+    Currently, m_lex_resp == false for sp_instr_cursor_copy_struct instructions
+    and in some cases for sp_instr_set instructions. For these classes
+    free_lex() returns control flow immediately and doesn't change m_lex.
+  */
   if (!m_lex_resp || !m_lex) return;
 
   /* Prevent endless recursion. */
   m_lex->sphead= nullptr;
   lex_end(m_lex);
 
-  delete (st_lex_local *)m_lex;
+  sp_lex_cursor* cursor_lex= m_lex->get_lex_for_cursor();
+  if (cursor_lex == nullptr)
+  {
+    delete (st_lex_local *)m_lex;
+    /*
+      In case it is not sp_lex_cursor set thd->lex to the null value
+      if it points to a LEX object we just deleted in order to avoid
+      dangling pointers problem.
+    */
+    if (thd->lex == m_lex)
+      thd->lex= nullptr;
 
-  /*
-    Set thd->lex to the null value in case it points to a LEX object
-    we just deleted in order to avoid dangling pointer problem
-  */
-  if (thd->lex == m_lex)
-    thd->lex= nullptr;
+    m_lex= nullptr;
+    m_lex_resp= false;
+  }
+  else
+  {
+    /*
+      sp_lex_cursor has references to items allocated on parsing a cursor
+      declaration statement. These items are deleted on re-parsing a failing
+      cursor declaration statement at the method
+        sp_lex_instr::cleanup_before_parsing.
+      Remove the reference to items that will be deleted from sp_lex_cursor
+      in order to avoid dangling pointers problem.
+    */
+    cleanup_items(cursor_lex->free_list);
+    cursor_lex->free_list= nullptr;
+  }
 
-  m_lex= nullptr;
-  m_lex_resp= false;
   lex_query_tables_own_last= nullptr;
 }
 
 
-void sp_lex_keeper::set_lex(LEX *lex, bool is_lex_owner)
+void sp_lex_keeper::set_lex(LEX *lex)
 {
   m_lex= lex;
-  m_lex_resp= is_lex_owner;
-
-  if (m_lex)
-    m_lex->sp_lex_in_use= true;
+  m_lex_resp= true;
+  m_lex->sp_lex_in_use= true;
 }
 
 
@@ -408,11 +429,15 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
     {
       thd->clear_error();
       free_lex(thd);
-      LEX *lex= instr->parse_expr(thd, thd->spcont->m_sp);
+      LEX *lex= instr->parse_expr(thd, thd->spcont->m_sp, m_lex);
 
       if (!lex) return true;
 
-      set_lex(lex, true);
+      /*
+        m_lex != nullptr in case it points to sp_lex_cursor.
+      */
+      if (m_lex == nullptr)
+        set_lex(lex);
 
       m_first_execution= true;
     }
@@ -603,7 +628,7 @@ bool sp_lex_instr::setup_table_fields_for_trigger(
 }
 
 
-LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
+LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
 {
   String sql_query;
 
@@ -632,7 +657,25 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
     saved_ptr_to_next_trg_items_list=
       m_cur_trigger_stmt_items.first->next_trig_field_list;
 
+  /*
+    Clean up items owned by this SP instruction.
+  */
   cleanup_before_parsing(sp->m_handler->type());
+
+  DBUG_ASSERT(mem_root != thd->mem_root);
+  /*
+    Back up the current free_list pointer and reset it to nullptr.
+    Set thd->mem_root pointing to a mem_root of SP instruction being re-parsed.
+    In that way any items created on parsing a statement of the current
+    instruction is allocated on SP instruction's mem_root and placed on its own
+    free_list that later assigned to the current sp_instr. We use the separate
+    free list for every instruction since at least at one place in the source
+    code (the function subst_spvars() to be accurate) we iterate along the
+    list sp_instr->free_list on executing of every SP instruction.
+  */
+  Query_arena backup;
+  thd->set_n_backup_active_arena(this, &backup);
+  thd->free_list= nullptr;
 
   Parser_state parser_state;
 
@@ -642,24 +685,32 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
   // Create a new LEX and initialize it.
 
   LEX *lex_saved= thd->lex;
-
-  Query_arena *arena, backup;
-  arena= thd->activate_stmt_arena_if_needed(&backup);
+  Item **cursor_free_list= nullptr;
 
   /*
-    Back up the current free_list pointer and reset it to nullptr.
-    In that way any items created on parsing a statement of the current
-    instruction is placed on its own free_list that later assigned to
-    the current sp_instr. We use the separate free list for every instruction
-    since at least at one place in the source code (the function subst_spvars()
-    to be accurate) we iterate along the list sp_instr->free_list
-    on executing of every instruction.
+    sp_instr_lex == nullptr for cursor relating SP instructions (sp_instr_cpush,
+    sp_instr_cursor_copy_struct) and in some cases for sp_instr_set.
   */
-  Item *execution_free_list= thd->free_list;
-  thd->free_list= nullptr;
-
-  thd->lex= new (thd->mem_root) st_lex_local;
-
+  if (sp_instr_lex == nullptr)
+    thd->lex= new (thd->mem_root) st_lex_local;
+  else
+  {
+    sp_lex_cursor* cursor_lex= sp_instr_lex->get_lex_for_cursor();
+    /*
+      In case sp_instr_cursor_copy_struct instruction being re-parsed
+      the items stored in free_list of sp_lex_cursor are not cleaned up
+      since the class sp_instr_cursor_copy_struct don't pass ownership of
+      lex object to sp_lex_keeper. So, clean up items stored in free_list of
+      sp_lex_cursor explicitly. For sp_instr_cpush instruction items stored
+      in free_list of sp_lex_cursor are cleaned up in the method free_lex()
+      since sp_instr_cpush owns a lex object stored in its sp_lex_keeper
+      data member. So, for the sp_instr_cpush instruction by the time we reach
+      this block cursor_lex->free_list is already empty.
+    */
+    cleanup_items(cursor_lex->free_list);
+    cursor_free_list= &cursor_lex->free_list;
+    DBUG_ASSERT(thd->lex == sp_instr_lex);
+  }
   lex_start(thd);
 
   thd->lex->sphead= sp;
@@ -699,20 +750,26 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp)
       setup_table_fields_for_trigger(thd, sp,
                                      saved_ptr_to_next_trg_items_list);
 
-    /*
-      Assign the list of items created on parsing to the current
-      stored routine instruction.
-    */
-    free_list= thd->free_list;
+
+    if (cursor_free_list)
+      /*
+        Update sp_lex_cursor::free_list to point to a list of items
+        just created on re-parsing the cursor's statement.
+      */
+      *cursor_free_list= thd->free_list;
+    else
+      /*
+        Assign the list of items created on re-parsing the statement to
+        the current stored routine's instruction.
+      */
+      free_list= thd->free_list;
+
+    thd->free_list= nullptr;
   }
 
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
+  Query_arena old;
+  thd->restore_active_arena(&old, &backup);
 
-  thd->free_list= execution_free_list;
-
-  thd->lex->sphead= nullptr;
-  thd->lex->spcont= nullptr;
   LEX *expr_lex= thd->lex;
   thd->lex= lex_saved;
 

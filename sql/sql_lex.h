@@ -3155,6 +3155,8 @@ public:
 };
 
 
+class sp_lex_cursor;
+
 struct LEX: public Query_tables_list
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
@@ -4862,6 +4864,11 @@ public:
   bool is_metadata_used() const
   {
     return query_tables != nullptr || sroutines.records > 0;
+  }
+
+  virtual sp_lex_cursor* get_lex_for_cursor()
+  {
+    return nullptr;
   }
 };
 
