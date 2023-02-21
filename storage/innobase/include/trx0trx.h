@@ -1070,6 +1070,8 @@ public:
     ut_ad(!dict_operation);
     ut_ad(!apply_online_log);
     ut_ad(!is_not_inheriting_locks());
+    ut_ad(check_foreigns);
+    ut_ad(check_unique_secondary);
   }
 
   /** This has to be invoked on SAVEPOINT or at the end of a statement.
