@@ -5810,6 +5810,7 @@ struct charset_info_st my_charset_utf8mb3_general_ci=
     NULL,               /* uca          */
     NULL,               /* tab_to_uni   */
     NULL,               /* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,               /* state_map    */
     NULL,               /* ident_map    */
@@ -5841,6 +5842,7 @@ struct charset_info_st my_charset_utf8mb3_general_mysql500_ci=
   NULL,                                         /* uca              */
   NULL,                                         /* tab_to_uni       */
   NULL,                                         /* tab_from_uni     */
+  NULL,                                         /* casefold         */
   &my_unicase_mysql500,                         /* caseinfo         */
   NULL,                                         /* state_map        */
   NULL,                                         /* ident_map        */
@@ -5872,6 +5874,7 @@ struct charset_info_st my_charset_utf8mb3_bin=
     NULL,               /* uca          */
     NULL,               /* tab_to_uni   */
     NULL,               /* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,               /* state_map    */
     NULL,               /* ident_map    */
@@ -5903,6 +5906,7 @@ struct charset_info_st my_charset_utf8mb3_general_nopad_ci=
     NULL,                     /* uca              */
     NULL,                     /* tab_to_uni       */
     NULL,                     /* tab_from_uni     */
+    NULL,                     /* casefold         */
     &my_unicase_default,      /* caseinfo         */
     NULL,                     /* state_map        */
     NULL,                     /* ident_map        */
@@ -5934,6 +5938,7 @@ struct charset_info_st my_charset_utf8mb3_nopad_bin=
     NULL,               /* uca              */
     NULL,               /* tab_to_uni       */
     NULL,               /* tab_from_uni     */
+    NULL,               /* casefold         */
     &my_unicase_default,/* caseinfo         */
     NULL,               /* state_map        */
     NULL,               /* ident_map        */
@@ -6097,6 +6102,7 @@ struct charset_info_st my_charset_utf8mb3_general_cs=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
@@ -7455,6 +7461,7 @@ struct charset_info_st my_charset_filename=
     NULL,               /* uca          */
     NULL,               /* tab_to_uni   */
     NULL,               /* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,               /* state_map    */
     NULL,               /* ident_map    */
@@ -8168,6 +8175,7 @@ struct charset_info_st my_charset_utf8mb4_general_ci=
   NULL,               /* uca          */
   NULL,               /* tab_to_uni   */
   NULL,               /* tab_from_uni */
+  NULL,               /* casefold     */
   &my_unicase_default,/* caseinfo     */
   NULL,               /* state_map    */
   NULL,               /* ident_map    */
@@ -8200,6 +8208,7 @@ struct charset_info_st my_charset_utf8mb4_bin=
   NULL,               /* uca          */
   NULL,               /* tab_to_uni   */
   NULL,               /* tab_from_uni */
+  NULL,               /* casefold     */
   &my_unicase_default,/* caseinfo     */
   NULL,               /* state_map    */
   NULL,               /* ident_map    */
@@ -8232,6 +8241,7 @@ struct charset_info_st my_charset_utf8mb4_general_nopad_ci=
   NULL,               /* uca              */
   NULL,               /* tab_to_uni       */
   NULL,               /* tab_from_uni     */
+  NULL,               /* casefold         */
   &my_unicase_default,/* caseinfo         */
   NULL,               /* state_map        */
   NULL,               /* ident_map        */
@@ -8264,6 +8274,7 @@ struct charset_info_st my_charset_utf8mb4_nopad_bin=
   NULL,               /* uca              */
   NULL,               /* tab_to_uni       */
   NULL,               /* tab_from_uni     */
+  NULL,               /* casefold         */
   &my_unicase_default,/* caseinfo         */
   NULL,               /* state_map        */
   NULL,               /* ident_map        */

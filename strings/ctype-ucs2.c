@@ -1637,6 +1637,7 @@ struct charset_info_st my_charset_utf16_general_ci=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
+  NULL,                /* casefold     */
   &my_unicase_default, /* caseinfo     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
@@ -1668,6 +1669,7 @@ struct charset_info_st my_charset_utf16_bin=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
+  NULL,                /* casefold     */
   &my_unicase_default, /* caseinfo     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
@@ -1699,6 +1701,7 @@ struct charset_info_st my_charset_utf16_general_nopad_ci=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
+  NULL,                /* casefold         */
   &my_unicase_default, /* caseinfo         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
@@ -1731,6 +1734,7 @@ struct charset_info_st my_charset_utf16_nopad_bin=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
+  NULL,                /* casefold         */
   &my_unicase_default, /* caseinfo         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
@@ -1992,6 +1996,7 @@ struct charset_info_st my_charset_utf16le_general_ci=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
+  NULL,                /* casefold     */
   &my_unicase_default, /* caseinfo     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
@@ -2023,6 +2028,7 @@ struct charset_info_st my_charset_utf16le_bin=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
+  NULL,                /* casefold     */
   &my_unicase_default, /* caseinfo     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
@@ -2054,6 +2060,7 @@ struct charset_info_st my_charset_utf16le_general_nopad_ci=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
+  NULL,                /* casefold         */
   &my_unicase_default, /* caseinfo         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
@@ -2086,6 +2093,7 @@ struct charset_info_st my_charset_utf16le_nopad_bin=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
+  NULL,                 /* casefold        */
   &my_unicase_default, /* caseinfo         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
@@ -2832,6 +2840,7 @@ struct charset_info_st my_charset_utf32_general_ci=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
+  NULL,                /* casefold     */
   &my_unicase_default, /* caseinfo     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
@@ -2863,6 +2872,7 @@ struct charset_info_st my_charset_utf32_bin=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
+  NULL,                /* casefold     */
   &my_unicase_default, /* caseinfo     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
@@ -2894,6 +2904,7 @@ struct charset_info_st my_charset_utf32_general_nopad_ci=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
+  NULL,                /* casefold         */
   &my_unicase_default, /* caseinfo         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
@@ -2926,6 +2937,7 @@ struct charset_info_st my_charset_utf32_nopad_bin=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
+  NULL,                /* casefold         */
   &my_unicase_default, /* caseinfo         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
@@ -3437,6 +3449,7 @@ struct charset_info_st my_charset_ucs2_general_ci=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
@@ -3468,6 +3481,7 @@ struct charset_info_st my_charset_ucs2_general_mysql500_ci=
   NULL,                                            /* uca              */
   NULL,                                            /* tab_to_uni       */
   NULL,                                            /* tab_from_uni     */
+  NULL,                                            /* casefold         */
   &my_unicase_mysql500,                            /* caseinfo         */
   NULL,                                            /* state_map        */
   NULL,                                            /* ident_map        */
@@ -3499,6 +3513,7 @@ struct charset_info_st my_charset_ucs2_bin=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
@@ -3530,6 +3545,7 @@ struct charset_info_st my_charset_ucs2_general_nopad_ci=
     NULL,                    /* uca              */
     NULL,                    /* tab_to_uni       */
     NULL,                    /* tab_from_uni     */
+    NULL,                    /* casefold         */
     &my_unicase_default,     /* caseinfo         */
     NULL,                    /* state_map        */
     NULL,                    /* ident_map        */
@@ -3561,6 +3577,7 @@ struct charset_info_st my_charset_ucs2_nopad_bin=
     NULL,                    /* uca              */
     NULL,                    /* tab_to_uni       */
     NULL,                    /* tab_from_uni     */
+    NULL,                    /* casefold         */
     &my_unicase_default,     /* caseinfo         */
     NULL,                    /* state_map        */
     NULL,                    /* ident_map        */

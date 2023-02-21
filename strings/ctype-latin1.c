@@ -448,6 +448,7 @@ struct charset_info_st my_charset_latin1=
     NULL,		/* uca          */
     cs_to_uni,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
@@ -479,6 +480,7 @@ struct charset_info_st my_charset_latin1_nopad=
     NULL,                         /* uca              */
     cs_to_uni,                    /* tab_to_uni       */
     NULL,                         /* tab_from_uni     */
+    NULL,                         /* casefold     */
     &my_unicase_default,          /* caseinfo         */
     NULL,                         /* state_map        */
     NULL,                         /* ident_map        */
@@ -760,6 +762,7 @@ struct charset_info_st my_charset_latin1_german2_ci=
   NULL,					/* uca          */
   cs_to_uni,				/* tab_to_uni   */
   NULL,					/* tab_from_uni */
+  NULL,                                 /* casefold     */
   &my_unicase_default,                  /* caseinfo     */
   NULL,					/* state_map    */
   NULL,					/* ident_map    */
@@ -791,6 +794,7 @@ struct charset_info_st my_charset_latin1_bin=
   NULL,					/* uca          */
   cs_to_uni,				/* tab_to_uni   */
   NULL,					/* tab_from_uni */
+  NULL,                                 /* casefold     */
   &my_unicase_default,                  /* caseinfo     */
   NULL,					/* state_map    */
   NULL,					/* ident_map    */
@@ -822,6 +826,7 @@ struct charset_info_st my_charset_latin1_nopad_bin=
   NULL,                                /* uca              */
   cs_to_uni,                           /* tab_to_uni       */
   NULL,                                /* tab_from_uni     */
+  NULL,                                /* casefold         */
   &my_unicase_default,                 /* caseinfo         */
   NULL,                                /* state_map        */
   NULL,                                /* ident_map        */
