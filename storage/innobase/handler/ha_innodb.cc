@@ -10588,9 +10588,8 @@ create_table_info_t::create_table_def()
 				      ? doc_id_col : n_cols - num_v;
 	}
 
-  /* Set file_unreadable to avoid is_readable() assertion
-     errors. Semantically we assume the tablespace is not available
-     until we are able to import it.*/
+  /* Assume the tablespace is not available until we are able to
+     import it.*/
   if (thd_ddl_options(m_thd)->import_tablespace())
     table->file_unreadable = true;
 
@@ -11608,8 +11607,7 @@ index_bad:
 	}
 
   /* If we are trying to import a tablespace, mark tablespace as
-     discarded. Without this dict_create_index_space() will attempt to
-     create a tablespace. */
+     discarded. */
   if (thd_ddl_options(m_thd)->import_tablespace())
     m_flags2 |= DICT_TF2_DISCARDED;
 
