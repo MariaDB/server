@@ -955,6 +955,7 @@ struct charset_info_st my_charset_tis620_thai_ci=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
@@ -985,6 +986,7 @@ struct charset_info_st my_charset_tis620_bin=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
+    NULL,               /* casefold     */
     &my_unicase_default,/* caseinfo     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
@@ -1016,6 +1018,7 @@ struct charset_info_st my_charset_tis620_thai_nopad_ci=
     NULL,                  /* uca              */
     NULL,                  /* tab_to_uni       */
     NULL,                  /* tab_from_uni     */
+    NULL,                  /* casefold         */
     &my_unicase_default,   /* caseinfo         */
     NULL,                  /* state_map        */
     NULL,                  /* ident_map        */
@@ -1047,6 +1050,7 @@ struct charset_info_st my_charset_tis620_nopad_bin=
     NULL,                  /* uca              */
     NULL,                  /* tab_to_uni       */
     NULL,                  /* tab_from_uni     */
+    NULL,                  /* casefold         */
     &my_unicase_default,   /* caseinfo         */
     NULL,                  /* state_map        */
     NULL,                  /* ident_map        */

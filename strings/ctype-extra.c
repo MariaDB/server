@@ -3689,6 +3689,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3720,6 +3721,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3751,6 +3753,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_german1_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3782,6 +3785,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3813,6 +3817,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3844,6 +3849,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3875,6 +3881,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3906,6 +3913,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3937,6 +3945,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3968,6 +3977,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_danish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -3999,6 +4009,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4030,6 +4041,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4061,6 +4073,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4092,6 +4105,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4123,6 +4137,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4154,6 +4169,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4185,6 +4201,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4216,6 +4233,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4247,6 +4265,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4278,6 +4297,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4309,6 +4329,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4340,6 +4361,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4371,6 +4393,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4402,6 +4425,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4433,6 +4457,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4464,6 +4489,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4495,6 +4521,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4526,6 +4553,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4557,6 +4585,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4588,6 +4617,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4619,6 +4649,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4650,6 +4681,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_general_cs,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4681,6 +4713,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4712,6 +4745,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4743,6 +4777,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4774,6 +4809,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4805,6 +4841,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4836,6 +4873,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4867,6 +4905,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4898,6 +4937,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4929,6 +4969,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4960,6 +5001,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -4991,6 +5033,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5022,6 +5065,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5053,6 +5097,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5084,6 +5129,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5115,6 +5161,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5146,6 +5193,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5177,6 +5225,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5208,6 +5257,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5239,6 +5289,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5270,6 +5321,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5301,6 +5353,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5332,6 +5385,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5363,6 +5417,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5394,6 +5449,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5425,6 +5481,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5456,6 +5513,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5487,6 +5545,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5518,6 +5577,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_spanish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5549,6 +5609,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5580,6 +5641,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5611,6 +5673,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5642,6 +5705,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5673,6 +5737,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5704,6 +5769,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5735,6 +5801,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5766,6 +5833,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5797,6 +5865,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5828,6 +5897,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5859,6 +5929,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5890,6 +5961,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5921,6 +5993,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5952,6 +6025,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -5983,6 +6057,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6014,6 +6089,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6045,6 +6121,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6076,6 +6153,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6107,6 +6185,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6138,6 +6217,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6169,6 +6249,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6200,6 +6281,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6231,6 +6313,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6262,6 +6345,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6293,6 +6377,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6324,6 +6409,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6355,6 +6441,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6386,6 +6473,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6417,6 +6505,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6448,6 +6537,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6479,6 +6569,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6510,6 +6601,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6541,6 +6633,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6572,6 +6665,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6603,6 +6697,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6634,6 +6729,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6665,6 +6761,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6696,6 +6793,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6727,6 +6825,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6758,6 +6857,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6789,6 +6889,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6820,6 +6921,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6851,6 +6953,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6882,6 +6985,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6913,6 +7017,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6944,6 +7049,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -6975,6 +7081,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
@@ -7005,6 +7112,7 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   NULL,                       /* to_uni        */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
