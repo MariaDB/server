@@ -277,7 +277,7 @@ public:
 
 
   int cursor_reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
-                                     sp_instr *instr);
+                                     sp_lex_instr *instr);
 
   /**
     (Re-)parse the query corresponding to this instruction and return a new
@@ -508,7 +508,6 @@ protected:
     return LEX_CSTRING{m_query.str, m_query.length};
   }
 
-protected:
   bool on_after_expr_parsing(THD *) override
   {
     m_valid= true;
@@ -977,7 +976,6 @@ public:
   }
 
 protected:
-
   LEX_CSTRING get_expr_query() const override
   {
     return m_expr_str;
@@ -1160,12 +1158,15 @@ class sp_instr_cpush : public sp_lex_instr, public sp_cursor
 
 public:
 
-  sp_instr_cpush(uint ip, sp_pcontext *ctx, LEX *lex, uint offset)
+  sp_instr_cpush(uint ip, sp_pcontext *ctx, sp_lex_cursor *lex, uint offset)
     : sp_lex_instr(ip, ctx, lex, true), m_cursor(offset),
-      m_metadata_changed(false)
+      m_metadata_changed(false),
+      m_cursor_stmt(lex->get_expr_str())
   {}
 
   int execute(THD *thd, uint *nextp) override;
+
+  int exec_core(THD *thd, uint *nextp) override;
 
   void print(String *str) override;
 
@@ -1199,10 +1200,16 @@ public:
     sql_query->append(get_expr_query());
   }
 
+  sp_instr_cpush *get_push_instr() override { return this; }
+
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    return empty_clex_str;
+    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
+      return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
+    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
+      return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
+    return m_cursor_stmt;
   }
 private:
 
@@ -1213,6 +1220,7 @@ private:
   */
   bool m_metadata_changed;
 
+  LEX_CSTRING m_cursor_stmt;
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
@@ -1262,8 +1270,6 @@ public:
 
   int execute(THD *thd, uint *nextp) override;
 
-  int exec_core(THD *thd, uint *nextp) override;
-
   void print(String *str) override;
 
 private:
@@ -1293,13 +1299,15 @@ class sp_instr_cursor_copy_struct: public sp_lex_instr
     be reinitialized.
   */
   bool m_valid;
+  LEX_CSTRING m_cursor_stmt;
 public:
   sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
                               sp_lex_cursor *lex, uint voffs)
     : sp_lex_instr(ip, ctx, lex, false),
       m_cursor(coffs),
       m_var(voffs),
-      m_valid(true)
+      m_valid(true),
+      m_cursor_stmt(lex->get_expr_str())
   {}
   int execute(THD *thd, uint *nextp) override;
   int exec_core(THD *thd, uint *nextp) override;
@@ -1315,10 +1323,19 @@ public:
     m_valid= false;
   }
 
+  void get_query(String *sql_query) const override
+  {
+    sql_query->append(get_expr_query());
+  }
+
 protected:
   LEX_CSTRING get_expr_query() const override
   {
-    return empty_clex_str;
+    if (strncasecmp(m_cursor_stmt.str, "FOR ", 4) == 0)
+       return LEX_CSTRING{m_cursor_stmt.str + 4, m_cursor_stmt.length - 4};
+    if (strncasecmp(m_cursor_stmt.str, "IS ", 3) == 0)
+       return LEX_CSTRING{m_cursor_stmt.str + 3, m_cursor_stmt.length - 3};
+    return m_cursor_stmt;
   }
 
 public:
