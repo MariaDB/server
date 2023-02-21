@@ -218,10 +218,6 @@ in the buffer cache and accessed sequentially for InnoDB to trigger a
 readahead request. */
 ulong	srv_read_ahead_threshold;
 
-/** innodb_change_buffer_max_size; maximum on-disk size of change
-buffer in terms of percentage of the buffer pool. */
-uint	srv_change_buffer_max_size;
-
 /** copy of innodb_open_files; @see innodb_init_params() */
 ulint	srv_max_n_open_files;
 

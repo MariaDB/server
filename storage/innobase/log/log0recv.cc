@@ -3011,9 +3011,7 @@ set_start_lsn:
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 	} else if (free_page && init_lsn) {
 		/* There have been no operations that modify the page.
-		Any buffered changes must not be merged. A subsequent
-		buf_page_create() from a user thread should discard
-		any buffered changes. */
+		Any buffered changes will be merged in ibuf_upgrade(). */
 		ut_ad(!mtr.has_modifications());
 		block->page.set_freed(block->page.state());
 	}

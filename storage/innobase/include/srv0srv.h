@@ -275,8 +275,6 @@ extern double	srv_defragment_fill_factor;
 extern uint	srv_defragment_frequency;
 extern ulonglong	srv_defragment_interval;
 
-extern uint	srv_change_buffer_max_size;
-
 /* Number of IO operations per second the server can do */
 extern ulong    srv_io_capacity;
 
@@ -301,7 +299,7 @@ extern ulong	srv_flushing_avg_loops;
 
 extern ulong	srv_force_recovery;
 
-/** innodb_fast_shutdown=1 skips purge and change buffer merge.
+/** innodb_fast_shutdown=1 skips purge.
 innodb_fast_shutdown=2 effectively crashes the server (no log checkpoint).
 innodb_fast_shutdown=3 is a clean shutdown that skips the rollback
 of active transaction (to be done on restart). */
