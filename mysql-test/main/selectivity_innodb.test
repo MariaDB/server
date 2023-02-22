@@ -283,5 +283,14 @@ SELECT b FROM t WHERE a > 'a' GROUP BY b HAVING b >= 6 OR b <= 0;
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-30693: Assertion `dbl_records <= s->records' failed in apply_selectivity_for_table on SELECT
+--echo #
+set @tmp_oucs= @@optimizer_use_condition_selectivity;
+CREATE TABLE t1 (c INT KEY) ENGINE=InnoDB;
+SELECT * FROM (SELECT * FROM t1) a JOIN (SELECT * FROM (SELECT * FROM t1 GROUP BY c) d WHERE c>1) b ON a.c=b.c;
+DROP TABLE t1;
+SET optimizer_use_condition_selectivity=1;
+
+--echo #
 --echo # End of 11.0 tests
 --echo #

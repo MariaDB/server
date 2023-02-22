@@ -741,7 +741,12 @@ void JOIN::add_keyuses_for_splitting()
   if (ext_keyuses_for_splitting->push(keyuse_ext_end))
     goto err;
 
-  spl_opt_info->unsplit_card= join_record_count;
+  /*
+    Use the number of rows that was computed by
+    TABLE_LIST::fetch_number_of_rows():
+  */
+  spl_opt_info->unsplit_card=
+    select_lex->master_unit()->derived->table->stat_records();
 
   rec_len= table->s->rec_buff_length;
 
