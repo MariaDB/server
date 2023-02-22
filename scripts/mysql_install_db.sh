@@ -82,7 +82,7 @@ Usage: $0 [OPTIONS]
   --defaults-group-suffix=name
                        In addition to the given groups, read also groups with
                        this suffix
-  --force              Causes mysql_install_db to run even if DNS does not
+  --force              Causes mariadb-install-db to run even if DNS does not
                        work.  In that case, grant table entries that
                        normally use hostnames will use IP addresses.
   --help               Display this help and exit.
@@ -98,20 +98,20 @@ Usage: $0 [OPTIONS]
                        uses the compiled binaries and support files within the
                        source tree, useful for if you don't want to install
                        MariaDB yet and just want to create the system tables.
-  --user=user_name     The login username to use for running mysqld.  Files
-                       and directories created by mysqld will be owned by this
+  --user=user_name     The login username to use for running mariadbd.  Files
+                       and directories created by mariadbd will be owned by this
                        user.  You must be root to use this option.  By default
-                       mysqld runs using your current login name and files and
+                       mariadbd runs using your current login name and files and
                        directories that it creates will be owned by you.
-  --group=group_name   The login group to use for running mysqld.  Files and
-                       directories created by mysqld will be owned by this
+  --group=group_name   The login group to use for running mariadbd.  Files and
+                       directories created by mariadbd will be owned by this
                        group. You must be root to use this option.  By default
-                       mysqld runs using your current group and files and
+                       mariadbd runs using your current group and files and
                        directories that it creates will be owned by you.
   --extra-file=file    Add user defined SQL file, to be executed following
                        regular database initialization.
 
-All other options are passed to the mysqld program
+All other options are passed to the mariadbd program
 
 EOF
   exit 1
@@ -128,7 +128,7 @@ s_echo()
 link_to_help()
 {
   echo
-  echo "The latest information about mysql_install_db is available at"
+  echo "The latest information about mariadb-install-db is available at"
   echo "https://mariadb.com/kb/en/installing-system-tables-mysql_install_db"
 }
 
@@ -161,7 +161,7 @@ parse_arguments()
        # Keep in the arguments passed to the server
        args="$args $arg"
        log_error=`parse_arg "$arg"` ;;
-        # Note that the user will be passed to mysqld so that it runs
+        # Note that the user will be passed to mariadbd so that it runs
         # as 'user' (crucial e.g. if log-bin=/some_other_path/
         # where a chown of datadir won't help)
       --user=*) user=`parse_arg "$arg"` ;;
@@ -342,7 +342,7 @@ then
   basedir="$builddir"
   bindir="$basedir/client"
   resolveip="$basedir/extra/resolveip"
-  mysqld="$basedir/sql/mysqld"
+  mysqld="$basedir/sql/mariadbd"
   langdir="$basedir/sql/share/english"
   srcpkgdatadir="$srcdir/scripts"
   buildpkgdatadir="$builddir/scripts"
@@ -467,7 +467,7 @@ then
     fi
     echo "WARNING: The host '$hostname' could not be looked up with $resolveip."
     echo "This probably means that your libc libraries are not 100 % compatible"
-    echo "with this binary MariaDB version. The MariaDB daemon, mysqld, should work"
+    echo "with this binary MariaDB version. The MariaDB daemon, mariadbd, should work"
     echo "normally with the exception that host name resolving will not work."
     echo "This means that you should use IP addresses instead of hostnames"
     echo "when specifying MariaDB privileges !"
@@ -542,7 +542,7 @@ fi
 if test -f "$ldata/mysql/user.frm"
 then
     echo "mysql.user table already exists!"
-    echo "Run mysql_upgrade, not mysql_install_db"
+    echo "Run mariadb-upgrade, not mariadb-install-db"
     exit 0
 fi
 
@@ -684,7 +684,7 @@ then
     echo "You can start the MariaDB daemon with:"
     echo "cd '$basedir' ; $bindir/mariadb-safe --datadir='$ldata'"
     echo
-    echo "You can test the MariaDB daemon with mysql-test-run.pl"
+    echo "You can test the MariaDB daemon with mariadb-test-run.pl"
     echo "cd '$basedir/@INSTALL_MYSQLTESTDIR@' ; perl mariadb-test-run.pl"
   fi
 
