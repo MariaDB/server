@@ -9019,6 +9019,7 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
         ut_a(!lock_table_for_trx(dict_sys.sys_fields, ctx->trx, LOCK_X));
       }
       innodb_lock_wait_timeout= save_timeout;
+      DEBUG_SYNC_C("innodb_rollback_after_fts_lock");
       row_mysql_lock_data_dictionary(ctx->trx);
       ctx->rollback_instant();
       innobase_rollback_sec_index(ctx->old_table, table,
