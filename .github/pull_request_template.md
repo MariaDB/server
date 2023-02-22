@@ -58,4 +58,4 @@ You might consider answering some questions like:
 TODO: fill details here, if applicable, or remove the section
 
 ## PR quality check
-- [ ] I checked the [CODING_STANDARDS.md](CODING_STANDARDS.md) file and my PR conforms to this where appropriate.
+- [ ] I checked the [CODING_STANDARDS.md](https://github.com/MariaDB/server/blob/11.0/CODING_STANDARDS.md) file and my PR conforms to this where appropriate.
