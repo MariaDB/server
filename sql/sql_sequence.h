@@ -35,6 +35,7 @@
 #define ROUND_FIELD_NO 7
 
 #include "mysql_com.h"
+#include "sql_type_int.h"
 
 class Create_field;
 class Type_handler;
@@ -61,22 +62,26 @@ class sequence_definition :public Sql_alloc
 {
 public:
   sequence_definition():
-    min_value(1), max_value(LONGLONG_MAX-1), start(1), increment(1),
-    cache(1000), round(0), restart(0), cycle(0), used_fields(0), value_type(MYSQL_TYPE_LONGLONG)
+    reserved_until(0, false), min_value(1, false), max_value(LONGLONG_MAX-1, false), start(1, false),
+    increment(1), cache(1000), round(0), restart(0, false), cycle(0),
+    used_fields(0), value_type(MYSQL_TYPE_LONGLONG),
+    next_free_value(0, false)
   {}
-  longlong reserved_until;
-  longlong min_value;
-  longlong max_value;
-  longlong start;
+  Longlong_hybrid reserved_until;
+  Longlong_hybrid min_value;
+  Longlong_hybrid max_value;
+  Longlong_hybrid start;
   longlong increment;
-  longlong cache;
+  longlong cache;                // cache size
   ulonglong round;
-  longlong restart;              // alter sequence restart value
+  Longlong_hybrid restart;       // alter sequence restart value
   bool     cycle;
-  uint used_fields;              // Which fields where used in CREATE
-  enum_field_types value_type;    // value type of the sequence
+  uint used_fields;              // Which fields where used or specified in CREATE
+  enum enum_field_types value_type;    // value type of the sequence
 
   Type_handler const *value_type_handler();
+  // Whether the sequence is unsigned.
+  bool is_unsigned() const;
   // max value for the value type, e.g. 32767 for smallint.
   longlong value_type_max();
   // min value for the value type, e.g. -32768 for smallint.
@@ -87,7 +92,7 @@ public:
   int write_initial_sequence(TABLE *table);
   int write(TABLE *table, bool all_fields);
   /* This must be called after sequence data has been updated */
-  void adjust_values(longlong next_value);
+  void adjust_values(Longlong_hybrid next_value);
   inline void print_dbug()
   {
     DBUG_PRINT("sequence", ("reserved: %lld  start: %lld  increment: %lld  min_value: %lld  max_value: %lld  cache: %lld  round: %lld",
@@ -103,7 +108,7 @@ protected:
     merged with global auto_increment_offset and auto_increment_increment
   */
   longlong real_increment;
-  longlong next_free_value;
+  Longlong_hybrid next_free_value;
 };
 
 /**
@@ -142,11 +147,15 @@ public:
   {
     if (real_increment > 0)
     {
-      if (value > max_value - real_increment ||
-          value + real_increment > max_value)
+      // here we have an issue where there's no subtraction operator
+      // for Longlong_hybrid. How do we design subtraction operator?
+      // what if the two operands are of different signedness? That's
+      // a further design issue.
+      if (value > max_value - Longlong_hybrid(real_increment, is_unsigned()) ||
+          value + Longlong_hybrid(real_increment, is_unsigned()) > max_value)
         value= max_value + 1;
       else
-        value+= real_increment;
+        value+= Longlong_hybrid(real_increment, is_unsigned());
     }
     else
     {
@@ -175,7 +184,7 @@ class SEQUENCE_LAST_VALUE
 {
 public:
   SEQUENCE_LAST_VALUE(uchar *key_arg, uint length_arg)
-    :key(key_arg), length(length_arg)
+    :key(key_arg), length(length_arg), value(0, false)
   {}
   ~SEQUENCE_LAST_VALUE()
   { my_free((void*) key); }
@@ -186,7 +195,7 @@ public:
   const uchar *key;
   uint length;
   bool null_value;
-  longlong value;
+  Longlong_hybrid value;
   uchar table_version[MY_UUID_SIZE];
 };
 

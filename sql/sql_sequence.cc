@@ -86,6 +86,11 @@ Type_handler const *sequence_definition::value_type_handler()
   return Type_handler::get_handler_by_field_type(value_type);
 }
 
+bool sequence_definition::is_unsigned() const
+{
+  return value_type_handler()->is_unsigned();
+}
+
 longlong sequence_definition::value_type_max()
 {
   return ~ value_type_min();

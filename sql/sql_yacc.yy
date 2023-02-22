@@ -2608,13 +2608,18 @@ sequence_defs:
         | sequence_defs sequence_def
         ;
 
-sequence_def:
-          AS int_type
+ sequence_def:
+          AS int_type field_options
           {
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_as))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "AS"));
-            Lex->create_info.seq_create_info->value_type = $2->field_type();
+            if ($3 & ZEROFILL_FLAG)
+                my_yyabort_error((ER_NOT_SUPPORTED_YET, MYF(0), "ZEROFILL is not supported as a sequence value type option"));
+            Type_handler handler = $2;
+            if ($3 & UNSIGNED_FLAG)
+                handler = $2->type_handler_unsigned();
+            Lex->create_info.seq_create_info->value_type = handler->field_type();
           }
         | MINVALUE_SYM opt_equal ulonglong_num
           {
