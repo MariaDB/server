@@ -37,6 +37,7 @@
 /*  Include relevant section of system dependant header files.         */
 /***********************************************************************/
 #include "my_global.h"
+#include "m_string.h"
 #if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
@@ -170,11 +171,12 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 		while (true)
 			if ((rc = dirp->ReadDB(g)) == RC_OK) {
 #if defined(_WIN32)
-				strcat(strcpy(filename, dirp->Drive), dirp->Direc);
+				snprintf(filename, FNSZ, "%s%s", dirp->Drive, dirp->Direc);
 #else   // !_WIN32
-				strcpy(filename, dirp->Direc);
+				snprintf(filename, FNSZ, "%s", dirp->Direc);
 #endif  // !_WIN32
-				strcat(strcat(filename, dirp->Fname), dirp->Ftype);
+				safe_strcat(filename, FNSZ, dirp->Fname);
+				safe_strcat(filename, FNSZ, dirp->Ftype);
 				pfn[n++] = PlugDup(g, filename);
 			} else
 				break;
@@ -323,7 +325,7 @@ int TDBMUL::GetMaxSize(PGLOBAL g)
       return -1;
 
     if (Use == USE_OPEN) {
-      strcpy(g->Message, MSG(MAXSIZE_ERROR));
+      snprintf(g->Message, sizeof(g->Message), MSG(MAXSIZE_ERROR));
       return -1;
     } else
       MaxSize = 0;
@@ -433,7 +435,7 @@ int TDBMUL::ReadDB(PGLOBAL g)
     /*******************************************************************/
     /*  Reading is by an index table.                                  */
     /*******************************************************************/
-    strcpy(g->Message, MSG(NO_INDEX_READ));
+    snprintf(g->Message, sizeof(g->Message),  MSG(NO_INDEX_READ));
     rc = RC_FX;
   } else {
     /*******************************************************************/
@@ -464,7 +466,11 @@ int TDBMUL::ReadDB(PGLOBAL g)
         } // endif iFile
 
     } else if (rc == RC_FX)
-      strcat(strcat(strcat(g->Message, " ("), Tdbp->GetFile(g)), ")");
+    {
+      safe_strcat(g->Message, sizeof(g->Message), " (");
+      safe_strcat(g->Message, sizeof(g->Message), Tdbp->GetFile(g));
+      safe_strcat(g->Message, sizeof(g->Message), ")");
+    }
 
   } // endif To_Kindex
 
@@ -488,7 +494,7 @@ int TDBMUL::DeleteDB(PGLOBAL g, int)
   {
   // When implementing DELETE_MODE InitFileNames must be updated to
   // eliminate CRLF under Windows if the file is read in binary.
-  strcpy(g->Message, MSG(TABMUL_READONLY));
+  snprintf(g->Message, sizeof(g->Message),  MSG(TABMUL_READONLY));
   return RC_FX;                                      // NIY
   } // end of DeleteDB
 
@@ -564,11 +570,10 @@ bool TDBMSD::InitFileNames(PGLOBAL g)
 	while (true)
 		if ((rc = dirp->ReadDB(g)) == RC_OK) {
 #if defined(_WIN32)
-			strcat(strcpy(filename, dirp->Drive), dirp->Direc);
+			snprintf(filename, FNSZ, "%s%s%s%s", dirp->Drive, dirp->Direc, dirp->Fname, dirp->Ftype);
 #else   // !_WIN32
-			strcpy(filename, dirp->Direc);
+			snprintf(filename, FNSZ, "%s%s%s", dirp->Direc, dirp->Fname, dirp->Ftype);
 #endif  // !_WIN32
-			strcat(strcat(filename, dirp->Fname), dirp->Ftype);
 			pfn[n++] = PlugDup(g, filename);
 		} else
 			break;
@@ -683,7 +688,7 @@ char* TDBDIR::Path(PGLOBAL g)
   if (!Done) {
     PlugSetPath(Fpath, To_File, defp ? defp->GetPath() : NULL);
     _splitpath(Fpath, NULL, Direc, Fname, Ftype);
-    strcat(strcpy(Pattern, Fname), Ftype);
+    snprintf(Pattern, sizeof(Pattern), "%s%s", Fname, Ftype);
     Done = true;
     } // endif Done
 
@@ -757,7 +762,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
       } // endif dir
 
     while ((Entry = readdir(Dir))) {
-      strcat(strcpy(Fpath, Direc), Entry->d_name);
+      snprintf(Fpath, sizeof(Fpath), "%s%s", Direc, Entry->d_name);
 
       if (lstat(Fpath, &Fileinfo) < 0) {
         snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
@@ -855,7 +860,7 @@ int TDBDIR::ReadDB(PGLOBAL g)
   while (rc == RC_NF)
     if ((Entry = readdir(Dir))) {
       // We need the Fileinfo structure to get info about the file
-      strcat(strcpy(Fpath, Direc), Entry->d_name);
+      snprintf(Fpath, sizeof(Fpath), "%s%s", Direc, Entry->d_name);
 
       if (lstat(Fpath, &Fileinfo) < 0) {
         snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
@@ -884,7 +889,7 @@ int TDBDIR::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBDIR::WriteDB(PGLOBAL g)
   {
-  strcpy(g->Message, MSG(TABDIR_READONLY));
+  snprintf(g->Message, sizeof(g->Message),  MSG(TABDIR_READONLY));
   return RC_FX;                    // NIY
   } // end of WriteDB
 
@@ -893,7 +898,7 @@ int TDBDIR::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBDIR::DeleteDB(PGLOBAL g, int)
   {
-  strcpy(g->Message, MSG(TABDIR_READONLY));
+  snprintf(g->Message, sizeof(g->Message),  MSG(TABDIR_READONLY));
   return RC_FX;                                      // NIY
   } // end of DeleteDB
 
@@ -1074,7 +1079,8 @@ int TDBSDR::FindInDir(PGLOBAL g)
 		if ((FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
 			  *FileData.cFileName != '.') {
 			// Look in the name sub-directory
-			strcat(strcat(Direc, FileData.cFileName), "/");
+			safe_strcat(Direc, sizeof(Direc), FileData.cFileName);
+			safe_strcat(Direc, sizeof(Direc), "/");
 			n += FindInDir(g);
 			Direc[m] = '\0';         // Restore path
 		} else if (PathMatchSpec(FileData.cFileName, Fpath))
@@ -1138,7 +1144,8 @@ int TDBSDR::FindInDir(PGLOBAL g)
 			if ((FileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&
 				  *FileData.cFileName != '.') {
 				// Look in the name sub-directory
-				strcat(strcat(Direc, FileData.cFileName), "/");
+				safe_strcat(Direc, sizeof(Direc), FileData.cFileName);
+				safe_strcat(Direc, sizeof(Direc), "/");
 				n += FindInDir(g);
 				Direc[m] = '\0';         // Restore path
 			} // endif SUBDIR
@@ -1163,14 +1170,15 @@ int TDBSDR::FindInDir(PGLOBAL g)
     } // endif dir
 
   while ((Entry = readdir(dir))) {
-    strcat(strcpy(Fpath, Direc), Entry->d_name);
+    snprintf(Fpath, sizeof(Fpath), "%s%s", Direc, Entry->d_name);
 
     if (lstat(Fpath, &Fileinfo) < 0) {
       snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
       return -1;
     } else if (S_ISDIR(Fileinfo.st_mode) && *Entry->d_name != '.') {
       // Look in the name sub-directory
-      strcat(strcat(Direc, Entry->d_name), "/");
+      safe_strcat(Direc, sizeof(Direc), Entry->d_name);
+      safe_strcat(Direc, sizeof(Direc), "/");
 
       if ((k= FindInDir(g)) < 0)
         return k;
@@ -1268,7 +1276,8 @@ int TDBSDR::ReadDB(PGLOBAL g)
         } // endif Next
 
       Sub = Sub->Next;
-      strcat(strcat(Direc, FileData.cFileName), "/");
+      safe_strcat(Direc, sizeof(Direc), FileData.cFileName);
+      safe_strcat(Direc, sizeof(Direc), "/");
       Sub->Len = strlen(Direc);
 
       // Reset Hsearch used by TDBDIR::ReadDB
@@ -1292,7 +1301,7 @@ int TDBSDR::ReadDB(PGLOBAL g)
   while (rc == RC_NF)
     if ((Entry = readdir(Sub->D))) {
       // We need the Fileinfo structure to get info about the file
-      strcat(strcpy(Fpath, Direc), Entry->d_name);
+      snprintf(Fpath, sizeof(Fpath), "%s%s", Direc, Entry->d_name);
 
       if (lstat(Fpath, &Fileinfo) < 0) {
         snprintf(g->Message, sizeof(g->Message), "%s: %s", Fpath, strerror(errno));
@@ -1312,7 +1321,8 @@ int TDBSDR::ReadDB(PGLOBAL g)
         Sub = Sub->Next;
         Sub->D = NULL;
         Sub->Len = strlen(Direc);
-        strcat(strcat(Direc, Entry->d_name), "/");
+        safe_strcat(Direc, sizeof(Direc), Entry->d_name);
+        safe_strcat(Direc, sizeof(Direc), "/");
         goto again;
       } else if (S_ISREG(Fileinfo.st_mode))
         // Test whether the file name matches the table name filter
@@ -1363,10 +1373,10 @@ TDBDHR::TDBDHR(PTDBDHR tdbp) : TDBASE(tdbp)
   FileData = tdbp->FileData;
   Hsearch = tdbp->Hsearch;
   iFile = tdbp->iFile;
-  strcpy(Drive, tdbp->Drive);
-  strcpy(Direc, tdbp->Direc);
-  strcpy(Fname, tdbp->Fname);
-  strcpy(Ftype, tdbp->Ftype);
+  snprintf(Drive, sizeof(Drive), tdbp->Drive);
+  snprintf(Direc, sizeof(Direc), tdbp->Direc));
+  snprintf(Fname, sizeof(Fname), tdbp->Fname));
+  snprintf(Ftype, sizeof(Ftype), tdbp->Ftype);
   } // end of TDBDHR copy constructor
 
 // Method
@@ -1434,7 +1444,7 @@ int TDBDHR::GetMaxSize(PGLOBAL g)
 
       // Close the search handle.
       if (!FindClose(h) && n != -1)
-        strcpy(g->Message, MSG(SRCH_CLOSE_ERR));
+        snprintf(g->Message, sizeof(g->Message), MSG(SRCH_CLOSE_ERR));
 
     } // endif Hsearch
 
@@ -1541,7 +1551,8 @@ void TDBDHR::CloseDB(PGLOBAL g)
   {
   // Close the search handle.
   if (!FindClose(Hsearch)) {
-    strcpy(g->Message, MSG(SRCH_CLOSE_ERR));
+    snprintf(g->Message, sizeof(g->Message), MSG(SRCH_CLOSE_ERR));
+
 		throw GetAmType();
 	} // endif FindClose
 
