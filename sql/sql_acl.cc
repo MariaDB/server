@@ -13145,8 +13145,7 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 #define initialized 0
 #define check_for_max_user_connections(X,Y)   0
 #define get_or_create_user_conn(A,B,C,D) 0
-#define get_or_create_user_login_failed_record(A,B) {}
-#define check_connection_delay_for_user(A,B) {}
+#define check_connection_delay_for_user(A,B,C,D) {}
 #endif
 #endif
 #ifndef HAVE_OPENSSL
@@ -14346,7 +14345,9 @@ enum PASSWD_ERROR_ACTION
 };
 
 /* Increment, or clear password errors for a user. */
-static void handle_password_errors(const char *user, const char *hostname, PASSWD_ERROR_ACTION action)
+static void handle_password_errors(THD *thd, const char *user,
+                                   const char *hostname,
+                                   PASSWD_ERROR_ACTION action)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   mysql_mutex_assert_not_owner(&acl_cache->lock);
@@ -14358,6 +14359,9 @@ static void handle_password_errors(const char *user, const char *hostname, PASSW
     {
       case PASSWD_ERROR_INCREMENT:
         u->password_errors++;
+        if(global_system_variables.failed_attempts_before_delay > 0 && u->password_errors > global_system_variables.failed_attempts_before_delay){
+            check_connection_delay_for_user(thd,user,hostname,u->password_errors);
+        }
         break;
       case PASSWD_ERROR_CLEAR:
         u->password_errors= 0;
@@ -14499,7 +14503,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
                       sctx->user, sctx->host_or_ip,
                       safe_str(mpvio.db.str), safe_vio_type_name(thd->net.vio));
   }
-
+  st_user_login_failed_record *record= NULL;
   if (res > CR_OK && mpvio.status != MPVIO_EXT::SUCCESS)
   {
     Host_errors errors;
@@ -14514,7 +14518,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;
       if (thd->password && !mpvio.make_it_fail)
-        handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
+        handle_password_errors(thd,acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
       break;
     case CR_ERROR:
     default:
@@ -14532,7 +14536,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   if (thd->password && acl_user->password_errors)
   {
     /* Login succeeded, clear password errors.*/
-    handle_password_errors(acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_CLEAR);
+    handle_password_errors(thd, acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_CLEAR);
   }
 
   if (initialized) // if not --skip-grant-tables

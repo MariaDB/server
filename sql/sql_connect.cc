@@ -52,85 +52,16 @@ extern mysql_mutex_t LOCK_global_user_client_stats;
 extern mysql_mutex_t LOCK_global_table_stats;
 extern mysql_mutex_t LOCK_global_index_stats;
 extern vio_keepalive_opts opt_vio_keepalive;
-extern mysql_mutex_t LOCK_user_failed_login;
 
-/* Delay user login response mutex and lock */
+/* Delay user failedlogin response mutex and lock */
 PSI_mutex_key key_connection_delay_mutex = PSI_NOT_INSTRUMENTED;
 PSI_cond_key key_connection_delay_wait = PSI_NOT_INSTRUMENTED;
 PSI_stage_info stage_waiting_in_user_login_failed_delay = {
-    0, "Waiting in connection_control stage", 0};;
-/*
-  Get structure for logging connection data for the current user
-*/
+    0, "Waiting in delay failed login response stage", 0};;
+extern uint max_password_errors;;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static HASH hash_user_connections;
-HASH user_login_failed_hash;
-
-int get_or_create_user_login_failed_record(THD *thd, st_user_login_failed_record ** result)
-{
-  int return_val= 0;
-  size_t temp_len;
-  char temp_user[USER_HOST_BUFF_SIZE];
-  struct user_login_failed_record *record;
-  Security_context *sctx= thd->security_ctx;
-  char* user_pointer = strmov(temp_user, sctx->user);
-  strncat(user_pointer,"@",1);
-  temp_len= (strmov( user_pointer + 1, sctx->host) - temp_user)+1;
-
-
-  mysql_mutex_lock(&LOCK_user_failed_login);
-  if (!(record = (struct  user_login_failed_record *) my_hash_search(&user_login_failed_hash,
-					       (uchar*) temp_user, temp_len)))
-  {
-      /* First connection for user; Create a user connection object */
-    if (!(record= ((struct user_login_failed_record*)
-	       my_malloc(key_memory_user_login_failed,
-                         sizeof(struct user_login_failed_record) + temp_len + 1, MYF(MY_WME)))))
-    {
-      /* MY_WME ensures an error is set in THD. */
-      return_val= 1;
-      goto end;
-    }
-     *result = record;
-    //TODO Why this worked? record +1 points two next record position  
-    record->key = (char*) (record +1);
-    
-    memcpy(record->key,temp_user,temp_len);
-    record->failed_count = 0 ;
-    record->key_length = temp_len;
-
-    if (my_hash_insert(&user_login_failed_hash, (uchar*) record))
-    {
-      /* The only possible error is out of memory, MY_WME sets an error. */
-      my_free(record);
-      return_val= 1;
-      goto end;
-    }
-  }
-  *result = record;
-  record->failed_count = record->failed_count + 1;
-end:
-  
-  mysql_mutex_unlock(&LOCK_user_failed_login);
-  return return_val;
-}
-int get_user_login_failed_record(THD *thd, st_user_login_failed_record ** result){
-  int return_val= 0;
-  size_t temp_len;
-  char temp_user[USER_HOST_BUFF_SIZE];
-  struct user_login_failed_record *record;
-  Security_context *sctx= thd->security_ctx;
-  char* user_pointer = strmov(temp_user, sctx->user);
-  strncat(user_pointer,"@",1);
-  temp_len= (strmov( user_pointer + 1, sctx->host) - temp_user)+1;
-
-  record = (struct  user_login_failed_record *) my_hash_search(&user_login_failed_hash,
-					       (uchar*) temp_user, temp_len);
-  *result = record;
-  return return_val;
-
-}
 
 int get_or_create_user_conn(THD *thd, const char *user,
                             const char *host,
@@ -327,69 +258,24 @@ void time_out_user_resource_limits(THD *thd, USER_CONN *uc)
   DBUG_VOID_RETURN;
 }
 
-/**
-  Create hash key of the format '<user>'@'<host>'.
-  Policy:
-  1. Use proxy_user information if available. Else if,
-  2. Use priv_user/priv_host if either of them is not empty. Else,
-  3. Use user/host
-
-  @param [in] thd        THD pointer for getting security context
-  @param [out] s         Hash key is stored here
-*/
-
-void make_hash_key(THD* thd, std::string &s)
+uint64 get_connection_delay_time(uint32 count)
 {
-  /* Our key for hash will be of format : '<user>'@'<host>' */
-
-  /* If proxy_user is set then use it directly for lookup */
-  Security_context *sctx= thd->security_ctx;
-  const char *proxy_user= sctx->proxy_user;
-  if (proxy_user && *proxy_user)
-  {
-    s.append(proxy_user);
-  }
-  else
-  {
-    const char *user= sctx->user;
-    const char *host= sctx->host;
-    const char *ip= sctx->ip;
-
-    s.append("'");
-
-    if (user && *user)
-      s.append(user);
-
-    s.append("'@'");
-
-    if (host && *host)
-      s.append(host);
-    else if (ip && *ip)
-      s.append(ip);
-
-    s.append("'");
-  }
-}
-
-
-
-uint32 get_user_delay_wait_time(uint32 count)
-{
-  // failure count is 5 ,delay is 5s , failure count is  10 delay is 10s
-  uint64 count_millisecond= count * 1000;
-
   /*
-    if count < 0 (can happen in edge cases
-    we return max_delay.
-    Otherwise, following equation will be used:
-    wait_time = MIN(MIN(count, min_delay),
-                    max_delay)
-  */
-  return (uint32)
-      ((count_millisecond >= global_system_variables.min_connection_delay      
-       && count_millisecond < global_system_variables.max_connection_delay)
-          ? (count_millisecond < global_system_variables.min_connection_delay    ? global_system_variables.min_connection_delay    : count_millisecond)
-          : global_system_variables.max_connection_delay);
+   * Based on that invalid password errors will cause user can't connect server
+  ever and server close connection if it got message from client after
+  wait_timeout
+   * so ,
+  step =  timeout*(failed_count -failed_attempts_before_delay)/(max_password_errors - failed_attempts_before_delay)
+*/
+  struct system_variables *p= &global_system_variables;
+  ulong timeout= p->net_wait_timeout < p->net_interactive_timeout
+                     ? p->net_wait_timeout
+                     : p->net_interactive_timeout;
+  /* Time unit for delay step is seconds */
+  uint32 step= timeout * (count - p->failed_attempts_before_delay) /
+               (max_password_errors - p->failed_attempts_before_delay);
+  /* Convert to milliseconds */
+  return (count - p->failed_attempts_before_delay) * step * 1000;
 }
 
 
@@ -399,7 +285,7 @@ uint32 get_user_delay_wait_time(uint32 count)
  * @param thd
  * @param time
  */
-void condition_wait(THD* thd, uint32 time)
+void condition_wait(THD* thd, uint64 time)
 {
   /** mysql_cond_timedwait requires wait time in timespec format */
   struct timespec abstime;
@@ -449,40 +335,38 @@ void condition_wait(THD* thd, uint32 time)
   mysql_cond_destroy(&connection_delay_wait_condition);
 }
 
-
-int delay_response(THD* thd,  char* key, uint32 count){
-    uint32 wait_time = get_user_delay_wait_time(count);
-    my_printf_error(ME_NOTE, "%s wait %u miliseconds",MYF(ME_NOTE|ME_ERROR_LOG), key, wait_time);
-    #ifdef DEBUG
-    my_printf_error(ME_NOTE, "%s key wait %u miliseconds",MYF(0), key, wait_time);
-    #endif
-    condition_wait(thd, wait_time);
-    return 0;
-}
-
-int delete_user_login_failed_record(THD* thd, st_user_login_failed_record * record){
-    printf("Delete record %s\n",record->key);
-    my_hash_delete(&user_login_failed_hash,(uchar*) record);
-    return 0;
+int delay_response(THD *thd, const char *user, const char *hostname,
+                   uint32 count)
+{
+  uint64 wait_time= get_connection_delay_time(count);
+  DBUG_PRINT("info",
+             ("%s@%s wait %u milliseconds", user, hostname, wait_time));
+  connection_delay(thd, wait_time);
+  return 0;
 }
 
 /**
  * @brief If a user login  failed , check if delay response
- * 
- * @return int 
+ *
+ * @return int
  */
-int check_connection_delay_for_user(THD *thd, st_user_login_failed_record* record){
-
-    if(record){
-      printf("user@host: %s , failed count: %d\n",record->key,record->failed_count);
-
-      /* if threshold < 0 , disable connection control check */
-      if(global_system_variables.failed_connections_threshold > 0 &&  record->failed_count > global_system_variables.failed_connections_threshold){
-        delay_response(thd,record->key,record->failed_count - global_system_variables.failed_connections_threshold);
-      }
+int check_connection_delay_for_user(THD *thd,
+                                    const char * user,const char * hostname, uint failed_count)
+{
+  DBUG_ENTER("check_connection_delay_for_user");
+  if (user && hostname)
+  {
+    DBUG_PRINT("info",("%s@%s have login failed %u times",user,hostname,failed_count));
+    /* if threshold < 0 , disable connection control check */
+    if (global_system_variables.failed_attempts_before_delay > 0 &&
+        failed_count >
+            global_system_variables.failed_attempts_before_delay)
+    {
+      delay_response(thd, user,hostname,
+                     failed_count);
     }
-
-    return 0;
+  }
+  DBUG_RETURN(0);
 }
 
 
@@ -545,39 +429,10 @@ extern "C" uchar *get_key_conn(user_conn *buff, size_t *length,
   return (uchar*) buff->user;
 }
 
-uchar *get_user_login_failed_key(st_user_login_failed_record *buff, size_t *length,
-			      my_bool not_used __attribute__((unused)))
-{
-  *length= buff->key_length;
-  return (uchar*) buff->key;
-}
-
 extern "C" void free_user(struct user_conn *uc)
 {
   my_free(uc);
 }
-
-void free_user_login_failed_record(st_user_login_failed_record * record){
-  my_free(record);
-}
-
-void init_user_login_failed(void)
-{
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  my_hash_init(key_memory_user_login_failed, &user_login_failed_hash,
-              system_charset_info, 1024, 0, 100, (my_hash_get_key)
-               get_user_login_failed_key, (my_hash_free_key) free_user_login_failed_record, 0);
-#endif
-}
-
-
-void free_user_login_failed(void)
-{
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  my_hash_free(&user_login_failed_hash);
-#endif /* NO_EMBEDDED_ACCESS_CHECKS */
-}
-
 
 void init_max_user_conn(void)
 {

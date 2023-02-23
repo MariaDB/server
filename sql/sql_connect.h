@@ -112,7 +112,6 @@ int check_for_max_user_connections(THD *thd, USER_CONN *uc);
 
 int connection_delay_for_user(THD *thd,
                                     const char * user,const char * hostname, uint failed_count);
-
 extern HASH global_user_stats;
 extern HASH global_client_stats;
 extern HASH global_table_stats;
