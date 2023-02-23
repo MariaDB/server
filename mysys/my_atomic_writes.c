@@ -112,7 +112,7 @@ static my_bool test_if_shannon_card_exists()
     char path[32];
     struct stat stat_buff;
 
-    sprintf(path, "/dev/df%c", dev_part);
+    snprintf(path, sizeof(path), "/dev/df%c", dev_part);
 #ifdef TEST_SHANNON
     if (lstat(path, &stat_buff) < 0)
     {
@@ -121,8 +121,10 @@ static my_bool test_if_shannon_card_exists()
     }
 #endif
     shannon_devices[shannon_found_devices].st_dev= stat_buff.st_rdev;
-    sprintf(shannon_devices[shannon_found_devices].dev_name, "/dev/sct%c",
-            dev_part);
+    snprintf(shannon_devices[shannon_found_devices].dev_name,
+             sizeof(shannon_devices[shannon_found_devices].dev_name),
+             "/dev/sct%c",
+             dev_part);
 
 #ifdef TEST_SHANNON
     printf("%s(): i=%d, stat_buff.st_dev=0x%lx, stat_buff.st_rdev=0x%lx, st_rdev=0x%lx, dev_name=%s\n",
@@ -145,13 +147,15 @@ static my_bool test_if_shannon_card_exists()
 
     for (dev_no= 1 ; dev_no < 9 ; dev_no++)
     {
-      sprintf(path, "/dev/df%c%d", dev_part, dev_no);
+      snprintf(path, sizeof(path), "/dev/df%c%d", dev_part, dev_no);
       if (lstat(path, &stat_buff) < 0)
         break;
 
       shannon_devices[shannon_found_devices].st_dev= stat_buff.st_rdev;
-      sprintf(shannon_devices[shannon_found_devices].dev_name, "/dev/sct%c%d",
-              dev_part, dev_no);
+      snprintf(shannon_devices[shannon_found_devices].dev_name,
+               sizeof(shannon_devices[shannon_found_devices].dev_name),
+               "/dev/sct%c%d",
+               dev_part, dev_no);
 
 #ifdef TEST_SHANNON
       printf("%s(): i=%d, st_dev=0x%lx, st_rdev=0x%lx, dev_name=%s\n",

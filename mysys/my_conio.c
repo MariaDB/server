@@ -50,7 +50,7 @@ int my_pthread_auto_mutex_lock(HANDLE* ph, const char* name, int id, int time)
   DWORD res;
   char tname[FN_REFLEN];
   
-  sprintf(tname, "%s-%08X", name, id);
+  snprintf(tname, sizeof(tname), "%s-%08X", name, id);
   
   *ph= CreateMutex(NULL, FALSE, tname);
   if (*ph == NULL)
