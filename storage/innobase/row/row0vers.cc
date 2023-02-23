@@ -861,15 +861,25 @@ row_vers_build_cur_vrow(
 }
 
 /** Find out whether data tuple has missing data type
-for virtualcolumn.
+for indexed virtual column.
 @param tuple   data tuple
+@param index   virtual index
 @return true if tuple has missing column type */
-static bool dtuple_vcol_data_missing(const dtuple_t &tuple)
+static bool dtuple_vcol_data_missing(const dtuple_t &tuple,
+                                     dict_index_t *index)
 {
-  for (ulint i= 0; i < tuple.n_v_fields; i++)
+  for (ulint i= 0; i < index->n_uniq; i++)
   {
-    if (tuple.v_fields[i].type.mtype == DATA_MISSING)
-      return true;
+    dict_col_t *col= index->fields[i].col;
+    if (!col->is_virtual())
+      continue;
+    dict_v_col_t *vcol= reinterpret_cast<dict_v_col_t*>(col);
+    for (ulint j= 0; j < index->table->n_v_cols; j++)
+    {
+      if (vcol == &index->table->v_cols[j]
+          && tuple.v_fields[j].type.mtype == DATA_MISSING)
+        return true;
+    }
   }
   return false;
 }
@@ -1102,7 +1112,7 @@ unsafe_to_purge:
 
 		if (dict_index_has_virtual(index)) {
 			if (vrow) {
-				if (dtuple_vcol_data_missing(*vrow)) {
+				if (dtuple_vcol_data_missing(*vrow, index)) {
 					goto nochange_index;
 				}
 				/* Keep the virtual row info for the next
