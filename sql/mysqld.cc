@@ -713,7 +713,6 @@ mysql_mutex_t
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn,
-  LOCK_user_failed_login,
   LOCK_error_messages;
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
@@ -910,7 +909,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_rpl_status, key_LOCK_server_started,
   key_LOCK_status, key_LOCK_temp_pool,
   key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
-  key_LOCK_user_conn, key_LOCK_user_failed_login, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
+  key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock, key_master_info_start_stop_lock,
   key_master_info_start_alter_lock,
@@ -2019,7 +2018,6 @@ static void clean_up(bool print_message)
   free_tmpdir(&mysql_tmpdir_list);
   my_bitmap_free(&temp_pool);
   free_max_user_conn();
-  free_user_login_failed();
   free_global_user_stats();
   free_global_client_stats();
   free_global_table_stats();
@@ -2111,7 +2109,6 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_delayed_create);
   mysql_mutex_destroy(&LOCK_crypt);
   mysql_mutex_destroy(&LOCK_user_conn);
-  mysql_mutex_destroy(&LOCK_user_failed_login);
   mysql_mutex_destroy(&LOCK_thread_id);
   mysql_mutex_destroy(&LOCK_stats);
   mysql_mutex_destroy(&LOCK_global_user_client_stats);
@@ -4475,7 +4472,6 @@ static int init_thread_environment()
                    &LOCK_delayed_create, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_crypt, &LOCK_crypt, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_user_conn, &LOCK_user_conn, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_LOCK_user_failed_login, &LOCK_user_failed_login, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_active_mi, &LOCK_active_mi, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_global_system_variables,
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
@@ -5564,7 +5560,6 @@ static int init_server_components()
 #endif
 
   ft_init_stopwords();
-  init_user_login_failed();
   init_max_user_conn();
   init_global_user_stats();
   init_global_client_stats();
@@ -9476,7 +9471,6 @@ PSI_memory_key key_memory_table_triggers_list;
 PSI_memory_key key_memory_thd_main_mem_root;
 PSI_memory_key key_memory_thd_transactions;
 PSI_memory_key key_memory_user_conn;
-PSI_memory_key key_memory_user_login_failed;
 PSI_memory_key key_memory_user_var_entry;
 PSI_memory_key key_memory_user_var_entry_value;
 
@@ -9758,7 +9752,6 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_dboptions_hash, "dboptions_hash", 0},
   { &key_memory_dbnames_cache, "dbnames_cache", 0},
   { &key_memory_user_conn, "user_conn", 0},
-  { &key_memory_user_login_failed, "user_login_failed", 0},
 //  { &key_memory_LOG_POS_COORD, "LOG_POS_COORD", 0},
 //  { &key_memory_XID_STATE, "XID_STATE", 0},
   { &key_memory_MPVIO_EXT_auth_info, "MPVIO_EXT::auth_info", 0},
