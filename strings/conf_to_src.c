@@ -459,7 +459,7 @@ main(int argc, char **argv  __attribute__((unused)))
   bzero((void*)&all_charsets,sizeof(all_charsets));
   bzero((void*) refids, sizeof(refids));
   
-  sprintf(filename,"%s/%s",argv[1],"Index.xml");
+  snprintf(filename,sizeof(filename),"%s/%s",argv[1],"Index.xml");
   my_read_charset_file(filename);
   
   for (cs= all_charsets;
@@ -470,7 +470,7 @@ main(int argc, char **argv  __attribute__((unused)))
     {
       if ( (!simple_cs_is_full(cs)) && (cs->csname))
       {
-        sprintf(filename,"%s/%s.xml",argv[1],cs->csname);
+        snprintf(filename,sizeof(filename),"%s/%s.xml",argv[1],cs->csname);
         my_read_charset_file(filename);
       }
       cs->state|= MY_CS_LOADED;
