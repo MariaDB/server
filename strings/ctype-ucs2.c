@@ -1197,17 +1197,14 @@ my_lengthsp_mb2(CHARSET_INFO *cs __attribute__((unused)),
 static inline int my_weight_mb2_utf16mb2_general_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= MY_UTF16_WC2(b0, b1);
-  MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
-  return (int) (page ? page[wc & 0xFF].sort : wc);
+  return my_general_ci_bmp_char_to_weight((uint16) wc);
 }
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16_general_ci
 #define DEFINE_STRNXFRM_UNICODE
 #define DEFINE_STRNXFRM_UNICODE_NOPAD
 #define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf16_quick(pwc, s, e)
 #define OPTIMIZE_ASCII           0
-#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
-#define UNICASE_PAGE0            my_unicase_default_page00
-#define UNICASE_PAGES            my_unicase_default_pages
+#define MY_WC_WEIGHT(x)          my_general_ci_char_to_weight(x)
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b0,b1)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
@@ -1295,7 +1292,7 @@ my_caseup_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
   int res;
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -1320,7 +1317,7 @@ my_hash_sort_utf16_nopad(CHARSET_INFO *cs,
   my_charset_conv_mb_wc mb_wc= cs->cset->mb_wc;
   int res;
   const uchar *e= s + slen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   register ulong m1= *nr1, m2= *nr2;
 
   while ((s < e) && (res= mb_wc(cs, &wc, (uchar *) s, (uchar *) e)) > 0)
@@ -1353,7 +1350,7 @@ my_casedn_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
   int res;
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   DBUG_ASSERT(srclen <= dstlen);
 
   while ((src < srcend) &&
@@ -1425,7 +1422,7 @@ my_wildcmp_utf16_ci(CHARSET_INFO *cs,
                     const char *wildstr,const char *wildend,
                     int escape, int w_one, int w_many)
 {
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   return my_wildcmp_unicode(cs, str, str_end, wildstr, wildend,
                             escape, w_one, w_many, uni_plane); 
 }
@@ -1603,8 +1600,7 @@ struct charset_info_st my_charset_utf16_general_ci=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
-  NULL,                /* casefold     */
-  &my_unicase_default, /* caseinfo     */
+  &my_casefold_default,/* casefold     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
   1,                   /* strxfrm_multiply */
@@ -1635,8 +1631,7 @@ struct charset_info_st my_charset_utf16_bin=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
-  NULL,                /* casefold     */
-  &my_unicase_default, /* caseinfo     */
+  &my_casefold_default,/* casefold     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
   1,                   /* strxfrm_multiply */
@@ -1667,8 +1662,7 @@ struct charset_info_st my_charset_utf16_general_nopad_ci=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
-  NULL,                /* casefold         */
-  &my_unicase_default, /* caseinfo         */
+  &my_casefold_default,/* casefold         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
   1,                   /* strxfrm_multiply */
@@ -1700,8 +1694,7 @@ struct charset_info_st my_charset_utf16_nopad_bin=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
-  NULL,                /* casefold         */
-  &my_unicase_default, /* caseinfo         */
+  &my_casefold_default,/* casefold         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
   1,                   /* strxfrm_multiply */
@@ -1725,9 +1718,7 @@ struct charset_info_st my_charset_utf16_nopad_bin=
 #define DEFINE_STRNXFRM_UNICODE_NOPAD
 #define MY_MB_WC(cs, pwc, s, e)  (my_ci_mb_wc(cs, pwc, s, e))
 #define OPTIMIZE_ASCII           0
-#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
-#define UNICASE_PAGE0            my_unicase_default_page00
-#define UNICASE_PAGES            my_unicase_default_pages
+#define MY_WC_WEIGHT(x)          my_general_ci_char_to_weight(x)
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b1,b0)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
@@ -1962,8 +1953,7 @@ struct charset_info_st my_charset_utf16le_general_ci=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
-  NULL,                /* casefold     */
-  &my_unicase_default, /* caseinfo     */
+  &my_casefold_default,/* casefold     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
   1,                   /* strxfrm_multiply */
@@ -1994,8 +1984,7 @@ struct charset_info_st my_charset_utf16le_bin=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
-  NULL,                /* casefold     */
-  &my_unicase_default, /* caseinfo     */
+  &my_casefold_default,/* casefold     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
   1,                   /* strxfrm_multiply */
@@ -2026,8 +2015,7 @@ struct charset_info_st my_charset_utf16le_general_nopad_ci=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
-  NULL,                /* casefold         */
-  &my_unicase_default, /* caseinfo         */
+  &my_casefold_default,/* casefold         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
   1,                   /* strxfrm_multiply */
@@ -2059,8 +2047,7 @@ struct charset_info_st my_charset_utf16le_nopad_bin=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
-  NULL,                 /* casefold        */
-  &my_unicase_default, /* caseinfo         */
+  &my_casefold_default,/* casefold        */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
   1,                   /* strxfrm_multiply */
@@ -2096,21 +2083,14 @@ static inline int my_weight_utf32_general_ci(uchar b0, uchar b1,
                                              uchar b2, uchar b3)
 {
   my_wc_t wc= MY_UTF32_WC4(b0, b1, b2, b3);
-  if (wc <= 0xFFFF)
-  {
-    MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
-    return (int) (page ? page[wc & 0xFF].sort : wc);
-  }
-  return MY_CS_REPLACEMENT_CHARACTER;
+  return my_general_ci_char_to_weight(wc);
 }
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf32_general_ci
 #define DEFINE_STRNXFRM_UNICODE
 #define DEFINE_STRNXFRM_UNICODE_NOPAD
 #define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_utf32_quick(pwc, s, e)
 #define OPTIMIZE_ASCII           0
-#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
-#define UNICASE_PAGE0            my_unicase_default_page00
-#define UNICASE_PAGES            my_unicase_default_pages
+#define MY_WC_WEIGHT(x)          my_general_ci_char_to_weight(x)
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB4(b0,b1,b2,b3)  my_weight_utf32_general_ci(b0, b1, b2, b3)
 #include "strcoll.inl"
@@ -2182,7 +2162,7 @@ my_caseup_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
   int res;
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -2205,7 +2185,7 @@ my_hash_sort_utf32_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
   my_wc_t wc;
   int res;
   const uchar *e= s + slen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   register ulong m1= *nr1, m2= *nr2;
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
@@ -2239,7 +2219,7 @@ my_casedn_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
   int res;
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   DBUG_ASSERT(srclen <= dstlen);
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)
@@ -2593,7 +2573,7 @@ my_wildcmp_utf32_ci(CHARSET_INFO *cs,
                     const char *wildstr, const char *wildend,
                     int escape, int w_one, int w_many)
 {
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   return my_wildcmp_unicode(cs, str, str_end, wildstr, wildend,
                             escape, w_one, w_many, uni_plane); 
 }
@@ -2772,8 +2752,7 @@ struct charset_info_st my_charset_utf32_general_ci=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
-  NULL,                /* casefold     */
-  &my_unicase_default, /* caseinfo     */
+  &my_casefold_default,/* casefold     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
   1,                   /* strxfrm_multiply */
@@ -2804,8 +2783,7 @@ struct charset_info_st my_charset_utf32_bin=
   NULL,                /* uca          */
   NULL,                /* tab_to_uni   */
   NULL,                /* tab_from_uni */
-  NULL,                /* casefold     */
-  &my_unicase_default, /* caseinfo     */
+  &my_casefold_default,/* casefold     */
   NULL,                /* state_map    */
   NULL,                /* ident_map    */
   1,                   /* strxfrm_multiply */
@@ -2836,8 +2814,7 @@ struct charset_info_st my_charset_utf32_general_nopad_ci=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
-  NULL,                /* casefold         */
-  &my_unicase_default, /* caseinfo         */
+  &my_casefold_default,/* casefold         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
   1,                   /* strxfrm_multiply */
@@ -2869,8 +2846,7 @@ struct charset_info_st my_charset_utf32_nopad_bin=
   NULL,                /* uca              */
   NULL,                /* tab_to_uni       */
   NULL,                /* tab_from_uni     */
-  NULL,                /* casefold         */
-  &my_unicase_default, /* caseinfo         */
+  &my_casefold_default,/* casefold         */
   NULL,                /* state_map        */
   NULL,                /* ident_map        */
   1,                   /* strxfrm_multiply */
@@ -2960,16 +2936,14 @@ static const uchar to_upper_ucs2[] = {
 static inline int my_weight_mb2_ucs2_general_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= UCS2_CODE(b0, b1);
-  MY_UNICASE_CHARACTER *page= my_unicase_default_pages[wc >> 8];
-  return (int) (page ? page[wc & 0xFF].sort : wc);
+  return my_general_ci_bmp_char_to_weight((uint16) wc);
 }
 
 
 static inline int my_weight_mb2_ucs2_general_mysql500_ci(uchar b0, uchar b1)
 {
   my_wc_t wc= UCS2_CODE(b0, b1);
-  MY_UNICASE_CHARACTER *page= my_unicase_mysql500_pages[wc >> 8];
-  return (int) (page ? page[wc & 0xFF].sort : wc);
+  return my_general_mysql500_ci_bmp_char_to_weight((uint16) wc);
 }
 
 
@@ -2978,21 +2952,18 @@ static inline int my_weight_mb2_ucs2_general_mysql500_ci(uchar b0, uchar b1)
 #define DEFINE_STRNXFRM_UNICODE_NOPAD
 #define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_ucs2_quick(pwc, s, e)
 #define OPTIMIZE_ASCII           0
-#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
-#define UNICASE_PAGE0            my_unicase_default_page00
-#define UNICASE_PAGES            my_unicase_default_pages
+#define MY_WC_WEIGHT(x)          my_general_ci_bmp_char_to_weight(x)
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_ucs2_general_ci(b0,b1)
 #include "strcoll.inl"
+
 
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _ucs2_general_mysql500_ci
 #define DEFINE_STRNXFRM_UNICODE
 #define MY_MB_WC(cs, pwc, s, e)  my_mb_wc_ucs2_quick(pwc, s, e)
 #define OPTIMIZE_ASCII           0
-#define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
-#define UNICASE_PAGE0            my_unicase_mysql500_page00
-#define UNICASE_PAGES            my_unicase_mysql500_pages
+#define MY_WC_WEIGHT(x)          my_general_mysql500_ci_bmp_char_to_weight(x)
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_ucs2_general_mysql500_ci(b0,b1)
 #include "strcoll.inl"
@@ -3057,7 +3028,7 @@ static size_t my_caseup_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
   int res;
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
@@ -3080,7 +3051,7 @@ my_hash_sort_ucs2_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
   my_wc_t wc;
   int res;
   const uchar *e=s+slen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   register ulong m1= *nr1, m2= *nr2;
 
   while ((s < e) && (res=my_ucs2_uni(cs,&wc, (uchar *)s, (uchar*)e)) >0)
@@ -3108,7 +3079,7 @@ static size_t my_casedn_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
   int res;
   const char *srcend= src + srclen;
   char *dstend= dst + dstlen;
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   DBUG_ASSERT(srclen <= dstlen);
 
   while ((src < srcend) &&
@@ -3198,7 +3169,7 @@ int my_wildcmp_ucs2_ci(CHARSET_INFO *cs,
 		    const char *wildstr,const char *wildend,
 		    int escape, int w_one, int w_many)
 {
-  MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  MY_CASEFOLD_INFO *uni_plane= cs->casefold;
   return my_wildcmp_unicode(cs,str,str_end,wildstr,wildend,
                             escape,w_one,w_many,uni_plane); 
 }
@@ -3396,8 +3367,7 @@ struct charset_info_st my_charset_ucs2_general_ci=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    NULL,               /* casefold     */
-    &my_unicase_default,/* caseinfo     */
+    &my_casefold_default,/* casefold    */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -3428,8 +3398,7 @@ struct charset_info_st my_charset_ucs2_general_mysql500_ci=
   NULL,                                            /* uca              */
   NULL,                                            /* tab_to_uni       */
   NULL,                                            /* tab_from_uni     */
-  NULL,                                            /* casefold         */
-  &my_unicase_mysql500,                            /* caseinfo         */
+  &my_casefold_mysql500,                           /* casefold         */
   NULL,                                            /* state_map        */
   NULL,                                            /* ident_map        */
   1,                                               /* strxfrm_multiply */
@@ -3460,8 +3429,7 @@ struct charset_info_st my_charset_ucs2_bin=
     NULL,		/* uca          */
     NULL,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    NULL,               /* casefold     */
-    &my_unicase_default,/* caseinfo     */
+    &my_casefold_default,/* casefold    */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
@@ -3492,8 +3460,7 @@ struct charset_info_st my_charset_ucs2_general_nopad_ci=
     NULL,                    /* uca              */
     NULL,                    /* tab_to_uni       */
     NULL,                    /* tab_from_uni     */
-    NULL,                    /* casefold         */
-    &my_unicase_default,     /* caseinfo         */
+    &my_casefold_default,    /* casefold         */
     NULL,                    /* state_map        */
     NULL,                    /* ident_map        */
     1,                       /* strxfrm_multiply */
@@ -3524,8 +3491,7 @@ struct charset_info_st my_charset_ucs2_nopad_bin=
     NULL,                    /* uca              */
     NULL,                    /* tab_to_uni       */
     NULL,                    /* tab_from_uni     */
-    NULL,                    /* casefold         */
-    &my_unicase_default,     /* caseinfo         */
+    &my_casefold_default,    /* casefold         */
     NULL,                    /* state_map        */
     NULL,                    /* ident_map        */
     1,                       /* strxfrm_multiply */
