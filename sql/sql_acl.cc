@@ -14359,8 +14359,9 @@ static void handle_password_errors(THD *thd, const char *user,
     {
       case PASSWD_ERROR_INCREMENT:
         u->password_errors++;
+        /* if failed_attempts_before_delay < 0 , disable connection delay*/
         if(global_system_variables.failed_attempts_before_delay > 0 && u->password_errors > global_system_variables.failed_attempts_before_delay){
-            check_connection_delay_for_user(thd,user,hostname,u->password_errors);
+            connection_delay_for_user(thd, user, hostname, u->password_errors);
         }
         break;
       case PASSWD_ERROR_CLEAR:

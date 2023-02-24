@@ -265,17 +265,18 @@ uint64 get_connection_delay_time(uint32 count)
   ever and server close connection if it got message from client after
   wait_timeout
    * so ,
-  step =  timeout*(failed_count -failed_attempts_before_delay)/(max_password_errors - failed_attempts_before_delay)
+  delay =  timeout*(failed_count  -failed_attempts_before_delay)/(max_password_errors - failed_attempts_before_delay)
 */
   struct system_variables *p= &global_system_variables;
-  ulong timeout= p->net_wait_timeout < p->net_interactive_timeout
-                     ? p->net_wait_timeout
-                     : p->net_interactive_timeout;
-  /* Time unit for delay step is seconds */
-  uint32 step= timeout * (count - p->failed_attempts_before_delay) /
-               (max_password_errors - p->failed_attempts_before_delay);
-  /* Convert to milliseconds */
-  return (count - p->failed_attempts_before_delay) * step * 1000;
+  /* Time unit for delay step is seconds , convert to milliseconds*/
+  uint64 timeout= (p->net_wait_timeout < p->net_interactive_timeout
+                       ? p->net_wait_timeout
+                       : p->net_interactive_timeout) *
+                  1000;
+  uint64 step= timeout / (max_password_errors - p->failed_attempts_before_delay);
+  uint64 delay=
+      (step < 1000 ? 1000 : step) * (count - p->failed_attempts_before_delay);
+  return delay < timeout ? delay : timeout;
 }
 
 
@@ -350,21 +351,15 @@ int delay_response(THD *thd, const char *user, const char *hostname,
  *
  * @return int
  */
-int check_connection_delay_for_user(THD *thd,
+int connection_delay_for_user(THD *thd,
                                     const char * user,const char * hostname, uint failed_count)
 {
-  DBUG_ENTER("check_connection_delay_for_user");
+  DBUG_ENTER("connection_delay_for_user");
   if (user && hostname)
   {
     DBUG_PRINT("info",("%s@%s have login failed %u times",user,hostname,failed_count));
-    /* if threshold < 0 , disable connection control check */
-    if (global_system_variables.failed_attempts_before_delay > 0 &&
-        failed_count >
-            global_system_variables.failed_attempts_before_delay)
-    {
-      delay_response(thd, user,hostname,
+    delay_response(thd, user,hostname,
                      failed_count);
-    }
   }
   DBUG_RETURN(0);
 }
