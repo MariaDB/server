@@ -110,7 +110,7 @@ int get_or_create_user_conn(THD *thd, const char *user,
 
 int check_for_max_user_connections(THD *thd, USER_CONN *uc);
 
-int check_connection_delay_for_user(THD *thd,
+int connection_delay_for_user(THD *thd,
                                     const char * user,const char * hostname, uint failed_count);
 
 extern HASH global_user_stats;
