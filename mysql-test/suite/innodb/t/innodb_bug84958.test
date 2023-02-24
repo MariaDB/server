@@ -13,12 +13,10 @@ DELIMITER ~~;
 CREATE PROCEDURE insert_n(start int, end int)
 BEGIN
     DECLARE i INT DEFAULT start;
-    START TRANSACTION;
     WHILE i <= end do
         INSERT INTO t1 VALUES (1, 2, 3) ON DUPLICATE KEY UPDATE c = i;
         SET i = i + 1;
     END WHILE;
-    COMMIT;
 END~~
 
 CREATE FUNCTION num_pages_get()
@@ -36,7 +34,8 @@ DELIMITER ;~~
 --echo # Create a table with one record in it and start an RR transaction
 --echo #
 CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,b), KEY (b,c))
-ENGINE=InnoDB;
+ENGINE=InnoDB STATS_PERSISTENT=0;
+--source include/wait_all_purged.inc
 BEGIN;
 SELECT * FROM t1;
 
@@ -45,18 +44,22 @@ SELECT * FROM t1;
 --echo #
 connect (con2, localhost, root,,);
 connection con2;
+BEGIN;
 INSERT INTO t1 VALUES (1, 2, 3) ON DUPLICATE KEY UPDATE c = NULL;
 --send CALL insert_n(1, 50);
 
 connect (con3, localhost, root,,);
 connection con3;
+BEGIN;
 --send CALL insert_n(51, 100);
 
 connection con2;
 reap;
+COMMIT;
 connection con3;
 reap;
 INSERT INTO t1 VALUES (1, 2, 1) ON DUPLICATE KEY UPDATE c = NULL;
+COMMIT;
 
 connection default;
 
@@ -64,7 +67,7 @@ connection default;
 --echo # Connect to default and record how many pages were accessed
 --echo # when selecting the record using the secondary key.
 --echo #
---let $wait_all_purged=4
+--let $wait_all_purged=2
 --source include/wait_all_purged.inc
 SET @num_pages_1 = num_pages_get();
 SELECT * FROM t1 force index (b);

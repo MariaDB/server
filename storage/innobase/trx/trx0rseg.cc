@@ -421,10 +421,9 @@ trx_rseg_mem_create(ulint id, fil_space_t* space, uint32_t page_no)
 
 /** Read the undo log lists.
 @param[in,out]  rseg            rollback segment
-@param[in,out]  max_trx_id      maximum observed transaction identifier
 @param[in]      rseg_header     rollback segment header
 @return error code */
-static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
+static dberr_t trx_undo_lists_init(trx_rseg_t *rseg,
                                    const buf_block_t *rseg_header)
 {
   ut_ad(srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
@@ -434,8 +433,8 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
     uint32_t page_no= trx_rsegf_get_nth_undo(rseg_header, i);
     if (page_no != FIL_NULL)
     {
-      const trx_undo_t *undo= trx_undo_mem_create_at_db_start(rseg, i, page_no,
-                                                              max_trx_id);
+      const trx_undo_t *undo=
+        trx_undo_mem_create_at_db_start(rseg, i, page_no);
       if (!undo)
         return DB_CORRUPTION;
       rseg->curr_size+= undo->size;
@@ -448,11 +447,9 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 
 /** Restore the state of a persistent rollback segment.
 @param[in,out]	rseg		persistent rollback segment
-@param[in,out]	max_trx_id	maximum observed transaction identifier
 @param[in,out]	mtr		mini-transaction
 @return error code */
-static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
-                                    mtr_t *mtr)
+static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
 {
 	buf_block_t* rseg_hdr = trx_rsegf_get_new(
 		rseg->space->id, rseg->page_no, mtr);
@@ -460,9 +457,8 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 	if (!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT + rseg_hdr->frame)) {
 		trx_id_t id = mach_read_from_8(TRX_RSEG + TRX_RSEG_MAX_TRX_ID
 					       + rseg_hdr->frame);
-
-		if (id > max_trx_id) {
-			max_trx_id = id;
+		if (id > rseg->needs_purge) {
+			rseg->needs_purge = id;
 		}
 
 		const byte* binlog_name = TRX_RSEG + TRX_RSEG_BINLOG_NAME
@@ -505,7 +501,7 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 	rseg->curr_size = mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE
 					   + rseg_hdr->frame)
 		+ 1;
-	if (dberr_t err = trx_undo_lists_init(rseg, max_trx_id, rseg_hdr)) {
+	if (dberr_t err = trx_undo_lists_init(rseg, rseg_hdr)) {
 		return err;
 	}
 
@@ -524,23 +520,20 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 		const buf_block_t* block = trx_undo_page_get(
 			page_id_t(rseg->space->id, node_addr.page), mtr);
 
-		trx_id_t id = mach_read_from_8(block->frame + node_addr.boffset
-					       + TRX_UNDO_TRX_ID);
-		if (id > max_trx_id) {
-			max_trx_id = id;
-		}
+		trx_id_t trx_id, id;
+		trx_id = mach_read_from_8(block->frame + node_addr.boffset
+					  + TRX_UNDO_TRX_ID);
 		id = mach_read_from_8(block->frame + node_addr.boffset
 				      + TRX_UNDO_TRX_NO);
-		if (id > max_trx_id) {
-			max_trx_id = id;
+		trx_id = std::max(trx_id, id);
+
+		if (trx_id > rseg->needs_purge) {
+			rseg->needs_purge = trx_id;
 		}
 
 		rseg->set_last_commit(node_addr.boffset, id);
-		unsigned purge = mach_read_from_2(block->frame
-						  + node_addr.boffset
-						  + TRX_UNDO_NEEDS_PURGE);
-		ut_ad(purge <= 1);
-		rseg->needs_purge = purge != 0;
+		ut_ad(mach_read_from_2(block->frame + node_addr.boffset
+				       + TRX_UNDO_NEEDS_PURGE) <= 1);
 
 		if (rseg->last_page_no != FIL_NULL) {
 
@@ -618,9 +611,12 @@ dberr_t trx_rseg_array_init()
 				ut_ad(rseg->id == rseg_id);
 				ut_ad(!trx_sys.rseg_array[rseg_id]);
 				trx_sys.rseg_array[rseg_id] = rseg;
-				if ((err = trx_rseg_mem_restore(
-					     rseg, max_trx_id, &mtr))
-				    != DB_SUCCESS) {
+				err = trx_rseg_mem_restore(rseg, &mtr);
+				if (rseg->needs_purge > max_trx_id) {
+					max_trx_id = rseg->needs_purge;
+				}
+
+				if (err != DB_SUCCESS) {
 					mtr.commit();
 					break;
 				}

@@ -7,6 +7,7 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 CREATE TABLE t1(a INT PRIMARY KEY, b INT NOT NULL)
 ROW_FORMAT=REDUNDANT ENGINE=InnoDB;
+InnoDB		0 transactions not purged
 connect  prevent_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
@@ -19,7 +20,11 @@ UPDATE t1 SET b=4 WHERE a=3;
 disconnect prevent_purge;
 connection default;
 InnoDB		0 transactions not purged
+connection con1;
+ROLLBACK;
 disconnect con1;
+connection default;
+InnoDB		0 transactions not purged
 FLUSH TABLE t1 FOR EXPORT;
 Clustered index root page contents:
 N_RECS=3; LEVEL=0
