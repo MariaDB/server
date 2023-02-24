@@ -665,6 +665,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
                           uint64_t *rows_to_undo)
 {
   trx_state_t state;
+  ut_ad(rseg->needs_purge >= undo->trx_id);
   /*
     This is single-threaded startup code, we do not need the
     protection of trx->mutex here.
@@ -688,6 +689,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
     return;
   }
 
+  ++rseg->trx_ref_count;
   trx_t *trx= trx_create();
   trx->state= state;
   ut_d(trx->start_file= __FILE__);
@@ -696,12 +698,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx->rsegs.m_redo.undo= undo;
   trx->undo_no= undo->top_undo_no + 1;
   trx->rsegs.m_redo.rseg= rseg;
-  /*
-    For transactions with active data will not have rseg size = 1
-    or will not qualify for purge limit criteria. So it is safe to increment
-    this trx_ref_count w/o mutex protection.
-  */
-  ++trx->rsegs.m_redo.rseg->trx_ref_count;
   *trx->xid= undo->xid;
   trx->id= undo->trx_id;
   trx->is_recovered= true;
@@ -776,7 +772,8 @@ dberr_t trx_lists_init_at_db_start()
 				ut_ad(trx->start_time == start_time);
 				ut_ad(trx->is_recovered);
 				ut_ad(trx->rsegs.m_redo.rseg == rseg);
-				ut_ad(trx->rsegs.m_redo.rseg->trx_ref_count);
+				ut_ad(rseg->trx_ref_count);
+				ut_ad(rseg->needs_purge);
 
 				trx->rsegs.m_redo.undo = undo;
 				if (undo->top_undo_no >= trx->undo_no) {
@@ -808,19 +805,17 @@ dberr_t trx_lists_init_at_db_start()
 
 /** Assign a persistent rollback segment in a round-robin fashion,
 evenly distributed between 0 and innodb_undo_logs-1
-@return	persistent rollback segment
-@retval	NULL	if innodb_read_only */
-static trx_rseg_t* trx_assign_rseg_low()
+@param trx transaction */
+static void trx_assign_rseg_low(trx_t *trx)
 {
-	if (high_level_read_only) {
-		ut_ad(!srv_available_undo_logs);
-		return(NULL);
-	}
-
+	ut_ad(!trx->rsegs.m_redo.rseg);
 	ut_ad(srv_available_undo_logs == TRX_SYS_N_RSEGS);
 
 	/* The first slot is always assigned to the system tablespace. */
 	ut_ad(trx_sys.rseg_array[0]->space == fil_system.sys_space);
+
+	trx_sys.register_rw(trx);
+	ut_ad(trx->id);
 
 	/* Choose a rollback segment evenly distributed between 0 and
 	innodb_undo_logs-1 in a round-robin fashion, skipping those
@@ -835,7 +830,7 @@ static trx_rseg_t* trx_assign_rseg_low()
 	bool	look_for_rollover = false;
 #endif /* UNIV_DEBUG */
 
-	bool	allocated = false;
+	bool	skip_allocation;
 
 	do {
 		for (;;) {
@@ -879,20 +874,18 @@ static trx_rseg_t* trx_assign_rseg_low()
 			break;
 		}
 
-		/* By now we have only selected the rseg but not marked it
-		allocated. By marking it allocated we are ensuring that it will
-		never be selected for UNDO truncate purge. */
 		mutex_enter(&rseg->mutex);
-		if (!rseg->skip_allocation) {
-			rseg->trx_ref_count++;
-			allocated = true;
+		ut_ad(rseg->is_persistent());
+		skip_allocation = rseg->skip_allocation;
+		if (!skip_allocation) {
+			/* Ensure that the allocation remains valid until
+			trx_undo_reuse_cached() is invoked. */
+			++rseg->trx_ref_count;
 		}
 		mutex_exit(&rseg->mutex);
-	} while (!allocated);
+	} while (skip_allocation);
 
-	ut_ad(rseg->trx_ref_count > 0);
-	ut_ad(rseg->is_persistent());
-	return(rseg);
+	trx->rsegs.m_redo.rseg = rseg;
 }
 
 /** Assign a rollback segment for modifying temporary tables.
@@ -976,15 +969,11 @@ trx_start_low(
 
 	if (!trx->read_only
 	    && (trx->mysql_thd == 0 || read_write || trx->ddl)) {
-
 		/* Temporary rseg is assigned only if the transaction
 		updates a temporary table */
-		trx->rsegs.m_redo.rseg = trx_assign_rseg_low();
-		ut_ad(trx->rsegs.m_redo.rseg != 0
-		      || srv_read_only_mode
-		      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-
-		trx_sys.register_rw(trx);
+		if (!high_level_read_only) {
+			trx_assign_rseg_low(trx);
+		}
 	} else {
 		if (!trx->is_autocommit_non_locking()) {
 
@@ -1081,25 +1070,22 @@ trx_write_serialisation_history(
 
 	trx_undo_t*& undo = trx->rsegs.m_redo.undo;
 
-	if (!undo) {
-		return;
-	}
-
 	ut_ad(!trx->read_only);
-	ut_ad(!undo || undo->rseg == rseg);
 	mutex_enter(&rseg->mutex);
+	ut_ad(rseg->trx_ref_count);
+	--rseg->trx_ref_count;
 
 	/* Assign the transaction serialisation number and add any
 	undo log to the purge queue. */
-	trx_serialise(trx);
 	if (undo) {
+		ut_ad(undo->rseg == rseg);
+		trx_serialise(trx);
 		UT_LIST_REMOVE(rseg->undo_list, undo);
 		trx_purge_add_undo_to_history(trx, undo, mtr);
+		MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 	}
 
 	mutex_exit(&rseg->mutex);
-
-	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 }
 
 /********************************************************************
@@ -1401,16 +1387,6 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   ut_ad(!rsegs.m_noredo.undo);
 
-  /* Only after trx_undo_commit_cleanup() it is safe to release
-  our rseg reference. */
-  if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
-  {
-    mutex_enter(&rseg->mutex);
-    ut_ad(rseg->trx_ref_count > 0);
-    --rseg->trx_ref_count;
-    mutex_exit(&rseg->mutex);
-  }
-
   /* Free all savepoints, starting from the first. */
   trx_named_savept_t *savep= UT_LIST_GET_FIRST(trx_savepoints);
 
@@ -1491,6 +1467,15 @@ void trx_t::commit_low(mtr_t *mtr)
 
     mtr->commit();
   }
+  else if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
+  {
+    ut_ad(id);
+    ut_ad(!rsegs.m_redo.undo);
+    mutex_enter(&rseg->mutex);
+    --rseg->trx_ref_count;
+    mutex_exit(&rseg->mutex);
+  }
+
 #ifndef DBUG_OFF
   if (debug_sync)
     DEBUG_SYNC_C("before_trx_state_committed_in_memory");
@@ -2295,10 +2280,7 @@ trx_set_rw_mode(
 		return;
 	}
 
-	trx->rsegs.m_redo.rseg = trx_assign_rseg_low();
-	ut_ad(trx->rsegs.m_redo.rseg != 0);
-
-	trx_sys.register_rw(trx);
+	trx_assign_rseg_low(trx);
 
 	/* So that we can see our own changes. */
 	if (trx->read_view.is_open()) {

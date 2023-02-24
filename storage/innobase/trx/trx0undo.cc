@@ -837,12 +837,10 @@ static void trx_undo_seg_free(const trx_undo_t *undo)
 @param[in,out]	rseg		rollback segment
 @param[in]	id		rollback segment slot
 @param[in]	page_no		undo log segment page number
-@param[in,out]	max_trx_id	the largest observed transaction ID
 @return	the undo log
 @retval nullptr on error */
 trx_undo_t *
-trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no,
-                                trx_id_t &max_trx_id)
+trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no)
 {
 	mtr_t		mtr;
 	XID		xid;
@@ -876,10 +874,20 @@ corrupted:
 	const trx_ulogf_t* const undo_header = block->frame + offset;
 	uint16_t state = mach_read_from_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE
 					  + block->frame);
+	const trx_id_t trx_id= mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
+	if (trx_id >> 48) {
+		sql_print_error("InnoDB: corrupted TRX_ID %llx", trx_id);
+		goto corrupted;
+	}
+	/* We will increment rseg->needs_purge, like trx_undo_reuse_cached()
+	would do it, to avoid trouble on rollback or XA COMMIT. */
+	trx_id_t trx_no = trx_id + 1;
+
 	switch (state) {
 	case TRX_UNDO_ACTIVE:
 	case TRX_UNDO_PREPARED:
 		if (UNIV_LIKELY(type != 1)) {
+			trx_no = trx_id + 1;
 			break;
 		}
 		sql_print_error("InnoDB: upgrade from older version than"
@@ -902,13 +910,14 @@ corrupted:
 			goto corrupted_type;
 		}
 	read_trx_no:
-		trx_id_t id = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
-		if (id >> 48) {
-			sql_print_error("InnoDB: corrupted TRX_NO %llx", id);
+		trx_no = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
+		if (trx_no >> 48) {
+			sql_print_error("InnoDB: corrupted TRX_NO %llx",
+					trx_no);
 			goto corrupted;
 		}
-		if (id > max_trx_id) {
-			max_trx_id = id;
+		if (trx_no < trx_id) {
+			trx_no = trx_id;
 		}
 	}
 
@@ -921,16 +930,10 @@ corrupted:
 		xid.null();
 	}
 
-	trx_id_t trx_id = mach_read_from_8(undo_header + TRX_UNDO_TRX_ID);
-	if (trx_id >> 48) {
-		sql_print_error("InnoDB: corrupted TRX_ID %llx", trx_id);
-		goto corrupted;
-	}
-	if (trx_id > max_trx_id) {
-		max_trx_id = trx_id;
-	}
-
 	mutex_enter(&rseg->mutex);
+	if (trx_no > rseg->needs_purge) {
+		rseg->needs_purge = trx_no;
+	}
 	trx_undo_t* undo = trx_undo_mem_create(
 		rseg, id, trx_id, &xid, page_no, offset);
 	mutex_exit(&rseg->mutex);
@@ -1128,6 +1131,22 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 {
 	ut_ad(mutex_own(&rseg->mutex));
 
+	if (rseg->is_persistent()) {
+		ut_ad(rseg->trx_ref_count);
+		if (rseg->needs_purge <= trx->id) {
+			/* trx_purge_truncate_history() compares
+			rseg->needs_purge <= head.trx_no
+			so we need to compensate for that.
+			The rseg->needs_purge after crash
+			recovery would be at least trx->id + 1,
+			because that is the minimum possible value
+			assigned by trx_serialise() on commit. */
+			rseg->needs_purge = trx->id + 1;
+		}
+	} else {
+		ut_ad(!rseg->trx_ref_count);
+	}
+
 	trx_undo_t* undo = UT_LIST_GET_FIRST(rseg->undo_cached);
 	if (!undo) {
 		return NULL;
@@ -1236,10 +1255,8 @@ buf_block_t*
 trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		    dberr_t* err, mtr_t* mtr)
 {
-  const bool	is_temp __attribute__((unused)) = rseg == trx->rsegs.m_noredo.rseg;
-
-	ut_ad(rseg == trx->rsegs.m_redo.rseg
-	      || rseg == trx->rsegs.m_noredo.rseg);
+	ut_d(const bool is_temp = rseg == trx->rsegs.m_noredo.rseg);
+	ut_ad(is_temp || rseg == trx->rsegs.m_redo.rseg);
 	ut_ad(undo == (is_temp
 		       ? &trx->rsegs.m_noredo.undo
 		       : &trx->rsegs.m_redo.undo));
@@ -1259,7 +1276,6 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	);
 
 	mutex_enter(&rseg->mutex);
-
 	buf_block_t* block = trx_undo_reuse_cached(trx, rseg, undo, mtr);
 
 	if (!block) {
