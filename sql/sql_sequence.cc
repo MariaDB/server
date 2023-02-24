@@ -47,13 +47,15 @@ Sequence_row_definition sequence_structure(const Type_handler* handler)
   const Conv_source src(handler, 0, system_charset_info);
   const uint32 len= handler->max_display_length_for_field(src) + 1;
   const LEX_CSTRING empty= {STRING_WITH_LEN("")};
+  const uint flag_unsigned= handler->is_unsigned() ? UNSIGNED_FLAG : 0;
 #define FL (NOT_NULL_FLAG | NO_DEFAULT_VALUE_FLAG)
-  return {{{"next_not_cached_value", len, handler, empty, FL},
-           {"minimum_value", len, handler, empty, FL},
-           {"maximum_value", len, handler, empty, FL},
+#define FLV (NOT_NULL_FLAG | NO_DEFAULT_VALUE_FLAG | flag_unsigned)
+  return {{{"next_not_cached_value", len, handler, empty, FLV},
+           {"minimum_value", len, handler, empty, FLV},
+           {"maximum_value", len, handler, empty, FLV},
            {"start_value", len, handler,
             {STRING_WITH_LEN("start value when sequences is created or value "
-                             "if RESTART is used")}, FL},
+                             "if RESTART is used")}, FLV},
            {"increment", 21, &type_handler_slonglong,
             {STRING_WITH_LEN("increment value")}, FL},
            {"cache_size", 21, &type_handler_ulonglong, empty,
@@ -63,6 +65,7 @@ Sequence_row_definition sequence_structure(const Type_handler* handler)
            {"cycle_count", 21, &type_handler_slonglong,
             {STRING_WITH_LEN("How many cycles have been done")}, FL},
            {NULL, 0, &type_handler_slonglong, {STRING_WITH_LEN("")}, 0}}};
+#undef FLV
 #undef FL
 }
 
@@ -83,16 +86,39 @@ bool sequence_definition::is_allowed_value_type(enum_field_types type)
 
 Type_handler const *sequence_definition::value_type_handler()
 {
-  return Type_handler::get_handler_by_field_type(value_type);
+  const Type_handler *handler= Type_handler::get_handler_by_field_type(value_type);
+  return is_unsigned ? handler->type_handler_unsigned() : handler;
 }
 
 longlong sequence_definition::value_type_max()
 {
-  return ~ value_type_min();
+  // value_type != MYSQL_TYPE_LONGLONG to avoid undefined behaviour
+  // https://stackoverflow.com/questions/9429156/by-left-shifting-can-a-number-be-set-to-zero
+  return is_unsigned && value_type != MYSQL_TYPE_LONGLONG ?
+    ~(~0ULL << 8 * value_type_handler()->calc_pack_length(0)) :
+    ~value_type_min();
 }
 
 longlong sequence_definition::value_type_min() {
-  return ~0ULL << (8 * value_type_handler()->calc_pack_length(0) - 1);
+  return is_unsigned ? 0 :
+    ~0ULL << (8 * value_type_handler()->calc_pack_length(0) - 1);
+}
+
+/*
+  Truncate `original` to `result`.
+  If `original` is greater than value_type_max(), truncate down to value_type_max()
+  If `original` is less than value_type_min(), truncate up to value_type_min()
+*/
+longlong sequence_definition::truncate_value(const Longlong_hybrid& original)
+{
+  if (is_unsigned)
+    return original.to_ulonglong(value_type_max());
+  else if (original.is_unsigned_outside_of_signed_range())
+    return value_type_max();
+  else
+    return original.value() > value_type_max() ? value_type_max()
+      : original.value() < value_type_min() ? value_type_min()
+      : original.value();
 }
 
 /*
@@ -104,6 +130,8 @@ longlong sequence_definition::value_type_min() {
      true       invalid
 */
 
+// from_parser: whether to check foo_from_parser or foo, where foo in
+// {min_value, max_value, ...}
 bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
 {
   longlong max_increment;
@@ -113,40 +141,55 @@ bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
     real_increment= global_system_variables.auto_increment_increment;
 
   /*
-    If min_value is not set, set it to LONGLONG_MIN or 1, depending on
+    If min_value is not set, set it to value_type_min()+1 or 1, depending on
     real_increment
   */
   if (!(used_fields & seq_field_specified_min_value))
     min_value= real_increment < 0 ? value_type_min()+1 : 1;
+  else
+  {
+    min_value= truncate_value(min_value_from_parser);
+    if ((is_unsigned && (ulonglong) min_value <= (ulonglong) value_type_min()) ||
+        (!is_unsigned && min_value <= value_type_min()))
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_NOTE, ER_TRUNCATED_WRONG_VALUE,
+          ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER", "MINVALUE");
+      min_value= value_type_min() + 1;
+    }
+  }
 
   /*
-    If max_value is not set, set it to LONGLONG_MAX or -1, depending on
+    If max_value is not set, set it to value_type_max()-1 or -1, depending on
     real_increment
   */
   if (!(used_fields & seq_field_specified_max_value))
     max_value= real_increment < 0 ? -1 : value_type_max()-1;
-
-  if (max_value >= value_type_max())
+  else
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
-                        "INTEGER", "MAXVALUE");
-    max_value= value_type_max() - 1;
-  }
-  if (min_value <= value_type_min())
-  {
-    push_warning_printf(
-        thd, Sql_condition::WARN_LEVEL_NOTE, ER_TRUNCATED_WRONG_VALUE,
-        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER", "MINVALUE");
-    min_value= value_type_min() + 1;
+    max_value= truncate_value(max_value_from_parser);
+    if ((is_unsigned && (ulonglong) max_value >= (ulonglong) value_type_max()) ||
+        (!is_unsigned && max_value >= value_type_max()))
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_NOTE, ER_TRUNCATED_WRONG_VALUE,
+          ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "INTEGER", "MAXVALUE");
+      max_value= value_type_max() - 1;
+    }
   }
 
   if (!(used_fields & seq_field_used_start))
   {
     /* Use min_value or max_value for start depending on real_increment */
     start= real_increment < 0 ? max_value : min_value;
-  }
+  } else
+    // If the supplied start value is out of range for the value type,
+    // instead of immediately reporting error, we truncate it to
+    // value_type_min or value_type_max depending on which side it is
+    // one. Whenever such truncation happens, the condition that
+    // max_value >= start >= min_value will be violated, and the error
+    // will be reported then.
+    start= truncate_value(start_from_parser);
 
   if (set_reserved_until)
     reserved_until= start;
@@ -158,11 +201,25 @@ bool sequence_definition::check_and_adjust(THD *thd, bool set_reserved_until)
                   llabs(real_increment) :
                   MAX_AUTO_INCREMENT_VALUE);
 
-  if (max_value >= start && max_value > min_value && start >= min_value &&
-      cache >= 0 && cache < (LONGLONG_MAX - max_increment) / max_increment &&
+  // Common case for error, signed or unsigned.
+  if (!is_allowed_value_type(value_type) || cache < 0)
+    DBUG_RETURN(TRUE);
+  
+  // TODO: check for cache < (ULONGLONG_MAX - max_increment) / max_increment
+  if (is_unsigned && (ulonglong) max_value >= (ulonglong) start &&
+      (ulonglong) max_value > (ulonglong) min_value &&
+      (ulonglong) start >= (ulonglong) min_value &&
+      // Just like the case in signed, where a positive sequence
+      // cannot have a negatvie increment, an unsigned sequence is
+      // positive, so the increment has to be positive
+      (real_increment > 0 && (ulonglong) reserved_until >= (ulonglong) min_value))
+    DBUG_RETURN(FALSE);
+  
+  if (!is_unsigned && max_value >= start && max_value > min_value &&
+      start >= min_value &&
+      cache < (LONGLONG_MAX - max_increment) / max_increment &&
       ((real_increment > 0 && reserved_until >= min_value) ||
-       (real_increment < 0 && reserved_until <= max_value)) &&
-      is_allowed_value_type(value_type))
+       (real_increment < 0 && reserved_until <= max_value)))
     DBUG_RETURN(FALSE);
 
   DBUG_RETURN(TRUE);                           // Error
@@ -185,6 +242,10 @@ void sequence_definition::read_fields(TABLE *table)
   cycle=          table->field[6]->val_int();
   round=          table->field[7]->val_int();
   value_type=     table->field[0]->type();
+  is_unsigned=    table->field[0]->is_unsigned();
+  min_value_from_parser= Longlong_hybrid(min_value, is_unsigned);
+  max_value_from_parser= Longlong_hybrid(max_value, is_unsigned);
+  start_from_parser= Longlong_hybrid(start, is_unsigned);
   dbug_tmp_restore_column_map(&table->read_set, old_map);
   used_fields= ~(uint) 0;
   print_dbug();
@@ -201,10 +262,10 @@ void sequence_definition::store_fields(TABLE *table)
 
   /* zero possible delete markers & null bits */
   memcpy(table->record[0], table->s->default_values, table->s->null_bytes);
-  table->field[0]->store(reserved_until, 0);
-  table->field[1]->store(min_value, 0);
-  table->field[2]->store(max_value, 0);
-  table->field[3]->store(start, 0);
+  table->field[0]->store(reserved_until, is_unsigned);
+  table->field[1]->store(min_value, is_unsigned);
+  table->field[2]->store(max_value, is_unsigned);
+  table->field[3]->store(start, is_unsigned);
   table->field[4]->store(increment, 0);
   table->field[5]->store(cache, 0);
   table->field[6]->store((longlong) cycle != 0, 0);
@@ -341,20 +402,18 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   Reprepare_observer *save_reprepare_observer;
   sequence_definition *seq= lex->create_info.seq_create_info;
   bool temporary_table= org_table_list->table != 0;
+  /*
+    seq is 0 if sequence was created with CREATE TABLE instead of
+    CREATE SEQUENCE
+  */
+  bool create_new= !seq;
   Open_tables_backup open_tables_backup;
   Query_tables_list query_tables_list_backup;
   TABLE_LIST table_list;                        // For sequence table
   DBUG_ENTER("sequence_insert");
 
-  /*
-    seq is 0 if sequence was created with CREATE TABLE instead of
-    CREATE SEQUENCE
-  */
-  if (!seq)
-  {
-    if (!(seq= new (thd->mem_root) sequence_definition))
-      DBUG_RETURN(TRUE);
-  }
+  if (create_new && !(seq= new (thd->mem_root) sequence_definition))
+    DBUG_RETURN(TRUE);
 
 #ifdef WITH_WSREP
   if (WSREP_ON && seq->cache != 0)
@@ -415,7 +474,15 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
   else
     table= org_table_list->table;
 
-  seq->reserved_until= seq->start;
+  if (create_new)
+  {
+    seq->value_type= (*table->s->field)->type();
+    seq->is_unsigned= (*table->s->field)->is_unsigned();
+    // fixme: why do we need true here?
+    if (seq->check_and_adjust(thd, true))
+      DBUG_RETURN(TRUE);
+  }
+
   error= seq->write_initial_sequence(table);
   {
     uint save_unsafe_rollback_flags=
@@ -762,10 +829,9 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     write_lock(table);
 
   res_value= next_free_value;
-  next_free_value= increment_value(next_free_value);
+  next_free_value= increment_value(next_free_value, real_increment);
 
-  if ((real_increment > 0 && res_value < reserved_until) ||
-      (real_increment < 0 && res_value > reserved_until))
+  if (within_bounds(res_value, reserved_until, reserved_until, real_increment > 0)) 
   {
     write_unlock(table);
     DBUG_RETURN(res_value);
@@ -782,30 +848,10 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     overflow
   */
   add_to= cache ? real_increment * cache : real_increment;
-  out_of_values= 0;
 
-  if (real_increment > 0)
-  {
-    if (reserved_until > max_value - add_to ||
-        reserved_until + add_to > max_value)
-    {
-      reserved_until= max_value + 1;
-      out_of_values= res_value >= reserved_until;
-    }
-    else
-      reserved_until+= add_to;
-  }
-  else
-  {
-    if (reserved_until + add_to < min_value ||
-        reserved_until < min_value - add_to)
-    {
-      reserved_until= min_value - 1;
-      out_of_values= res_value <= reserved_until;
-    }
-    else
-      reserved_until+= add_to;
-  }
+  // TODO: consider extracting this refactoring to a separate earlier commit.
+  reserved_until= increment_value(reserved_until, add_to);
+  out_of_values= !within_bounds(res_value, max_value + 1, min_value - 1, add_to > 0);
   if (out_of_values)
   {
     if (!cycle || second_round)
@@ -894,7 +940,7 @@ int SEQUENCE::set_value(TABLE *table, longlong next_val, ulonglong next_round,
 
   write_lock(table);
   if (is_used)
-    next_val= increment_value(next_val);
+    next_val= increment_value(next_val, real_increment);
 
   if (round > next_round)
     goto end;                                   // error = -1
@@ -1017,22 +1063,30 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   if (!(new_seq->used_fields & seq_field_used_increment))
     new_seq->increment= seq->increment;
   if (!(new_seq->used_fields & seq_field_used_min_value))
-    new_seq->min_value= seq->min_value;
+    new_seq->min_value_from_parser= seq->min_value_from_parser;
   if (!(new_seq->used_fields & seq_field_used_max_value))
-    new_seq->max_value= seq->max_value;
+    new_seq->max_value_from_parser= seq->max_value_from_parser;
   if (!(new_seq->used_fields & seq_field_used_start))
-    new_seq->start=          seq->start;
+    new_seq->start_from_parser=          seq->start_from_parser;
   if (!(new_seq->used_fields & seq_field_used_cache))
     new_seq->cache= seq->cache;
   if (!(new_seq->used_fields & seq_field_used_cycle))
     new_seq->cycle= seq->cycle;
+  if (!(new_seq->used_fields & seq_field_used_as))
+  {
+    new_seq->value_type= seq->value_type;
+    new_seq->is_unsigned= seq->is_unsigned;
+  }
 
   /* If we should restart from a new value */
   if (new_seq->used_fields & seq_field_used_restart)
   {
     if (!(new_seq->used_fields & seq_field_used_restart_value))
-      new_seq->restart=      new_seq->start;
-    new_seq->reserved_until= new_seq->restart;
+      new_seq->restart_from_parser=      new_seq->start_from_parser;
+    // Similar to start, we just need to truncate reserved_until and
+    // the errors will be reported in check_and_adjust if truncation
+    // happens on the wrong end.
+    new_seq->reserved_until= new_seq->truncate_value(new_seq->restart_from_parser);
   }
 
   /* Let check_and_adjust think all fields are used */

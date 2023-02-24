@@ -200,6 +200,9 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   ulonglong ulonglong_number;
   longlong longlong_number;
   uint sp_instr_addr;
+  // Longlong_hybrid does not have a default constructor, hence the
+  // default value below.
+  Longlong_hybrid longlong_hybrid_number= Longlong_hybrid(0, false);
 
   /* structs */
   LEX_CSTRING lex_str;
@@ -1466,7 +1469,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ulonglong_num real_ulonglong_num
 
 %type <longlong_number>
-        sequence_value_num sequence_truncated_value_num
+        sequence_value_num
+
+%type <longlong_hybrid_number>
+        sequence_value_hybrid_num sequence_truncated_value_hybrid_num
 
 %type <choice> choice
 
@@ -2605,19 +2611,23 @@ sequence_defs:
         ;
 
 sequence_def:
-          AS int_type
+          AS int_type field_options
           {
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_as))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "AS"));
+            if ($3 & ZEROFILL_FLAG)
+                my_yyabort_error((ER_NOT_SUPPORTED_YET, MYF(0), "ZEROFILL as a sequence value type option"));
             Lex->create_info.seq_create_info->value_type = $2->field_type();
+            Lex->create_info.seq_create_info->is_unsigned = $3 & UNSIGNED_FLAG ? true : false;
+            Lex->create_info.seq_create_info->used_fields|= seq_field_used_as;
           }
-        | MINVALUE_SYM opt_equal sequence_truncated_value_num
+        | MINVALUE_SYM opt_equal sequence_truncated_value_hybrid_num
           {
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_min_value))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
-            Lex->create_info.seq_create_info->min_value= $3;
+            Lex->create_info.seq_create_info->min_value_from_parser= $3;
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
             Lex->create_info.seq_create_info->used_fields|= seq_field_specified_min_value;
           }
@@ -2633,12 +2643,12 @@ sequence_def:
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MINVALUE"));
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_min_value;
           }
-        | MAXVALUE_SYM opt_equal sequence_truncated_value_num
+        | MAXVALUE_SYM opt_equal sequence_truncated_value_hybrid_num
           {
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_max_value))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
-            Lex->create_info.seq_create_info->max_value= $3;
+            Lex->create_info.seq_create_info->max_value_from_parser= $3;
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_max_value;
             Lex->create_info.seq_create_info->used_fields|= seq_field_specified_max_value;
           }
@@ -2654,12 +2664,12 @@ sequence_def:
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "MAXVALUE"));
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_max_value;
           }
-        | START_SYM opt_with sequence_value_num
+        | START_SYM opt_with sequence_value_hybrid_num
           {
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_start))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "START"));
-            Lex->create_info.seq_create_info->start= $3;
+            Lex->create_info.seq_create_info->start_from_parser= $3;
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_start;
           }
         | INCREMENT_SYM opt_by sequence_value_num
@@ -2714,7 +2724,7 @@ sequence_def:
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "RESTART"));
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_restart;
           }
-        | RESTART_SYM opt_with sequence_value_num
+        | RESTART_SYM opt_with sequence_value_hybrid_num
           {
             if (unlikely(Lex->sql_command != SQLCOM_ALTER_SEQUENCE))
             {
@@ -2724,7 +2734,7 @@ sequence_def:
             if (unlikely(Lex->create_info.seq_create_info->used_fields &
                          seq_field_used_restart))
               my_yyabort_error((ER_DUP_ARGUMENT, MYF(0), "RESTART"));
-            Lex->create_info.seq_create_info->restart= $3;
+            Lex->create_info.seq_create_info->restart_from_parser= $3;
             Lex->create_info.seq_create_info->used_fields|= seq_field_used_restart | seq_field_used_restart_value;
           }
         ;
@@ -12572,6 +12582,7 @@ real_ulong_num:
         | dec_num_error { MYSQL_YYABORT; }
         ;
 
+// For simple sequence metadata values that are signed and do not need truncation
 sequence_value_num:
           opt_plus NUM           { int error; $$= (longlong) my_strtoll10($2.str, (char**) 0, &error); }
         | opt_plus LONG_NUM      { int error; $$= (longlong) my_strtoll10($2.str, (char**) 0, &error); }
@@ -12588,15 +12599,74 @@ sequence_value_num:
           }
         ;
 
-sequence_truncated_value_num:
-          opt_plus NUM           { int error; $$= (longlong) my_strtoll10($2.str, (char**) 0, &error); }
-        | opt_plus LONG_NUM      { int error; $$= (longlong) my_strtoll10($2.str, (char**) 0, &error); }
-        | opt_plus ULONGLONG_NUM { $$= LONGLONG_MAX; }
-        | opt_plus DECIMAL_NUM { $$= LONGLONG_MAX; }
-        | '-' NUM         { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
-        | '-' LONG_NUM  { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
-        | '-' ULONGLONG_NUM { $$= LONGLONG_MIN; }
-        | '-' DECIMAL_NUM { $$= LONGLONG_MIN; }
+// For sequence metadata values that may be unsigned but do not need truncation (start, restart)
+sequence_value_hybrid_num:
+          opt_plus NUM
+            {
+              int error;
+              $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error), false);
+            }
+        | opt_plus LONG_NUM
+            {
+              int error;
+              $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error), false);
+            }
+        | opt_plus ULONGLONG_NUM
+            {
+              int error;
+              $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error), true);
+            }
+        | '-' NUM
+            {
+              int error;
+              $$= Longlong_hybrid(- my_strtoll10($2.str, (char**) 0, &error), false);
+            }
+        | '-' LONG_NUM
+            {
+              int error;
+              $$= Longlong_hybrid(- my_strtoll10($2.str, (char**) 0, &error), false);
+            }
+        | '-' ULONGLONG_NUM
+            {
+              int error;
+              const ulonglong abs= my_strtoll10($2.str, (char**) 0, &error);
+              if (abs == 1 + (ulonglong) LONGLONG_MAX)
+                $$= Longlong_hybrid(LONGLONG_MIN, false);
+              else
+                  thd->parse_error(ER_DATA_OUT_OF_RANGE);
+            }
+        ;
+
+// For sequence metadata values that may be unsigned and need truncation (maxvalue, minvalue)
+sequence_truncated_value_hybrid_num:
+          opt_plus NUM
+            {
+              int error;
+              $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error), false);
+            }
+        | opt_plus LONG_NUM
+            {
+              int error;
+              $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error), false);
+            }
+        | opt_plus ULONGLONG_NUM
+            {
+              int error;
+              $$= Longlong_hybrid(my_strtoll10($2.str, (char**) 0, &error), true);
+            }
+        | opt_plus DECIMAL_NUM { $$= Longlong_hybrid(ULONGLONG_MAX, true); }
+        | '-' NUM
+            {
+              int error;
+              $$= Longlong_hybrid(- my_strtoll10($2.str, (char**) 0, &error), false);
+            }
+        | '-' LONG_NUM
+            {
+              int error;
+              $$= Longlong_hybrid(- my_strtoll10($2.str, (char**) 0, &error), false);
+            }
+        | '-' ULONGLONG_NUM { $$= Longlong_hybrid(LONGLONG_MIN, false); }
+        | '-' DECIMAL_NUM { $$= Longlong_hybrid(LONGLONG_MIN, false); }
         ;
 
 ulonglong_num:

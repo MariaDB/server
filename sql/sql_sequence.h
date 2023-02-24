@@ -35,6 +35,7 @@
 #define ROUND_FIELD_NO 7
 
 #include "mysql_com.h"
+#include "sql_type_int.h"
 
 class Create_field;
 class Type_handler;
@@ -61,20 +62,31 @@ class sequence_definition :public Sql_alloc
 {
 public:
   sequence_definition():
-    min_value(1), max_value(LONGLONG_MAX-1), start(1), increment(1),
-    cache(1000), round(0), restart(0), cycle(0), used_fields(0), value_type(MYSQL_TYPE_LONGLONG)
+    min_value_from_parser(1, false),
+    max_value_from_parser(LONGLONG_MAX-1, false), start_from_parser(1, false),
+    increment(1), cache(1000), round(0), restart_from_parser(0, false), cycle(0), used_fields(0),
+    // We use value type and is_unsigned instead of a handler because
+    // Type_handler is incomplete, which we cannot initialise here
+    // with &type_handler_slonglong.
+    value_type(MYSQL_TYPE_LONGLONG), is_unsigned(false)
   {}
   longlong reserved_until;
   longlong min_value;
   longlong max_value;
   longlong start;
+  Longlong_hybrid min_value_from_parser;
+  Longlong_hybrid max_value_from_parser;
+  Longlong_hybrid start_from_parser;
   longlong increment;
   longlong cache;
   ulonglong round;
+  // TODO: allow unsigned in restart
   longlong restart;              // alter sequence restart value
+  Longlong_hybrid restart_from_parser;
   bool     cycle;
   uint used_fields;              // Which fields where used in CREATE
   enum_field_types value_type;    // value type of the sequence
+  bool     is_unsigned;
 
   Type_handler const *value_type_handler();
   // max value for the value type, e.g. 32767 for smallint.
@@ -88,6 +100,7 @@ public:
   int write(TABLE *table, bool all_fields);
   /* This must be called after sequence data has been updated */
   void adjust_values(longlong next_value);
+  longlong truncate_value(const Longlong_hybrid& original);
   inline void print_dbug()
   {
     DBUG_PRINT("sequence", ("reserved: %lld  start: %lld  increment: %lld  min_value: %lld  max_value: %lld  cache: %lld  round: %lld",
@@ -138,24 +151,54 @@ public:
   longlong next_value(TABLE *table, bool second_round, int *error);
   int set_value(TABLE *table, longlong next_value, ulonglong round_arg,
                 bool is_used);
-  longlong increment_value(longlong value)
+  bool within_bounds(const longlong value, const longlong upper, const longlong lower, bool increasing)
   {
-    if (real_increment > 0)
+    return
+      (is_unsigned && increasing && (ulonglong) value < (ulonglong) upper) ||
+      (is_unsigned && !increasing && (ulonglong) value > (ulonglong) lower) ||
+      (!is_unsigned && increasing && value < upper) ||
+      (!is_unsigned && !increasing && value > lower);
+  }
+
+  longlong increment_value(longlong value, const longlong increment)
+  {
+    if (is_unsigned)
     {
-      if (value > max_value - real_increment ||
-          value + real_increment > max_value)
-        value= max_value + 1;
+      if (increment > 0)
+        {
+          // in case value + increment overflows
+          if ((ulonglong) value > (ulonglong) max_value - (ulonglong) increment ||
+              // in case max_value - increment underflows
+              (ulonglong) value + (ulonglong) increment > (ulonglong) max_value)
+            value= max_value + 1;
+          else
+            value+= increment;
+        }
       else
-        value+= real_increment;
-    }
-    else
-    {
-      if (value + real_increment < min_value ||
-          value < min_value - real_increment)
-        value= min_value - 1;
+      {
+        if ((ulonglong) value - (ulonglong) (-increment) < (ulonglong) min_value ||
+            (ulonglong) value < (ulonglong) min_value + (ulonglong) (- increment))
+          value= min_value - 1;
+        else
+          value+= increment;
+      }
+    } else
+      if (increment > 0)
+      {
+        if (value > max_value - increment ||
+            value + increment > max_value)
+          value= max_value + 1;
+        else
+          value+= increment;
+      }
       else
-        value+= real_increment;
-    }
+      {
+        if (value + increment < min_value ||
+            value < min_value - increment)
+          value= min_value - 1;
+        else
+          value+= increment;
+      }
     return value;
   }
 
