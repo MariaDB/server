@@ -5986,6 +5986,7 @@ public:
     @see opt_sum_query, count_field_types
   */
   uint  sum_func_count;   
+  uint  copy_func_count;                        // Allocated copy fields
   uint  hidden_field_count;
   uint	group_parts,group_length,group_null_parts;
 
