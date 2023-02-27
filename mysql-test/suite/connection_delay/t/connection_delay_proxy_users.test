@@ -18,10 +18,10 @@ let CONNECTION_CONTROL_PLUGIN_OPT=`SELECT TRIM(TRAILING '/debug' FROM '$CONNECTI
 CALL mtr.add_suppression("Plugin test_plugin_server reported: 'Wrong password supplied for proxied'");
 
 # Save original values of connection_control variables
-SET @saved_connections_threshold = @@global.failed_connections_threshold;
+SET @saved_connections_threshold = @@global.failed-attempts-before-delay;
 
 # Set a small values for connection_control variables
-SET @@global.failed_connections_threshold = 3;
+SET @@global.failed-attempts-before-delay = 3;
 
 # We will use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 1;
@@ -69,7 +69,7 @@ enable_result_log;
 let $HOST=localhost;
 let $DELAY_MIN_RESPONSE_TIME= 2000;
 
---echo # Following attempts will experience delay in server respose
+--echo # Following attempts will experience delay in server response
 # Trying with invalid passwords
 
 let $USER=u1;
@@ -135,7 +135,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
 
---echo # Following attempts will not experience any delay in server respose
+--echo # Following attempts will not experience any delay in server response
 
 let $USER=u1;
 let $PASSWORD=hoho;
@@ -191,8 +191,8 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 connection default;
 
-# Restore original values of conenction_control variables
-SET @@global.failed_connections_threshold = @saved_connections_threshold;
+# Restore original values of connection_control variables
+SET @@global.failed-attempts-before-delay = @saved_connections_threshold;
 
 --echo # Remove user accounts
 --source ../inc/cleanup_proxy_accounts.inc

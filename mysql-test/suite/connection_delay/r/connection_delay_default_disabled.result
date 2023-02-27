@@ -7,10 +7,6 @@
 CREATE USER u1 IDENTIFIED BY 'abcd';
 CREATE USER u2 IDENTIFIED BY 'abcd';
 CREATE USER u3 IDENTIFIED BY 'abcd';
-# Save original values of connection_control variables
-SET @saved_connections_threshold = @@global.failed_connections_threshold;
-# Set small values for connection_control variables
-SET @@global.failed_connections_threshold = 3;
 
 # ----------------------------------------------------------------------
 
@@ -34,54 +30,30 @@ connect fail_con_u3, localhost, u3,efgh,,,,;
 connect(localhost,u3,efgh,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u3, localhost, u3,efgh,,,,;
 
-# Following attempts will experience delay in server respose
+# Following attempts will not experience delay in server response , because connection delay is disabled by default
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
-
-# Following attempts will not experience any delay in server respose
-# Failed login after a successful login
-connection default;
-# Connection attempt should fail.
-FOUND 2 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
-connection default;
-# Connection attempt should fail.
-FOUND 2 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
-connection default;
-# Connection attempt should fail.
-FOUND 2 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
-# Successful login will not get delay response
-connection default;
-# Connection attempt should succeed.
-FOUND 2 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
-connection default;
-# Connection attempt should succeed.
-FOUND 2 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
-connection default;
-# Connection attempt should succeed.
-FOUND 2 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
 
 # ----------------------------------------------------------------------
 
 # Cleanup
 connection default;
-# Restore original values of conenction_control variables
-SET @@global.failed_connections_threshold = @saved_connections_threshold;
 # Remove user accounts created for the test
 DROP USER u1;
 DROP USER u2;

@@ -2,6 +2,7 @@
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
+
 --echo # Connection delay tests for valid user accounts
 
 --echo
@@ -9,79 +10,23 @@
 --echo
 
 --echo # Setup
-
---echo # Create user accounts for testing
-CREATE USER u1 IDENTIFIED BY 'abcd';
-CREATE USER u2 IDENTIFIED BY 'abcd';
-CREATE USER u3 IDENTIFIED BY 'abcd';
+--echo # Install connection_control plugin
 
 --echo # Save original values of connection_control variables
-SET @saved_connections_threshold = @@global.failed_connections_threshold;
+SET @saved_connections_threshold = @@global.failed-attempts-before-delay;
 
-
-let $DELAY_MIN_RESPONSE_TIME= 2000;
 -- echo # Set small values for connection_control variables
-SET @@global.failed_connections_threshold = 3;
+SET @@global.failed-attempts-before-delay = 3;
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
-
-
+let $HOST=localhost;
+let $DELAY_MIN_RESPONSE_TIME= 2000;
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
 
---echo # Make enough failed attempts to trigger delays
-
-disable_result_log;
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,haha,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,haha,,,,);
-
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u2, localhost, u2,efgh,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u2, localhost, u2,,,,,);
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u2, localhost, u2,haha,,,,);
-
-
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u3, localhost, u3,,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u3, localhost, u3,efgh,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
-
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u3, localhost, u3,efgh,,,,);
-
-enable_result_log;
-
---echo
---echo # Following attempts will experience delay in server respose
-
-let $HOST=localhost;
-
-# Trying with invalid passwords
+--echo # Following attempts will not experience any delay in server response
 
 let $USER=u1;
 let $PASSWORD=hoho;
@@ -111,12 +56,12 @@ let $SUCCESS=0;
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
-# Trying with valid passwords
 
 
-let $USER=u3;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+
 --source ../inc/check_connection_delay.inc
 
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
@@ -124,39 +69,74 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 
 let $USER=u2;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
 
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
+
 let $USER=u1;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+
+--source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
+let $USER=u2;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+
+
+let $USER=u3;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
 --echo
---echo # Following attempts will not experience any delay in server respose
---echo # Failed login after a successful login
+--echo # Following attempts will experience delay in server response
+
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
+
 --source ../inc/check_connection_delay.inc
 
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
+
 
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
+
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
+
 
 
 let $USER=u3;
@@ -167,34 +147,33 @@ let $SUCCESS=0;
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
-
---echo # Successful login will not get delay response
-
 let $USER=u1;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+
 --source ../inc/check_connection_delay.inc
+
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
-
 
 
 let $USER=u2;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
+
+
 
 let $USER=u3;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
-
 
 --echo
 --echo # ----------------------------------------------------------------------
@@ -204,14 +183,8 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 connection default;
 
---echo # Restore original values of conenction_control variables
-SET @@global.failed_connections_threshold = @saved_connections_threshold;
-
---echo # Remove user accounts created for the test
-DROP USER u1;
-DROP USER u2;
-DROP USER u3;
-
+--echo # Restore original values of connection_control variables
+SET @@global.failed-attempts-before-delay = @saved_connections_threshold;
 
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc

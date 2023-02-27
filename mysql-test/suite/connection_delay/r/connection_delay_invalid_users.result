@@ -11,7 +11,7 @@ SET @@global.failed_connections_threshold = 3;
 
 # ----------------------------------------------------------------------
 
-# Following attempts will not experience any delay in server respose
+# Following attempts will not experience any delay in server response
 connection default;
 # Connection attempt should fail.
 NOT FOUND /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
@@ -40,7 +40,7 @@ connection default;
 # Connection attempt should fail.
 NOT FOUND /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
 
-# Following attempts will experience delay in server respose
+# Following attempts will experience delay in server response
 connection default;
 # Connection attempt should fail.
 FOUND 1 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err

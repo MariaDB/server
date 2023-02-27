@@ -15,10 +15,10 @@
 CREATE USER u1 IDENTIFIED BY 'abcd';
 
 --echo # Save original values of connection_control variables
-SET @saved_connections_threshold = @@global.failed_connections_threshold;
+SET @saved_connections_threshold = @@global.failed-attempts-before-delay;
 
 -- echo # Set small values for connection_control variables
-SET @@global.failed_connections_threshold = 3;
+SET @@global.failed-attempts-before-delay = 3;
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
@@ -75,7 +75,7 @@ let $HOST=localhost;
 connection default;
 
 --echo # Restore original values of conenction_control variables
-SET @@global.failed_connections_threshold = @saved_connections_threshold;
+SET @@global.failed-attempts-before-delay = @saved_connections_threshold;
 
 --echo # Remove user accounts created for the test
 DROP USER u1;

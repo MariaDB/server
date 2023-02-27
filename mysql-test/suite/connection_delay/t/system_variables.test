@@ -1,0 +1,100 @@
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+
+--echo #-----------------------------------------------------------------------
+--echo # Setup
+CREATE USER no_privs@localhost IDENTIFIED BY 'abcd';
+
+connect(conn_no_privs, localhost, no_privs, abcd,,,,);
+connection default;
+
+--echo #-----------------------------------------------------------------------
+
+--echo # Case 1 : failed-attempts-before-delay
+SET @saved_value = @@global.failed-attempts-before-delay;
+SELECT @saved_value;
+SET @@global.failed-attempts-before-delay = @saved_value;
+
+--echo # 1.1 : Setting failed-attempts-before-delay to valid
+--echo #       value
+
+SET @@global.failed-attempts-before-delay = 20;
+SELECT @@global.failed-attempts-before-delay;
+
+SET @@global.failed-attempts-before-delay = 2000;
+SELECT @@global.failed-attempts-before-delay;
+
+SET @@global.failed-attempts-before-delay = 2147483647;
+SELECT @@global.failed-attempts-before-delay;
+
+SET @@global.failed-attempts-before-delay = DEFAULT;
+SELECT @@global.failed-attempts-before-delay;
+
+SET @@global.failed-attempts-before-delay = -20;
+SELECT @@global.failed-attempts-before-delay;
+
+
+SET @@global.failed-attempts-before-delay = 9223372036854775808;
+SELECT @@global.failed-attempts-before-delay;
+
+SET @@global.failed-attempts-before-delay = -9223372036854775808;
+SELECT @@global.failed-attempts-before-delay;
+
+
+--echo # 1.2 : Setting failed-attempts-before-delay to
+--echo #       invalid value
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.failed-attempts-before-delay = NULL;
+SELECT @@global.failed-attempts-before-delay;
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.failed-attempts-before-delay = `SELECT * FROM mysql.user`;
+SELECT @@global.failed-attempts-before-delay;
+
+
+
+--echo # Switch to conn_no_privs
+
+connection conn_no_privs;
+
+--echo # 1.3 : Use no_privs@localhost to set
+--echo #       failed-attempts-before-delay to valid value
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET @@global.failed-attempts-before-delay = 2147483647;
+SELECT @@global.failed-attempts-before-delay;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET @@global.failed-attempts-before-delay = DEFAULT;
+SELECT @@global.failed-attempts-before-delay;
+
+--echo # 1.4 : Use no_privs@localhost to set
+--echo #       failed-attempts-before-delay to invalid value
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET @@global.failed-attempts-before-delay = NULL;
+SELECT @@global.failed-attempts-before-delay;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET @@global.failed-attempts-before-delay = 9223372036854775808;
+SELECT @@global.failed-attempts-before-delay;
+
+connection default;
+
+SET @@global.failed-attempts-before-delay = @saved_value;
+SELECT @@global.failed-attempts-before-delay;
+
+--echo #-----------------------------------------------------------------------
+--echo # Cleanup
+
+disconnect conn_no_privs;
+
+
+DROP USER no_privs@localhost;
+
+# Wait till all disconnects are completed.
+--source include/wait_until_count_sessions.inc
+
+--echo #-----------------------------------------------------------------------
