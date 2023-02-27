@@ -14353,16 +14353,14 @@ static void handle_password_errors(THD *thd, const char *user,
   mysql_mutex_assert_not_owner(&acl_cache->lock);
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *u = find_user_exact(hostname, user);
+  uint copy = u->password_errors;
   if (u)
   {
     switch(action)
     {
       case PASSWD_ERROR_INCREMENT:
         u->password_errors++;
-        /* if failed_attempts_before_delay < 0 , disable connection delay*/
-        if(global_system_variables.failed_attempts_before_delay > 0 && u->password_errors > global_system_variables.failed_attempts_before_delay){
-            connection_delay_for_user(thd, user, hostname, u->password_errors);
-        }
+        copy++;
         break;
       case PASSWD_ERROR_CLEAR:
         u->password_errors= 0;
@@ -14373,6 +14371,12 @@ static void handle_password_errors(THD *thd, const char *user,
     }
   }
   mysql_mutex_unlock(&acl_cache->lock);
+  /* If failed_attempts_before_delay < 0 , disable connection delay , it must after acl cache unlock.
+   * Based on WL#8885 FR2 , first success login should also get a delay.
+   * */
+  if(global_system_variables.failed_attempts_before_delay > 0 && copy > global_system_variables.failed_attempts_before_delay){
+    connection_delay_for_user(thd, user, hostname, copy);
+  }
 #endif
 }
 
