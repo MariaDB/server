@@ -90,7 +90,6 @@ struct rpl_group_info;
 struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
-class Load_log_event;
 class Log_event_writer;
 class sp_rcontext;
 class sp_cache;
@@ -790,9 +789,7 @@ typedef struct system_variables
   ulong tx_isolation;
   ulong updatable_views_with_limit;
   ulong alter_algorithm;
-  int max_user_connections;
   uint32 failed_attempts_before_delay;
-  
   ulong server_id;
   ulong session_track_transaction_info;
   ulong threadpool_priority;

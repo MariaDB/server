@@ -14504,7 +14504,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
                       sctx->user, sctx->host_or_ip,
                       safe_str(mpvio.db.str), safe_vio_type_name(thd->net.vio));
   }
-  st_user_login_failed_record *record= NULL;
+
   if (res > CR_OK && mpvio.status != MPVIO_EXT::SUCCESS)
   {
     Host_errors errors;

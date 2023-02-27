@@ -70,6 +70,7 @@ public:
 
 class THD;
 typedef struct user_conn USER_CONN;
+
 void init_max_user_conn(void);
 void init_global_user_stats(void);
 void init_global_table_stats(void);

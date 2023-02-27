@@ -5560,6 +5560,7 @@ static int init_server_components()
 #endif
 
   ft_init_stopwords();
+
   init_max_user_conn();
   init_global_user_stats();
   init_global_client_stats();

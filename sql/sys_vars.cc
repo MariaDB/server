@@ -2602,7 +2602,6 @@ static bool if_checking_enabled(sys_var *self, THD *thd,  set_var *var)
 
   return false;
 }
-
 // non-standard session_value_ptr() here
 static Sys_var_max_user_conn Sys_max_user_connections(
        "max_user_connections",

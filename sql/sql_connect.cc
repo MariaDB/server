@@ -60,6 +60,9 @@ PSI_stage_info stage_waiting_in_user_login_failed_delay = {
     0, "Waiting in delay failed login response stage", 0};;
 extern uint max_password_errors;;
 
+/*
+  Get structure for logging connection data for the current user
+*/
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static HASH hash_user_connections;
 
@@ -424,10 +427,12 @@ extern "C" uchar *get_key_conn(user_conn *buff, size_t *length,
   return (uchar*) buff->user;
 }
 
+
 extern "C" void free_user(struct user_conn *uc)
 {
   my_free(uc);
 }
+
 
 void init_max_user_conn(void)
 {
