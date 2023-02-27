@@ -3133,5 +3133,124 @@ INSERT INTO t1 (VALUES (IGNORE) UNION VALUES (IGNORE));
 ERROR HY000: 'ignore' is not allowed in this context
 DROP TABLE t1;
 #
+# MDEV-28603: VIEW with table value constructor used as single-value
+#             subquery contains subquery as its first element
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+create table t2 (b int);
+insert into t2 values (1), (2);
+create view v as select (values ((select * from t1 where a > 5))) as m from t2;
+select (values ((select * from t1 where a > 5))) as m from t2;
+m
+7
+7
+select * from v;
+m
+7
+7
+with cte as ( select (values ((select * from t1 where a > 5))) as m from t2 ) select * from cte;
+m
+7
+7
+explain select (values ((select * from t1 where a > 5))) as m from t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+4	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+explain select * from v;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+5	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+explain with cte as ( select (values ((select * from t1 where a > 5))) as m from t2 ) select * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+5	SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+prepare stmt from "select (values ((select * from t1 where a > 5))) as m from t2";
+execute stmt;
+m
+7
+7
+execute stmt;
+m
+7
+7
+deallocate prepare stmt;
+prepare stmt from "select * from v";
+execute stmt;
+m
+7
+7
+execute stmt;
+m
+7
+7
+deallocate prepare stmt;
+prepare stmt from "with cte as ( select (values ((select * from t1 where a > 5))) as m from t2 ) select * from cte";
+execute stmt;
+m
+7
+7
+execute stmt;
+m
+7
+7
+deallocate prepare stmt;
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select (values ((select `t1`.`a` from `t1` where `t1`.`a` > 5))) AS `m` from `t2`	latin1	latin1_swedish_ci
+drop view v;
+prepare stmt from "create view v as select (values ((select * from t1 where a > 5))) as m from t2";
+execute stmt;
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select (values ((select `t1`.`a` from `t1` where `t1`.`a` > 5))) AS `m` from `t2`	latin1	latin1_swedish_ci
+select * from v;
+m
+7
+7
+drop view v;
+execute stmt;
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select (values ((select `t1`.`a` from `t1` where `t1`.`a` > 5))) AS `m` from `t2`	latin1	latin1_swedish_ci
+select * from v;
+m
+7
+7
+deallocate prepare stmt;
+prepare stmt from "show create view v";
+execute stmt;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select (values ((select `t1`.`a` from `t1` where `t1`.`a` > 5))) AS `m` from `t2`	latin1	latin1_swedish_ci
+execute stmt;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select (values ((select `t1`.`a` from `t1` where `t1`.`a` > 5))) AS `m` from `t2`	latin1	latin1_swedish_ci
+deallocate prepare stmt;
+drop view v;
+create view v as select (values ((select * from t1 where a > 5
+union
+select * from t1 where a > 7))) as m from t2;
+select (values ((select * from t1 where a > 5
+union
+select * from t1 where a > 7))) as m from t2;
+m
+7
+7
+select * from v;
+m
+7
+7
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select (values ((select `t1`.`a` from `t1` where `t1`.`a` > 5 union select `t1`.`a` from `t1` where `t1`.`a` > 7))) AS `m` from `t2`	latin1	latin1_swedish_ci
+drop view v;
+drop table t1,t2;
+#
 # End of 10.4 tests
 #

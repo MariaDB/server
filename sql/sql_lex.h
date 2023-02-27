@@ -1132,7 +1132,8 @@ public:
     st_select_lex.
   */
   uint curr_tvc_name;
-  
+  /* true <=> select has been created a TVC wrapper */
+  bool is_tvc_wrapper;
   /*
     Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column
     of EXPLAIN

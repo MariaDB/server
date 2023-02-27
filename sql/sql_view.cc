@@ -956,10 +956,12 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
     thd->variables.sql_mode&= ~MODE_ANSI_QUOTES;
 
     lex->unit.print(&view_query, enum_query_type(QT_VIEW_INTERNAL |
-                                                 QT_ITEM_ORIGINAL_FUNC_NULLIF));
+                                                 QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                                 QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
     lex->unit.print(&is_query, enum_query_type(QT_TO_SYSTEM_CHARSET |
                                                QT_WITHOUT_INTRODUCERS |
-                                               QT_ITEM_ORIGINAL_FUNC_NULLIF));
+                                               QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                               QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
 
     thd->variables.sql_mode|= sql_mode;
   }

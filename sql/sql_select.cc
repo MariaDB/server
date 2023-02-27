@@ -27992,6 +27992,12 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     return;
   }
 
+  if (is_tvc_wrapper && (query_type & QT_NO_WRAPPERS_FOR_TVC_IN_VIEW))
+  {
+    first_inner_unit()->first_select()->print(thd, str, query_type);
+    return;
+  }
+
   if ((query_type & QT_SHOW_SELECT_NUMBER) &&
       thd->lex->all_selects_list &&
       thd->lex->all_selects_list->link_next &&
