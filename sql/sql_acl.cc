@@ -14371,12 +14371,7 @@ static void handle_password_errors(THD *thd, const char *user,
     }
   }
   mysql_mutex_unlock(&acl_cache->lock);
-  /* If failed_attempts_before_delay < 0 , disable connection delay , it must after acl cache unlock.
-   * Based on WL#8885 FR2 , first success login should also get a delay.
-   * */
-  if(global_system_variables.failed_attempts_before_delay > 0 && copy > global_system_variables.failed_attempts_before_delay){
-    connection_delay_for_user(thd, user, hostname, copy);
-  }
+  connection_delay_for_user(thd, user, hostname, copy);
 #endif
 }
 

@@ -261,7 +261,7 @@ void time_out_user_resource_limits(THD *thd, USER_CONN *uc)
   DBUG_VOID_RETURN;
 }
 
-uint64 get_connection_delay_time(uint32 count)
+static uint64 get_connection_delay_time(uint32 count)
 {
   /*
    * Based on that invalid password errors will cause user can't connect server
@@ -289,7 +289,7 @@ uint64 get_connection_delay_time(uint32 count)
  * @param thd
  * @param time
  */
-void condition_wait(THD* thd, uint64 time)
+static void condition_wait(THD* thd, uint64 time)
 {
   /** mysql_cond_timedwait requires wait time in timespec format */
   struct timespec abstime;
@@ -339,13 +339,13 @@ void condition_wait(THD* thd, uint64 time)
   mysql_cond_destroy(&connection_delay_wait_condition);
 }
 
-int delay_response(THD *thd, const char *user, const char *hostname,
+static int delay_response(THD *thd, const char *user, const char *hostname,
                    uint32 count)
 {
   uint64 wait_time= get_connection_delay_time(count);
   DBUG_PRINT("info",
              ("%s@%s wait %u milliseconds", user, hostname, wait_time));
-  connection_delay(thd, wait_time);
+  condition_wait(thd, wait_time);
   return 0;
 }
 
@@ -358,11 +358,16 @@ int connection_delay_for_user(THD *thd,
                                     const char * user,const char * hostname, uint failed_count)
 {
   DBUG_ENTER("connection_delay_for_user");
-  if (user && hostname)
+  /* If failed_attempts_before_delay < 0 , disable connection delay .
+   * Based on WL#8885 FR2 , first success login should also get a delay.
+   * */
+  if (global_system_variables.failed_attempts_before_delay > 0 && user &&
+      hostname &&
+      failed_count > global_system_variables.failed_attempts_before_delay)
   {
-    DBUG_PRINT("info",("%s@%s have login failed %u times",user,hostname,failed_count));
-    delay_response(thd, user,hostname,
-                     failed_count);
+    DBUG_PRINT("info", ("%s@%s have login failed %u times", user, hostname,
+                        failed_count));
+    delay_response(thd, user, hostname, failed_count);
   }
   DBUG_RETURN(0);
 }
