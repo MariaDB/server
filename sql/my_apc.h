@@ -35,6 +35,8 @@
     requestor.
 */
 
+#include "my_atomic_wrapper.h"
+
 class THD;
 
 /*
@@ -81,7 +83,7 @@ public:
   */
   inline bool have_apc_requests()
   {
-    return MY_TEST(apc_calls);
+    return MY_TEST(apc_calls.load(std::memory_order_acquire));
   }
 
   inline bool is_enabled() { return enabled; }
@@ -127,7 +129,7 @@ private:
        cancel the request, which means we need a fast request-removal
        operation.
   */
-  Call_request *apc_calls;
+  Atomic_relaxed<Call_request*> apc_calls;
 
 public:
   class Call_request
@@ -158,6 +160,7 @@ private:
   /* return the first call request in queue, or NULL if there are none enqueued */
   Call_request *get_first_in_queue()
   {
+    mysql_mutex_assert_owner(LOCK_thd_kill_ptr);
     return apc_calls;
   }
 };

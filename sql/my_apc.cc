@@ -47,11 +47,12 @@ void Apc_target::init(mysql_mutex_t *target_mutex)
 void Apc_target::enqueue_request(Call_request *qe)
 {
   mysql_mutex_assert_owner(LOCK_thd_kill_ptr);
-  if (apc_calls)
+  Call_request *old_apc_calls= apc_calls;
+  if (old_apc_calls)
   {
-    Call_request *after= apc_calls->prev;
-    qe->next= apc_calls;
-    apc_calls->prev= qe;
+    Call_request *after= old_apc_calls->prev;
+    qe->next= old_apc_calls;
+    old_apc_calls->prev= qe;
      
     qe->prev= after;
     after->next= qe;
@@ -81,9 +82,12 @@ void Apc_target::unenqueue_request()
 void Apc_target::dequeue_request(Call_request *qe)
 {
   mysql_mutex_assert_owner(LOCK_thd_kill_ptr);
-  if (apc_calls == qe)
+  Call_request *old_apc_calls= apc_calls;
+  if (old_apc_calls == qe)
   {
-    if ((apc_calls= apc_calls->next) == qe)
+    Call_request *next= old_apc_calls->next;
+    apc_calls= next;
+    if (next == qe)
     {
       apc_calls= NULL;
     }
