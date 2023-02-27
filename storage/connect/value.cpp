@@ -163,9 +163,9 @@ PCSZ GetTypeName(int type)
 /***********************************************************************/
 /*  GetTypeSize: returns the PlugDB internal type size.                */
 /***********************************************************************/
-int GetTypeSize(int type, int len)
-  {
-	switch (type) {
+unsigned GetTypeSize(int type, unsigned len)
+{
+  switch (type) {
     case TYPE_DECIM:
     case TYPE_BIN:
     case TYPE_STRING: len = len * sizeof(char); break;
@@ -176,7 +176,7 @@ int GetTypeSize(int type, int len)
     case TYPE_DOUBLE: len = sizeof(double);     break;
     case TYPE_TINY:   len = sizeof(char);       break;
     case TYPE_PCHAR:  len = sizeof(char*);      break;
-    default:          len = -1;
+    default:          len = 0;
   } // endswitch type
 
   return len;

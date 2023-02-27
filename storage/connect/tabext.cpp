@@ -466,7 +466,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 
 	if (Quote) {
 		// Tabname can have both database and table identifiers, we need to parse
-		if (res= strstr(buf, "."))
+		if ((res= strstr(buf, ".")))
 		{
 			// Parse schema
 			my_len= res - buf + 1;
