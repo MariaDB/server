@@ -193,8 +193,11 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
                        list and open and lock them (used in instructions which
                        need to calculate some expression and don't execute
                        complete statement).
-  @param sp_instr      instruction for which we prepare context, and which core
+  @param instr         instruction for which we prepare context, and which core
                        function execute by calling its exec_core() method.
+  @param rerun_the_same_instr  true in case the instruction is re-run after
+                               a SQL statement associated with it has been
+                               re-parsed.
 
   @note
     We are not saving/restoring some parts of THD which may need this because
@@ -206,7 +209,8 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
 
 int
 sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
-                                       bool open_tables, sp_instr* instr)
+                                       bool open_tables, sp_instr* instr,
+                                       bool rerun_the_same_instr)
 {
   int res= 0;
   DBUG_ENTER("reset_lex_and_exec_core");
@@ -232,7 +236,20 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   */
   thd->lex= m_lex;
 
-  thd->set_query_id(next_query_id());
+  /*
+    If the instruction is re-run by a reason of metadata change, then re-use
+    current query id rather than set a new one. Doing this way we retain
+    warnings generated on running the SP instruction. If a new query id was set
+    it would result in clearing all accumulated warnings in
+      mysql_execute_command
+    on calling
+      thd->get_stmt_da()->opt_clear_warning_info(thd->query_id)
+    since in this case Warning_info::m_warn_id != thd->query_id.
+
+    @sa Warning_info::opt_clear()
+  */
+  if (!rerun_the_same_instr)
+    thd->set_query_id(next_query_id());
 
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
   {
@@ -422,6 +439,7 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
                                               sp_lex_instr* instr)
 {
   Reprepare_observer reprepare_observer;
+  bool rerun_the_same_instr= false;
 
   while (true)
   {
@@ -440,6 +458,7 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
         set_lex(lex);
 
       m_first_execution= true;
+      rerun_the_same_instr= true;
     }
 
     Reprepare_observer *stmt_reprepare_observer= nullptr;
@@ -455,7 +474,8 @@ int sp_lex_keeper::validate_lex_and_exec_core(THD *thd, uint *nextp,
     Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
     thd->m_reprepare_observer= stmt_reprepare_observer;
 
-    bool rc= reset_lex_and_exec_core(thd, nextp, open_tables, instr);
+    bool rc= reset_lex_and_exec_core(thd, nextp, open_tables, instr,
+                                     rerun_the_same_instr);
 
     thd->m_reprepare_observer= save_reprepare_observer;
 
