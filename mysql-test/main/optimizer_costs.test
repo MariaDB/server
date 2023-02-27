@@ -184,4 +184,6 @@ drop table t1;
 --echo #
 
 let $end_engines=`select count(*) from information_schema.optimizer_costs`;
---echo Start_engines: $start_engines  End_engines: $end_engines
+let $diff=`select $end_engines - $start_engines`;
+--echo "New cost structures: $diff (should be 1)"
+

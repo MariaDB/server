@@ -344,4 +344,4 @@ drop table t1;
 #
 # cleanup
 #
-Start_engines: 9  End_engines: 10
+"New cost structures: 1 (should be 1)"
