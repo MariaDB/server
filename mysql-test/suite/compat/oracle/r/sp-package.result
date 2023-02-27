@@ -2147,6 +2147,8 @@ CREATE TABLE t1 (a INT) AS SELECT 1;
 CALL p1.p1();
 msg
 This is p1
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # sp-cache-invalidate
 SELECT p1.f1();
 p1.f1()
