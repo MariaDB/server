@@ -5801,5 +5801,10 @@ END;
 $
 ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
 #
+# MDEV-24392: execute immediate '/* do nothing */' not supported 
+# Testing for the 'EXECUTE IMMEDIATE' statement when passing an empty query
+#
+EXECUTE IMMEDIATE '/* nothing */';
+#
 # End of 10.4 tests
 #

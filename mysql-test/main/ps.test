@@ -5225,5 +5225,11 @@ $
 delimiter ;$
 
 --echo #
+--echo # MDEV-24392: execute immediate '/* do nothing */' not supported 
+--echo # Testing for the 'EXECUTE IMMEDIATE' statement when passing an empty query
+--echo #
+EXECUTE IMMEDIATE '/* nothing */';
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

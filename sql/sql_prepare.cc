@@ -2616,6 +2616,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_KILL:
   case SQLCOM_COMPOUND:
   case SQLCOM_SHUTDOWN:
+  case SQLCOM_EMPTY_QUERY:
     break;
 
   case SQLCOM_PREPARE:
