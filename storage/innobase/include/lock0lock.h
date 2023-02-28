@@ -891,8 +891,8 @@ public:
 
   /** Cancel a waiting lock request.
   @tparam check_victim  whether to check for DB_DEADLOCK
-  @param lock           waiting lock request
   @param trx            active transaction
+  @param lock           waiting lock request
   @retval DB_SUCCESS    if no lock existed
   @retval DB_DEADLOCK   if trx->lock.was_chosen_as_deadlock_victim was set
   @retval DB_LOCK_WAIT  if the lock was canceled */

@@ -5312,7 +5312,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   /* Initialize POSITION objects */
   for (i=0 ; i <= table_count ; i++)
     (void) new ((char*) (join->positions + i)) POSITION;
-  for (i=0 ; i <= sort_space ; i++)
+  for (i=0 ; i < sort_space ; i++)
     (void) new ((char*) (join->sort_positions + i)) POSITION;
 
   join->best_ref= stat_vector;

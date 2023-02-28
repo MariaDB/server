@@ -400,7 +400,7 @@ void trx_rseg_t::reinit(uint32_t page)
   }
 
   ut_ad(!is_referenced());
-  clear_needs_purge();
+  needs_purge= 0;
   last_commit_and_offset= 0;
   last_page_no= FIL_NULL;
   curr_size= 1;
@@ -408,10 +408,9 @@ void trx_rseg_t::reinit(uint32_t page)
 
 /** Read the undo log lists.
 @param[in,out]  rseg            rollback segment
-@param[in,out]  max_trx_id      maximum observed transaction identifier
 @param[in]      rseg_header     rollback segment header
 @return error code */
-static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
+static dberr_t trx_undo_lists_init(trx_rseg_t *rseg,
                                    const buf_block_t *rseg_header)
 {
   ut_ad(srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
@@ -422,8 +421,8 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
     uint32_t page_no= trx_rsegf_get_nth_undo(rseg_header, i);
     if (page_no != FIL_NULL)
     {
-      const trx_undo_t *undo= trx_undo_mem_create_at_db_start(rseg, i, page_no,
-                                                              max_trx_id);
+      const trx_undo_t *undo=
+        trx_undo_mem_create_at_db_start(rseg, i, page_no);
       if (!undo)
         return DB_CORRUPTION;
       if (is_undo_empty)
@@ -439,11 +438,9 @@ static dberr_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 
 /** Restore the state of a persistent rollback segment.
 @param[in,out]	rseg		persistent rollback segment
-@param[in,out]	max_trx_id	maximum observed transaction identifier
 @param[in,out]	mtr		mini-transaction
 @return error code */
-static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
-                                    mtr_t *mtr)
+static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
 {
   if (!rseg->space)
     return DB_TABLESPACE_NOT_FOUND;
@@ -459,8 +456,8 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
     trx_id_t id= mach_read_from_8(TRX_RSEG + TRX_RSEG_MAX_TRX_ID +
                                   rseg_hdr->page.frame);
 
-    if (id > max_trx_id)
-      max_trx_id= id;
+    if (id > rseg->needs_purge)
+      rseg->needs_purge= id;
 
     const byte *binlog_name=
       TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_hdr->page.frame;
@@ -496,7 +493,7 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 
   rseg->curr_size = mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE +
                                      rseg_hdr->page.frame) + 1;
-  err= trx_undo_lists_init(rseg, max_trx_id, rseg_hdr);
+  err= trx_undo_lists_init(rseg, rseg_hdr);
   if (err != DB_SUCCESS);
   else if (auto len= flst_get_len(TRX_RSEG + TRX_RSEG_HISTORY +
                                   rseg_hdr->page.frame))
@@ -517,19 +514,16 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
 
     trx_id_t id= mach_read_from_8(block->page.frame + node_addr.boffset +
                                   TRX_UNDO_TRX_ID);
-    if (id > max_trx_id)
-      max_trx_id= id;
+    if (id > rseg->needs_purge)
+      rseg->needs_purge= id;
     id= mach_read_from_8(block->page.frame + node_addr.boffset +
                          TRX_UNDO_TRX_NO);
-    if (id > max_trx_id)
-      max_trx_id= id;
+    if (id > rseg->needs_purge)
+      rseg->needs_purge= id;
 
     rseg->set_last_commit(node_addr.boffset, id);
-    unsigned purge= mach_read_from_2(block->page.frame + node_addr.boffset +
-                                     TRX_UNDO_NEEDS_PURGE);
-    ut_ad(purge <= 1);
-    if (purge != 0)
-      rseg->set_needs_purge();
+    ut_ad(mach_read_from_2(block->page.frame + node_addr.boffset +
+                           TRX_UNDO_NEEDS_PURGE) <= 1);
 
     if (rseg->last_page_no != FIL_NULL)
       /* There is no need to cover this operation by the purge
@@ -617,9 +611,11 @@ dberr_t trx_rseg_array_init()
 
 				rseg.init(rseg_space, page_no);
 				ut_ad(rseg.is_persistent());
-				if ((err = trx_rseg_mem_restore(
-					     &rseg, max_trx_id, &mtr))
-				    != DB_SUCCESS) {
+				err = trx_rseg_mem_restore(&rseg, &mtr);
+				if (rseg.needs_purge > max_trx_id) {
+					max_trx_id = rseg.needs_purge;
+				}
+				if (err != DB_SUCCESS) {
 					mtr.commit();
 					break;
 				}
