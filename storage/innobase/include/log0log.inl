@@ -306,6 +306,7 @@ log_free_check(void)
 
 #ifdef UNIV_DEBUG
 	static const latch_level_t latches[] = {
+		SYNC_REDO_RSEG,		/* trx_purge_free_segment() */
 		SYNC_DICT,		/* dict_sys.mutex during
 					commit_try_rebuild() */
 		SYNC_DICT_OPERATION,	/* dict_sys.latch X-latch during
