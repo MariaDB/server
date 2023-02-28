@@ -345,66 +345,45 @@ static void trx_purge_remove_log_hdr(buf_block_t *rseg, buf_block_t* log,
 static
 void trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
 {
-	mtr.commit();
-	mtr.start();
-	ut_ad(mutex_own(&rseg->mutex));
+  mtr.commit();
+  log_free_check();
+  mtr.start();
+  ut_ad(mutex_own(&rseg->mutex));
 
-	buf_block_t* rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
-	buf_block_t* block = trx_undo_page_get(
-		page_id_t(rseg->space->id, hdr_addr.page), &mtr);
+  buf_block_t *rseg_hdr= trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
+  buf_block_t *block=
+    trx_undo_page_get(page_id_t(rseg->space->id, hdr_addr.page), &mtr);
+  const uint32_t seg_size=
+    flst_get_len(TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + block->frame);
+  ut_ad(rseg->curr_size >= seg_size);
+  rseg->curr_size-= seg_size;
 
-	/* Mark the last undo log totally purged, so that if the
-	system crashes, the tail of the undo log will not get accessed
-	again. The list of pages in the undo log tail gets
-	inconsistent during the freeing of the segment, and therefore
-	purge should not try to access them again. */
-	mtr.write<2,mtr_t::MAYBE_NOP>(*block, block->frame + hdr_addr.boffset
-				      + TRX_UNDO_NEEDS_PURGE, 0U);
+  trx_purge_remove_log_hdr(rseg_hdr, block, hdr_addr.boffset, &mtr);
+  byte *hist= TRX_RSEG + TRX_RSEG_HISTORY_SIZE + rseg_hdr->frame;
+  ut_ad(mach_read_from_4(hist) >= seg_size);
+  mtr.write<4>(*rseg_hdr, hist, mach_read_from_4(hist) - seg_size);
 
-	while (!fseg_free_step_not_header(
-		       TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
-		       + block->frame, &mtr)) {
-		mtr.commit();
-		mtr.start();
+  while (!fseg_free_step_not_header(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
+                                    block->frame, &mtr))
+  {
+    block->fix();
+    mtr.commit();
+    /* NOTE: If the server is killed after the log that was produced
+    up to this point was written, and before the log from the mtr.commit()
+    in our caller is written, then the pages belonging to the
+    undo log will become unaccessible garbage.
 
-		rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
+    This does not matters when using multiple innodb_undo_tablespaces;
+    innodb_undo_log_truncate=ON will be able to reclaim the space. */
+    log_free_check();
+    mtr.start();
+    ut_ad(rw_lock_s_lock_nowait(block->debug_latch, __FILE__, __LINE__));
+    rw_lock_x_lock(&block->lock);
+    mtr_memo_push(&mtr, block, MTR_MEMO_PAGE_X_FIX);
+  }
 
-		block = trx_undo_page_get(
-			page_id_t(rseg->space->id, hdr_addr.page), &mtr);
-	}
-
-	/* The page list may now be inconsistent, but the length field
-	stored in the list base node tells us how big it was before we
-	started the freeing. */
-
-	const uint32_t seg_size = flst_get_len(
-		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + block->frame);
-
-	/* We may free the undo log segment header page; it must be freed
-	within the same mtr as the undo log header is removed from the
-	history list: otherwise, in case of a database crash, the segment
-	could become inaccessible garbage in the file space. */
-
-	trx_purge_remove_log_hdr(rseg_hdr, block, hdr_addr.boffset, &mtr);
-
-	do {
-
-		/* Here we assume that a file segment with just the header
-		page can be freed in a few steps, so that the buffer pool
-		is not flooded with bufferfixed pages: see the note in
-		fsp0fsp.cc. */
-
-	} while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
-				 + block->frame, &mtr));
-
-	byte* hist = TRX_RSEG + TRX_RSEG_HISTORY_SIZE + rseg_hdr->frame;
-	ut_ad(mach_read_from_4(hist) >= seg_size);
-
-	mtr.write<4>(*rseg_hdr, hist, mach_read_from_4(hist) - seg_size);
-
-	ut_ad(rseg->curr_size >= seg_size);
-
-	rseg->curr_size -= seg_size;
+  while (!fseg_free_step(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
+                         block->frame, &mtr));
 }
 
 /** Remove unnecessary history data from a rollback segment.
