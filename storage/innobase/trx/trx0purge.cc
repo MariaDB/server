@@ -262,7 +262,6 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	trx_ulogf_t*	undo_header	= undo_page->page.frame
 		+ undo->hdr_offset;
 
-	ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
 	ut_ad(rseg->needs_purge > trx->id);
 
 	if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
@@ -352,8 +351,6 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page,
 				       undo_header + TRX_UNDO_TRX_NO,
 				       trx->rw_trx_hash_element->no);
-	mtr->write<2,mtr_t::MAYBE_NOP>(*undo_page, undo_header
-				       + TRX_UNDO_NEEDS_PURGE, 1U);
 
 	if (rseg->last_page_no == FIL_NULL) {
 		rseg->last_page_no = undo->hdr_page_no;
@@ -408,13 +405,6 @@ trx_purge_free_segment(mtr_t &mtr, trx_rseg_t* rseg, fil_addr_t hdr_addr)
                                            nullptr, BUF_GET_POSSIBLY_FREED,
                                            &mtr, &err))
   {
-    /* Mark the last undo log totally purged, so that if the system
-    crashes, the tail of the undo log will not get accessed again. The
-    list of pages in the undo log tail gets inconsistent during the
-    freeing of the segment, and therefore purge should not try to
-    access them again. */
-    mtr.write<2,mtr_t::MAYBE_NOP>(*block, block->page.frame +
-                                  hdr_addr.boffset + TRX_UNDO_NEEDS_PURGE, 0U);
     while (!fseg_free_step_not_header(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER +
                                       block->page.frame, &mtr))
     {
@@ -925,12 +915,8 @@ static void trx_purge_rseg_get_next_history_log(
   if (const buf_block_t* undo_page=
       buf_page_get_gen(page_id_t(purge_sys.rseg->space->id, prev_log_addr.page),
                        0, RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED, &mtr))
-  {
-    const byte *log_hdr= undo_page->page.frame + prev_log_addr.boffset;
-
-    trx_no= mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
-    ut_ad(mach_read_from_2(log_hdr + TRX_UNDO_NEEDS_PURGE) <= 1);
-  }
+    trx_no= mach_read_from_8(undo_page->page.frame + prev_log_addr.boffset +
+                             TRX_UNDO_TRX_NO);
 
   mtr.commit();
 

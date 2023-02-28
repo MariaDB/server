@@ -522,8 +522,6 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, mtr_t *mtr)
       rseg->needs_purge= id;
 
     rseg->set_last_commit(node_addr.boffset, id);
-    ut_ad(mach_read_from_2(block->page.frame + node_addr.boffset +
-                           TRX_UNDO_NEEDS_PURGE) <= 1);
 
     if (rseg->last_page_no != FIL_NULL)
       /* There is no need to cover this operation by the purge
