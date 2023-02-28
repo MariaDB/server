@@ -80,9 +80,25 @@ typedef const struct my_charset_handler_st MY_CHARSET_HANDLER;
 typedef const struct my_collation_handler_st MY_COLLATION_HANDLER;
 
 typedef const struct unicase_info_st MY_UNICASE_INFO;
+typedef const struct casefold_info_st MY_CASEFOLD_INFO;
 typedef const struct uni_ctype_st MY_UNI_CTYPE;
 typedef const struct my_uni_idx_st MY_UNI_IDX;
 typedef uint16 decimal_digits_t;
+
+
+typedef struct casefold_info_char_t
+{
+  uint32 toupper;
+  uint32 tolower;
+} MY_CASEFOLD_CHARACTER;
+
+
+struct casefold_info_st
+{
+  my_wc_t maxchar;
+  MY_CASEFOLD_CHARACTER **page;
+};
+
 
 typedef struct unicase_info_char_st
 {
@@ -720,6 +736,9 @@ struct my_charset_handler_st
   */
   my_charset_conv_wc_mb native_to_mb;
   my_charset_conv_wc_mb wc_to_printable;
+
+  uint (*caseup_multiply)(CHARSET_INFO *cs);
+  uint (*casedn_multiply)(CHARSET_INFO *cs);
 };
 
 extern MY_CHARSET_HANDLER my_charset_8bit_handler;
@@ -752,12 +771,11 @@ struct charset_info_st
   MY_UCA_INFO *uca;
   const uint16 *tab_to_uni;
   MY_UNI_IDX  *tab_from_uni;
+  MY_CASEFOLD_INFO *casefold;
   MY_UNICASE_INFO *caseinfo;
   const uchar  *state_map;
   const uchar  *ident_map;
   uint      strxfrm_multiply;
-  uchar     caseup_multiply;
-  uchar     casedn_multiply;
   uint      mbminlen;
   uint      mbmaxlen;
   /*
@@ -825,6 +843,16 @@ struct charset_info_st
                 char *dst, size_t dstlen) const
   {
     return (cset->casedn)(this, src, srclen, dst, dstlen);
+  }
+
+  uint caseup_multiply() const
+  {
+    return (cset->caseup_multiply)(this);
+  }
+
+  uint casedn_multiply() const
+  {
+    return (cset->casedn_multiply)(this);
   }
 
   size_t long10_to_str(char *dst, size_t dstlen,

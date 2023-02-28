@@ -308,8 +308,6 @@ copy_uca_collation(struct charset_info_st *to, CHARSET_INFO *from,
   to->max_sort_char= from->max_sort_char;
   to->mbminlen= from->mbminlen;
   to->mbmaxlen= from->mbmaxlen;
-  to->caseup_multiply= from->caseup_multiply;
-  to->casedn_multiply= from->casedn_multiply;
   to->state|= MY_CS_AVAILABLE | MY_CS_LOADED |
               MY_CS_STRNXFRM  | MY_CS_UNICODE;
 }
@@ -359,7 +357,6 @@ static int add_collation(struct charset_info_st *cs)
       if (cs_copy_data(newcs,cs))
         return MY_XML_ERROR;
 
-      newcs->caseup_multiply= newcs->casedn_multiply= 1;
       newcs->levels_for_order= 1;
       
       if (!strcmp(cs->cs_name.str,"ucs2") )

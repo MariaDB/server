@@ -1,9 +1,14 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+
+SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET @save_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 CREATE TABLE t1(f1 INT NOT NULL, f2 int not null,
 		f3 int generated always as (f2 * 2) VIRTUAL,
 		primary key(f1), INDEX (f3))ENGINE=InnoDB;
 connect(con1,localhost,root,,,);
+--source ../innodb/include/wait_all_purged.inc
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
 connection default;
@@ -26,5 +31,6 @@ commit;
 disconnect con1;
 disconnect con2;
 connection default;
-set global debug_dbug=default;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
+SET GLOBAL debug_dbug=@save_dbug;
 DROP TABLE t1;

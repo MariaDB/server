@@ -1397,3 +1397,15 @@ LEX_CSTRING my_ci_get_collation_name_generic(CHARSET_INFO *cs,
 {
   return cs->coll_name;
 }
+
+
+uint my_casefold_multiply_1(CHARSET_INFO *cs)
+{
+  return 1;
+}
+
+
+uint my_casefold_multiply_2(CHARSET_INFO *cs)
+{
+  return 2;
+}

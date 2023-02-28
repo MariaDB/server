@@ -65,53 +65,44 @@ struct alignas(CPU_LEVEL1_DCACHE_LINESIZE) trx_rseg_t
   /** length of the TRX_RSEG_HISTORY list (number of transactions) */
   uint32_t history_size;
 
+  /** Last known transaction that has not been purged yet,
+  or 0 if everything has been purged. */
+  trx_id_t needs_purge;
+
 private:
-  /** Reference counter to track rseg allocated transactions,
-  with SKIP and NEEDS_PURGE flags. */
+  /** Reference counter to track is_persistent() transactions,
+  with SKIP flag. */
   std::atomic<uint32_t> ref;
 
   /** Whether undo tablespace truncation is pending */
   static constexpr uint32_t SKIP= 1;
-  /** Whether the log segment needs purge */
-  static constexpr uint32_t NEEDS_PURGE= 2;
   /** Transaction reference count multiplier */
-  static constexpr uint32_t REF= 4;
+  static constexpr uint32_t REF= 2;
 
   uint32_t ref_load() const { return ref.load(std::memory_order_relaxed); }
 
-  /** Set a bit in ref */
-  template<bool needs_purge> void ref_set()
+  /** Set the SKIP bit */
+  void ref_set_skip()
   {
-    static_assert(SKIP == 1U << 0, "compatibility");
-    static_assert(NEEDS_PURGE == 1U << 1, "compatibility");
+    static_assert(SKIP == 1U, "compatibility");
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    if (needs_purge)
-      __asm__ __volatile__("lock btsl $1, %0" : "+m" (ref));
-    else
-      __asm__ __volatile__("lock btsl $0, %0" : "+m" (ref));
+    __asm__ __volatile__("lock btsl $0, %0" : "+m" (ref));
 #elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    _interlockedbittestandset(reinterpret_cast<volatile long*>(&ref),
-                              needs_purge);
+    _interlockedbittestandset(reinterpret_cast<volatile long*>(&ref), 0);
 #else
-    ref.fetch_or(needs_purge ? NEEDS_PURGE : SKIP, std::memory_order_relaxed);
+    ref.fetch_or(SKIP, std::memory_order_relaxed);
 #endif
   }
   /** Clear a bit in ref */
-  template<bool needs_purge> void ref_reset()
+  void ref_reset_skip()
   {
-    static_assert(SKIP == 1U << 0, "compatibility");
-    static_assert(NEEDS_PURGE == 1U << 1, "compatibility");
+    static_assert(SKIP == 1U, "compatibility");
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    if (needs_purge)
-      __asm__ __volatile__("lock btrl $1, %0" : "+m" (ref));
-    else
-      __asm__ __volatile__("lock btrl $0, %0" : "+m" (ref));
+    __asm__ __volatile__("lock btrl $0, %0" : "+m" (ref));
 #elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    _interlockedbittestandreset(reinterpret_cast<volatile long*>(&ref),
-                                needs_purge);
+    _interlockedbittestandreset(reinterpret_cast<volatile long*>(&ref), 0);
 #else
-    ref.fetch_and(needs_purge ? ~NEEDS_PURGE : ~SKIP,
-                  std::memory_order_relaxed);
+    ref.fetch_and(~SKIP, std::memory_order_relaxed);
 #endif
   }
 
@@ -125,26 +116,20 @@ public:
   void destroy();
 
   /** Note that undo tablespace truncation was started. */
-  void set_skip_allocation() { ut_ad(is_persistent()); ref_set<false>(); }
+  void set_skip_allocation() { ut_ad(is_persistent()); ref_set_skip(); }
   /** Note that undo tablespace truncation was completed. */
   void clear_skip_allocation()
   {
     ut_ad(is_persistent());
 #if defined DBUG_OFF
-    ref_reset<false>();
+    ref_reset_skip();
 #else
     ut_d(auto r=) ref.fetch_and(~SKIP, std::memory_order_relaxed);
     ut_ad(r == SKIP);
 #endif
   }
-  /** Note that the rollback segment requires purge. */
-  void set_needs_purge() { ref_set<true>(); }
-  /** Note that the rollback segment will not require purge. */
-  void clear_needs_purge() { ref_reset<true>(); }
   /** @return whether the segment is marked for undo truncation */
   bool skip_allocation() const { return ref_load() & SKIP; }
-  /** @return whether the segment needs purge */
-  bool needs_purge() const { return ref_load() & NEEDS_PURGE; }
   /** Increment the reference count */
   void acquire()
   { ut_d(auto r=) ref.fetch_add(REF); ut_ad(!(r & SKIP)); }

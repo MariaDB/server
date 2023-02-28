@@ -8,7 +8,7 @@
 
 /* Copyright 2000-2008 MySQL AB, 2008 Sun Microsystems, Inc.
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright 2008-2016 MariaDB Corporation
+   Copyright 2008-2023 MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3678,8 +3678,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   3,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("dec8") },                     /* cset name     */
-  { STRING_WITH_LEN("dec8_swedish_ci") },          /* coll name     */
+  { STRING_WITH_LEN("dec8") }, /* cset name     */
+  { STRING_WITH_LEN("dec8_swedish_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_dec8_swedish_ci,                   /* ctype         */
@@ -3689,12 +3689,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3711,8 +3710,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   4,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("cp850") },                 /* cset name     */
-  { STRING_WITH_LEN("cp850_general_ci") },      /* coll name     */
+  { STRING_WITH_LEN("cp850") }, /* cset name     */
+  { STRING_WITH_LEN("cp850_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp850_general_ci,                   /* ctype         */
@@ -3722,12 +3721,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3744,9 +3742,9 @@ struct charset_info_st compiled_charsets[] = {
 {
   5,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("latin1") },                /* cset name     */
-  { STRING_WITH_LEN("latin1_german1_ci") },     /* coll name     */
-  "",                         /* comment       */
+  { STRING_WITH_LEN("latin1") }, /* cset name     */
+  { STRING_WITH_LEN("latin1_german1_ci") }, /* coll name     */
+  "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_german1_ci,                   /* ctype         */
   to_lower_latin1_german1_ci,                   /* to_lower         */
@@ -3755,12 +3753,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_german1_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3777,8 +3774,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   6,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("hp8") },                   /* cset name     */
-  { STRING_WITH_LEN("hp8_english_ci") },        /* coll name     */
+  { STRING_WITH_LEN("hp8") }, /* cset name     */
+  { STRING_WITH_LEN("hp8_english_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hp8_english_ci,                   /* ctype         */
@@ -3788,12 +3785,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3810,8 +3806,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   7,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("koi8r") },                 /* cset name     */
-  { STRING_WITH_LEN("koi8r_general_ci") },      /* coll name     */
+  { STRING_WITH_LEN("koi8r") }, /* cset name     */
+  { STRING_WITH_LEN("koi8r_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8r_general_ci,                   /* ctype         */
@@ -3821,12 +3817,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3843,8 +3838,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   9,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("latin2") },                 /* cset name     */
-  { STRING_WITH_LEN("latin2_general_ci")},       /* coll name     */
+  { STRING_WITH_LEN("latin2") }, /* cset name     */
+  { STRING_WITH_LEN("latin2_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
@@ -3854,12 +3849,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3876,8 +3870,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   10,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_NONASCII,
-  { STRING_WITH_LEN("swe7") },                     /* cset name     */
-  { STRING_WITH_LEN("swe7_swedish_ci") },          /* coll name     */
+  { STRING_WITH_LEN("swe7") }, /* cset name     */
+  { STRING_WITH_LEN("swe7_swedish_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_swe7_swedish_ci,                   /* ctype         */
@@ -3887,12 +3881,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3909,8 +3902,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   11,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_PUREASCII,
-  { STRING_WITH_LEN("ascii") },                     /* cset name     */
-  { STRING_WITH_LEN("ascii_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("ascii") }, /* cset name     */
+  { STRING_WITH_LEN("ascii_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_ascii_general_ci,                   /* ctype         */
@@ -3920,12 +3913,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3942,8 +3934,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   14,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("cp1251") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1251_bulgarian_ci") },        /* coll name     */
+  { STRING_WITH_LEN("cp1251") }, /* cset name     */
+  { STRING_WITH_LEN("cp1251_bulgarian_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
@@ -3953,12 +3945,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -3975,8 +3966,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   15,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("latin1") },                     /* cset name     */
-  { STRING_WITH_LEN("latin1_danish_ci") },           /* coll name     */
+  { STRING_WITH_LEN("latin1") }, /* cset name     */
+  { STRING_WITH_LEN("latin1_danish_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_danish_ci,                   /* ctype         */
@@ -3986,12 +3977,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_danish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4008,8 +3998,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   16,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("hebrew") },                /* cset name     */
-  { STRING_WITH_LEN("hebrew_general_ci") },     /* coll name     */
+  { STRING_WITH_LEN("hebrew") }, /* cset name     */
+  { STRING_WITH_LEN("hebrew_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hebrew_general_ci,                   /* ctype         */
@@ -4019,12 +4009,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4041,8 +4030,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   20,0,0,
   MY_CS_COMPILED|MY_CS_CSSORT,
-  { STRING_WITH_LEN("latin7") },                /* cset name     */
-  { STRING_WITH_LEN("latin7_estonian_cs") },    /* coll name     */
+  { STRING_WITH_LEN("latin7") }, /* cset name     */
+  { STRING_WITH_LEN("latin7_estonian_cs") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
@@ -4052,12 +4041,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4074,8 +4062,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   21,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("latin2") },                     /* cset name     */
-  { STRING_WITH_LEN("latin2_hungarian_ci") },        /* coll name     */
+  { STRING_WITH_LEN("latin2") }, /* cset name     */
+  { STRING_WITH_LEN("latin2_hungarian_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
@@ -4085,12 +4073,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4107,8 +4094,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   22,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("koi8u") },                     /* cset name     */
-  { STRING_WITH_LEN("koi8u_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("koi8u") }, /* cset name     */
+  { STRING_WITH_LEN("koi8u_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8u_general_ci,                   /* ctype         */
@@ -4118,12 +4105,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4140,8 +4126,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   23,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("cp1251") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1251_ukrainian_ci") },        /* coll name     */
+  { STRING_WITH_LEN("cp1251") }, /* cset name     */
+  { STRING_WITH_LEN("cp1251_ukrainian_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
@@ -4151,12 +4137,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4173,8 +4158,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   25,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("greek") },                     /* cset name     */
-  { STRING_WITH_LEN("greek_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("greek") }, /* cset name     */
+  { STRING_WITH_LEN("greek_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_greek_general_ci,                   /* ctype         */
@@ -4184,12 +4169,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4206,8 +4190,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   26,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("cp1250") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1250_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("cp1250") }, /* cset name     */
+  { STRING_WITH_LEN("cp1250_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
@@ -4217,12 +4201,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4239,8 +4222,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   27,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("latin2") },                     /* cset name     */
-  { STRING_WITH_LEN("latin2_croatian_ci") },         /* coll name     */
+  { STRING_WITH_LEN("latin2") }, /* cset name     */
+  { STRING_WITH_LEN("latin2_croatian_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
@@ -4250,12 +4233,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4272,8 +4254,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   29,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("cp1257") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1257_lithuanian_ci") },       /* coll name     */
+  { STRING_WITH_LEN("cp1257") }, /* cset name     */
+  { STRING_WITH_LEN("cp1257_lithuanian_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1257_general_ci,                   /* ctype         */
@@ -4283,12 +4265,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4305,8 +4286,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   30,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("latin5") },                     /* cset name     */
-  { STRING_WITH_LEN("latin5_turkish_ci") },          /* coll name     */
+  { STRING_WITH_LEN("latin5") }, /* cset name     */
+  { STRING_WITH_LEN("latin5_turkish_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin5_turkish_ci,                   /* ctype         */
@@ -4316,12 +4297,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4338,8 +4318,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   32,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("armscii8") },              /* cset name     */
-  { STRING_WITH_LEN("armscii8_general_ci") },   /* coll name     */
+  { STRING_WITH_LEN("armscii8") }, /* cset name     */
+  { STRING_WITH_LEN("armscii8_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_armscii8_general_ci,                   /* ctype         */
@@ -4349,12 +4329,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4371,8 +4350,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   36,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("cp866") },                 /* cset name     */
-  { STRING_WITH_LEN("cp866_general_ci") },      /* coll name     */
+  { STRING_WITH_LEN("cp866") }, /* cset name     */
+  { STRING_WITH_LEN("cp866_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp866_general_ci,                   /* ctype         */
@@ -4382,12 +4361,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4404,8 +4382,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   37,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("keybcs2") },               /* cset name     */
-  { STRING_WITH_LEN("keybcs2_general_ci") },    /* coll name     */
+  { STRING_WITH_LEN("keybcs2") }, /* cset name     */
+  { STRING_WITH_LEN("keybcs2_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_keybcs2_general_ci,                   /* ctype         */
@@ -4415,12 +4393,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4437,8 +4414,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   38,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("macce") },                 /* cset name     */
-  { STRING_WITH_LEN("macce_general_ci") },      /* coll name     */
+  { STRING_WITH_LEN("macce") }, /* cset name     */
+  { STRING_WITH_LEN("macce_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macce_general_ci,                   /* ctype         */
@@ -4448,12 +4425,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4470,8 +4446,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   39,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("macroman") },              /* cset name     */
-  { STRING_WITH_LEN("macroman_general_ci") },   /* coll name     */
+  { STRING_WITH_LEN("macroman") }, /* cset name     */
+  { STRING_WITH_LEN("macroman_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macroman_general_ci,                   /* ctype         */
@@ -4481,12 +4457,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4503,8 +4478,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   40,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("cp852") },                 /* cset name     */
-  { STRING_WITH_LEN("cp852_general_ci") },      /* coll name     */
+  { STRING_WITH_LEN("cp852") }, /* cset name     */
+  { STRING_WITH_LEN("cp852_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp852_general_ci,                   /* ctype         */
@@ -4514,12 +4489,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4536,8 +4510,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   41,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("latin7") },                /* cset name     */
-  { STRING_WITH_LEN("latin7_general_ci") },     /* coll name     */
+  { STRING_WITH_LEN("latin7") }, /* cset name     */
+  { STRING_WITH_LEN("latin7_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
@@ -4547,12 +4521,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4569,8 +4542,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   42,0,0,
   MY_CS_COMPILED|MY_CS_CSSORT,
-  { STRING_WITH_LEN("latin7") },                /* cset name     */
-  { STRING_WITH_LEN("latin7_general_cs") },     /* coll name     */
+  { STRING_WITH_LEN("latin7") }, /* cset name     */
+  { STRING_WITH_LEN("latin7_general_cs") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
@@ -4580,12 +4553,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4602,8 +4574,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   43,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("macce") },                 /* cset name     */
-  { STRING_WITH_LEN("macce_bin") },             /* coll name     */
+  { STRING_WITH_LEN("macce") }, /* cset name     */
+  { STRING_WITH_LEN("macce_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macce_general_ci,                   /* ctype         */
@@ -4613,12 +4585,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4635,8 +4606,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   44,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("cp1250") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1250_croatian_ci") },         /* coll name     */
+  { STRING_WITH_LEN("cp1250") }, /* cset name     */
+  { STRING_WITH_LEN("cp1250_croatian_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
@@ -4646,12 +4617,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4668,8 +4638,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   48,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("latin1") },                     /* cset name     */
-  { STRING_WITH_LEN("latin1_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("latin1") }, /* cset name     */
+  { STRING_WITH_LEN("latin1_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_general_ci,                   /* ctype         */
@@ -4679,12 +4649,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4701,8 +4670,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   49,0,0,
   MY_CS_COMPILED|MY_CS_CSSORT,
-  { STRING_WITH_LEN("latin1") },                     /* cset name     */
-  { STRING_WITH_LEN("latin1_general_cs") },          /* coll name     */
+  { STRING_WITH_LEN("latin1") }, /* cset name     */
+  { STRING_WITH_LEN("latin1_general_cs") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_general_cs,                   /* ctype         */
@@ -4712,12 +4681,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_general_cs,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4734,8 +4702,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   50,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("cp1251") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1251_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("cp1251") }, /* cset name     */
+  { STRING_WITH_LEN("cp1251_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
@@ -4745,12 +4713,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4767,8 +4734,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   51,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("cp1251") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1251_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("cp1251") }, /* cset name     */
+  { STRING_WITH_LEN("cp1251_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
@@ -4778,12 +4745,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4800,8 +4766,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   52,0,0,
   MY_CS_COMPILED|MY_CS_CSSORT,
-  { STRING_WITH_LEN("cp1251") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1251_general_cs") },          /* coll name     */
+  { STRING_WITH_LEN("cp1251") }, /* cset name     */
+  { STRING_WITH_LEN("cp1251_general_cs") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
@@ -4811,12 +4777,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4833,8 +4798,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   53,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("macroman") },                     /* cset name     */
-  { STRING_WITH_LEN("macroman_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("macroman") }, /* cset name     */
+  { STRING_WITH_LEN("macroman_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macroman_general_ci,                   /* ctype         */
@@ -4844,12 +4809,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4866,8 +4830,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   57,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("cp1256") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1256_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("cp1256") }, /* cset name     */
+  { STRING_WITH_LEN("cp1256_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1256_general_ci,                   /* ctype         */
@@ -4877,12 +4841,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4899,8 +4862,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   58,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("cp1257") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1257_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("cp1257") }, /* cset name     */
+  { STRING_WITH_LEN("cp1257_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1257_general_ci,                   /* ctype         */
@@ -4910,12 +4873,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4932,8 +4894,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   59,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("cp1257") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1257_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("cp1257") }, /* cset name     */
+  { STRING_WITH_LEN("cp1257_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1257_general_ci,                   /* ctype         */
@@ -4943,12 +4905,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4965,8 +4926,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   64,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("armscii8") },                     /* cset name     */
-  { STRING_WITH_LEN("armscii8_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("armscii8") }, /* cset name     */
+  { STRING_WITH_LEN("armscii8_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_armscii8_general_ci,                   /* ctype         */
@@ -4976,12 +4937,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -4998,8 +4958,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   65,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_PUREASCII,
-  { STRING_WITH_LEN("ascii") },                     /* cset name     */
-  { STRING_WITH_LEN("ascii_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("ascii") }, /* cset name     */
+  { STRING_WITH_LEN("ascii_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_ascii_general_ci,                   /* ctype         */
@@ -5009,12 +4969,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5031,8 +4990,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   66,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("cp1250") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1250_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("cp1250") }, /* cset name     */
+  { STRING_WITH_LEN("cp1250_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
@@ -5042,12 +5001,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5064,8 +5022,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   67,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("cp1256") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1256_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("cp1256") }, /* cset name     */
+  { STRING_WITH_LEN("cp1256_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1256_general_ci,                   /* ctype         */
@@ -5075,12 +5033,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5097,8 +5054,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   68,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("cp866") },                     /* cset name     */
-  { STRING_WITH_LEN("cp866_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("cp866") }, /* cset name     */
+  { STRING_WITH_LEN("cp866_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp866_general_ci,                   /* ctype         */
@@ -5108,12 +5065,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5130,8 +5086,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   69,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("dec8") },                     /* cset name     */
-  { STRING_WITH_LEN("dec8_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("dec8") }, /* cset name     */
+  { STRING_WITH_LEN("dec8_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_dec8_swedish_ci,                   /* ctype         */
@@ -5141,12 +5097,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5163,8 +5118,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   70,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("greek") },                     /* cset name     */
-  { STRING_WITH_LEN("greek_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("greek") }, /* cset name     */
+  { STRING_WITH_LEN("greek_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_greek_general_ci,                   /* ctype         */
@@ -5174,12 +5129,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5196,8 +5150,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   71,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("hebrew") },                     /* cset name     */
-  { STRING_WITH_LEN("hebrew_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("hebrew") }, /* cset name     */
+  { STRING_WITH_LEN("hebrew_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hebrew_general_ci,                   /* ctype         */
@@ -5207,12 +5161,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5229,8 +5182,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   72,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("hp8") },                     /* cset name     */
-  { STRING_WITH_LEN("hp8_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("hp8") }, /* cset name     */
+  { STRING_WITH_LEN("hp8_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hp8_english_ci,                   /* ctype         */
@@ -5240,12 +5193,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5262,8 +5214,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   73,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("keybcs2") },                     /* cset name     */
-  { STRING_WITH_LEN("keybcs2_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("keybcs2") }, /* cset name     */
+  { STRING_WITH_LEN("keybcs2_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_keybcs2_general_ci,                   /* ctype         */
@@ -5273,12 +5225,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5295,8 +5246,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   74,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("koi8r") },                     /* cset name     */
-  { STRING_WITH_LEN("koi8r_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("koi8r") }, /* cset name     */
+  { STRING_WITH_LEN("koi8r_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8r_general_ci,                   /* ctype         */
@@ -5306,12 +5257,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5328,8 +5278,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   75,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("koi8u") },                     /* cset name     */
-  { STRING_WITH_LEN("koi8u_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("koi8u") }, /* cset name     */
+  { STRING_WITH_LEN("koi8u_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8u_general_ci,                   /* ctype         */
@@ -5339,12 +5289,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5361,8 +5310,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   77,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("latin2") },                     /* cset name     */
-  { STRING_WITH_LEN("latin2_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("latin2") }, /* cset name     */
+  { STRING_WITH_LEN("latin2_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
@@ -5372,12 +5321,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5394,8 +5342,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   78,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("latin5") },                     /* cset name     */
-  { STRING_WITH_LEN("latin5_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("latin5") }, /* cset name     */
+  { STRING_WITH_LEN("latin5_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin5_turkish_ci,                   /* ctype         */
@@ -5405,12 +5353,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5427,8 +5374,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   79,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("latin7") },                     /* cset name     */
-  { STRING_WITH_LEN("latin7_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("latin7") }, /* cset name     */
+  { STRING_WITH_LEN("latin7_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
@@ -5438,12 +5385,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5460,8 +5406,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   80,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("cp850") },                     /* cset name     */
-  { STRING_WITH_LEN("cp850_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("cp850") }, /* cset name     */
+  { STRING_WITH_LEN("cp850_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp850_general_ci,                   /* ctype         */
@@ -5471,12 +5417,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5493,8 +5438,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   81,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("cp852") },                     /* cset name     */
-  { STRING_WITH_LEN("cp852_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("cp852") }, /* cset name     */
+  { STRING_WITH_LEN("cp852_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp852_general_ci,                   /* ctype         */
@@ -5504,12 +5449,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5526,8 +5470,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   82,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII,
-  { STRING_WITH_LEN("swe7") },                     /* cset name     */
-  { STRING_WITH_LEN("swe7_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("swe7") }, /* cset name     */
+  { STRING_WITH_LEN("swe7_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_swe7_swedish_ci,                   /* ctype         */
@@ -5537,12 +5481,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5559,8 +5502,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   92,0,0,
   MY_CS_COMPILED|MY_CS_PRIMARY,
-  { STRING_WITH_LEN("geostd8") },                     /* cset name     */
-  { STRING_WITH_LEN("geostd8_general_ci") },          /* coll name     */
+  { STRING_WITH_LEN("geostd8") }, /* cset name     */
+  { STRING_WITH_LEN("geostd8_general_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_geostd8_general_ci,                   /* ctype         */
@@ -5570,12 +5513,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5592,8 +5534,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   93,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT,
-  { STRING_WITH_LEN("geostd8") },                     /* cset name     */
-  { STRING_WITH_LEN("geostd8_bin") },                 /* coll name     */
+  { STRING_WITH_LEN("geostd8") }, /* cset name     */
+  { STRING_WITH_LEN("geostd8_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_geostd8_general_ci,                   /* ctype         */
@@ -5603,12 +5545,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5625,8 +5566,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   94,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("latin1") },                     /* cset name     */
-  { STRING_WITH_LEN("latin1_spanish_ci") },          /* coll name     */
+  { STRING_WITH_LEN("latin1") }, /* cset name     */
+  { STRING_WITH_LEN("latin1_spanish_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_spanish_ci,                   /* ctype         */
@@ -5636,12 +5577,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin1_spanish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5658,8 +5598,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   99,0,0,
   MY_CS_COMPILED,
-  { STRING_WITH_LEN("cp1250") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1250_polish_ci") },           /* coll name     */
+  { STRING_WITH_LEN("cp1250") }, /* cset name     */
+  { STRING_WITH_LEN("cp1250_polish_ci") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
@@ -5669,12 +5609,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5691,8 +5630,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1027,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("dec8") },                     /* cset name     */
-  { STRING_WITH_LEN("dec8_swedish_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("dec8") }, /* cset name     */
+  { STRING_WITH_LEN("dec8_swedish_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import dec8_swedish_ci]",                    /* tailoring */
   ctype_dec8_swedish_ci,                   /* ctype         */
@@ -5702,12 +5641,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5724,8 +5662,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1028,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp850") },                     /* cset name     */
-  { STRING_WITH_LEN("cp850_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("cp850") }, /* cset name     */
+  { STRING_WITH_LEN("cp850_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import cp850_general_ci]",                    /* tailoring */
   ctype_cp850_general_ci,                   /* ctype         */
@@ -5735,12 +5673,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5757,8 +5694,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1030,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("hp8") },                     /* cset name     */
-  { STRING_WITH_LEN("hp8_english_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("hp8") }, /* cset name     */
+  { STRING_WITH_LEN("hp8_english_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import hp8_english_ci]",                    /* tailoring */
   ctype_hp8_english_ci,                   /* ctype         */
@@ -5768,12 +5705,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5790,8 +5726,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1031,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("koi8r") },                     /* cset name     */
-  { STRING_WITH_LEN("koi8r_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("koi8r") }, /* cset name     */
+  { STRING_WITH_LEN("koi8r_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import koi8r_general_ci]",                    /* tailoring */
   ctype_koi8r_general_ci,                   /* ctype         */
@@ -5801,12 +5737,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5823,8 +5758,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1033,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("latin2") },                     /* cset name     */
-  { STRING_WITH_LEN("latin2_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("latin2") }, /* cset name     */
+  { STRING_WITH_LEN("latin2_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import latin2_general_ci]",                    /* tailoring */
   ctype_latin2_general_ci,                   /* ctype         */
@@ -5834,12 +5769,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5856,8 +5790,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1034,0,0,
   MY_CS_COMPILED|MY_CS_NONASCII|MY_CS_NOPAD,
-  { STRING_WITH_LEN("swe7") },                     /* cset name     */
-  { STRING_WITH_LEN("swe7_swedish_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("swe7") }, /* cset name     */
+  { STRING_WITH_LEN("swe7_swedish_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import swe7_swedish_ci]",                    /* tailoring */
   ctype_swe7_swedish_ci,                   /* ctype         */
@@ -5867,12 +5801,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5889,8 +5822,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1035,0,0,
   MY_CS_COMPILED|MY_CS_PUREASCII|MY_CS_NOPAD,
-  { STRING_WITH_LEN("ascii") },                     /* cset name     */
-  { STRING_WITH_LEN("ascii_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("ascii") }, /* cset name     */
+  { STRING_WITH_LEN("ascii_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import ascii_general_ci]",                    /* tailoring */
   ctype_ascii_general_ci,                   /* ctype         */
@@ -5900,12 +5833,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5922,8 +5854,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1040,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("hebrew") },                     /* cset name     */
-  { STRING_WITH_LEN("hebrew_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("hebrew") }, /* cset name     */
+  { STRING_WITH_LEN("hebrew_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import hebrew_general_ci]",                    /* tailoring */
   ctype_hebrew_general_ci,                   /* ctype         */
@@ -5933,12 +5865,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5955,8 +5886,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1046,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("koi8u") },                     /* cset name     */
-  { STRING_WITH_LEN("koi8u_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("koi8u") }, /* cset name     */
+  { STRING_WITH_LEN("koi8u_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import koi8u_general_ci]",                    /* tailoring */
   ctype_koi8u_general_ci,                   /* ctype         */
@@ -5966,12 +5897,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -5988,8 +5918,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1049,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("greek") },                     /* cset name     */
-  { STRING_WITH_LEN("greek_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("greek") }, /* cset name     */
+  { STRING_WITH_LEN("greek_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import greek_general_ci]",                    /* tailoring */
   ctype_greek_general_ci,                   /* ctype         */
@@ -5999,12 +5929,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6021,8 +5950,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1050,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp1250") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1250_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("cp1250") }, /* cset name     */
+  { STRING_WITH_LEN("cp1250_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import cp1250_general_ci]",                    /* tailoring */
   ctype_cp1250_general_ci,                   /* ctype         */
@@ -6032,12 +5961,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6054,8 +5982,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1054,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("latin5") },                     /* cset name     */
-  { STRING_WITH_LEN("latin5_turkish_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("latin5") }, /* cset name     */
+  { STRING_WITH_LEN("latin5_turkish_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import latin5_turkish_ci]",                    /* tailoring */
   ctype_latin5_turkish_ci,                   /* ctype         */
@@ -6065,12 +5993,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6087,8 +6014,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1056,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("armscii8") },                     /* cset name     */
-  { STRING_WITH_LEN("armscii8_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("armscii8") }, /* cset name     */
+  { STRING_WITH_LEN("armscii8_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import armscii8_general_ci]",                    /* tailoring */
   ctype_armscii8_general_ci,                   /* ctype         */
@@ -6098,12 +6025,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6120,8 +6046,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1060,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp866") },                     /* cset name     */
-  { STRING_WITH_LEN("cp866_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("cp866") }, /* cset name     */
+  { STRING_WITH_LEN("cp866_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import cp866_general_ci]",                    /* tailoring */
   ctype_cp866_general_ci,                   /* ctype         */
@@ -6131,12 +6057,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6153,8 +6078,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1061,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("keybcs2") },                     /* cset name     */
-  { STRING_WITH_LEN("keybcs2_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("keybcs2") }, /* cset name     */
+  { STRING_WITH_LEN("keybcs2_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import keybcs2_general_ci]",                    /* tailoring */
   ctype_keybcs2_general_ci,                   /* ctype         */
@@ -6164,12 +6089,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6186,8 +6110,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1062,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("macce") },                     /* cset name     */
-  { STRING_WITH_LEN("macce_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("macce") }, /* cset name     */
+  { STRING_WITH_LEN("macce_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import macce_general_ci]",                    /* tailoring */
   ctype_macce_general_ci,                   /* ctype         */
@@ -6197,12 +6121,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6219,8 +6142,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1063,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("macroman") },                     /* cset name     */
-  { STRING_WITH_LEN("macroman_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("macroman") }, /* cset name     */
+  { STRING_WITH_LEN("macroman_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import macroman_general_ci]",                    /* tailoring */
   ctype_macroman_general_ci,                   /* ctype         */
@@ -6230,12 +6153,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6252,8 +6174,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1064,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp852") },                     /* cset name     */
-  { STRING_WITH_LEN("cp852_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("cp852") }, /* cset name     */
+  { STRING_WITH_LEN("cp852_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import cp852_general_ci]",                    /* tailoring */
   ctype_cp852_general_ci,                   /* ctype         */
@@ -6263,12 +6185,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6285,8 +6206,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1065,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("latin7") },                     /* cset name     */
-  { STRING_WITH_LEN("latin7_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("latin7") }, /* cset name     */
+  { STRING_WITH_LEN("latin7_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import latin7_general_ci]",                    /* tailoring */
   ctype_latin7_general_ci,                   /* ctype         */
@@ -6296,12 +6217,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6318,8 +6238,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1067,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("macce") },                     /* cset name     */
-  { STRING_WITH_LEN("macce_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("macce") }, /* cset name     */
+  { STRING_WITH_LEN("macce_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macce_general_ci,                   /* ctype         */
@@ -6329,12 +6249,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6351,8 +6270,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1074,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp1251") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1251_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("cp1251") }, /* cset name     */
+  { STRING_WITH_LEN("cp1251_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
@@ -6362,12 +6281,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6384,8 +6302,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1075,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp1251") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1251_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("cp1251") }, /* cset name     */
+  { STRING_WITH_LEN("cp1251_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import cp1251_general_ci]",                    /* tailoring */
   ctype_cp1251_general_ci,                   /* ctype         */
@@ -6395,12 +6313,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6417,8 +6334,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1077,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("macroman") },                     /* cset name     */
-  { STRING_WITH_LEN("macroman_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("macroman") }, /* cset name     */
+  { STRING_WITH_LEN("macroman_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macroman_general_ci,                   /* ctype         */
@@ -6428,12 +6345,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6450,8 +6366,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1081,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp1256") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1256_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("cp1256") }, /* cset name     */
+  { STRING_WITH_LEN("cp1256_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import cp1256_general_ci]",                    /* tailoring */
   ctype_cp1256_general_ci,                   /* ctype         */
@@ -6461,12 +6377,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6483,8 +6398,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1082,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp1257") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1257_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("cp1257") }, /* cset name     */
+  { STRING_WITH_LEN("cp1257_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1257_general_ci,                   /* ctype         */
@@ -6494,12 +6409,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6516,8 +6430,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1083,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp1257") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1257_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("cp1257") }, /* cset name     */
+  { STRING_WITH_LEN("cp1257_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import cp1257_general_ci]",                    /* tailoring */
   ctype_cp1257_general_ci,                   /* ctype         */
@@ -6527,12 +6441,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6549,8 +6462,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1088,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("armscii8") },                     /* cset name     */
-  { STRING_WITH_LEN("armscii8_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("armscii8") }, /* cset name     */
+  { STRING_WITH_LEN("armscii8_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_armscii8_general_ci,                   /* ctype         */
@@ -6560,12 +6473,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6582,8 +6494,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1089,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_PUREASCII|MY_CS_NOPAD,
-  { STRING_WITH_LEN("ascii") },                     /* cset name     */
-  { STRING_WITH_LEN("ascii_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("ascii") }, /* cset name     */
+  { STRING_WITH_LEN("ascii_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_ascii_general_ci,                   /* ctype         */
@@ -6593,12 +6505,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6615,8 +6526,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1090,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp1250") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1250_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("cp1250") }, /* cset name     */
+  { STRING_WITH_LEN("cp1250_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
@@ -6626,12 +6537,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6648,8 +6558,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1091,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp1256") },                     /* cset name     */
-  { STRING_WITH_LEN("cp1256_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("cp1256") }, /* cset name     */
+  { STRING_WITH_LEN("cp1256_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1256_general_ci,                   /* ctype         */
@@ -6659,12 +6569,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6681,8 +6590,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1092,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp866") },                     /* cset name     */
-  { STRING_WITH_LEN("cp866_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("cp866") }, /* cset name     */
+  { STRING_WITH_LEN("cp866_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp866_general_ci,                   /* ctype         */
@@ -6692,12 +6601,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6714,8 +6622,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1093,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("dec8") },                     /* cset name     */
-  { STRING_WITH_LEN("dec8_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("dec8") }, /* cset name     */
+  { STRING_WITH_LEN("dec8_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_dec8_swedish_ci,                   /* ctype         */
@@ -6725,12 +6633,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6747,8 +6654,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1094,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("greek") },                     /* cset name     */
-  { STRING_WITH_LEN("greek_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("greek") }, /* cset name     */
+  { STRING_WITH_LEN("greek_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_greek_general_ci,                   /* ctype         */
@@ -6758,12 +6665,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6780,8 +6686,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1095,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("hebrew") },                     /* cset name     */
-  { STRING_WITH_LEN("hebrew_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("hebrew") }, /* cset name     */
+  { STRING_WITH_LEN("hebrew_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hebrew_general_ci,                   /* ctype         */
@@ -6791,12 +6697,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6813,8 +6718,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1096,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("hp8") },                     /* cset name     */
-  { STRING_WITH_LEN("hp8_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("hp8") }, /* cset name     */
+  { STRING_WITH_LEN("hp8_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hp8_english_ci,                   /* ctype         */
@@ -6824,12 +6729,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6846,8 +6750,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1097,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("keybcs2") },                     /* cset name     */
-  { STRING_WITH_LEN("keybcs2_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("keybcs2") }, /* cset name     */
+  { STRING_WITH_LEN("keybcs2_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_keybcs2_general_ci,                   /* ctype         */
@@ -6857,12 +6761,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6879,8 +6782,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1098,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("koi8r") },                     /* cset name     */
-  { STRING_WITH_LEN("koi8r_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("koi8r") }, /* cset name     */
+  { STRING_WITH_LEN("koi8r_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8r_general_ci,                   /* ctype         */
@@ -6890,12 +6793,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6912,8 +6814,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1099,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("koi8u") },                     /* cset name     */
-  { STRING_WITH_LEN("koi8u_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("koi8u") }, /* cset name     */
+  { STRING_WITH_LEN("koi8u_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8u_general_ci,                   /* ctype         */
@@ -6923,12 +6825,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6945,8 +6846,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1101,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("latin2") },                     /* cset name     */
-  { STRING_WITH_LEN("latin2_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("latin2") }, /* cset name     */
+  { STRING_WITH_LEN("latin2_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
@@ -6956,12 +6857,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -6978,8 +6878,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1102,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("latin5") },                     /* cset name     */
-  { STRING_WITH_LEN("latin5_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("latin5") }, /* cset name     */
+  { STRING_WITH_LEN("latin5_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin5_turkish_ci,                   /* ctype         */
@@ -6989,12 +6889,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7011,8 +6910,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1103,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("latin7") },                     /* cset name     */
-  { STRING_WITH_LEN("latin7_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("latin7") }, /* cset name     */
+  { STRING_WITH_LEN("latin7_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
@@ -7022,12 +6921,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7044,8 +6942,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1104,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp850") },                     /* cset name     */
-  { STRING_WITH_LEN("cp850_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("cp850") }, /* cset name     */
+  { STRING_WITH_LEN("cp850_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp850_general_ci,                   /* ctype         */
@@ -7055,12 +6953,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7077,8 +6974,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1105,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("cp852") },                     /* cset name     */
-  { STRING_WITH_LEN("cp852_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("cp852") }, /* cset name     */
+  { STRING_WITH_LEN("cp852_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp852_general_ci,                   /* ctype         */
@@ -7088,12 +6985,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7110,8 +7006,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1106,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII|MY_CS_NOPAD,
-  { STRING_WITH_LEN("swe7") },                     /* cset name     */
-  { STRING_WITH_LEN("swe7_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("swe7") }, /* cset name     */
+  { STRING_WITH_LEN("swe7_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_swe7_swedish_ci,                   /* ctype         */
@@ -7121,12 +7017,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7143,8 +7038,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1116,0,0,
   MY_CS_COMPILED|MY_CS_NOPAD,
-  { STRING_WITH_LEN("geostd8") },                     /* cset name     */
-  { STRING_WITH_LEN("geostd8_general_nopad_ci") },    /* coll name     */
+  { STRING_WITH_LEN("geostd8") }, /* cset name     */
+  { STRING_WITH_LEN("geostd8_general_nopad_ci") }, /* coll name     */
   "",                       /* comment       */
   "[import geostd8_general_ci]",                    /* tailoring */
   ctype_geostd8_general_ci,                   /* ctype         */
@@ -7154,12 +7049,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7176,8 +7070,8 @@ struct charset_info_st compiled_charsets[] = {
 {
   1117,0,0,
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
-  { STRING_WITH_LEN("geostd8") },                     /* cset name     */
-  { STRING_WITH_LEN("geostd8_nopad_bin") },           /* coll name     */
+  { STRING_WITH_LEN("geostd8") }, /* cset name     */
+  { STRING_WITH_LEN("geostd8_nopad_bin") }, /* coll name     */
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_geostd8_general_ci,                   /* ctype         */
@@ -7187,12 +7081,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
@@ -7219,12 +7112,11 @@ struct charset_info_st compiled_charsets[] = {
   NULL,                       /* uca           */
   NULL,                       /* to_uni        */
   NULL,                       /* from_uni      */
+  NULL,                       /* casefold      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
   NULL,                       /* ident map     */
   1,                          /* strxfrm_multiply*/
-  1,                          /* caseup_multiply*/
-  1,                          /* casedn_multiply*/
   1,                          /* mbminlen      */
   1,                          /* mbmaxlen      */
   0,                          /* min_sort_char */
