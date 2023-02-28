@@ -4595,7 +4595,7 @@ static MY_UNICASE_CHARACTER u520p104[]={
 
 MY_UNICASE_CHARACTER *my_unicase_pages_unicode520[4352]=
 {
- u520p00, u520p01, u520p02, u520p03, u520p04, u520p05, plane06, plane06,
+ u520p00, u520p01, u520p02, u520p03, u520p04, u520p05, plane06, plane07,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
  u520p10,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL, u520p1D, u520p1E, u520p1F,

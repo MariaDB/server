@@ -9,6 +9,7 @@ CREATE TABLE t1(id INT PRIMARY key, val VARCHAR(16000)) ENGINE=InnoDB;
 INSERT INTO t1 (id,val) SELECT 2*seq,'x' FROM seq_0_to_1023;
 
 connect(con1,localhost,root,,);
+source include/wait_all_purged.inc;
 # Prevent purge.
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
