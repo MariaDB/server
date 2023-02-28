@@ -344,6 +344,7 @@ select_unit::create_result_table(THD *thd_arg, List<Item> *column_types,
   DBUG_ASSERT(table == 0);
   tmp_table_param.init();
   tmp_table_param.field_count= column_types->elements;
+  tmp_table_param.func_count= tmp_table_param.field_count;
   tmp_table_param.bit_fields_as_long= bit_fields_as_long;
   tmp_table_param.hidden_field_count= hidden;
 
@@ -384,7 +385,8 @@ select_union_recursive::create_result_table(THD *thd_arg,
     return true;
   
   incr_table_param.init();
-  incr_table_param.field_count= column_types->elements;
+  incr_table_param.field_count= incr_table_param.func_count=
+    column_types->elements;
   incr_table_param.bit_fields_as_long= bit_fields_as_long;
   if (! (incr_table= create_tmp_table(thd_arg, &incr_table_param, *column_types,
                                       (ORDER*) 0, false, 1,

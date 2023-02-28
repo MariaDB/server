@@ -912,9 +912,8 @@ bool THD::has_temporary_tables()
 uint THD::create_tmp_table_def_key(char *key, const char *db,
                                     const char *table_name)
 {
-  DBUG_ENTER("THD::create_tmp_table_def_key");
-
   uint key_length;
+  DBUG_ENTER("THD::create_tmp_table_def_key");
 
   key_length= tdc_create_key(key, db, table_name);
   int4store(key + key_length, variables.server_id);
@@ -1163,11 +1162,10 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
 */
 bool THD::find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table)
 {
-  DBUG_ENTER("THD::find_and_use_tmp_table");
-
   char key[MAX_DBKEY_LENGTH];
   uint key_length;
   bool result;
+  DBUG_ENTER("THD::find_and_use_tmp_table");
 
   key_length= create_tmp_table_def_key(key, tl->get_db_name(),
                                         tl->get_table_name());
