@@ -2575,7 +2575,6 @@ fts_cmp_set_sync_doc_id(
 	que_t*		graph = NULL;
 	fts_cache_t*	cache = table->fts->cache;
 	char		table_name[MAX_FULL_NAME_LEN];
-retry:
 	ut_a(table->fts->doc_col != ULINT_UNDEFINED);
 
 	fts_table.suffix = "CONFIG";
@@ -2583,7 +2582,8 @@ retry:
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
 
-	trx = trx_create();
+	trx= trx_create();
+retry:
 	trx_start_internal(trx);
 
 	trx->op_info = "update the next FTS document id";
@@ -2663,7 +2663,8 @@ func_exit:
 			"for table " << table->name;
 		fts_sql_rollback(trx);
 
-		if (error == DB_DEADLOCK) {
+		if (error == DB_DEADLOCK || error == DB_LOCK_WAIT_TIMEOUT) {
+			DEBUG_SYNC_C("fts_cmp_set_sync_doc_id_retry");
 			std::this_thread::sleep_for(FTS_DEADLOCK_RETRY_WAIT);
 			goto retry;
 		}

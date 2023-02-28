@@ -9,12 +9,10 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency= 1;
 CREATE PROCEDURE insert_n(start int, end int)
 BEGIN
 DECLARE i INT DEFAULT start;
-START TRANSACTION;
 WHILE i <= end do
 INSERT INTO t1 VALUES (1, 2, 3) ON DUPLICATE KEY UPDATE c = i;
 SET i = i + 1;
 END WHILE;
-COMMIT;
 END~~
 CREATE FUNCTION num_pages_get()
 RETURNS INT
@@ -30,6 +28,7 @@ END~~
 #
 CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY(a,b), KEY (b,c))
 ENGINE=InnoDB STATS_PERSISTENT=0;
+InnoDB		0 transactions not purged
 BEGIN;
 SELECT * FROM t1;
 a	b	c
@@ -38,20 +37,24 @@ a	b	c
 #
 connect  con2, localhost, root,,;
 connection con2;
+BEGIN;
 INSERT INTO t1 VALUES (1, 2, 3) ON DUPLICATE KEY UPDATE c = NULL;
 CALL insert_n(1, 50);;
 connect  con3, localhost, root,,;
 connection con3;
+BEGIN;
 CALL insert_n(51, 100);;
 connection con2;
+COMMIT;
 connection con3;
 INSERT INTO t1 VALUES (1, 2, 1) ON DUPLICATE KEY UPDATE c = NULL;
+COMMIT;
 connection default;
 #
 # Connect to default and record how many pages were accessed
 # when selecting the record using the secondary key.
 #
-InnoDB		4 transactions not purged
+InnoDB		2 transactions not purged
 SET @num_pages_1 = num_pages_get();
 SELECT * FROM t1 force index (b);
 a	b	c

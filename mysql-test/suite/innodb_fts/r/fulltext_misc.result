@@ -129,8 +129,9 @@ test
 select * from t1 where a like "te_t";
 a
 test
-select * from t1 where match a against ("te*" in boolean mode)+0;
+select * from t1 where match a against ("te*" in boolean mode);
 a
+test
 drop table t1;
 # 
 # Bug #49734: Crash on EXPLAIN EXTENDED UNION ... ORDER BY 

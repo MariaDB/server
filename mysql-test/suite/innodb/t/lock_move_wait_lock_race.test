@@ -1,0 +1,58 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t (pk int PRIMARY KEY, c varchar(10)) ENGINE=InnoDB;
+INSERT INTO t VALUES (10, "0123456789");
+
+--connection default
+BEGIN;
+SELECT * FROM t WHERE c = 10 FOR UPDATE;
+
+--connect(trx2, localhost,root,,)
+BEGIN;
+SET DEBUG_SYNC="lock_wait_start SIGNAL trx2_start_waiting";
+SET DEBUG_SYNC="lock_wait_end SIGNAL trx2_wait_end WAIT_FOR trx2_cont_upd";
+SET DEBUG_SYNC="lock_rec_store_on_page_infimum_end SIGNAL trx2_moved_locks WAIT_FOR trx2_cont";
+#################
+# We need to update clustered record without changing ordering fields and
+# changing the size of non-ordering fields to cause locks moving from deleted
+# record to infimum.
+###
+--send UPDATE t SET c = NULL WHERE pk = 10
+
+
+--connect(trx3, localhost,root,,)
+SET DEBUG_SYNC="now WAIT_FOR trx2_start_waiting";
+#################
+# The condition wariable waiting in lock_wait() must be finished by timeout
+###
+SET innodb_lock_wait_timeout=1;
+BEGIN;
+SET DEBUG_SYNC="lock_wait_start SIGNAL trx3_start_waiting WAIT_FOR trx3_cont_waiting";
+SET DEBUG_SYNC="lock_sys_t_cancel_enter SIGNAL trx3_cancel_enter WAIT_FOR trx3_cont_cancel_waiting";
+--send UPDATE t SET c = "abcdefghij" WHERE pk = 10
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR trx3_start_waiting";
+COMMIT;
+SET DEBUG_SYNC="now WAIT_FOR trx2_wait_end";
+SET DEBUG_SYNC="now SIGNAL trx3_cont_waiting";
+SET DEBUG_SYNC="now WAIT_FOR trx3_cancel_enter";
+SET DEBUG_SYNC="now SIGNAL trx2_cont_upd";
+SET DEBUG_SYNC="now WAIT_FOR trx2_moved_locks";
+#################
+# If the bug is not fixed, there will be assertion failure here, because trx2
+# moved trx3 lock from deleted record to infimum when trx3 tried to cancel the
+# lock.
+###
+SET DEBUG_SYNC="now SIGNAL trx3_cont_cancel_waiting";
+SET DEBUG_SYNC="now SIGNAL trx2_cont";
+
+--disconnect trx2
+--disconnect trx3
+--connection default
+SET DEBUG_SYNC="RESET";
+DROP TABLE t;
+--source include/wait_until_count_sessions.inc
