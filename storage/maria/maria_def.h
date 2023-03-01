@@ -43,6 +43,14 @@
 
 C_MODE_START
 
+#ifdef _WIN32
+/*
+  We cannot use mmap() on Windows with Aria as mmap() can cause file
+  size to increase in _ma_dynmap_file(). The extra \0 data causes
+  the file to be regarded as corrupted.
+*/
+#undef HAVE_MMAP
+#endif
 /*
   Limit max keys according to HA_MAX_POSSIBLE_KEY; See myisamchk.h for details
 */
