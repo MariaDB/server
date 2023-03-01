@@ -428,14 +428,15 @@ err2:
 
 my_bool _ma_ck_write(MARIA_HA *info, MARIA_KEY *key)
 {
+  my_bool tmp;
   DBUG_ENTER("_ma_ck_write");
 
   if (info->bulk_insert &&
       is_tree_inited(&info->bulk_insert[key->keyinfo->key_nr]))
-  {
-    DBUG_RETURN(_ma_ck_write_tree(info, key));
-  }
-  DBUG_RETURN(_ma_ck_write_btree(info, key));
+    tmp= _ma_ck_write_tree(info, key);
+  else
+    tmp= _ma_ck_write_btree(info, key);
+  DBUG_RETURN(tmp);
 } /* _ma_ck_write */
 
 

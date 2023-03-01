@@ -5281,6 +5281,7 @@ my_bool _ma_scan_init_block_record(MARIA_HA *info)
 {
   MARIA_SHARE *share= info->s;
   myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+  my_bool res;
   DBUG_ENTER("_ma_scan_init_block_record");
   DBUG_ASSERT(info->dfile.file == share->bitmap.file.file);
 
@@ -5307,7 +5308,8 @@ my_bool _ma_scan_init_block_record(MARIA_HA *info)
     _ma_scan_block_record()), we may miss recently inserted rows (bitmap page
     in page cache would be too old).
   */
-  DBUG_RETURN(_ma_bitmap_flush(info->s));
+  res= _ma_bitmap_flush(info->s);
+  DBUG_RETURN(res);
 }
 
 

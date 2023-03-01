@@ -48,10 +48,12 @@ int maria_scan_init(register MARIA_HA *info)
 
 int maria_scan(MARIA_HA *info, uchar *record)
 {
+  int res;
   DBUG_ENTER("maria_scan");
   /* Init all but update-flag */
   info->update&= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
-  DBUG_RETURN((*info->s->scan)(info, record, info->cur_row.nextpos, 1));
+  res= (*info->s->scan)(info, record, info->cur_row.nextpos, 1);
+  DBUG_RETURN(res);
 }
 
 
