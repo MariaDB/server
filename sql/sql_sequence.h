@@ -108,7 +108,7 @@ public:
                         max_value, cache, round));
   }
   static bool is_allowed_value_type(enum_field_types type);
-  bool prepare_sequence_fields(List<Create_field> *fields);
+  bool prepare_sequence_fields(List<Create_field> *fields, bool alter);
   
 protected:
   /*

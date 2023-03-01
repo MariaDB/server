@@ -353,7 +353,7 @@ err:
     true        Failure (out of memory)
 */
 
-bool sequence_definition::prepare_sequence_fields(List<Create_field> *fields)
+bool sequence_definition::prepare_sequence_fields(List<Create_field> *fields, bool alter)
 {
   DBUG_ENTER("prepare_sequence_fields");
   const Sequence_row_definition row_def= sequence_structure(value_type_handler());
@@ -374,6 +374,8 @@ bool sequence_definition::prepare_sequence_fields(List<Create_field> *fields)
     new_field->char_length= field_info->length;
     new_field->comment=     field_info->comment;
     new_field->flags=       field_info->flags;
+    if (alter)
+      new_field->change =   field_name;
     if (unlikely(fields->push_back(new_field)))
       DBUG_RETURN(TRUE); /* purify inspected */
   }
@@ -527,9 +529,9 @@ SEQUENCE::~SEQUENCE()
   A sequence table can have many readers (trough normal SELECT's).
 
   We mark that we have a write lock in the table object so that
-  ha_sequence::ha_write() can check if we have a lock. If already locked, then
+  ha_sequence::write_row() can check if we have a lock. If already locked, then
   ha_write() knows that we are running a sequence operation. If not, then
-  ha_write() knows that it's an INSERT.
+  ha_write() knows that it's an INSERT statement.
 */
 
 void SEQUENCE::write_lock(TABLE *table)
@@ -1029,6 +1031,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
 #endif /* WITH_WSREP */
   if (if_exists())
     thd->push_internal_handler(&no_such_table_handler);
+  first_table->mdl_request.set_type(MDL_SHARED_WRITE);
   error= open_and_lock_tables(thd, first_table, FALSE, 0);
   if (if_exists())
   {
@@ -1099,6 +1102,30 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     error= 1;
     seq->write_unlock(table);
     goto end;
+  }
+
+  if (new_seq->value_type_handler() != seq->value_type_handler())
+  {
+    // delete row?
+    // alter table
+  /* Set lock type which is appropriate for ALTER TABLE. */
+  // first_table->lock_type= TL_READ_NO_INSERT;
+  // /* Same applies to MDL request. */
+  // first_table->mdl_request.set_type(MDL_SHARED_NO_WRITE);
+    Alter_info alter_info;
+    alter_info.flags = ALTER_CHANGE_COLUMN;
+    // alter_info.requested_lock = Alter_info::ALTER_TABLE_LOCK_NONE;
+    if (new_seq->prepare_sequence_fields(&alter_info.create_list, true))
+    {
+      // fixme: emit error.
+      abort();
+    }
+    Table_specification_st create_info;
+    create_info.init();
+    create_info.alter_info= &alter_info;
+    bool res= mysql_alter_table(thd, &null_clex_str, &null_clex_str, &create_info, first_table, &alter_info, 0, (ORDER *) 0, 0, 0);
+    if (res)
+      DBUG_RETURN(0);        
   }
 
   if (likely(!(error= new_seq->write(table, 1))))

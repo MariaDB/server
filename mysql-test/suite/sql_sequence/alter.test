@@ -161,3 +161,36 @@ CREATE SEQUENCE s;
 ALTER TABLE s ORDER BY cache_size;
 SELECT NEXTVAL(s);
 DROP SEQUENCE s;
+
+
+--echo #
+--echo # MDEV-28152 Features for sequence
+--echo #
+
+create or replace sequence t1 as bigint;
+show create sequence t1;
+show create table t1;
+alter sequence t1 as tinyint;
+show create sequence t1;
+show create table t1;
+
+create or replace sequence t1 as bigint maxvalue 123;
+show create sequence t1;
+show create table t1;
+alter sequence t1 as tinyint;
+show create sequence t1;
+show create table t1;
+
+create or replace sequence t1 as tinyint;
+show create sequence t1;
+show create table t1;
+alter sequence t1 as bigint;
+show create sequence t1;
+show create table t1;
+
+create or replace sequence t1 as int unsigned;
+show create sequence t1;
+show create table t1;
+alter sequence t1 as int;
+show create sequence t1;
+show create table t1;

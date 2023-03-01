@@ -2436,7 +2436,7 @@ create:
 
             /* No fields specified, generate them */
             if (unlikely(lex->create_info.seq_create_info->prepare_sequence_fields(
-                &lex->alter_info.create_list)))
+                                                                                   &lex->alter_info.create_list, false)))
                MYSQL_YYABORT;
 
             /* CREATE SEQUENCE always creates a sequence */
