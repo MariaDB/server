@@ -7591,15 +7591,12 @@ void THD::reset_for_next_command(bool do_clear_error)
 
   save_prep_leaf_list= false;
 
-#ifdef WITH_WSREP
-#if !defined(DBUG_OFF)
+#if defined(WITH_WSREP) && !defined(DBUG_OFF)
   if (mysql_bin_log.is_open())
-#endif
-#endif
-    DBUG_PRINT("debug",
+    DBUG_PRINT("info",
                ("is_current_stmt_binlog_format_row(): %d",
                  is_current_stmt_binlog_format_row()));
-
+#endif
   DBUG_VOID_RETURN;
 }
 
