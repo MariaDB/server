@@ -929,39 +929,6 @@ static uint enum_value_with_check(THD *thd, TABLE_SHARE *share,
 }
 
 
-/**
-   Check if a collation has changed number
-
-   @param mysql_version
-   @param current collation number
-
-   @retval new collation number (same as current collation number of no change)
-*/
-
-static uint upgrade_collation(ulong mysql_version, uint cs_number)
-{
-  if (mysql_version >= 50300 && mysql_version <= 50399)
-  {
-    switch (cs_number) {
-    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
-    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
-    }
-  }
-  if ((mysql_version >= 50500 && mysql_version <= 50599) ||
-      (mysql_version >= 100000 && mysql_version <= 100005))
-  {
-    switch (cs_number) {
-    case 149: return MY_PAGE2_COLLATION_ID_UCS2;   // ucs2_crotian_ci
-    case 213: return MY_PAGE2_COLLATION_ID_UTF8;   // utf8_crotian_ci
-    case 214: return MY_PAGE2_COLLATION_ID_UTF32;  // utf32_croatian_ci
-    case 215: return MY_PAGE2_COLLATION_ID_UTF16;  // utf16_croatian_ci
-    case 245: return MY_PAGE2_COLLATION_ID_UTF8MB4;// utf8mb4_croatian_ci
-    }
-  }
-  return cs_number;
-}
-
-
 void Column_definition_attributes::frm_pack_basic(uchar *buff) const
 {
   int2store(buff + 3, length);
@@ -989,7 +956,7 @@ bool Column_definition_attributes::frm_unpack_charset(TABLE_SHARE *share,
                                                       const uchar *buff)
 {
   uint cs_org= buff[14] + (((uint) buff[11]) << 8);
-  uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+  uint cs_new= Charset::upgrade_collation_id(share->mysql_version, cs_org);
   if (cs_org != cs_new)
     share->incompatible_version|= HA_CREATE_USED_CHARSET;
   if (cs_new && !(charset= get_charset(cs_new, MYF(0))))
@@ -1735,7 +1702,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (!frm_image[32])				// New frm file in 3.23
   {
     uint cs_org= (((uint) frm_image[41]) << 8) + (uint) frm_image[38];
-    uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+    uint cs_new= Charset::upgrade_collation_id(share->mysql_version, cs_org);
     if (cs_org != cs_new)
       share->incompatible_version|= HA_CREATE_USED_CHARSET;
 
@@ -2760,6 +2727,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           goto err;
 
         field= key_part->field= share->field[key_part->fieldnr-1];
+        if (Charset::collation_changed_order(share->mysql_version,
+                                             field->charset()->number))
+          share->incompatible_version|= HA_CREATE_USED_CHARSET;
         key_part->type= field->key_type();
 
         if (field->invisible > INVISIBLE_USER && !field->vers_sys_field())

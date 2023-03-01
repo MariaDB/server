@@ -6442,5 +6442,22 @@ IS_IPV4('10.0.0.1')
 1
 SET NAMES utf8;
 #
+# MDEV-30746 Regression in ucs2_general_mysql500_ci
+#
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a VARCHAR(32) CHARACTER SET ucs2 COLLATE ucs2_general_mysql500_ci);
+INSERT INTO t1 VALUES ('s'),('z'),(_latin1 0xDF);
+SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a ORDER BY a;
+GROUP_CONCAT(a)
+s
+z
+ß
+SELECT a, HEX(a), HEX(WEIGHT_STRING(a)) FROM t1 ORDER BY a;
+a	HEX(a)	HEX(WEIGHT_STRING(a))
+s	0073	0053
+z	007A	005A
+ß	00DF	00DF
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
