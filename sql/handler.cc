@@ -42,6 +42,7 @@
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
 #include "debug_sync.h"         // DEBUG_SYNC
+#include "debug.h"              // debug_decrement_counter
 #include "sql_audit.h"
 #include "ha_sequence.h"
 #include "rowid_filter.h"
@@ -3573,6 +3574,15 @@ int handler::ha_rnd_next(uchar *buf)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited == RND);
 
+  DBUG_EXECUTE_IF("ha_rnd_next_error",
+  {
+    LEX_CSTRING user_var= { STRING_WITH_LEN("ha_rnd_next_error_counter") };
+    if (debug_decrement_counter(&user_var))
+    {
+      print_error(HA_ERR_WRONG_IN_RECORD,MYF(0));
+      DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
+    }
+  });
   do
   {
     TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, MAX_KEY, result,

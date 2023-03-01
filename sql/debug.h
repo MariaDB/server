@@ -31,6 +31,7 @@
 #ifndef DBUG_OFF
 void debug_crash_here(const char *keyword);
 bool debug_simulate_error(const char *keyword, uint error);
+bool debug_decrement_counter(const LEX_CSTRING *name);
 #else
 #define debug_crash_here(A) do { } while(0)
 #define debug_simulate_error(A, B) 0

@@ -4062,6 +4062,7 @@ int subselect_single_select_engine::exec()
   char const *save_where= thd->where;
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
+  bool exec_error= 0;
   DBUG_ENTER("subselect_single_select_engine::exec");
 
   if (join->optimization_state == JOIN::NOT_OPTIMIZED)
@@ -4153,7 +4154,7 @@ int subselect_single_select_engine::exec()
       }
     }
     
-    join->exec();
+    exec_error= join->exec();
 
     /* Enable the optimizations back */
     for (JOIN_TAB **ptab= changed_tabs; ptab != last_changed_tab; ptab++)
@@ -4171,7 +4172,7 @@ int subselect_single_select_engine::exec()
       item->make_const();
     thd->where= save_where;
     thd->lex->current_select= save_select;
-    DBUG_RETURN(join->error || thd->is_fatal_error || thd->is_error());
+    DBUG_RETURN(exec_error || thd->is_error());
   }
   thd->where= save_where;
   thd->lex->current_select= save_select;
@@ -5718,9 +5719,8 @@ int subselect_hash_sj_engine::exec()
   /* The subquery should be optimized, and materialized only once. */
   DBUG_ASSERT(materialize_join->optimization_state == JOIN::OPTIMIZATION_DONE &&
               !is_materialized);
-  materialize_join->exec();
-  if (unlikely((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
-                             thd->is_error()))))
+  res= materialize_join->exec();
+  if (unlikely((res= (res || thd->is_error()))))
     goto err;
 
   /*

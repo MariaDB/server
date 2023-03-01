@@ -5869,10 +5869,10 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
       ((subselect_hash_sj_engine*)in_subs->engine);
     if (!hash_sj_engine->is_materialized)
     {
-      hash_sj_engine->materialize_join->exec();
+      int error= hash_sj_engine->materialize_join->exec();
       hash_sj_engine->is_materialized= TRUE; 
 
-      if (unlikely(hash_sj_engine->materialize_join->error) ||
+      if (unlikely(error) ||
           unlikely(tab->join->thd->is_fatal_error))
         DBUG_RETURN(NESTED_LOOP_ERROR);
     }

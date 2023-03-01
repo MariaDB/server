@@ -382,8 +382,8 @@ void dbug_serve_apcs(THD *thd, int n_calls)
   Intended usage:
   
   DBUG_EXECUTE_IF("show_explain_probe_2", 
-                     if (dbug_user_var_equals_int(thd, "select_id", select_id)) 
-                        dbug_serve_apcs(thd, 1);
+                  if (dbug_user_var_equals_int(thd, "select_id", select_id))
+                    dbug_serve_apcs(thd, 1);
                  );
 
 */
@@ -751,7 +751,7 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
       else
       {
         for (sum_func= ref->in_sum_func; sum_func &&
-             sum_func->aggr_level >= select->nest_level;
+               sum_func->aggr_level >= select->nest_level;
              sum_func= sum_func->in_sum_func)
         {
           if (sum_func->aggr_level == select->nest_level)
@@ -4657,8 +4657,9 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
 }
 
 
-void JOIN::exec()
+int JOIN::exec()
 {
+  int res;
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_start", 
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 
@@ -4666,7 +4667,7 @@ void JOIN::exec()
                         dbug_serve_apcs(thd, 1);
                  );
   ANALYZE_START_TRACKING(thd, &explain->time_tracker);
-  exec_inner();
+  res= exec_inner();
   ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
@@ -4675,10 +4676,11 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
+  return res;
 }
 
 
-void JOIN::exec_inner()
+int JOIN::exec_inner()
 {
   List<Item> *columns_list= &fields_list;
   DBUG_ENTER("JOIN::exec_inner");
@@ -4714,12 +4716,12 @@ void JOIN::exec_inner()
     {
       thd->set_examined_row_count(0);
       thd->limit_found_rows= 0;
-      DBUG_VOID_RETURN;
+      DBUG_RETURN(0);
     }
     columns_list= &procedure_fields_list;
   }
   if (result->prepare2(this))
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(error);
 
   if (!tables_list && (table_count || !select_lex->with_sum_func) &&
       !select_lex->have_window_funcs())
@@ -4733,7 +4735,7 @@ void JOIN::exec_inner()
                                            Protocol::SEND_NUM_ROWS |
                                            Protocol::SEND_EOF))
       {
-        DBUG_VOID_RETURN;
+        DBUG_RETURN(error);
       }
 
       /*
@@ -4771,7 +4773,7 @@ void JOIN::exec_inner()
     /* Single select (without union) always returns 0 or 1 row */
     thd->limit_found_rows= send_records;
     thd->set_examined_row_count(0);
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(error);
   }
 
   /*
@@ -4791,7 +4793,7 @@ void JOIN::exec_inner()
   if (unlikely(thd->is_error()))
   {
     error= thd->is_error();
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(error);
   }
 
   if (zero_result_cause)
@@ -4815,7 +4817,7 @@ void JOIN::exec_inner()
 			      select_options,
 			      zero_result_cause,
 			      having ? having : tmp_having, all_fields);
-      DBUG_VOID_RETURN;
+      DBUG_RETURN(0);
     }
   }
   
@@ -4839,14 +4841,14 @@ void JOIN::exec_inner()
       if (unlikely(thd->is_error()))
       {
         error= thd->is_error();
-        DBUG_VOID_RETURN;
+        DBUG_RETURN(error);
       }
     }
   }
 
   if ((this->select_lex->options & OPTION_SCHEMA_TABLE) &&
       get_schema_tables_result(this, PROCESSED_BY_JOIN_EXEC))
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(0);
 
   if (select_options & SELECT_DESCRIBE)
   {
@@ -4854,13 +4856,13 @@ void JOIN::exec_inner()
 		    order != 0 && !skip_sort_order,
 		    select_distinct,
                     !table_count ? "No tables used" : NullS);
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(0);
   }
   else if (select_lex->pushdown_select)
   {
     /* Execute the query pushed into a foreign engine */
     error= select_lex->pushdown_select->execute();
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(error);
   }
   else
   {
@@ -4879,7 +4881,7 @@ void JOIN::exec_inner()
   if (unlikely(thd->is_error()))
   {
     error= thd->is_error();
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(error);
   }
 
   THD_STAGE_INFO(thd, stage_sending_data);
@@ -4894,7 +4896,7 @@ void JOIN::exec_inner()
   DBUG_PRINT("counts", ("thd->examined_row_count: %lu",
                         (ulong) thd->get_examined_row_count()));
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 
@@ -5067,7 +5069,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
              SELECT_LEX_UNIT *unit, SELECT_LEX *select_lex)
 {
   int err= 0;
-  bool free_join= 1;
+  bool free_join= 1, exec_error= 0;
   DBUG_ENTER("mysql_select");
 
   if (!fields.is_empty())
@@ -5146,7 +5148,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   if (unlikely(thd->is_error()))
     goto err;
 
-  join->exec();
+  exec_error= join->exec();
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
@@ -5166,9 +5168,9 @@ err:
   {
     THD_STAGE_INFO(thd, stage_end);
     err|= (int)(select_lex->cleanup());
-    DBUG_RETURN(err || thd->is_error());
+    DBUG_RETURN(exec_error || err || thd->is_error());
   }
-  DBUG_RETURN(join->error ? join->error: err);
+  DBUG_RETURN(exec_error || err);
 }
 
 

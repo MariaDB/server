@@ -1717,9 +1717,8 @@ public:
   bool build_explain();
   int reinit();
   int init_execution();
-  void exec();
-
-  void exec_inner();
+  int exec() __attribute__((warn_unused_result));
+  int exec_inner();
   bool prepare_result(List<Item> **columns_list);
   int destroy();
   void restore_tmp();

@@ -2155,8 +2155,8 @@ bool st_select_lex_unit::exec()
   ulonglong add_rows=0;
   ha_rows examined_rows= 0;
   bool first_execution= !executed;
-  DBUG_ENTER("st_select_lex_unit::exec");
   bool was_executed= executed;
+  DBUG_ENTER("st_select_lex_unit::exec");
 
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
@@ -2243,7 +2243,7 @@ bool st_select_lex_unit::exec()
 	if (sl->tvc)
 	  sl->tvc->exec(sl);
 	else
-	  sl->join->exec();
+	  saved_error= sl->join->exec();
         if (sl == union_distinct && !have_except_all_or_intersect_all &&
             !(with_element && with_element->is_recursive))
 	{
@@ -2253,8 +2253,6 @@ bool st_select_lex_unit::exec()
 	    DBUG_RETURN(TRUE);
 	  table->no_keyread=1;
 	}
-	if (!sl->tvc)
-	  saved_error= sl->join->error;
 	if (likely(!saved_error))
 	{
 	  examined_rows+= thd->get_examined_row_count();
@@ -2401,7 +2399,8 @@ bool st_select_lex_unit::exec()
         {
           join->join_examined_rows= 0;
           saved_error= join->reinit();
-          join->exec();
+          if (join->exec())
+            saved_error= 1;
         }
       }
 
@@ -2507,8 +2506,7 @@ bool st_select_lex_unit::exec_recursive()
       sl->tvc->exec(sl);
     else
     {
-      sl->join->exec();
-      saved_error= sl->join->error;
+      saved_error= sl->join->exec();
     }
     if (likely(!saved_error))
     {
@@ -2520,11 +2518,10 @@ bool st_select_lex_unit::exec_recursive()
 	 DBUG_RETURN(1);
        }
     }
-    if (unlikely(saved_error))
+    else
     {
       thd->lex->current_select= lex_select_save;
       goto err;
-      
     }
   }
 
