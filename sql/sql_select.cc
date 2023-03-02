@@ -8567,7 +8567,8 @@ best_access_path(JOIN      *join,
             */
             if (table->opt_range_keys.is_set(key) && !found_ref &&      //(C1)
                 table->opt_range[key].key_parts == max_key_part &&      //(C2)
-                table->opt_range[key].ranges == 1 + MY_TEST(ref_or_null_part)) //(C3)
+                (table->opt_range[key].ranges ==
+                 1 + MY_TEST(ref_or_null_part))) //(C3)
             {
               records= (double) table->opt_range[key].rows;
               table->opt_range[key].get_costs(&tmp);
@@ -8601,16 +8602,33 @@ best_access_path(JOIN      *join,
                 */
                 if (table->opt_range_keys.is_set(key))
                 {
+                  double rows;
                   if (table->opt_range[key].key_parts >= max_key_part) // (2)
                   {
-                    double rows= (double) table->opt_range[key].rows;
-                    if (!found_ref &&                                  // (1)
-                        records < rows)                                // (3)
+                    /*
+                      Choose range over REF in the case range will always be
+                      as good or better than REF.
+                      This is the case when we have only one const range
+                      and it consist of more parts than what we used for REF.
+                    */
+                    if (!found_ref &&
+                        table->opt_range[key].key_parts > max_key_part &&
+                        table->opt_range[key].ranges <=
+                        (uint) (1 + MY_TEST(ref_or_null_part)))
                     {
-                      trace_access_idx.add("used_range_estimates",
-                                           "clipped up");
-                      records= rows;
+                      trace_access_idx.
+                        add("chosen", false).
+                        add("cause", "range is simple and more selective");
+                      continue;                 // continue with next key
                     }
+                  }
+                  rows= (double) table->opt_range[key].rows;
+                  if (!found_ref &&                                  // (1)
+                      records < rows)                                // (3)
+                  {
+                    trace_access_idx.add("used_range_estimates",
+                                         "clipped up");
+                    records= rows;
                   }
                 }
               }
