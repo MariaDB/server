@@ -125,27 +125,27 @@ ROW(1,2,3) > (SELECT 1,2,1)
 SELECT ROW(1,2,3) = (SELECT 1,2,NULL);
 ROW(1,2,3) = (SELECT 1,2,NULL)
 NULL
-SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'a');
-(SELECT 1.5,2,'a') = ROW(1.5,2,'a')
+SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'a') AS m;
+m
 1
-SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'b');
-(SELECT 1.5,2,'a') = ROW(1.5,2,'b')
+SELECT (SELECT 1.5,2,'a') = ROW(1.5,2,'b') AS m;
+m
 0
-SELECT (SELECT 1.5,2,'a') = ROW('1.5b',2,'b');
-(SELECT 1.5,2,'a') = ROW('1.5b',2,'b')
+SELECT (SELECT 1.5,2,'a') = ROW('1.5b',2,'b') AS m;
+m
 0
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: '1.5b'
-SELECT (SELECT 'b',2,'a') = ROW(1.5,2,'a');
-(SELECT 'b',2,'a') = ROW(1.5,2,'a')
+SELECT (SELECT 'b',2,'a') = ROW(1.5,2,'a') AS m;
+m
 0
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'b'
-SELECT (SELECT 1.5,2,'a') = ROW(1.5,'2','a');
-(SELECT 1.5,2,'a') = ROW(1.5,'2','a')
+SELECT (SELECT 1.5,2,'a') = ROW(1.5,'2','a') AS m;
+m
 1
-SELECT (SELECT 1.5,'c','a') = ROW(1.5,2,'a');
-(SELECT 1.5,'c','a') = ROW(1.5,2,'a')
+SELECT (SELECT 1.5,'c','a') = ROW(1.5,2,'a') AS m;
+m
 0
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'c'
@@ -235,19 +235,26 @@ a
 2
 select * from t1 where t1.a=(select t2.a from t2 where t2.b=(select max(a) from t3 where t3.a < t1.a) order by 1 desc limit 1);
 a
-select b,(select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2) from t4;
-b	(select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2)
+select
+b,
+(select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2) as m
+from t4;
+b	m
 8	7.5000
 8	4.5000
 9	7.5000
-explain extended select b,(select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2) from t4;
+explain extended
+select
+b,
+(select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2) as m
+from t4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 3	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t4.a' of SELECT #3 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t4`.`b` AS `b`,<expr_cache><`test`.`t4`.`a`>((/* select#2 */ select avg(`test`.`t2`.`a` + (/* select#3 */ select min(`test`.`t3`.`a`) from `test`.`t3` where `test`.`t3`.`a` >= `test`.`t4`.`a`)) from `test`.`t2`)) AS `(select avg(t2.a+(select min(t3.a) from t3 where t3.a >= t4.a)) from t2)` from `test`.`t4`
+Note	1003	/* select#1 */ select `test`.`t4`.`b` AS `b`,<expr_cache><`test`.`t4`.`a`>((/* select#2 */ select avg(`test`.`t2`.`a` + (/* select#3 */ select min(`test`.`t3`.`a`) from `test`.`t3` where `test`.`t3`.`a` >= `test`.`t4`.`a`)) from `test`.`t2`)) AS `m` from `test`.`t4`
 select * from t3 where exists (select * from t2 where t2.b=t3.a);
 a
 7
@@ -314,21 +321,34 @@ select b,max(a) as ma from t4 group by b having b >= (select max(t2.a) from t2 w
 b	ma
 7	12
 create table t5 (a int);
-select (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a), a from t2;
-(select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a)	a
+select
+(select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a) as m,
+a
+from t2;
+m	a
 NULL	1
 2	2
 insert into t5 values (5);
-select (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a), a from t2;
-(select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a)	a
+select
+(select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a) as m,
+a
+from t2;
+m	a
 NULL	1
 2	2
 insert into t5 values (2);
-select (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a), a from t2;
-(select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a)	a
+select
+(select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a) as m,
+a
+from t2;
+m	a
 NULL	1
 2	2
-explain extended select (select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a), a from t2;
+explain extended
+select
+(select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a) as m,
+a
+from t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DEPENDENT SUBQUERY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
@@ -337,7 +357,7 @@ NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 Warnings:
 Note	1276	Field or reference 'test.t2.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t2.a' of SELECT #3 was resolved in SELECT #1
-Note	1003	/* select#1 */ select <expr_cache><`test`.`t2`.`a`>((/* select#2 */ select 2 from dual where 2 = `test`.`t2`.`a` union /* select#3 */ select `test`.`t5`.`a` from `test`.`t5` where `test`.`t5`.`a` = `test`.`t2`.`a`)) AS `(select a from t1 where t1.a=t2.a union select a from t5 where t5.a=t2.a)`,`test`.`t2`.`a` AS `a` from `test`.`t2`
+Note	1003	/* select#1 */ select <expr_cache><`test`.`t2`.`a`>((/* select#2 */ select 2 from dual where 2 = `test`.`t2`.`a` union /* select#3 */ select `test`.`t5`.`a` from `test`.`t5` where `test`.`t5`.`a` = `test`.`t2`.`a`)) AS `m`,`test`.`t2`.`a` AS `a` from `test`.`t2`
 select (select a from t1 where t1.a=t2.a union all select a from t5 where t5.a=t2.a), a from t2;
 ERROR 21000: Subquery returns more than 1 row
 create table t6 (patient_uq int, clinic_uq int, index i1 (clinic_uq));
@@ -493,8 +513,11 @@ SELECT * from t2 where topic = all (SELECT topic FROM t2 GROUP BY topic HAVING t
 mot	topic	date	pseudo
 joce	40143	2002-10-22	joce
 joce	43506	2002-10-22	joce
-SELECT *, topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 4100) from t2;
-mot	topic	date	pseudo	topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 4100)
+SELECT
+*,
+topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 4100) AS m
+FROM t2;
+mot	topic	date	pseudo	m
 joce	40143	2002-10-22	joce	1
 joce	43506	2002-10-22	joce	1
 SELECT * from t2 where topic = all (SELECT SUM(topic) FROM t2);
@@ -512,8 +535,11 @@ joce	40143	2002-10-22	joce
 SELECT * from t2 where topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000);
 mot	topic	date	pseudo
 joce	40143	2002-10-22	joce
-SELECT *, topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000) from t2;
-mot	topic	date	pseudo	topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000)
+SELECT
+*,
+topic = all (SELECT topic FROM t2 GROUP BY topic HAVING topic < 41000) AS m
+FROM t2;
+mot	topic	date	pseudo	m
 joce	40143	2002-10-22	joce	1
 joce	43506	2002-10-22	joce	0
 drop table t1,t2;
@@ -888,9 +914,42 @@ NULL
 select 1.5 > ANY (SELECT * from t1);
 1.5 > ANY (SELECT * from t1)
 NULL
+update t1 set a=NULL where a=2.5;
+select 1.5 IN (SELECT * from t1);
+1.5 IN (SELECT * from t1)
+1
+select 3.5 IN (SELECT * from t1);
+3.5 IN (SELECT * from t1)
+1
+select 10.5 IN (SELECT * from t1);
+10.5 IN (SELECT * from t1)
+NULL
+select 1.5 > ALL (SELECT * from t1);
+1.5 > ALL (SELECT * from t1)
+0
+select 10.5 > ALL (SELECT * from t1);
+10.5 > ALL (SELECT * from t1)
+NULL
+select 1.5 > ANY (SELECT * from t1);
+1.5 > ANY (SELECT * from t1)
+NULL
 select 10.5 > ANY (SELECT * from t1);
 10.5 > ANY (SELECT * from t1)
 1
+explain extended select (select a+1) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1249	Select 2 was reduced during optimization
+Note	1003	select `test`.`t1`.`a` + 1 AS `(select a+1)` from `test`.`t1`
+explain extended select (select a+1) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1249	Select 2 was reduced during optimization
+Note	1003	select `test`.`t1`.`a` + 1 AS `(select a+1)` from `test`.`t1`
 explain extended select (select a+1) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
@@ -1539,8 +1598,8 @@ create table t3 (a int, b int);
 insert into t1 values (0,100),(1,2), (1,3), (2,2), (2,7), (2,-1), (3,10);
 insert into t2 values (0,0), (1,1), (2,1), (3,1), (4,1);
 insert into t3 values (3,3), (2,2), (1,1);
-select a,(select count(distinct t1.b) as sum from t1,t2 where t1.a=t2.a and t2.b > 0 and t1.a <= t3.b group by t1.a order by sum limit 1) from t3;
-a	(select count(distinct t1.b) as sum from t1,t2 where t1.a=t2.a and t2.b > 0 and t1.a <= t3.b group by t1.a order by sum limit 1)
+select a,(select count(distinct t1.b) as sum from t1,t2 where t1.a=t2.a and t2.b > 0 and t1.a <= t3.b group by t1.a order by sum limit 1) as m from t3;
+a	m
 3	1
 2	2
 1	2
@@ -1735,8 +1794,8 @@ CREATE TABLE `t3` (`taskgenid` mediumint(9) NOT NULL auto_increment,`dbid` int(1
 INSERT INTO `t3` (`taskgenid`, `dbid`, `taskid`, `mon`, `tues`,`wed`, `thur`, `fri`, `sat`, `sun`, `how_often`, `userid`, `active`) VALUES (1,-1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1);
 CREATE TABLE `t4` (`task_id` smallint(6) NOT NULL default '0',`description` varchar(200) NOT NULL default '') ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO `t4` (`task_id`, `description`) VALUES (1, 'Daily Check List'),(2, 'Weekly Status');
-select  dbid, name, (date_format(now() , '%Y-%m-%d') - INTERVAL how_often DAY) >= ifnull((SELECT date_format(max(create_date),'%Y-%m-%d') FROM t1 WHERE dbid = b.db_id AND taskid = a.taskgenid), '1950-01-01') from t3 a, t2 b, t4  WHERE dbid = - 1 AND primary_uid = '1' AND t4.task_id = taskid;
-dbid	name	(date_format(now() , '%Y-%m-%d') - INTERVAL how_often DAY) >= ifnull((SELECT date_format(max(create_date),'%Y-%m-%d') FROM t1 WHERE dbid = b.db_id AND taskid = a.taskgenid), '1950-01-01')
+select  dbid, name, (date_format(now() , '%Y-%m-%d') - INTERVAL how_often DAY) >= ifnull((SELECT date_format(max(create_date),'%Y-%m-%d') as m FROM t1 WHERE dbid = b.db_id AND taskid = a.taskgenid), '1950-01-01') as m from t3 a, t2 b, t4  WHERE dbid = - 1 AND primary_uid = '1' AND t4.task_id = taskid;
+dbid	name	m
 -1	Valid	1
 -1	Valid 2	1
 -1	Should Not Return	0
@@ -3787,9 +3846,10 @@ SELECT (SELECT COUNT(DISTINCT t1.b) from t2) FROM t1 GROUP BY t1.a;
 2
 1
 1
-SELECT (SELECT COUNT(DISTINCT t1.b) from t2 union select 1 from t2 where 12 < 3)
+SELECT
+(SELECT COUNT(DISTINCT t1.b) from t2 union select 1 from t2 where 12 < 3) AS m
 FROM t1 GROUP BY t1.a;
-(SELECT COUNT(DISTINCT t1.b) from t2 union select 1 from t2 where 12 < 3)
+m
 2
 1
 1
@@ -3799,9 +3859,9 @@ COUNT(DISTINCT t1.b)	(SELECT COUNT(DISTINCT t1.b))
 1	1
 1	1
 SELECT COUNT(DISTINCT t1.b),
-(SELECT COUNT(DISTINCT t1.b) union select 1 from DUAL where 12 < 3)
+(SELECT COUNT(DISTINCT t1.b) union select 1 from DUAL where 12 < 3) AS m
 FROM t1 GROUP BY t1.a;
-COUNT(DISTINCT t1.b)	(SELECT COUNT(DISTINCT t1.b) union select 1 from DUAL where 12 < 3)
+COUNT(DISTINCT t1.b)	m
 2	2
 1	1
 1	1
@@ -3825,16 +3885,10 @@ SELECT (
 SELECT COUNT(DISTINCT t1.b)
 )
 )
-FROM t1 GROUP BY t1.a LIMIT 1)
+FROM t1 GROUP BY t1.a LIMIT 1) AS m
 FROM t1 t2
 GROUP BY t2.a;
-(
-SELECT (
-SELECT (
-SELECT COUNT(DISTINCT t1.b)
-)
-)
-FROM t1 GROUP BY t1.a LIMIT 1)
+m
 2
 2
 2
@@ -6420,11 +6474,10 @@ CREATE TABLE t3 (a int, b int);
 INSERT INTO t3 VALUES (10,7), (0,7);
 SELECT SUM(DISTINCT b),
 (SELECT t2.a FROM t1 JOIN t2 ON t2.c != 0
-WHERE t.a != 0 AND t2.a != 0)
+WHERE t.a != 0 AND t2.a != 0) AS m
 FROM (SELECT * FROM t3) AS t
 GROUP BY 2;
-SUM(DISTINCT b)	(SELECT t2.a FROM t1 JOIN t2 ON t2.c != 0
-WHERE t.a != 0 AND t2.a != 0)
+SUM(DISTINCT b)	m
 7	NULL
 SELECT SUM(DISTINCT b), 
 (SELECT t2.a FROM t1,t2 WHERE t.a != 0 or 1=2 LIMIT 1)
@@ -6557,66 +6610,93 @@ CREATE TABLE t3 (f3a int default 1, f3b int default 2);
 INSERT INTO t3 VALUES (1,1),(2,2);
 set @old_optimizer_switch = @@session.optimizer_switch;
 set @@optimizer_switch='materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=off,subquery_cache=off,semijoin=off';
-SELECT (SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1) FROM t2;
-(SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1)
+SELECT
+(SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1) FROM t2;
-(SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1)
+SELECT
+(SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) FROM t2;
-(SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1)
+SELECT
+(SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1);
-(SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1)
+SELECT
+(SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) AS m;
+m
 NULL
-SELECT (SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1) FROM t2;
-(SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1)
-NULL
-NULL
-SELECT (SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1) FROM t2;
-(SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1)
-NULL
-NULL
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) FROM t2;
-(SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1)
+SELECT
+(SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1);
-(SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1)
+SELECT
+(SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1) AS m
+FROM t2;
+m
+NULL
+NULL
+SELECT
+(SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) AS m
+FROM t2;
+m
+NULL
+NULL
+SELECT
+(SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) AS m;
+m
 NULL
 set @@session.optimizer_switch=@old_optimizer_switch;
-SELECT (SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1) FROM t2;
-(SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1)
+SELECT
+(SELECT f3a FROM t3 where f3a > 3) NOT IN (SELECT f1a FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1) FROM t2;
-(SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1)
+SELECT
+(SELECT f3a,f3a  FROM t3 where f3a > 3) NOT IN (SELECT f1a,f1a FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) FROM t2;
-(SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1)
+SELECT
+(SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1);
-(SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1)
+SELECT
+(SELECT f3a, f3b FROM t3 where f3a > 3) NOT IN (SELECT f1a, f1b FROM t1) AS m;
+m
 NULL
-SELECT (SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1) FROM t2;
+SELECT
+(SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1) FROM t2 AS m;
 (SELECT f3a FROM t3 where f3a > 3) IN (SELECT f1a FROM t1)
 NULL
 NULL
-SELECT (SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1) FROM t2;
-(SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1)
+SELECT
+(SELECT f3a,f3a  FROM t3 where f3a > 3) IN (SELECT f1a,f1a FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) FROM t2;
-(SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1)
+SELECT
+(SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) AS m
+FROM t2;
+m
 NULL
 NULL
-SELECT (SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1);
-(SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1)
+SELECT
+(SELECT f3a, f3b FROM t3 where f3a > 3) IN (SELECT f1a, f1b FROM t1) AS m;
+m
 NULL
 select (null, null) = (null, null);
 (null, null) = (null, null)
@@ -6662,8 +6742,10 @@ INSERT INTO t2 VALUES (1);
 CREATE TABLE t3 ( c INT );
 INSERT INTO t3 VALUES (4),(5);
 SET optimizer_switch='subquery_cache=off';
-SELECT ( SELECT b FROM t2 WHERE b = a OR EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-( SELECT b FROM t2 WHERE b = a OR EXISTS ( SELECT c FROM t3 WHERE c = b ) )
+SELECT
+( SELECT b FROM t2 WHERE b = a OR EXISTS ( SELECT c FROM t3 WHERE c = b ) ) AS m
+FROM t1;
+m
 1
 NULL
 SELECT ( SELECT b FROM t2 WHERE b = a OR b * 0) FROM t1;
@@ -6879,7 +6961,9 @@ CREATE TABLE t3 (c INT);
 INSERT INTO t3 VALUES (8),(3);
 set @@expensive_subquery_limit= 0;
 EXPLAIN
-SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+SELECT
+(SELECT MIN(b) FROM t1, t2
+WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	2	
@@ -6889,9 +6973,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	
 flush status;
-SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+SELECT
+(SELECT MIN(b) FROM t1, t2
+WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
-(SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+m
 NULL
 NULL
 NULL
@@ -6917,7 +7003,9 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	22
 set @@expensive_subquery_limit= default;
 EXPLAIN
-SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+SELECT
+(SELECT MIN(b) FROM t1, t2
+WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	2	
@@ -6927,9 +7015,11 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	
 flush status;
-SELECT (SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+SELECT
+(SELECT MIN(b) FROM t1, t2
+WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3))) AS m
 FROM t2 alias1, t1 alias2, t1 alias3;
-(SELECT MIN(b) FROM t1, t2 WHERE b = a AND (b = alias1.b OR EXISTS (SELECT * FROM t3)))
+m
 NULL
 NULL
 NULL

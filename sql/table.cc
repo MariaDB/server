@@ -6454,6 +6454,9 @@ bool TABLE_LIST::prepare_security(THD *thd)
 #ifndef DBUG_OFF
 void TABLE_LIST::set_check_merged()
 {
+  if (is_view())
+    return;
+
   DBUG_ASSERT(derived);
   /*
     It is not simple to check all, but at least this should be checked:
@@ -6781,9 +6784,8 @@ void Field_iterator_table_ref::set_field_iterator()
                        table_ref->alias.str));
   }
   /* This is a merge view, so use field_translation. */
-  else if (table_ref->field_translation)
+  else if (table_ref->is_merged_derived() && table_ref->field_translation)
   {
-    DBUG_ASSERT(table_ref->is_merged_derived());
     field_it= &view_field_it;
     DBUG_PRINT("info", ("field_it for '%s' is Field_iterator_view",
                         table_ref->alias.str));
@@ -9233,15 +9235,15 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     set_derived();
   }
 
-  if (!is_view() &&
+  if (is_view() ||
       !derived_table_optimization_done(this))
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
-    if (!is_materialized_derived() && first_select->is_mergeable() &&
-        optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
+    if (!is_materialized_derived() && unit->can_be_merged() &&
+        (optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) || is_view()) &&
         !thd->lex->can_not_use_merged() &&
-        !(thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-          thd->lex->sql_command == SQLCOM_DELETE_MULTI) &&
+        !((thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
+           thd->lex->sql_command == SQLCOM_DELETE_MULTI) && !is_view()) &&
         !is_recursive_with_table())
       set_merged_derived();
     else

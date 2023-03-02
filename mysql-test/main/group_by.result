@@ -1027,8 +1027,9 @@ FROM t1 AS t1_outer GROUP BY t1_outer.b;
 21
 21
 SELECT (SELECT SUM(t1_inner.a) FROM t1 AS t1_inner GROUP BY t1_inner.b LIMIT 1)
+AS m
 FROM t1 AS t1_outer;
-(SELECT SUM(t1_inner.a) FROM t1 AS t1_inner GROUP BY t1_inner.b LIMIT 1)
+m
 3
 3
 3
@@ -1268,12 +1269,9 @@ a
 select avg (
 (select
 (select sum(outr.a + innr.a) from t1 as innr limit 1) as tt
-from t1 as outr order by outr.a limit 1))
+from t1 as outr order by outr.a limit 1)) as m
 from t1 as most_outer;
-avg (
-(select
-(select sum(outr.a + innr.a) from t1 as innr limit 1) as tt
-from t1 as outr order by outr.a limit 1))
+m
 29.0000
 select avg (
 (select (

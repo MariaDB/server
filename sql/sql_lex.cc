@@ -3284,40 +3284,45 @@ LEX::LEX()
 }
 
 
+bool LEX::can_be_merged()
+{
+  return unit.can_be_merged();
+}
+
+
 /*
-  Check whether the merging algorithm can be used on this VIEW
+  Check whether the merging algorithm can be used for this unit
 
   SYNOPSIS
-    LEX::can_be_merged()
+    st_select_lex_unit::can_be_merged()
 
   DESCRIPTION
-    We can apply merge algorithm if it is single SELECT view  with
-    subqueries only in WHERE clause (we do not count SELECTs of underlying
-    views, and second level subqueries) and we have not grpouping, ordering,
-    HAVING clause, aggregate functions, DISTINCT clause, LIMIT clause and
-    several underlying tables.
+    We can apply merge algorithm for a unit if it is single SELECT with
+    subqueries only in WHERE clauses or in ON conditions or in select list
+    (we do not count SELECTs of underlying  views/derived tables/CTEs and
+    second level subqueries) and we have no grouping, ordering, HAVING
+    clause, aggregate functions, DISTINCT clause, LIMIT clause.
 
   RETURN
     FALSE - only temporary table algorithm can be used
     TRUE  - merge algorithm can be used
 */
 
-bool LEX::can_be_merged()
+bool st_select_lex_unit::can_be_merged()
 {
   // TODO: do not forget implement case when select_lex.table_list.elements==0
 
   /* find non VIEW subqueries/unions */
-  bool selects_allow_merge= (first_select_lex()->next_select() == 0 &&
-                             !(first_select_lex()->uncacheable &
+  bool selects_allow_merge= (first_select()->next_select() == 0 &&
+                             !(first_select()->uncacheable &
                                UNCACHEABLE_RAND));
   if (selects_allow_merge)
   {
-    for (SELECT_LEX_UNIT *tmp_unit= first_select_lex()->first_inner_unit();
+    for (SELECT_LEX_UNIT *tmp_unit= first_select()->first_inner_unit();
          tmp_unit;
          tmp_unit= tmp_unit->next_unit())
     {
-      if (tmp_unit->first_select()->parent_lex == this &&
-          (tmp_unit->item != 0 &&
+      if ((tmp_unit->item != 0 &&
            (tmp_unit->item->place() != IN_WHERE &&
             tmp_unit->item->place() != IN_ON &&
             tmp_unit->item->place() != SELECT_LIST)))
@@ -3329,12 +3334,12 @@ bool LEX::can_be_merged()
   }
 
   return (selects_allow_merge &&
-          first_select_lex()->group_list.elements == 0 &&
-          first_select_lex()->having == 0 &&
-          first_select_lex()->with_sum_func == 0 &&
-          first_select_lex()->table_list.elements >= 1 &&
-          !(first_select_lex()->options & SELECT_DISTINCT) &&
-          first_select_lex()->select_limit == 0);
+          first_select()->group_list.elements == 0 &&
+          first_select()->having == 0 &&
+          first_select()->with_sum_func == 0 &&
+          first_select()->table_list.elements >= 1 &&
+          !(first_select()->options & SELECT_DISTINCT) &&
+          first_select()->select_limit == 0);
 }
 
 

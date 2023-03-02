@@ -8016,9 +8016,8 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
        table_list;
        table_list= table_list->next_local)
   {
-    if (table_list->merge_underlying_list)
+    if (table_list->is_merged_derived() && table_list->merge_underlying_list)
     {
-      DBUG_ASSERT(table_list->is_merged_derived());
       Query_arena *arena, backup;
       arena= thd->activate_stmt_arena_if_needed(&backup);
       bool res;

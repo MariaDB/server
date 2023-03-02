@@ -1003,6 +1003,8 @@ public:
 
   bool set_lock_to_the_last_select(Lex_select_lock l);
 
+  bool can_be_merged();
+
   friend class st_select_lex;
 };
 

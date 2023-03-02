@@ -4130,7 +4130,7 @@ explain select * from (select rand() from t1)q	{
             "derived": {
               "table": "q",
               "select_id": 2,
-              "algorithm": "merged"
+              "algorithm": "materialized"
             }
           },
           {
@@ -4144,7 +4144,7 @@ explain select * from (select rand() from t1)q	{
             }
           },
           {
-            "expanded_query": "/* select#1 */ select rand() AS `rand()` from (/* select#2 */ select rand() AS `rand()` from t1) q"
+            "expanded_query": "/* select#1 */ select q.`rand()` AS `rand()` from (/* select#2 */ select rand() AS `rand()` from t1) q"
           }
         ]
       }
@@ -4153,14 +4153,6 @@ explain select * from (select rand() from t1)q	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
-          {
-            "derived": {
-              "table": "q",
-              "select_id": 2,
-              "algorithm": "materialized",
-              "cause": "Random function in the select"
-            }
-          },
           {
             "join_optimization": {
               "select_id": 2,
