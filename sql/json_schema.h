@@ -176,10 +176,7 @@ class Json_schema_const : public Json_schema_keyword
     }
 };
 
-enum enum_scalar_values {
-                         HAS_NO_VAL= 0, HAS_TRUE_VAL= 2,
-                         HAS_FALSE_VAL= 4, HAS_NULL_VAL= 8
-                        };
+
 class Json_schema_enum : public  Json_schema_keyword
 {
   private:
@@ -196,7 +193,7 @@ class Json_schema_enum : public  Json_schema_keyword
                         List<Json_schema_keyword> *all_keywords) override;
     Json_schema_enum()
     {
-      enum_scalar= HAS_NO_VAL;
+      enum_scalar= 0;
     }
     ~Json_schema_enum()
     {

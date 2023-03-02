@@ -3357,6 +3357,7 @@ SET @schema_reference= '{"$defs": "http://example.com/custom-email-validator.jso
 SELECT JSON_SCHEMA_VALID(@schema_reference, '{}');
 
 
+
 --echo #
 --echo # MDEV-30795: JSON_SCHEMA_VALID bugs mentioned in comment
 --echo #
@@ -3473,5 +3474,24 @@ SET @invalid_schema= '{"type":"object"
                                         }
                            }';
 SELECT JSON_SCHEMA_VALID(@invalid_schema, '{"number1":3, "obj2":{"key1":3}}');
+
+--echo #
+--echo # MDEV-30703: JSON_SCHEMA_VALID : Enum array must have at least one value
+--echo #
+
+SET @schema = '{
+                 "type":"array",
+                  "enum": []
+                }';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
+SET @schema = '{
+                 "type":"number",
+                  "enum": [2, 2]
+                }';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
 
 --echo # End of 11.1 test

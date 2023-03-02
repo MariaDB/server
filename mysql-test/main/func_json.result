@@ -4590,4 +4590,19 @@ JSON_SCHEMA_VALID(@invalid_schema, '{"number1":3, "obj2":{"key1":3}}')
 NULL
 Warnings:
 Warning	4038	Syntax error in JSON text in argument 1 to function 'json_schema_valid' at position 45
+#
+# MDEV-30703: JSON_SCHEMA_VALID : Enum array must have at least one value
+#
+SET @schema = '{
+                 "type":"array",
+                  "enum": []
+                }';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword enum
+SET @schema = '{
+                 "type":"number",
+                  "enum": [2, 2]
+                }';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword enum
 # End of 11.1 test
