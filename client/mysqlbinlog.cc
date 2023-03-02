@@ -1896,11 +1896,11 @@ static void cleanup()
 }
 
 
-static void die()
+static void die(int err)
 {
   cleanup();
-  my_end(MY_DONT_FREE_DBUG);
-  exit(1);
+  my_end(0);
+  exit(err);
 }
 
 
@@ -1937,7 +1937,7 @@ static my_time_t convert_str_to_timestamp(const char* str)
       l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
   {
     error("Incorrect date and time argument: %s", str);
-    die();
+    die(1);
   }
   /*
     Note that Feb 30th, Apr 31st cause no error messages and are mapped to
@@ -1996,7 +1996,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
                                               opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
-      die();
+      die(1);
     }
     break;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
@@ -2021,7 +2021,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
                                        opt->name)) <= 0)
       {
         sf_leaking_memory= 1; /* no memory leak reports here */
-        die();
+        die(1);
       }
       opt_base64_output_mode= (enum_base64_output_mode) (val - 1);
     }
@@ -2107,7 +2107,7 @@ static int parse_args(int *argc, char*** argv)
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
   {
-    die();
+    die(ho_error);
   }
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
@@ -3078,7 +3078,7 @@ int main(int argc, char** argv)
     if (!remote_opt)
     {
       error("The --raw mode only works with --read-from-remote-server");
-      die();
+      die(1);
     }
     if (one_database)
       warning("The --database option is ignored in raw mode");
@@ -3100,7 +3100,7 @@ int main(int argc, char** argv)
                                   O_WRONLY | O_BINARY, MYF(MY_WME))))
       {
         error("Could not create log file '%s'", result_file_name);
-        die();
+        die(1);
       }
     }
     else
