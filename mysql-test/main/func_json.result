@@ -4605,4 +4605,33 @@ SET @schema = '{
                 }';
 SELECT JSON_SCHEMA_VALID(@schema, '2');
 ERROR HY000: Invalid value for keyword enum
+#
+# MDEV-30704: JSON_SCHEMA_VALID: multipleOf must be greater than zero
+#
+SET @schema = '{
+                  "multipleOf": 0
+                }';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword multipleOf
+SET @schema= '{ "maxLength" : -3}';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword maxLength
+SET @schema= '{ "minLength" : -3}';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword minLength
+SET @schema= '{ "maxProperties" : -3}';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword maxProperties
+SET @schema= '{ "minProperties" : -3}';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword minProperties
+SET @schema= '{ "maxItems" : -3}';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword maxItems
+SET @schema= '{ "minItems" : -3}';
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+ERROR HY000: Invalid value for keyword maxLength
+SET @schema= '{ "items" : ["str1"]}';
+SELECT JSON_SCHEMA_VALID(@schema, '[]');
+ERROR HY000: Invalid value for keyword items
 # End of 11.1 test

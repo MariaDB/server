@@ -3494,4 +3494,43 @@ SET @schema = '{
 SELECT JSON_SCHEMA_VALID(@schema, '2');
 
 
+--echo #
+--echo # MDEV-30704: JSON_SCHEMA_VALID: multipleOf must be greater than zero
+--echo #
+
+SET @schema = '{
+                  "multipleOf": 0
+                }';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
+SET @schema= '{ "maxLength" : -3}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
+SET @schema= '{ "minLength" : -3}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
+SET @schema= '{ "maxProperties" : -3}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
+SET @schema= '{ "minProperties" : -3}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
+SET @schema= '{ "maxItems" : -3}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
+SET @schema= '{ "minItems" : -3}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '2');
+
+SET @schema= '{ "items" : ["str1"]}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema, '[]');
+
+
 --echo # End of 11.1 test
