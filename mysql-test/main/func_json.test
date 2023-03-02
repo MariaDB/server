@@ -3449,4 +3449,29 @@ SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"I_": 150}');
 SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 50}');
 SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 150}');
 
+--echo #
+--echo # MDEV-30690: Server crashed on function JSON_SCHEMA_VALID with incorrect input json schema
+--echo #
+
+SET @schema = '{""}';
+SELECT JSON_SCHEMA_VALID(@schema, '1');
+
+SET @schema = '{
+  "type": "string",
+  "format"
+  }';
+SELECT JSON_SCHEMA_VALID(@schema, '1');
+
+SET @invalid_schema= '{"type":"object"
+                           "properties":{
+                                          "number1": {"type":"number"},
+                                          "obj2": {"type":"object",
+                                                   "properties": {
+                                                                  "key1": {"type":"number"}
+                                                                 }
+                                                   }
+                                        }
+                           }';
+SELECT JSON_SCHEMA_VALID(@invalid_schema, '{"number1":3, "obj2":{"key1":3}}');
+
 --echo # End of 11.1 test

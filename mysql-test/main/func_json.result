@@ -3344,9 +3344,9 @@ SET @invalid_schema= '{"type":"object"
                            }';
 SELECT JSON_SCHEMA_VALID(@invalid_schema, '{"number1":3, "obj2":{"key1":3}}');
 JSON_SCHEMA_VALID(@invalid_schema, '{"number1":3, "obj2":{"key1":3}}')
-1
+NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 2 to function 'json_schema_valid' at position 45
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_schema_valid' at position 45
 SET @invalid_json= '{"type":"array",
                      "maxItems": 4,
                      "minItems": 2,
@@ -4557,4 +4557,37 @@ JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 50}')
 SELECT JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 150}');
 JSON_SCHEMA_VALID(@schema_pattern_properties, '{"i_": 150}')
 1
+#
+# MDEV-30690: Server crashed on function JSON_SCHEMA_VALID with incorrect input json schema
+#
+SET @schema = '{""}';
+SELECT JSON_SCHEMA_VALID(@schema, '1');
+JSON_SCHEMA_VALID(@schema, '1')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_schema_valid'
+SET @schema = '{
+  "type": "string",
+  "format"
+  }';
+SELECT JSON_SCHEMA_VALID(@schema, '1');
+JSON_SCHEMA_VALID(@schema, '1')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_schema_valid'
+SET @invalid_schema= '{"type":"object"
+                           "properties":{
+                                          "number1": {"type":"number"},
+                                          "obj2": {"type":"object",
+                                                   "properties": {
+                                                                  "key1": {"type":"number"}
+                                                                 }
+                                                   }
+                                        }
+                           }';
+SELECT JSON_SCHEMA_VALID(@invalid_schema, '{"number1":3, "obj2":{"key1":3}}');
+JSON_SCHEMA_VALID(@invalid_schema, '{"number1":3, "obj2":{"key1":3}}')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_schema_valid' at position 45
 # End of 11.1 test

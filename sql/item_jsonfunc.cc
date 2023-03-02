@@ -4729,7 +4729,10 @@ longlong Item_func_json_schema_valid::val_int()
   int is_valid= 1;
 
   if (!schema_parsed)
+  {
+    null_value= 1;
     return 0;
+  }
 
   val= args[1]->val_json(&tmp_val);
 
@@ -4798,10 +4801,19 @@ bool Item_func_json_schema_valid::fix_length_and_dec(THD *thd)
                                           &all_keywords))
     schema_parsed= true;
   else
-    res= true;
+    schema_parsed= false;
 
-  if (je.s.error)
-    report_json_error(js, &je, 1);
+  /*
+    create_object_and_handle_keyword fails when either the json value for
+    keyword is invalid or when there is syntax error. Return NULL in both
+    these cases.
+  */
+  if (!schema_parsed)
+  {
+    if (je.s.error)
+     report_json_error(js, &je, 0);
+    set_maybe_null();
+  }
 
   return res || Item_bool_func::fix_length_and_dec(thd);
 }
