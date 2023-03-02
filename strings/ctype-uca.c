@@ -34768,7 +34768,7 @@ create_tailoring(struct charset_info_st *cs,
   else if (rules.version == 1400)     /* Unicode-14.0.0 */
   {
     src_uca= &my_uca_v1400;
-    cs->casefold= &my_casefold_unicode520;
+    cs->casefold= &my_casefold_unicode1400;
   }
   else if (rules.version == 400)      /* Unicode-4.0.0 requested */
   {
@@ -39455,9 +39455,9 @@ my_uca1400_collation_definition_init(MY_CHARSET_LOADER *loader,
   dst->uca= &my_uca_v1400;
   dst->tailoring= def->tailoring;
   if (def->tailoring == turkish)
-    dst->casefold= &my_casefold_turkish; /*TODO: casefold_1400_turkish */
+    dst->casefold= &my_casefold_unicode1400tr;
   else
-    dst->casefold= &my_casefold_unicode520;  /*TODO: casefold_1400*/
+    dst->casefold= &my_casefold_unicode1400;
   if (nopad)
     dst->state|= MY_CS_NOPAD;
   my_ci_set_level_flags(dst, (1 << MY_CS_LEVEL_BIT_PRIMARY) |

@@ -31,6 +31,8 @@
 #include "ctype-unicode300-casefold.h"
 #include "ctype-unicode300-casefold-tr.h"
 #include "ctype-unicode520-casefold.h"
+#include "ctype-unicode1400-casefold.h"
+#include "ctype-unicode1400-casefold-tr.h"
 
 
 
@@ -75,5 +77,21 @@ MY_CASEFOLD_INFO my_casefold_unicode520=
 {
   0x10FFFF,
   my_u520_casefold_index,
+  NULL
+};
+
+
+MY_CASEFOLD_INFO my_casefold_unicode1400=
+{
+  0x10FFFF,
+  my_u1400_casefold_index,
+  NULL
+};
+
+
+MY_CASEFOLD_INFO my_casefold_unicode1400tr=
+{
+  0x10FFFF,
+  my_u1400tr_casefold_index,
   NULL
 };

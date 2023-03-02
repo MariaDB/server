@@ -136,6 +136,8 @@ extern MY_CASEFOLD_INFO my_casefold_default;
 extern MY_CASEFOLD_INFO my_casefold_turkish;
 extern MY_CASEFOLD_INFO my_casefold_mysql500;
 extern MY_CASEFOLD_INFO my_casefold_unicode520;
+extern MY_CASEFOLD_INFO my_casefold_unicode1400;
+extern MY_CASEFOLD_INFO my_casefold_unicode1400tr;
 
 
 size_t my_strxfrm_pad_nweights_unicode(uchar *str, uchar *strend, size_t nweights);

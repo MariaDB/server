@@ -118,7 +118,9 @@ static uint
 my_casefold_multiply_utf8mbx(CHARSET_INFO *cs)
 {
   DBUG_ASSERT(cs->mbminlen == 1 && cs->mbmaxlen >= 3);
-  if (cs->casefold == &my_casefold_unicode520)
+  if (cs->casefold == &my_casefold_unicode520 ||
+      cs->casefold == &my_casefold_unicode1400 ||
+      cs->casefold == &my_casefold_unicode1400tr)
     return 2;
   if (cs->casefold == &my_casefold_turkish)
     return 2;
