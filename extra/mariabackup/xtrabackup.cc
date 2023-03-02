@@ -1088,7 +1088,8 @@ struct my_option xb_client_options[]= {
      (G_PTR *) &xtrabackup_print_param, (G_PTR *) &xtrabackup_print_param, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
     {"use-memory", OPT_XTRA_USE_MEMORY,
-     "The value is used instead of buffer_pool_size",
+     "The value is used in place of innodb_buffer_pool_size. "
+     "This option is only relevant when the --prepare option is specified.",
      (G_PTR *) &xtrabackup_use_memory, (G_PTR *) &xtrabackup_use_memory, 0,
      GET_LL, REQUIRED_ARG, 100 * 1024 * 1024L, 1024 * 1024L, LONGLONG_MAX, 0,
      1024 * 1024L, 0},
