@@ -11,24 +11,21 @@
 # Official builds include separate debug enabled plugins to be used by
 # the debug enabled server. But the non-debug *client* should not use them.
 
-let PLUGIN_AUTH_OPT=`SELECT TRIM(TRAILING '/debug' FROM '$PLUGIN_AUTH_OPT')`;
-let CONNECTION_CONTROL_PLUGIN_OPT=`SELECT TRIM(TRAILING '/debug' FROM '$CONNECTION_CONTROL_PLUGIN_OPT')`;
-
 # Suppress error messages from test_plugin_server
 CALL mtr.add_suppression("Plugin test_plugin_server reported: 'Wrong password supplied for proxied'");
 
-# Save original values of connection_control variables
-SET @saved_connections_threshold = @@global.failed-attempts-before-delay;
+# Save original values of connection_delay variables
+SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
 
-# Set a small values for connection_control variables
-SET @@global.failed-attempts-before-delay = 3;
+# Set a small values for connection_delay variables
+SET @@global.failed_attempts_before_delay = 3;
 
 # We will use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 1;
 
 --echo #-----------------------------------------------------------------------
 
---echo # Case 1 : Testss for valid user accounts
+--echo # Case 1 : Tests for valid user accounts
 
 --echo # Make enough failed attempts to trigger delays
 
@@ -42,34 +39,44 @@ connect(fail_con_u1, localhost, u1,,,,,);
 connect(fail_con_u1, localhost, u1,haha,,,,);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u2,efgh,,,,);
+connect(fail_con_u1, localhost, u1,efgh,,,,);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u3,,,,,);
+connect(fail_con_u3, localhost, u3,,,,,);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u2,haha,,,,);
+connect(fail_con_u3, localhost, u3,efgh,,,,);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u3,efgh,,,,);
+connect(fail_con_u3, localhost, u3,efgh,,,,);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u2,,,,,);
+connect(fail_con_u2, localhost, u2,haha,,,,);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,haha,,,,);
+connect(fail_con_u2, localhost, u2,,,,);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u3,efgh,,,,);
+connect(fail_con_u2, localhost, u2,haha,,,,);
+
+
 
 enable_result_log;
 
 let $HOST=localhost;
-let $DELAY_MIN_RESPONSE_TIME= 2000;
+let $DELAY_MIN_RESPONSE_TIME= 1000;
 
---echo # Following attempts will experience delay in server response
+# Even though u1@localhost, u2@localhost and u3@localhost are
+# proxying same user - proxied@localhost, we will not use
+# proxied@localhost for recording failed attempts information.
+# Rather, we will rely on proxying users' data.
+# So each of the following should get delay of 2 seconds
+# or more.
+
+--echo
+--echo # u1@localhost will not experience delay in server response , because auth plugin for u1  return code is plugin error
 # Trying with invalid passwords
 
 let $USER=u1;
@@ -81,7 +88,7 @@ let $SUCCESS=0;
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
-
+--echo # Following attempts will experience delay in server response, because auth plugin for u2 and u3 return code is bad credentials
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
@@ -100,14 +107,7 @@ let $SUCCESS=0;
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
-# Trying with valid passwords
-# Even though u1@localhost, u2@localhost and u3@localhost are
-# proxying same user - proxied@localhost, we will not use
-# proxied@localohst for recording failed attempts information.
-# Rather, we will rely on proxying users' data.
-# So each of the following should get delay of 2 seconds
-# or more.
-
+--echo #---------------------------Trying with valid passwords--------------------------------
 let $USER=u3;
 let $PASSWORD=proxied;
 let $SUCCESS=1;
@@ -161,7 +161,7 @@ let $SUCCESS=0;
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
---echo # Successful login
+--echo #--------------------------------------------Successful login----------------------------------
 let $USER=u1;
 let $PASSWORD=proxied;
 let $SUCCESS=1;
@@ -191,8 +191,8 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 connection default;
 
-# Restore original values of connection_control variables
-SET @@global.failed-attempts-before-delay = @saved_connections_threshold;
+# Restore original values of connection_delay variables
+SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
 
 --echo # Remove user accounts
 --source ../inc/cleanup_proxy_accounts.inc

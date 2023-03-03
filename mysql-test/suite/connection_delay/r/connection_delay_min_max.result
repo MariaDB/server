@@ -5,9 +5,9 @@
 # Setup
 # Create user account for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
-# Save original values of connection_control variables
+# Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.failed_connections_threshold;
-# Set small values for connection_control variables
+# Set small values for connection_delay variables
 SET @@global.failed_connections_threshold = 3;
 
 # ----------------------------------------------------------------------
@@ -50,7 +50,7 @@ connection default;
 
 # Cleanup
 connection default;
-# Restore original values of conenction_control variables
+# Restore original values of connection delay variables
 SET @@global.failed_connections_threshold = @saved_connections_threshold;
 # Remove user account created for the test
 DROP USER u1;

@@ -16,16 +16,16 @@
 --echo # Create user account for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
 
---echo # Save original values of connection_control variables
-SET @saved_connections_threshold = @@global.failed-attempts-before-delay;
+--echo # Save original values of connection_delay variables
+SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
 
 
--- echo # Set small values for connection_control variables
-SET @@global.failed-attempts-before-delay = 3;
+-- echo # Set small values for connection_delay variables
+SET @@global.failed_attempts_before_delay = 3;
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
-let $DELAY_MIN_RESPONSE_TIME = 2000;
+let $DELAY_MIN_RESPONSE_TIME = 1000;
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
@@ -130,8 +130,8 @@ let $SUCCESS=1;
 --echo # Cleanup
 
 connection default;
---echo # Restore original values of connection_control variables
-SET @@global.failed-attempts-before-delay = @saved_connections_threshold;
+--echo # Restore original values of connection_delay variables
+SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
 
 
 --echo # Remove user account created for the test

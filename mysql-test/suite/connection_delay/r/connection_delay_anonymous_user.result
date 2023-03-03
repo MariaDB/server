@@ -5,9 +5,9 @@
 # Setup
 # Create anonymous user
 CREATE USER ''@'localhost';
-# Save original values of connection_control variables
+# Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.failed_connections_threshold;
-# Set small values for connection_control variables
+# Set small values for connection_delay variables
 SET @@global.failed_connections_threshold = 3;
 
 # ----------------------------------------------------------------------
@@ -55,7 +55,7 @@ FOUND 1 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
 
 # Cleanup
 connection default;
-# Restore original values of conenction_control variables
+# Restore original values of connection delay variables
 SET @@global.failed_connections_threshold = @saved_connections_threshold;
 # Drop anonymous user
 DROP USER ''@'localhost';

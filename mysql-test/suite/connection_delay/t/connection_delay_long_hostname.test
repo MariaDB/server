@@ -7,26 +7,26 @@
 
 # We don't need to use client side authentication plugin for this test.
 
-SET @saved_value = @@global.failed-attempts-before-delay;
+SET @saved_value = @@global.failed_attempts_before_delay;
 SELECT @saved_value;
 
-SET @@global.failed-attempts-before-delay = 3;
+SET @@global.failed_attempts_before_delay = 3;
 --echo # Create user accounts for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
 FLUSH HOSTS;
 SET @old_debug=@@global.debug_dbug;
-
-SET GLOBAL DEBUG_DBUG='+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_long_host,getaddrinfo_fake_good_ipv4';
+SET GLOBAL DEBUG_DBUG="+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_long_host,getaddrinfo_fake_good_ipv4:+f,login_connection,ip_to_hostname";
+select @@debug_dbug;
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR 
-connect('con1','127.0.0.1','u1',,test,$MASTER_MYPORT,);
+connect('con1','127.0.0.1','u1',hoho,test);
 
 SET GLOBAL DEBUG_DBUG=@old_debug;
 
 let $USER=u1;
-let $HOST=host5678901_345678902_345678903_345678904_345678905_345678906_345678907_345678908_345678909_345678910_345678911_345678912_345678913_345678914_345678915_345678916_345678917_345678918_345678919_345678920_345678921_345678922_345678923_345678924_345678925_345;
+let $HOST=%;
 let $count=1;
---echo # Search user@host failed count
+--echo # Search $USER@$HOST failed count
 --let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
 --let SEARCH_PATTERN=$USER@$HOST have login failed $count times
 --source include/search_pattern_in_file.inc
@@ -34,6 +34,6 @@ let $count=1;
 -- echo # Cleanup.
 DROP USER u1;
 
-SET @@global.failed-attempts-before-delay = @saved_value;
+SET @@global.failed_attempts_before_delay = @saved_value;
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc
