@@ -5299,7 +5299,7 @@ ER_UNKNOWN_STMT_HANDLER
         dan "Unknown prepared statement handler (%.*s) given to %s"
         eng "Unknown prepared statement handler (%.*s) given to %s"
         ger "Unbekannter Prepared-Statement-Handler (%.*s) für %s angegeben"
-	geo "უცნობი მომზადებული გამოსახულების დამმუშავებელი (%.*s) გადაცემულია %ს-სთვის"
+	geo "უცნობი მომზადებული გამოსახულების დამმუშავებელი (%.*s) გადაცემულია %s-სთვის"
         jpn "'%.*s' はプリペアードステートメントの不明なハンドルです。(%s で指定されました)"
         nla "Onebekende prepared statement handler (%.*s) voor %s aangegeven"
         por "Desconhecido manipulador de declaração preparado (%.*s) determinado para %s"
@@ -5504,7 +5504,7 @@ ER_WARN_NULL_TO_NOTNULL 22004
 ER_WARN_DATA_OUT_OF_RANGE 22003 
         chi "列'%s'行%lu的值超出范围"
         eng "Out of range value for column '%s' at row %lu"
-	geo "სვეტის '%ს' მწკრვში %lu მნიშვნელობა დიაპაზონს გარეთაა"
+	geo "სვეტის '%s' მწკრვში %lu მნიშვნელობა დიაპაზონს გარეთაა"
         spa "Valor fuera de rango para la columna '%s' en la fila %lu"
 WARN_DATA_TRUNCATED 01000 
         chi "数据被截断，在列'%s', 行%lu"
@@ -5550,7 +5550,7 @@ ER_CANT_AGGREGATE_3COLLATIONS
         chi "非法混合collations（%s，%s）,（%s，%s）和（%s，%s），用于操作'%s'"
         eng "Illegal mix of collations (%s,%s), (%s,%s), (%s,%s) for operation '%s'"
         ger "Unerlaubte Mischung von Sortierreihenfolgen (%s, %s), (%s, %s), (%s, %s) für Operation '%s'"
-	geo "კოლაციების (%s,%s), (%s,%s), (%s,%s) დაუშვებელი შერევა ოპერაციისთვის '%ს'"
+	geo "კოლაციების (%s,%s), (%s,%s), (%s,%s) დაუშვებელი შერევა ოპერაციისთვის '%s'"
         jpn "照合順序 (%s,%s), (%s,%s), (%s,%s) の混在は操作 '%s' では不正です。"
         por "Ilegal combinação de collations (%s,%s), (%s,%s), (%s,%s) para operação '%s'"
         spa "Mezcla ilegal de cotejos (collations) (%s,%s), (%s,%s), (%s,%s) para la operación '%s'"
