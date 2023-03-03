@@ -106,7 +106,7 @@ static struct st_mysql_auth auth_cleartext_handler=
 
 /**
   dialog test plugin mimicking the ordinary auth mechanism. Used to test the clear text plugin API.
-  The only difference between auth_cleartext_plugin and auth_cleartext_test_plugin is that the second plugin return CR_AUTH_USER_CREDENTIALS when password isn't matched.
+  The only difference between auth_cleartext_plugin and cleartext_plugin_server_return_bad_credentials is that the second plugin return CR_AUTH_USER_CREDENTIALS when password isn't matched.
 */
 static int auth_cleartext_plugin_return_bad_credentials(MYSQL_PLUGIN_VIO *vio,
                                  MYSQL_SERVER_AUTH_INFO *info)
