@@ -3533,4 +3533,15 @@ SET @schema= '{ "items" : ["str1"]}';
 SELECT JSON_SCHEMA_VALID(@schema, '[]');
 
 
+--echo #
+--echo # MDEV-30705: JSON_SCHEMA_VALID: schema with multipleOf for big value always return 1
+--echo #
+SET @schema = '{
+                  "multipleOf": 2
+                }';
+SELECT JSON_SCHEMA_VALID(@schema, '9007900000000001');
+SELECT JSON_SCHEMA_VALID(@schema, '9007900000000060');
+SELECT JSON_SCHEMA_VALID(@schema, '9007900000000061');
+
+
 --echo # End of 11.1 test

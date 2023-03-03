@@ -4634,4 +4634,19 @@ ERROR HY000: Invalid value for keyword maxLength
 SET @schema= '{ "items" : ["str1"]}';
 SELECT JSON_SCHEMA_VALID(@schema, '[]');
 ERROR HY000: Invalid value for keyword items
+#
+# MDEV-30705: JSON_SCHEMA_VALID: schema with multipleOf for big value always return 1
+#
+SET @schema = '{
+                  "multipleOf": 2
+                }';
+SELECT JSON_SCHEMA_VALID(@schema, '9007900000000001');
+JSON_SCHEMA_VALID(@schema, '9007900000000001')
+0
+SELECT JSON_SCHEMA_VALID(@schema, '9007900000000060');
+JSON_SCHEMA_VALID(@schema, '9007900000000060')
+1
+SELECT JSON_SCHEMA_VALID(@schema, '9007900000000061');
+JSON_SCHEMA_VALID(@schema, '9007900000000061')
+0
 # End of 11.1 test
