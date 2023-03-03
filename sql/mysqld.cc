@@ -331,6 +331,7 @@ static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 
 ulong max_used_connections;
+time_t max_used_connections_time;
 static const char *mysqld_user, *mysqld_chroot;
 static char *default_character_set_name;
 static char *character_set_filesystem_name;
@@ -6173,7 +6174,10 @@ void create_new_thread(CONNECT *connect)
 
   uint sum= connection_count + extra_connection_count;
   if (sum > max_used_connections)
+  {
     max_used_connections= sum;
+    max_used_connections_time= time(nullptr);
+  }
 
   /*
     The initialization of thread_id is done in create_embedded_thd() for
@@ -7006,8 +7010,19 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
-
 #endif /* HAVE_REPLICATION */
+
+
+static int show_max_used_connections_time(THD *thd, SHOW_VAR *var, char *buff,
+                                 enum enum_var_type scope)
+{
+  var->type= SHOW_CHAR;
+  var->value= buff;
+
+  get_date(buff, GETDATE_DATE_TIME | GETDATE_FIXEDLENGTH, max_used_connections_time);
+  return 0;
+}
+
 
 static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff,
                             enum enum_var_type scope)
@@ -7484,6 +7499,7 @@ SHOW_VAR status_vars[]= {
   {"Master_gtid_wait_timeouts", (char*) offsetof(STATUS_VAR, master_gtid_wait_timeouts), SHOW_LONG_STATUS},
   {"Master_gtid_wait_time",    (char*) offsetof(STATUS_VAR, master_gtid_wait_time), SHOW_LONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
+  {"Max_used_connections_time",(char*) &show_max_used_connections_time, SHOW_SIMPLE_FUNC},
   {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Memory_used_initial",      (char*) &start_memory_used, SHOW_LONGLONG},
   {"Resultset_metadata_skipped", (char *) offsetof(STATUS_VAR, skip_metadata_count),SHOW_LONG_STATUS},
@@ -7822,6 +7838,7 @@ static int mysql_init_variables(void)
   specialflag= 0;
   binlog_cache_use=  binlog_cache_disk_use= 0;
   max_used_connections= slow_launch_threads = 0;
+  max_used_connections_time= 0;
   mysqld_user= mysqld_chroot= opt_init_file= opt_bin_logname = 0;
   prepared_stmt_count= 0;
   mysqld_unix_port= opt_mysql_tmpdir= my_bind_addr_str= NullS;
@@ -9200,6 +9217,7 @@ void refresh_status(THD *thd)
     connections.  This is not perfect, but status data is not exact anyway.
   */
   max_used_connections= connection_count + extra_connection_count;
+  max_used_connections_time= time(nullptr);
 }
 
 #ifdef HAVE_PSI_INTERFACE
