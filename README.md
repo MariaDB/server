@@ -2,9 +2,10 @@
 
 ## Install Dependencies
 Firstly Create configuration file in this path '/etc/apt/sources.list.d/mariadb.list` using following command:
-'''
+
+```
 sudo gedit /etc/apt/sources.list.d/mariadb.list
-'''
+```
 
 then Save the following repository configuration contents in the file `/etc/apt/sources.list.d/mariadb.list`. Note that the configuration is valid for the mariadb branch 11.0 and Ubuntu 22.04:
 ```
@@ -24,9 +25,11 @@ sudo curl -o /etc/apt/trusted.gpg.d/mariadb_release_signing_key.asc 'https://mar
 sudo apt-get update
 ```
 if Error Recieved: "sudo: curl command not found" then first run this command
-'''
+
+```
 sudo apt install curl
-'''
+```
+
 and import repository key again using above curl command.
 
 Install dependencies:
