@@ -14521,7 +14521,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;
       if (thd->password && !mpvio.make_it_fail)
-        handle_password_errors(thd,acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
+        handle_password_errors(thd, acl_user->user.str, acl_user->host.hostname, PASSWD_ERROR_INCREMENT);
       break;
     case CR_ERROR:
     default:
