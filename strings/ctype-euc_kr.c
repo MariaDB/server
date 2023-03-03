@@ -213,7 +213,7 @@ static const uchar sort_order_euc_kr[]=
 #include "ctype-mb.inl"
 
 
-static MY_CASEFOLD_CHARACTER cA3[256]=
+static const MY_CASEFOLD_CHARACTER cA3[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -418,7 +418,7 @@ static MY_CASEFOLD_CHARACTER cA3[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA5[256]=
+static const MY_CASEFOLD_CHARACTER cA5[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -623,7 +623,7 @@ static MY_CASEFOLD_CHARACTER cA5[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA7[256]=
+static const MY_CASEFOLD_CHARACTER cA7[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -828,7 +828,7 @@ static MY_CASEFOLD_CHARACTER cA7[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA8[256]=
+static const MY_CASEFOLD_CHARACTER cA8[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1033,7 +1033,7 @@ static MY_CASEFOLD_CHARACTER cA8[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA9[256]=
+static const MY_CASEFOLD_CHARACTER cA9[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1238,7 +1238,7 @@ static MY_CASEFOLD_CHARACTER cA9[256]=
 };  
 
 
-static MY_CASEFOLD_CHARACTER cAC[256]=
+static const MY_CASEFOLD_CHARACTER cAC[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1443,7 +1443,7 @@ static MY_CASEFOLD_CHARACTER cAC[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER *my_casefold_pages_euckr[256]=
+static const MY_CASEFOLD_CHARACTER *my_casefold_pages_euckr[256]=
 {
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, /* 0 */
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
