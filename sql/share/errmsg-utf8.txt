@@ -6102,7 +6102,7 @@ ER_FRM_UNKNOWN_TYPE
         chi "文件'%-.192s'在其标题中有未知的'%-.64s'"
         eng "File '%-.192s' has unknown type '%-.64s' in its header"
         ger "Datei '%-.192s' hat unbekannten Typ '%-.64s' im Header"
-	geo "ფაილს '%-.192s' უცნობი ტიპი '%-.64' მის თავსართში"
+	geo "ფაილის '%-.192s' უცნობი ტიპი '%-.64s' მის თავსართში"
         rus "Файл '%-.192s' содержит неизвестный тип '%-.64s' в заголовке"
         spa "El fichero/archivo '%-.192s' es de un tipo desconocido '%-.64s' en su cabecera"
         ukr "Файл '%-.192s' має невідомий тип '%-.64s' у заголовку"
@@ -6247,7 +6247,7 @@ ER_TRUNCATED_WRONG_VALUE_FOR_FIELD  22007
         chi "不正确的%-.32s值：'%-.128T'用于列`%.192s`%.192s`%.192s`在%lu行"
         eng "Incorrect %-.32s value: '%-.128T' for column `%.192s`.`%.192s`.`%.192s` at row %lu"
         ger "Falscher %-.32s-Wert: '%-.128T' für Feld '`%.192s`.`%.192s`.`%.192s` in Zeile %lu"
-	geo "%-.32s-ის არასწორი მნიშვნელობა სვეტისთვის `%.192s`.`%.192s`.`%.192s` მწკრივთან %lu"
+	geo "%-.32s-ის არასწორი მნიშვნელობა '%-.128T' სვეტისთვის `%.192s`.`%.192s`.`%.192s` მწკრივთან %lu"
         spa "Incorrecto %-.32s valor: '%-.128T' para columna `%.192s`.`%.192s`.`%.192s` en la fila %lu"
 ER_ILLEGAL_VALUE_FOR_TYPE 22007 
         chi "在解析期间发现的非法%s '%-.192T'值"
@@ -6627,7 +6627,7 @@ ER_M_BIGGER_THAN_D 42000 S1009
         chi "对于FLOAT（M，D），DOUBLE（M，D）或DECIMAL（M，D），M必须> = D（列'%-.192s'）"
         eng "For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '%-.192s')"
         ger "Für FLOAT(M,D), DOUBLE(M,D) oder DECIMAL(M,D) muss M >= D sein (Feld '%-.192s')"
-		ger "float(M,D), double(M,D) და decimal(M,D)-სთვის M >= D უნდა იყოს (სვეტი '%-.192s')"
+	geo "float(M,D), double(M,D) და decimal(M,D)-სთვის M >= D უნდა იყოს (სვეტი '%-.192s')"
         spa "Para flotante(M,D), doble(M,D) o decimal(M,D), M debe de ser >= D (columna '%-.192s')"
 ER_WRONG_LOCK_OF_SYSTEM_TABLE
         chi "您无法将系统表的写入锁定与其他表或锁定类型相结合"
@@ -6657,7 +6657,6 @@ ER_FOREIGN_DATA_STRING_INVALID_CANT_CREATE
         chi "无法创建联合表。数据源连接字符串'%-.64s'不是正确的格式"
         eng "Can't create federated table. The data source connection string '%-.64s' is not in the correct format"
         ger "Kann föderierte Tabelle nicht erzeugen. Der Datenquellen-Verbindungsstring '%-.64s' hat kein korrektes Format"
-	geo "
         spa "No puedo crear tabla federada. La cadena de conexión de la fuente de datos '%-.64s' no tiene el formato correcto"
 ER_FOREIGN_DATA_STRING_INVALID
         chi "数据源连接字符串'%-.64s'不是正确的格式"
@@ -6794,7 +6793,7 @@ ER_OLD_FILE_FORMAT
         spa "'%-.192s' tiene un formato viejo, debería vd de volver a crear el/los objeto(s) '%s'"
 ER_SP_RECURSION_LIMIT
         chi "递归限制%d（如max_sp_recursion_depth变量设置）的例程%.192s"
-        eng "Recursive limit %d (as set by the max_sp_recursion_depth variable) was exceeded for routine
+        eng "Recursive limit %d (as set by the max_sp_recursion_depth variable) was exceeded for routine %.192s"
         ger "Rekursionsgrenze %d (durch Variable max_sp_recursion_depth gegeben) wurde für Routine %.192s überschritten"
 	geo "რეკურსიულობის ლიმიტი %d (დაყენებულია ცვლადით max_sp_recursion_depth) გადაცილებულია ქვეპროგრამისთვის  %.192s"
         spa "El límite recursivo %d (según se indica mediante la variable max_sp_recursion_depth) se ha excedido para la rutina %.192s"
@@ -6890,7 +6889,7 @@ ER_NON_INSERTABLE_TABLE
         chi "目标表%-.100s %s不可插入"
         eng "The target table %-.100s of the %s is not insertable-into"
         ger "Die Zieltabelle %-.100s von %s ist nicht einfügbar"
-	geo "სამიზნე ცხრილი %-.100s ჩამატებადი არაა"
+	geo "სამიზნე ცხრილი %-.100s %s-დან ჩამატებადი არაა"
         jpn "対象表 %-.100s は挿入可能ではないので、%s を行えません。"
         spa "La tabla destino %-.100s de la %s no es insertable-dentro"
 ER_ADMIN_WRONG_MRG_TABLE
