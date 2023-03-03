@@ -398,7 +398,7 @@ static dberr_t srv_undo_delete_old_tablespaces()
 }
 
 /** Recreate the undo log tablespaces */
-static dberr_t srv_undo_tablespaces_reinit()
+ATTRIBUTE_COLD static dberr_t srv_undo_tablespaces_reinit()
 {
   mtr_t mtr;
   dberr_t err;
@@ -430,6 +430,15 @@ static dberr_t srv_undo_tablespaces_reinit()
                      nullptr, BUF_GET, &mtr, &err);
   if (!first_rseg_hdr)
     goto func_exit;
+
+  if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
+                                     first_rseg_hdr->page.frame)))
+    trx_rseg_format_upgrade(first_rseg_hdr, &mtr);
+
+  mtr.write<8,mtr_t::MAYBE_NOP>(*first_rseg_hdr,
+                                TRX_RSEG + TRX_RSEG_MAX_TRX_ID +
+                                first_rseg_hdr->page.frame,
+                                trx_sys.get_max_trx_id() - 1);
 
   /* Reset TRX_SYS page */
   err= trx_sys.reset_page(&mtr);
