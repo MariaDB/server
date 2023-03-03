@@ -1596,7 +1596,7 @@ ER_DUP_ENTRY 23000 S1009
         est "Kattuv väärtus '%-.192T' võtmele %d"
         fre "Duplicata du champ '%-.192T' pour la clef %d"
         ger "Doppelter Eintrag '%-.192T' für Schlüssel %d"
-	geo "დუბლირებული ჩანაწერი '%-.192s' გასაღებისთვის %d"
+	geo "დუბლირებული ჩანაწერი '%-.192T' გასაღებისთვის %d"
         greek "Διπλή εγγραφή '%-.192T' για το κλειδί %d"
         hindi "सामान प्रवेश '%-.192T' KEY %d के लिए"
         hun "Duplikalt bejegyzes '%-.192T' a %d kulcs szerint"
