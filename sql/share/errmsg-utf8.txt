@@ -2043,7 +2043,7 @@ ER_FORCING_CLOSE 08S01
         est "%s: Sulgen jõuga lõime %ld  kasutaja: '%-.48s'\n"
         fre "%s: Arrêt forcé de la tâche (thread) %ld  utilisateur: '%-.48s'\n"
         ger "%s: Thread %ld zwangsweise beendet. Benutzer: '%-.48s'\n"
-	geo "%s: ნაძალადევი დახურვა: ნაკადი: %ld, მომხმარებელი: '%-.48s'\n
+	geo "%s: ნაძალადევი დახურვა: ნაკადი: %ld, მომხმარებელი: '%-.48s'\n"
         greek "%s: Το thread θα κλείσει %ld  user: '%-.48s'\n"
         hindi "%s: %ld थ्रेड बंद किया जा रहा है (यूज़र: '%-.48s')\n" 
         hun "%s: A(z) %ld thread kenyszeritett zarasa. Felhasznalo: '%-.48s'\n"
@@ -3101,7 +3101,7 @@ ER_CANT_INITIALIZE_UDF
         est "Ei suuda algväärtustada funktsiooni '%-.192s'; %-.80s"
         fre "Impossible d'initialiser la fonction '%-.192s'; %-.80s"
         ger "Kann Funktion '%-.192s' nicht initialisieren: %-.80s"
-	geo "ფუნქციის ('%-.192s') ინიციალიზაციის შეცდომა.'%-.80s'
+	geo "ფუნქციის ('%-.192s') ინიციალიზაციის შეცდომა.'%-.80s'"	
         greek "Δεν είναι δυνατή η έναρξη της συνάρτησης '%-.192s'; %-.80s"
         hindi "फंक्शन '%-.192s' को प्रारंभ नहीं किया जा सका; %-.80s"
         hun "A(z) '%-.192s' fuggveny nem inicializalhato; %-.80s"
@@ -4748,7 +4748,7 @@ ER_TOO_MANY_USER_CONNECTIONS 42000
         est "Kasutajal %-.64s on juba rohkem ühendusi kui lubatud 'max_user_connections' muutujaga"
         fre "L'utilisateur %-.64s possède déjà plus de 'max_user_connections' connexions actives"
         ger "Benutzer '%-.64s' hat mehr als 'max_user_connections' aktive Verbindungen"
-	geo "მომხმარებელს %-.64s უკვე გააჩნია 'max_user_connections'-ზე მეტი აქტიური კავსირი გააჩნია'
+	geo "მომხმარებელს %-.64s უკვე 'max_user_connections'-ზე მეტი აქტიური კავშირი გააჩნია"
         hindi "यूज़र %-.64s के पहले से ही 'max_user_connections' से अधिक सक्रिय कनेक्शन्स हैं"
         ita "L'utente %-.64s ha gia' piu' di 'max_user_connections' connessioni attive"
         jpn "ユーザー '%-.64s' はすでに 'max_user_connections' 以上のアクティブな接続を行っています。"
@@ -5164,7 +5164,7 @@ ER_WRONG_VALUE_FOR_VAR 42000
         chi "变量'%-.64s'无法设置为'%-.200T'的值"
         eng "Variable '%-.64s' can't be set to the value of '%-.200T'"
         ger "Variable '%-.64s' kann nicht auf '%-.200T' gesetzt werden"
-	geo ცვლადს '%-.64s' მნიშვნელობას '%-.200T' ვერ მიანიჭებთ"
+	geo "ცვლადს '%-.64s' მნიშვნელობას '%-.200T' ვერ მიანიჭებთ"
         ita "Alla variabile '%-.64s' non puo' essere assegato il valore '%-.200T'"
         jpn "変数 '%-.64s' に値 '%-.200T' を設定できません。"
         nla "Variabele '%-.64s' kan niet worden gewijzigd naar de waarde '%-.200T'"
@@ -5905,7 +5905,7 @@ ER_UPDATE_LOG_DEPRECATED_TRANSLATED 42000
         chi "更新日志被弃用并由二进制日志替换;SET SQL_LOG_UPDATE已被转换为设置SQL_LOG_BIN。此选项将在MariaDB 5.6中删除"
         eng "The update log is deprecated and replaced by the binary log; SET SQL_LOG_UPDATE has been translated to SET SQL_LOG_BIN. This option will be removed in MariaDB 5.6"
         ger "Das Update-Log ist veraltet und wurde durch das Binär-Log ersetzt. SET SQL_LOG_UPDATE wurde in SET SQL_LOG_BIN übersetzt. Diese Option wird in MariaDB 5.6 entfernt"
-	geo  "Update-Log მოძველებულია და ხდება მისი ჩანაცვლება Binary-Log-ით. SET SQL_LOG_UPGRATE გარდაიქმნა SET SQL_LOG_BIN პარამეტრად. ეს პარამეტრი წაიშლება MariaDB-ის ვერსიაში 5.6"
+	geo "Update-Log მოძველებულია და ხდება მისი ჩანაცვლება Binary-Log-ით. SET SQL_LOG_UPGRATE გარდაიქმნა SET SQL_LOG_BIN პარამეტრად. ეს პარამეტრი წაიშლება MariaDB-ის ვერსიაში 5.6"
         spa "El historial (log) de actualización se encuentra obsoleto y reemplazado por el historial binario; SET SQL_LOG_UPDATE ha sido traducido a SET SQL_LOG_BIN. Esta opción será quitada en MariaDB 5.6"
 ER_QUERY_INTERRUPTED 70100 
         chi "查询执行中断"
@@ -5943,7 +5943,7 @@ ER_SP_BAD_CURSOR_QUERY 42000
         chi "Cursor语句必须是选择"
         eng "Cursor statement must be a SELECT"
         ger "Cursor-Anweisung muss ein SELECT sein"
-	geo "კურსორის გამოსახულება SELECT-ს უნდა წარმოადგენდეს
+	geo "კურსორის გამოსახულება SELECT-ს უნდა წარმოადგენდეს"
         spa "La sentencia de cursor debe de ser un SELECT"
 ER_SP_BAD_CURSOR_SELECT 42000 
         chi "Cursor SELECT不能有INTO"
@@ -5987,7 +5987,7 @@ ER_SP_FETCH_NO_DATA 02000
         chi "没有数据 - 零行被选择或处理"
         eng "No data - zero rows fetched, selected, or processed"
         ger "Keine Daten - null Zeilen geholt (fetch), ausgewählt oder verarbeitet"
-	geo  "მონაცემების გარეშე - მიღებულია, არჩეულია ან დამუშავებულია 0 ჩანაწერი"
+	geo "მონაცემების გარეშე - მიღებულია, არჩეულია ან დამუშავებულია 0 ჩანაწერი"
         spa "No hay datos - cero filas logradas, seleccionadas o procesadas"
 ER_SP_DUP_PARAM 42000 
         chi "重复参数：%s"
@@ -6971,7 +6971,7 @@ ER_PARTITION_SUBPARTITION_ERROR
         chi "子分区只能是哈希分区和分区列"
         eng "Subpartitions can only be hash partitions and by key"
         ger "Unterpartitionen dürfen nur HASH- oder KEY-Partitionen sein"
-	geo "ქვედაყანოფები მხოლოდ HASG და KEY დანაყოფებს შეიძლება წარმოადგენდნენ
+	geo "ქვედაყანოფები მხოლოდ HASH და KEY დანაყოფებს შეიძლება წარმოადგენდეს"
         spa "Las subparticiones sólo pueden ser particiones dispersas (hash) y mediante clave"
         swe "Subpartitioner kan bara vara hash och key partitioner"
 ER_PARTITION_SUBPART_MIX_ERROR
@@ -7076,7 +7076,7 @@ ER_MIX_HANDLER_ERROR
         chi "此版本的MariaDB中不允许分区中的处理程序混合"
         eng "The mix of handlers in the partitions is not allowed in this version of MariaDB"
         ger "Das Vermischen von Handlern in Partitionen ist in dieser Version von MariaDB nicht erlaubt"
-	geo MariaDB-ის ამ ვერსიაში დანაყოფებში დამმუშავებლების შერევა დაშვებული არაა"
+	geo "MariaDB-ის ამ ვერსიაში დანაყოფებში დამმუშავებლების შერევა დაშვებული არაა"
         spa "La mezcla de manejadores en las particiones no está autorizada en esta versión de MariaDB"
         swe "Denna mix av lagringsmotorer är inte tillåten i denna version av MariaDB"
 ER_PARTITION_NOT_DEFINED_ERROR
@@ -7339,7 +7339,7 @@ ER_EVENT_STORE_FAILED
         chi "无法存储事件%s。错误代码%M来自存储引擎"
         eng "Failed to store event %s. Error code %M from storage engine"
         ger "Speichern von Event %s fehlgeschlagen. Fehlercode der Speicher-Engine: %M"
-	geo %s მოვლენის დამახსოვრების შეცდომა. საცავის ძრავიდან მიღებული შეცდომის კოდია %M"
+	geo "%s მოვლენის დამახსოვრების შეცდომა. საცავის ძრავიდან მიღებული შეცდომის კოდია %M"
         spa "No pude almacenar evento %s. Código de error %M desde motor de almacenaje"
 ER_EVENT_DOES_NOT_EXIST
         chi "未知事件'%-.192s'"
@@ -7512,14 +7512,14 @@ ER_NULL_IN_VALUES_LESS_THAN
         chi "VALUES LESS THAN不允许使用NULL"
         eng "Not allowed to use NULL value in VALUES LESS THAN"
         ger "In VALUES LESS THAN dürfen keine NULL-Werte verwendet werden"
-	geo  "VALUES LESS THAN-ში NULL მნიშვნელობა დაუშვებელია"
+	geo "VALUES LESS THAN-ში NULL მნიშვნელობა დაუშვებელია"
         spa "No autorizado a usar valor NULL en VALUES LESS THAN"
         swe "Det är inte tillåtet att använda NULL-värden i VALUES LESS THAN"
 ER_WRONG_PARTITION_NAME
         chi "分区名称不正确"
         eng "Incorrect partition name"
         ger "Falscher Partitionsname"
-	geo  "დანაყოფის არასწორისახელი"
+	geo "დანაყოფის არასწორი სახელი"
         hindi "पार्टीशन का नाम गलत है"
         spa "Nombre incorrecto de partición"
         swe "Felaktigt partitionsnamn"
@@ -8198,7 +8198,7 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT
 ER_PATH_LENGTH
         chi "指定%.64T的路径太长了"
         eng "The path specified for %.64T is too long"
-	geo  "%.64T-სთვის მითითებული ბილიკი მეტისმეტად გრძელია"
+	geo "%.64T-სთვის მითითებული ბილიკი მეტისმეტად გრძელია"
         hindi "%.64T के लिए निर्दिष्ट पथ बहुत लंबा है"
         spa "La ruta especificada para %.64T es demasiado larga"
 ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT  
@@ -8236,7 +8236,7 @@ ER_SPATIAL_MUST_HAVE_GEOM_COL 42000
         chi "空间索引可以仅包含几何类型列"
         eng "A SPATIAL index may only contain a geometrical type column"
         ger "Ein raumbezogener Index (SPATIAL) darf nur Spalten geometrischen Typs enthalten"
-	geo  "SPATIAL ტიპის ინდექსი მხოლოდ გეომეტრიული ტიპის სვეტს შეიძლება შეიცავდეს"
+	geo "SPATIAL ტიპის ინდექსი მხოლოდ გეომეტრიული ტიპის სვეტს შეიძლება შეიცავდეს"
         spa "Un índice SPATIAL sólo puede contener una columna de tipo geométrico"
 ER_TOO_LONG_INDEX_COMMENT
         chi "索引评论'%-.64s'太长（max =%lu）"
@@ -8711,7 +8711,7 @@ ER_MALFORMED_GTID_SET_ENCODING
 ER_MALFORMED_GTID_SPECIFICATION
         chi "畸形GTID规范'%.200s'"
         eng "Malformed GTID specification '%.200s'"
-	geo  "GTID-ის არასწორი სპეციფიკაცია '%.200s'"
+	geo "GTID-ის არასწორი სპეციფიკაცია '%.200s'"
         spa "GTID malformado especificación '%.200s'"
 
 ER_GNO_EXHAUSTED
