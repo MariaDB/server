@@ -277,8 +277,9 @@ static uint64 get_connection_delay_time(uint32 count)
                        : p->net_interactive_timeout) *
                   1000;
   uint64 step= timeout / (max_password_errors - p->failed_attempts_before_delay);
+  /* min  delay time is 2 seconds and max delay time is timeout */
   uint64 delay=
-      (step < 1000 ? 1000 : step) * (count - p->failed_attempts_before_delay);
+      (step < 2000 ? 2000 : step) * (count - p->failed_attempts_before_delay);
   return delay < timeout ? delay : timeout;
 }
 
