@@ -6017,7 +6017,7 @@ ER_SP_CANT_ALTER
         chi "未能ALTER %s%s"
         eng "Failed to ALTER %s %s"
         ger "ALTER %s %s fehlgeschlagen"
-	geo" %s %s-ის ALTER-ის შეცდომა"
+	geo "%s %s-ის ALTER-ის შეცდომა"
         hindi "%s %s को ALTER करने में असफल रहे"
         spa "Fallo en ALTER %s %s"
 ER_SP_SUBSELECT_NYI 0A000 
