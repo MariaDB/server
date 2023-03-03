@@ -358,15 +358,12 @@ int connection_delay_for_user(THD *thd,
                                     const char * user,const char * hostname, uint failed_count)
 {
   DBUG_ENTER("connection_delay_for_user");
-  /* If failed_attempts_before_delay < 0 , disable connection delay .
-   * Based on WL#8885 FR2 , first success login should also get a delay.
-   * */
+  DBUG_PRINT("info", ("%s@%s have login failed %u times", user, hostname,
+                      failed_count));
   if (global_system_variables.failed_attempts_before_delay > 0 && user &&
       hostname &&
       failed_count > global_system_variables.failed_attempts_before_delay)
   {
-    DBUG_PRINT("info", ("%s@%s have login failed %u times", user, hostname,
-                        failed_count));
     delay_response(thd, user, hostname, failed_count);
   }
   DBUG_RETURN(0);

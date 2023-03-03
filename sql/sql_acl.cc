@@ -13145,7 +13145,7 @@ get_cached_table_access(GRANT_INTERNAL_INFO *grant_internal_info,
 #define initialized 0
 #define check_for_max_user_connections(X,Y)   0
 #define get_or_create_user_conn(A,B,C,D) 0
-#define check_connection_delay_for_user(A,B,C,D) {}
+#define connection_delay_for_user(A,B,C,D) {}
 #endif
 #endif
 #ifndef HAVE_OPENSSL
@@ -14371,6 +14371,9 @@ static void handle_password_errors(THD *thd, const char *user,
     }
   }
   mysql_mutex_unlock(&acl_cache->lock);
+  /* If failed_attempts_before_delay < 0 , disable connection delay .
+   * Based on WL#8885 FR2 , first success login should also get a delay.
+   * */
   connection_delay_for_user(thd, user, hostname, copy);
 #endif
 }
