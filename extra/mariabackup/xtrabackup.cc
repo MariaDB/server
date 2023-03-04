@@ -1817,6 +1817,12 @@ static void print_version(void)
       my_progname, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
+static void concatenate_default_groups(std::vector<const char*> &backup_load_groups, const char **default_groups)
+{
+  for ( ; *default_groups ; default_groups++)
+    backup_load_groups.push_back(*default_groups);
+}
+
 static void usage(void)
 {
   puts("Open source backup tool for InnoDB and XtraDB\n\
@@ -1837,7 +1843,11 @@ GNU General Public License for more details.\n\
 You can download full text of the license on http://www.gnu.org/licenses/gpl-2.0.txt\n");
 
   printf("Usage: %s [--defaults-file=#] [--backup | --prepare | --copy-back | --move-back] [OPTIONS]\n",my_progname);
-  print_defaults("my", load_default_groups);
+  std::vector<const char*> backup_load_default_groups;
+  concatenate_default_groups(backup_load_default_groups, backup_default_groups);
+  concatenate_default_groups(backup_load_default_groups, load_default_groups);
+  backup_load_default_groups.push_back(nullptr);
+  print_defaults("my", &backup_load_default_groups[0]);
   my_print_help(xb_client_options);
   my_print_help(xb_server_options);
   my_print_variables(xb_server_options);
