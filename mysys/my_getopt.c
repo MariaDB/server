@@ -23,6 +23,7 @@
 #include <mysys_err.h>
 #include <my_getopt.h>
 #include <errno.h>
+#include <ctype.h>
 
 typedef void (*init_func_p)(const struct my_option *option, void *variable,
                             longlong value);
@@ -967,8 +968,9 @@ my_bool getopt_compare_strings(register const char *s, register const char *t,
 
   for (;s != end ; s++, t++)
   {
-    if ((*s != '-' ? *s : '_') != (*t != '-' ? *t : '_'))
-      DBUG_RETURN(1);
+    if ((*s != '-' ? tolower((unsigned char)*s) : '_') !=
+        (*t != '-' ? tolower((unsigned char)*t) : '_'))
+        DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
 }
