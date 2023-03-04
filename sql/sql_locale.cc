@@ -31,7 +31,7 @@ enum err_msgs_index
 {
   en_US= 0, cs_CZ, da_DK, nl_NL, et_EE, fr_FR, de_DE, el_GR, hu_HU, it_IT,
   ja_JP, ko_KR, no_NO, nn_NO, pl_PL, pt_PT, ro_RO, ru_RU, sr_RS,  sk_SK,
-  es_ES, sv_SE, uk_UA, hi_IN
+  es_ES, sv_SE, uk_UA, hi_IN, ka_GE
 } ERR_MSGS_INDEX;
 
 
@@ -61,6 +61,7 @@ MY_LOCALE_ERRMSGS global_errmsgs[]=
   {"swedish", NULL},
   {"ukrainian", NULL},
   {"hindi", NULL},
+  {"georgian", NULL},
   {NULL, NULL}
 };
 
