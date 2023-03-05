@@ -708,7 +708,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   Item **cursor_free_list= nullptr;
 
   /*
-    sp_instr_lex == nullptr for cursor relating SP instructions (sp_instr_cpush,
+    sp_instr_lex != nullptr for cursor relating SP instructions (sp_instr_cpush,
     sp_instr_cursor_copy_struct) and in some cases for sp_instr_set.
   */
   if (sp_instr_lex == nullptr)

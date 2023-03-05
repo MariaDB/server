@@ -403,6 +403,15 @@ bool sp_create_assignment_lex(THD *thd, const char *pos)
 {
   if (thd->lex->sphead)
   {
+    if (thd->lex->sphead->is_invoked())
+      /*
+        sphead->is_invoked() is true in case the assignment statement
+        is re-parsed. In this case, a new lex for re-parsing the statement
+        has been already created by sp_lex_instr::parse_expr and it should
+        be used for parsing the assignment SP instruction.
+      */
+      return false;
+
     sp_lex_local *new_lex;
     if (!(new_lex= new (thd->mem_root) sp_lex_set_var(thd, thd->lex)) ||
         new_lex->main_select_push())
@@ -437,6 +446,16 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
 
   if (lex->sphead)
   {
+    if (lex->sphead->is_invoked())
+      /*
+        Don't create a new SP assignment instruction in case the current
+        one is re-parsed by reasoning of metadata changes. Since in that case
+        a new lex is also not instantiated (@sa sp_create_assignment_lex)
+        it is safe to just return without restoring old lex that was active
+        before calling SP instruction.
+      */
+      return false;
+
     if (!lex->var_list.is_empty())
     {
       /*
