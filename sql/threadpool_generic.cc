@@ -1337,6 +1337,11 @@ void TP_pool_generic::resume(TP_connection* c)
   add(c);
 }
 
+int TP_pool_generic::wake(TP_connection *c)
+{
+  return 0;
+}
+
 /**
   MySQL scheduler callback: wait begin
 */
@@ -1497,7 +1502,7 @@ int TP_connection_generic::start_io()
     So we recalculate in which group the connection should be, based
     on thread_id and current group count, and migrate if necessary.
   */
-  if (fix_group)
+  if (unlikely(fix_group))
   {
     fix_group = false;
     thread_group_t *new_group= &all_groups[get_group_id(thd->thread_id)];
@@ -1512,7 +1517,7 @@ int TP_connection_generic::start_io()
   /*
     Bind to poll descriptor if not yet done.
   */
-  if (!bound_to_poll_descriptor)
+  if (unlikely(!bound_to_poll_descriptor))
   {
     bound_to_poll_descriptor= true;
     return io_poll_associate_fd(thread_group->pollfd, fd, this, OPTIONAL_IO_POLL_READ_PARAM);

@@ -88,6 +88,10 @@ struct TP_connection_generic :public TP_connection
   ulonglong abs_wait_timeout;
   ulonglong enqueue_time;
   TP_file_handle fd;
+  /**
+      Designates whether fd is currently connected to the poll denoted by
+      thread_group->pollfd. See also change_group.
+  */
   bool bound_to_poll_descriptor;
   int waiting;
   bool fix_group;
