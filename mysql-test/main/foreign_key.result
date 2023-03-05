@@ -157,25 +157,25 @@ test.t1	check	status	OK
 test.t2	check	Note	Found 1 foreign keys
 test.t2	check	status	OK
 drop table t2, t1;
-create database D;
-create table D.T1(id int primary key);
-create table t2(id int primary key, f1 int references D.T1(id));
-select * from D.T1;
+create database Test_MariaDB;
+create table Test_MariaDB.T1(id int primary key);
+create table t2(id int primary key, f1 int references Test_MariaDB.T1(id));
+select * from Test_MariaDB.T1;
 id
-check table D.T1;
+check table Test_MariaDB.T1;
 Table	Op	Msg_type	Msg_text
-D.T1	check	Note	Found 1 referenced keys
-D.T1	check	status	OK
+Test_MariaDB.T1	check	Note	Found 1 referenced keys
+Test_MariaDB.T1	check	status	OK
 drop table t2;
-check table D.T1;
+check table Test_MariaDB.T1;
 Table	Op	Msg_type	Msg_text
-D.T1	check	status	OK
+Test_MariaDB.T1	check	status	OK
 flush tables;
-check table D.T1;
+check table Test_MariaDB.T1;
 Table	Op	Msg_type	Msg_text
-D.T1	check	status	OK
-drop table D.T1;
-drop database D;
+Test_MariaDB.T1	check	status	OK
+drop table Test_MariaDB.T1;
+drop database Test_MariaDB;
 # Check rename column, lock tables
 create or replace table t1 (id int primary key);
 create or replace table t2 (id int primary key);
@@ -449,13 +449,31 @@ create or replace table t1 (id int primary key);
 select * from t1;
 id
 create or replace database test2;
+create or replace database test3;
+create or replace database test4;
 use test2;
 create or replace table ch1 (
 id int, id2 int,
 foreign key (id) references test.t1 (id));
 select * from ch1;
 id	id2
+use test3;
+create or replace table par2 (
+id int primary key);
+use test4;
+create or replace table par3 (
+id int primary key);
+create or replace table ch3 (
+id int, id2 int,
+foreign key (id) references par3 (id));
+select * from par3;
+id
+select * from ch3;
+id	id2
 use test;
+create or replace table ch2 (
+id int, id2 int,
+foreign key (id) references test3.par2 (id));
 drop database test2;
 check tables t1;
 Table	Op	Msg_type	Msg_text
@@ -465,6 +483,11 @@ check tables t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop tables t1;
+drop database test3;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (ch2_ibfk_1)
+drop table ch2;
+drop database test3;
+drop database test4;
 # Check add foreign key
 create or replace table t1(fld1 int not null primary key);
 create or replace table t2(fld1 int not null, fld2 int as (fld1) virtual);
