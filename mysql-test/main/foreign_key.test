@@ -175,20 +175,20 @@ flush tables;
 check tables t1, t2;
 drop table t2, t1;
 
-create database D;
-create table D.T1(id int primary key);
-create table t2(id int primary key, f1 int references D.T1(id));
-select * from D.T1;
---replace_result d.t1 D.T1
-check table D.T1;
+create database Test_MariaDB;
+create table Test_MariaDB.T1(id int primary key);
+create table t2(id int primary key, f1 int references Test_MariaDB.T1(id));
+select * from Test_MariaDB.T1;
+--replace_result test_mariadb.t1 Test_MariaDB.T1
+check table Test_MariaDB.T1;
 drop table t2;
---replace_result d.t1 D.T1
-check table D.T1;
+--replace_result test_mariadb.t1 Test_MariaDB.T1
+check table Test_MariaDB.T1;
 flush tables;
---replace_result d.t1 D.T1
-check table D.T1;
-drop table D.T1;
-drop database D;
+--replace_result test_mariadb.t1 Test_MariaDB.T1
+check table Test_MariaDB.T1;
+drop table Test_MariaDB.T1;
+drop database Test_MariaDB;
 
 --echo # Check rename column, lock tables
 create or replace table t1 (id int primary key);
@@ -312,17 +312,38 @@ drop tables ch1, t1;
 create or replace table t1 (id int primary key);
 select * from t1;
 create or replace database test2;
+create or replace database test3;
+create or replace database test4;
 use test2;
 create or replace table ch1 (
   id int, id2 int,
   foreign key (id) references test.t1 (id));
 select * from ch1;
+use test3;
+create or replace table par2 (
+  id int primary key);
+use test4;
+create or replace table par3 (
+  id int primary key);
+create or replace table ch3 (
+  id int, id2 int,
+  foreign key (id) references par3 (id));
+select * from par3;
+select * from ch3;
 use test;
+create or replace table ch2 (
+  id int, id2 int,
+  foreign key (id) references test3.par2 (id));
 drop database test2;
 check tables t1;
 flush tables t1;
 check tables t1;
 drop tables t1;
+--error ER_ROW_IS_REFERENCED_2
+drop database test3;
+drop table ch2;
+drop database test3;
+drop database test4;
 
 --echo # Check add foreign key
 create or replace table t1(fld1 int not null primary key);

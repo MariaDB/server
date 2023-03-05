@@ -360,9 +360,8 @@ bool Extra2_info::read(const uchar *frm_image, size_t frm_size)
 
 
 uchar *
-Extra2_info::write(uchar *frm_image, size_t frm_size)
+Extra2_info::write(uchar *frm_image)
 {
-  // FIXME: what to do with frm_size here (and in read())?
   uchar *pos;
   /* write the extra2 segment */
   pos = frm_image + FRM_HEADER_SIZE;
@@ -405,9 +404,6 @@ Extra2_info::write(uchar *frm_image, size_t frm_size)
   DBUG_ASSERT(write_size == store_size());
   DBUG_ASSERT(write_size <= 0xffff - FRM_HEADER_SIZE - 4);
 
-#if 0
-  int4store(pos, filepos); // end of the extra2 segment
-#endif
   return pos;
 }
 
@@ -496,7 +492,7 @@ frm_err:
 
   memcpy((void *)frm_dst, (void *)frm_src, FRM_HEADER_SIZE);
 
-  if (!(pos= extra2.write(frm_dst, frm_size)))
+  if (!(pos= extra2.write(frm_dst)))
   {
     my_printf_error(ER_CANT_CREATE_TABLE,
                     "Cannot create table %`s: "

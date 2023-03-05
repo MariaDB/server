@@ -211,7 +211,7 @@ struct Extra2_info
   }
 
   bool read(const uchar* frm_image, size_t frm_size);
-  uchar * write(uchar* frm_image, size_t frm_size);
+  uchar * write(uchar* frm_image);
 };
 
 class Table_name;
