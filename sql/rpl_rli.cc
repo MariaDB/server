@@ -2417,8 +2417,13 @@ mark_start_commit_inner(rpl_parallel_entry *e, group_commit_orderer *gco,
   uint64 count= ++e->count_committing_event_groups;
   /* Signal any following GCO whose wait_count has been reached now. */
   tmp= gco;
+
+  DBUG_ASSERT(!tmp->gc_done);
+
   while ((tmp= tmp->next_gco))
   {
+    DBUG_ASSERT(!tmp->gc_done);
+
     uint64 wait_count= tmp->wait_count;
     if (wait_count > count)
       break;

@@ -90,6 +90,9 @@ struct group_commit_orderer {
     FORCE_SWITCH= 2
   };
   uint8 flags;
+#ifndef DBUG_OFF
+  bool gc_done;
+#endif
 };
 
 
