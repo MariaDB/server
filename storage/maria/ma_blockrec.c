@@ -2780,7 +2780,8 @@ static my_bool write_block_record(MARIA_HA *info,
     const uchar *field_pos;
     ulong length;
     if ((record[column->null_pos] & column->null_bit) ||
-        (row->empty_bits[column->empty_pos] & column->empty_bit))
+        (column->empty_bit &&
+         (row->empty_bits[column->empty_pos] & column->empty_bit)))
       continue;
 
     field_pos= record + column->offset;
@@ -4887,7 +4888,8 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     uchar *field_pos= record + column->offset;
     /* First check if field is present in record */
     if ((record[column->null_pos] & column->null_bit) ||
-        (cur_row->empty_bits[column->empty_pos] & column->empty_bit))
+        (column->empty_bit &&
+         (cur_row->empty_bits[column->empty_pos] & column->empty_bit)))
     {
       bfill(record + column->offset, column->fill_length,
             type == FIELD_SKIP_ENDSPACE ? ' ' : 0);
@@ -4970,8 +4972,9 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
         {
           uint size_length;
           if ((record[blob_field->null_pos] & blob_field->null_bit) ||
-              (cur_row->empty_bits[blob_field->empty_pos] &
-               blob_field->empty_bit))
+              (blob_field->empty_bit &
+               (cur_row->empty_bits[blob_field->empty_pos] &
+                blob_field->empty_bit)))
             continue;
           size_length= blob_field->length - portable_sizeof_char_ptr;
           blob_lengths+= _ma_calc_blob_length(size_length, length_data);
@@ -5825,7 +5828,8 @@ static size_t fill_insert_undo_parts(MARIA_HA *info, const uchar *record,
     const uchar *column_pos;
     size_t column_length;
     if ((record[column->null_pos] & column->null_bit) ||
-        cur_row->empty_bits[column->empty_pos] & column->empty_bit)
+        (column->empty_bit &&
+         cur_row->empty_bits[column->empty_pos] & column->empty_bit))
       continue;
 
     column_pos=    record+ column->offset;
@@ -6006,7 +6010,8 @@ static size_t fill_update_undo_parts(MARIA_HA *info, const uchar *oldrec,
       */
       continue;
     }
-    if (old_row->empty_bits[column->empty_pos] & column->empty_bit)
+    if (column->empty_bit &&
+        (old_row->empty_bits[column->empty_pos] & column->empty_bit))
     {
       if (new_row->empty_bits[column->empty_pos] & column->empty_bit)
         continue;                               /* Both are empty; skip */
@@ -6022,8 +6027,9 @@ static size_t fill_update_undo_parts(MARIA_HA *info, const uchar *oldrec,
       log the original value
     */
     new_column_is_empty= ((newrec[column->null_pos] & column->null_bit) ||
-                          (new_row->empty_bits[column->empty_pos] &
-                           column->empty_bit));
+                          (column->empty_bit &&
+                           (new_row->empty_bits[column->empty_pos] &
+                            column->empty_bit)));
 
     old_column_pos=      oldrec + column->offset;
     new_column_pos=      newrec + column->offset;
@@ -7196,7 +7202,8 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
        column++, null_field_lengths++)
   {
     if ((record[column->null_pos] & column->null_bit) ||
-        row.empty_bits[column->empty_pos] & column->empty_bit)
+        (column->empty_bit &&
+         row.empty_bits[column->empty_pos] & column->empty_bit))
     {
       if (column->type != FIELD_BLOB)
         *null_field_lengths= 0;
