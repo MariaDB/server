@@ -297,6 +297,10 @@ static MYSQL_SYSVAR_BOOL(encrypt_tables, maria_encrypt_tables, PLUGIN_VAR_OPCMDA
        "and not FIXED/DYNAMIC)",
        0, 0, 0);
 
+static MYSQL_SYSVAR_BOOL(encrypt_translog, aria_encrypt_translog, PLUGIN_VAR_OPCMDARG,
+       "Encrypt aria_log",
+       0, 0, 0);
+
 #if defined HAVE_PSI_INTERFACE && !defined EMBEDDED_LIBRARY
 
 static PSI_mutex_info all_aria_mutexes[]=
@@ -4075,6 +4079,7 @@ static struct st_mysql_sys_var *system_variables[]= {
   MYSQL_SYSVAR(sync_log_dir),
   MYSQL_SYSVAR(used_for_temp_tables),
   MYSQL_SYSVAR(encrypt_tables),
+  MYSQL_SYSVAR(encrypt_translog),
   NULL
 };
 

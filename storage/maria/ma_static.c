@@ -43,6 +43,7 @@ my_bool maria_assert_if_crashed_table= 0;
 my_bool maria_checkpoint_disabled= 0;
 my_bool maria_encrypt_tables= 0;
 my_bool aria_readonly= 0;
+my_bool aria_encrypt_translog=0;
 
 mysql_mutex_t THR_LOCK_maria;
 #ifdef DONT_USE_RW_LOCKS

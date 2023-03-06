@@ -333,6 +333,21 @@ extern int translog_read_record_header(LSN lsn, TRANSLOG_HEADER_BUFFER *buff);
 
 extern void translog_free_record_header(TRANSLOG_HEADER_BUFFER *buff);
 
+
+typedef int  (*enrypt_rec_hook)            (LEX_CUSTRING *parts_data, uint part_no);
+typedef void (*post_write_enrypt_rec_hook) (LEX_CUSTRING *parts_data, uint part_no);
+
+int pre_write_encrypt_data_e  (LEX_CUSTRING *parts_data, uint part_no);
+int pre_write_encrypt_data_b5e(LEX_CUSTRING *parts_data, uint part_no);
+int pre_write_encrypt_data_b7e(LEX_CUSTRING *parts_data, uint part_no);
+
+void post_write_encrypt_data_e   (LEX_CUSTRING *parts_data, uint part_no);
+void post_write_encrypt_data_b5e (LEX_CUSTRING *parts_data, uint part_no);
+void post_write_encrypt_data_b7e (LEX_CUSTRING *parts_data, uint part_no);
+
+int decrypt_data  (uchar* dst, const uchar* src, uint length);
+int memcpy_dec_ext(uchar* dst, const uchar* src, uint length);
+
 extern translog_size_t translog_read_record(LSN lsn,
 					    translog_size_t offset,
 					    translog_size_t length,
@@ -508,6 +523,10 @@ typedef struct st_log_record_type_descriptor
   int (*record_execute_in_redo_phase)(const TRANSLOG_HEADER_BUFFER *);
   /* a function to execute when we see the record during the UNDO phase */
   int (*record_execute_in_undo_phase)(const TRANSLOG_HEADER_BUFFER *, TRN *);
+  /* a function to encrypt record */
+  enrypt_rec_hook encrypt_hook;
+  /*free encrypt buffer */
+  post_write_enrypt_rec_hook post_write_encrypt_hook;
 } LOG_DESC;
 
 extern LOG_DESC log_record_type_descriptor[LOGREC_NUMBER_OF_TYPES];
