@@ -187,7 +187,7 @@ static const uchar sort_order_big5[]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA2[256]=
+static const MY_CASEFOLD_CHARACTER cA2[256]=
 {
   /* A200-A20F */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -380,7 +380,7 @@ static MY_CASEFOLD_CHARACTER cA2[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA3[256]=
+static const MY_CASEFOLD_CHARACTER cA3[256]=
 {
   /* A300-A30F */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -573,7 +573,7 @@ static MY_CASEFOLD_CHARACTER cA3[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cC7[256]=
+static const MY_CASEFOLD_CHARACTER cC7[256]=
 {
   /* C700-C70F */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -766,7 +766,7 @@ static MY_CASEFOLD_CHARACTER cC7[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER *my_casefold_pages_big5[256]=
+static const MY_CASEFOLD_CHARACTER *my_casefold_pages_big5[256]=
 {
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, /* 0 */
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,

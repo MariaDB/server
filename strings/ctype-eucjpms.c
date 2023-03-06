@@ -250,7 +250,7 @@ static const uchar sort_order_eucjpms[]=
 
 /* Case info pages for JIS-X-0208 range */
 
-static MY_CASEFOLD_CHARACTER cA2[256]=
+static const MY_CASEFOLD_CHARACTER cA2[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -371,7 +371,7 @@ static MY_CASEFOLD_CHARACTER cA2[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA3[256]=
+static const MY_CASEFOLD_CHARACTER cA3[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -492,7 +492,7 @@ static MY_CASEFOLD_CHARACTER cA3[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA6[256]=
+static const MY_CASEFOLD_CHARACTER cA6[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -613,7 +613,7 @@ static MY_CASEFOLD_CHARACTER cA6[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA7[256]=
+static const MY_CASEFOLD_CHARACTER cA7[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -734,7 +734,7 @@ static MY_CASEFOLD_CHARACTER cA7[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cAD[256]=
+static const MY_CASEFOLD_CHARACTER cAD[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -857,7 +857,7 @@ static MY_CASEFOLD_CHARACTER cAD[256]=
 
 /* Case info pages for JIS-X-0212 range */
 
-static MY_CASEFOLD_CHARACTER c8FA6[256]=
+static const MY_CASEFOLD_CHARACTER c8FA6[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -978,7 +978,7 @@ static MY_CASEFOLD_CHARACTER c8FA6[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FA7[256]=
+static const MY_CASEFOLD_CHARACTER c8FA7[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1099,7 +1099,7 @@ static MY_CASEFOLD_CHARACTER c8FA7[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FA9[256]=
+static const MY_CASEFOLD_CHARACTER c8FA9[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1220,7 +1220,7 @@ static MY_CASEFOLD_CHARACTER c8FA9[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FAA[256]=
+static const MY_CASEFOLD_CHARACTER c8FAA[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1341,7 +1341,7 @@ static MY_CASEFOLD_CHARACTER c8FAA[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FAB[256]=
+static const MY_CASEFOLD_CHARACTER c8FAB[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1462,7 +1462,7 @@ static MY_CASEFOLD_CHARACTER c8FAB[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FF3[256]=
+static const MY_CASEFOLD_CHARACTER c8FF3[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1583,7 +1583,7 @@ static MY_CASEFOLD_CHARACTER c8FF3[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FF4[256]=
+static const MY_CASEFOLD_CHARACTER c8FF4[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -1704,7 +1704,7 @@ static MY_CASEFOLD_CHARACTER c8FF4[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER *my_casefold_pages_eucjpms[512]=
+static const MY_CASEFOLD_CHARACTER *my_casefold_pages_eucjpms[512]=
 {
   /* JIS-X-0208 */
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, /* 0 */

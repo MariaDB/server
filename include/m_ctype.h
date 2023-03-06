@@ -96,7 +96,7 @@ typedef struct casefold_info_char_t
 struct casefold_info_st
 {
   my_wc_t maxchar;
-  MY_CASEFOLD_CHARACTER **page;
+  const MY_CASEFOLD_CHARACTER * const *page;
 };
 
 

@@ -2733,10 +2733,14 @@ int ha_maria::info(uint flag)
            key < key_end ; key++)
       {
         ulong *to= key->rec_per_key;
-        for (ulong *end= to+ key->user_defined_key_parts ;
-             to < end ;
-             to++, from++)
-          *to= (ulong) (*from + 0.5);
+        /* Some temporary tables does not allocate rec_per_key */
+        if (to)
+        {
+          for (ulong *end= to+ key->user_defined_key_parts ;
+               to < end ;
+               to++, from++)
+            *to= (ulong) (*from + 0.5);
+        }
       }
     }
     /*

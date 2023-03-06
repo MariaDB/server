@@ -969,9 +969,10 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
 #  ifdef UNIV_SEARCH_PERF_STAT
   info->n_searches++;
 #  endif
+  bool ahi_enabled= btr_search_enabled;
   /* We do a dirty read of btr_search_enabled below,
      and btr_search_guess_on_hash() will have to check it again. */
-  if (!btr_search_enabled);
+  if (!ahi_enabled);
   else if (btr_search_guess_on_hash(index(), info, tuple, mode,
                                     latch_mode, this, mtr))
   {
@@ -1224,7 +1225,7 @@ release_tree:
 
   reached_latched_leaf:
 #ifdef BTR_CUR_HASH_ADAPT
-    if (btr_search_enabled && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG))
+    if (ahi_enabled && !(tuple->info_bits & REC_INFO_MIN_REC_FLAG))
     {
       if (page_cur_search_with_match_bytes(tuple, mode,
                                            &up_match, &up_bytes,

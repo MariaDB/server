@@ -65976,7 +65976,7 @@ my_wc_mb_euc_jp(CHARSET_INFO *cs __attribute__((unused)),
 
 
 /* Case info pages for JIS-X-0208 range */
-static MY_CASEFOLD_CHARACTER cA2[256]=
+static const MY_CASEFOLD_CHARACTER cA2[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -66097,7 +66097,7 @@ static MY_CASEFOLD_CHARACTER cA2[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA3[256]=
+static const MY_CASEFOLD_CHARACTER cA3[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -66218,7 +66218,7 @@ static MY_CASEFOLD_CHARACTER cA3[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA6[256]=
+static const MY_CASEFOLD_CHARACTER cA6[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -66339,7 +66339,7 @@ static MY_CASEFOLD_CHARACTER cA6[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA7[256]=
+static const MY_CASEFOLD_CHARACTER cA7[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -66461,7 +66461,7 @@ static MY_CASEFOLD_CHARACTER cA7[256]=
 
 
 /* Case info pages for JIS-X-0212 range */
-static MY_CASEFOLD_CHARACTER c8FA6[]=
+static const MY_CASEFOLD_CHARACTER c8FA6[]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -66582,7 +66582,7 @@ static MY_CASEFOLD_CHARACTER c8FA6[]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FA7[]=
+static const MY_CASEFOLD_CHARACTER c8FA7[]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -66703,7 +66703,7 @@ static MY_CASEFOLD_CHARACTER c8FA7[]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FA9[]=
+static const MY_CASEFOLD_CHARACTER c8FA9[]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -66824,7 +66824,7 @@ static MY_CASEFOLD_CHARACTER c8FA9[]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FAA[]=
+static const MY_CASEFOLD_CHARACTER c8FAA[]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -66945,7 +66945,7 @@ static MY_CASEFOLD_CHARACTER c8FAA[]=
 };
 
 
-static MY_CASEFOLD_CHARACTER c8FAB[]=
+static const MY_CASEFOLD_CHARACTER c8FAB[]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -67066,7 +67066,7 @@ static MY_CASEFOLD_CHARACTER c8FAB[]=
 };
 
 
-static MY_CASEFOLD_CHARACTER *my_casefold_pages_ujis[512]=
+static const MY_CASEFOLD_CHARACTER *my_casefold_pages_ujis[512]=
 {
   /* JIS-X-0208 */
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, /* 0 */
@@ -67155,10 +67155,10 @@ static MY_CASEFOLD_INFO my_casefold_info_ujis=
   UJIS and EUCJPMS share the same UPPER/LOWER functions.
 */
 
-static MY_CASEFOLD_CHARACTER*
+static const MY_CASEFOLD_CHARACTER*
 get_case_info_for_ch(CHARSET_INFO *cs, uint plane, uint page, uint offs)
 {
-  MY_CASEFOLD_CHARACTER *p;
+  const MY_CASEFOLD_CHARACTER *p;
   return (p= cs->casefold->page[page + plane * 256]) ? &p[offs & 0xFF] : NULL;
 }
 
@@ -67180,7 +67180,7 @@ my_casefold_ujis(CHARSET_INFO *cs,
     size_t mblen= my_ismbchar(cs, src, srcend);
     if (mblen)
     {
-      MY_CASEFOLD_CHARACTER *ch;
+      const MY_CASEFOLD_CHARACTER *ch;
       ch= (mblen == 2) ?
         get_case_info_for_ch(cs, 0, (uchar) src[0], (uchar) src[1]) :
         get_case_info_for_ch(cs, 1, (uchar) src[1], (uchar) src[2]);
