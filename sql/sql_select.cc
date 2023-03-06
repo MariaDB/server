@@ -19088,8 +19088,8 @@ bool Create_tmp_table::add_fields(THD *thd,
   table->field[fieldnr]= 0;                     // End marker
   share->blob_field[m_blob_count]= 0;           // End marker
   copy_func[0]= 0;                              // End marker
-  DBUG_ASSERT((copy_func - param->items_to_copy) <= param->copy_func_count);
   param->func_count= (uint) (copy_func - param->items_to_copy);
+  DBUG_ASSERT(param->func_count <= param->copy_func_count);
 
   share->column_bitmap_size= bitmap_buffer_size(share->fields);
 
