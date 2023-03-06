@@ -3037,7 +3037,11 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         if (unlikely(thd->trace_started()))
           group_trp->trace_basic_info(&param, &grp_summary);
 
-        if (group_trp->read_cost < best_read_time || force_group_by)
+        // if there is no range tree and there IS an attached cond
+        // QUICK_GROUP_MIN_MAX_SELECT will not filter results correctly
+        // do not choose it
+        if ((group_trp->read_cost < best_read_time || force_group_by)
+            && (tree || !cond) )
         {
           grp_summary.add("chosen", true);
           best_trp= group_trp;
