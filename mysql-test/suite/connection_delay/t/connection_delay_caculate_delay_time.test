@@ -7,7 +7,6 @@
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
-
 --echo # Setup
 
 --echo # Create user accounts for testing
@@ -15,23 +14,17 @@ CREATE USER u1 IDENTIFIED BY 'abcd';
 CREATE USER u2 IDENTIFIED BY 'abcd';
 CREATE USER u3 IDENTIFIED BY 'abcd';
 
---echo # Save original values of connection_delay variables
-SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
-SET @saved_max_password_errors = @@global.max_password_errors;
-SET @saved_wait_timeout=@@global.wait_timeout;
-SET @saved_interactive_timeout=@@global.interactive_timeout;
-
-let $DELAY_MIN_RESPONSE_TIME= 1000;
-
--- echo # Set small values for connection_delay variables
-SET @@global.failed_attempts_before_delay = 3;
-SET @@global.wait_timeout=DEFAULT;
-SET @@global.interactive_timeout=DEFAULT;
-SET @@global.max_password_errors=DEFAULT;
-
+--echo # Declare config variables
+let $timeout=28800;
+let $max_password_errors=4294967295;
+let $failed_attempts_before_delay=3;
+--source ../inc/save_variables.inc
+--source ../inc/skip_connection_delay.inc
+--echo # Set failed attempts to 3
+eval SET @@global.failed_attempts_before_delay = $failed_attempts_before_delay;
 --echo # Current max password errors and timeout config
-select @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.failed_attempts_before_delay;;
-select @@debug_dbug;
+SELECT @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.failed_attempts_before_delay;
+SELECT @@debug_dbug;
 
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
@@ -58,154 +51,125 @@ connect(fail_con_u1, localhost, u1,haha,,,,);
 --error ER_ACCESS_DENIED_ERROR
 connect(fail_con_u1, localhost, u1,haha,,,,);
 
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u2, localhost, u2,efgh,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u2, localhost, u2,haha,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u2, localhost, u2,haha,,,,);
-
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u3, localhost, u3,efgh,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u3, localhost, u3,efgh,,,,);
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
-
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u3, localhost, u3,efgh,,,,);
-
 enable_result_log;
 
---echo
---echo # Following attempts will experience delay in server response
+let failed_count=3;
+
+#-- echo # --------------Set timeout and max_password_errors to default value-----------------
+let $step=1000;
+eval SET @@global.wait_timeout=$timeout;
+eval SET @@global.interactive_timeout=$timeout;
+eval SET @@global.max_password_errors=$max_password_errors;
 
 let $HOST=%;
-
-# Trying with invalid passwords
-
-let $USER=u1;
-let $PASSWORD=hoho;
-let $SUCCESS=0;
-
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
-let $USER=u2;
-let $PASSWORD=hoho;
-let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
-
-let $USER=u3;
-let $PASSWORD=hoho;
-let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-# Trying with valid passwords
-
-
-let $USER=u3;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
-let $USER=u2;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
-let $USER=u1;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
---echo
---echo # Following attempts will not experience any delay in server response
---echo # Failed login after a successful login
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
-
-let $USER=u2;
-let $PASSWORD=hoho;
-let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
-let $USER=u3;
-let $PASSWORD=hoho;
-let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
---echo # Successful login will not get delay response
 
 let $USER=u1;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 
 
-let $USER=u2;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
-let $USER=u3;
-let $PASSWORD=abcd;
-let $SUCCESS=1;
+-- echo # --------------Set timeout to default and max_password_errors to 100-----------------
+let $max_password_errors=100;
+eval SET @@global.wait_timeout=$timeout;
+eval SET @@global.interactive_timeout=$timeout;
+eval SET @@global.max_password_errors=$max_password_errors;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
+let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
+--source ../inc/check_connection_delay_step.inc
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+--source ../inc/check_response_delay_time.inc
 
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
+--source ../inc/check_connection_delay_step.inc
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 
+-- echo # --------------Set timeout to 24h and max_password_errors to 100-----------------
+let $timeout=86400;
+let $max_password_errors=100;
+eval SET @@global.wait_timeout=$timeout;
+eval SET @@global.interactive_timeout=$timeout;
+eval SET @@global.max_password_errors=$max_password_errors;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
+--source ../inc/check_connection_delay_step.inc
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+--source ../inc/check_response_delay_time.inc
+
+
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+--source ../inc/check_response_delay_time.inc
+
+-- echo # --------------Set interactive timeout  to 24h and wait timeout to 1h and max_password_errors to 100-----------------
+let $timeout=3600;
+let $max_password_errors=100;
+eval SET @@global.wait_timeout=3600;
+eval SET @@global.interactive_timeout=86400;
+eval SET @@global.max_password_errors=$max_password_errors;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
+--source ../inc/check_connection_delay_step.inc
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+--source ../inc/check_response_delay_time.inc
+
+
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+inc $failed_count;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+--source ../inc/check_response_delay_time.inc
+
+
+--echo #-----------------------Reach max password errors , server reject connection
+eval SET @@global.max_password_errors=$failed_count;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_USER_IS_BLOCKED
+connect(fail_con_u1, localhost, u1,haha,,,,);
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
@@ -214,11 +178,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 connection default;
 
---echo # Restore original values of connection delay variables
-SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
-SET @@global.max_password_errors = @saved_max_password_errors;
-SET @@global.wait_timeout = @saved_wait_timeout;
-SET @@global.interactive_timeout = @saved_interactive_timeout;
+--source ../inc/restore_variables.inc
 --echo # Remove user accounts created for the test
 DROP USER u1;
 DROP USER u2;

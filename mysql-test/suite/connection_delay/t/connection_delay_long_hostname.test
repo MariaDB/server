@@ -6,15 +6,11 @@
 --echo # Setup
 
 # We don't need to use client side authentication plugin for this test.
-
-SET @saved_value = @@global.failed_attempts_before_delay;
-SELECT @saved_value;
-
+--source ../inc/save_variables.inc
 SET @@global.failed_attempts_before_delay = 3;
 --echo # Create user accounts for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
 FLUSH HOSTS;
-SET @old_debug=@@global.debug_dbug;
 SET GLOBAL DEBUG_DBUG="+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_long_host,getaddrinfo_fake_good_ipv4:+f,login_connection,ip_to_hostname";
 select @@debug_dbug;
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
@@ -22,7 +18,6 @@ select @@debug_dbug;
 connect('con1','127.0.0.1','u1',hoho,test);
 
 SET GLOBAL DEBUG_DBUG=@old_debug;
-
 let $USER=u1;
 let $HOST=%;
 let $count=1;
@@ -34,6 +29,6 @@ let $count=1;
 -- echo # Cleanup.
 DROP USER u1;
 
-SET @@global.failed_attempts_before_delay = @saved_value;
+--source ../inc/restore_variables.inc
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc

@@ -9,18 +9,21 @@ CREATE USER u2 IDENTIFIED BY 'abcd';
 CREATE USER u3 IDENTIFIED BY 'abcd';
 # Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+SET @saved_max_password_errors = @@global.max_password_errors;
+SET @saved_wait_timeout=@@global.wait_timeout;
+SET @saved_interactive_timeout=@@global.interactive_timeout;
 # Set small values for connection_delay variables
 SET @@global.failed_attempts_before_delay = 3;
+SET @@global.wait_timeout=DEFAULT;
+SET @@global.interactive_timeout=DEFAULT;
+SET @@global.max_password_errors=DEFAULT;
 # Current max password errors and timeout config
-select @@wait_timeout,@@interactive_timeout,@@max_password_errors;
-@@wait_timeout	@@interactive_timeout	@@max_password_errors
-28800	28800	4294967295
+select @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.failed_attempts_before_delay;
+@@global.wait_timeout	@@global.interactive_timeout	@@global.max_password_errors	@@global.failed_attempts_before_delay
+28800	28800	4294967295	3
 select @@debug_dbug;
 @@debug_dbug
 d,info:f,connection_delay_for_user
-select @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
-3
 
 # ----------------------------------------------------------------------
 
@@ -56,35 +59,35 @@ connection default;
 FOUND 1 /u3@% wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u3@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u3@% wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u2@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u2@% wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u1@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait 1000 milliseconds/ in mysqld.1.err
 
 # Following attempts will not experience any delay in server response
 # Failed login after a successful login
 connection default;
 # Connection attempt should fail.
-FOUND 2 /u1@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 2 /u2@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u2@% wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 2 /u3@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u3@% wait 1000 milliseconds/ in mysqld.1.err
 # Successful login will not get delay response
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u1@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u1@% wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u2@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u2@% wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 2 /u3@% wait 1000 milliseconds/ in mysqld.1.err
+FOUND 1 /u3@% wait 1000 milliseconds/ in mysqld.1.err
 
 # ----------------------------------------------------------------------
 
@@ -92,6 +95,9 @@ FOUND 2 /u3@% wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Restore original values of connection delay variables
 SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+SET @@global.max_password_errors = @saved_max_password_errors;
+SET @@global.wait_timeout = @saved_wait_timeout;
+SET @@global.interactive_timeout = @saved_interactive_timeout;
 # Remove user accounts created for the test
 DROP USER u1;
 DROP USER u2;

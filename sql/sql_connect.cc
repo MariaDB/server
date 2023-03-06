@@ -268,7 +268,8 @@ static uint64 get_connection_delay_time(uint32 count)
   ever and server close connection if it got message from client after
   wait_timeout
    * so ,
-  delay =  timeout*(failed_count  -failed_attempts_before_delay)/(max_password_errors - failed_attempts_before_delay)
+   step = timeout/(max_password_errors - failed_attempts_before_delay)
+  delay = step *(failed_count  -failed_attempts_before_delay)
 */
   struct system_variables *p= &global_system_variables;
   /* Time unit for delay step is seconds , convert to milliseconds*/
@@ -277,9 +278,10 @@ static uint64 get_connection_delay_time(uint32 count)
                        : p->net_interactive_timeout) *
                   1000;
   uint64 step= timeout / (max_password_errors - p->failed_attempts_before_delay);
-  /* min  delay time is 2 seconds and max delay time is timeout */
+  DBUG_PRINT("info",("The step for connection delay is %d milliseconds",step));
+  /* min  delay time is 1 seconds and max delay time is timeout */
   uint64 delay=
-      (step < 2000 ? 2000 : step) * (count - p->failed_attempts_before_delay);
+      (step > 1000 ? step : 1000) * (count - p->failed_attempts_before_delay);
   return delay < timeout ? delay : timeout;
 }
 
@@ -341,12 +343,17 @@ static void condition_wait(THD* thd, uint64 time)
 }
 
 static int delay_response(THD *thd, const char *user, const char *hostname,
-                   uint32 count)
+                          uint32 count)
 {
   uint64 wait_time= get_connection_delay_time(count);
+  bool skip= false;
   DBUG_PRINT("info",
              ("%s@%s wait %u milliseconds", user, hostname, wait_time));
-  condition_wait(thd, wait_time);
+  DBUG_EXECUTE_IF("skip_connection_delay", { skip= true; });
+  if (!skip)
+  {
+    condition_wait(thd, wait_time);
+  }
   return 0;
 }
 

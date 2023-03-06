@@ -14,12 +14,11 @@
 # Suppress error messages from test_plugin_server
 CALL mtr.add_suppression("Plugin test_plugin_server reported: 'Wrong password supplied for proxied'");
 
-# Save original values of connection_delay variables
-SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+--source ../inc/save_variables.inc
 
 # Set a small values for connection_delay variables
 SET @@global.failed_attempts_before_delay = 3;
-
+--source ../inc/skip_connection_delay.inc
 # We will use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 1;
 
@@ -191,8 +190,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 connection default;
 
-# Restore original values of connection_delay variables
-SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+--source ../inc/restore_variables.inc
 
 --echo # Remove user accounts
 --source ../inc/cleanup_proxy_accounts.inc

@@ -1,0 +1,6 @@
+--echo # Restore original values of connection delay variables
+SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+SET @@global.max_password_errors = @saved_max_password_errors;
+SET @@global.wait_timeout = @saved_wait_timeout;
+SET @@global.interactive_timeout = @saved_interactive_timeout;
+SET GLOBAL DEBUG_DBUG=@old_debug;

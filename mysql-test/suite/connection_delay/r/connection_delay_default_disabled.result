@@ -33,22 +33,22 @@ connect fail_con_u3, localhost, u3,efgh,,,,;
 # Following attempts will not experience delay in server response , because connection delay is disabled by default
 connection default;
 # Connection attempt should fail.
-NOT FOUND /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-NOT FOUND /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u2@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-NOT FOUND /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u3@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-NOT FOUND /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u3@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-NOT FOUND /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u2@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-NOT FOUND /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
+NOT FOUND /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
 
 # ----------------------------------------------------------------------
 

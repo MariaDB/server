@@ -6,9 +6,14 @@
 # Create anonymous user
 CREATE USER ''@'localhost';
 # Save original values of connection_delay variables
-SET @saved_connections_threshold = @@global.failed_connections_threshold;
+SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+SET @saved_max_password_errors = @@global.max_password_errors;
+SET @saved_wait_timeout=@@global.wait_timeout;
+SET @saved_interactive_timeout=@@global.interactive_timeout;
+SET @old_debug=@@global.debug_dbug;
+SET @@global.debug_dbug="+d,skip_connection_delay";
 # Set small values for connection_delay variables
-SET @@global.failed_connections_threshold = 3;
+SET @@global.failed_attempts_before_delay = 3;
 
 # ----------------------------------------------------------------------
 
@@ -20,43 +25,27 @@ connection default;
 connection default;
 # Connection attempt should fail.
 
-# ----------------------------------------------------------------------
-
-#Second round , following attempts will not experience any delay in server response
-connection default;
-# Connection attempt should fail.
-connection default;
-# Connection attempt should fail.
-connection default;
-# Connection attempt should fail.
-
-# ----------------------------------------------------------------------
-
-# Third round , following attempts will not experience any delay in server response
-connection default;
-# Connection attempt should fail.
-connection default;
-# Connection attempt should fail.
-connection default;
-# Connection attempt should fail.
-
 # Following attempts will experience delay in server response
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u1@localhost wait 2000 miliseconds/ in mysqld.1.err
+FOUND 1 /@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u2@localhost wait 2000 miliseconds/ in mysqld.1.err
+FOUND 1 /@localhost wait 2000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u3@localhost wait 2000 miliseconds/ in mysqld.1.err
+FOUND 1 /@localhost wait 3000 milliseconds/ in mysqld.1.err
 
 # ----------------------------------------------------------------------
 
 # Cleanup
 connection default;
 # Restore original values of connection delay variables
-SET @@global.failed_connections_threshold = @saved_connections_threshold;
+SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+SET @@global.max_password_errors = @saved_max_password_errors;
+SET @@global.wait_timeout = @saved_wait_timeout;
+SET @@global.interactive_timeout = @saved_interactive_timeout;
+SET GLOBAL DEBUG_DBUG=@old_debug;
 # Drop anonymous user
 DROP USER ''@'localhost';
 

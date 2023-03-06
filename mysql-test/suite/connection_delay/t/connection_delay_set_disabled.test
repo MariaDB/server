@@ -1,4 +1,3 @@
---source include/have_debug.inc
 # Save the initial number of concurrent sessions
 --source include/count_sessions.inc
 
@@ -11,22 +10,14 @@
 --echo # Setup
 
 --echo # Create user accounts for testing
-CREATE USER u1 IDENTIFIED BY 'abcd';
-
---source ../inc/save_variables.inc
-
+CREATE USER u1@localhost IDENTIFIED BY 'abcd';
 
 let $DELAY_MIN_RESPONSE_TIME= 1000;
--- echo # Set small values for connection_delay variables
-SET @@global.failed_attempts_before_delay = 3;
---echo # Current max password errors and timeout config
-select @@wait_timeout,@@interactive_timeout,@@max_password_errors;
-select @@debug_dbug;
-select @@global.failed_attempts_before_delay;
+--source ../inc/save_variables.inc
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
-
-
+SET @@global.failed_attempts_before_delay = 3;
+--source ../inc/skip_connection_delay.inc
 --echo
 --echo # ----------------------------------------------------------------------
 --echo
@@ -37,30 +28,53 @@ disable_result_log;
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,,,,,);
+connect(fail_con_u1, localhost, u1,haha,,,,);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,,,,,);
+connect(fail_con_u1, localhost, u1,haha,,,,);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,,,,,);
-
---echo
---echo # Following attempts will not experience any delay in server response
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,,,,,);
-
-
---replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
---error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,,,,,);
+connect(fail_con_u1, localhost, u1,haha,,,,);
 
 
 enable_result_log;
+
+--echo
+--echo # Following attempts will not experience delay in server response
+
+let $HOST=localhost;
+
+# Trying with invalid passwords
+
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+
+--source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+--echo # ---------------------Disabled connection delay
+SET @@global.failed_attempts_before_delay = 0;
+let $USER=u1;
+let $PASSWORD=hoho;
+let $SUCCESS=0;
+--source ../inc/check_connection_delay.inc
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
+# Trying with valid passwords
+let $USER=u1;
+let $PASSWORD=abcd;
+let $SUCCESS=1;
+--source ../inc/check_connection_delay.inc
+
+let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
+--source ../inc/check_response_delay_time.inc
+
 
 --echo
 --echo # ----------------------------------------------------------------------
@@ -69,12 +83,9 @@ enable_result_log;
 --echo # Cleanup
 
 connection default;
-
 --source ../inc/restore_variables.inc
-
 --echo # Remove user accounts created for the test
-DROP USER u1;
-
+DROP USER u1@localhost;
 
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc

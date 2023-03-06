@@ -12,12 +12,11 @@
 --echo # Setup
 --echo # Install connection_delay plugin
 
---echo # Save original values of connection_delay variables
-SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+--source ../inc/save_variables.inc
 
--- echo # Set small values for connection_delay variables
+--echo # Set small values for connection_delay variables
 SET @@global.failed_attempts_before_delay = 3;
-
+--source ../inc/skip_connection_delay.inc
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
 let $HOST=localhost;
@@ -79,8 +78,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 connection default;
 
---echo # Restore original values of connection_delay variables
-SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+--source ../inc/restore_variables.inc
 
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc
