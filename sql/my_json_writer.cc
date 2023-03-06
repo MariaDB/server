@@ -217,7 +217,24 @@ void Json_writer::add_size(longlong val)
 void Json_writer::add_double(double val)
 {
   char buf[64];
-  size_t len= my_snprintf(buf, sizeof(buf), "%lg", val);
+  size_t len;
+  if (((val - (longlong)val) < OPTIMIZER_DOUBLE_TO_INT_PRECISION)
+     || (-((longlong)val - val) < OPTIMIZER_DOUBLE_TO_INT_PRECISION))
+    return Json_writer::add_ll((longlong)val);
+  if (  (val > OPTIMIZER_DOUBLE_TO_EXPONENT_VALUE)
+      ||(-val > OPTIMIZER_DOUBLE_TO_EXPONENT_VALUE)
+      ||(val > 0 && val < OPTIMIZER_DOUBLE_MIN_VALUE)
+      ||(val < 0 && val > OPTIMIZER_DOUBLE_MIN_VALUE)
+      )
+    len= my_snprintf(buf, sizeof(buf), "%g", val);
+  else
+#if OPTIMIZER_SHOW_DOUBLE_PRECISION
+    len= my_snprintf(buf, sizeof(buf), "%.*lf",
+                      OPTIMIZER_DOUBLE_PRECISION, val);
+#else
+    len= my_snprintf(buf, sizeof(buf), "%.*lg",
+                      OPTIMIZER_DOUBLE_SIGNIFICANT_DIGITS, val);
+#endif
   add_unquoted_str(buf, len);
 }
 

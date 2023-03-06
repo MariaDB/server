@@ -80,7 +80,7 @@ select * from db1.t1	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.01
                 }
               }
             ]
@@ -95,19 +95,19 @@ select * from db1.t1	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.01,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.01,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.61,
                 "estimated_join_cardinality": 3
               }
             ]
@@ -203,7 +203,7 @@ select * from db1.v1	{
                 "table": "t1",
                 "table_scan": {
                   "rows": 3,
-                  "cost": 2.0051
+                  "cost": 2.01
                 }
               }
             ]
@@ -218,19 +218,19 @@ select * from db1.v1	{
                     {
                       "access_type": "scan",
                       "resulting_rows": 3,
-                      "cost": 2.0051,
+                      "cost": 2.01,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "scan",
                     "records": 3,
-                    "cost": 2.0051,
+                    "cost": 2.01,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051,
+                "cost_for_plan": 2.61,
                 "estimated_join_cardinality": 3
               }
             ]

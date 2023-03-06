@@ -3819,7 +3819,7 @@ ANALYZE
       "ref": ["func"],
       "r_loops": 3,
       "rows": 1,
-      "r_rows": 0.3333,
+      "r_rows": 0.33,
       "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
@@ -4126,7 +4126,7 @@ ANALYZE
                             "ref": ["test.t1.c"],
                             "r_loops": 4,
                             "rows": 2,
-                            "r_rows": 0.5,
+                            "r_rows": 0.50,
                             "r_total_time_ms": "REPLACED",
                             "filtered": 100,
                             "r_filtered": 100

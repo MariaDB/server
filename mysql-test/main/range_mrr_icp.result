@@ -2625,7 +2625,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["d"],
       "rows": 8,
-      "filtered": 14.423,
+      "filtered": 14.42,
       "index_condition": "t2.d is not null",
       "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
       "mrr_type": "Rowid-ordered scan"
@@ -2723,7 +2723,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["d"],
       "rows": 7,
-      "filtered": 6.7308,
+      "filtered": 6.73,
       "index_condition": "t2.d is not null",
       "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
       "mrr_type": "Rowid-ordered scan"

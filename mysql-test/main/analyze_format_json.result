@@ -184,7 +184,7 @@ ANALYZE
       "buffer_size": "1Kb",
       "join_type": "BNL",
       "attached_condition": "tbl1.c > tbl2.c",
-      "r_filtered": 15.833
+      "r_filtered": 15.83
     }
   }
 }
@@ -225,7 +225,7 @@ ANALYZE
       "ref": ["test.t1.a"],
       "r_loops": 10,
       "rows": 2,
-      "r_rows": 0.2,
+      "r_rows": 0.20,
       "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
@@ -404,10 +404,10 @@ ANALYZE
         "possible_keys": ["key1", "key2", "key3", "key4"],
         "r_loops": 5,
         "rows": 1010,
-        "r_rows": 203.8,
+        "r_rows": 203.80,
         "r_total_time_ms": "REPLACED",
         "filtered": 100,
-        "r_filtered": 98.135
+        "r_filtered": 98.14
       }
     }
   }

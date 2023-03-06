@@ -40,6 +40,16 @@ class Opt_trace_context;
 class Json_writer;
 struct TABLE_LIST;
 
+// See Json_writer::add_double() for usage
+#define OPTIMIZER_SHOW_DOUBLE_PRECISION        true
+#if OPTIMIZER_SHOW_DOUBLE_PRECISION
+#  define OPTIMIZER_DOUBLE_PRECISION   2
+#  define OPTIMIZER_DOUBLE_MIN_VALUE   0.005
+#else
+#  define OPTIMIZER_DOUBLE_SIGNIFICANT_DIGITS 6
+#endif
+#define OPTIMIZER_DOUBLE_TO_INT_PRECISION       0.00000001
+#define OPTIMIZER_DOUBLE_TO_EXPONENT_VALUE      999999
 
 /*
   Single_line_formatting_helper is used by Json_writer to do better formatting

@@ -88,7 +88,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 "range_analysis": {
                   "table_scan": {
                     "rows": 1000,
-                    "cost": 206.1
+                    "cost": 206.10
                   },
                   "potential_range_indexes": [
                     {
@@ -131,7 +131,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 2.3751,
+                        "cost": 2.38,
                         "chosen": true
                       }
                     ],
@@ -139,10 +139,10 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "intersecting_indexes": [
                         {
                           "index": "key1",
-                          "index_scan_cost": 1.0001,
-                          "cumulated_index_scan_cost": 1.0001,
-                          "disk_sweep_cost": 1.0042,
-                          "cumulative_total_cost": 2.0043,
+                          "index_scan_cost": 1.00,
+                          "cumulated_index_scan_cost": 1.00,
+                          "disk_sweep_cost": 1.00,
+                          "cumulative_total_cost": 2.00,
                           "usable": true,
                           "matching_rows_now": 1,
                           "intersect_covering_with_this_index": false,
@@ -166,7 +166,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                       "ranges": ["(1) <= (key1) <= (1)"]
                     },
                     "rows_for_plan": 1,
-                    "cost_for_plan": 2.3751,
+                    "cost_for_plan": 2.38,
                     "chosen": true
                   }
                 }
@@ -176,7 +176,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                 "rowid_filters": [
                   {
                     "key": "key1",
-                    "build_cost": 1.1801,
+                    "build_cost": 1.18,
                     "rows": 1
                   }
                 ]
@@ -226,7 +226,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                   }
                 },
                 "rows_for_plan": 1,
-                "cost_for_plan": 2.2,
+                "cost_for_plan": 2.20,
                 "estimated_join_cardinality": 1
               }
             ]

@@ -15466,7 +15466,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.333,
+      "filtered": 83.33,
       "attached_condition": "t1.b <= 5 and t1.a is not null"
     },
     "table": {
@@ -15741,7 +15741,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.333,
+      "filtered": 83.33,
       "attached_condition": "t3.b <= 15 and t3.a is not null and t3.c is not null"
     },
     "table": {
@@ -15894,7 +15894,7 @@ EXPLAIN
       "access_type": "ALL",
       "possible_keys": ["idx_b"],
       "rows": 12,
-      "filtered": 83.333,
+      "filtered": 83.33,
       "attached_condition": "t3.b <= 15 and t3.a is not null and t3.c is not null"
     },
     "table": {
@@ -16126,7 +16126,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 63.281,
+      "filtered": 63.28,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -16623,7 +16623,7 @@ EXPLAIN
       "table_name": "t2",
       "access_type": "ALL",
       "rows": 90,
-      "filtered": 63.281,
+      "filtered": 63.28,
       "attached_condition": "t2.b < 40 and t2.a is not null"
     },
     "table": {
@@ -17732,7 +17732,7 @@ EXPLAIN
             "used_key_parts": ["t1_id"],
             "ref": ["test.t1.id"],
             "rows": 3,
-            "filtered": 58.594,
+            "filtered": 58.59,
             "index_condition": "t2.t1_id between 200 and 100000 and t2.t1_id = t3.t1_id",
             "attached_condition": "t2.reporting_person = 1"
           }

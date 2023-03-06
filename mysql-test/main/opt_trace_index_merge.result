@@ -115,12 +115,12 @@ explain select * from t1 where a=1 or b=1	{
                                 "using_mrr": false,
                                 "index_only": true,
                                 "rows": 1,
-                                "cost": 1.1773,
+                                "cost": 1.18,
                                 "chosen": true
                               }
                             ],
                             "index_to_merge": "a",
-                            "cumulated_cost": 1.1773
+                            "cumulated_cost": 1.18
                           },
                           {
                             "range_scan_alternatives": [
@@ -131,15 +131,15 @@ explain select * from t1 where a=1 or b=1	{
                                 "using_mrr": false,
                                 "index_only": true,
                                 "rows": 1,
-                                "cost": 1.1773,
+                                "cost": 1.18,
                                 "chosen": true
                               }
                             ],
                             "index_to_merge": "b",
-                            "cumulated_cost": 2.3547
+                            "cumulated_cost": 2.35
                           }
                         ],
-                        "cost_of_reading_ranges": 2.3547,
+                        "cost_of_reading_ranges": 2.35,
                         "use_roworder_union": true,
                         "cause": "always cheaper than non roworder retrieval",
                         "analyzing_roworder_scans": [
@@ -162,7 +162,7 @@ explain select * from t1 where a=1 or b=1	{
                             }
                           }
                         ],
-                        "index_roworder_union_cost": 4.1484,
+                        "index_roworder_union_cost": 4.15,
                         "members": 2,
                         "chosen": true
                       }
@@ -187,7 +187,7 @@ explain select * from t1 where a=1 or b=1	{
                       ]
                     },
                     "rows_for_plan": 2,
-                    "cost_for_plan": 4.1484,
+                    "cost_for_plan": 4.15,
                     "chosen": true
                   }
                 }
@@ -209,19 +209,19 @@ explain select * from t1 where a=1 or b=1	{
                     {
                       "access_type": "index_merge",
                       "resulting_rows": 2,
-                      "cost": 4.1484,
+                      "cost": 4.15,
                       "chosen": true
                     }
                   ],
                   "chosen_access_method": {
                     "type": "index_merge",
                     "records": 2,
-                    "cost": 4.1484,
+                    "cost": 4.15,
                     "uses_join_buffering": false
                   }
                 },
                 "rows_for_plan": 2,
-                "cost_for_plan": 4.5484,
+                "cost_for_plan": 4.55,
                 "estimated_join_cardinality": 2
               }
             ]
@@ -318,7 +318,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 2243,
-                "cost": 2844.1,
+                "cost": 2844.13,
                 "chosen": true
             },
             {
@@ -329,7 +329,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 2243,
-                "cost": 2844.1,
+                "cost": 2844.13,
                 "chosen": false,
                 "cause": "cost"
             },
@@ -341,7 +341,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 "using_mrr": false,
                 "index_only": false,
                 "rows": 2243,
-                "cost": 2844.1,
+                "cost": 2844.13,
                 "chosen": false,
                 "cause": "cost"
             }
@@ -352,10 +352,10 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
             [
                 {
                     "index": "key1",
-                    "index_scan_cost": 58.252,
-                    "cumulated_index_scan_cost": 58.252,
-                    "disk_sweep_cost": 1923.1,
-                    "cumulative_total_cost": 1981.4,
+                    "index_scan_cost": 58.25,
+                    "cumulated_index_scan_cost": 58.25,
+                    "disk_sweep_cost": 1923.14,
+                    "cumulative_total_cost": 1981.40,
                     "usable": true,
                     "matching_rows_now": 2243,
                     "intersect_covering_with_this_index": false,
@@ -363,23 +363,23 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                 },
                 {
                     "index": "key2",
-                    "index_scan_cost": 58.252,
-                    "cumulated_index_scan_cost": 116.5,
-                    "disk_sweep_cost": 84.518,
+                    "index_scan_cost": 58.25,
+                    "cumulated_index_scan_cost": 116.50,
+                    "disk_sweep_cost": 84.52,
                     "cumulative_total_cost": 201.02,
                     "usable": true,
-                    "matching_rows_now": 77.636,
+                    "matching_rows_now": 77.64,
                     "intersect_covering_with_this_index": false,
                     "chosen": true
                 },
                 {
                     "index": "key3",
-                    "index_scan_cost": 58.252,
+                    "index_scan_cost": 58.25,
                     "cumulated_index_scan_cost": 174.76,
                     "disk_sweep_cost": 0,
                     "cumulative_total_cost": 174.76,
                     "usable": true,
-                    "matching_rows_now": 2.6872,
+                    "matching_rows_now": 2.69,
                     "intersect_covering_with_this_index": true,
                     "chosen": true
                 }
@@ -536,10 +536,10 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                             [
                                 {
                                     "index": "key1",
-                                    "index_scan_cost": 58.252,
-                                    "cumulated_index_scan_cost": 58.252,
-                                    "disk_sweep_cost": 1923.1,
-                                    "cumulative_total_cost": 1981.4,
+                                    "index_scan_cost": 58.25,
+                                    "cumulated_index_scan_cost": 58.25,
+                                    "disk_sweep_cost": 1923.14,
+                                    "cumulative_total_cost": 1981.40,
                                     "usable": true,
                                     "matching_rows_now": 2243,
                                     "intersect_covering_with_this_index": false,
@@ -547,12 +547,12 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                                 },
                                 {
                                     "index": "key2",
-                                    "index_scan_cost": 58.252,
-                                    "cumulated_index_scan_cost": 116.5,
-                                    "disk_sweep_cost": 84.518,
+                                    "index_scan_cost": 58.25,
+                                    "cumulated_index_scan_cost": 116.50,
+                                    "disk_sweep_cost": 84.52,
                                     "cumulative_total_cost": 201.02,
                                     "usable": true,
-                                    "matching_rows_now": 77.636,
+                                    "matching_rows_now": 77.64,
                                     "intersect_covering_with_this_index": false,
                                     "chosen": true
                                 }
@@ -580,10 +580,10 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                             [
                                 {
                                     "index": "key3",
-                                    "index_scan_cost": 58.252,
-                                    "cumulated_index_scan_cost": 58.252,
-                                    "disk_sweep_cost": 1923.1,
-                                    "cumulative_total_cost": 1981.4,
+                                    "index_scan_cost": 58.25,
+                                    "cumulated_index_scan_cost": 58.25,
+                                    "disk_sweep_cost": 1923.14,
+                                    "cumulative_total_cost": 1981.40,
                                     "usable": true,
                                     "matching_rows_now": 2243,
                                     "intersect_covering_with_this_index": false,
@@ -591,12 +591,12 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
                                 },
                                 {
                                     "index": "key4",
-                                    "index_scan_cost": 58.252,
-                                    "cumulated_index_scan_cost": 116.5,
-                                    "disk_sweep_cost": 84.518,
+                                    "index_scan_cost": 58.25,
+                                    "cumulated_index_scan_cost": 116.50,
+                                    "disk_sweep_cost": 84.52,
                                     "cumulative_total_cost": 201.02,
                                     "usable": true,
-                                    "matching_rows_now": 77.636,
+                                    "matching_rows_now": 77.64,
                                     "intersect_covering_with_this_index": false,
                                     "chosen": true
                                 }

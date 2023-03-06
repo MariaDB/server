@@ -233,7 +233,7 @@ ANALYZE
           "ref": ["test.t0.a"],
           "r_loops": 10,
           "rows": 1,
-          "r_rows": 0.4,
+          "r_rows": 0.40,
           "r_total_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
@@ -321,7 +321,7 @@ ANALYZE
       "ref": ["test.t0.a"],
       "r_loops": 10,
       "rows": 1,
-      "r_rows": 0.4,
+      "r_rows": 0.40,
       "r_total_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100
@@ -500,7 +500,7 @@ ANALYZE
               "buffer_size": "119",
               "join_type": "BNL",
               "attached_condition": "t5.a = t6.a",
-              "r_filtered": 21.429
+              "r_filtered": 21.43
             }
           }
         }
