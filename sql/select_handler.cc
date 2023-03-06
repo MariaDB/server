@@ -51,18 +51,19 @@ select_handler::~select_handler()
 
 TABLE *select_handler::create_tmp_table(THD *thd, SELECT_LEX *select)
 {
-  DBUG_ENTER("select_handler::create_tmp_table");
   List<Item> types;
   TMP_TABLE_PARAM tmp_table_param;
+  TABLE *table;
+  DBUG_ENTER("select_handler::create_tmp_table");
+
   if (select->master_unit()->join_union_item_types(thd, types, 1))
     DBUG_RETURN(NULL);
   tmp_table_param.init();
-  tmp_table_param.field_count= types.elements;
-
-  TABLE *table= ::create_tmp_table(thd, &tmp_table_param, types,
-                                   (ORDER *) 0, false, 0,
-                                   TMP_TABLE_ALL_COLUMNS, 1,
-                                   &empty_clex_str, true, false);
+  tmp_table_param.field_count= tmp_table_param.func_count= types.elements;
+  table= ::create_tmp_table(thd, &tmp_table_param, types,
+                            (ORDER *) 0, false, 0,
+                            TMP_TABLE_ALL_COLUMNS, 1,
+                            &empty_clex_str, true, false);
   DBUG_RETURN(table);
 }
 
