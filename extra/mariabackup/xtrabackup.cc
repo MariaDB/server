@@ -3361,7 +3361,9 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
 		space = fil_space_t::create(
 			name, file->space_id(), file->flags(),
-			FIL_TYPE_TABLESPACE, NULL/* TODO: crypt_data */);
+			FIL_TYPE_TABLESPACE, NULL/* TODO: crypt_data */,
+			FIL_ENCRYPTION_DEFAULT,
+			file->handle() != OS_FILE_CLOSED);
 
 		ut_a(space != NULL);
 		space->add(file->filepath(),
@@ -5242,7 +5244,8 @@ exit:
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
 	if (fil_space_t::create(dest_space_name, info.space_id, flags,
-				FIL_TYPE_TABLESPACE, 0)) {
+				FIL_TYPE_TABLESPACE, 0, FIL_ENCRYPTION_DEFAULT,
+				true)) {
 		*success = xb_space_create_file(real_name, info.space_id,
 						flags, &file);
 	} else {

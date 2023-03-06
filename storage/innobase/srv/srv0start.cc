@@ -563,7 +563,8 @@ err_exit:
   fil_set_max_space_id_if_bigger(space_id);
 
   fil_space_t *space= fil_space_t::create(undo_name, space_id, fsp_flags,
-					  FIL_TYPE_TABLESPACE, NULL);
+					  FIL_TYPE_TABLESPACE, NULL,
+					  FIL_ENCRYPTION_DEFAULT, true);
   ut_a(fil_validate());
   ut_a(space);
 
