@@ -4462,4 +4462,38 @@ ERROR HY000: $anchor keyword is not supported
 SET @schema_reference= '{"$defs": "http://example.com/custom-email-validator.json#"}';
 SELECT JSON_SCHEMA_VALID(@schema_reference, '{}');
 ERROR HY000: $defs keyword is not supported
+#
+# MDEV-30795: JSON_SCHEMA_VALID bugs mentioned in comment
+#
+SET @schema= '{
+                     "type":"array",
+                     "uniqueItems":true
+              }';
+SELECT JSON_SCHEMA_VALID(@schema, '[null, null]');
+JSON_SCHEMA_VALID(@schema, '[null, null]')
+0
+SET @schema_max_items= '{"maxItems":-1}';
+SELECT JSON_SCHEMA_VALID(@schema_max_items, '[]');
+ERROR HY000: Invalid value for keyword maxItems
+SET @schema_min_items= '{"minItems":-1}';
+SELECT JSON_SCHEMA_VALID(@schema_min_items, '[]');
+ERROR HY000: Invalid value for keyword maxLength
+SET @schema_max_properties= '{"maxProperties":-1}';
+SELECT JSON_SCHEMA_VALID(@schema_max_properties, '{}');
+ERROR HY000: Invalid value for keyword maxProperties
+SET @schema_min_properties= '{"minProperties":-1}';
+SELECT JSON_SCHEMA_VALID(@schema_min_properties, '{}');
+ERROR HY000: Invalid value for keyword minProperties
+SET @schema_multiple_of= '{"multipleOf":-1}';
+SELECT JSON_SCHEMA_VALID(@schema_multiple_of, '2');
+ERROR HY000: Invalid value for keyword multipleOf
+SET @schema_max_contains= '{"maxContains":-1}';
+SELECT JSON_SCHEMA_VALID(@schema_max_contains, '[]');
+ERROR HY000: Invalid value for keyword maxContains
+SET @schema_min_contains= '{"minContains":-1}';
+SELECT JSON_SCHEMA_VALID(@schema_min_contains, '[]');
+ERROR HY000: Invalid value for keyword minContains
+SET @schema_required='{"type":"object","required":[1,"str1", "str1"]}';
+SELECT JSON_SCHEMA_VALID(@schema_required,'{"num1":1, "str1":"abc", "arr1":[1,2,3]}');
+ERROR HY000: Invalid value for keyword required
 # End of 11.1 test

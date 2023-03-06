@@ -3357,4 +3357,46 @@ SET @schema_reference= '{"$defs": "http://example.com/custom-email-validator.jso
 SELECT JSON_SCHEMA_VALID(@schema_reference, '{}');
 
 
+--echo #
+--echo # MDEV-30795: JSON_SCHEMA_VALID bugs mentioned in comment
+--echo #
+SET @schema= '{
+                     "type":"array",
+                     "uniqueItems":true
+              }';
+SELECT JSON_SCHEMA_VALID(@schema, '[null, null]');
+
+SET @schema_max_items= '{"maxItems":-1}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema_max_items, '[]');
+
+SET @schema_min_items= '{"minItems":-1}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema_min_items, '[]');
+
+SET @schema_max_properties= '{"maxProperties":-1}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema_max_properties, '{}');
+
+SET @schema_min_properties= '{"minProperties":-1}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema_min_properties, '{}');
+
+SET @schema_multiple_of= '{"multipleOf":-1}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema_multiple_of, '2');
+
+SET @schema_max_contains= '{"maxContains":-1}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema_max_contains, '[]');
+
+SET @schema_min_contains= '{"minContains":-1}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema_min_contains, '[]');
+
+SET @schema_required='{"type":"object","required":[1,"str1", "str1"]}';
+--error ER_JSON_INVALID_VALUE_FOR_KEYWORD
+SELECT JSON_SCHEMA_VALID(@schema_required,'{"num1":1, "str1":"abc", "arr1":[1,2,3]}');
+
+
 --echo # End of 11.1 test
