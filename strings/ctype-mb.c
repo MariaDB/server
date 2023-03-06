@@ -63,10 +63,10 @@ size_t my_casedn_str_mb(CHARSET_INFO * cs, char *str)
 }
 
 
-static inline MY_CASEFOLD_CHARACTER*
+static inline const MY_CASEFOLD_CHARACTER*
 get_case_info_for_ch(CHARSET_INFO *cs, uint page, uint offs)
 {
-  MY_CASEFOLD_CHARACTER *p;
+  const MY_CASEFOLD_CHARACTER *p;
   return cs->casefold && (p= cs->casefold->page[page]) ? &p[offs] : NULL;
 }
 
@@ -97,7 +97,7 @@ my_casefold_mb(CHARSET_INFO *cs,
     size_t mblen= my_ismbchar(cs, src, srcend);
     if (mblen)
     {
-      MY_CASEFOLD_CHARACTER *ch;
+      const MY_CASEFOLD_CHARACTER *ch;
       if ((ch= get_case_info_for_ch(cs, (uchar) src[0], (uchar) src[1])))
       {
         int code= is_upper ? ch->toupper : ch->tolower;

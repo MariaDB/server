@@ -147,7 +147,7 @@ static const uchar to_upper_gbk[]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA2[256]=
+static const MY_CASEFOLD_CHARACTER cA2[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -351,7 +351,7 @@ static MY_CASEFOLD_CHARACTER cA2[256]=
   {0xA2FF,0xA2FF}
 };
 
-static MY_CASEFOLD_CHARACTER cA3[256]=
+static const MY_CASEFOLD_CHARACTER cA3[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -556,7 +556,7 @@ static MY_CASEFOLD_CHARACTER cA3[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA6[256]=
+static const MY_CASEFOLD_CHARACTER cA6[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -761,7 +761,7 @@ static MY_CASEFOLD_CHARACTER cA6[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER cA7[256]=
+static const MY_CASEFOLD_CHARACTER cA7[256]=
 {
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0}, /* xx00 */
   {0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},{0,0},
@@ -966,7 +966,7 @@ static MY_CASEFOLD_CHARACTER cA7[256]=
 };
 
 
-static MY_CASEFOLD_CHARACTER *my_casefold_pages_gbk[256]=
+static const MY_CASEFOLD_CHARACTER *my_casefold_pages_gbk[256]=
 {
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, /* 0 */
   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
