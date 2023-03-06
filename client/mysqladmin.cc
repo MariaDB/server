@@ -31,18 +31,14 @@
 
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */
-#define MAX_TRUNC_LENGTH 3
 
 char *host= NULL, *user= 0, *opt_password= 0,
      *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
-char truncated_var_names[MAX_MYSQL_VAR+100][MAX_TRUNC_LENGTH];
-char ex_var_names[MAX_MYSQL_VAR+100][FN_REFLEN];
 ulonglong last_values[MAX_MYSQL_VAR+100];
 static int interval=0;
 static my_bool option_force=0,interrupted=0,new_line=0,
                opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
-               opt_vertical= 0, tty_password= 0, opt_nobeep,
-               opt_shutdown_wait_for_slaves= 0;
+               tty_password= 0, opt_nobeep, opt_shutdown_wait_for_slaves= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint tcp_port = 0, option_wait = 0, option_silent=0, nr_iterations;
 static uint opt_count_iterations= 0, my_end_arg;
@@ -54,15 +50,7 @@ static bool sql_log_bin_off= false;
 static uint opt_protocol=0;
 static myf error_flags; /* flags to pass to my_printf_error, like ME_BELL */
 
-/*
-  When using extended-status relatively, ex_val_max_len is the estimated
-  maximum length for any relative value printed by extended-status. The
-  idea is to try to keep the length of output as short as possible.
-*/
-
-static uint ex_val_max_len[MAX_MYSQL_VAR];
 static my_bool ex_status_printed = 0; /* First output is not relative. */
-static uint ex_var_count, max_var_length, max_val_length;
 
 #include <sslopt-vars.h>
 
@@ -80,14 +68,9 @@ static void print_header(MYSQL_RES *result);
 static void print_top(MYSQL_RES *result);
 static void print_row(MYSQL_RES *result,MYSQL_ROW cur, uint row);
 static void print_relative_row(MYSQL_RES *result, MYSQL_ROW cur, uint row);
-static void print_relative_row_vert(MYSQL_RES *result, MYSQL_ROW cur, uint row);
-static void print_relative_header();
-static void print_relative_line();
-static void truncate_names();
 static my_bool get_pidfile(MYSQL *mysql, char *pidfile);
 static my_bool wait_pidfile(char *pidfile, time_t last_modified,
 			    struct stat *pidfile_status);
-static void store_values(MYSQL_RES *result);
 
 /*
   The order of commands must be the same as command_names,
@@ -208,10 +191,6 @@ static struct my_option my_long_options[] =
    &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"vertical", 'E',
-   "Print output vertically. Is similar to --relative, but prints output vertically.",
-   &opt_vertical, &opt_vertical, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
   {"wait", 'w', "Wait and retry if connection is down.", 0, 0, 0, GET_UINT,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"connect_timeout", OPT_CONNECT_TIMEOUT, "", &opt_connect_timeout,
@@ -928,43 +907,17 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 
       DBUG_ASSERT(mysql_num_rows(res) < MAX_MYSQL_VAR+100);
 
-      if (!opt_vertical)
-	print_header(res);
-      else
-      {
-	if (!ex_status_printed)
-	{
-	  store_values(res);
-	  truncate_names();   /* Does some printing also */
-	}
-	else
-	{
-	  print_relative_line();
-	  print_relative_header();
-	  print_relative_line();
-	}
-      }
+      print_header(res);
 
       /*      void (*func) (MYSQL_RES*, MYSQL_ROW, uint); */
-      if (opt_relative && !opt_vertical)
-	func = print_relative_row;
-      else if (opt_vertical)
-	func = print_relative_row_vert;
+      if (opt_relative)
+        func = print_relative_row;
       else
-	func = print_row;
+        func = print_row;
 
       while ((row = mysql_fetch_row(res)))
-	(*func)(res, row, rownr++);
-      if (opt_vertical)
-      {
-	if (ex_status_printed)
-	{
-	  putchar('\n');
-	  print_relative_line();
-	}
-      }
-      else
-	print_top(res);
+        (*func)(res, row, rownr++);
+      print_top(res);
 
       ex_status_printed = 1; /* From now on the output will be relative */
       mysql_free_result(res);
@@ -1536,114 +1489,6 @@ static void print_relative_row(MYSQL_RES *result, MYSQL_ROW cur, uint row)
   printf(" %-*s|\n", (int) field->max_length + 1,
 	 llstr((tmp - last_values[row]), buff));
   last_values[row] = tmp;
-}
-
-
-static void print_relative_row_vert(MYSQL_RES *result __attribute__((unused)),
-				    MYSQL_ROW cur,
-				    uint row __attribute__((unused)))
-{
-  uint length;
-  ulonglong tmp;
-  char buff[22];
-
-  if (!row)
-    putchar('|');
-
-  tmp = cur[1] ? strtoull(cur[1], NULL, 10) : (ulonglong) 0;
-  printf(" %-*s|", ex_val_max_len[row] + 1,
-	 llstr((tmp - last_values[row]), buff));
-
-  /* Find the minimum row length needed to output the relative value */
-  length=(uint) strlen(buff);
-  if (length > ex_val_max_len[row] && ex_status_printed)
-    ex_val_max_len[row] = length;
-  last_values[row] = tmp;
-}
-
-
-static void store_values(MYSQL_RES *result)
-{
-  uint i;
-  MYSQL_ROW row;
-  MYSQL_FIELD *field;
-
-  field = mysql_fetch_field(result);
-  max_var_length = field->max_length;
-  field = mysql_fetch_field(result);
-  max_val_length = field->max_length;
-
-  for (i = 0; (row = mysql_fetch_row(result)); i++)
-  {
-    strmov(ex_var_names[i], row[0]);
-    last_values[i]=strtoull(row[1],NULL,10);
-    ex_val_max_len[i]=2;		/* Default print width for values */
-  }
-  ex_var_count = i;
-  return;
-}
-
-
-static void print_relative_header()
-{
-  uint i;
-
-  putchar('|');
-  for (i = 0; i < ex_var_count; i++)
-    printf(" %-*s|", ex_val_max_len[i] + 1, truncated_var_names[i]);
-  putchar('\n');
-}
-
-
-static void print_relative_line()
-{
-  uint i;
-
-  putchar('+');
-  for (i = 0; i < ex_var_count; i++)
-  {
-    uint j;
-    for (j = 0; j < ex_val_max_len[i] + 2; j++)
-      putchar('-');
-    putchar('+');
-  }
-  putchar('\n');
-}
-
-
-static void truncate_names()
-{
-  uint i;
-  char *ptr,top_line[MAX_TRUNC_LENGTH+4+NAME_LEN+22+1],buff[22];
-
-  ptr=top_line;
-  *ptr++='+';
-  ptr=strfill(ptr,max_var_length+2,'-');
-  *ptr++='+';
-  ptr=strfill(ptr,MAX_TRUNC_LENGTH+2,'-');
-  *ptr++='+';
-  ptr=strfill(ptr,max_val_length+2,'-');
-  *ptr++='+';
-  *ptr=0;
-  puts(top_line);
-
-  for (i = 0 ; i < ex_var_count; i++)
-  {
-    uint sfx=1,j;
-    printf("| %-*s|", max_var_length + 1, ex_var_names[i]);
-    ptr = ex_var_names[i];
-    /* Make sure no two same truncated names will become */
-    for (j = 0; j < i; j++)
-      if (*truncated_var_names[j] == *ptr)
-	sfx++;
-
-    truncated_var_names[i][0]= *ptr;		/* Copy first var char */
-    int10_to_str(sfx, truncated_var_names[i]+1,10);
-    printf(" %-*s|", MAX_TRUNC_LENGTH + 1, truncated_var_names[i]);
-    printf(" %-*s|\n", max_val_length + 1, llstr(last_values[i],buff));
-  }
-  puts(top_line);
-  return;
 }
 
 
