@@ -3318,6 +3318,51 @@ MY_LOCALE my_locale_rm_CH
 /***** LOCALE END rm_CH *****/
 
 
+/***** LOCALE BEGIN ka_GE: Georgian - Georgia *****/
+static const char *my_locale_month_names_ka_GE[13] =
+ {"იანვარი","თებერვალი","მარტი","აპრილი","მაისი","ივნისი","ივლისი","სექტემბერი","ოქტომბერი","ნოემბერი","დეკემბერი", NullS };
+
+static const char *my_locale_ab_month_names_ka_GE[13] =
+ {"იან","თებ","მარ","აპრ","მაი","ივნ","ივლ","აგვ","სექტ","ოქტ","ნოე","დეკ", NullS };
+
+static const char *my_locale_day_names_ka_GE[8] =
+ {"ორშაბათი","სამშაბათი","ოთხშაბათი","ხუთშაბათი","პარასკევი","შაბათი","კვირა", NullS };
+
+static const char *my_locale_ab_day_names_ka_GE[8] =
+ {"ორშ","სამშ","ოთხშ","ხუთშ","პარ","შაბ","კვ", NullS };
+
+static TYPELIB my_locale_typelib_month_names_ka_GE =
+ { array_elements(my_locale_month_names_ka_GE)-1, "", my_locale_month_names_ka_GE, NULL };
+
+static TYPELIB my_locale_typelib_ab_month_names_ka_GE =
+ { array_elements(my_locale_ab_month_names_ka_GE)-1, "", my_locale_ab_month_names_ka_GE, NULL };
+
+static TYPELIB my_locale_typelib_day_names_ka_GE =
+ { array_elements(my_locale_day_names_ka_GE)-1, "", my_locale_day_names_ka_GE, NULL };
+
+static TYPELIB my_locale_typelib_ab_day_names_ka_GE =
+ { array_elements(my_locale_ab_day_names_ka_GE)-1, "", my_locale_ab_day_names_ka_GE, NULL };
+
+MY_LOCALE my_locale_ka_GE
+(
+  111,
+  "ka_GE",
+  "Georgian - Georgia",
+  FALSE,
+  &my_locale_typelib_month_names_ka_GE,
+  &my_locale_typelib_ab_month_names_ka_GE,
+  &my_locale_typelib_day_names_ka_GE,
+  &my_locale_typelib_ab_day_names_ka_GE,
+  10,
+  9,
+  ',',        /* decimal point ka_GE */
+  ' ',        /* thousands_sep ka_GE */
+  "\x03",     /* grouping      ka_GE */
+  &global_errmsgs[ka_GE]
+);
+/***** LOCALE END ka_GE *****/
+
+
 /*
   The list of all locales.
   Note, locales must be ordered according to their
@@ -3437,6 +3482,7 @@ MY_LOCALE *my_locales[]=
     &my_locale_zh_HK,
     &my_locale_el_GR,
     &my_locale_rm_CH,
+    &my_locale_ka_GE,
     NULL 
   };
 
