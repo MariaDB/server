@@ -106,7 +106,6 @@ ENDMACRO()
 
 INSTALL_COMPAT_HEADER(my_global.h "")
 INSTALL_COMPAT_HEADER(my_config.h "")
-INSTALL_COMPAT_HEADER(my_alloca.h "")
 INSTALL_COMPAT_HEADER(my_sys.h "")
 INSTALL_COMPAT_HEADER(mysql_version.h "
 #include <mariadb_version.h>
