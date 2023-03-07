@@ -1879,10 +1879,27 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
     if (is_analyze)
     {
-      //writer->add_member("r_loops").add_ll(jbuf_tracker.get_loops());
+      writer->add_member("r_loops").add_ll(jbuf_loops_tracker.get_loops());
+
       writer->add_member("r_filtered");
       if (jbuf_tracker.has_scans())
         writer->add_double(jbuf_tracker.get_filtered_after_where()*100.0);
+      else
+        writer->add_null();
+      /*
+        effective_rows is the average number of matches we've got for the
+        incoming row. The row is stored in the join buffer and then is read
+        from there, possibly multiple times. We can't count this number
+        directly. Infer it as:
+         total_number_of_row_combinations_considered / r_loops.
+      */
+      writer->add_member("r_effective_rows");
+      if (jbuf_loops_tracker.has_scans())
+      {
+        double loops= (double)jbuf_loops_tracker.get_loops();
+        double row_combinations= (double)jbuf_tracker.r_rows;
+        writer->add_double(row_combinations / loops);
+      }
       else
         writer->add_null();
     }
