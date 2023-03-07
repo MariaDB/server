@@ -10,9 +10,9 @@
 --echo # Setup
 
 --echo # Create user accounts for testing
-CREATE USER u1 IDENTIFIED BY 'abcd';
-CREATE USER u2 IDENTIFIED BY 'abcd';
-CREATE USER u3 IDENTIFIED BY 'abcd';
+CREATE USER u1@localhost IDENTIFIED BY 'abcd';
+CREATE USER u2@localhost IDENTIFIED BY 'abcd';
+CREATE USER u3@localhost IDENTIFIED BY 'abcd';
 
 let $DELAY_MIN_RESPONSE_TIME= 1000;
 
@@ -31,7 +31,7 @@ disable_result_log;
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,,,,,);
+connect(fail_con_u1, localhost, u1,haha,,,,);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
@@ -48,7 +48,7 @@ connect(fail_con_u2, localhost, u2,efgh,,,,);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u2, localhost, u2,,,,,);
+connect(fail_con_u2, localhost, u2,efgh,,,,);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
 connect(fail_con_u2, localhost, u2,haha,,,,);
@@ -57,7 +57,7 @@ connect(fail_con_u2, localhost, u2,haha,,,,);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u3, localhost, u3,,,,,);
+connect(fail_con_u3, localhost, u3,efgh,,,,);
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
@@ -144,9 +144,9 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 connection default;
 
 --echo # Remove user accounts created for the test
-DROP USER u1;
-DROP USER u2;
-DROP USER u3;
+DROP USER u1@localhost;
+DROP USER u2@localhost;
+DROP USER u3@localhost;
 
 --source ../inc/restore_variables.inc
 # Wait till all disconnects are completed.

@@ -2616,7 +2616,7 @@ static Sys_var_uint Sys_failed_attempts_before_delay(
        "failed_attempts_before_delay",
        "The failed login attempts before delay",
        GLOBAL_VAR(global_system_variables.failed_attempts_before_delay), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT8_MAX), DEFAULT(3), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       VALID_RANGE(0, UINT8_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0),ON_UPDATE(0));
 #endif
 
