@@ -21231,6 +21231,8 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     /* The user has aborted the execution of the query */
     DBUG_RETURN(NESTED_LOOP_KILLED);
   }
+  join_tab->jbuf_loops_tracker->on_scan_init();
+
   if (!test_if_use_dynamic_range_scan(join_tab))
   {
     if (!cache->put_record())
@@ -27393,6 +27395,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   // psergey-todo: data for filtering!
   tracker= &eta->tracker;
   jbuf_tracker= &eta->jbuf_tracker;
+  jbuf_loops_tracker= &eta->jbuf_loops_tracker;
 
   /* Enable the table access time tracker only for "ANALYZE stmt" */
   if (thd->lex->analyze_stmt)

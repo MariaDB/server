@@ -842,8 +842,12 @@ public:
   Exec_time_tracker op_tracker;
   Gap_time_tracker extra_time_tracker;
 
+  /* When using join buffer: Track the reads from join buffer */
   Table_access_tracker jbuf_tracker;
   
+  /* When using join buffer: Track the number of incoming record combinations */
+  Counter_tracker jbuf_loops_tracker;
+
   Explain_rowid_filter *rowid_filter;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 

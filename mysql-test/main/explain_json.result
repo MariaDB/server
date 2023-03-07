@@ -1544,7 +1544,9 @@ ANALYZE
       "buffer_size": "400",
       "join_type": "BKA",
       "mrr_type": "Rowid-ordered scan",
-      "r_filtered": 100
+      "r_loops": 10,
+      "r_filtered": 100,
+      "r_effective_rows": 1
     }
   }
 }
