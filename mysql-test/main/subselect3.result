@@ -278,6 +278,8 @@ a	b	oref	Z
 NULL	1	100	0
 NULL	2	100	NULL
 drop table t1,t2,t3,t4;
+# More tests for tricky multi-column cases, where some of pushed-down
+# equalities are used for index lookups and some are not.
 create table t1 (oref char(4), grp int, ie1 int, ie2 int);
 insert into t1 (oref, grp, ie1, ie2) values
 ('aa', 10, 2, 1),
@@ -617,10 +619,18 @@ cc	2	0
 cc	NULL	NULL
 aa	1	1
 bb	NULL	NULL
+explain select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	Using where
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using where
 select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
 oref	a
 cc	5
 aa	1
+explain select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	Using where
+2	DEPENDENT SUBQUERY	t1	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using where; Full scan on NULL key
 select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
 oref	a
 ee	NULL
@@ -1220,7 +1230,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 drop table t1;
 set @@optimizer_switch=@save_optimizer_switch;
-set @@optimizer_switch=@save_optimizer_switch;
 set @@optimizer_switch='materialization=off';
 create table t1 (a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -1254,6 +1263,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	Y	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
 2	DEPENDENT SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+#
+# SJ-Materialization scan + first table being system const table
+#
 create table t0 (a int, b int);
 insert into t0 values(1,1);
 explain select * from t0, t3 where t3.a in (select a from t2) and (t3.a < 10 or t3.a >30);
@@ -1268,6 +1280,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary
 1	PRIMARY	t3	ref	a	a	5	test.t4.x	10	Using where; End temporary
 drop table t0,t1,t2,t3,t4;
+#
+# LooseScan with ref access
+#
+set @@optimizer_switch='join_cache_hashed=off';
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, filler char(100), key(a,b));

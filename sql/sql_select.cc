@@ -8946,7 +8946,7 @@ best_access_path(JOIN      *join,
       We assume here that, thanks to the hash, we don't have to compare all
       row combinations, only a HASH_FANOUT (10%) rows in the cache.
     */
-    row_copy_cost= (ROW_COPY_COST_THD(thd) * 2 *
+    row_copy_cost= (ROW_COPY_COST_THD(thd) *
                     JOIN_CACHE_ROW_COPY_COST_FACTOR(thd));
     cmp_time= (record_count * row_copy_cost +
                rnd_records * record_count * HASH_FANOUT *
@@ -8957,6 +8957,9 @@ best_access_path(JOIN      *join,
     best.cost= cur_cost;
     best.records_read= best.records_after_filter= rows2double(s->records);
     best.records= rnd_records;
+#ifdef NOT_YET
+    set_if_smaller(best.records_out, rnd_records * HASH_FANOUT);
+#endif
     best.key= hj_start_key;
     best.ref_depends_map= 0;
     best.use_join_buffer= TRUE;

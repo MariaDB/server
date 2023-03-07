@@ -242,8 +242,9 @@ from t2;
 
 drop table t1,t2,t3,t4;
 
-# More tests for tricky multi-column cases, where some of pushed-down
-# equalities are used for index lookups and some arent.
+--echo # More tests for tricky multi-column cases, where some of pushed-down
+--echo # equalities are used for index lookups and some are not.
+
 create table t1 (oref char(4), grp int, ie1 int, ie2 int);
 insert into t1 (oref, grp, ie1, ie2) values
  ('aa', 10, 2, 1),
@@ -470,8 +471,11 @@ explain select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
 
 select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
 
+explain select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
+
 select oref, a from t2 where a in (select ie from t1 where oref=t2.oref);
 
+explain select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
 select oref, a from t2 where a not in (select ie from t1 where oref=t2.oref);
 
 explain 
@@ -1012,7 +1016,6 @@ explain select * from t1 where a in (select a from t1);
 drop table t1;
 set @@optimizer_switch=@save_optimizer_switch;
 
-set @@optimizer_switch=@save_optimizer_switch;
 set @@optimizer_switch='materialization=off';
 
 #
@@ -1034,9 +1037,9 @@ explain select * from t2 where a in (select straight_join A.a from t1 A, t1 B);
 explain select straight_join * from t2 X, t2 Y 
 where X.a in (select straight_join A.a from t1 A, t1 B);
 
-#
-# SJ-Materialization scan + first table being system const table
-#
+--echo #
+--echo # SJ-Materialization scan + first table being system const table
+--echo #
 create table t0 (a int, b int);
 insert into t0 values(1,1);
 explain select * from t0, t3 where t3.a in (select a from t2) and (t3.a < 10 or t3.a >30);
@@ -1044,9 +1047,12 @@ create table t4 as select a as x, a as y from t1;
 explain select * from t0, t3 where (t3.a, t3.b) in (select x,y from t4) and (t3.a < 10 or t3.a >30);
 drop table t0,t1,t2,t3,t4;
 
-#
-# LooseScan with ref access
-#
+--echo #
+--echo # LooseScan with ref access
+--echo #
+
+set @@optimizer_switch='join_cache_hashed=off';
+
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, filler char(100), key(a,b));
