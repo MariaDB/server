@@ -32,7 +32,7 @@ disable_result_log;
 
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect(fail_con_u1, localhost, u1,,,,,);
+connect(fail_con_u1, localhost, u1,haha,,,,);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
 connect(fail_con_u1, localhost, u1,haha,,,,);

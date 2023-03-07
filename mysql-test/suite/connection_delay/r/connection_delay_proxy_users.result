@@ -13,8 +13,8 @@ SET @@global.debug_dbug="+d,skip_connection_delay";
 #-----------------------------------------------------------------------
 # Case 1 : Tests for valid user accounts
 # Make enough failed attempts to trigger delays
-connect(localhost,u1,,test,MASTER_PORT,MASTER_SOCKET);
-connect fail_con_u1, localhost, u1,,,,,;
+connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
+connect fail_con_u1, localhost, u1,haha,,,,;
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u1, localhost, u1,haha,,,,;
 connect(localhost,u1,efgh,test,MASTER_PORT,MASTER_SOCKET);
