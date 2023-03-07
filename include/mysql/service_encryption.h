@@ -24,22 +24,19 @@
   *provider* (encryption plugin).
 */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef MYSQL_ABI_CHECK
+#include <my_alloca.h>
 #ifdef _WIN32
-#include <malloc.h>
 #ifndef __cplusplus
 #define inline __inline
 #endif
 #else
 #include <stdlib.h>
-#ifdef HAVE_ALLOCA_H
-#include <alloca.h>
 #endif
 #endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 /* returned from encryption_key_get_latest_version() */
