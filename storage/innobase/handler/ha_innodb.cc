@@ -15184,16 +15184,26 @@ ha_innobase::check(
 		}
 
 		if ((check_opt->flags & T_QUICK) || index->is_corrupted()) {
-		} else if (btr_validate_index(index, m_prebuilt->trx)
-			   != DB_SUCCESS) {
-			is_ok = false;
-			push_warning_printf(thd,
-					    Sql_condition::WARN_LEVEL_WARN,
-					    ER_NOT_KEYFILE,
-					    "InnoDB: The B-tree of"
-					    " index %s is corrupted.",
-					    index->name());
-			continue;
+		} else if (trx_id_t bulk_trx_id =
+				m_prebuilt->table->bulk_trx_id) {
+			if (!m_prebuilt->trx->read_view.changes_visible(
+							bulk_trx_id)) {
+				is_ok = true;
+				goto func_exit;
+			}
+
+			if (btr_validate_index(index, m_prebuilt->trx)
+			    != DB_SUCCESS) {
+				is_ok = false;
+				push_warning_printf(
+					thd,
+					Sql_condition::WARN_LEVEL_WARN,
+					ER_NOT_KEYFILE,
+					"InnoDB: The B-tree of"
+					" index %s is corrupted.",
+					index->name());
+				continue;
+			}
 		}
 
 		/* Instead of invoking change_active_index(), set up
@@ -15316,6 +15326,7 @@ ha_innobase::check(
 	}
 # endif /* defined UNIV_AHI_DEBUG || defined UNIV_DEBUG */
 #endif /* BTR_CUR_HASH_ADAPT */
+func_exit:
 	m_prebuilt->trx->op_info = "";
 
 	DBUG_RETURN(is_ok ? HA_ADMIN_OK : HA_ADMIN_CORRUPT);
