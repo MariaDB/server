@@ -21,9 +21,13 @@
 #include "m_string.h"                           // LEX_CUSTRING
 #include "lex_charset.h"
 
+#if !defined(DBUG_OFF)
 #define ERROR_INJECT(code) \
   ((DBUG_IF("crash_" code) && (DBUG_SUICIDE(), 0)) || \
    (DBUG_IF("fail_" code) && (my_error(ER_UNKNOWN_ERROR, MYF(0)), 1)))
+#else
+#define ERROR_INJECT(code) 0
+#endif
 
 class Alter_info;
 class Alter_table_ctx;
