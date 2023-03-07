@@ -4,17 +4,16 @@
 
 --echo #-----------------------------------------------------------------------
 --echo # Setup
-
---echo # Do proxy setup
---source ../inc/setup_proxy_accounts.inc
-
-# Official builds include separate debug enabled plugins to be used by
-# the debug enabled server. But the non-debug *client* should not use them.
-
-# Suppress error messages from test_plugin_server
-CALL mtr.add_suppression("Plugin test_plugin_server reported: 'Wrong password supplied for proxied'");
+# Install test_plugin_server
+eval INSTALL PLUGIN cleartext_plugin_server SONAME '$PLUGIN_AUTH';
+eval INSTALL PLUGIN cleartext_plugin_server2 SONAME '$PLUGIN_AUTH';
+# Create u1@localhost, u2@localhost, u3@localhst
+CREATE USER u1@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
+CREATE USER u2@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
+CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
 
 --source ../inc/save_variables.inc
+
 
 # Set a small values for connection_delay variables
 SET @@global.failed_attempts_before_delay = 3;
@@ -67,15 +66,9 @@ enable_result_log;
 let $HOST=localhost;
 let $DELAY_MIN_RESPONSE_TIME= 1000;
 
-# Even though u1@localhost, u2@localhost and u3@localhost are
-# proxying same user - proxied@localhost, we will not use
-# proxied@localhost for recording failed attempts information.
-# Rather, we will rely on proxying users' data.
-# So each of the following should get delay of 1 seconds
-# or more.
 
 --echo
---echo # Following attempts will experience delay in server response
+--echo # u1@localhost will not experience delay in server response , because auth plugin for u1  return code is plugin error
 # Trying with invalid passwords
 
 let $USER=u1;
@@ -87,7 +80,7 @@ let $SUCCESS=0;
 let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
---echo
+--echo # Following attempts will experience delay in server response, because auth plugin for u2 and u3 return code is bad credentials
 let $USER=u2;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
@@ -108,7 +101,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 --echo #---------------------------Trying with valid passwords--------------------------------
 let $USER=u3;
-let $PASSWORD=proxied;
+let $PASSWORD=abcd;
 let $SUCCESS=1;
 --source ../inc/check_connection_delay.inc
 
@@ -117,7 +110,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 
 let $USER=u2;
-let $PASSWORD=proxied;
+let $PASSWORD=abcd;
 let $SUCCESS=1;
 --source ../inc/check_connection_delay.inc
 
@@ -126,7 +119,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 
 let $USER=u1;
-let $PASSWORD=proxied;
+let $PASSWORD=abcd;
 let $SUCCESS=1;
 --source ../inc/check_connection_delay.inc
 
@@ -134,67 +127,13 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
 
---echo # Following attempts will not experience any delay in server response
-
-let $USER=u1;
-let $PASSWORD=hoho;
-let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-let $USER=u2;
-let $PASSWORD=hoho;
-let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
-let $USER=u3;
-let $PASSWORD=hoho;
-let $SUCCESS=0;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
---echo #--------------------------------------------Successful login----------------------------------
-let $USER=u1;
-let $PASSWORD=proxied;
-let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-
-
-let $USER=u2;
-let $PASSWORD=proxied;
-let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
-
-let $USER=u3;
-let $PASSWORD=proxied;
-let $SUCCESS=1;
---source ../inc/check_connection_delay.inc
-
-let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
---source ../inc/check_response_delay_time.inc
---echo #-----------------------------------------------------------------------
---echo # Cleanup
 
 connection default;
 
 --source ../inc/restore_variables.inc
-
---echo # Remove user accounts
---source ../inc/cleanup_proxy_accounts.inc
-
+eval UNINSTALL PLUGIN cleartext_plugin_server ;
+eval UNINSTALL PLUGIN cleartext_plugin_server2;
+DROP USER u1@localhost,u2@localhost,u3@localhost;
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc
 --echo #-----------------------------------------------------------------------

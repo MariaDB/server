@@ -1,7 +1,10 @@
 #-----------------------------------------------------------------------
 # Setup
-# Do proxy setup
-CALL mtr.add_suppression("Plugin test_plugin_server reported: 'Wrong password supplied for proxied'");
+INSTALL PLUGIN cleartext_plugin_server SONAME 'auth_test_plugin.so';
+INSTALL PLUGIN cleartext_plugin_server2 SONAME 'auth_test_plugin.so';
+CREATE USER u1@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
+CREATE USER u2@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
+CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
 # Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
@@ -32,11 +35,11 @@ connect fail_con_u2, localhost, u2,,,,;
 connect(localhost,u2,haha,test,MASTER_PORT,MASTER_SOCKET);
 connect fail_con_u2, localhost, u2,haha,,,,;
 
-# Following attempts will experience delay in server response
+# u1@localhost will not experience delay in server response , because auth plugin for u1  return code is plugin error
 connection default;
 # Connection attempt should fail.
-FOUND 1 /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
-
+NOT FOUND /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
+# Following attempts will experience delay in server response, because auth plugin for u2 and u3 return code is bad credentials
 connection default;
 # Connection attempt should fail.
 FOUND 1 /u2@localhost wait 1000 milliseconds/ in mysqld.1.err
@@ -52,29 +55,7 @@ connection default;
 FOUND 1 /u2@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Connection attempt should succeed.
-FOUND 1 /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
-# Following attempts will not experience any delay in server response
-connection default;
-# Connection attempt should fail.
-FOUND 1 /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
-connection default;
-# Connection attempt should fail.
-FOUND 1 /u2@localhost wait 1000 milliseconds/ in mysqld.1.err
-connection default;
-# Connection attempt should fail.
-FOUND 1 /u3@localhost wait 1000 milliseconds/ in mysqld.1.err
-#--------------------------------------------Successful login----------------------------------
-connection default;
-# Connection attempt should succeed.
-FOUND 1 /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
-connection default;
-# Connection attempt should succeed.
-FOUND 1 /u2@localhost wait 1000 milliseconds/ in mysqld.1.err
-connection default;
-# Connection attempt should succeed.
-FOUND 1 /u3@localhost wait 1000 milliseconds/ in mysqld.1.err
-#-----------------------------------------------------------------------
-# Cleanup
+NOT FOUND /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Restore original values of connection delay variables
 SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
@@ -82,5 +63,7 @@ SET @@global.max_password_errors = @saved_max_password_errors;
 SET @@global.wait_timeout = @saved_wait_timeout;
 SET @@global.interactive_timeout = @saved_interactive_timeout;
 SET GLOBAL DEBUG_DBUG=@old_debug;
-# Remove user accounts
+UNINSTALL PLUGIN cleartext_plugin_server ;
+UNINSTALL PLUGIN cleartext_plugin_server2;
+DROP USER u1@localhost,u2@localhost,u3@localhost;
 #-----------------------------------------------------------------------

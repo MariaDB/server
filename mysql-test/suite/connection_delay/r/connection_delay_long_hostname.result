@@ -1,0 +1,30 @@
+# Setup
+# Save original values of connection_delay variables
+SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+SET @saved_max_password_errors = @@global.max_password_errors;
+SET @saved_wait_timeout=@@global.wait_timeout;
+SET @saved_interactive_timeout=@@global.interactive_timeout;
+SET @old_debug=@@global.debug_dbug;
+SET @@global.debug_dbug="+d,skip_connection_delay";
+SET @@global.failed_attempts_before_delay = 3;
+# Create user accounts for testing
+CREATE USER u1 IDENTIFIED BY 'abcd';
+FLUSH HOSTS;
+SET GLOBAL DEBUG_DBUG="+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_long_host,getaddrinfo_fake_good_ipv4:+f,login_connection,ip_to_hostname";
+select @@debug_dbug;
+@@debug_dbug
+d,info,skip_connection_delay,vio_peer_addr_fake_ipv4,getnameinfo_fake_long_host,getaddrinfo_fake_good_ipv4:f,connection_delay_for_user,login_connection,ip_to_hostname
+connect(127.0.0.1,u1,hoho,test,MASTER_PORT,MASTER_SOCKET);
+connect 'con1','127.0.0.1','u1',hoho,test;
+ERROR 28000: Access denied for user 'u1'@'host5678901_345678902_345678903_345678904_345678905_345678906_345678907_345678908_345678909_345678910_345678911_345678912_345678913_345678914_345678915_345678916_345678917_345678918_345678919_345678920_345678921_345678922_345678923_345678924_345678925_345' (using password: YES)
+SET GLOBAL DEBUG_DBUG=@old_debug;
+# Search u1@% failed count
+FOUND 1 /u1@% have login failed 1 times/ in mysqld.1.err
+# Cleanup.
+DROP USER u1;
+# Restore original values of connection delay variables
+SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+SET @@global.max_password_errors = @saved_max_password_errors;
+SET @@global.wait_timeout = @saved_wait_timeout;
+SET @@global.interactive_timeout = @saved_interactive_timeout;
+SET GLOBAL DEBUG_DBUG=@old_debug;

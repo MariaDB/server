@@ -106,9 +106,9 @@ static struct st_mysql_auth auth_cleartext_handler=
 
 /**
   dialog test plugin mimicking the ordinary auth mechanism. Used to test the clear text plugin API.
-  The only difference between auth_cleartext_plugin and cleartext_plugin_server_return_bad_credentials is that the second plugin return CR_AUTH_USER_CREDENTIALS when password isn't matched.
+  The only difference between auth_cleartext_plugin and auth_cleartext_plugin2 is that the second plugin return CR_AUTH_USER_CREDENTIALS when password isn't matched.
 */
-static int auth_cleartext_plugin_return_bad_credentials(MYSQL_PLUGIN_VIO *vio,
+static int auth_cleartext_plugin2(MYSQL_PLUGIN_VIO *vio,
                                  MYSQL_SERVER_AUTH_INFO *info)
 {
   unsigned char *pkt;
@@ -128,11 +128,11 @@ static int auth_cleartext_plugin_return_bad_credentials(MYSQL_PLUGIN_VIO *vio,
 }
 
 
-static struct st_mysql_auth auth_cleartext_handler_return_bad_credentials=
+static struct st_mysql_auth auth_cleartext_handler2=
     {
         MYSQL_AUTHENTICATION_INTERFACE_VERSION,
         "mysql_clear_password", /* requires the clear text plugin */
-        auth_cleartext_plugin_return_bad_credentials,
+    auth_cleartext_plugin2,
         NULL, NULL /* no PASSWORD() */
 };
 
@@ -169,8 +169,8 @@ mysql_declare_plugin(test_plugin)
 },
 {
     MYSQL_AUTHENTICATION_PLUGIN,
-    &auth_cleartext_handler_return_bad_credentials,
-    "cleartext_plugin_server_return_bad_credentials",
+    &auth_cleartext_handler2,
+    "cleartext_plugin_server2",
     "Georgi Kodinov",
     "cleartext test plugin API test plugin",
     PLUGIN_LICENSE_GPL,

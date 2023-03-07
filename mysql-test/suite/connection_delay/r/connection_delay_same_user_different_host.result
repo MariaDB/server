@@ -9,8 +9,13 @@ CREATE USER u1@localhost IDENTIFIED BY 'abcd';
 CREATE USER u1 IDENTIFIED BY 'abcd';
 # Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+SET @saved_max_password_errors = @@global.max_password_errors;
+SET @saved_wait_timeout=@@global.wait_timeout;
+SET @saved_interactive_timeout=@@global.interactive_timeout;
+SET @old_debug=@@global.debug_dbug;
 # Set small values for connection_delay variables
 SET @@global.failed_attempts_before_delay = 3;
+SET @@global.debug_dbug="+d,skip_connection_delay";
 
 # ----------------------------------------------------------------------
 
@@ -21,7 +26,7 @@ SET @saved_debug=@@global.debug_dbug;
 SET GLOBAL DEBUG_DBUG="+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4:+f,login_connection,ip_to_hostname";
 select @@debug_dbug;
 @@debug_dbug
-d,info,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4:f,connection_delay_for_user,login_connection,ip_to_hostname
+d,info,skip_connection_delay,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4:f,connection_delay_for_user,login_connection,ip_to_hostname
 connect(127.0.0.1,u1,111,test,MASTER_PORT,MASTER_SOCKET);
 connect  con4,"127.0.0.1",u1,'111';
 ERROR 28000: Access denied for user 'u1'@'santa.claus.ipv4.example.com' (using password: YES)
@@ -44,6 +49,12 @@ FOUND 1 /u1@localhost have login failed 1 times/ in mysqld.1.err
 connection default;
 # Restore original values of connection delay variables
 SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+# Restore original values of connection delay variables
+SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+SET @@global.max_password_errors = @saved_max_password_errors;
+SET @@global.wait_timeout = @saved_wait_timeout;
+SET @@global.interactive_timeout = @saved_interactive_timeout;
+SET GLOBAL DEBUG_DBUG=@old_debug;
 # Remove user accounts created for the test
 DROP USER u1;
 DROP USER u1@localhost;
