@@ -54,6 +54,7 @@ CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 INSTALL PLUGIN test_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
 INSTALL PLUGIN cleartext_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
+INSTALL PLUGIN cleartext_plugin_server2  SONAME 'AUTH_TEST_PLUGIN_LIB';
 CREATE USER `mariadb.sys`@`localhost` PASSWORD EXPIRE;
 CREATE USER `root`@`localhost`;
 CREATE USER `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
@@ -647,6 +648,8 @@ UNLOCK TABLES;
 INSTALL PLUGIN test_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
 /*M!100401 UNINSTALL PLUGIN IF EXIST cleartext_plugin_server */;
 INSTALL PLUGIN cleartext_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
+/*M!100401 UNINSTALL PLUGIN IF EXIST cleartext_plugin_server2 */;
+INSTALL PLUGIN cleartext_plugin_server2  SONAME 'AUTH_TEST_PLUGIN_LIB';
 DELIMITER |
 /*M!100101 IF current_user()="'mariadb.sys'@'localhost'" THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'mariadb.sys'@'localhost''";
@@ -1259,6 +1262,7 @@ UNLOCK TABLES;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 INSTALL PLUGIN test_plugin_server /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
 INSTALL PLUGIN cleartext_plugin_server /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
+INSTALL PLUGIN cleartext_plugin_server2 /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
 CREATE USER IF NOT EXISTS `mariadb.sys`@`localhost` PASSWORD EXPIRE;
 CREATE USER IF NOT EXISTS `root`@`localhost`;
 CREATE USER IF NOT EXISTS `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
@@ -1846,7 +1850,7 @@ mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
 Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3895294076
-mysql.plugin	1587119305
+mysql.plugin	792755458
 mysql.servers	2079085450
 mysql.func	3241572444
 mysql.innodb_table_stats	347867921
@@ -1881,7 +1885,7 @@ mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
 Table	Checksum
 mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3895294076
-mysql.plugin	1587119305
+mysql.plugin	792755458
 mysql.servers	2079085450
 mysql.func	3241572444
 mysql.innodb_table_stats	347867921

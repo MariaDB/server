@@ -1615,7 +1615,7 @@ explicit-defaults-for-timestamp TRUE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
-failed-attempts-before-delay 3
+failed-attempts-before-delay 0
 flashback FALSE
 flush FALSE
 flush-time 0
