@@ -381,7 +381,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	0.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	3.00	33.33	0.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 #------------------------------------------------------------------------
 # I/R/U/D/S on the inner view
 # Expectation: Can run everything
@@ -494,7 +494,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything
@@ -599,7 +599,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	12.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 
 #========================================================================
 # Test: Grant INSERT on the table
@@ -1590,7 +1590,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything: SELECT access to the column `a` 
@@ -1705,7 +1705,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 
 #========================================================================
 # Test: Grant SELECT, INSERT, UPDATE, DELETE on the table
@@ -1935,7 +1935,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything
@@ -2041,7 +2041,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	8.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 
 #########################################################################
 # Inner view permission tests
@@ -2688,7 +2688,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	14	14.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything
@@ -2793,7 +2793,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	18	18.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 
 #========================================================================
 # Test: Grant INSERT on the inner view
@@ -3974,7 +3974,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	35	35.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 #------------------------------------------------------------------------
 # I/R/U/D/S on the outer view
 # Expectation: Can run everything
@@ -4079,7 +4079,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	39.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 
 #########################################################################
 # Outer view permission tests
@@ -4597,7 +4597,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	39	39.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 
 #========================================================================
 # Test: Grant INSERT on the outer view
@@ -5202,7 +5202,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	44	44.00	100.00	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	100.00	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	NULL	33.33	NULL	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 disconnect con1;
 connection default;
 DROP USER 'privtest'@localhost;

@@ -1094,6 +1094,8 @@ public:
     *very* imprecise guesses made in best_access_path().
   */
   bool use_join_buffer;
+  /* True if we can use join_buffer togethere with firstmatch */
+  bool firstmatch_with_join_buf;
   POSITION();
 };
 

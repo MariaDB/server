@@ -1082,9 +1082,9 @@ drop table t0, t1, t2;
 
 set @@optimizer_switch='materialization=off';
 
-#
-# Primitive SJ-Materialization tests for DECIMAL and DATE
-#
+--echo #
+--echo # Primitive SJ-Materialization tests for DECIMAL and DATE
+--echo #
 create table t0 (a decimal(4,2));
 insert into t0 values (10.24), (22.11);
 create table t1 as select * from t0;

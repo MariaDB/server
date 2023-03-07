@@ -2445,7 +2445,7 @@ sum(a+b)
 explain extended select sum(a+b) from t1 up where exists (select * from t1 where t1.a=up.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	up	ALL	NULL	NULL	NULL	NULL	25	100.00	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	25	100.00	Using where; FirstMatch(up); Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	25	4.00	Using where; FirstMatch(up); Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.up.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	select sum(`test`.`up`.`a` + `test`.`up`.`b`) AS `sum(a+b)` from `test`.`t1` `up` semi join (`test`.`t1`) where `test`.`t1`.`a` = `test`.`up`.`a`
@@ -4473,7 +4473,7 @@ EXPLAIN EXTENDED
 SELECT 2 FROM t1 WHERE EXISTS ((SELECT 1 FROM t2 WHERE t1.a=t2.a));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	33.33	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	select 2 AS `2` from `test`.`t1` semi join (`test`.`t2`) where `test`.`t2`.`a` = `test`.`t1`.`a`

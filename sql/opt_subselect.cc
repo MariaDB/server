@@ -3495,10 +3495,15 @@ bool Firstmatch_picker::check_qep(JOIN *join,
             An important special case: only one inner table, and
             @@optimizer_switch allows join buffering.
              - read_time is the same (i.e. FirstMatch doesn't add any cost
-             - remove fanout added by the last table
+             - remove fanout added by the last table)
           */
           if (*record_count)
             *record_count /= join->positions[idx].records_out;
+          /*
+            Remember this choice for
+            fix_semijoin_strategies_for_picked_join_order()
+          */
+          join->positions[idx].firstmatch_with_join_buf= 1;
         }
         else
         {
@@ -4108,7 +4113,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         {
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
-        if (join->best_positions[idx].use_join_buffer)
+        if (join->best_positions[idx].use_join_buffer &&
+            !join->best_positions[idx].firstmatch_with_join_buf)
         {
            best_access_path(join, join->best_positions[idx].table,
                             rem_tables, join->best_positions, idx,

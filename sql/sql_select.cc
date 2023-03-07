@@ -9351,6 +9351,7 @@ best_access_path(JOIN      *join,
   pos->ref_depend_map= best.ref_depends_map;
   pos->loosescan_picker.loosescan_key= MAX_KEY;
   pos->use_join_buffer= best.use_join_buffer;
+  pos->firstmatch_with_join_buf= 0;
   pos->spl_plan= best.spl_plan;
   pos->range_rowid_filter_info= best.filter;
   pos->key_dependent= (best.type == JT_EQ_REF ? (table_map) 0 :

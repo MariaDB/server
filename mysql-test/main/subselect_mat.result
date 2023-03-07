@@ -2452,7 +2452,7 @@ explain
 SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	hash_ALL	NULL	#hash#$hj	8	test.t1.id,test.t1.id	3	Using where; FirstMatch(t1); Using join buffer (flat, BNLH join)
 SELECT 1 FROM t1 where t1.id IN (SELECT t2.i1 FROM t2 WHERE t2.i1 = t2.i2);
 1
 1

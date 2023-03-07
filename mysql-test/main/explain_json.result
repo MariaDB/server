@@ -900,7 +900,7 @@ EXPLAIN
             "loops": 10,
             "rows": 10,
             "cost": "COST_REPLACED",
-            "filtered": 100,
+            "filtered": 10,
             "first_match": "t2"
           },
           "buffer_type": "flat",

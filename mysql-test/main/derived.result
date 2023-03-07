@@ -648,7 +648,7 @@ SELECT f3 FROM t2 HAVING f3 >= 8
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	const	1	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(<subquery4>); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(<subquery4>); Using join buffer (flat, BNL join)
 4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:

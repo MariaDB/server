@@ -29,10 +29,10 @@ SELECT `int_key`
 FROM t2  
 WHERE `date_nokey`  < `datetime_nokey`  XOR OUTR .`date_nokey`  )   ;
 pk
+9
 2
 5
 6
-9
 SELECT `pk`  
 FROM t1  
 WHERE `pk`  IN (  
