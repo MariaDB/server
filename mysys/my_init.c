@@ -191,8 +191,9 @@ my_bool my_init(void)
       int res= 1;
 #ifdef EXE_LINKPATH
       res= my_readlink(link_name, EXE_LINKPATH, MYF(0));
+#else res = my_readlink(link_name, my_progname, MYF(0));
 #endif
-      if ((res == 0 || my_readlink(link_name, my_progname, MYF(0)) == 0) &&
+      if (res == 0 &&
            strncmp(link_name + dirname_length(link_name), "mariadb", 7) == 0)
       my_error(EE_NAME_DEPRECATED, MYF(MY_WME), link_name);
     }
