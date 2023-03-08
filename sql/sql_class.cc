@@ -7996,7 +7996,7 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
 */
 
 int
-wait_for_commit::wait_for_prior_commit2(THD *thd)
+wait_for_commit::wait_for_prior_commit2(THD *thd, bool force_wait)
 {
   PSI_stage_info old_stage;
   wait_for_commit *loc_waitee;
@@ -8021,9 +8021,24 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
   while ((loc_waitee= this->waitee.load(std::memory_order_relaxed)) &&
-         likely(!thd->check_killed(1)))
+         (likely(!thd->check_killed(1)) || force_wait))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
-  if (!loc_waitee)
+  if (!loc_waitee
+#ifndef EMBEDDED_LIBRARY
+      /*
+        If a worker has been killed prior to this wait, e.g. in do_gco_wait(),
+        then it should not perform thread cleanup if there are threads which
+        have yet to commit. This is to prevent the cleanup of resources that
+        the prior RGI may need, e.g. its GCO. This is achieved by skipping
+        the unregistration of the waitee, such that each subsequent call to
+        wait_for_prior_commit() will exit early (while maintaining the
+        dependence), thus allowing the final call to
+        thd->wait_for_prior_commit() within finish_event_group() to wait.
+      */
+      || (thd->rgi_slave && (thd->rgi_slave->worker_error &&
+                             !thd->rgi_slave->did_mark_start_commit))
+#endif
+  )
   {
     if (wakeup_error)
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));

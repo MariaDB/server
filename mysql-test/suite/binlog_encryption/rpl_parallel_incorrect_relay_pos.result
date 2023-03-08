@@ -52,6 +52,7 @@ connection server_2;
 include/wait_for_slave_sql_to_stop.inc
 SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 a
+40
 41
 42
 include/start_slave.inc
