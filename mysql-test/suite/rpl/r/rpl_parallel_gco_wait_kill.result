@@ -149,7 +149,7 @@ SET debug_sync='now WAIT_FOR t3_waiting';
 SET debug_sync='now SIGNAL d2_cont';
 SET debug_sync='now WAIT_FOR t4_waiting';
 KILL THD_ID;
-SET debug_sync='now WAIT_FOR t3_killed';
+# Wait for replica to signal worker threads to stop
 SET debug_sync='now SIGNAL t1_cont';
 include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 STOP SLAVE IO_THREAD;
@@ -159,7 +159,6 @@ a	b
 61	61
 62	62
 63	63
-64	64
 68	68
 69	69
 70	70
@@ -234,6 +233,7 @@ connection server_2;
 SET debug_sync='now WAIT_FOR wait_queue_ready';
 KILL THD_ID;
 SET debug_sync='now WAIT_FOR wait_queue_killed';
+# Wait for replica to signal worker threads to stop
 SET debug_sync='now SIGNAL query_cont';
 include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 STOP SLAVE IO_THREAD;
@@ -244,6 +244,8 @@ INSERT INTO t3 VALUES (82,0);
 connection server_2;
 SET debug_sync='RESET';
 include/start_slave.inc
+SET debug_sync='now WAIT_FOR query_waiting';
+SET debug_sync='now SIGNAL query_cont';
 SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
 a	b
 80	0
