@@ -2144,14 +2144,14 @@ struct wait_for_commit
   bool commit_started;
 
   void register_wait_for_prior_commit(wait_for_commit *waitee);
-  int wait_for_prior_commit(THD *thd)
+  int wait_for_prior_commit(THD *thd, bool force_wait= false)
   {
     /*
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
     if (waitee.load(std::memory_order_acquire))
-      return wait_for_prior_commit2(thd);
+      return wait_for_prior_commit2(thd, force_wait);
     else
     {
       if (wakeup_error)
@@ -2205,7 +2205,7 @@ struct wait_for_commit
 
   void wakeup(int wakeup_error);
 
-  int wait_for_prior_commit2(THD *thd);
+  int wait_for_prior_commit2(THD *thd, bool force_wait= false);
   void wakeup_subsequent_commits2(int wakeup_error);
   void unregister_wait_for_prior_commit2();
 

@@ -3631,6 +3631,8 @@ int
 has_temporary_error(THD *thd)
 {
   uint current_errno;
+  rpl_group_info *rgi= thd->rgi_slave;
+  Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("has_temporary_error");
 
   DBUG_EXECUTE_IF("all_errors_are_temporary_errors",
@@ -3646,6 +3648,11 @@ has_temporary_error(THD *thd)
     which sets no message. Return FALSE.
   */
   if (!likely(thd->is_error()))
+    DBUG_RETURN(0);
+
+  if (rgi->rli->mi->using_parallel() &&
+      rgi->parallel_entry->stop_abrupt(rli) &&
+      rgi->parallel_entry->rgi_is_safe_to_terminate(rgi))
     DBUG_RETURN(0);
 
   current_errno= thd->get_stmt_da()->sql_errno();

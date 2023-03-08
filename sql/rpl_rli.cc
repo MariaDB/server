@@ -2188,6 +2188,7 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
   rgi->current_gtid.server_id= gev->server_id;
   rgi->current_gtid.seq_no= gev->seq_no;
   rgi->commit_id= gev->commit_id;
+  rgi->gtid_ev_flags2= gev->flags2;
   rgi->gtid_pending= true;
   return 0;
 }

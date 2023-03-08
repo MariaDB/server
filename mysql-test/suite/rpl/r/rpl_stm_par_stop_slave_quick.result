@@ -1,0 +1,461 @@
+include/master-slave.inc
+[connection master]
+#
+# Setup
+connection slave;
+include/stop_slave.inc
+SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+set @@global.slave_parallel_mode=CONSERVATIVE;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+connect slave_lock_extra,127.0.0.1,root,,test,$SLAVE_MYPORT;
+#
+# Initialize test data
+connection master;
+set statement sql_log_bin=0 for call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+create table ti (a int primary key) engine=innodb;
+create table ti2 (a int) engine=innodb;
+create table ti3 (a int) engine=innodb;
+create table tm (a int) engine=myisam;
+create table tm2 (a int) engine=myisam;
+connection slave;
+# Run binlog format independent test cases
+#
+# Common Test Case 1:
+# Using one parallel replication worker thread on workload {T,T}, ensure
+# the replica immediately rolls back the transaction and stops the
+# SQL thread
+connection slave;
+include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+connection master;
+include/save_master_gtid.inc
+BEGIN;
+insert into ti values (100);
+insert into ti values (101);
+COMMIT;
+insert into ti values (102);
+connection slave;
+LOCK TABLES ti WRITE;
+include/start_slave.inc
+# Wait for replica to begin executing the first transaction
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+include/wait_for_slave_sql_to_stop.inc
+connection slave1;
+connection slave;
+include/assert.inc [No new rows should have been inserted]
+include/assert.inc [GTID slave state should not change]
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# Common Test Case 2:
+# Using multiple parallel replication threads (two) on workload {T,T},
+# ensure both transactions are rolled back if stop slave is issued
+# in the middle of the first transaction.
+connection slave;
+include/stop_slave.inc
+set @@global.slave_parallel_threads=2;
+connection master;
+include/save_master_gtid.inc
+BEGIN;
+insert into ti values (103);
+insert into ti values (104);
+COMMIT;
+insert into ti values (105);
+connection slave;
+LOCK TABLES ti WRITE;
+include/start_slave.inc
+# Wait for replica to begin executing the first transaction
+connection slave;
+# Wait for second transaction to begin
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+include/wait_for_slave_sql_to_stop.inc
+connection slave1;
+connection slave;
+include/assert.inc [No insertions should have committed]
+include/assert.inc [GTID slave state should not change]
+# Slave should be error-free
+include/assert.inc [Slave should be error free]
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# Common Test Case 3:
+# Using multiple parallel replication threads (two) on workload {T,T},
+# with the same commit id (cid), ensure both transactions are rolled
+# back if stop slave is issued
+connection slave;
+include/stop_slave.inc
+set @@global.slave_parallel_mode=AGGRESSIVE;
+set @@global.slave_parallel_threads=2;
+connection master;
+include/save_master_gtid.inc
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+BEGIN;
+insert into ti values (106);
+insert into ti values (107);
+COMMIT;
+insert into ti2 values (400);
+SET @@SESSION.debug_dbug=@old_dbug;
+connection slave;
+LOCK TABLES ti WRITE;
+include/start_slave.inc
+# Wait for replica to begin executing the first transactions
+connection slave;
+# Wait for second transaction to start group commit
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+include/wait_for_slave_sql_to_stop.inc
+connection slave1;
+connection slave;
+include/assert.inc [No insertions should have committed]
+include/assert.inc [GTID slave state should not change]
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# Common Test Case 4:
+# Using multiple parallel replication threads (4) on workload
+#    T (long running); should commit
+#    N (waiting for prior commit); should commit
+#    T (long running); should rollback
+#    T (waiting for prior commit); should rollback
+# Issuing STOP SLAVE should allow the first two transactions to commit
+# while preventing and rolling back the third
+connection slave;
+include/stop_slave.inc
+set @@global.slave_parallel_mode=optimistic;
+set @@global.slave_parallel_threads=4;
+connection master;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10001;
+BEGIN;
+insert into ti values (108);
+insert into ti values (109);
+COMMIT;
+connection master;
+insert into tm values (200);
+include/save_master_gtid.inc
+insert into ti2 values (401);
+insert into ti3 values (500);
+SET @@SESSION.debug_dbug=@old_dbug;
+connection slave;
+LOCK TABLES ti WRITE, ti2 WRITE;
+include/start_slave.inc
+# Wait for replica to progress until the transactions targeting locked tables are stuck on their locks..
+# Wait for replica to progress until unblocked transactions are queued for group commit..
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+include/wait_for_slave_sql_to_stop.inc
+connection slave1;
+connection slave;
+include/assert.inc [GTID slave state should reach first N transaction]
+set @@global.slave_parallel_mode=CONSERVATIVE;
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# Common Test Case 5:
+# Using multiple parallel replication threads (5) on workload
+#    T (long running); should commit
+#    N (waiting for prior commit); should commit
+#    T (waiting for prior commit); should commit
+#    N (waiting for prior commit); should commit
+#    T (long running); should rollback
+# Issuing STOP SLAVE should allow all transactions up to and including
+# the last N (4th) to commit, while preventing and rolling back the
+# final transaction (5th)
+connection slave;
+include/stop_slave.inc
+set @@global.slave_parallel_mode=optimistic;
+set @@global.slave_parallel_threads=5;
+connection master;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @@SESSION.debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10002;
+insert into ti values (110);
+insert into tm values (201);
+insert into ti2 values (402);
+insert into tm2 values (300);
+include/save_master_gtid.inc
+insert into ti3 values (501);
+SET @@SESSION.debug_dbug=@old_dbug;
+connection slave;
+LOCK TABLES ti WRITE, ti3 WRITE;
+include/start_slave.inc
+# Wait for replica to progress until the transactions targeting locked tables are stuck on their locks..
+# Wait for replica to progress until unblocked transactions are queued for group commit..
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+include/wait_for_slave_sql_to_stop.inc
+connection slave1;
+connection slave;
+include/assert.inc [GTID slave state should reach second N transaction]
+set @@global.slave_parallel_mode=CONSERVATIVE;
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# Common Test Case 6:
+# If retrying a T transaction while STOP SLAVE is issued, the
+# transaction should be rolled back and the slave abruptly stopped
+connection master;
+insert into ti values (111);
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+set @@global.innodb_lock_wait_timeout= 2;
+BEGIN;
+SELECT * FROM ti WHERE a=111 FOR UPDATE;
+a
+111
+connection master;
+include/save_master_gtid.inc
+update ti set a=a+1 where a=111;
+connection slave;
+include/start_slave.inc
+# Wait for replicating transaction to wait for innodb table lock
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+connection slave1;
+STOP SLAVE;;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+ROLLBACK;
+connection slave1;
+connection slave;
+include/assert.inc [The retried T transaction should have been rolled back]
+set @@global.innodb_lock_wait_timeout= 50;
+#
+# Common Test Case 7:
+# Using multiple parallel replication threads on a workload with a
+# non-transactional transaction in-between transactional transactions..
+#  7a: with AGGRESSIVE replication where the N statement has been
+#      executed already, all transactions up to and including N should
+#      be replicated, and all transactions afterwards should be rolled
+#      back.
+#  7b: with MINIMAL replication, the N statement should not execute
+#      concurrently, but should wait along with the other later
+#      transactions, and all future transactions except the first should
+#      be rolled back.
+connection slave;
+include/stop_slave.inc
+Warnings:
+Note	1255	Slave already has been stopped
+set @@global.slave_parallel_threads=4;
+connection slave;
+#
+# 7a: slave_parallel_mode=AGGRESSIVE
+set @@global.slave_parallel_mode=AGGRESSIVE;
+connection slave;
+connection master;
+connection master;
+insert into ti values (113);
+insert into tm values (202);
+insert into ti2 values (403);
+insert into ti values (114);
+include/save_master_gtid.inc
+connection slave;
+LOCK TABLES ti WRITE;
+connection slave_lock_extra;
+LOCK TABLES ti2 WRITE;
+include/start_slave.inc
+# Wait for replica to halt due to locks and dependency requirements
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+connection slave_lock_extra;
+UNLOCK TABLES;
+connection slave1;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+include/assert.inc [The entirety of the first two transactions should have committed with AGGRESSIVE parallelization]
+include/assert.inc [Slave state should be consistent]
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection slave;
+#
+# 7b: slave_parallel_mode=MINIMAL
+set @@global.slave_parallel_mode=MINIMAL;
+connection slave;
+connection master;
+connection master;
+insert into ti values (115);
+insert into tm values (202);
+insert into ti2 values (404);
+insert into ti values (116);
+include/save_master_gtid.inc
+connection slave;
+LOCK TABLES ti WRITE;
+connection slave_lock_extra;
+LOCK TABLES ti2 WRITE;
+include/start_slave.inc
+# Wait for replica to halt due to locks and dependency requirements
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+connection slave_lock_extra;
+UNLOCK TABLES;
+connection slave1;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+include/assert.inc [All transactions should have rolled back with MINIMAL parallelization]
+include/assert.inc [Slave state should be consistent]
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/start_slave.inc
+Warnings:
+Note	1254	Slave is already running
+include/sync_with_master_gtid.inc
+#
+# Statement Test Case 1:
+# Using one parallel replication worker thread on workload {N,T}, ensure
+# the replica finishes the non-transactional transaction, and does not
+# start the next
+connection slave;
+include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+connection master;
+SET @@session.binlog_direct_non_transactional_updates= 0;
+BEGIN;
+insert into ti values (117);
+insert into tm values (202);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction
+insert into tm2 values (301);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction
+COMMIT;
+include/save_master_gtid.inc
+insert into ti values (118);
+connection slave;
+lock tables tm2 write;
+START SLAVE;
+# Wait for replica to get stuck on held lock
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+# Unlock row-level lock holding transaction
+UNLOCK TABLES;
+include/wait_for_slave_sql_to_stop.inc
+connection slave1;
+connection slave;
+include/assert.inc [Transaction should have committed]
+include/assert.inc [N should have been applied]
+# Slave should be error-free
+include/assert.inc [Slave should be error free]
+connection master;
+include/save_master_gtid.inc
+SET @@session.binlog_direct_non_transactional_updates= 1;
+connection slave;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# Statement Test Case 2:
+# If STOP SLAVE is issued on a parallel slave, such that the next to
+# commit transaction is T; even if the next event from the group will
+# commit the transaction (e.g. XID_EVENT), the transaction should be
+# stopped and rolled back.
+connection slave;
+include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+connection master;
+insert into ti values (119);
+insert into ti values (120);
+include/save_master_gtid.inc
+connection slave;
+LOCK TABLES ti WRITE;
+include/start_slave.inc
+# Wait for replica to begin executing the first transaction
+connection slave;
+connection slave1;
+STOP SLAVE;;
+connection slave;
+# Wait for replica to signal worker threads to stop
+UNLOCK TABLES;
+include/wait_for_slave_sql_to_stop.inc
+connection slave1;
+connection slave;
+include/assert.inc [No insertions should have committed]
+include/assert.inc [GTID slave state should increment to the first transaction]
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+#
+# Cleanup
+connection master;
+DROP TABLE ti, tm, ti2, tm2, ti3;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+set @@global.slave_parallel_threads=0;
+set @@global.slave_domain_parallel_threads=0;
+set @@global.slave_parallel_mode=conservative;
+set @@global.debug_dbug="";
+include/start_slave.inc
+include/rpl_end.inc
+# End of tests
