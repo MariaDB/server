@@ -272,7 +272,7 @@ struct rpl_parallel_entry {
     so worker threads must force abort any current transactions without
     waiting for event groups to complete.
   */
-  bool force_abort;
+  std::atomic<bool> force_abort;
   /*
    At STOP SLAVE (force_abort=true), we do not want to process all events in
    the queue (which could unnecessarily delay stop, if a lot of events happen
@@ -349,11 +349,35 @@ struct rpl_parallel_entry {
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
 
+  /*
+    Marks the highest sub id that all transactions up to it must be executed to
+    allow for a consistent replication state; and all active transactions
+    afterwards can safely be stopped and rolled back.
+  */
+  std::atomic<uint64> unsafe_rollback_marker_sub_id;
+
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage,
                                       Gtid_log_event *gtid_ev);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
+
+  /*
+    Check if we are stopping the slave as a direct command from the user, as
+    opposed to force_abort being set due to the UNTIL clause from START SLAVE.
+
+    Returns 1 if the slave has been explicitly ordered to stop, 0 otherwise.
+  */
+  bool stop_abrupt(Relay_log_info *rli);
+
+  /*
+    Check if the rgi is safe to stop and rollback in the event of an abrupt
+    stop of the parallel slave.
+
+    Returns 1 if we can safely terminate and rollback the transaction, 0
+    otherwise
+  */
+  bool rgi_is_safe_to_terminate(rpl_group_info *rgi);
 };
 struct rpl_parallel {
   HASH domain_hash;
