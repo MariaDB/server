@@ -1,4 +1,4 @@
-languages bulgarian=bgn cp1251, chinese=chi gbk, czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, georgian=geo utf8mb3, german=ger latin1, greek=greek greek, hindi=hindi utf8mb3, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u;
+languages bulgarian=bgn, chinese=chi, czech=cze, danish=dan, dutch=nla, english=eng, estonian=est, french=fre, georgian=geo, german=ger, greek=greek, hindi=hindi, hungarian=hun, italian=ita, japanese=jpn, korean=kor, norwegian-ny=norwegian-ny, norwegian=nor, polish=pol, portuguese=por, romanian=rum, russian=rus, serbian=serbian, slovak=slo, spanish=spa, swedish=swe, ukrainian=ukr;
 
 default-language eng
 
