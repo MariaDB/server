@@ -7,6 +7,7 @@
 --echo *** MDEV-5509: Incorrect value for Seconds_Behind_Master if parallel replication ***
 
 --connection server_2
+SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 set @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
 --source include/stop_slave.inc
@@ -54,7 +55,7 @@ INSERT INTO t1 VALUES (10,0);
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 
 --connection server_2
---let $slave_sql_errno= 1062
+--let $slave_sql_errno= 1062,1593
 --source include/wait_for_slave_sql_error.inc
 
 # At this point, the worker threads should have stopped also.

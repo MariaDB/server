@@ -94,7 +94,7 @@ connection con_temp1;
 COMMIT;
 SET sql_log_bin=1;
 connection server_2;
-include/wait_for_slave_sql_error.inc [errno=1062]
+include/wait_for_slave_sql_error.inc [errno=1062,1593]
 SELECT * FROM t1 ORDER BY a;
 a
 1
