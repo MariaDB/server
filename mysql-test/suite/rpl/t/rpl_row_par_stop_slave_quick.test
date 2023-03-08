@@ -1,0 +1,276 @@
+#
+# Validate that STOP SLAVE works in a timely manner on a parallel replica with
+# ROW binary logging format.
+#
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/master-slave.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # Setup
+--connection slave
+--source include/stop_slave.inc
+SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression("Can't find record");
+--let $old_debug= `SELECT @@global.debug_dbug`
+--let $old_threads= `SELECT @@global.slave_parallel_threads`
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--connect(slave_lock_extra,127.0.0.1,root,,test,$SLAVE_MYPORT)
+CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;
+--source include/start_slave.inc
+
+--echo #
+--echo # Initialize test data
+--connection master
+SET STATEMENT sql_log_bin=0 FOR call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+--let $old_binlog_direct= `SELECT @@global.binlog_direct_non_transactional_updates`
+SET @@global.binlog_direct_non_transactional_updates= 0;
+SET @@session.binlog_direct_non_transactional_updates= 0;
+
+
+# Needed by this test and include/rpl_par_stop_slave_quick.inc
+create table ti (a int) engine=innodb;
+create table tm (a int) engine=myisam;
+--let $ti_ctr= 100
+--let $tm_ctr= 200
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+--eval insert into tm values ($tm_ctr)
+--inc $tm_ctr
+--sync_slave_with_master
+
+--echo # Run binlog format independent test cases
+--source include/rpl_par_stop_slave_quick_common.test
+
+--echo #
+--echo # ROW Test Case 1:
+--echo # Using an N multi-statement transaction, ensure if STOP SLAVE is
+--echo # issued in-between row updates, that the transaction is finished.
+
+--connection master
+truncate table ti;
+truncate table tm;
+--echo # Set up multiple rows to allow a multi-statement update rows event
+--eval insert into tm values ($tm_ctr)
+--inc $tm_ctr
+--eval insert into tm values ($tm_ctr)
+--inc $tm_ctr
+--sync_slave_with_master
+
+--connection slave
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+--let $row_count_initial=`select count(*) from (select * from ti UNION ALL select * from tm) t`
+
+--connection master
+
+--echo # Next-to-commit non-transactional transaction should finish
+--eval update tm set a=a+1
+--source include/save_master_gtid.inc
+--let $master_gtid_after_update= `select @@global.gtid_binlog_pos`
+
+--echo # This should not be committed because it is after next-to-commit
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+
+--connection slave
+set @@global.debug_dbug="+d,pause_after_next_row_exec";
+
+START SLAVE;
+set debug_sync= "now WAIT_FOR row_executed";
+
+--connection slave1
+--send STOP SLAVE;
+
+--connection slave
+set @@global.debug_dbug="";
+set debug_sync= "now SIGNAL continue_row_execution";
+
+--connection slave1
+--reap
+--source include/wait_for_slave_sql_to_stop.inc
+
+--echo # Slave should be error-free
+let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
+--let $assert_text= Slave should be error free
+--let $assert_cond= $last_error = 0
+--source include/assert.inc
+
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # ROW Test Case 2:
+--echo # Using a T multi-statement transaction, ensure if STOP SLAVE is
+--echo # issued in-between row updates, that the transaction is rolled back.
+
+--connection master
+truncate table ti;
+truncate table tm;
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+--sync_slave_with_master
+
+--connection slave
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+--let $row_count_initial=`select count(*) from (select * from ti UNION ALL select * from tm) t`
+
+--connection master
+
+--echo # Next-to-commit transactional multi-row event should be rolled back
+--source include/save_master_gtid.inc
+--let $master_gtid_initial= `select @@global.gtid_binlog_pos`
+--eval update ti set a=a+1
+
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+
+--connection slave
+set @@global.debug_dbug="+d,pause_after_next_row_exec";
+START SLAVE;
+set debug_sync= "now WAIT_FOR row_executed";
+
+--connection slave1
+--send STOP SLAVE;
+
+--connection slave
+set @@global.debug_dbug="";
+set debug_sync= "now SIGNAL continue_row_execution";
+
+--connection slave1
+--reap
+--source include/wait_for_slave_sql_to_stop.inc
+
+--let $row_count_end=`select count(*) from (select * from ti UNION ALL select * from tm) t`
+--let $row_count_diff=`select ($row_count_end-$row_count_initial)`
+--let $assert_text= No new rows should have been inserted
+--let $assert_cond= $row_count_diff = 0
+--source include/assert.inc
+
+--let $slave_gtid= `select @@global.gtid_slave_pos`
+--echo # Comparing master gtid $master_pos to slaves $slave_gtid
+--let $assert_text= No transactions should have committed
+--let $assert_cond= $master_pos = $slave_gtid
+--source include/assert.inc
+
+--echo # Slave should be error-free
+let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
+--let $assert_text= Slave should be error free
+--let $assert_cond= $last_error = 0
+--source include/assert.inc
+
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # Row Test Case 3:
+--echo # Using parallel replication on a workload with the next-to-commit
+--echo # transaction as N, such that no other transactions are N, if that
+--echo # transaction takes too long on the slave, it should be killed and an
+--echo # error message displayed to the user mentioning the harmful N changes.
+
+--echo # Pre-populate data to update
+--connection master
+TRUNCATE TABLE tm;
+--eval insert into tm values ($tm_ctr)
+--inc $tm_ctr
+--eval insert into tm values ($tm_ctr)
+--inc $tm_ctr
+--eval insert into tm values ($tm_ctr)
+--inc $tm_ctr
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+SET @@GLOBAL.debug_dbug="+d,slave_abort_quick_timeout,pause_after_next_row_exec";
+
+--connection master
+--source include/save_master_gtid.inc
+update tm set tm.a=tm.a+1;
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+
+--connection slave
+--source include/start_slave.inc
+
+set debug_sync= "now WAIT_FOR row_executed";
+
+--connection slave1
+--send STOP SLAVE;
+
+--connection slave
+--let $wait_condition= select count(*)=1 from information_schema.processlist where state LIKE 'Killing slave' and command='Slave_SQL'
+--source include/wait_condition.inc
+
+set debug_sync= "now SIGNAL continue_row_execution WAIT_FOR row_executed";
+
+
+#set debug_sync= "now WAIT_FOR row_executed";
+
+--echo # Sleep until slave auto-kill timeout
+--sleep 5
+
+
+SET @@GLOBAL.debug_dbug="-d,pause_after_next_row_exec";
+set debug_sync= "now SIGNAL continue_row_execution";
+
+--source include/wait_for_slave_sql_to_stop.inc
+
+--connection slave1
+--reap
+--connection slave
+
+--let $slave_gtid= `select @@global.gtid_slave_pos`
+--let $assert_text= GTID slave state should not change
+--let $assert_cond= $master_pos = $slave_gtid
+--source include/assert.inc
+
+--let $slave_sql_errno= 1593
+--source include/wait_for_slave_sql_error.inc
+
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--echo # Slave shouldn't be able to re-execute the event because last attempt
+--echo # changed the reliant row data
+START SLAVE;
+
+--let $slave_sql_errno= 1032
+--source include/wait_for_slave_sql_error.inc
+
+--let $old_exec_mode= `SELECT @@global.slave_exec_mode`
+set @@global.slave_exec_mode=IDEMPOTENT;
+
+SET @@GLOBAL.debug_dbug="-d,slave_abort_quick_timeout";
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+--eval set @@global.slave_exec_mode=$old_exec_mode
+set debug_sync= "RESET";
+
+
+--echo #
+--echo # Cleanup
+--connection master
+DROP TABLE ti, tm;
+--eval SET @@global.binlog_direct_non_transactional_updates= $old_binlog_direct
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+--eval set @@global.debug_dbug="$old_debug"
+--eval set @@global.slave_parallel_threads=$old_threads
+--source include/start_slave.inc
+
+--source include/rpl_end.inc
+
+--echo # End of tests

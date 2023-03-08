@@ -1,0 +1,150 @@
+#
+# The stop_slave_quick suite of tests aims to validate that stopping a replica
+# with parallelization enabled will stop in a timely manner. That is, a
+# parallel replica should try to immediately stop and roll-back any ongoing
+# transactions. If any threads have a non-transactional workload, then it
+# along with all prior transactions are executed before stopping.
+#
+# This file provides provides test cases that should be binlog format
+# independent. There is, however, behavior that is specific to either
+# statement or row format, which each have their own test files that include
+# this file.
+#
+# Requirements:
+#   1. A table named `ti` has already been created with storage engine InnoDB
+#   2. The test variable ti_ctr has been created, and serves as a dynamic
+#      for values to insert into ti.
+#
+# References:
+#   MDEV-13915: STOP SLAVE takes very long time on a busy system
+#
+
+--echo #
+--echo # Common Test Case 1:
+--echo # Using one parallel replication worker thread on workload {T,T}, ensure
+--echo # the replica immediately rolls back the transaction and stops the
+--echo # SQL thread
+--connection slave
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads=1;
+--let $row_count_initial=`select count(*) from ti`
+
+--connection master
+--source include/save_master_gtid.inc
+BEGIN;
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+COMMIT;
+
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+
+--connection slave
+LOCK TABLES ti WRITE;
+START SLAVE;
+
+--echo # Wait for replica to begin executing the first transaction
+--connection slave
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock' and  command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+
+--connection slave1
+--send STOP SLAVE;
+
+--connection slave
+UNLOCK TABLES;
+--source include/wait_for_slave_sql_to_stop.inc
+
+--connection slave1
+--reap
+--connection slave
+
+--let $row_count_end=`select count(*) from ti`
+--let $row_count_diff=`select ($row_count_end-$row_count_initial)`
+--let $assert_text= No new rows should have been inserted
+--let $assert_cond= $row_count_diff = 0
+--source include/assert.inc
+
+--let $slave_gtid= `select @@global.gtid_slave_pos`
+--let $assert_text= GTID slave state should not change
+--let $assert_cond= $master_pos = $slave_gtid
+--source include/assert.inc
+
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+
+--echo #
+--echo # Common Test Case 2:
+--echo # Using multiple parallel replication threads (two) on workload {T,T},
+--echo # ensure both transactions are rolled back if stop slave is issued
+--echo # in the middle of the first transaction.
+
+--connection slave
+--source include/stop_slave.inc
+set @@global.slave_parallel_threads=2;
+--let $row_count_initial=`select count(*) from ti`
+
+--connection master
+--source include/save_master_gtid.inc
+BEGIN;
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+COMMIT;
+--eval insert into ti values ($ti_ctr)
+--inc $ti_ctr
+
+--connection slave
+LOCK TABLES ti WRITE;
+--source include/start_slave.inc
+
+--echo # Wait for replica to begin executing the first transaction
+--connection slave
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock' and  command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+
+--echo # Wait for second transaction to begin
+--connection slave
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for prior transaction to start%' and  command LIKE 'Slave_worker';
+--source include/wait_condition.inc
+
+--connection slave1
+--send STOP SLAVE;
+
+--connection slave
+UNLOCK TABLES;
+--source include/wait_for_slave_sql_to_stop.inc
+
+--connection slave1
+--reap
+--connection slave
+
+--let $row_count_end=`select count(*) from ti`
+--let $row_count_diff=`select ($row_count_end-$row_count_initial)`
+--let $assert_text= No insertions should have committed
+--let $assert_cond= $row_count_diff = 0
+--source include/assert.inc
+
+--let $slave_gtid= `select @@global.gtid_slave_pos`
+--let $assert_text= GTID slave state should not change
+--let $assert_cond= $master_pos = $slave_gtid
+--source include/assert.inc
+
+--echo # Slave should be error-free
+let $last_error = query_get_value("SHOW SLAVE STATUS", Last_SQL_Errno, 1);
+--let $assert_text= Slave should be error free
+--let $assert_cond= $last_error = 0
+--source include/assert.inc
+
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
