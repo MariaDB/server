@@ -382,7 +382,8 @@ extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
   key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
-  key_COND_parallel_entry, key_COND_group_commit_orderer;
+  key_COND_parallel_entry, key_COND_group_commit_orderer,
+  key_COND_parallel_abort;
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 extern PSI_cond_key key_TABLE_SHARE_COND_rotation;
 
@@ -535,6 +536,7 @@ extern PSI_stage_info stage_waiting_for_work_from_sql_thread;
 extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
 extern PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit;
 extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
+extern PSI_stage_info stage_waiting_for_workers_abort;
 extern PSI_stage_info stage_waiting_for_workers_idle;
 extern PSI_stage_info stage_waiting_for_ftwrl;
 extern PSI_stage_info stage_waiting_for_ftwrl_threads_to_pause;

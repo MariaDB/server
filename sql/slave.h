@@ -42,6 +42,11 @@
 */
 #define SLAVE_MAX_HEARTBEAT_PERIOD 4294967
 
+/*
+  a parameter of sql_slave_killed() to defer the killed status
+*/
+#define SLAVE_WAIT_GROUP_DONE 60
+
 #ifdef HAVE_REPLICATION
 
 #include "log.h"
@@ -278,6 +283,8 @@ void slave_background_kill_request(THD *to_kill);
 void slave_background_gtid_pos_create_request
         (rpl_slave_state::gtid_pos_table *table_entry);
 void slave_background_gtid_pending_delete_request(void);
+int slave_output_incomplete_trx_non_trans_err(THD *thd, rpl_group_info *rgi);
+bool slave_done_waiting_to_force_abort(rpl_group_info *rgi);
 
 extern Master_info *active_mi; /* active_mi for multi-master */
 extern Master_info *default_master_info; /* To replace active_mi */

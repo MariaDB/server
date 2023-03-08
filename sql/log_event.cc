@@ -11672,7 +11672,28 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       if (!table->in_use)
         table->in_use= thd;
 
+      if (rgi->rli->mi->using_parallel() &&
+          ((rgi->parallel_entry->force_abort) && !rli->stop_for_until) &&
+          rgi->parallel_entry->synchronize_abort(thd))
+      {
+        /*
+          Exit early, and let the Event-level exit logic take care of the
+          cleanup and rollback.
+        */
+        thd->transaction_rollback_request= TRUE;
+        break;
+      }
+
       error= do_exec_row(rgi);
+
+      DBUG_EXECUTE_IF(
+        "pause_after_next_row_exec",
+        {
+          DBUG_ASSERT(!debug_sync_set_action(
+              thd,
+              STRING_WITH_LEN(
+                  "now SIGNAL row_executed WAIT_FOR continue_row_execution")));
+        });
 
       if (unlikely(error))
         DBUG_PRINT("info", ("error: %s", HA_ERR(error)));
@@ -11724,8 +11745,23 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       m_curr_row= m_curr_row_end;
  
       if (likely(error == 0) && !transactional_table)
+      {
         thd->transaction.all.modified_non_trans_table=
-          thd->transaction.stmt.modified_non_trans_table= TRUE;
+            thd->transaction.stmt.modified_non_trans_table=
+                rgi->modified_non_trans_table= TRUE;
+
+        if (rgi->rli->mi->using_parallel())
+        {
+          rpl_parallel_entry *e= rgi->parallel_entry;
+          uint64 last_unsafe_rollback_sub_id=
+              e->unsafe_rollback_marker_sub_id.load();
+          while (rgi->gtid_sub_id > last_unsafe_rollback_sub_id &&
+                 !e->unsafe_rollback_marker_sub_id.compare_exchange_weak(
+                     last_unsafe_rollback_sub_id, rgi->gtid_sub_id))
+          {}
+        }
+      }
+
     } // row processing loop
     while (error == 0 && (m_curr_row != m_rows_end));
 
@@ -11758,7 +11794,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
   } // if (table)
 
-  
+
   if (unlikely(error))
   {
     slave_rows_error_report(ERROR_LEVEL, error, rgi, thd, table,
@@ -11785,7 +11821,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* WITH_WSREP && HAVE_QUERY_CACHE */
 
-  if (get_flags(STMT_END_F))
+  if (get_flags(STMT_END_F) && !thd->transaction_rollback_request)
   {
     if (unlikely(error= rows_event_stmt_cleanup(rgi, thd)))
       slave_rows_error_report(ERROR_LEVEL,

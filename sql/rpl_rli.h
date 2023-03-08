@@ -797,6 +797,16 @@ struct rpl_group_info
   inuse_relaylog *relay_log;
   uint64 retry_start_offset;
   uint64 retry_event_count;
+
+  /*
+    Our own copy of thd->transaction.all.modified_non_trans_table with a
+    longer lifespan for analysis of slave state. The value stored by the
+    transaction can be reset too early (by commit or rows event error), and
+    in the event of STOP SLAVE, we need to report that a transaction with
+    non-transactional changes had been quit early and rolled-back.
+  */
+  bool modified_non_trans_table;
+
   /*
     If `speculation' is != SPECULATE_NO, then we are optimistically running
     this transaction in parallel, even though it might not be safe (there may

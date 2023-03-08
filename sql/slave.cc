@@ -69,10 +69,6 @@
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #define MAX_SLAVE_RETRY_PAUSE 5
-/*
-  a parameter of sql_slave_killed() to defer the killed status
-*/
-#define SLAVE_WAIT_GROUP_DONE 60
 bool use_slave_mask = 0;
 MY_BITMAP slave_error_mask;
 char slave_skip_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
@@ -1339,6 +1335,36 @@ static bool io_slave_killed(Master_info* mi)
   DBUG_RETURN(mi->abort_slave || mi->io_thd->killed);
 }
 
+int slave_output_incomplete_trx_non_trans_err(THD *thd, rpl_group_info *rgi)
+{
+  int errcode= ER_SLAVE_FATAL_ERROR;
+  rgi->rli->report(
+      ERROR_LEVEL, errcode, rgi->gtid_info(), ER_THD(thd, errcode),
+      "... Slave SQL Thread stopped with incomplete event group having "
+      "non-transactional changes. If the group consists solely of row-based "
+      "events, you can try to restart the slave with "
+      "--slave-exec-mode=IDEMPOTENT, which ignores duplicate key, key not "
+      "found, and similar errors (see documentation for details).");
+  return errcode;
+}
+
+bool slave_done_waiting_to_force_abort(rpl_group_info *rgi)
+{
+
+  int slave_done_waiting;
+
+  if (rgi->last_event_start_time == 0)
+    rgi->last_event_start_time= my_time(0);
+
+  double time_diff= difftime(my_time(0), rgi->last_event_start_time);
+  double timeout=
+      DBUG_EVALUATE_IF("slave_abort_quick_timeout", 4, SLAVE_WAIT_GROUP_DONE);
+
+  slave_done_waiting= time_diff >= timeout;
+
+  return slave_done_waiting;
+}
+
 /**
    The function analyzes a possible killed status and makes
    a decision whether to accept it or not.
@@ -1383,14 +1409,6 @@ static bool sql_slave_killed(rpl_group_info *rgi)
          (thd->variables.option_bits & OPTION_KEEP_LOG)) &&
         rli->is_in_group())
     {
-      char msg_stopped[]=
-        "... Slave SQL Thread stopped with incomplete event group "
-        "having non-transactional changes. "
-        "If the group consists solely of row-based events, you can try "
-        "to restart the slave with --slave-exec-mode=IDEMPOTENT, which "
-        "ignores duplicate key, key not found, and similar errors (see "
-        "documentation for details).";
-
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
                           "OPTION_KEEP_LOG: %d  is_in_group: %d",
                           thd->transaction.all.modified_non_trans_table,
@@ -1416,10 +1434,7 @@ static bool sql_slave_killed(rpl_group_info *rgi)
           @c last_event_start_time the timer.
         */
 
-        if (rgi->last_event_start_time == 0)
-          rgi->last_event_start_time= my_time(0);
-        ret= difftime(my_time(0), rgi->last_event_start_time) <=
-          SLAVE_WAIT_GROUP_DONE ? FALSE : TRUE;
+        ret= slave_done_waiting_to_force_abort(rgi);
 
         DBUG_EXECUTE_IF("stop_slave_middle_group", 
                         DBUG_EXECUTE_IF("incomplete_group_in_relay_log",
@@ -1434,16 +1449,13 @@ static bool sql_slave_killed(rpl_group_info *rgi)
         }
         else
         {
-          rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
-                      ER_THD(thd, ER_SLAVE_FATAL_ERROR), msg_stopped);
+          slave_output_incomplete_trx_non_trans_err(thd, rgi);
         }
       }
       else
       {
         ret= TRUE;
-        rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
-                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
-                    msg_stopped);
+        slave_output_incomplete_trx_non_trans_err(thd, rgi);
       }
     }
     else
@@ -5531,6 +5543,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
 
  err:
+  THD_STAGE_INFO(thd, stage_killing_slave);
   if (mi->using_parallel())
     rli->parallel.wait_for_done(thd, rli);
   /* Gtid_list_log_event::do_apply_event has already reported the GTID until */

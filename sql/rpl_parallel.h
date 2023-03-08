@@ -163,6 +163,7 @@ struct rpl_parallel_thread {
   /* These keep track of batch update of inuse_relaylog refcounts. */
   inuse_relaylog *accumulated_ir_last;
   uint64 accumulated_ir_count;
+  bool abort_synchronization_needed;
 
   void enqueue(queued_event *qev)
   {
@@ -258,6 +259,7 @@ struct rpl_parallel_thread_pool {
 struct rpl_parallel_entry {
   mysql_mutex_t LOCK_parallel_entry;
   mysql_cond_t COND_parallel_entry;
+  mysql_cond_t COND_parallel_abort;
   uint32 domain_id;
   /*
     Incremented by wait_for_workers_idle() and rpl_pause_for_ftwrl() to show
@@ -349,10 +351,91 @@ struct rpl_parallel_entry {
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
 
+  /*
+    The number of worker threads that should synchronize to establish a
+    last transaction sub id, such that the state of the replica will be
+    consistent after its execution; and all started transactions with higher
+    ids can be stopped and rolled back.
+
+    Note this is calculated dynamically by the SQL thread in wait_for_done().
+  */
+  uint64 count_threads_to_sync_abort;
+
+  /*
+    Indicator to transition between phases during STOP SLAVE. That is, the
+    SQL Thread first needs to count worker threads that need to synchronize
+    their abort. This calculation requires a consistent state for the active
+    transactions, so the SQL Thread initially sets force_abort=true so no new
+    transactions are started. Then, it counts the number of threads currently
+    processing transactions. During this phase, if any worker threads notice
+    force_abort is set, they will suspend into a cond_wait for the SQL thread
+    to finish phase 1. Once the SQL Thread analyzes the worker threads, the
+    actual synchronized abort can begin, so abort_ready is switched to true and
+    the astutely waiting worker threads are signalled.
+  */
+  bool abort_ready;
+
+  /*
+    Marks the highest sub id that all transactions up to it must be executed to
+    allow for a consistent replication state; and all active transactions
+    afterwards can safely be stopped and rolled back.
+  */
+  std::atomic<uint64> unsafe_rollback_marker_sub_id;
+
+  /*
+    The number of worker threads that have acknowledged the replica should
+    be stopped and are ready to synchronize.
+  */
+  Atomic_counter<uint64> count_workers_ready_for_abort;
+
+  /*
+    Indicates that STOP SLAVE has been acknowledged and synchronized by all
+    worker threads.
+
+    Note: if any transactions are active after this has been set, their sub_id
+    should be less than or equal to the unsafe_rollback_marker_sub_id
+  */
+  bool abort_synchronized;
+
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage, bool reuse);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
+
+  /*
+    If we are signalled to abort (i.e by force_abort), we need to synchronize
+    with the other worker threads to determine the earliest safe point to stop
+    such that the replica will be in a consistent state.
+
+    This is a two phase process. First, the SQL Thread, in wait_for_done(),
+    will determine how many threads are actively executing transactions. That
+    is, it will start by setting force_abort=true to disallow workers from
+    starting new transactions, and record the number of active workers. During
+    this process, if any astute workers notice force_abort is set, they will
+    wait on a condition variable to not start the process in an inconsistent
+    state. After the SQL Thread has recorded all active worker threads, it
+    will signal the condition variable, and allow the worker threads to
+    determine the stop point. Any workers applying transactions before or at
+    this stop point will proceed executing their transactions, and all other
+    workers will rollback their current transactions and cease.
+
+    Returns true if our current worker should cease and rollback, and false if
+    we need to apply our transaction to end in a consistent state.
+  */
+  bool synchronize_abort(THD *thd);
+
+  /*
+    If a worker is entering a condition wait where they cannot synchronize
+    with other threads, we preemptively set their "participation". This is
+    revoked by rerequire_abort_participation.
+
+    Returns true if we are unable to preemptively set the participation of this
+    thread because we noticed an abort has been set, and false in the success
+    case. If true (i.e. the failure case), rerequire_abort_participation should
+    not be called.
+  */
+  bool try_unrequire_abort_participation(THD *thd);
+  void rerequire_abort_participation();
 };
 struct rpl_parallel {
   HASH domain_hash;

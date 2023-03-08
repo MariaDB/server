@@ -7464,6 +7464,43 @@ void THD::set_last_commit_gtid(rpl_gtid &gtid)
 #endif
 }
 
+int THD::wait_for_prior_commit()
+{
+  int ret= 0;
+#ifdef HAVE_REPLICATION
+  int sync_err= 0;
+#endif
+
+  if (wait_for_commit_ptr)
+  {
+#ifdef HAVE_REPLICATION
+    bool failed_abort_unrequire= false;
+    /*
+      We always need to wait for the previous commit, even in exit case, to
+      ensure freeing of resources happens correctly (e.g. see MDEV-30780).
+
+      Before we start waiting though, we might need to synchronize with other
+      threads that a parallel replication abort is happening.
+    */
+    if (rgi_slave && rgi_slave->is_parallel_exec)
+    {
+      failed_abort_unrequire=
+          rgi_slave->parallel_entry->try_unrequire_abort_participation(this);
+
+      if (failed_abort_unrequire)
+        sync_err= rgi_slave->parallel_entry->synchronize_abort(this);
+    }
+#endif
+    ret= wait_for_commit_ptr->wait_for_prior_commit(this);
+#ifdef HAVE_REPLICATION
+    ret = ret ? ret : sync_err;
+    if (rgi_slave && rgi_slave->is_parallel_exec && !failed_abort_unrequire)
+      rgi_slave->parallel_entry->rerequire_abort_participation();
+#endif
+  }
+  return ret;
+}
+
 void
 wait_for_commit::reinit()
 {

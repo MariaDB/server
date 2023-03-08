@@ -7544,6 +7544,33 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   if (wfc && wfc->waitee.load(std::memory_order_acquire))
   {
     wait_for_commit *loc_waitee;
+#ifdef HAVE_REPLICATION
+    bool failed_abort_unparticipation= false;
+    if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
+    {
+      /*
+        Lest STOP SLAVE is issued with parallelization enabled, we
+        proactively mark ourself as ready for an abort. That is, our
+        potentially harmful effects have already occurred, as we are
+        committing.
+      */
+      failed_abort_unparticipation=
+          thd->rgi_slave->parallel_entry->try_unrequire_abort_participation(
+              thd);
+
+      if (failed_abort_unparticipation &&
+          thd->rgi_slave->parallel_entry->synchronize_abort(thd))
+      {
+        wfc->wakeup_error= orig_entry->thd->killed_errno();
+        if (!wfc->wakeup_error)
+          wfc->wakeup_error= ER_QUERY_INTERRUPTED;
+        my_message(wfc->wakeup_error,
+                   ER_THD(orig_entry->thd, wfc->wakeup_error), MYF(0));
+        result= -1;
+        goto end;
+      }
+    }
+#endif
 
     mysql_mutex_lock(&wfc->LOCK_wait_commit);
     /*
@@ -7629,6 +7656,13 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           wfc->waitee.store(NULL, std::memory_order_relaxed);
 
           orig_entry->thd->EXIT_COND(&old_stage);
+
+#ifdef HAVE_REPLICATION
+          if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+              !failed_abort_unparticipation)
+            thd->rgi_slave->parallel_entry->rerequire_abort_participation();
+#endif
+
           /* Interrupted by kill. */
           DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior_killed");
           wfc->wakeup_error= orig_entry->thd->killed_errno();
@@ -7640,10 +7674,21 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           goto end;
         }
       }
+
       orig_entry->thd->EXIT_COND(&old_stage);
     }
     else
       mysql_mutex_unlock(&wfc->LOCK_wait_commit);
+
+#ifdef HAVE_REPLICATION
+    /*
+      If we pulled ourselves out of the abort synchronization, now that the
+      wait is over, we need to re-add ourselves.
+    */
+    if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+        !failed_abort_unparticipation)
+      thd->rgi_slave->parallel_entry->rerequire_abort_participation();
+#endif
   }
   /*
     If the transaction we were waiting for has already put us into the group
@@ -7950,8 +7995,17 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 
   }
 
+  /*
+    If wait_for_prior_commit() fails here, the slave can become inconsistent
+    if the server shuts down and restarts, as the relay log position will
+    not be updated; yet the transaction will have committed in the storage
+    engines. This happens if STOP SLAVE is detected here.
+  */
   if (likely(!entry->error))
-    return entry->thd->wait_for_prior_commit();
+  {
+    entry->thd->wait_for_prior_commit();
+    return 0;
+  }
 
   switch (entry->error)
   {

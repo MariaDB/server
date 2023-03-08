@@ -3193,6 +3193,9 @@ public:
     Set by a storage engine to request the entire
     transaction (that possibly spans multiple engines) to
     rollback. Reset in ha_rollback.
+
+    This can also be set in parallel replication if a multi-row
+    event is aborted mid-execution, and needs to be rolled back.
   */
   bool       transaction_rollback_request;
   /**
@@ -4726,12 +4729,7 @@ public:
   }
 
   wait_for_commit *wait_for_commit_ptr;
-  int wait_for_prior_commit()
-  {
-    if (wait_for_commit_ptr)
-      return wait_for_commit_ptr->wait_for_prior_commit(this);
-    return 0;
-  }
+  int wait_for_prior_commit();
   void wakeup_subsequent_commits(int wakeup_error)
   {
     if (wait_for_commit_ptr)
