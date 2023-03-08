@@ -1013,10 +1013,6 @@ void (*first_page_init)(uint32_t space_id);
 FIXME: Rely on recv_sys.pages! */
 class mlog_init_t
 {
-public:
-	/** log sequence number of the page initialization */
-	lsn_t lsn;
-
 private:
 	typedef std::map<const page_id_t, lsn_t,
 			 std::less<const page_id_t>,
