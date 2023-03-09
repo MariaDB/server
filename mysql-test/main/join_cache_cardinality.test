@@ -1,0 +1,38 @@
+--source include/have_sequence.inc
+
+create table t1 (a int, b int, c int);
+insert into t1 select seq,seq/2, seq/4 from seq_1_to_100;
+
+create table t2 (a int, b int, c int);
+insert into t2 select seq, seq/2, seq/4 from seq_1_to_200;
+
+analyze table t1,t2 persistent for all;
+
+set optimizer_trace=1;
+set join_cache_level=6;
+set optimizer_switch='hash_join_cardinality=on';
+explain select *
+from t1, t2
+where t1.a=t2.a and t1.a=t2.b and t1.c=t2.c;
+
+set @json= (select trace from information_schema.optimizer_trace);
+select json_detailed(json_extract(@json, '$**.hash_join_cardinality')) as JS;
+select json_detailed(json_extract(@json, '$**.rest_of_plan[*].rows_for_plan'))
+as ROWS_FOR_PLAN;
+
+explain select *
+from t1, t2 where t1.c=t2.c;
+set @json= (select trace from information_schema.optimizer_trace);
+select json_detailed(json_extract(@json, '$**.hash_join_cardinality')) as JS;
+select json_detailed(json_extract(@json, '$**.rest_of_plan[*].rows_for_plan'))
+as ROWS_FOR_PLAN;
+
+explain select *
+from t1 straight_join t2 where t1.c=t2.c and t2.a<30;
+set @json= (select trace from information_schema.optimizer_trace);
+--echo # Note that rows is the same:
+select json_detailed(json_extract(@json, '$**.hash_join_cardinality')) as JS;
+
+--echo # Despite available selectivity:
+select json_detailed(json_extract(@json, '$**.selectivity_for_columns')) as JS;
+drop table t1,t2;

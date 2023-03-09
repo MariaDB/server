@@ -7677,6 +7677,90 @@ double adjust_quick_cost(double quick_cost, ha_rows records)
 }
 
 
+/*
+  @brief
+    Compute the fanout of hash join operation using EITS data
+*/
+
+double hash_join_fanout(JOIN *join, JOIN_TAB *s, table_map remaining_tables,
+                        double rnd_records, KEYUSE *hj_start_key)
+{
+  THD *thd= join->thd;
+  /*
+    Before doing the hash join, we will scan the table and apply the local part
+    of the WHERE condition. This will produce rnd_records.
+
+    The EITS statistics describes the entire table. Calling
+
+      table->field[N]->get_avg_frequency()
+
+    produces average #rows in the table with some value.
+
+    What happens if we filter out rows so that rnd_records rows are left?
+    Something between the two outcomes:
+    A. filtering removes a fraction of rows for each value:
+      avg_frequency=avg_frequency * condition_selectivity
+
+    B. filtering removes entire groups of rows with the same value, but
+       the remaining groups remain of the same size.
+
+    We make pessimistic assumption and assume B.
+    We also handle an edge case: if rnd_records is less than avg_frequency,
+    assume we'll get rnd_records rows with the same value, and return
+    rnd_records as the fanout estimate.
+  */
+  double min_freq= rnd_records;
+
+  Json_writer_object trace_obj(thd, "hash_join_cardinality");
+  /*
+    There can be multiple KEYUSE referring to same or different columns
+
+       KEYUSE(tbl.col1 = ...)
+       KEYUSE(tbl.col1 = ...)
+       KEYUSE(tbl.col2 = ...)
+
+    Hash join code can use multiple columns: (col1, col2) for joining.
+    We need n_distinct({col1, col2}).
+
+    EITS only has statistics on individual columns: n_distinct(col1),
+    n_distinct(col2).
+
+    Our current solution is to be very conservative and use selectivity
+    of one column with the lowest avg_frequency.
+
+    In the future, we should an approach that cautiosly takes into account
+    multiple KEYUSEs either multiply by number of equalities or by sqrt
+    of the second most selective equality.
+  */
+  Json_writer_array trace_arr(thd, "hash_join_columns");
+  for (KEYUSE *keyuse= hj_start_key;
+       keyuse->table == s->table && is_hash_join_key_no(keyuse->key);
+       keyuse++)
+  {
+    if (!(remaining_tables & keyuse->used_tables) &&
+        (!keyuse->validity_ref || *keyuse->validity_ref) &&
+        s->access_from_tables_is_allowed(keyuse->used_tables,
+                                         join->sjm_lookup_tables))
+    {
+      Field *field= s->table->field[keyuse->keypart];
+      if (is_eits_usable(field))
+      {
+        double freq= field->read_stats->get_avg_frequency();
+
+        Json_writer_object trace_field(thd);
+        trace_field.add("field",field->field_name.str).
+          add("avg_frequency", freq);
+        if (freq < min_freq)
+          min_freq= freq;
+      }
+    }
+  }
+  trace_arr.end();
+  trace_obj.add("rows", min_freq);
+  return min_freq;
+}
+
+
 /**
   Find the best access path for an extension of a partial execution
   plan and add this path to the plan.
@@ -8292,7 +8376,10 @@ best_access_path(JOIN      *join,
       (!(s->table->map & join->outer_join) ||
        join->allowed_outer_join_with_cache))    // (2)
   {
+    double fanout;
     Json_writer_object trace_access_hash(thd);
+    trace_access_hash.add("type", "hash");
+    trace_access_hash.add("index", "hj-key");
     double join_sel= 0.1;
     /* Estimate the cost of  the hash join access to the table */
     double rnd_records= matching_candidates_in_table(s, found_constraint,
@@ -8302,25 +8389,55 @@ best_access_path(JOIN      *join,
     double cmp_time= (s->records - rnd_records)/TIME_FOR_COMPARE;
     tmp= COST_ADD(tmp, cmp_time);
 
+    DBUG_ASSERT(hj_start_key);
+    fanout= rnd_records;
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY))
+    {
+      /*
+        Starting from this point, rnd_records should not be used anymore.
+        Use "fanout" for an estimate of # matching records.
+      */
+      fanout= hash_join_fanout(join, s, remaining_tables, rnd_records,
+                               hj_start_key);
+      join_sel= 1.0; // Don't do the "10% heuristic"
+    }
+
     /* We read the table as many times as join buffer becomes full. */
 
     double refills= (1.0 + floor((double) cache_record_length(join,idx) *
                            record_count /
 			   (double) thd->variables.join_buff_size));
     tmp= COST_MULT(tmp, refills);
-    best_time= COST_ADD(tmp,
-                        COST_MULT((record_count*join_sel) / TIME_FOR_COMPARE,
-                                  rnd_records));
+
+    // Add cost of reading/writing the join buffer
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY))
+    {
+      /* Set it to be 1/10th of TIME_FOR_COMPARE */
+      double row_copy_cost= 1.0 / (10*TIME_FOR_COMPARE);
+      double join_buffer_operations=
+        COST_ADD(
+          COST_MULT(record_count, row_copy_cost),
+          COST_MULT(record_count, fanout * (idx - join->const_tables))
+          );
+      double jbuf_use_cost= row_copy_cost * join_buffer_operations;
+      trace_access_hash.add("jbuf_use_cost", jbuf_use_cost);
+      tmp= COST_ADD(tmp, jbuf_use_cost);
+    }
+
+    double where_cost= COST_MULT((fanout*join_sel) / TIME_FOR_COMPARE,
+                                  record_count);
+    trace_access_hash.add("extra_cond_check_cost", where_cost);
+
+    best_time= COST_ADD(tmp, where_cost);
+
     best= tmp;
-    records= rnd_records;
+    records= fanout;
     best_key= hj_start_key;
     best_ref_depends_map= 0;
     best_uses_jbuf= TRUE;
     best_filter= 0;
     best_type= JT_HASH;
-    trace_access_hash.add("type", "hash");
-    trace_access_hash.add("index", "hj-key");
-    trace_access_hash.add("cost", rnd_records);
+    trace_access_hash.add("records", records);
     trace_access_hash.add("cost", best);
     trace_access_hash.add("chosen", true);
   }
