@@ -50,6 +50,8 @@ static struct my_option my_long_options[] =
 #endif
   {"mysqld", 0, "Read the same set of groups that the mysqld binary does.",
    &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"mariadbd", 0, "Read the same set of groups that the mariadbd binary does.",
+   &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"no-defaults", 'n', "Return an empty string (useful for scripts).",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"help", '?', "Display this help message and exit.",
@@ -70,7 +72,7 @@ static void cleanup_and_exit(int exit_code)
 
 static void version()
 {
-  printf("%s  Ver 1.7 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s  Ver 1.8 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 
