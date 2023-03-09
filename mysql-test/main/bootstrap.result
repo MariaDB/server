@@ -61,5 +61,8 @@ truncate table mysql.plugin;
 # MDEV-13397 MariaDB upgrade fail when using default_time_zone
 #
 #
+# MDEV-30818 invalid ssl prevents bootstrap
+#
+#
 # End of 10.3 tests
 #

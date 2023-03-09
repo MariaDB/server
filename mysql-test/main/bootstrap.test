@@ -120,6 +120,11 @@ truncate table mysql.plugin;
 --exec $MYSQLD_BOOTSTRAP_CMD --default-time-zone=Europe/Moscow < $test_bootstrap >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 
 --echo #
+--echo # MDEV-30818 invalid ssl prevents bootstrap
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --ssl-ca=/dev/nonexistent < $test_bootstrap >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 --remove_file $test_bootstrap
