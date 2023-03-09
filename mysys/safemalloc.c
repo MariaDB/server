@@ -225,7 +225,7 @@ static void print_stack(void **frame)
   const char *err;
   int i;
 
-  if ((err= my_addr_resolve_init()))
+  if ((err= my_addr_resolve_init(frame[0])))
   {
     fprintf(stderr, "(my_addr_resolve failure: %s)\n", err);
     return;
@@ -243,6 +243,7 @@ static void print_stack(void **frame)
       fprintf(stderr, "%s:%u", loc.file, loc.line);
   }
   fprintf(stderr, "\n");
+  my_addr_resolve_close();
 }
 #else
 #define print_stack(X)          fprintf(stderr, "???\n")

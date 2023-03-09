@@ -185,7 +185,7 @@ static int print_with_addr_resolve(void **addrs, int n)
   int i;
   const char *err;
 
-  if ((err= my_addr_resolve_init()))
+  if ((err= my_addr_resolve_init(addrs[0])))
   {
     my_safe_printf_stderr("(my_addr_resolve failure: %s)\n", err);
     return 0;
@@ -200,6 +200,7 @@ static int print_with_addr_resolve(void **addrs, int n)
       my_safe_printf_stderr("%s:%u(%s)[%p]\n",
               loc.file, loc.line, loc.func, addrs[i]);
   }
+  my_addr_resolve_close();
   return 1;
 }
 #endif

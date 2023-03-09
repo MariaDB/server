@@ -75,7 +75,8 @@ typedef struct {
 
 #ifdef HAVE_MY_ADDR_RESOLVE
 int my_addr_resolve(void *ptr, my_addr_loc *loc);
-const char *my_addr_resolve_init();
+const char *my_addr_resolve_init(void *ptr);
+void my_addr_resolve_close();
 #else
 #define my_addr_resolve_init()  (0)
 #define my_addr_resolve(A,B)    (1)
