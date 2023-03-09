@@ -2046,7 +2046,7 @@ void innodb_shutdown()
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
-	ut_ad(ibuf.index || !srv_was_started
+	ut_ad(ibuf.index || !innodb_change_buffering || !srv_was_started
 	      || srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE);
 
 	dict_stats_deinit();
