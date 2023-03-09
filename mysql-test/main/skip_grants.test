@@ -1,5 +1,7 @@
 # This tests not performed with embedded server
 -- source include/not_embedded.inc
+call mtr.add_suppression("Event Scheduler will not function when starting with --skip-grant-tables or --bootstrap.");
+
 -- disable_ps_protocol
 use test;
 
@@ -92,10 +94,8 @@ DROP FUNCTION f3;
 --echo #
 --echo # Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
 --echo #
---disable_warnings
+--error ER_OPTION_PREVENTS_STATEMENT
 set global event_scheduler=1;
---enable_warnings
-set global event_scheduler=0;
 
 --echo #
 --echo # Bug#26285 Selecting information_schema crahes server

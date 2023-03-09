@@ -1,4 +1,4 @@
 --source include/is_embedded.inc
 
---error 1193
+--error ER_UNKNOWN_SYSTEM_VARIABLE
 set global event_scheduler=ON;
