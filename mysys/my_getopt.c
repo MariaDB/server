@@ -953,11 +953,11 @@ static int findopt(char *optpat, uint length,
 }
 
 
-/* 
+/*
   function: compare_strings
 
   Works like strncmp, other than 1.) considers '-' and '_' the same.
-  2.) Returns -1 if strings differ, 0 if they are equal
+  2.) Returns 1 if strings differ, 0 if they are equal
 */
 
 my_bool getopt_compare_strings(register const char *s, register const char *t,
