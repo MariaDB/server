@@ -124,6 +124,19 @@ EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --ignore-db-dirs='some_dir' --ignore-db-dirs='some_dir' < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
 
+--echo #
+--echo # MDEV-30818 invalid ssl prevents bootstrap
+--echo #
+--write_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+use test;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD --ssl-ca=/dev/nonexistent < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
 #
 # MDEV-13397 MariaDB upgrade fail when using default_time_zone
 #
