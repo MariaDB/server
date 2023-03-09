@@ -1,3 +1,4 @@
+call mtr.add_suppression("Event Scheduler will not function when starting with --skip-grant-tables or --bootstrap.");
 use test;
 CREATE TABLE t1(c INT);
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1
@@ -52,7 +53,7 @@ DROP FUNCTION f3;
 # Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
 #
 set global event_scheduler=1;
-set global event_scheduler=0;
+ERROR HY000: The MariaDB server is running with the --event-scheduler=DISABLED or --skip-grant-tables option so it cannot execute this statement
 #
 # Bug#26285 Selecting information_schema crahes server
 #
