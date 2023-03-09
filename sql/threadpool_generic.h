@@ -20,6 +20,7 @@
 #include <mysqld.h>
 #include <threadpool.h>
 #include <violite.h>
+#include "notifiable_work_zone.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -95,6 +96,10 @@ struct TP_connection_generic :public TP_connection
   bool bound_to_poll_descriptor;
   int waiting;
   bool fix_group;
+#ifndef WIN32
+  Notifiable_work_zone work_zone;
+  bool leave_work_zone() final;
+#endif
 #ifdef _WIN32
   win_aiosocket win_sock{};
   void init_vio(st_vio *vio) override

@@ -501,6 +501,8 @@ static void queue_put(thread_group_t *thread_group, native_event *ev, int cnt)
   for(int i=0; i < cnt; i++)
   {
     TP_connection_generic *c = (TP_connection_generic *)native_event_get_userdata(&ev[i]);
+    if (!c->work_zone.try_enter_owner())
+      continue; /* connection already enqueued or being executed */
     c->enqueue_time= now;
     thread_group->queues[c->priority].push_back(c);
   }
@@ -1124,6 +1126,7 @@ static void queue_put(thread_group_t *thread_group, TP_connection_generic *conne
 {
   DBUG_ENTER("queue_put");
 
+  connection->work_zone.assert_entered();
   connection->enqueue_time= threadpool_exact_stats?microsecond_interval_timer():pool_timer.current_microtime;
   thread_group->queues[connection->priority].push_back(connection);
 
@@ -1328,6 +1331,7 @@ void TP_pool_generic::add(TP_connection_type *c)
   DBUG_ENTER("tp_add_connection");
 
   TP_connection_generic *connection=(TP_connection_generic *)c;
+  connection->work_zone.assert_entered();
   thread_group_t *thread_group= connection->thread_group;
   /*
     Add connection to the work queue.Actual logon
@@ -1341,19 +1345,25 @@ void TP_pool_generic::add(TP_connection_type *c)
 
 void TP_pool_generic::resume(TP_connection_type* c)
 {
-  add(c);
+  if (c->work_zone.try_enter_owner())
+    add(c);
 }
 
 int TP_pool_generic::wake(TP_connection_type *c)
 {
-#ifdef _WIN32
-  TP_connection_generic *connection=(TP_connection_generic *)c;
+#if defined(_WIN32)
+  TP_connection_generic *connection= (TP_connection_generic *) c;
   if (CancelIoEx(connection->win_sock.m_handle, &connection->win_sock.m_overlapped))
     return 0;
+  DBUG_ASSERT(0);
   DBUG_ASSERT(GetLastError() == ERROR_NOT_FOUND);
   return 1;
 #else
-  // todo support
+  c->state= TP_STATE_INTERRUPTED;
+  if (c->work_zone.notify())
+    return 0;
+  if (c->work_zone.try_enter())
+    add(c);
   return 0;
 #endif
 }
@@ -1505,6 +1515,20 @@ static int change_group(TP_connection_generic *c,
   return ret;
 }
 
+
+#ifndef WIN32
+bool TP_connection_generic::leave_work_zone()
+{
+  auto leave_state= work_zone.try_leave();
+  while (unlikely(leave_state == Notifiable_work_zone::SIGNAL))
+  {
+    if (thd->apc_target.have_apc_requests())
+      thd->apc_target.process_apc_requests();
+    leave_state= work_zone.try_leave();
+  }
+  return leave_state == Notifiable_work_zone::OWNER;
+}
+#endif
 
 int TP_connection_generic::start_io()
 {

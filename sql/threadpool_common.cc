@@ -194,6 +194,7 @@ static bool tp_callback_run(TP_connection_type *c)
       return false;
     }
     c->connect= 0;
+    c->work_zone.init_guard(IF_DBUG(&c->thd->LOCK_thd_kill,));
   }
   else
   {
@@ -229,19 +230,19 @@ retry:
   c->set_io_timeout(thd->get_net_wait_timeout());
   c->state= TP_STATE_IDLE;
 
-  int error= c->start_io();
-
-  return error == 0;
+  return true;
 }
 
 void tp_callback(TP_connection_type *c)
 {
+  c->work_zone.assert_entered();
+
   Worker_thread_context worker_context;
   worker_context.save();
 
   bool success= tp_callback_run(c);
 
-  if (!success)
+  if (unlikely(!success) && c->work_zone.try_enter_owner())
   {
     THD *thd= c->thd;
     c->thd= 0;
@@ -481,9 +482,15 @@ static void tp_add_connection(CONNECT *connect)
   auto *c= pool->new_connection(connect);
   DBUG_EXECUTE_IF("simulate_failed_connection_1", delete c ; c= 0;);
   if (c)
+  {
+    bool entered= c->work_zone.try_enter_owner();
+    DBUG_ASSERT(entered);
     pool->add(c);
+  }
   else
+  {
     connect->close_and_delete();
+  }
 }
 
 int tp_get_idle_thread_count()

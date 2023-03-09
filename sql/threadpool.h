@@ -15,6 +15,9 @@
 
 #pragma once
 #ifdef HAVE_POOL_OF_THREADS
+#include "my_global.h"
+#include "notifiable_work_zone.h"
+
 #define MAX_THREAD_GROUPS 100000
 
 /* Threadpool parameters */
@@ -116,6 +119,8 @@ struct TP_connection
 
   /* Read for the next client command (async) with specified timeout */
   virtual int start_io() = 0;
+  IF_WIN(,virtual) bool leave_work_zone(){ return true; }
+  IF_WIN(Notifiable_work_zone work_zone;,) // Dummy object.
 
   virtual void wait_begin(int type)= 0;
   virtual void wait_end() = 0;
