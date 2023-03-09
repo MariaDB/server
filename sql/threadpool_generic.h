@@ -76,11 +76,11 @@ struct TP_connection_generic :public TP_connection
   TP_connection_generic(CONNECT* c);
   ~TP_connection_generic();
 
-  int init() override { return 0; }
-  void set_io_timeout(int sec) override;
-  int  start_io() override;
-  void wait_begin(int type) override;
-  void wait_end() override;
+  int init() final { return 0; }
+  void set_io_timeout(int sec) final;
+  int  start_io() final;
+  void wait_begin(int type) final;
+  void wait_end() final;
 
   thread_group_t* thread_group;
   TP_connection_generic* next_in_queue;

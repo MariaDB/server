@@ -56,13 +56,13 @@ TP_STATISTICS tp_stats;
 
 static void  threadpool_remove_connection(THD *thd);
 static dispatch_command_return threadpool_process_request(THD *thd, bool apc_only);
-static THD*  threadpool_add_connection(CONNECT *connect, TP_connection *c);
+static THD*  threadpool_add_connection(CONNECT *connect, TP_connection_type *c);
 
 extern void thd_net_process_apc_requests(THD *thd);
 
-static inline TP_connection *get_TP_connection(THD *thd)
+static inline TP_connection_type *get_TP_connection(THD *thd)
 {
-  return (TP_connection *)thd->event_scheduler.data;
+  return (TP_connection_type *)thd->event_scheduler.data;
 }
 
 /*
@@ -175,7 +175,7 @@ static TP_PRIORITY get_priority(TP_connection *c)
   return prio;
 }
 
-static bool tp_callback_run(TP_connection *c)
+static bool tp_callback_run(TP_connection_type *c)
 {
   DBUG_ASSERT(c);
   THD *thd= c->thd;
@@ -234,7 +234,7 @@ retry:
   return error == 0;
 }
 
-void tp_callback(TP_connection *c)
+void tp_callback(TP_connection_type *c)
 {
   Worker_thread_context worker_context;
   worker_context.save();
@@ -255,7 +255,7 @@ void tp_callback(TP_connection *c)
 }
 
 
-static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
+static THD *threadpool_add_connection(CONNECT *connect, TP_connection_type *c)
 {
   THD *thd= NULL;
 
@@ -449,7 +449,7 @@ end:
 }
 
 
-static TP_pool *pool;
+static IF_WIN(TP_pool, TP_pool_generic) *pool;
 
 static bool tp_init()
 {
@@ -478,7 +478,7 @@ static bool tp_init()
 
 static void tp_add_connection(CONNECT *connect)
 {
-  TP_connection *c= pool->new_connection(connect);
+  auto *c= pool->new_connection(connect);
   DBUG_EXECUTE_IF("simulate_failed_connection_1", delete c ; c= 0;);
   if (c)
     pool->add(c);
@@ -553,7 +553,7 @@ MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<unsigned long long> tp_wai
 
 static void tp_wait_begin(THD *thd, int type)
 {
-  TP_connection *c = get_TP_connection(thd);
+  auto *c = get_TP_connection(thd);
   if (c)
   {
     DBUG_ASSERT(type > 0 && type < THD_WAIT_LAST);
@@ -565,7 +565,7 @@ static void tp_wait_begin(THD *thd, int type)
 
 static void tp_wait_end(THD *thd)
 {
-  TP_connection *c = get_TP_connection(thd);
+  auto *c = get_TP_connection(thd);
   if (c)
     c->wait_end();
 }
@@ -592,14 +592,14 @@ static void tp_resume(THD* thd)
 {
   DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::SUSPENDED);
   thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
-  TP_connection* c = get_TP_connection(thd);
+  auto* c = get_TP_connection(thd);
   pool->resume(c);
 }
 
 static bool tp_notify_apc(THD *thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
-  TP_connection* c= get_TP_connection(thd);
+  auto* c= get_TP_connection(thd);
   int status= pool->wake(c);
   return status == 0;
 }

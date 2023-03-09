@@ -37,9 +37,12 @@ extern uint threadpool_mode; /* Thread pool implementation , windows or generic 
 #define DEFAULT_THREADPOOL_STALL_LIMIT 500U
 
 struct TP_connection;
+struct TP_connection_generic;
+typedef IF_WIN(TP_connection, TP_connection_generic) TP_connection_type;
+
 struct st_vio;
 
-extern void tp_callback(TP_connection *c);
+extern void tp_callback(TP_connection_type *c);
 extern void tp_timeout_handler(TP_connection *c);
 
 
@@ -124,8 +127,8 @@ struct TP_pool
 {
   virtual ~TP_pool(){};
   virtual int init()= 0;
-  virtual TP_connection *new_connection(CONNECT *)= 0;
-  virtual void add(TP_connection *c)= 0;
+  virtual TP_connection_type *new_connection(CONNECT *)= 0;
+  virtual void add(TP_connection_type *c)= 0;
   virtual int set_max_threads(uint){ return 0; }
   virtual int set_min_threads(uint){ return 0; }
   virtual int set_pool_size(uint){ return 0; }
@@ -134,8 +137,8 @@ struct TP_pool
   virtual int set_stall_limit(uint){ return 0; }
   virtual int get_thread_count() { return tp_stats.num_worker_threads; }
   virtual int get_idle_thread_count(){ return 0; }
-  virtual void resume(TP_connection* c)=0;
-  virtual int wake(TP_connection *)=0;
+  virtual void resume(TP_connection_type* c)=0;
+  virtual int wake(TP_connection_type *)=0;
 };
 
 #ifdef _WIN32
@@ -159,13 +162,13 @@ struct TP_pool_generic :TP_pool
   TP_pool_generic();
   ~TP_pool_generic();
   virtual int init();
-  virtual TP_connection *new_connection(CONNECT *c);
-  virtual void add(TP_connection *);
+  TP_connection_type *new_connection(CONNECT *c) final;
+  void add(TP_connection_type *) final;
   virtual int set_pool_size(uint);
   virtual int set_stall_limit(uint);
   virtual int get_idle_thread_count();
-  void resume(TP_connection* c);
-  int wake(TP_connection *) final;
+  void resume(TP_connection_type* c) final;
+  int wake(TP_connection_type *) final;
 };
 
 #endif /* HAVE_POOL_OF_THREADS */

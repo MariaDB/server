@@ -1314,7 +1314,7 @@ void wait_end(thread_group_t *thread_group)
 }
 
 
-TP_connection * TP_pool_generic::new_connection(CONNECT *c)
+TP_connection_type* TP_pool_generic::new_connection(CONNECT *c)
 {
   return new (std::nothrow) TP_connection_generic(c);
 }
@@ -1323,7 +1323,7 @@ TP_connection * TP_pool_generic::new_connection(CONNECT *c)
   Add a new connection to thread pool
 */
 
-void TP_pool_generic::add(TP_connection *c)
+void TP_pool_generic::add(TP_connection_type *c)
 {
   DBUG_ENTER("tp_add_connection");
 
@@ -1339,12 +1339,12 @@ void TP_pool_generic::add(TP_connection *c)
   DBUG_VOID_RETURN;
 }
 
-void TP_pool_generic::resume(TP_connection* c)
+void TP_pool_generic::resume(TP_connection_type* c)
 {
   add(c);
 }
 
-int TP_pool_generic::wake(TP_connection *c)
+int TP_pool_generic::wake(TP_connection_type *c)
 {
 #ifdef _WIN32
   TP_connection_generic *connection=(TP_connection_generic *)c;
