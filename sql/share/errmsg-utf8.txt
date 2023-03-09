@@ -11001,6 +11001,304 @@ ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS
         eng "Do not support online operation on table with GIS index"
         spa "No soporta operación en línea en tabla con índice GIS"
         sw "Haiwezi kufanya operesheni ya mtandaoni kwenye jedwali na faharisi ya GIS"
+
+ER_MYSQL_3061
+        eng ""
+
+ER_MYSQL_3062
+        eng ""
+
+ER_MYSQL_3063
+        eng ""
+
+ER_MYSQL_3064
+        eng ""
+
+ER_MYSQL_3065
+        eng ""
+
+ER_MYSQL_3066
+        eng ""
+
+ER_MYSQL_3067
+        eng ""
+
+ER_MYSQL_3068
+        eng ""
+
+ER_MYSQL_3069
+        eng ""
+
+ER_MYSQL_3070
+        eng ""
+
+ER_MYSQL_3071
+        eng ""
+
+ER_MYSQL_3072
+        eng ""
+
+ER_MYSQL_3073
+        eng ""
+
+ER_MYSQL_3074
+        eng ""
+
+ER_MYSQL_3075
+        eng ""
+
+ER_MYSQL_3076
+        eng ""
+
+ER_MYSQL_3077
+        eng ""
+
+ER_MYSQL_3078
+        eng ""
+
+ER_MYSQL_3079
+        eng ""
+
+ER_MYSQL_3080
+        eng ""
+
+ER_MYSQL_3081
+        eng ""
+
+ER_MYSQL_3082
+        eng ""
+
+ER_MYSQL_3083
+        eng ""
+
+ER_MYSQL_3084
+        eng ""
+
+ER_MYSQL_3085
+        eng ""
+
+ER_MYSQL_3086
+        eng ""
+
+ER_MYSQL_3087
+        eng ""
+
+ER_MYSQL_3088
+        eng ""
+
+ER_MYSQL_3089
+        eng ""
+
+ER_MYSQL_3090
+        eng ""
+
+ER_MYSQL_3091
+        eng ""
+
+ER_MYSQL_3092
+        eng ""
+
+ER_MYSQL_3093
+        eng ""
+
+ER_MYSQL_3094
+        eng ""
+
+ER_MYSQL_3095
+        eng ""
+
+ER_MYSQL_3096
+        eng ""
+
+ER_MYSQL_3097
+        eng ""
+
+ER_MYSQL_3098
+        eng ""
+
+ER_MYSQL_3099
+        eng ""
+
+ER_MYSQL_3100
+        eng ""
+
+ER_MYSQL_3101
+        eng ""
+
+ER_MYSQL_3102
+        eng ""
+
+ER_MYSQL_3103
+        eng ""
+
+ER_MYSQL_3104
+        eng ""
+
+ER_MYSQL_3105
+        eng ""
+
+ER_MYSQL_3106
+        eng ""
+
+ER_MYSQL_3107
+        eng ""
+
+ER_MYSQL_3108
+        eng ""
+
+ER_MYSQL_3109
+        eng ""
+
+ER_MYSQL_3110
+        eng ""
+
+ER_MYSQL_3111
+        eng ""
+
+ER_MYSQL_3112
+        eng ""
+
+ER_MYSQL_3113
+        eng ""
+
+ER_MYSQL_3114
+        eng ""
+
+ER_MYSQL_3115
+        eng ""
+
+ER_MYSQL_3116
+        eng ""
+
+ER_MYSQL_3117
+        eng ""
+
+ER_MYSQL_3118
+        eng ""
+
+ER_MYSQL_3119
+        eng ""
+
+ER_MYSQL_3120
+        eng ""
+
+ER_MYSQL_3121
+        eng ""
+
+ER_MYSQL_3122
+        eng ""
+
+ER_MYSQL_3123
+        eng ""
+
+ER_MYSQL_3124
+        eng ""
+
+ER_MYSQL_3125
+        eng ""
+
+ER_MYSQL_3126
+        eng ""
+
+ER_MYSQL_3127
+        eng ""
+
+ER_MYSQL_3128
+        eng ""
+
+ER_MYSQL_3129
+        eng ""
+
+ER_MYSQL_3130
+        eng ""
+
+ER_MYSQL_3131
+        eng ""
+
+ER_MYSQL_3132
+        eng ""
+
+ER_MYSQL_3133
+        eng ""
+
+ER_MYSQL_3134
+        eng ""
+
+ER_MYSQL_3135
+        eng ""
+
+ER_MYSQL_3136
+        eng ""
+
+ER_MYSQL_3137
+        eng ""
+
+ER_MYSQL_3138
+        eng ""
+
+ER_MYSQL_3139
+        eng ""
+
+ER_MYSQL_3140
+        eng ""
+
+ER_MYSQL_3141
+        eng ""
+
+ER_MYSQL_3142
+        eng ""
+
+ER_MYSQL_3143
+        eng ""
+
+ER_MYSQL_3144
+        eng ""
+
+ER_MYSQL_3145
+        eng ""
+
+ER_MYSQL_3146
+        eng ""
+
+ER_MYSQL_3147
+        eng ""
+
+ER_MYSQL_3148
+        eng ""
+
+ER_MYSQL_3149
+        eng ""
+
+ER_MYSQL_3150
+        eng ""
+
+ER_MYSQL_3151
+        eng ""
+
+ER_MYSQL_3152
+        eng ""
+
+ER_MYSQL_3153
+        eng ""
+
+ER_MYSQL_3154
+        eng ""
+
+ER_MYSQL_3155
+        eng ""
+
+ER_MYSQL_3156
+        eng ""
+
+ER_MYSQL_3157
+        eng ""
+
+ER_MYSQL_3158
+        eng ""
+
+ER_SECURE_TRANSPORT_REQUIRED 08004
+        eng "Connections using insecure transport are prohibited while --require_secure_transport=ON."
+
 # MariaDB extra error numbers starts from 4000
 skip-to-error-number 4000
 

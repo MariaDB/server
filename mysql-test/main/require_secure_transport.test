@@ -2,7 +2,7 @@
 CREATE TABLE t1 (t int(1));
 SET GLOBAL require_secure_transport=ON;
 --disable_query_log
---error ER_ACCESS_DENIED_ERROR
+--error ER_SECURE_TRANSPORT_REQUIRED
 connect without_ssl,localhost,root,,,,,TCP NOSSL;
 --enable_query_log
 connection default;

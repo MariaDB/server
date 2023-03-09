@@ -1,6 +1,6 @@
 CREATE TABLE t1 (t int(1));
 SET GLOBAL require_secure_transport=ON;
-ERROR 28000: Access denied for user 'root'@'localhost' (using password: NO)
+ERROR HY000: Connections using insecure transport are prohibited while --require_secure_transport=ON.
 connection default;
 SET GLOBAL require_secure_transport=OFF;
 disconnect without_ssl;

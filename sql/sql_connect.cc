@@ -829,6 +829,21 @@ bool init_new_connection_handler_thread()
   return 0;
 }
 
+static bool check_require_secured_transport(THD *thd)
+{
+  Vio *vio= thd->net.vio;
+  if (opt_require_secure_transport)
+  {
+    enum enum_vio_type type= vio_type(vio);
+
+    return
+      (type != VIO_TYPE_SSL) &&
+      (type != VIO_TYPE_NAMEDPIPE) &&
+      (type != VIO_TYPE_SOCKET);
+  }
+  return 0;
+}
+
 /**
   Set client address during authentication.
 
@@ -1079,6 +1094,17 @@ static int check_connection(THD *thd)
     statistic_increment(connection_errors_internal, &LOCK_status);
     statistic_increment(aborted_connects_preauth, &LOCK_status);
     return 1; /* The error is set by alloc(). */
+  }
+
+  if(check_require_secured_transport(thd))
+  {
+    Host_errors errors;
+    errors.m_ssl= 1;
+    inc_host_errors(thd->main_security_ctx.ip, &errors);
+    status_var_increment(thd->status_var.access_denied_errors);
+    my_error(ER_SECURE_TRANSPORT_REQUIRED, MYF(0));
+
+    return 1;
   }
 
   auth_rc= acl_authenticate(thd, 0);
