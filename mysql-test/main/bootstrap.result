@@ -1,13 +1,26 @@
-drop table if exists t1;
+#
+# test mysqld in bootstrap mode
+#
+#
+# Check that --bootstrap reads from stdin
+#
 drop table t1;
+#
+# Check that --bootstrap of file with SQL error returns error
+#
 drop table t1;
 ERROR 42S02: Unknown table 'test.t1'
+#
+# Bootstrap with a large thd->net.max_packet
+#
 set @my_max_allowed_packet= @@max_allowed_packet;
 set @@global.max_allowed_packet= greatest(1073741824, @@max_allowed_packet);
 set @max_allowed_packed=@@global.max_allowed_packet;
 set global max_allowed_packet=@my_max_allowed_packet;
 drop table t1;
-End of 5.1 tests
+# 
+# End of 5.1 tests
+#
 #
 # Bug #11766306: 59393: HAVE_INNODB=YES WHEN MYSQLD 
 #  STARTED WITH --SKIP-INNODB
@@ -15,7 +28,21 @@ End of 5.1 tests
 SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
  and SUPPORT='YES';
 
-End of 5.5 tests
+#
+# MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
+#
+#
+# MDEV-19349 mysql_install_db: segfault at tmp_file_prefix check
+#
+#
+# End of 5.5 tests
+#
+#
+# Check that --bootstrap can install and uninstall plugins
+#
+#
+# Check that installed plugins are *not* automatically loaded in --bootstrap
+#
 flush tables;
 show create table t1;
 Table	Create Table
@@ -27,3 +54,12 @@ select * from mysql.plugin;
 name	dl
 EXAMPLE	ha_example.so
 truncate table mysql.plugin;
+#
+# MDEV-9969 mysql_install_db error processing ignore_db_dirs.
+#
+#
+# MDEV-13397 MariaDB upgrade fail when using default_time_zone
+#
+#
+# End of 10.3 tests
+#
