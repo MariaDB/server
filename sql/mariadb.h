@@ -24,6 +24,9 @@
   It can also include some defines that all files should be aware of.
 */
 
+#undef MYSQL_SERVER_SUFFIX
+#define MYSQL_SERVER_SUFFIX -experimental
+
 #ifndef MARIADB_INCLUDED
 #define MARIADB_INCLUDED
 #include <my_global.h>
