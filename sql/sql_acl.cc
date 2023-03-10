@@ -2437,6 +2437,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
                             "possible to remove this privilege using REVOKE.",
                             host.host.hostname, host.db);
       }
+      else if (!host.db)
+        host.db= const_cast<char*>(host_not_specified.str);
       host.access= host_table.get_access();
       host.access= fix_rights_for_db(host.access);
       host.sort= get_magic_sort("hd", host.host.hostname, host.db);
@@ -2445,8 +2447,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       {
         sql_print_warning("'host' entry '%s|%s' "
                         "ignored in --skip-name-resolve mode.",
-                         safe_str(host.host.hostname),
-                         safe_str(host.db));
+                         host.host.hostname, host.db);
         continue;
       }
 #ifndef TO_BE_REMOVED
@@ -3533,7 +3534,7 @@ ulong acl_get(const char *host, const char *ip,
     ACL_HOST *acl_host=dynamic_element(&acl_hosts,i,ACL_HOST*);
     if (compare_hostname(&acl_host->host,host,ip))
     {
-      if (!acl_host->db || !wild_compare(db,acl_host->db,db_is_pattern))
+      if (!wild_compare(db, acl_host->db, db_is_pattern))
       {
 	host_access=acl_host->access;		// Fully specified. Take it
 	break;
