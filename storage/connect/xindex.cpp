@@ -45,6 +45,7 @@
 //nclude "array.h"
 #include "filamtxt.h"
 #include "tabdos.h"
+#include "m_string.h"
 #if defined(VCT_SUPPORT)
 #include "tabvct.h"
 #endif   // VCT_SUPPORT
@@ -857,7 +858,8 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     char fname[_MAX_FNAME];
 
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
-    strcat(strcat(fname, "_"), Xdp->GetName());
+    safe_strcat(fname, sizeof(fname), "_");
+    safe_strcat(fname, sizeof(fname), Xdp->GetName());
     _makepath(fn, drive, direc, fname, ftype);
     sxp = NULL;
   } else {
@@ -1011,7 +1013,8 @@ bool XINDEX::Init(PGLOBAL g)
     char fname[_MAX_FNAME];
 
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
-    strcat(strcat(fname, "_"), Xdp->GetName());
+    safe_strcat(fname, sizeof(fname), "_");
+    safe_strcat(fname, sizeof(fname), Xdp->GetName());
     _makepath(fn, drive, direc, fname, ftype);
   } else {
     id = ID;
@@ -1265,7 +1268,8 @@ bool XINDEX::MapInit(PGLOBAL g)
     char fname[_MAX_FNAME];
 
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
-    strcat(strcat(fname, "_"), Xdp->GetName());
+    safe_strcat(fname, sizeof(fname), "_");
+    safe_strcat(fname, sizeof(fname), Xdp->GetName());
     _makepath(fn, drive, direc, fname, ftype);
   } else {
     id = ID;
@@ -1480,7 +1484,8 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
     char fname[_MAX_FNAME];
 
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
-    strcat(strcat(fname, "_"), Xdp->GetName());
+    safe_strcat(fname, sizeof(fname), "_");
+    safe_strcat(fname, sizeof(fname), Xdp->GetName());
     _makepath(fn, drive, direc, fname, ftype);
   } else {
     id = ID;

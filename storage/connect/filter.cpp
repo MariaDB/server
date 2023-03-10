@@ -386,7 +386,7 @@ int FILTER::CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &p, int &ag)
     } // endfor i
 
   if (*errmsg) {
-    strcpy(g->Message, errmsg);
+    snprintf(g->Message, sizeof(g->Message), errmsg);
     return -1;
   } else
     return n;
@@ -993,7 +993,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
         break;
       case TYPE_ARRAY:
         if ((Opc != OP_IN && !Opm) || i == 0) {
-          strcpy(g->Message, MSG(BAD_ARRAY_OPER));
+          snprintf(g->Message, sizeof(g->Message), MSG(BAD_ARRAY_OPER));
           return TRUE;
           } // endif
 
@@ -1007,7 +1007,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
           goto TEST;             // Filter has only one argument
           } // endif i
 
-        strcpy(g->Message, MSG(VOID_FIRST_ARG));
+        snprintf(g->Message, sizeof(g->Message), MSG(VOID_FIRST_ARG));
         return TRUE;
       } // endswitch
 
@@ -1052,7 +1052,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
     } // endif Opc
 
     if (comtype == TYPE_ERROR) {
-      strcpy(g->Message, MSG(ILL_FILTER_CONV));
+      snprintf(g->Message, sizeof(g->Message), MSG(ILL_FILTER_CONV));
       return TRUE;
       } // endif
 
@@ -1101,7 +1101,7 @@ bool FILTER::Convert(PGLOBAL g, bool having)
 
           break;
         case TYPE_FILTER:
-          strcpy(g->Message, MSG(UNMATCH_FIL_ARG));
+          snprintf(g->Message, sizeof(g->Message), MSG(UNMATCH_FIL_ARG));
           return TRUE;
         default:
           // Conversion from Column, Select/Func, Expr, Scalfnc...
@@ -1270,7 +1270,7 @@ bool FILTER::Eval(PGLOBAL g)
           ap = (PARRAY)Arg(1);
           break;
         default:
-          strcpy(g->Message, MSG(IN_WITHOUT_SUB));
+          snprintf(g->Message, sizeof(g->Message), MSG(IN_WITHOUT_SUB));
           goto FilterError;
         } // endswitch Type
 
