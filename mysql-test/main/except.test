@@ -14,8 +14,10 @@ EXPLAIN extended select * from ((select a,b from t1) except (select c,d from t2)
 EXPLAIN format=json (select a,b from t1) except (select c,d from t2);
 
 --replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
+--source include/analyze-format.inc
 ANALYZE format=json (select a,b from t1) except (select c,d from t2);
 --replace_regex /"r_total_time_ms": [0-9e\.\-+]*,/"r_total_time_ms": "REPLACED",/
+--source include/analyze-format.inc
 ANALYZE format=json select * from ((select a,b from t1) except (select c,d from t2)) a;
 select * from ((select a,b from t1) except (select c,d from t2)) a;
 

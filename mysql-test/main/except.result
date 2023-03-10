@@ -327,7 +327,8 @@ ANALYZE
               "buffer_type": "flat",
               "buffer_size": "119",
               "join_type": "BNL",
-              "r_filtered": 100
+              "r_filtered": 100,
+              "r_unpack_time_ms": 0.0012
             }
           }
         },
@@ -361,7 +362,8 @@ ANALYZE
               "buffer_type": "flat",
               "buffer_size": "119",
               "join_type": "BNL",
-              "r_filtered": 100
+              "r_filtered": 100,
+              "r_unpack_time_ms": 5.4e-4
             }
           }
         }
@@ -423,7 +425,8 @@ ANALYZE
                     "buffer_type": "flat",
                     "buffer_size": "119",
                     "join_type": "BNL",
-                    "r_filtered": 100
+                    "r_filtered": 100,
+                    "r_unpack_time_ms": 0.0011
                   }
                 }
               },
@@ -457,7 +460,8 @@ ANALYZE
                     "buffer_type": "flat",
                     "buffer_size": "119",
                     "join_type": "BNL",
-                    "r_filtered": 100
+                    "r_filtered": 100,
+                    "r_unpack_time_ms": 6.1e-4
                   }
                 }
               }

@@ -145,7 +145,8 @@ ANALYZE
       "buffer_type": "flat",
       "buffer_size": "1Kb",
       "join_type": "BNL",
-      "r_filtered": 100
+      "r_filtered": 100,
+      "r_unpack_time_ms": "REPLACED"
     }
   }
 }
@@ -184,7 +185,8 @@ ANALYZE
       "buffer_size": "1Kb",
       "join_type": "BNL",
       "attached_condition": "tbl1.c > tbl2.c",
-      "r_filtered": 15.833
+      "r_filtered": 15.833,
+      "r_unpack_time_ms": "REPLACED"
     }
   }
 }
@@ -628,7 +630,8 @@ ANALYZE
       "buffer_size": "65",
       "join_type": "BNL",
       "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
-      "r_filtered": null
+      "r_filtered": null,
+      "r_unpack_time_ms": "REPLACED"
     },
     "subqueries": [
       {
@@ -713,7 +716,8 @@ ANALYZE
               "buffer_type": "flat",
               "buffer_size": "1",
               "join_type": "BNL",
-              "r_filtered": null
+              "r_filtered": null,
+              "r_unpack_time_ms": "REPLACED"
             },
             "subqueries": [
               {
@@ -745,7 +749,8 @@ ANALYZE
                       "buffer_size": "65",
                       "join_type": "BNL",
                       "attached_condition": "t2.f2 = t3.f3",
-                      "r_filtered": null
+                      "r_filtered": null,
+                      "r_unpack_time_ms": "REPLACED"
                     }
                   }
                 }
