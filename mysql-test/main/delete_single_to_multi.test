@@ -15,7 +15,9 @@ use dbt3_s001;
 --enable_query_log
 
 create index i_n_name on nation(n_name);
-analyze table nation;
+analyze table
+  nation, lineitem, customer, orders, part, supplier, partsupp, region
+persistent for all;
 
 
 --echo # Pullout
@@ -242,15 +244,17 @@ drop table t;
 --echo # Materialization
 --echo # ===============
 
+set optimizer_switch='firstmatch=off';
+
 let $c7=
+        c_nationkey in (select n_nationkey from nation where
+           n_name in ('JAPAN', 'INDONESIA', 'PERU', 'ARGENTINA'))
+        and
         c_custkey in (select o_custkey from orders
-                      where o_orderDATE between '1992-01-09' and '1992-03-08');
+                      where o_orderDATE between "1992-01-09" and "1995-01-08");
 
 eval
 explain
-select c_name, c_acctbal from customer where $c7;
-eval
-explain format=json
 select c_name, c_acctbal from customer where $c7;
 --sorted_result
 eval
@@ -263,9 +267,6 @@ eval
 explain
 delete from customer where $c7;
 eval
-explain format=json
-delete from customer where $c7;
-eval
 delete from customer where $c7;
 eval
 select c_name, c_acctbal from customer where $c7;
@@ -276,13 +277,17 @@ eval
 select c_name, c_acctbal from customer where $c7;
 drop table t;
 
+set optimizer_switch='firstmatch=default';
 
 let $c8=
         c_custkey in (select o_custkey from orders
-                      where o_orderDATE between '1992-06-09' and '1993-01-08');
+                      where o_orderDATE between '1992-01-09' and '1993-03-08');
 
 eval
 explain
+select c_name, c_acctbal from customer where $c8;
+eval
+explain format=json
 select c_name, c_acctbal from customer where $c8;
 --sorted_result
 eval
@@ -295,6 +300,9 @@ eval
 explain
 delete from customer where $c8;
 eval
+explain format=json
+delete from customer where $c8;
+eval
 delete from customer where $c8;
 eval
 select c_name, c_acctbal from customer where $c8;
@@ -306,19 +314,12 @@ select c_name, c_acctbal from customer where $c8;
 drop table t;
 
 
---echo # Materialization SJM
---echo # ===================
-
 let $c9=
         c_custkey in (select o_custkey from orders
-                        where o_orderDATE between '1992-01-09' and '1992-03-08'
-                      group by o_custkey having count(o_custkey) > 1);
+                      where o_orderDATE between '1992-06-09' and '1993-01-08');
 
 eval
 explain
-select c_name, c_acctbal from customer where $c9;
-eval
-explain format=json
 select c_name, c_acctbal from customer where $c9;
 --sorted_result
 eval
@@ -331,9 +332,6 @@ eval
 explain
 delete from customer where $c9;
 eval
-explain format=json
-delete from customer where $c9;
-eval
 delete from customer where $c9;
 eval
 select c_name, c_acctbal from customer where $c9;
@@ -345,13 +343,19 @@ select c_name, c_acctbal from customer where $c9;
 drop table t;
 
 
+--echo # Materialization SJM
+--echo # ===================
+
 let $c10=
         c_custkey in (select o_custkey from orders
-                        where o_orderDATE between '1992-01-09' and '1993-03-08'
-                      group by o_custkey having count(o_custkey) > 5);
+                        where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
 
 eval
 explain
+select c_name, c_acctbal from customer where $c10;
+eval
+explain format=json
 select c_name, c_acctbal from customer where $c10;
 --sorted_result
 eval
@@ -364,6 +368,9 @@ eval
 explain
 delete from customer where $c10;
 eval
+explain format=json
+delete from customer where $c10;
+eval
 delete from customer where $c10;
 eval
 select c_name, c_acctbal from customer where $c10;
@@ -372,6 +379,36 @@ insert into customer select * from t;
 --sorted_result
 eval
 select c_name, c_acctbal from customer where $c10;
+drop table t;
+
+
+let $c11=
+        c_custkey in (select o_custkey from orders
+                        where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+
+eval
+explain
+select c_name, c_acctbal from customer where $c11;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c11;
+eval
+create table t as
+select * from customer where $c11;
+
+eval
+explain
+delete from customer where $c11;
+eval
+delete from customer where $c11;
+eval
+select c_name, c_acctbal from customer where $c11;
+
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c11;
 drop table t;
 
 
@@ -416,6 +453,8 @@ deallocate prepare stmt;
 --echo # FirstMatch PS
 --echo # =============
 
+set optimizer_switch='materialization=off';
+
 eval
 prepare stmt from "
 delete from customer where $c5;
@@ -450,42 +489,43 @@ drop table t,r;
 
 deallocate prepare stmt;
 
+set optimizer_switch='materialization=default';
 
 --echo # Materialization PS
 --echo # ==================
 
 eval
 prepare stmt from "
-delete from customer where $c7 and c_name like ?;
+delete from customer where $c8 and c_name like ?;
 ";
 
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 set @a1='Customer#%1_';
 eval
 create table t as
-select * from customer where $c7 and c_name like @a1;
+select * from customer where $c8 and c_name like @a1;
 execute stmt using @a1;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 insert into customer select * from t;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 set @a2='Customer#%3_';
 eval
 create table r as
-select * from customer where $c7 and c_name like @a2;
+select * from customer where $c8 and c_name like @a2;
 execute stmt using @a2;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 insert into customer select * from r;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 drop table t,r;
 
 deallocate prepare stmt;
@@ -496,38 +536,38 @@ deallocate prepare stmt;
 
 eval
 prepare stmt from "
-delete from customer where $c7 and c_acctbal between ? and ?;
+delete from customer where $c10 and c_acctbal between ? and ?;
 ";
 
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 set @a1=3500;
 set @a2=4000;
 eval
 create table t as
-select * from customer where $c9 and c_acctbal between @a1 and @a2;
+select * from customer where $c10 and c_acctbal between @a1 and @a2;
 execute stmt using @a1, @a2;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 insert into customer select * from t;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 set @a3=-1000;
 set @a4=3500;
 eval
 create table r as
-select * from customer where $c9 and c_acctbal between @a3 and @a4;
+select * from customer where $c10 and c_acctbal between @a3 and @a4;
 execute stmt using @a3, @a4;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 insert into customer select * from r;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 drop table t,r;
 
 deallocate prepare stmt;
@@ -573,6 +613,8 @@ drop procedure p;
 --echo # FirstMatch SP
 --echo # =============
 
+set optimizer_switch='materialization=off';
+
 eval
 create procedure p(a int)
 delete from customer where $c5 and c_acctbal > a;
@@ -606,39 +648,41 @@ drop table t,r;
 
 drop procedure p;
 
+set optimizer_switch='materialization=default';
+
 
 --echo # Materialization SP
 --echo # ==================
 
 eval
 create procedure p()
-delete from customer where $c7;
+delete from customer where $c8;
 
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 eval
 create table t as
-select * from customer where $c7;
+select * from customer where $c8;
 call p();
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 insert into customer select * from t;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 eval
 create table r as
-select * from customer where $c7;
+select * from customer where $c8;
 call p();
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 insert into customer select * from r;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 drop table t,r;
 
 drop procedure p;
@@ -649,33 +693,33 @@ drop procedure p;
 
 eval
 create procedure p()
-delete from customer where $c9;
+delete from customer where $c10;
 
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 eval
 create table t as
-select * from customer where $c9;
+select * from customer where $c10;
 call p();
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 insert into customer select * from t;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 eval
 create table r as
-select * from customer where $c9;
+select * from customer where $c10;
 call p();
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 insert into customer select * from r;
 --sorted_result
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 drop table t,r;
 
 drop procedure p;
@@ -687,64 +731,44 @@ drop procedure p;
 
 --sorted_result
 eval
-select c_name from customer where $c7;
+select c_name from customer where $c8;
 eval
 create table t as
-select * from customer where $c7;
+select * from customer where $c8;
 eval
 explain
-delete from customer where $c7 returning c_name;
+delete from customer where $c8 returning c_name;
 --sorted_result
 eval
-delete from customer where $c7 returning c_name;
+delete from customer where $c8 returning c_name;
 --sorted_result
 eval
-select c_name from customer where $c7;
+select c_name from customer where $c8;
 insert into customer select * from t;
 --sorted_result
 eval
-select c_name from customer where $c7;
+select c_name from customer where $c8;
 drop table t;
 
 --sorted_result
 eval
-select c_name from customer where $c9;
+select c_name from customer where $c10;
 eval
 create table t as
-select * from customer where $c9;
+select * from customer where $c10;
 eval
 explain
-delete from customer where $c9 returning c_name;
+delete from customer where $c10 returning c_name;
 --sorted_result
 eval
-delete from customer where $c9 returning c_name;
+delete from customer where $c10 returning c_name;
 --sorted_result
 eval
-select c_name from customer where $c9;
+select c_name from customer where $c10;
 insert into customer select * from t;
 --sorted_result
 eval
-select c_name from customer where $c9;
-drop table t;
-
---echo # Check for DELETE ... RETURNING with SJ subquery in WHERE
-
---sorted_result
-eval
-select c_name from customer where $c7;
-eval
-create table t as
-select * from customer where $c7;
-eval
-explain
-delete from customer where $c7 returning c_name;
---sorted_result
-eval
-delete from customer where $c7 returning c_name;
---sorted_result
-eval
-select c_name from customer where $c7;
-insert into customer select * from t;
+select c_name from customer where $c10;
 drop table t;
 
 --echo # Check for DELETE ... ORDER BY ...LIMIT  with SJ subquery in WHERE

@@ -32596,7 +32596,8 @@ bool Sql_cmd_dml::execute_inner(THD *thd)
   if (unlikely(thd->is_error()))
     goto err;
 
-  join->exec();
+  if (join->exec())
+    goto err;
 
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {

@@ -15,8 +15,9 @@ use dbt3_s001;
 --enable_query_log
 
 create index i_n_name on nation(n_name);
-analyze table nation;
-
+analyze table
+  nation, lineitem, customer, orders, part, supplier, partsupp, region
+persistent for all;
 
 --echo # Pullout
 --echo # =======
@@ -209,117 +210,148 @@ select c_name, c_acctbal from customer where $c6;
 --echo # Materialization
 --echo # ===============
 
+set optimizer_switch='firstmatch=off';
+
 let $c7=
+        c_nationkey in (select n_nationkey from nation where
+           n_name in ('JAPAN', 'INDONESIA', 'PERU', 'ARGENTINA'))
+        and
         c_custkey in (select o_custkey from orders
-                      where o_orderDATE between '1992-01-09' and '1992-03-08');
+                      where o_orderDATE between "1992-01-09" and "1995-01-08");
 
 eval
 explain
-select c_name, c_acctbal from customer where $c7;
-eval
-explain format=json
 select c_name, c_acctbal from customer where $c7;
 eval
 select c_name, c_acctbal from customer where $c7;
 
 eval
 explain
-update customer set c_acctbal = c_acctbal+5 where $c7;
+update customer set c_acctbal = c_acctbal+20 where $c7;
 eval
-explain format=json
-update customer set c_acctbal = c_acctbal+5 where $c7;
-eval
-update customer set c_acctbal = c_acctbal+5 where $c7;
+update customer set c_acctbal = c_acctbal+20 where $c7;
 eval
 select c_name, c_acctbal from customer where $c7;
 
 eval
-update customer set c_acctbal = c_acctbal-5 where $c7;
+update customer set c_acctbal = c_acctbal-20 where $c7;
 eval
 select c_name, c_acctbal from customer where $c7;
 
+set optimizer_switch='firstmatch=default';
 
 let $c8=
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between '1992-01-09' and '1993-03-08');
+
+eval
+explain
+select c_name, c_acctbal from customer where $c8;
+eval
+explain format=json
+select c_name, c_acctbal from customer where $c8;
+eval
+select c_name, c_acctbal from customer where $c8;
+
+eval
+explain
+update customer set c_acctbal = c_acctbal+5 where $c8;
+eval
+explain format=json
+update customer set c_acctbal = c_acctbal+5 where $c8;
+eval
+update customer set c_acctbal = c_acctbal+5 where $c8;
+eval
+select c_name, c_acctbal from customer where $c8;
+
+eval
+update customer set c_acctbal = c_acctbal-5 where $c8;
+eval
+select c_name, c_acctbal from customer where $c8;
+
+
+let $c9=
         c_custkey in (select o_custkey from orders
                       where o_orderDATE between '1992-06-09' and '1993-01-08');
 
 eval
 explain
-select c_name, c_acctbal from customer where $c8;
+select c_name, c_acctbal from customer where $c9;
 eval
-select c_name, c_acctbal from customer where $c8;
+select c_name, c_acctbal from customer where $c9;
 
 eval
 explain
-update customer set c_acctbal = c_acctbal+1 where $c8;
+update customer set c_acctbal = c_acctbal+1 where $c9;
 eval
-update customer set c_acctbal = c_acctbal+1 where $c8;
+update customer set c_acctbal = c_acctbal+1 where $c9;
 eval
-select c_name, c_acctbal from customer where $c8;
+select c_name, c_acctbal from customer where $c9;
 
 eval
-update customer set c_acctbal = c_acctbal-1 where $c8;
+update customer set c_acctbal = c_acctbal-1 where $c9;
 eval
-select c_name, c_acctbal from customer where $c8;
+select c_name, c_acctbal from customer where $c9;
+
 
 
 --echo # Materialization SJM
 --echo # ===================
 
-let $c9=
+let $c10=
         c_custkey in (select o_custkey from orders
                         where o_orderDATE between '1992-01-09' and '1992-03-08'
                       group by o_custkey having count(o_custkey) > 1);
 
 eval
 explain
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 eval
 explain format=json
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 
 eval
 explain
-update customer set c_acctbal = c_acctbal-5 where $c9;
+update customer set c_acctbal = c_acctbal-5 where $c10;
 eval
 explain format=json
-update customer set c_acctbal = c_acctbal-5 where $c9;
+update customer set c_acctbal = c_acctbal-5 where $c10;
 eval
-update customer set c_acctbal = c_acctbal-5 where $c9;
+update customer set c_acctbal = c_acctbal-5 where $c10;
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 
 eval
-update customer set c_acctbal = c_acctbal+5 where $c9;
+update customer set c_acctbal = c_acctbal+5 where $c10;
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 
 
-let $c10=
+let $c11=
         c_custkey in (select o_custkey from orders
                         where o_orderDATE between '1992-01-09' and '1993-03-08'
                       group by o_custkey having count(o_custkey) > 5);
 
 eval
 explain
-select c_name, c_acctbal from customer where $c10;
+select c_name, c_acctbal from customer where $c11;
 eval
-select c_name, c_acctbal from customer where $c10;
+select c_name, c_acctbal from customer where $c11;
 
 eval
 explain
-update customer set c_acctbal = c_acctbal-1 where $c10;
+update customer set c_acctbal = c_acctbal-1 where $c11;
 eval
-update customer set c_acctbal = c_acctbal-1 where $c10;
+update customer set c_acctbal = c_acctbal-1 where $c11;
 eval
-select c_name, c_acctbal from customer where $c10;
+select c_name, c_acctbal from customer where $c11;
 
 eval
-update customer set c_acctbal = c_acctbal+1 where $c10;
+update customer set c_acctbal = c_acctbal+1 where $c11;
 eval
-select c_name, c_acctbal from customer where $c10;
+select c_name, c_acctbal from customer where $c11;
 
 
 --echo # Pullout PS
@@ -350,6 +382,8 @@ deallocate prepare stmt;
 --echo # FirstMatch PS
 --echo # =============
 
+set optimizer_switch='materialization=off';
+
 eval
 prepare stmt from "
 update customer set c_acctbal = c_acctbal+? where $c5;
@@ -371,28 +405,29 @@ select c_name, c_acctbal from customer where $c5;
 
 deallocate prepare stmt;
 
+set optimizer_switch='materialization=default';
 
 --echo # Materialization PS
 --echo # ==================
 
 eval
 prepare stmt from "
-update customer set c_acctbal = c_acctbal+? where $c7;
+update customer set c_acctbal = c_acctbal+? where $c8;
 ";
 
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 set @a1=7;
 execute stmt using @a1;
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 set @a2=3;
 execute stmt using @a2;
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 execute stmt using -(@a1+@a2);
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 
 deallocate prepare stmt;
 
@@ -402,22 +437,22 @@ deallocate prepare stmt;
 
 eval
 prepare stmt from "
-update customer set c_acctbal = c_acctbal+? where $c9;
+update customer set c_acctbal = c_acctbal+? where $c10;
 ";
 
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 set @a1=-2;
 execute stmt using @a1;
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 set @a2=-1;
 execute stmt using @a2;
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 execute stmt using -(@a1+@a2);
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 
 deallocate prepare stmt;
 
@@ -447,6 +482,8 @@ drop procedure p;
 --echo # FirstMatch SP
 --echo # =============
 
+set optimizer_switch='materialization=off';
+
 eval
 create procedure p(d int)
 update customer set c_acctbal = c_acctbal+d where $c5;
@@ -465,25 +502,27 @@ select c_name, c_acctbal from customer where $c5;
 
 drop procedure p;
 
+set optimizer_switch='materialization=default';
+
 
 --echo # Materialization SP
 --echo # ==================
 
 eval
 create procedure p(d int)
-update customer set c_acctbal = c_acctbal+d where $c7;
+update customer set c_acctbal = c_acctbal+d where $c8;
 
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 call p(3);
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 call p(7);
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 call p(-(3+7));
 eval
-select c_name, c_acctbal from customer where $c7;
+select c_name, c_acctbal from customer where $c8;
 
 drop procedure p;
 
@@ -493,19 +532,19 @@ drop procedure p;
 
 eval
 create procedure p(d int)
-update customer set c_acctbal = c_acctbal+d where $c9;
+update customer set c_acctbal = c_acctbal+d where $c10;
 
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 call p(-1);
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 call p(-2);
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 call p(1+2);
 eval
-select c_name, c_acctbal from customer where $c9;
+select c_name, c_acctbal from customer where $c10;
 
 drop procedure p;
 

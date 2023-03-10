@@ -13134,20 +13134,7 @@ EXPLAIN
           "materialized": {
             "query_block": {
               "select_id": 3,
-<<<<<<< 2ad65c4dbcb291867725d50d1f53c8da8549afb3
               "cost": "COST_REPLACED",
-              "nested_loop": [
-                {
-                  "table": {
-                    "table_name": "t1",
-                    "access_type": "ALL",
-                    "loops": 1,
-                    "rows": 2,
-                    "cost": "COST_REPLACED",
-                    "filtered": 100,
-                    "attached_condition": "t1.f2 < 2"
-                  }
-=======
               "filesort": {
                 "sort_key": "t1.f2",
                 "temporary_table": {
@@ -13156,7 +13143,9 @@ EXPLAIN
                       "table": {
                         "table_name": "t1",
                         "access_type": "ALL",
+                        "loops": 1,
                         "rows": 2,
+                        "cost": "COST_REPLACED",
                         "filtered": 100,
                         "attached_condition": "t1.f2 < 2"
                       }

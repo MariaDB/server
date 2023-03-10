@@ -4471,7 +4471,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "rowid_filters": [
                   {
                     "key": "a",
-                    "build_cost": 0.174715752,
+                    "build_cost": 0.001129926,
                     "rows": 3
                   }
                 ]
@@ -4546,7 +4546,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                 "rowid_filters": [
                   {
                     "key": "a",
-                    "build_cost": 0.174715752,
+                    "build_cost": 0.001129926,
                     "rows": 3
                   }
                 ]
