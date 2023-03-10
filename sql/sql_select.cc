@@ -27396,6 +27396,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   tracker= &eta->tracker;
   jbuf_tracker= &eta->jbuf_tracker;
   jbuf_loops_tracker= &eta->jbuf_loops_tracker;
+  jbuf_unpack_tracker= &eta->jbuf_unpack_tracker;
 
   /* Enable the table access time tracker only for "ANALYZE stmt" */
   if (thd->lex->analyze_stmt)
@@ -28029,7 +28030,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
 
       Explain_table_access *eta= (new (output->mem_root)
-                                  Explain_table_access(output->mem_root));
+                                  Explain_table_access(output->mem_root,
+                                                       thd->lex->analyze_stmt));
 
       if (!eta)
         DBUG_RETURN(1);

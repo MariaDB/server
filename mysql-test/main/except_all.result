@@ -455,6 +455,7 @@ ANALYZE
               "join_type": "BNL",
               "r_loops": 3,
               "r_filtered": 100,
+              "r_unpack_time_ms": "REPLACED",
               "r_effective_rows": 3
             }
           }
@@ -493,6 +494,7 @@ ANALYZE
               "join_type": "BNL",
               "r_loops": 2,
               "r_filtered": 100,
+              "r_unpack_time_ms": "REPLACED",
               "r_effective_rows": 3
             }
           }
@@ -559,6 +561,7 @@ ANALYZE
                     "join_type": "BNL",
                     "r_loops": 3,
                     "r_filtered": 100,
+                    "r_unpack_time_ms": "REPLACED",
                     "r_effective_rows": 3
                   }
                 }
@@ -597,6 +600,7 @@ ANALYZE
                     "join_type": "BNL",
                     "r_loops": 2,
                     "r_filtered": 100,
+                    "r_unpack_time_ms": "REPLACED",
                     "r_effective_rows": 3
                   }
                 }

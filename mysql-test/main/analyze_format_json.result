@@ -153,6 +153,7 @@ ANALYZE
       "join_type": "BNL",
       "r_loops": 20,
       "r_filtered": 100,
+      "r_unpack_time_ms": "REPLACED",
       "r_effective_rows": 60
     }
   }
@@ -196,6 +197,7 @@ ANALYZE
       "attached_condition": "tbl1.c > tbl2.c",
       "r_loops": 20,
       "r_filtered": 15.83333333,
+      "r_unpack_time_ms": "REPLACED",
       "r_effective_rows": 60
     }
   }
@@ -658,6 +660,7 @@ ANALYZE
       "attached_condition": "<in_optimizer>(t2.b,t2.b in (subquery#2))",
       "r_loops": 2,
       "r_filtered": null,
+      "r_unpack_time_ms": "REPLACED",
       "r_effective_rows": 0
     },
     "subqueries": [
@@ -750,6 +753,7 @@ ANALYZE
               "join_type": "BNL",
               "r_loops": 2,
               "r_filtered": null,
+              "r_unpack_time_ms": "REPLACED",
               "r_effective_rows": 0
             },
             "subqueries": [
@@ -784,6 +788,7 @@ ANALYZE
                       "attached_condition": "t2.f2 = t3.f3",
                       "r_loops": 0,
                       "r_filtered": null,
+                      "r_unpack_time_ms": "REPLACED",
                       "r_effective_rows": null
                     }
                   }
@@ -921,6 +926,7 @@ ANALYZE
       "attached_condition": "t10.b = t11.b",
       "r_loops": 100,
       "r_filtered": 0.424285714,
+      "r_unpack_time_ms": "REPLACED",
       "r_effective_rows": 700
     }
   }
@@ -973,6 +979,7 @@ ANALYZE
       "attached_condition": "t10.b = t11.b",
       "r_loops": 100,
       "r_filtered": 100,
+      "r_unpack_time_ms": "REPLACED",
       "r_effective_rows": 2.97
     }
   }

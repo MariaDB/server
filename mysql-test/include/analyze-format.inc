@@ -1,3 +1,3 @@
 # The time on ANALYSE FORMAT=JSON is rather variable
 
---replace_regex /("(r_total_time_ms|r_table_time_ms|r_other_time_ms|r_buffer_size|r_filling_time_ms)": )[^, \n]*/\1"REPLACED"/
+--replace_regex /("(r_[a-z_]*_time_ms|r_buffer_size)": )[^, \n]*/\1"REPLACED"/
