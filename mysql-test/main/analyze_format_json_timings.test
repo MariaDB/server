@@ -1,0 +1,77 @@
+#
+#  Tests to check that r_something_time_ms is non-zero in
+#    ANALYZE FORMAT=JSON <statement>
+#
+--source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
+
+# The tests here are large so that we get non-zero timings
+--source include/big_test.inc
+
+--echo #
+--echo # MDEV-30830: ANALYZE FORMAT=JSON: r_unpack_time_ms is empty for the hashed joins
+--echo #
+
+--echo #
+--echo # First, check a regular BNL-join
+--echo #
+create table t1 (
+  a int,
+  b int
+);
+insert into t1 select seq, seq/3 from seq_0_to_99;
+
+create table t2 (
+  a int,
+  b int
+);
+insert into t2 select seq, seq/5 from seq_0_to_99;
+
+let $out=`
+analyze format=json
+select * from t1, t2
+where
+ t1.a < 700 and
+ t2.a < 100
+ and t1.b=t2.b
+`;
+
+evalp set @js='$out';
+set @out=(select json_extract(@js,'$**.block-nl-join.r_unpack_time_ms'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
+drop table t1,t2;
+
+--echo #
+--echo # Now, check the hashed, BNL-H join
+--echo #
+create table t1 (
+  a int,
+  b int
+);
+insert into t1 select seq, seq/3 from seq_0_to_499;
+
+create table t2 (
+  a int,
+  b int
+);
+insert into t2 select seq, seq/5 from seq_0_to_499;
+set @tmp=@@join_cache_level, join_cache_level=6;
+
+let $out=`
+analyze format=json
+select * from t1, t2
+where
+ t1.a < 700 and
+ t2.a < 100
+ and t1.b=t2.b
+`;
+
+--source include/analyze-format.inc
+evalp select '$out' as X;
+
+set @out=(select json_extract(@js,'$**.block-nl-join.r_unpack_time_ms'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
+
+set join_cache_level=@tmp;
+drop table t1, t2;
+

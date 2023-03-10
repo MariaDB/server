@@ -721,7 +721,7 @@ public:
 class Explain_table_access : public Sql_alloc
 {
 public:
-  Explain_table_access(MEM_ROOT *root) :
+  Explain_table_access(MEM_ROOT *root, bool timed) :
     derived_select_number(0),
     non_merged_sjm_number(0),
     extra_tags(root),
@@ -734,6 +734,7 @@ public:
     pushed_index_cond(NULL),
     sjm_nest(NULL),
     pre_join_sort(NULL),
+    jbuf_unpack_tracker(timed),
     rowid_filter(NULL)
   {}
   ~Explain_table_access() { delete sjm_nest; }
@@ -840,7 +841,12 @@ public:
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
   Table_access_tracker jbuf_tracker;
-  
+
+  /*
+    Track the time to unpack rows from the join buffer.
+  */
+  Time_and_counter_tracker jbuf_unpack_tracker;
+
   Explain_rowid_filter *rowid_filter;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
