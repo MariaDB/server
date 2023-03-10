@@ -120,8 +120,8 @@ static struct my_option my_long_options[] =
    0, 0, 0, 0},
   {"help", '?', "Displays this help and exits.", 0, 0, 0, GET_NO_ARG, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"host", 'h', "Connect to host.", &current_host,
-   &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"host", 'h', "Connect to host. If host is not specified, connect to localhost by default or $MARIADB_HOST",
+   &current_host, &current_host, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore", 'i', "If duplicate unique key was found, keep old row.",
    &ignore, &ignore, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"ignore-foreign-keys", 'k',
@@ -325,6 +325,9 @@ get_one_option(const struct my_option *opt, const char *argument,
 static int get_options(int *argc, char ***argv)
 {
   int ho_error;
+
+  if (current_host == NULL)
+    current_host= getenv("MARIADB_HOST");
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
     exit(ho_error);

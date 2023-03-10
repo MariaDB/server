@@ -1,0 +1,7 @@
+USE test;
+CREATE TABLE pet (name VARCHAR(20));
+localhost
+****************
+nonexistent-server
+Done
+DROP TABLE pet;
