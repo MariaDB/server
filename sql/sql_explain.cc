@@ -1886,6 +1886,9 @@ void Explain_table_access::print_explain_json(Explain_query *query,
         writer->add_double(jbuf_tracker.get_filtered_after_where()*100.0);
       else
         writer->add_null();
+
+      writer->add_member("r_unpack_time_ms");
+      writer->add_double(jbuf_unpack_tracker.get_time_ms());
       /*
         effective_rows is the average number of matches we've got for the
         incoming row. The row is stored in the join buffer and then is read

@@ -1546,6 +1546,7 @@ ANALYZE
       "mrr_type": "Rowid-ordered scan",
       "r_loops": 10,
       "r_filtered": 100,
+      "r_unpack_time_ms": "REPLACED",
       "r_effective_rows": 1
     }
   }
