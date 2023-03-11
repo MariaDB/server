@@ -185,13 +185,6 @@ lock_update_split_left(
 void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
                             const page_id_t right);
 
-/** Update the locks when a page is split and merged to two pages,
-in defragmentation. */
-void lock_update_split_and_merge(
-	const buf_block_t* left_block,	/*!< in: left page to which merged */
-	const rec_t* orig_pred,		/*!< in: original predecessor of
-					supremum on the left page before merge*/
-	const buf_block_t* right_block);/*!< in: right page from which merged */
 /*************************************************************//**
 Resets the original locks on heir and replaces them with gap type locks
 inherited from rec. */

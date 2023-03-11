@@ -945,10 +945,6 @@ struct zip_pad_info_t {
 				rounds */
 };
 
-/** Number of samples of data size kept when page compression fails for
-a certain index.*/
-#define STAT_DEFRAG_DATA_SIZE_N_SAMPLE	10
-
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
 const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
@@ -1114,23 +1110,6 @@ struct dict_index_t {
 	bool		stats_error_printed;
 				/*!< has persistent statistics error printed
 				for this index ? */
-	/* @} */
-	/** Statistics for defragmentation, these numbers are estimations and
-	could be very inaccurate at certain times, e.g. right after restart,
-	during defragmentation, etc. */
-	/* @{ */
-	ulint		stat_defrag_modified_counter;
-	ulint		stat_defrag_n_pages_freed;
-				/* number of pages freed by defragmentation. */
-	ulint		stat_defrag_n_page_split;
-				/* number of page splits since last full index
-				defragmentation. */
-	ulint		stat_defrag_data_size_sample[STAT_DEFRAG_DATA_SIZE_N_SAMPLE];
-				/* data size when compression failure happened
-				the most recent 10 times. */
-	ulint		stat_defrag_sample_next_slot;
-				/* in which slot the next sample should be
-				saved. */
 	/* @} */
 private:
   /** R-tree split sequence number */
@@ -2621,19 +2600,6 @@ dict_col_get_spatial_status(
 	}
 
 	return(spatial_status);
-}
-
-/** Clear defragmentation summary. */
-inline void dict_stats_empty_defrag_summary(dict_index_t* index)
-{
-	index->stat_defrag_n_pages_freed = 0;
-}
-
-/** Clear defragmentation related index stats. */
-inline void dict_stats_empty_defrag_stats(dict_index_t* index)
-{
-	index->stat_defrag_modified_counter = 0;
-	index->stat_defrag_n_page_split = 0;
 }
 
 #include "dict0mem.inl"

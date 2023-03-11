@@ -77,7 +77,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0lru.h"
 #include "dict0boot.h"
 #include "dict0load.h"
-#include "btr0defragment.h"
 #include "dict0crea.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
@@ -999,12 +998,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {"have_bzip2",      &(provider_service_bzip2->is_loaded),  SHOW_BOOL},
   {"have_snappy",     &(provider_service_snappy->is_loaded), SHOW_BOOL},
   {"have_punch_hole", &innodb_have_punch_hole, SHOW_BOOL},
-
-  /* Defragmentation */
-  {"defragment_compression_failures",
-   &export_vars.innodb_defragment_compression_failures, SHOW_SIZE_T},
-  {"defragment_failures", &export_vars.innodb_defragment_failures,SHOW_SIZE_T},
-  {"defragment_count", &export_vars.innodb_defragment_count, SHOW_SIZE_T},
 
   {"instant_alter_column",
    &export_vars.innodb_instant_alter_column, SHOW_ULONG},
@@ -14966,58 +14959,6 @@ ha_innobase::analyze(THD*, HA_CHECK_OPT*)
 	return(HA_ADMIN_OK);
 }
 
-/*****************************************************************//**
-Defragment table.
-@return	error number */
-inline int ha_innobase::defragment_table()
-{
-  for (dict_index_t *index= dict_table_get_first_index(m_prebuilt->table);
-       index; index= dict_table_get_next_index(index))
-  {
-    if (!index->is_btree())
-      continue;
-
-    if (btr_defragment_find_index(index))
-    {
-      // We borrow this error code. When the same index is already in
-      // the defragmentation queue, issuing another defragmentation
-      // only introduces overhead. We return an error here to let the
-      // user know this is not necessary. Note that this will fail a
-      // query that's trying to defragment a full table if one of the
-      // indicies in that table is already in defragmentation.  We
-      // choose this behavior so user is aware of this rather than
-      // silently defragment other indicies of that table.
-      return ER_SP_ALREADY_EXISTS;
-    }
-
-    btr_pcur_t pcur;
-
-    mtr_t mtr;
-    mtr.start();
-    if (dberr_t err= pcur.open_leaf(true, index, BTR_SEARCH_LEAF, &mtr))
-    {
-      mtr.commit();
-      return convert_error_code_to_mysql(err, 0, m_user_thd);
-    }
-    else if (btr_pcur_get_block(&pcur)->page.id().page_no() == index->page)
-    {
-      mtr.commit();
-      continue;
-    }
-
-    btr_pcur_move_to_next(&pcur, &mtr);
-    btr_pcur_store_position(&pcur, &mtr);
-    mtr.commit();
-    ut_ad(pcur.index() == index);
-    const bool interrupted= btr_defragment_add_index(&pcur, m_user_thd);
-    ut_free(pcur.old_rec_buf);
-    if (interrupted)
-      return ER_QUERY_INTERRUPTED;
-  }
-
-  return 0;
-}
-
 /**********************************************************************//**
 This is mapped to "ALTER TABLE tablename ENGINE=InnoDB", which rebuilds
 the table in MySQL. */
@@ -15038,25 +14979,6 @@ ha_innobase::optimize(
 	This works OK otherwise, but MySQL locks the entire table during
 	calls to OPTIMIZE, which is undesirable. */
 	bool try_alter = true;
-
-	if (!m_prebuilt->table->is_temporary()
-	    && m_prebuilt->table->is_readable()
-	    && srv_defragment) {
-		int err = defragment_table();
-
-		if (err == 0) {
-			try_alter = false;
-		} else {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    uint(err),
-				"InnoDB: Cannot defragment table %s: returned error code %d\n",
-				m_prebuilt->table->name.m_name, err);
-
-			if(err == ER_SP_ALREADY_EXISTS) {
-				try_alter = false;
-			}
-		}
-	}
 
 	if (innodb_optimize_fulltext_only) {
 		if (m_prebuilt->table->fts && m_prebuilt->table->fts->cache
@@ -18057,15 +17979,6 @@ innodb_reset_all_monitor_update(
 			      TRUE);
 }
 
-static
-void
-innodb_defragment_frequency_update(THD*, st_mysql_sys_var*, void*,
-				   const void* save)
-{
-	srv_defragment_frequency = (*static_cast<const uint*>(save));
-	srv_defragment_interval = 1000000000ULL / srv_defragment_frequency;
-}
-
 static inline char *my_strtok_r(char *str, const char *delim, char **saveptr)
 {
 #if defined _WIN32
@@ -19091,60 +19004,6 @@ static MYSQL_SYSVAR_BOOL(buffer_pool_load_at_startup, srv_buffer_pool_load_at_st
   "Load the buffer pool from a file named @@innodb_buffer_pool_filename",
   NULL, NULL, TRUE);
 
-static MYSQL_SYSVAR_BOOL(defragment, srv_defragment,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Enable/disable InnoDB defragmentation (default FALSE). When set to FALSE, all existing "
-  "defragmentation will be paused. And new defragmentation command will fail."
-  "Paused defragmentation commands will resume when this variable is set to "
-  "true again.",
-  NULL, NULL, FALSE);
-
-static MYSQL_SYSVAR_UINT(defragment_n_pages, srv_defragment_n_pages,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Number of pages considered at once when merging multiple pages to "
-  "defragment",
-  NULL, NULL, 7, 2, 32, 0);
-
-static MYSQL_SYSVAR_UINT(defragment_stats_accuracy,
-  srv_defragment_stats_accuracy,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "How many defragment stats changes there are before the stats "
-  "are written to persistent storage. Set to 0 meaning disable "
-  "defragment stats tracking.",
-  NULL, NULL, 0, 0, ~0U, 0);
-
-static MYSQL_SYSVAR_UINT(defragment_fill_factor_n_recs,
-  srv_defragment_fill_factor_n_recs,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "How many records of space defragmentation should leave on the page. "
-  "This variable, together with innodb_defragment_fill_factor, is introduced "
-  "so defragmentation won't pack the page too full and cause page split on "
-  "the next insert on every page. The variable indicating more defragmentation"
-  " gain is the one effective.",
-  NULL, NULL, 20, 1, 100, 0);
-
-static MYSQL_SYSVAR_DOUBLE(defragment_fill_factor, srv_defragment_fill_factor,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "A number between [0.7, 1] that tells defragmentation how full it should "
-  "fill a page. Default is 0.9. Number below 0.7 won't make much sense."
-  "This variable, together with innodb_defragment_fill_factor_n_recs, is "
-  "introduced so defragmentation won't pack the page too full and cause "
-  "page split on the next insert on every page. The variable indicating more "
-  "defragmentation gain is the one effective.",
-  NULL, NULL, 0.9, 0.7, 1, 0);
-
-static MYSQL_SYSVAR_UINT(defragment_frequency, srv_defragment_frequency,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
-  "Do not defragment a single index more than this number of time per second."
-  "This controls the number of time defragmentation thread can request X_LOCK "
-  "on an index. Defragmentation thread will check whether "
-  "1/defragment_frequency (s) has passed since it worked on this index last "
-  "time, and put the index back to the queue if not enough time has passed. "
-  "The actual frequency can only be lower than this given number.",
-  NULL, innodb_defragment_frequency_update,
-  SRV_DEFRAGMENT_FREQUENCY_DEFAULT, 1, 1000, 0);
-
-
 static MYSQL_SYSVAR_ULONG(lru_scan_depth, srv_LRU_scan_depth,
   PLUGIN_VAR_RQCMDARG,
   "How deep to scan LRU to keep it clean",
@@ -19719,12 +19578,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buffer_pool_load_pages_abort),
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(buffer_pool_load_at_startup),
-  MYSQL_SYSVAR(defragment),
-  MYSQL_SYSVAR(defragment_n_pages),
-  MYSQL_SYSVAR(defragment_stats_accuracy),
-  MYSQL_SYSVAR(defragment_fill_factor),
-  MYSQL_SYSVAR(defragment_fill_factor_n_recs),
-  MYSQL_SYSVAR(defragment_frequency),
   MYSQL_SYSVAR(lru_scan_depth),
   MYSQL_SYSVAR(lru_flush_size),
   MYSQL_SYSVAR(flush_neighbors),

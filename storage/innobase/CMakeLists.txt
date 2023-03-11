@@ -132,7 +132,6 @@ SET(INNOBASE_SOURCES
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
 	btr/btr0sea.cc
-	btr/btr0defragment.cc
 	buf/buf0block_hint.cc
 	buf/buf0buddy.cc
 	buf/buf0buf.cc
@@ -151,7 +150,6 @@ SET(INNOBASE_SOURCES
 	dict/dict0mem.cc
 	dict/dict0stats.cc
 	dict/dict0stats_bg.cc
-	dict/dict0defrag_bg.cc
 	dict/drop.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
@@ -186,7 +184,6 @@ SET(INNOBASE_SOURCES
 	include/btr0bulk.h
 	include/btr0cur.h
 	include/btr0cur.inl
-	include/btr0defragment.h
 	include/btr0pcur.h
 	include/btr0pcur.inl
 	include/btr0sea.h
@@ -211,7 +208,6 @@ SET(INNOBASE_SOURCES
 	include/dict0boot.h
 	include/dict0crea.h
 	include/dict0crea.inl
-	include/dict0defrag_bg.h
 	include/dict0dict.h
 	include/dict0dict.inl
 	include/dict0load.h

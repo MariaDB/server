@@ -60,7 +60,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0i_s.h"
 #include "trx0purge.h"
-#include "btr0defragment.h"
 #include "ut0mem.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
@@ -317,21 +316,6 @@ uint	srv_spin_wait_delay;
 
 /** Number of initialized rollback segments for persistent undo log */
 ulong	srv_available_undo_logs;
-
-/* Defragmentation */
-my_bool	srv_defragment;
-/** innodb_defragment_n_pages */
-uint	srv_defragment_n_pages;
-uint	srv_defragment_stats_accuracy;
-/** innodb_defragment_fill_factor_n_recs */
-uint	srv_defragment_fill_factor_n_recs;
-/** innodb_defragment_fill_factor */
-double	srv_defragment_fill_factor;
-/** innodb_defragment_frequency */
-uint	srv_defragment_frequency;
-/** derived from innodb_defragment_frequency;
-@see innodb_defragment_frequency_update() */
-ulonglong	srv_defragment_interval;
 
 /** Current mode of operation */
 enum srv_operation_mode srv_operation;
@@ -993,11 +977,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_n_temp_blocks_decrypted =
 		srv_stats.n_temp_blocks_decrypted;
-
-	export_vars.innodb_defragment_compression_failures =
-		btr_defragment_compression_failures;
-	export_vars.innodb_defragment_failures = btr_defragment_failures;
-	export_vars.innodb_defragment_count = btr_defragment_count;
 
 	export_vars.innodb_onlineddl_rowlog_rows = onlineddl_rowlog_rows;
 	export_vars.innodb_onlineddl_rowlog_pct_used = onlineddl_rowlog_pct_used;

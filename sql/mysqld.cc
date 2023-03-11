@@ -5302,6 +5302,12 @@ static int init_server_components()
 #if defined(__linux__)
       MARIADB_REMOVED_OPTION("super-large-pages"),
 #endif
+      MARIADB_REMOVED_OPTION("innodb-defragment"),
+      MARIADB_REMOVED_OPTION("innodb-defragment-n-pages"),
+      MARIADB_REMOVED_OPTION("innodb-defragment-stats-accuracy"),
+      MARIADB_REMOVED_OPTION("innodb-defragment-fill-factor"),
+      MARIADB_REMOVED_OPTION("innodb-defragment-fill-factor-n-recs"),
+      MARIADB_REMOVED_OPTION("innodb-defragment-frequency"),
       MARIADB_REMOVED_OPTION("innodb-idle-flush-pct"),
       MARIADB_REMOVED_OPTION("innodb-locks-unsafe-for-binlog"),
       MARIADB_REMOVED_OPTION("innodb-rollback-segments"),

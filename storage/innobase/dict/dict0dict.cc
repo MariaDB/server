@@ -2086,13 +2086,6 @@ dict_index_add_to_cache(
 	new_index->stat_index_size = 1;
 	new_index->stat_n_leaf_pages = 1;
 
-	new_index->stat_defrag_n_pages_freed = 0;
-	new_index->stat_defrag_n_page_split = 0;
-
-	new_index->stat_defrag_sample_next_slot = 0;
-	memset(&new_index->stat_defrag_data_size_sample,
-	       0x0, sizeof(ulint) * STAT_DEFRAG_DATA_SIZE_N_SAMPLE);
-
 	/* Add the new index as the last index for the table */
 
 	UT_LIST_ADD_LAST(new_index->table->indexes, new_index);

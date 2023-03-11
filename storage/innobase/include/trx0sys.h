@@ -589,8 +589,7 @@ public:
 
     So we take more expensive approach: get trx through current_thd()->ha_data.
     Some threads don't have trx attached to THD, and at least server
-    initialisation thread, fts_optimize_thread, srv_master_thread,
-    dict_stats_thread, srv_monitor_thread, btr_defragment_thread don't even
+    initialisation thread doesn't even
     have THD at all. For such cases we allocate pins only for duration of
     search and free them immediately.
 

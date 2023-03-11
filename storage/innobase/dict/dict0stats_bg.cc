@@ -27,7 +27,6 @@ Created Apr 25, 2012 Vasil Dimov
 #include "dict0dict.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
-#include "dict0defrag_bg.h"
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "fil0fil.h"
@@ -77,7 +76,6 @@ static void dict_stats_recalc_pool_deinit()
 	ut_ad(!srv_read_only_mode);
 
 	recalc_pool.clear();
-	defrag_pool.clear();
         /*
           recalc_pool may still have its buffer allocated. It will free it when
           its destructor is called.
@@ -87,9 +85,7 @@ static void dict_stats_recalc_pool_deinit()
           to empty_pool object, which will free it when leaving this function:
         */
 	recalc_pool_t recalc_empty_pool;
-	defrag_pool_t defrag_empty_pool;
 	recalc_pool.swap(recalc_empty_pool);
-	defrag_pool.swap(defrag_empty_pool);
 }
 
 /*****************************************************************//**
@@ -255,7 +251,6 @@ void dict_stats_init()
   ut_ad(!srv_read_only_mode);
   mysql_mutex_init(recalc_pool_mutex_key, &recalc_pool_mutex, nullptr);
   pthread_cond_init(&recalc_pool_cond, nullptr);
-  dict_defrag_pool_init();
   stats_initialised= true;
 }
 
@@ -272,7 +267,6 @@ void dict_stats_deinit()
 	stats_initialised = false;
 
 	dict_stats_recalc_pool_deinit();
-	dict_defrag_pool_deinit();
 
 	mysql_mutex_destroy(&recalc_pool_mutex);
 	pthread_cond_destroy(&recalc_pool_cond);
@@ -380,7 +374,6 @@ static void dict_stats_func(void*)
   THD *thd= innobase_create_background_thd("InnoDB statistics");
   set_current_thd(thd);
   while (dict_stats_process_entry_from_recalc_pool(thd)) {}
-  dict_defrag_process_entries_from_defrag_pool(thd);
   set_current_thd(nullptr);
   destroy_background_thd(thd);
 }

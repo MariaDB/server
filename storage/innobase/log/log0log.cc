@@ -43,7 +43,6 @@ Created 12/9/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "fil0fil.h"
 #include "dict0stats_bg.h"
-#include "btr0defragment.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "trx0sys.h"
@@ -1080,7 +1079,6 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 	/* Wait for the end of the buffer resize task.*/
 	buf_resize_shutdown();
 	dict_stats_shutdown();
-	btr_defragment_shutdown();
 
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 

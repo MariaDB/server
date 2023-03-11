@@ -277,16 +277,6 @@ SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
 INSERT INTO t1 VALUES (1),(5),(4),(3),(2);
 SET GLOBAL innodb_limit_optimistic_insert_debug = @old_limit;
 ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=INSTANT;
-SET @old_defragment = @@innodb_defragment;
-SET GLOBAL innodb_defragment = 1;
-Warnings:
-Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
-OPTIMIZE TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	optimize	status	OK
-SET GLOBAL innodb_defragment = @old_defragment;
-Warnings:
-Warning	1287	'@@innodb_defragment' is deprecated and will be removed in a future release
 ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text

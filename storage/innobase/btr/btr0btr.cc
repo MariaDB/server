@@ -34,7 +34,6 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
-#include "btr0defragment.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "trx0trx.h"
@@ -2848,12 +2847,6 @@ got_split_rec:
 	}
 	btr_page_create(new_block, new_page_zip, cursor->index(),
 			page_level, mtr);
-	/* Only record the leaf level page splits. */
-	if (!page_level) {
-		cursor->index()->stat_defrag_n_page_split ++;
-		cursor->index()->stat_defrag_modified_counter ++;
-		btr_defragment_save_defrag_stats_if_needed(cursor->index());
-	}
 
 	/* 3. Calculate the first record on the upper half-page, and the
 	first record (move_limit) on original page which ends up on the

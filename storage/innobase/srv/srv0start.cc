@@ -71,7 +71,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "rem0rec.h"
 #include "srv0start.h"
 #include "srv0srv.h"
-#include "btr0defragment.h"
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 #include "trx0rseg.h"
 #include "buf0flu.h"
@@ -1902,9 +1901,6 @@ skip_monitors:
 		fil_crypt_threads_cond. */
 		fil_crypt_threads_init();
 
-		/* Initialize online defragmentation. */
-		btr_defragment_init();
-
 		srv_started_redo = true;
 	}
 
@@ -2000,7 +1996,6 @@ void innodb_shutdown()
 		fts_optimize_shutdown(); dict_stats_shutdown(); */
 
 		fil_crypt_threads_cleanup();
-		btr_defragment_shutdown();
 	}
 
 	/* This must be disabled before closing the buffer pool

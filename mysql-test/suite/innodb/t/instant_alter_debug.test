@@ -325,11 +325,6 @@ SET GLOBAL innodb_limit_optimistic_insert_debug = @old_limit;
 
 ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=INSTANT;
 
-SET @old_defragment = @@innodb_defragment;
-SET GLOBAL innodb_defragment = 1;
-OPTIMIZE TABLE t1;
-SET GLOBAL innodb_defragment = @old_defragment;
-
 # Exploit MDEV-17468 to force the table definition to be reloaded
 ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
 CHECK TABLE t1;

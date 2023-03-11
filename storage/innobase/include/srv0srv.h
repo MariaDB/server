@@ -265,16 +265,6 @@ extern ulong	srv_read_ahead_threshold;
 extern uint	srv_n_read_io_threads;
 extern uint	srv_n_write_io_threads;
 
-/* Defragmentation, Origianlly facebook default value is 100, but it's too high */
-#define SRV_DEFRAGMENT_FREQUENCY_DEFAULT 40
-extern my_bool	srv_defragment;
-extern uint	srv_defragment_n_pages;
-extern uint	srv_defragment_stats_accuracy;
-extern uint	srv_defragment_fill_factor_n_recs;
-extern double	srv_defragment_fill_factor;
-extern uint	srv_defragment_frequency;
-extern ulonglong	srv_defragment_interval;
-
 /* Number of IO operations per second the server can do */
 extern ulong    srv_io_capacity;
 
@@ -658,14 +648,6 @@ struct export_var_t{
 
 	/** Number of undo tablespace truncation operations */
 	ulong innodb_undo_truncations;
-	ulint innodb_defragment_compression_failures; /*!< Number of
-						defragment re-compression
-						failures */
-
-	ulint innodb_defragment_failures;	/*!< Number of defragment
-						failures*/
-	ulint innodb_defragment_count;		/*!< Number of defragment
-						operations*/
 
 	/** Number of instant ALTER TABLE operations that affect columns */
 	ulong innodb_instant_alter_column;
