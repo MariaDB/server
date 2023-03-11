@@ -145,7 +145,7 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   @param[in] ret return from the failed IO operation
 
   @return  0 - should retry last read/write operation
-           1 - some error has occured
+           1 - some error has occurred
 */
 static int handle_ssl_io_error(Vio *vio, int ret)
 {
