@@ -1,0 +1,4 @@
+--thread-handling=pool-of-threads
+--thread_pool_size=200
+--max_connections=1000
+--open-files-limit=4096

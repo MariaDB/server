@@ -630,6 +630,14 @@ static bool tp_notify_apc(THD *thd)
   return status == 0;
 }
 
+#ifndef DBUG_OFF
+void tp_send(TP_connection_type* c)
+{
+  if (c->work_zone.try_enter_owner())
+    pool->add(c);
+}
+#endif
+
 static scheduler_functions tp_scheduler_functions=
 {
   0,                                  // max_threads

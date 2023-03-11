@@ -114,7 +114,8 @@ struct pool_timer_t
 
 static pool_timer_t pool_timer;
 
-static void queue_put(thread_group_t *thread_group, TP_connection_generic *connection);
+IF_DBUG(,static)
+void queue_put(thread_group_t *thread_group, TP_connection_generic *connection);
 static void queue_put(thread_group_t *thread_group, native_event *ev, int cnt);
 static int  wake_thread(thread_group_t *thread_group,bool due_to_stall);
 static int  wake_or_create_thread(thread_group_t *thread_group, bool due_to_stall=false);
@@ -1122,7 +1123,7 @@ static void thread_group_close(thread_group_t *thread_group)
 
 */
 
-static void queue_put(thread_group_t *thread_group, TP_connection_generic *connection)
+void queue_put(thread_group_t *thread_group, TP_connection_generic *connection)
 {
   DBUG_ENTER("queue_put");
 
@@ -1363,7 +1364,10 @@ int TP_pool_generic::wake(TP_connection_type *c)
   if (c->work_zone.notify())
     return 0;
   if (c->work_zone.try_enter())
+  {
+    tasks_injected++;
     add(c);
+  }
   return 0;
 #endif
 }
@@ -1530,8 +1534,27 @@ bool TP_connection_generic::leave_work_zone()
 }
 #endif
 
+#ifndef DBUG_OFF
+#include <random>
+static thread_local std::mt19937 mt_random{std::random_device()()};
+static thread_local std::uniform_int_distribution<int> kill_dist{1, 100000};
+void queue_put(thread_group_t *thread_group, TP_connection_generic *connection);
+void tp_send(TP_connection_type* c);
+#endif
+
 int TP_connection_generic::start_io()
 {
+  if(DBUG_IF("tp_wanger"))
+  {
+    bool survive= kill_dist(mt_random) != 555;
+    if (survive)
+    {
+      state= TP_STATE_INTERRUPTED;
+      tp_send(this);
+    }
+    return survive ? 0 : 1;
+  }
+
   /*
     Usually, connection will stay in the same group for the entire
     connection's life. However, we do allow group_count to

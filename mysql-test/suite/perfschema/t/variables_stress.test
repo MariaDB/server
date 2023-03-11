@@ -1,0 +1,71 @@
+let $i = 64;
+enable_connect_log;
+while ($i) {
+  echo i = $i;
+  connect(con_$i, localhost, root);
+#   set debug_sync = "tp_hanger wait_for banger";
+  send set debug_dbug = "+d,tp_wanger";
+  dec $i;
+}
+connection default;
+
+SELECT THREAD_ID, PROCESSLIST_ID FROM performance_schema.threads;
+set debug_sync = "now signal banger";
+connect(banger_1, localhost, root);
+let $banger1= `SELECT THREAD_ID FROM performance_schema.threads WHERE PROCESSLIST_ID = CONNECTION_ID()`;
+send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+connect(banger_2, localhost, root);
+let $banger2= `SELECT THREAD_ID FROM performance_schema.threads WHERE PROCESSLIST_ID = CONNECTION_ID()`;
+send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+connect(banger_3, localhost, root);
+let $banger3= `SELECT THREAD_ID FROM performance_schema.threads WHERE PROCESSLIST_ID = CONNECTION_ID()`;
+send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+connect(banger_4, localhost, root);
+let $banger4= `SELECT THREAD_ID FROM performance_schema.threads WHERE PROCESSLIST_ID = CONNECTION_ID()`;
+send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+connect(banger_5, localhost, root);
+let $banger5= `SELECT THREAD_ID FROM performance_schema.threads WHERE PROCESSLIST_ID = CONNECTION_ID()`;
+
+send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+
+let $i = 2000;
+let $j=65;
+while ($i) {
+  echo i = $i;
+  connection banger_1;
+  reap;
+  send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+  connection banger_2;
+  reap;
+  send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+  connection banger_3;
+  reap;
+  send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+  connection banger_4;
+  reap;
+  send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+  connection banger_5;
+  reap;
+  send select count(*) from performance_schema.variables_by_thread where variable_name="time_zone";
+  dec $i;
+
+  let $threads= `show status where variable_name = 'threads_connected'`;
+  if ($threads < 63) {
+    connect(con_$i, localhost, root);
+    send set debug_dbug = "+d,tp_wanger";
+    inc $j;
+  }
+}
+reap;
+select * from performance_schema.variables_by_thread where variable_name="time_zone";
+echo $banger1;
+echo $banger2;
+echo $banger3;
+echo $banger4;
+echo $banger5;
+# eval select * from performance_schema.variables_by_thread where variable_name like "%id" and thread_id=197;
+connection default;
+# set global debug_dbug = "";
+set debug_sync = reset;
+
+show status where variable_name = 'threads_connected';

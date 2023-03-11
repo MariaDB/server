@@ -164,6 +164,7 @@ struct TP_pool_win:TP_pool
 
 struct TP_pool_generic :TP_pool
 {
+  uint tasks_injected{0};
   TP_pool_generic();
   ~TP_pool_generic();
   virtual int init();
