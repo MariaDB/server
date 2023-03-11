@@ -373,7 +373,7 @@ class Basic_stats_collector
 {
   ulonglong count;         /* number of values retrieved                   */
   ulonglong count_distinct;    /* number of distinct values retrieved      */
-  /* number of distinct values that occured only once  */
+  /* number of distinct values that occurred only once  */
   ulonglong count_distinct_single_occurence;
 
 public:

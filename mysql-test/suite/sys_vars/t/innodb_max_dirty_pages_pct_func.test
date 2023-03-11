@@ -156,7 +156,7 @@ let $wait_condition= SELECT (dirty_pct() <= @@global.innodb_max_dirty_pages_pct)
 --source include/wait_condition.inc
 
 --echo 'We expect dirty pages pct to be BELOW_MAX after some time depending on performance'
-# Value For $sucess will be set from include/wait_condition.inc file. It can have values 1 or 0. It will be 1 if dirty_pct() <= @@global.innodb_max_dirty_pages_pct else it will be 0.
+# Value For $success will be set from include/wait_condition.inc file. It can have values 1 or 0. It will be 1 if dirty_pct() <= @@global.innodb_max_dirty_pages_pct else it will be 0.
 eval CALL check_pct($success);
 DROP PROCEDURE add_records;
 DROP PROCEDURE add_until;

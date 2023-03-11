@@ -1602,7 +1602,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
 /*
   Send ok to the client
 
-  return:  0 sucess
+  return:  0 success
 	   1 error
 */
 
