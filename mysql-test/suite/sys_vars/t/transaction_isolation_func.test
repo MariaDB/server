@@ -1,6 +1,6 @@
-############# mysql-test\t\tx_isolation_func.test #######################################
+############## mysql-test\suite\sys_vars\t\transaction_isolation_func.test ##############
 #                                                                                       #
-# Variable Name: tx_isolation                                                           #
+# Variable Name: transaction_isolation                                                  #
 # Scope: GLOBAL & SESSION                                                               #
 # Access Type: Dynamic                                                                  #
 # Data Type: ENUMERATION                                                                #
@@ -11,7 +11,7 @@
 # Creation Date: 2008-02-25                                                             #
 # Author:  Sharique Abdullah                                                            #
 #                                                                                       #
-# Description: Test Cases of Dynamic System Variable "tx_isolation"                     #
+# Description: Test Cases of Dynamic System Variable "transaction_isolation"            #
 #              that checks behavior of this variable in the following ways              #
 #              * Functionality based on different values                                #
 #                                                                                       #
@@ -26,8 +26,8 @@
 # Setup
 #
 
-SET @session_tx_isolation = @@SESSION.tx_isolation;
-SET @global_tx_isolation = @@GLOBAL.tx_isolation;
+SET @session_transaction_isolation = @@SESSION.transaction_isolation;
+SET @global_transaction_isolation = @@GLOBAL.transaction_isolation;
 
 #
 # Creating connections
@@ -68,11 +68,11 @@ INSERT INTO t1 VALUES(24, 24);
 # Testing for value READ-UNCOMMITTED
 #
 connection con0;
-SET SESSION tx_isolation = 'READ-UNCOMMITTED';
+SET SESSION transaction_isolation = 'READ-UNCOMMITTED';
 set binlog_format=mixed;
 
 connection con1;
-SET SESSION tx_isolation = 'READ-UNCOMMITTED';
+SET SESSION transaction_isolation = 'READ-UNCOMMITTED';
 set binlog_format=mixed;
 
 #
@@ -139,10 +139,10 @@ COMMIT;
 # Testing for value READ-COMMITTED
 #
 connection con0;
-SET SESSION tx_isolation = 'READ-COMMITTED';
+SET SESSION transaction_isolation = 'READ-COMMITTED';
 
 connection con1;
-SET SESSION tx_isolation = 'READ-COMMITTED';
+SET SESSION transaction_isolation = 'READ-COMMITTED';
 
 #
 # Testing WHERE on keys using % on even rows
@@ -177,10 +177,10 @@ COMMIT;
 # Testing for value REPEATABLE-READ
 #
 connection con0;
-SET SESSION tx_isolation = 'REPEATABLE-READ';
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
 
 connection con1;
-SET SESSION tx_isolation = 'REPEATABLE-READ';
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
 
 #
 # Testing WHERE on keys using % on even rows
@@ -279,10 +279,10 @@ COMMIT;
 # Testing for value SERIALIZABLE
 #
 connection con0;
-SET SESSION tx_isolation = 'SERIALIZABLE';
+SET SESSION transaction_isolation = 'SERIALIZABLE';
 
 connection con1;
-SET SESSION tx_isolation = 'SERIALIZABLE';
+SET SESSION transaction_isolation = 'SERIALIZABLE';
 
 #
 # Testing WHERE on keys using # on even rows
@@ -321,33 +321,33 @@ COMMIT;
 # Session data integrity check & GLOBAL Value check
 #
 
-SET GLOBAL tx_isolation = 'READ-UNCOMMITTED';
+SET GLOBAL transaction_isolation = 'READ-UNCOMMITTED';
 connect (con_int1,localhost,root,,);
 
 connection con_int1;
-SELECT @@SESSION.tx_isolation;
+SELECT @@SESSION.transaction_isolation;
 --echo READ-UNCOMMITTED Expected
 
-SET SESSION tx_isolation = 'SERIALIZABLE';
+SET SESSION transaction_isolation = 'SERIALIZABLE';
 
 connect (con_int2,localhost,root,,);
 
 connection con_int2;
-SELECT @@SESSION.tx_isolation;
+SELECT @@SESSION.transaction_isolation;
 --echo READ-UNCOMMITTED Expected
 
-SET SESSION tx_isolation = 'REPEATABLE-READ';
+SET SESSION transaction_isolation = 'REPEATABLE-READ';
 
 connection con_int2;
-SELECT @@SESSION.tx_isolation;
+SELECT @@SESSION.transaction_isolation;
 --echo REPEATABLE-READ Expected
 
 connection con_int1;
-SELECT @@SESSION.tx_isolation;
+SELECT @@SESSION.transaction_isolation;
 --echo SERIALIZABLE Expected
 
 
-SELECT @@GLOBAL.tx_isolation;
+SELECT @@GLOBAL.transaction_isolation;
 --echo READ-UNCOMMITTED Expected
 
 connection default;
@@ -359,8 +359,8 @@ disconnect con_int2;
 # Cleanup
 #
 
-SET @@SESSION.tx_isolation = @session_tx_isolation;
-SET @@GLOBAL.tx_isolation = @global_tx_isolation;
+SET @@SESSION.transaction_isolation = @session_transaction_isolation;
+SET @@GLOBAL.transaction_isolation = @global_transaction_isolation;
 
 connection default;
 disconnect con0;

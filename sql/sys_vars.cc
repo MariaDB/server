@@ -4191,7 +4191,7 @@ Sys_threadpool_dedicated_listener(
 #endif /* HAVE_POOL_OF_THREADS */
 
 /**
-  Can't change the 'next' tx_isolation if we are already in a
+  Can't change the 'next' transaction_isolation if we are already in a
   transaction.
 */
 
@@ -4208,14 +4208,22 @@ static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
 
 // NO_CMD_LINE - different name of the option
 static Sys_var_tx_isolation Sys_tx_isolation(
-       "tx_isolation", "Default transaction isolation level",
-       NO_SET_STMT SESSION_VAR(tx_isolation), NO_CMD_LINE,
+       "tx_isolation", "Default transaction isolation level."
+       "This variable is deprecated and will be removed in a future release.",
+       SESSION_VAR(tx_isolation), NO_CMD_LINE,
+       tx_isolation_names, DEFAULT(ISO_REPEATABLE_READ),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_isolation),
+       ON_UPDATE(0), DEPRECATED("'@@transaction_isolation'")); // since 11.1.0
+
+static Sys_var_tx_isolation Sys_transaction_isolation(
+       "transaction_isolation", "Default transaction isolation level",
+       SESSION_VAR(tx_isolation), NO_CMD_LINE,
        tx_isolation_names, DEFAULT(ISO_REPEATABLE_READ),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_isolation));
 
 
 /**
-  Can't change the tx_read_only state if we are already in a
+  Can't change the transaction_read_only state if we are already in a
   transaction.
 */
 
@@ -4255,9 +4263,19 @@ bool Sys_var_tx_read_only::session_update(THD *thd, set_var *var)
   return false;
 }
 
-
+// NO_CMD_LINE - different name of the option
 static Sys_var_tx_read_only Sys_tx_read_only(
        "tx_read_only", "Default transaction access mode. If set to OFF, "
+       "the default, access is read/write. If set to ON, access is read-only. "
+       "The SET TRANSACTION statement can also change the value of this variable. "
+       "See SET TRANSACTION and START TRANSACTION."
+       "This variable is deprecated and will be removed in a future release.",
+       SESSION_VAR(tx_read_only), NO_CMD_LINE, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_read_only),
+       ON_UPDATE(0), DEPRECATED("'@@transaction_read_only'")); // since 11.1.0
+
+static Sys_var_tx_read_only Sys_transaction_read_only(
+       "transaction_read_only", "Default transaction access mode. If set to OFF, "
        "the default, access is read/write. If set to ON, access is read-only. "
        "The SET TRANSACTION statement can also change the value of this variable. "
        "See SET TRANSACTION and START TRANSACTION.",

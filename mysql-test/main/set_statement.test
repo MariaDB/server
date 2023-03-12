@@ -1063,8 +1063,6 @@ truncate table mysql.slow_log;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement autocommit=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement tx_isolation=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement skip_replication=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement sql_log_off=default for select 1;

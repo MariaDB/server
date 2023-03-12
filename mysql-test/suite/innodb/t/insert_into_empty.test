@@ -47,7 +47,7 @@ SET GLOBAL innodb_adaptive_hash_index = @save_ahi;
 
 CREATE TEMPORARY TABLE t (c INT) ENGINE=InnoDB;
 CREATE TEMPORARY TABLE t2 (c INT) ENGINE=InnoDB;
-SET tx_read_only=1;
+SET transaction_read_only=1;
 BEGIN;
 INSERT INTO t2 VALUES(0);
 INSERT INTO t VALUES(0);
@@ -60,7 +60,7 @@ INSERT INTO t VALUES(0);
 
 --error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
 DROP TEMPORARY TABLE t,t2;
-SET tx_read_only=0;
+SET transaction_read_only=0;
 DROP TEMPORARY TABLE t,t2;
 
 --echo #

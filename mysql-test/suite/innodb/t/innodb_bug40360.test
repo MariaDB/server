@@ -5,7 +5,7 @@
 
 -- source include/not_embedded.inc
 
-SET TX_ISOLATION='READ-COMMITTED';
+SET TRANSACTION_ISOLATION='READ-COMMITTED';
 
 # This is the default since MySQL 5.1.29 SET BINLOG_FORMAT='STATEMENT';
 

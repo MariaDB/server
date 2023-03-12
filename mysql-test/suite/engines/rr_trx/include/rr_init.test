@@ -17,7 +17,7 @@ if (`SELECT @@default_storage_engine LIKE 'InnoDB' AND @@version LIKE '%6.%'`)
 SHOW VARIABLES LIKE 'default_storage_engine';
 
 # Verify default isolation level
-SHOW VARIABLES LIKE 'tx_isolation';
+SHOW VARIABLES LIKE 'transaction_isolation';
 
 #
 # Create table for keeping track of test metadata/statistics (counters etc.).

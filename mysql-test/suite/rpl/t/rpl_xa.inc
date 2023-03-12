@@ -363,7 +363,7 @@ sync_slave_with_master;
 
 # set a strong isolation level to keep the read view below.
 # alternatively a long-running select can do that too even in read-committed
-set session tx_isolation='repeatable-read';
+set session transaction_isolation='repeatable-read';
 start transaction;
 # opens a read view to disable purge on the slave
 select * from t1;

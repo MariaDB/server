@@ -225,7 +225,7 @@ drop table t1, t2, t3, tm;
 create table t1 (a int primary key, b int unique) engine=innodb;
 insert t1 values (1,1),(3,3),(5,5);
 connection slave;
-set session tx_isolation='repeatable-read';
+set session transaction_isolation='repeatable-read';
 start transaction;
 select * from t1;
 a	b
