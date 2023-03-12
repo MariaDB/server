@@ -16764,7 +16764,7 @@ transaction_access_mode:
               MYSQL_YYABORT;
             set_var *var= (new (thd->mem_root)
                            set_var(thd, lex->option_type,
-                                   find_sys_var(thd, "tx_read_only"),
+                                   find_sys_var(thd, "transaction_read_only"),
                                    &null_clex_str,
                                    item));
             if (unlikely(var == NULL))
@@ -16783,7 +16783,7 @@ isolation_level:
               MYSQL_YYABORT;
             set_var *var= (new (thd->mem_root)
                            set_var(thd, lex->option_type,
-                                   find_sys_var(thd, "tx_isolation"),
+                                   find_sys_var(thd, "transaction_isolation"),
                                    &null_clex_str,
                                    item));
             if (unlikely(var == NULL) ||

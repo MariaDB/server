@@ -443,7 +443,7 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
         - This query:
             SET TRANSACTION READ ONLY, ISOLATION LEVEL SERIALIZABLE;
           in translated to:
-            SET tx_read_only=1, tx_isolation=ISO_SERIALIZABLE;
+            SET transaction_read_only=1, transaction_isolation=ISO_SERIALIZABLE;
           but produces a single sp_create_assignment_instr() call
           which includes the query fragment covering both options.
       */

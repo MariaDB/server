@@ -41,7 +41,7 @@ SET GLOBAL innodb_adaptive_hash_index = @save_ahi;
 #
 CREATE TEMPORARY TABLE t (c INT) ENGINE=InnoDB;
 CREATE TEMPORARY TABLE t2 (c INT) ENGINE=InnoDB;
-SET tx_read_only=1;
+SET transaction_read_only=1;
 BEGIN;
 INSERT INTO t2 VALUES(0);
 INSERT INTO t VALUES(0);
@@ -53,7 +53,7 @@ COMMIT;
 INSERT INTO t VALUES(0);
 DROP TEMPORARY TABLE t,t2;
 ERROR 25006: Cannot execute statement in a READ ONLY transaction
-SET tx_read_only=0;
+SET transaction_read_only=0;
 DROP TEMPORARY TABLE t,t2;
 #
 # MDEV-24818 Optimize multiple INSERT into empty table

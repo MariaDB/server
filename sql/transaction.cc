@@ -181,7 +181,7 @@ bool trans_begin(THD *thd, uint flags)
     }
     thd->tx_read_only= false;
     /*
-      This flags that tx_read_only was set explicitly, rather than
+      This flags that transaction_read_only was set explicitly, rather than
       just from the session's default.
     */
 #ifndef EMBEDDED_LIBRARY

@@ -230,14 +230,14 @@ class WorkerThread(threading.Thread):
     return self.con is None
 
   def get_isolation_level(self):
-    execute(self.cur, "SELECT @@SESSION.tx_isolation")
+    execute(self.cur, "SELECT @@SESSION.transaction_isolation")
     if self.cur.rowcount != 1:
-      raise TestError("Unable to retrieve tx_isolation")
+      raise TestError("Unable to retrieve transaction_isolation")
     return self.cur.fetchone()[0]
 
   def set_isolation_level(self, isolation_level, persist = False):
     if isolation_level is not None:
-      execute(self.cur, "SET @@SESSION.tx_isolation = '%s'" % isolation_level)
+      execute(self.cur, "SET @@SESSION.transaction_isolation = '%s'" % isolation_level)
       if self.cur.rowcount != 0:
         raise TestError("Unable to set the isolation level to %s")
 

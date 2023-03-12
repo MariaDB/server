@@ -3505,15 +3505,15 @@ public:
   /*
     Current or next transaction isolation level.
     When a connection is established, the value is taken from
-    @@session.tx_isolation (default transaction isolation for
-    the session), which is in turn taken from @@global.tx_isolation
-    (the global value).
+    @@session.transaction_isolation (default transaction isolation
+    for the session), which is in turn taken from
+    @@global.transaction_isolation (the global value).
     If there is no transaction started, this variable
     holds the value of the next transaction's isolation level.
     When a transaction starts, the value stored in this variable
     becomes "actual".
     At transaction commit or rollback, we assign this variable
-    again from @@session.tx_isolation.
+    again from @@session.transaction_isolation.
     The only statement that can otherwise change the value
     of this variable is SET TRANSACTION ISOLATION LEVEL.
     Its purpose is to effect the isolation level of the next
@@ -3523,13 +3523,13 @@ public:
     transaction, this assignment (naturally) only affects the
     upcoming transaction.
     At the end of the current active transaction the value is
-    be reset again from @@session.tx_isolation, as described
+    be reset again from @@session.transaction_isolation, as described
     above.
   */
   enum_tx_isolation tx_isolation;
   /*
     Current or next transaction access mode.
-    See comment above regarding tx_isolation.
+    See comment above regarding transaction_isolation.
   */
   bool              tx_read_only;
   enum_check_fields count_cuted_fields;

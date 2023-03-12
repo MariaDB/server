@@ -214,8 +214,9 @@ bool sys_var::update(THD *thd, set_var *var)
 
     /*
       Make sure we don't session-track variables that are not actually
-      part of the session. tx_isolation and and tx_read_only for example
-      exist as GLOBAL, SESSION, and one-shot ("for next transaction only").
+      part of the session. transaction_isolation and transaction_read_only for
+      example exist as GLOBAL, SESSION, and one-shot ("for next transaction
+      only").
     */
     if ((var->type == OPT_SESSION) && (!ret))
     {

@@ -290,9 +290,9 @@ enum enum_tx_state {
   Transaction access mode
 */
 enum enum_tx_read_flags {
-  TX_READ_INHERIT =   0,  ///< not explicitly set, inherit session.tx_read_only
-  TX_READ_ONLY    =   1,  ///< START TRANSACTION READ ONLY,  or tx_read_only=1
-  TX_READ_WRITE   =   2,  ///< START TRANSACTION READ WRITE, or tx_read_only=0
+  TX_READ_INHERIT =   0,  ///< not explicitly set, inherit session.transaction_read_only
+  TX_READ_ONLY    =   1,  ///< START TRANSACTION READ ONLY,  or transaction_read_only=1
+  TX_READ_WRITE   =   2,  ///< START TRANSACTION READ WRITE, or transaction_read_only=0
 };
 
 
@@ -300,7 +300,7 @@ enum enum_tx_read_flags {
   Transaction isolation level
 */
 enum enum_tx_isol_level {
-  TX_ISOL_INHERIT     = 0, ///< not explicitly set, inherit session.tx_isolation
+  TX_ISOL_INHERIT     = 0, ///< not explicitly set, inherit session.transaction_isolation
   TX_ISOL_UNCOMMITTED = 1,
   TX_ISOL_COMMITTED   = 2,
   TX_ISOL_REPEATABLE  = 3,

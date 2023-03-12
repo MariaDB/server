@@ -29,8 +29,8 @@ INSERT INTO t1 VALUES (3,REPEAT('c',50000));
 connection con1;
 SET DEBUG_SYNC='now WAIT_FOR rec_not_blob';
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 READ-UNCOMMITTED
 SELECT a, RIGHT(b,20) FROM t1;
 a	RIGHT(b,20)
@@ -60,8 +60,8 @@ UPDATE t3 SET c=REPEAT('f',3000) WHERE a=1;
 connect  con1,localhost,root,,;
 SET DEBUG_SYNC='now WAIT_FOR go_sel';
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 READ-UNCOMMITTED
 SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
 a	RIGHT(b,20)	RIGHT(c,20)

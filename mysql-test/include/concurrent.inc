@@ -30,7 +30,7 @@ SET SQL_MODE="";
 #
 # Show prerequisites for this test.
 #
-SELECT @@global.tx_isolation;
+SELECT @@global.transaction_isolation;
 #
 # With the transaction isolation level REPEATABLE READ (the default)
 # or SERIALIZEBLE, InnoDB takes "next-key locks"/"gap locks". This means it
@@ -43,7 +43,7 @@ SELECT @@global.tx_isolation;
 # We use the variable $keep_locks to set the expectations for
 # lock wait timeouts accordingly.
 #
-let $keep_locks= `SELECT @@global.tx_isolation IN ('REPEATABLE-READ','SERIALIZABLE')`;
+let $keep_locks= `SELECT @@global.transaction_isolation IN ('REPEATABLE-READ','SERIALIZABLE')`;
 --echo # keep_locks == $keep_locks
 
 #
