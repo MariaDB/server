@@ -562,13 +562,16 @@ void System_variable::init(THD *target_thd, const SHOW_VAR *show_var,
   /* Get the value of the system variable. */
   String buf(m_value_str, sizeof(m_value_str) - 1, system_charset_info);
 
-  mysql_mutex_lock(&LOCK_global_system_variables);
+  if (query_scope == OPT_GLOBAL || system_var->scope() == sys_var::GLOBAL)
+    mysql_mutex_lock(&LOCK_global_system_variables);
   if (!system_var->val_str_nolock(&buf, target_thd,
                                   system_var->value_ptr(target_thd,
                                                         query_scope,
                                                         &null_clex_str)))
     buf.length(0);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
+
+  if (query_scope == OPT_GLOBAL || system_var->scope() == sys_var::GLOBAL)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
 
   m_value_length= MY_MIN(buf.length(), SHOW_VAR_FUNC_BUFF_SIZE);
 
