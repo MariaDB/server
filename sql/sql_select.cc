@@ -7872,7 +7872,7 @@ static double apply_selectivity_for_table(JOIN_TAB *s,
   this table in join order.
 */
 
-static double use_found_constraint(double records)
+inline double use_found_constraint(double records)
 {
   records-= records/4;
   return records ? MY_MAX(records, MIN_ROWS_AFTER_FILTERING) : 0.0;
@@ -8059,6 +8059,155 @@ apply_filter(THD *thd, TABLE *table, ALL_READ_COST *cost,
     return this;
   }
   return 0;
+}
+
+
+/*
+  @brief
+    Compute the fanout of hash join operation using EITS data
+
+  @param join             JOIN structure
+  @param tab              JOIN_TAB for the current table
+  @param remaining_tables Map of tables not yet accessable
+  @param rnd_records      Number of accepted rows in the table, after taking
+                          selectivity into account.
+  @param hj_start_key     Pointer to hash key
+  @param stats_found      Is set to 1 if we found any usable hash key part
+                          with statistics from analyze.
+*/
+
+double hash_join_fanout(JOIN *join, JOIN_TAB *tab, table_map remaining_tables,
+                        double rnd_records, KEYUSE *hj_start_key,
+                        bool *stats_found)
+{
+  THD *thd= join->thd;
+  /*
+    Before doing the hash join, we will scan the table and apply the local part
+    of the WHERE condition. This will produce rnd_records.
+
+    The EITS statistics describes the entire table. Calling
+
+      table->field[N]->get_avg_frequency()
+
+    produces average #rows in the table with some value.
+
+    What happens if we filter out rows so that rnd_records rows are left?
+    Something between the two outcomes:
+    A. filtering removes a fraction of rows for each value:
+      avg_frequency=avg_frequency * condition_selectivity
+
+    B. filtering removes entire groups of rows with the same value, but
+       the remaining groups remain of the same size.
+
+    We make pessimistic assumption and assume B.
+    We also handle an edge case: if rnd_records is less than avg_frequency,
+    assume we'll get rnd_records rows with the same value, and return
+    rnd_records as the fanout estimate.
+  */
+  double min_freq= (double) tab->table->stat_records();
+  bool found_not_usable_field= 0;
+  bool found_usable_field __attribute__((unused))= 0;
+  DBUG_ENTER("hash_join_cardinality");
+
+  Json_writer_object trace_obj(thd, "hash_join_cardinality");
+
+  /*
+    There can be multiple KEYUSE referring to same or different columns
+
+       KEYUSE(tbl.col1 = ...)
+       KEYUSE(tbl.col1 = ...)
+       KEYUSE(tbl.col2 = ...)
+
+    Hash join code can use multiple columns: (col1, col2) for joining.
+    We need n_distinct({col1, col2}).
+
+    EITS only has statistics on individual columns: n_distinct(col1),
+    n_distinct(col2).
+
+    Our current solution is to be very conservative and use selectivity
+    of one column with the lowest avg_frequency.
+
+    In the future, we should an approach that cautiosly takes into account
+    multiple KEYUSEs either multiply by number of equalities or by sqrt
+    of the second most selective equality.
+  */
+  Json_writer_array trace_arr(thd, "hash_join_columns");
+  for (KEYUSE *keyuse= hj_start_key;
+       keyuse->table == tab->table && is_hash_join_key_no(keyuse->key);
+       keyuse++)
+  {
+    if (!(remaining_tables & keyuse->used_tables) &&
+        (!keyuse->validity_ref || *keyuse->validity_ref) &&
+        tab->access_from_tables_is_allowed(keyuse->used_tables,
+                                         join->sjm_lookup_tables))
+    {
+      Field *field= tab->table->field[keyuse->keypart];
+      found_usable_field= 1;
+      if (is_eits_usable(field))
+      {
+        double freq= field->read_stats->get_avg_frequency();
+
+        Json_writer_object trace_field(thd);
+        trace_field.add("field",field->field_name.str).
+          add("avg_frequency", freq);
+        if (freq < min_freq)
+          min_freq= freq;
+        *stats_found= 1;
+        continue;
+      }
+    }
+    if (!keyuse->validity_ref || *keyuse->validity_ref)
+      found_not_usable_field= 1;
+  }
+  /* Ensure that some part of hash_key is usable */
+  DBUG_ASSERT(found_usable_field);
+
+  trace_arr.end();
+  if (found_not_usable_field)
+  {
+    /*
+      We did not't have data for all key fields. Assume that the hash
+      will at least limit the number of matched rows to HASH_FANOUT.
+      This makes the cost same as when 'hash_join_cardinality=off'
+      in the case when no analyze of the tables have been made.
+
+      However, it may cause problems when min_freq is higher than
+      HASH_FANOUT as the optimizer will then assume it is better to
+      put the table earlier in the plan when all key parts are not
+      usable.
+      Note that min_freq can become less than 1.0. This is intentional
+      as it matches what happens if OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY
+      is not used.
+    */
+    double max_expected_records= rnd_records * HASH_FANOUT;
+    set_if_smaller(min_freq, max_expected_records);
+    trace_obj.add("using_default_hash_fanout", HASH_FANOUT);
+  }
+  else
+  {
+    /*
+      Before joining the table with the contents of join buffer, we will
+      use the quick select and/or apply the table condition.
+
+      This will reduce the number of rows joined to rnd_records.
+      How will this affect n_distinct?
+      Depending on which rows are removed, this can either leave n_distinct as
+      is (for some value X, some rows are removed but some are left, leaving the
+      number of distinct values the same), or reduce n_distinct in proportion
+      with the fraction of rows removed (for some values of X, either all or
+      none of the rows with that value are removed).
+
+      We assume the latter: n_distinct is reduced in proportion the condition
+      and quick select's selectivity.
+      This is in effect same as applying apply_selectivity_for_table() on
+      min_freq as we have already done on rnd_records
+    */
+    min_freq*= rnd_records / tab->table->stat_records();
+    set_if_bigger(min_freq, HASH_FANOUT);
+  }
+
+  trace_obj.add("rows", min_freq);
+  DBUG_RETURN(min_freq);
 }
 
 
@@ -8923,15 +9072,47 @@ best_access_path(JOIN      *join,
       (!(table->map & join->outer_join) ||
        join->allowed_outer_join_with_cache))    // (2)
   {
-    double refills, row_copy_cost, cmp_time, cur_cost, records_table_filter;
+    Json_writer_object trace_access_hash(thd);
+    double refills, row_copy_cost, copy_cost, cur_cost, where_cost;
+    double matching_combinations, fanout, join_sel;
     /* Estimate the cost of the hash join access to the table */
-    double rnd_records= apply_selectivity_for_table(s, use_cond_selectivity);
-    records_table_filter= ((found_constraint) ?
-                           use_found_constraint(rnd_records) :
-                           rnd_records);
+    double rnd_records;
+    bool stats_found= 0;
 
+    rnd_records= apply_selectivity_for_table(s, use_cond_selectivity);
     DBUG_ASSERT(rnd_records <= rows2double(s->found_records) + 0.5);
-    set_if_smaller(best.records_out, records_table_filter);
+    DBUG_ASSERT(hj_start_key);
+
+    fanout= rnd_records;
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY))
+    {
+      /*
+        Starting from this point, rnd_records should not be used anymore.
+        Use "fanout" for an estimate of # matching records.
+      */
+      fanout= hash_join_fanout(join, s, remaining_tables, rnd_records,
+                               hj_start_key, &stats_found);
+      set_if_smaller(best.records_out, fanout);
+      join_sel= 1.0;
+    }
+    if (!stats_found)
+    {
+      /*
+        No OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY or no field statistics
+        found.
+
+        Take into account if there is non constant constraints used with
+        earlier tables in the where expression.
+        If yes, this will set fanout to rnd_records/4.
+        We estimate that there will be HASH_FANOUT (10%)
+        hash matches / row.
+      */
+      fanout= ((found_constraint) ?
+               use_found_constraint(rnd_records) :
+               rnd_records);
+      set_if_smaller(best.records_out, fanout * HASH_FANOUT);
+      join_sel= HASH_FANOUT;
+    }
 
     /*
       The following cost calculation is identical to the cost calculation for
@@ -8958,36 +9139,36 @@ best_access_path(JOIN      *join,
       Cost of doing the hash lookup and check all matching rows with the
       WHERE clause.
       We assume here that, thanks to the hash, we don't have to compare all
-      row combinations, only a HASH_FANOUT (10%) rows in the cache.
+      row combinations, only a fanout or HASH_FANOUT (10%) rows in the cache.
     */
     row_copy_cost= (ROW_COPY_COST_THD(thd) *
                     JOIN_CACHE_ROW_COPY_COST_FACTOR(thd));
-    cmp_time= (record_count * row_copy_cost +
-               rnd_records * record_count * HASH_FANOUT *
-               ((idx - join->const_tables) * row_copy_cost +
-                WHERE_COST_THD(thd)));
-    cur_cost= COST_ADD(cur_cost, cmp_time);
+    matching_combinations= fanout * join_sel * record_count;
+    copy_cost= (record_count * row_copy_cost +
+                matching_combinations *
+                ((idx - join->const_tables) * row_copy_cost));
+    where_cost= matching_combinations * WHERE_COST_THD(thd);
+    cur_cost= COST_ADD(cur_cost, copy_cost + where_cost);
 
     best.cost= cur_cost;
     best.records_read= best.records_after_filter= rows2double(s->records);
-    best.records= rnd_records;
-#ifdef NOT_YET
-    set_if_smaller(best.records_out, rnd_records * HASH_FANOUT);
-#endif
+    best.records= rnd_records;        // Records after where (Legacy value)
     best.key= hj_start_key;
     best.ref_depends_map= 0;
     best.use_join_buffer= TRUE;
     best.filter= 0;
     best.type= JT_HASH;
     best.refills= (ulonglong) ceil(refills);
-    Json_writer_object trace_access_hash(thd);
     if (unlikely(trace_access_hash.trace_started()))
       trace_access_hash.
         add("type", "hash").
         add("index", "hj-key").
         add("rows", rnd_records).
+        add("rows_after_hash", fanout * join_sel).
         add("refills", refills).
-        add("cost", best.cost).
+        add("jbuf_use_cost", copy_cost).
+        add("extra_cond_check_cost", where_cost).
+        add("total_cost", best.cost).
         add("chosen", true);
   }
 

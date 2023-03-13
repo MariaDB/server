@@ -152,7 +152,7 @@ insert into t1 values (2, 'duplicate ok', 'duplicate ok');
 insert into t1 values (18, 'duplicate ok', 'duplicate ok');
 insert into t2 values (3, 'duplicate ok', 'duplicate ok');
 insert into t2 values (19, 'duplicate ok', 'duplicate ok');
-explain select 
+explain select
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
 from t1 ot where a in (select a from t2 it);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

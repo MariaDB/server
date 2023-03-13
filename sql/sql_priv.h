@@ -238,38 +238,39 @@
 #define OPTIMIZER_SWITCH_USE_ROWID_FILTER          (1ULL << 33)
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING (1ULL << 34)
 #define OPTIMIZER_SWITCH_NOT_NULL_RANGE_SCAN       (1ULL << 35)
+#define OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY     (1ULL << 36)
 
-#define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
-                                    OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
-                                    OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION | \
-                                    OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT | \
-                                    OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN | \
-                                    OPTIMIZER_SWITCH_DERIVED_MERGE | \
-                                    OPTIMIZER_SWITCH_DERIVED_WITH_KEYS | \
-                                    OPTIMIZER_SWITCH_TABLE_ELIMINATION | \
-                                    OPTIMIZER_SWITCH_EXTENDED_KEYS | \
-                                    OPTIMIZER_SWITCH_IN_TO_EXISTS | \
-                                    OPTIMIZER_SWITCH_MATERIALIZATION | \
-                                    OPTIMIZER_SWITCH_PARTIAL_MATCH_ROWID_MERGE|\
-                                    OPTIMIZER_SWITCH_PARTIAL_MATCH_TABLE_SCAN|\
-                                    OPTIMIZER_SWITCH_OUTER_JOIN_WITH_CACHE | \
-                                    OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE | \
-                                    OPTIMIZER_SWITCH_JOIN_CACHE_INCREMENTAL | \
-                                    OPTIMIZER_SWITCH_JOIN_CACHE_HASHED | \
-                                    OPTIMIZER_SWITCH_JOIN_CACHE_BKA | \
-                                    OPTIMIZER_SWITCH_SUBQUERY_CACHE | \
-                                    OPTIMIZER_SWITCH_SEMIJOIN | \
-                                    OPTIMIZER_SWITCH_FIRSTMATCH | \
-                                    OPTIMIZER_SWITCH_LOOSE_SCAN | \
-                                    OPTIMIZER_SWITCH_EXISTS_TO_IN | \
-                                    OPTIMIZER_SWITCH_ORDERBY_EQ_PROP | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED | \
-                                    OPTIMIZER_SWITCH_SPLIT_MATERIALIZED | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY | \
-                                    OPTIMIZER_SWITCH_USE_ROWID_FILTER | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
-                                    OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE)
-
+#define OPTIMIZER_SWITCH_DEFAULT (OPTIMIZER_SWITCH_INDEX_MERGE | \
+                                  OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
+                                  OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION | \
+                                  OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT | \
+                                  OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN | \
+                                  OPTIMIZER_SWITCH_DERIVED_MERGE | \
+                                  OPTIMIZER_SWITCH_DERIVED_WITH_KEYS | \
+                                  OPTIMIZER_SWITCH_TABLE_ELIMINATION | \
+                                  OPTIMIZER_SWITCH_EXTENDED_KEYS | \
+                                  OPTIMIZER_SWITCH_IN_TO_EXISTS | \
+                                  OPTIMIZER_SWITCH_MATERIALIZATION | \
+                                  OPTIMIZER_SWITCH_PARTIAL_MATCH_ROWID_MERGE|\
+                                  OPTIMIZER_SWITCH_PARTIAL_MATCH_TABLE_SCAN|\
+                                  OPTIMIZER_SWITCH_OUTER_JOIN_WITH_CACHE | \
+                                  OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE | \
+                                  OPTIMIZER_SWITCH_JOIN_CACHE_INCREMENTAL | \
+                                  OPTIMIZER_SWITCH_JOIN_CACHE_HASHED | \
+                                  OPTIMIZER_SWITCH_JOIN_CACHE_BKA | \
+                                  OPTIMIZER_SWITCH_SUBQUERY_CACHE | \
+                                  OPTIMIZER_SWITCH_SEMIJOIN | \
+                                  OPTIMIZER_SWITCH_FIRSTMATCH | \
+                                  OPTIMIZER_SWITCH_LOOSE_SCAN | \
+                                  OPTIMIZER_SWITCH_EXISTS_TO_IN | \
+                                  OPTIMIZER_SWITCH_ORDERBY_EQ_PROP | \
+                                  OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED | \
+                                  OPTIMIZER_SWITCH_SPLIT_MATERIALIZED | \
+                                  OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY |\
+                                  OPTIMIZER_SWITCH_USE_ROWID_FILTER | \
+                                  OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
+                                  OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE |\
+                                  OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY)
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
   use strictly more than 64 bits by adding one more define above, you should

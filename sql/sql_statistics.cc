@@ -4147,7 +4147,7 @@ bool is_eits_usable(Field *field)
   if (!col_stats)
     return false;
 
-  DBUG_ASSERT(field->table->stats_is_read);
+  DBUG_ASSERT(field->orig_table->stats_is_read);
 
   /*
     (1): checks if we have EITS statistics for a particular column
@@ -4160,8 +4160,8 @@ bool is_eits_usable(Field *field)
   return !col_stats->no_stat_values_provided() &&        //(1)
     field->type() != MYSQL_TYPE_GEOMETRY &&              //(2)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    (!field->table->part_info ||
-     !field->table->part_info->field_in_partition_expr(field)) &&     //(3)
+    (!field->orig_table->part_info ||
+     !field->orig_table->part_info->field_in_partition_expr(field)) &&     //(3)
 #endif
     true;
 }

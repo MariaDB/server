@@ -1236,7 +1236,7 @@ ANALYZE
             "cost": "REPLACED",
             "r_table_time_ms": "REPLACED",
             "r_other_time_ms": "REPLACED",
-            "filtered": 70,
+            "filtered": 0.209580004,
             "r_filtered": 70,
             "attached_condition": "t10.a < 700"
           },
