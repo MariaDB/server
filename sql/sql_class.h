@@ -2467,6 +2467,15 @@ struct thd_async_state
     mysql_cond_init(PSI_INSTRUMENT_ME, &m_cond, 0);
   }
 
+  enum_async_state state()
+  {
+    // m_sate should be properly protected to access.
+    mysql_mutex_lock(&m_mtx);
+    auto ret= m_state;
+    mysql_mutex_unlock(&m_mtx);
+    return ret;
+  }
+
   /*
    Currently only used with threadpool, one can "suspend" and "resume" a THD.
    Suspend only means leaving do_command earlier, after saving some state.

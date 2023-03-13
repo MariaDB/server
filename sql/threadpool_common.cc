@@ -195,11 +195,22 @@ static bool tp_callback_run(TP_connection_type *c)
     }
     c->connect= 0;
     c->work_zone.init_guard(IF_DBUG(&c->thd->LOCK_thd_kill,));
+    bool owner= c->leave_work_zone();
+    DBUG_ASSERT(owner);
   }
   else
   {
 retry:
-    switch(threadpool_process_request(thd, apc_only))
+    auto result= threadpool_process_request(thd, apc_only);
+    bool owner= c->leave_work_zone();
+
+    if (unlikely(!owner))
+    {
+      DBUG_ASSERT(apc_only);
+      return true;
+    }
+
+    switch(result)
     {
       case DISPATCH_COMMAND_WOULDBLOCK:
         if (!thd->async_state.try_suspend())
@@ -209,7 +220,12 @@ retry:
             this THD. Therefore, we'll resume "manually" here.
           */
           thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
-          goto retry;
+          /*
+            This is an optimization: we could call thd_resume and reschedule
+            the connection, but instead just retry in this execution cycle.
+          */
+          if (c->work_zone.try_enter_owner())
+            goto retry;
         }
         return true;
       case DISPATCH_COMMAND_CLOSE_CONNECTION:
@@ -230,7 +246,7 @@ retry:
   c->set_io_timeout(thd->get_net_wait_timeout());
   c->state= TP_STATE_IDLE;
 
-  return true;
+  return c->start_io() == 0;
 }
 
 void tp_callback(TP_connection_type *c)
@@ -380,7 +396,8 @@ static dispatch_command_return threadpool_process_request(THD *thd, bool apc_onl
   dispatch_command_return retval= DISPATCH_COMMAND_SUCCESS;
 
   thread_attach(thd);
-  if(thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
+  if(!apc_only &&
+     thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
     goto resume;
 
   if (thd->killed >= KILL_CONNECTION)
@@ -398,6 +415,8 @@ static dispatch_command_return threadpool_process_request(THD *thd, bool apc_onl
   if (unlikely(apc_only))
   {
     thd_net_process_apc_requests(thd);
+    if (thd->async_state.state() != thd_async_state::enum_async_state::NONE)
+      retval= DISPATCH_COMMAND_WOULDBLOCK;
     goto after_do_command;
   }
 
