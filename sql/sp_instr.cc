@@ -694,6 +694,7 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     list sp_instr->free_list on executing of every SP instruction.
   */
   Query_arena backup;
+  state= STMT_INITIALIZED_FOR_SP;
   thd->set_n_backup_active_arena(this, &backup);
   thd->free_list= nullptr;
 
@@ -753,7 +754,6 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
   */
   const char *m_tmp_query_bak= sp->m_tmp_query;
   sp->m_tmp_query= sql_query.c_ptr();
-
   bool parsing_failed= parse_sql(thd, &parser_state, nullptr);
 
   sp->m_tmp_query= m_tmp_query_bak;
