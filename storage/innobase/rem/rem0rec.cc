@@ -287,7 +287,9 @@ rec_init_offsets_comp_ordinary(
 							 != n_core)
 		? UT_BITS_IN_BYTES(unsigned(index->get_n_nullable(n_core)))
 		: (redundant_temp
-		   ? UT_BITS_IN_BYTES(index->n_nullable)
+		   ? (index->is_instant()
+		      ? UT_BITS_IN_BYTES(index->get_n_nullable(n_core))
+		      : UT_BITS_IN_BYTES(index->n_nullable))
 		   : index->n_core_null_bytes);
 
 	if (mblob) {
