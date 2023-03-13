@@ -6,12 +6,12 @@ CREATE USER u1@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
 CREATE USER u2@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
 CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
 # Save original values of connection_delay variables
-SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+SET @saved_connections_threshold = @@global.password_errors_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
 SET @saved_wait_timeout=@@global.wait_timeout;
 SET @saved_interactive_timeout=@@global.interactive_timeout;
 SET @old_debug=@@global.debug_dbug;
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 SET @@global.debug_dbug="+d,skip_connection_delay";
 #-----------------------------------------------------------------------
 # Case 1 : Tests for valid user accounts
@@ -58,7 +58,7 @@ connection default;
 NOT FOUND /u1@localhost wait 1000 milliseconds/ in mysqld.1.err
 connection default;
 # Restore original values of connection delay variables
-SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+SET @@global.password_errors_before_delay = @saved_connections_threshold;
 SET @@global.max_password_errors = @saved_max_password_errors;
 SET @@global.wait_timeout = @saved_wait_timeout;
 SET @@global.interactive_timeout = @saved_interactive_timeout;

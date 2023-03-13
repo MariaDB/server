@@ -16,7 +16,7 @@ CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
 
 
 # Set a small values for connection_delay variables
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 --source ../inc/skip_connection_delay.inc
 # We will use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 1;

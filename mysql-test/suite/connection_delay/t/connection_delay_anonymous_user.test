@@ -17,7 +17,7 @@ CREATE USER ''@'localhost';
 --source ../inc/skip_connection_delay.inc
 let $DELAY_MIN_RESPONSE_TIME= 1000;
 -- echo # Set small values for connection_delay variables
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 
 
 # We don't need to use client side authentication plugin for this test.
@@ -57,7 +57,7 @@ let $SUCCESS=0;
 
 --source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.failed_attempts_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
+let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.password_errors_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
 --let SEARCH_PATTERN=@$HOST wait $SERVER_RESPONSE_TIME milliseconds
 --source include/search_pattern_in_file.inc
 
@@ -66,7 +66,7 @@ let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.failed_attempts_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
+let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.password_errors_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
 --let SEARCH_PATTERN=@$HOST wait $SERVER_RESPONSE_TIME milliseconds
 --source include/search_pattern_in_file.inc
 
@@ -77,7 +77,7 @@ let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.failed_attempts_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
+let $SERVER_RESPONSE_TIME= `SELECT FLOOR(($failed_count-@@global.password_errors_before_delay)*$DELAY_MIN_RESPONSE_TIME)`;
 --let SEARCH_PATTERN=@$HOST wait $SERVER_RESPONSE_TIME milliseconds
 --source include/search_pattern_in_file.inc
 

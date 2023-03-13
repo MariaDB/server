@@ -11,47 +11,47 @@ connection default;
 
 --echo #-----------------------------------------------------------------------
 
---echo # Case 1 : failed_attempts_before_delay
-SET @saved_value = @@global.failed_attempts_before_delay;
+--echo # Case 1 : password_errors_before_delay
+SET @saved_value = @@global.password_errors_before_delay;
 SELECT @saved_value;
-SET @@global.failed_attempts_before_delay = @saved_value;
+SET @@global.password_errors_before_delay = @saved_value;
 
---echo # 1.1 : Setting failed_attempts_before_delay to valid
+--echo # 1.1 : Setting password_errors_before_delay to valid
 --echo #       value
 
-SET @@global.failed_attempts_before_delay = 20;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = 20;
+SELECT @@global.password_errors_before_delay;
 
-SET @@global.failed_attempts_before_delay = 2000;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = 2000;
+SELECT @@global.password_errors_before_delay;
 
-SET @@global.failed_attempts_before_delay = 2147483647;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = 2147483647;
+SELECT @@global.password_errors_before_delay;
 
-SET @@global.failed_attempts_before_delay = DEFAULT;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = DEFAULT;
+SELECT @@global.password_errors_before_delay;
 
-SET @@global.failed_attempts_before_delay = -20;
-SELECT @@global.failed_attempts_before_delay;
-
-
-SET @@global.failed_attempts_before_delay = 9223372036854775808;
-SELECT @@global.failed_attempts_before_delay;
-
-SET @@global.failed_attempts_before_delay = -9223372036854775808;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = -20;
+SELECT @@global.password_errors_before_delay;
 
 
---echo # 1.2 : Setting failed_attempts_before_delay to
+SET @@global.password_errors_before_delay = 9223372036854775808;
+SELECT @@global.password_errors_before_delay;
+
+SET @@global.password_errors_before_delay = -9223372036854775808;
+SELECT @@global.password_errors_before_delay;
+
+
+--echo # 1.2 : Setting password_errors_before_delay to
 --echo #       invalid value
 
 --error ER_WRONG_TYPE_FOR_VAR
-SET @@global.failed_attempts_before_delay = NULL;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = NULL;
+SELECT @@global.password_errors_before_delay;
 
 --error ER_WRONG_TYPE_FOR_VAR
-SET @@global.failed_attempts_before_delay = `SELECT * FROM mysql.user`;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = `SELECT * FROM mysql.user`;
+SELECT @@global.password_errors_before_delay;
 
 
 
@@ -60,31 +60,31 @@ SELECT @@global.failed_attempts_before_delay;
 connection conn_no_privs;
 
 --echo # 1.3 : Use no_privs@localhost to set
---echo #       failed_attempts_before_delay to valid value
+--echo #       password_errors_before_delay to valid value
 
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
-SET @@global.failed_attempts_before_delay = 2147483647;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = 2147483647;
+SELECT @@global.password_errors_before_delay;
 
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
-SET @@global.failed_attempts_before_delay = DEFAULT;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = DEFAULT;
+SELECT @@global.password_errors_before_delay;
 
 --echo # 1.4 : Use no_privs@localhost to set
---echo #       failed_attempts_before_delay to invalid value
+--echo #       password_errors_before_delay to invalid value
 
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
-SET @@global.failed_attempts_before_delay = NULL;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = NULL;
+SELECT @@global.password_errors_before_delay;
 
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
-SET @@global.failed_attempts_before_delay = 9223372036854775808;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = 9223372036854775808;
+SELECT @@global.password_errors_before_delay;
 
 connection default;
 
-SET @@global.failed_attempts_before_delay = @saved_value;
-SELECT @@global.failed_attempts_before_delay;
+SET @@global.password_errors_before_delay = @saved_value;
+SELECT @@global.password_errors_before_delay;
 
 --echo #-----------------------------------------------------------------------
 --echo # Cleanup

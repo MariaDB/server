@@ -20,10 +20,10 @@ CREATE USER u3 IDENTIFIED BY 'abcd';
 let $DELAY_MIN_RESPONSE_TIME= 1000;
 
 -- echo # Set small values for connection_delay variables
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 --source ../inc/skip_connection_delay.inc
 --echo # Current max password errors and timeout config
-select @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.failed_attempts_before_delay;
+select @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
 select @@debug_dbug;
 
 # We don't need to use client side authentication plugin for this test.

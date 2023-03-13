@@ -789,7 +789,6 @@ typedef struct system_variables
   ulong tx_isolation;
   ulong updatable_views_with_limit;
   ulong alter_algorithm;
-  uint32 failed_attempts_before_delay;
   ulong server_id;
   ulong session_track_transaction_info;
   ulong threadpool_priority;

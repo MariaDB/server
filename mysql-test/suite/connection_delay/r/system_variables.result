@@ -4,94 +4,94 @@ CREATE USER no_privs@localhost IDENTIFIED BY 'abcd';
 connect conn_no_privs, localhost, no_privs, abcd,,,,;
 connection default;
 #-----------------------------------------------------------------------
-# Case 1 : failed_attempts_before_delay
-SET @saved_value = @@global.failed_attempts_before_delay;
+# Case 1 : password_errors_before_delay
+SET @saved_value = @@global.password_errors_before_delay;
 SELECT @saved_value;
 @saved_value
 3
-SET @@global.failed_attempts_before_delay = @saved_value;
-# 1.1 : Setting failed_attempts_before_delay to valid
+SET @@global.password_errors_before_delay = @saved_value;
+# 1.1 : Setting password_errors_before_delay to valid
 #       value
-SET @@global.failed_attempts_before_delay = 20;
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SET @@global.password_errors_before_delay = 20;
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 20
-SET @@global.failed_attempts_before_delay = 2000;
+SET @@global.password_errors_before_delay = 2000;
 Warnings:
-Warning	1292	Truncated incorrect failed_attempts_before_delay value: '2000'
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+Warning	1292	Truncated incorrect password_errors_before_delay value: '2000'
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 255
-SET @@global.failed_attempts_before_delay = 2147483647;
+SET @@global.password_errors_before_delay = 2147483647;
 Warnings:
-Warning	1292	Truncated incorrect failed_attempts_before_delay value: '2147483647'
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+Warning	1292	Truncated incorrect password_errors_before_delay value: '2147483647'
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 255
-SET @@global.failed_attempts_before_delay = DEFAULT;
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SET @@global.password_errors_before_delay = DEFAULT;
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 3
-SET @@global.failed_attempts_before_delay = -20;
+SET @@global.password_errors_before_delay = -20;
 Warnings:
-Warning	1292	Truncated incorrect failed_attempts_before_delay value: '-20'
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+Warning	1292	Truncated incorrect password_errors_before_delay value: '-20'
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 0
-SET @@global.failed_attempts_before_delay = 9223372036854775808;
+SET @@global.password_errors_before_delay = 9223372036854775808;
 Warnings:
-Warning	1292	Truncated incorrect failed_attempts_before_delay value: '9223372036854775808'
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+Warning	1292	Truncated incorrect password_errors_before_delay value: '9223372036854775808'
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 255
-SET @@global.failed_attempts_before_delay = -9223372036854775808;
+SET @@global.password_errors_before_delay = -9223372036854775808;
 Warnings:
-Warning	1292	Truncated incorrect failed_attempts_before_delay value: '-9223372036854775808'
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+Warning	1292	Truncated incorrect password_errors_before_delay value: '-9223372036854775808'
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 0
-# 1.2 : Setting failed_attempts_before_delay to
+# 1.2 : Setting password_errors_before_delay to
 #       invalid value
-SET @@global.failed_attempts_before_delay = NULL;
-ERROR 42000: Incorrect argument type to variable 'failed_attempts_before_delay'
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SET @@global.password_errors_before_delay = NULL;
+ERROR 42000: Incorrect argument type to variable 'password_errors_before_delay'
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 0
-SET @@global.failed_attempts_before_delay = `SELECT * FROM mysql.user`;
-ERROR 42000: Incorrect argument type to variable 'failed_attempts_before_delay'
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SET @@global.password_errors_before_delay = `SELECT * FROM mysql.user`;
+ERROR 42000: Incorrect argument type to variable 'password_errors_before_delay'
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 0
 # Switch to conn_no_privs
 connection conn_no_privs;
 # 1.3 : Use no_privs@localhost to set
-#       failed_attempts_before_delay to valid value
-SET @@global.failed_attempts_before_delay = 2147483647;
+#       password_errors_before_delay to valid value
+SET @@global.password_errors_before_delay = 2147483647;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 0
-SET @@global.failed_attempts_before_delay = DEFAULT;
+SET @@global.password_errors_before_delay = DEFAULT;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 0
 # 1.4 : Use no_privs@localhost to set
-#       failed_attempts_before_delay to invalid value
-SET @@global.failed_attempts_before_delay = NULL;
+#       password_errors_before_delay to invalid value
+SET @@global.password_errors_before_delay = NULL;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 0
-SET @@global.failed_attempts_before_delay = 9223372036854775808;
+SET @@global.password_errors_before_delay = 9223372036854775808;
 ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 0
 connection default;
-SET @@global.failed_attempts_before_delay = @saved_value;
-SELECT @@global.failed_attempts_before_delay;
-@@global.failed_attempts_before_delay
+SET @@global.password_errors_before_delay = @saved_value;
+SELECT @@global.password_errors_before_delay;
+@@global.password_errors_before_delay
 3
 #-----------------------------------------------------------------------
 # Cleanup

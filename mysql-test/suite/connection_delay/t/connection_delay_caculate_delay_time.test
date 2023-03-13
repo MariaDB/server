@@ -17,13 +17,13 @@ CREATE USER u3 IDENTIFIED BY 'abcd';
 --echo # Declare config variables
 let $timeout=28800;
 let $max_password_errors=4294967295;
-let $failed_attempts_before_delay=3;
+let $password_errors_before_delay=3;
 --source ../inc/save_variables.inc
 --source ../inc/skip_connection_delay.inc
 --echo # Set failed attempts to 3
-eval SET @@global.failed_attempts_before_delay = $failed_attempts_before_delay;
+eval SET @@global.password_errors_before_delay = $password_errors_before_delay;
 --echo # Current max password errors and timeout config
-SELECT @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.failed_attempts_before_delay;
+SELECT @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
 SELECT @@debug_dbug;
 
 # We don't need to use client side authentication plugin for this test.
@@ -67,7 +67,7 @@ let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 let $USER=u1;
@@ -75,7 +75,7 @@ let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 
@@ -85,7 +85,7 @@ let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 -- echo # --------------Set timeout to default and max_password_errors to 100-----------------
@@ -100,7 +100,7 @@ let $SUCCESS=0;
 let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
 --source ../inc/check_connection_delay_step.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 let $USER=u1;
@@ -110,7 +110,7 @@ let $SUCCESS=0;
 let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
 --source ../inc/check_connection_delay_step.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 
@@ -127,7 +127,7 @@ let $SUCCESS=0;
 let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
 --source ../inc/check_connection_delay_step.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 
@@ -136,7 +136,7 @@ let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 -- echo # --------------Set interactive timeout  to 24h and wait timeout to 1h and max_password_errors to 100-----------------
@@ -152,7 +152,7 @@ let $SUCCESS=0;
 let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
 --source ../inc/check_connection_delay_step.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 
@@ -161,7 +161,7 @@ let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
 inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$failed_attempts_before_delay) * $step`;
+let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
 

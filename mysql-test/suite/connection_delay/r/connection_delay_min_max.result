@@ -6,14 +6,14 @@
 # Create user account for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
 # Save original values of connection_delay variables
-SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+SET @saved_connections_threshold = @@global.password_errors_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
 SET @saved_wait_timeout=@@global.wait_timeout;
 SET @saved_interactive_timeout=@@global.interactive_timeout;
 SET @old_debug=@@global.debug_dbug;
 SET @@global.debug_dbug="+d,skip_connection_delay";
 # Set max values for max_password_errors
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 SET @@global.max_password_errors=2000000000;
 # Make enough failed attempts to trigger delays
 connect(localhost,u1,haha,test,MASTER_PORT,MASTER_SOCKET);
@@ -38,7 +38,7 @@ ERROR 28000: Access denied for user 'u1'@'localhost' (using password: YES)
 FOUND 1 /u1@% wait 3000 milliseconds/ in mysqld.1.err
 FLUSH PRIVILEGES;
 # Set small values for max_password_errors
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 SET @@global.max_password_errors=6;
 
 # ----------------------------------------------------------------------
@@ -74,7 +74,7 @@ ERROR HY000: User is blocked because of too many credential errors; unblock with
 # Cleanup
 connection default;
 # Restore original values of connection delay variables
-SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+SET @@global.password_errors_before_delay = @saved_connections_threshold;
 SET @@global.max_password_errors = @saved_max_password_errors;
 SET @@global.wait_timeout = @saved_wait_timeout;
 SET @@global.interactive_timeout = @saved_interactive_timeout;

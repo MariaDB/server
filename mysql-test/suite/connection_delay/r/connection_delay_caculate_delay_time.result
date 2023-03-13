@@ -9,17 +9,17 @@ CREATE USER u2 IDENTIFIED BY 'abcd';
 CREATE USER u3 IDENTIFIED BY 'abcd';
 # Declare config variables
 # Save original values of connection_delay variables
-SET @saved_connections_threshold = @@global.failed_attempts_before_delay;
+SET @saved_connections_threshold = @@global.password_errors_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
 SET @saved_wait_timeout=@@global.wait_timeout;
 SET @saved_interactive_timeout=@@global.interactive_timeout;
 SET @old_debug=@@global.debug_dbug;
 SET @@global.debug_dbug="+d,skip_connection_delay";
 # Set failed attempts to 3
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 # Current max password errors and timeout config
-SELECT @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.failed_attempts_before_delay;
-@@global.wait_timeout	@@global.interactive_timeout	@@global.max_password_errors	@@global.failed_attempts_before_delay
+SELECT @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
+@@global.wait_timeout	@@global.interactive_timeout	@@global.max_password_errors	@@global.password_errors_before_delay
 28800	28800	4294967295	3
 SELECT @@debug_dbug;
 @@debug_dbug
@@ -91,7 +91,7 @@ ERROR HY000: User is blocked because of too many credential errors; unblock with
 # Cleanup
 connection default;
 # Restore original values of connection delay variables
-SET @@global.failed_attempts_before_delay = @saved_connections_threshold;
+SET @@global.password_errors_before_delay = @saved_connections_threshold;
 SET @@global.max_password_errors = @saved_max_password_errors;
 SET @@global.wait_timeout = @saved_wait_timeout;
 SET @@global.interactive_timeout = @saved_interactive_timeout;

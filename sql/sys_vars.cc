@@ -1771,6 +1771,17 @@ Sys_max_connect_errors(
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
        BLOCK_SIZE(1));
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+static Sys_var_on_access_global<Sys_var_uint,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS>
+    Sys_password_errors_before_delay("password_errors_before_delay",
+                                     "The failed login attempts before delay",
+                                     GLOBAL_VAR(password_errors_before_delay),
+                                     CMD_LINE(REQUIRED_ARG),
+                                     VALID_RANGE(0, UINT_MAX), DEFAULT(0),
+                                     BLOCK_SIZE(1));
+#endif
+
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS>
 Sys_max_password_errors(
@@ -2610,15 +2621,6 @@ static Sys_var_max_user_conn Sys_max_user_connections(
        SESSION_VAR(max_user_connections), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(-1, INT_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(if_checking_enabled));
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-static Sys_var_uint Sys_failed_attempts_before_delay(
-       "failed_attempts_before_delay",
-       "The failed login attempts before delay",
-       GLOBAL_VAR(global_system_variables.failed_attempts_before_delay), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT8_MAX), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
-       NOT_IN_BINLOG, ON_CHECK(0),ON_UPDATE(0));
-#endif
 
 static Sys_var_ulong Sys_max_tmp_tables(
        "max_tmp_tables", "Unused, will be removed.",

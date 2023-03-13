@@ -16,7 +16,7 @@ let $DELAY_MIN_RESPONSE_TIME= 1000;
 --source ../inc/save_variables.inc
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 --source ../inc/skip_connection_delay.inc
 --echo
 --echo # ----------------------------------------------------------------------
@@ -58,7 +58,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 --source ../inc/check_response_delay_time.inc
 
 --echo # ---------------------Disabled connection delay
-SET @@global.failed_attempts_before_delay = 0;
+SET @@global.password_errors_before_delay = 0;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;

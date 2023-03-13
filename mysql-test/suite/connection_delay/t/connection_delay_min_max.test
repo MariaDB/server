@@ -23,7 +23,7 @@ CREATE USER u1 IDENTIFIED BY 'abcd';
 
 
 --echo # Set max values for max_password_errors
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 #Set to 20_0000_0000
 SET @@global.max_password_errors=2000000000;
 
@@ -73,7 +73,7 @@ connect(fail_con_u1, localhost, u1,haha,,,,);
 FLUSH PRIVILEGES;
 
 --echo # Set small values for max_password_errors
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 SET @@global.max_password_errors=6;
 # We don't need to use client side authentication plugin for this test.
 let $USE_AUTH_PLUGIN= 0;

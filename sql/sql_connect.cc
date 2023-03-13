@@ -56,9 +56,10 @@ extern vio_keepalive_opts opt_vio_keepalive;
 /* Delay user failedlogin response mutex and lock */
 PSI_mutex_key key_connection_delay_mutex = PSI_NOT_INSTRUMENTED;
 PSI_cond_key key_connection_delay_wait = PSI_NOT_INSTRUMENTED;
-PSI_stage_info stage_waiting_in_user_login_failed_delay = {
+PSI_stage_info stage_waiting_in_login_failed_delay= {
     0, "Waiting in delay failed login response stage", 0};;
-extern uint max_password_errors;;
+extern uint max_password_errors;
+extern uint password_errors_before_delay;
 
 /*
   Get structure for logging connection data for the current user
@@ -268,8 +269,8 @@ static uint64 get_connection_delay_time(uint32 count)
   ever and server close connection if it got message from client after
   wait_timeout
    * so ,
-   step = timeout/(max_password_errors - failed_attempts_before_delay)
-  delay = step *(failed_count  -failed_attempts_before_delay)
+   step = timeout/(max_password_errors - password_errors_before_delay)
+  delay = step *(failed_count  -password_errors_before_delay)
 */
   struct system_variables *p= &global_system_variables;
   /* Time unit for delay step is seconds , convert to milliseconds*/
@@ -277,14 +278,13 @@ static uint64 get_connection_delay_time(uint32 count)
                        ? p->net_wait_timeout
                        : p->net_interactive_timeout) *
                   1000;
-  uint64 step= timeout / (max_password_errors - p->failed_attempts_before_delay);
+  uint64 step= timeout / (max_password_errors - password_errors_before_delay);
   DBUG_PRINT("info",("The step for connection delay is %d milliseconds",step));
   /* min  delay time is 1 seconds and max delay time is timeout */
   uint64 delay=
-      (step > 1000 ? step : 1000) * (count - p->failed_attempts_before_delay);
+      (step > 1000 ? step : 1000) * (count - password_errors_before_delay);
   return delay < timeout ? delay : timeout;
 }
-
 
 /**
  * @brief  Use conditional variables to implement delay
@@ -301,23 +301,14 @@ static void condition_wait(THD* thd, uint64 time)
 
   /** PSI_stage_info for thd_enter_cond/thd_exit_cond */
   PSI_stage_info old_stage;
-  /** Initialize mutex required for mysql_cond_timedwait */
-  mysql_mutex_t connection_delay_mutex;
-  mysql_mutex_init(key_connection_delay_mutex, &connection_delay_mutex,
-                   MY_MUTEX_INIT_FAST);
+  /** Use mutex in thd context  */
+  mysql_mutex_t* p_delay_mutex= &thd->mysys_var->mutex;
+  mysql_cond_t*p_delay_wait_condition= &thd->mysys_var->suspend;
 
-  /* Initialize condition to wait for */
-  mysql_cond_t connection_delay_wait_condition;
-  mysql_cond_init(key_connection_delay_wait, &connection_delay_wait_condition,
-                  NULL);
+  mysql_mutex_lock(p_delay_mutex);
 
-  /** Register wait condition with THD */
-  mysql_mutex_lock(&connection_delay_mutex);
-
-  thd_enter_cond(thd, &connection_delay_wait_condition,
-                 &connection_delay_mutex,
-                 &stage_waiting_in_user_login_failed_delay, &old_stage,
-                 __func__, __FILE__, __LINE__);
+  THD_ENTER_COND(thd, p_delay_wait_condition, p_delay_mutex,
+                 &stage_waiting_in_login_failed_delay, &old_stage);
 
   /*
     At this point, thread is essentially going to sleep till
@@ -327,30 +318,23 @@ static void condition_wait(THD* thd, uint64 time)
     we will return control to server without worring about
     wait_time.
   */
-  mysql_cond_timedwait(&connection_delay_wait_condition,
-                       &connection_delay_mutex, &abstime);
+  mysql_cond_timedwait(p_delay_wait_condition, p_delay_mutex, &abstime);
 
   /**
    * @brief Exit_cond will release mutex
    *
    */
-  thd_exit_cond(thd, &stage_waiting_in_user_login_failed_delay, __func__,
+  thd_exit_cond(thd, &stage_waiting_in_login_failed_delay, __func__,
                 __FILE__, __LINE__);
-
-  /* Cleanup */
-  mysql_mutex_destroy(&connection_delay_mutex);
-  mysql_cond_destroy(&connection_delay_wait_condition);
 }
 
 static int delay_response(THD *thd, const char *user, const char *hostname,
                           uint32 count)
 {
   uint64 wait_time= get_connection_delay_time(count);
-  bool skip= false;
   DBUG_PRINT("info",
              ("%s@%s wait %u milliseconds", user, hostname, wait_time));
-  DBUG_EXECUTE_IF("skip_connection_delay", { skip= true; });
-  if (!skip)
+  if (!DBUG_IF("skip_connection_delay"))
   {
     condition_wait(thd, wait_time);
   }
@@ -368,17 +352,14 @@ int connection_delay_for_user(THD *thd,
   DBUG_ENTER("connection_delay_for_user");
   DBUG_PRINT("info", ("%s@%s have login failed %u times", user, hostname,
                       failed_count));
-  if (global_system_variables.failed_attempts_before_delay > 0 && user &&
+  if (password_errors_before_delay > 0 && user &&
       hostname &&
-      failed_count > global_system_variables.failed_attempts_before_delay)
+      failed_count > password_errors_before_delay)
   {
     delay_response(thd, user, hostname, failed_count);
   }
   DBUG_RETURN(0);
 }
-
-
-
 
 /*
   Check if maximum queries per hour limit has been reached

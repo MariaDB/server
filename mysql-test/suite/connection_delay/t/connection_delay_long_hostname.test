@@ -8,7 +8,7 @@
 # We don't need to use client side authentication plugin for this test.
 --source ../inc/save_variables.inc
 --source ../inc/skip_connection_delay.inc
-SET @@global.failed_attempts_before_delay = 3;
+SET @@global.password_errors_before_delay = 3;
 --echo # Create user accounts for testing
 CREATE USER u1 IDENTIFIED BY 'abcd';
 FLUSH HOSTS;
