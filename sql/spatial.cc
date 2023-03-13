@@ -1031,6 +1031,17 @@ bool Gis_point::get_mbr(MBR *mbr, const char **end) const
   return 0;
 }
 
+int Gis_point::is_valid(int *valid) const
+{
+  double x, y;
+  if (get_xy(&x, &y))
+    return 1;
+
+  *valid= 1;
+  return 0;
+}
+
+
 
 int Gis_point::area(double *ar, const char **end) const
 {
@@ -1431,6 +1442,21 @@ int Gis_line_string::is_closed(int *closed) const
 }
 
 
+int Gis_line_string::is_valid(int *valid) const
+{
+  uint32 n_points;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_points= uint4korr(data);
+  if (n_points == 0 || not_enough_points(data, n_points))
+    return 1;
+
+  *valid= 1;
+  return 0;
+}
+
 int Gis_line_string::num_points(uint32 *n_points) const
 {
   *n_points= uint4korr(m_data);
@@ -1785,6 +1811,65 @@ bool Gis_polygon::get_mbr(MBR *mbr, const char **end) const
   }
   *end= data;
   return 0;
+}
+
+
+int Gis_polygon::is_valid(int *valid) const
+{
+
+  String swkb("", 0, &my_charset_bin);
+  uint32 srid= uint4korr(swkb.ptr());
+  swkb.set_charset(&my_charset_bin);
+  swkb.length(0);
+  const char *c_end;
+
+  if (swkb.reserve(SRID_SIZE, 512))
+    return 1;
+  swkb.q_append(srid);
+
+  if (this->exterior_ring(&swkb))
+    return 1;
+
+  Geometry_buffer buffer;
+  Geometry *exteriorRing, *interiorRing;
+  MBR exterior_mbr, interior_mbr;
+
+  if (!(exteriorRing= Geometry::construct(&buffer, swkb.ptr(), swkb.length())))
+    return 1;
+
+  if (exteriorRing->get_mbr(&exterior_mbr, &c_end))
+    return 1;
+
+  *valid= 1;
+  for(uint32 i= 1;;i++)
+  {
+
+      uint32 srid= uint4korr(swkb.ptr());
+      swkb.set_charset(&my_charset_bin);
+      swkb.length(0);
+
+      if (swkb.reserve(SRID_SIZE, 512))
+        return 1;
+
+      swkb.q_append(srid);
+      if (this->interior_ring_n(i, &swkb))
+        break;
+
+      if (!(interiorRing= Geometry::construct(&buffer, swkb.ptr(), swkb.length())))
+        return 1;
+
+      if (interiorRing->get_mbr(&interior_mbr, &c_end))
+        return 1;
+
+      if (exterior_mbr.contains(&interior_mbr)) continue;
+
+      *valid= 0;
+      break;
+  }
+
+
+  return 0;
+
 }
 
 
@@ -2252,6 +2337,17 @@ bool Gis_multi_point::get_data_as_json(String *txt, uint max_dec_digits,
 }
 
 
+int Gis_multi_point::is_valid(int *valid) const
+{
+  uint32 n_points;
+  if (no_data(m_data, 4))
+    return 1;
+
+  n_points= uint4korr(m_data);
+  *valid= (n_points >= 2);
+  return 0;
+}
+
 bool Gis_multi_point::get_mbr(MBR *mbr, const char **end) const
 {
   return (*end= get_mbr_for_points(mbr, m_data, WKB_HEADER_SIZE)) == 0;
@@ -2642,6 +2738,32 @@ bool Gis_multi_line_string::get_data_as_json(String *txt, uint max_dec_digits,
   return 0;
 }
 
+
+int Gis_multi_line_string::is_valid(int *valid) const
+{
+  uint32 n_line_strings, n_points, length;
+  const char *data= m_data;
+
+  if (no_data(data, 4))
+    return 1;
+  n_line_strings= uint4korr(data);
+  data+= 4;
+
+  for (;;)
+  {
+    if (no_data(data, WKB_HEADER_SIZE + 4))
+      return 1;
+    n_points= uint4korr(data + WKB_HEADER_SIZE);
+    length= WKB_HEADER_SIZE + 4+ POINT_DATA_SIZE * n_points;
+    if (not_enough_points(data+WKB_HEADER_SIZE+4, n_points))
+      return 1;
+    data+= length;
+  }
+
+  *valid= (n_line_strings >= 1);
+  return 0;
+
+}
 
 bool Gis_multi_line_string::get_mbr(MBR *mbr, const char **end) const
 {
@@ -3065,6 +3187,49 @@ bool Gis_multi_polygon::get_data_as_json(String *txt, uint max_dec_digits,
   return 0;
 }
 
+
+int Gis_multi_polygon::is_valid(int *valid) const
+{
+  uint32 num_on_geometries;
+  if (this->num_geometries(&num_on_geometries))
+    return 1;
+
+  String swkb("", 0, &my_charset_bin);
+  uint32 srid= uint4korr(swkb.ptr());
+  Geometry_buffer buff_temp;
+
+  if (swkb.reserve(SRID_SIZE, 512))
+    return 1;
+  swkb.q_append(srid);
+  *valid= 1;
+  for (uint32 i= 1; i <= num_on_geometries; i++)
+  {
+    // extract the i-th geometry
+
+    Geometry *temp;
+    swkb.set_charset(&my_charset_bin);
+    swkb.length(0);
+
+    if (this->geometry_n(i, &swkb))
+      return 1;
+
+    temp= Geometry::construct(&buff_temp, swkb.ptr(), swkb.length());
+    if (!temp)
+      return 1;
+
+    int tempValid;
+    if (temp->is_valid(&tempValid))
+      return 1;
+
+    if (!tempValid)
+    {
+      *valid= 0;
+      break;
+    }
+  }
+
+  return 0;
+}
 
 bool Gis_multi_polygon::get_mbr(MBR *mbr, const char **end) const
 {
@@ -3537,6 +3702,49 @@ bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
   return 0;
 }
 
+
+int Gis_geometry_collection::is_valid(int *valid) const
+{
+  uint32 num_on_geometries;
+  if (this->num_geometries(&num_on_geometries))
+    return 1;
+
+  String swkb("", 0, &my_charset_bin);
+  uint32 srid= uint4korr(swkb.ptr());
+  Geometry_buffer buff_temp;
+
+  if (swkb.reserve(SRID_SIZE, 512))
+    return 1;
+  swkb.q_append(srid);
+  *valid= 1;
+  for (uint32 i= 1; i <= num_on_geometries; i++)
+  {
+    // extract the i-th geometry
+
+    Geometry *temp;
+    swkb.set_charset(&my_charset_bin);
+    swkb.length(0);
+
+    if (this->geometry_n(i, &swkb))
+      return 1;
+
+    temp= Geometry::construct(&buff_temp, swkb.ptr(), swkb.length());
+    if (!temp)
+      return 1;
+
+    int tempValid;
+    if (temp->is_valid(&tempValid))
+      return 1;
+
+    if (!tempValid)
+    {
+      *valid= 0;
+      break;
+    }
+  }
+
+  return 0;
+}
 
 bool Gis_geometry_collection::get_mbr(MBR *mbr, const char **end) const
 {
