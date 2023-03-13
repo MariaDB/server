@@ -291,6 +291,7 @@ public:
   virtual int geom_length(double *len, const char **end) const  { return -1; }
   virtual int area(double *ar, const char **end) const { return -1;}
   virtual int is_closed(int *closed) const { return -1; }
+  virtual int is_valid(int *valid) const { return -1; }
   virtual int num_interior_ring(uint32 *n_int_rings) const { return -1; }
   virtual int num_points(uint32 *n_points) const { return -1; }
   virtual int num_geometries(uint32 *num) const { return -1; }
