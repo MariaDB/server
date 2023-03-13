@@ -1910,13 +1910,13 @@ void THD::awake_no_mutex(killed_state state_to_set)
 }
 
 /* Broadcast a condition to kick the target if it is waiting on it. */
-void THD::abort_current_cond_wait(bool force)
+void THD::abort_current_cond_wait(bool force, bool mark_abort)
 {
   mysql_mutex_assert_owner(&LOCK_thd_kill);
   if (mysys_var)
   {
     mysql_mutex_lock(&mysys_var->mutex);
-    if (!system_thread || force)                 // Don't abort locks
+    if (mark_abort && (!system_thread || force))  // Don't abort locks
       mysys_var->abort=1;
 
     /*

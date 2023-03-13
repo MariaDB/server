@@ -397,6 +397,7 @@ int PFS_system_variable_cache::make_call(Request_func func, uint param)
     PFS_system_variable_cache_apc apc_call(this, func, param);
     auto *request= new Apc_target::Call_request;
     m_safe_thd->apc_target.enqueue_request(request, &apc_call);
+    m_safe_thd->abort_current_cond_wait(false, false);
     m_safe_thd->scheduler->notify_apc(m_safe_thd);
     DEBUG_SYNC(requestor_thd, "apc_after_notify");
     ret= m_safe_thd->apc_target.wait_for_completion(requestor_thd, request, 10);

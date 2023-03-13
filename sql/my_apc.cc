@@ -133,9 +133,9 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
   int wait_res= 0;
   PSI_stage_info old_stage;
 
-  mysql_mutex_lock(&apc_request->LOCK_request);
   mysql_mutex_unlock(LOCK_thd_kill_ptr);
 
+  mysql_mutex_lock(&apc_request->LOCK_request);
   caller_thd->ENTER_COND(&apc_request->COND_request, &apc_request->LOCK_request,
                          &stage_show_explain, &old_stage);
   /* todo: how about processing other errors here? */
@@ -145,6 +145,13 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
                                    &apc_request->LOCK_request, &abstime);
     if (caller_thd->killed)
       break;
+
+    if (caller_thd->apc_target.have_apc_requests())
+    {
+      mysql_mutex_unlock(&apc_request->LOCK_request);
+      caller_thd->apc_target.process_apc_requests();
+      mysql_mutex_lock(&apc_request->LOCK_request);
+    }
   }
 
   if (!apc_request->processed)

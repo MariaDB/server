@@ -3795,7 +3795,7 @@ public:
     mysql_mutex_unlock(&LOCK_thd_data);
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
-  void abort_current_cond_wait(bool force);
+  void abort_current_cond_wait(bool force, bool mark_abort= true);
  
   /** Disconnect the associated communication endpoint. */
   void disconnect();
