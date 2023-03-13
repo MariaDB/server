@@ -7569,20 +7569,28 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   Estimate how many records we will get if we read just this table and apply
   a part of WHERE that can be checked for it.
 
+  @param s                      Current JOIN_TAB
+  @param use_cond_selectivity   Value of optimizer_use_condition_selectivity.
+                                If > 1 then use table->cond_selecitivity.
+  @param force_estiamte         Set to 1 if we should not call
+                                use_found_constraint. To be deleted in 11.0
+  @return 0.0                   No matching rows
+  @return >= 1.0                Number of expected matching rows
+
   @detail
   Estimate how many records we will get if we
    - read the given table with its "independent" access method (either quick 
      select or full table/index scan),
    - apply the part of WHERE that refers only to this table.
 
-  @seealso
+  @see also
     table_cond_selectivity() produces selectivity of condition that is checked
     after joining rows from this table to rows from preceding tables.
 */
 
-inline
-double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
-                                     uint use_cond_selectivity)
+static double apply_selectivity_for_table(JOIN_TAB *s,
+                                          uint use_cond_selectivity,
+                                          bool *force_estimate)
 {
   ha_rows records;
   double dbl_records;
@@ -7593,32 +7601,45 @@ double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
     double sel= table->cond_selectivity;
     double table_records= rows2double(s->records);
     dbl_records= table_records * sel;
+    *force_estimate= 1;           // Don't call use_found_constraint()
     return dbl_records;
   }
 
   records = s->found_records;
 
   /*
-    If there is a filtering condition on the table (i.e. ref analyzer found
-    at least one "table.keyXpartY= exprZ", where exprZ refers only to tables
-    preceding this table in the join order we're now considering), then 
-    assume that 25% of the rows will be filtered out by this condition.
-
-    This heuristic is supposed to force tables used in exprZ to be before
-    this table in join order.
+    If applicable, get a more accurate estimate.
   */
-  if (with_found_constraint)
-    records-= records/4;
-
-    /*
-      If applicable, get a more accurate estimate. Don't use the two
-      heuristics at once.
-    */
+  DBUG_ASSERT(s->table->opt_range_condition_rows <= s->found_records);
   if (s->table->opt_range_condition_rows != s->found_records)
+  {
+    *force_estimate= 1;           // Don't call use_found_constraint()
     records= s->table->opt_range_condition_rows;
+  }
 
   dbl_records= (double)records;
   return dbl_records;
+}
+
+/*
+  Take into account that the table's WHERE clause has conditions on earlier
+  tables that can reduce the number of accepted rows.
+
+  @param records  Number of original rows (after selectivity)
+
+  If there is a filtering condition on the table (i.e. ref analyzer found
+  at least one "table.keyXpartY= exprZ", where exprZ refers only to tables
+  preceding this table in the join order we're now considering), then
+  assume that 25% of the rows will be filtered out by this condition.
+
+  This heuristic is supposed to force tables used in exprZ to be before
+  this table in join order.
+*/
+
+inline double use_found_constraint(double records)
+{
+  records-= records/4;
+  return records;
 }
 
 
@@ -7683,7 +7704,8 @@ double adjust_quick_cost(double quick_cost, ha_rows records)
 */
 
 double hash_join_fanout(JOIN *join, JOIN_TAB *s, table_map remaining_tables,
-                        double rnd_records, KEYUSE *hj_start_key)
+                        double rnd_records, KEYUSE *hj_start_key,
+                        bool *stats_found)
 {
   THD *thd= join->thd;
   /*
@@ -7752,6 +7774,7 @@ double hash_join_fanout(JOIN *join, JOIN_TAB *s, table_map remaining_tables,
           add("avg_frequency", freq);
         if (freq < min_freq)
           min_freq= freq;
+        *stats_found= 1;
       }
     }
   }
@@ -8380,17 +8403,13 @@ best_access_path(JOIN      *join,
     Json_writer_object trace_access_hash(thd);
     trace_access_hash.add("type", "hash");
     trace_access_hash.add("index", "hj-key");
-    double join_sel= 0.1;
+    double join_sel;
+    bool stats_found= 0, force_estimate= 0;
     /* Estimate the cost of  the hash join access to the table */
-    double rnd_records= matching_candidates_in_table(s, found_constraint,
-                                                     use_cond_selectivity);
-
-    tmp= s->quick ? s->quick->read_time : s->scan_time();
-    double cmp_time= (s->records - rnd_records)/TIME_FOR_COMPARE;
-    tmp= COST_ADD(tmp, cmp_time);
+    double rnd_records= apply_selectivity_for_table(s, use_cond_selectivity,
+                                                    &force_estimate);
 
     DBUG_ASSERT(hj_start_key);
-    fanout= rnd_records;
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY))
     {
       /*
@@ -8398,9 +8417,30 @@ best_access_path(JOIN      *join,
         Use "fanout" for an estimate of # matching records.
       */
       fanout= hash_join_fanout(join, s, remaining_tables, rnd_records,
-                               hj_start_key);
+                               hj_start_key, &stats_found);
       join_sel= 1.0; // Don't do the "10% heuristic"
     }
+    if (!stats_found)
+    {
+      /*
+        No OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY or no field statistics
+        found.
+
+        Take into account if there is non constant constraints used with
+        earlier tables in the where expression.
+        If yes, this will set fanout to rnd_records/4.
+        We estimate that there will be HASH_FANOUT (10%)
+        hash matches / row.
+      */
+      if (found_constraint && !force_estimate)
+        rnd_records= use_found_constraint(rnd_records);
+      fanout= rnd_records;
+      join_sel= 0.1;
+    }
+
+    tmp= s->quick ? s->quick->read_time : s->scan_time();
+    double cmp_time= (s->records - rnd_records)/TIME_FOR_COMPARE;
+    tmp= COST_ADD(tmp, cmp_time);
 
     /* We read the table as many times as join buffer becomes full. */
 
@@ -8489,9 +8529,13 @@ best_access_path(JOIN      *join,
       !(s->table->force_index && best_key && !s->quick) &&               // (4)
       !(best_key && s->table->pos_in_table_list->jtbm_subselect))        // (5)
   {                                             // Check full join
-    double rnd_records= matching_candidates_in_table(s, found_constraint,
-                                                      use_cond_selectivity);
-
+    bool force_estimate= 0;
+    double rnd_records= apply_selectivity_for_table(s,
+                                                    use_cond_selectivity,
+                                                    &force_estimate);
+    rnd_records= ((found_constraint && !force_estimate) ?
+                  use_found_constraint(rnd_records) :
+                  rnd_records);
     /*
       Range optimizer never proposes a RANGE if it isn't better
       than FULL: so if RANGE is present, it's always preferred to FULL.
@@ -9700,7 +9744,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     with previous tables.
 
     For quick selects and full table scans, selectivity of COND(this_table)
-    is accounted for in matching_candidates_in_table(). Here, we only count
+    is accounted for in apply_selectivity_for_table(). Here, we only count
     selectivity of COND(this_table, previous_tables). 
 
     For other access methods, we need to calculate selectivity of the whole
@@ -9902,7 +9946,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     /*
       The table is accessed with full table scan, or quick select.
       Selectivity of COND(table) is already accounted for in 
-      matching_candidates_in_table().
+      apply_selectivity_for_table().
     */
     sel= 1;
   }
