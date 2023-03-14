@@ -828,7 +828,10 @@ The following specify which files/extra groups are read (specified before remain
  Increasing this will have the optimizer to prefer plans
  with less row combinations.
  --password-errors-before-delay=# 
- The failed login attempts before delay
+ If there is more than this number of failed connect
+ attempts due to invalid password, user will be delayed
+ from further connections as delay time increasing, until
+ FLUSH_PRIVILEGES.
  --performance-schema 
  Enable the performance schema.
  --performance-schema-accounts-size=# 
