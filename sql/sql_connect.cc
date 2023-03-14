@@ -269,24 +269,21 @@ static uint64 get_connection_delay_time(uint32 count)
   ever and server close connection if it got message from client after
   wait_timeout
    * so ,
-   step = timeout/(max_password_errors - password_errors_before_delay)
+   step = read_timeout/(max_password_errors - password_errors_before_delay)
   delay = step *(failed_count  -password_errors_before_delay)
 */
-  struct system_variables *p= &global_system_variables;
   /* Time unit for delay step is seconds , convert to milliseconds*/
-  uint64 timeout= (p->net_wait_timeout < p->net_interactive_timeout
-                       ? p->net_wait_timeout
-                       : p->net_interactive_timeout) *
-                  1000;
-  uint64 step= timeout / (max_password_errors - password_errors_before_delay);
+  uint64 read_timeout= global_system_variables.net_read_timeout * 1000;
+  uint64 step=
+      read_timeout / (max_password_errors - password_errors_before_delay);
   /* If max_password_errors is big , step is very small which
    * influence nothing , so 1 second is minim delay step */
   step= step > 1000 ? step : 1000;
   DBUG_PRINT("info",
              ("The step for connection delay is %d milliseconds", step));
   uint64 delay= step * (count - password_errors_before_delay);
-  /* Max delay time is timeout*/
-  return delay < timeout ? delay : timeout;
+  /* Max delay time is read read_timeout*/
+  return delay < read_timeout ? delay : read_timeout;
 }
 
 /**
@@ -305,8 +302,8 @@ static void condition_wait(THD* thd, uint64 time)
   /** PSI_stage_info for thd_enter_cond/thd_exit_cond */
   PSI_stage_info old_stage;
   /** Use mutex in thd context  */
-  mysql_mutex_t* p_delay_mutex= &thd->mysys_var->mutex;
-  mysql_cond_t*p_delay_wait_condition= &thd->mysys_var->suspend;
+  mysql_mutex_t *p_delay_mutex= &thd->mysys_var->mutex;
+  mysql_cond_t *p_delay_wait_condition= &thd->mysys_var->suspend;
 
   mysql_mutex_lock(p_delay_mutex);
 

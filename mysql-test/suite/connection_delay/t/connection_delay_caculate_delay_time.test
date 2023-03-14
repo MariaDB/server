@@ -15,7 +15,7 @@ CREATE USER u2 IDENTIFIED BY 'abcd';
 CREATE USER u3 IDENTIFIED BY 'abcd';
 
 --echo # Declare config variables
-let $timeout=28800;
+let $timeout=30;
 let $max_password_errors=4294967295;
 let $password_errors_before_delay=3;
 --source ../inc/save_variables.inc
@@ -23,7 +23,7 @@ let $password_errors_before_delay=3;
 --echo # Set failed attempts to 3
 eval SET @@global.password_errors_before_delay = $password_errors_before_delay;
 --echo # Current max password errors and timeout config
-SELECT @@global.wait_timeout,@@global.interactive_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
+SELECT @@global.net_read_timeout,@@global.max_password_errors,@@global.password_errors_before_delay;
 SELECT @@debug_dbug;
 
 # We don't need to use client side authentication plugin for this test.
@@ -57,8 +57,7 @@ let failed_count=3;
 
 #-- echo # --------------Set timeout and max_password_errors to default value-----------------
 let $step=1000;
-eval SET @@global.wait_timeout=$timeout;
-eval SET @@global.interactive_timeout=$timeout;
+eval SET @@global.net_read_timeout=$timeout;
 eval SET @@global.max_password_errors=$max_password_errors;
 
 let $HOST=%;
@@ -90,8 +89,7 @@ let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay)
 
 -- echo # --------------Set timeout to default and max_password_errors to 100-----------------
 let $max_password_errors=100;
-eval SET @@global.wait_timeout=$timeout;
-eval SET @@global.interactive_timeout=$timeout;
+eval SET @@global.net_read_timeout=$timeout;
 eval SET @@global.max_password_errors=$max_password_errors;
 let $USER=u1;
 let $PASSWORD=hoho;
@@ -117,8 +115,7 @@ let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay)
 -- echo # --------------Set timeout to 24h and max_password_errors to 100-----------------
 let $timeout=86400;
 let $max_password_errors=100;
-eval SET @@global.wait_timeout=$timeout;
-eval SET @@global.interactive_timeout=$timeout;
+eval SET @@global.net_read_timeout=$timeout;
 eval SET @@global.max_password_errors=$max_password_errors;
 let $USER=u1;
 let $PASSWORD=hoho;
@@ -139,11 +136,10 @@ inc $failed_count;
 let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
 --source ../inc/check_response_delay_time.inc
 
--- echo # --------------Set interactive timeout  to 24h and wait timeout to 1h and max_password_errors to 100-----------------
-let $timeout=3600;
+-- echo # --------------Set  timeout  to 60 second and max_password_errors to 100-----------------
+let $timeout=60;
 let $max_password_errors=100;
-eval SET @@global.wait_timeout=3600;
-eval SET @@global.interactive_timeout=86400;
+eval SET @@global.net_read_timeout=$timeout;
 eval SET @@global.max_password_errors=$max_password_errors;
 let $USER=u1;
 let $PASSWORD=hoho;
