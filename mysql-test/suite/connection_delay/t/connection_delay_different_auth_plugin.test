@@ -5,12 +5,11 @@
 --echo #-----------------------------------------------------------------------
 --echo # Setup
 # Install test_plugin_server
-eval INSTALL PLUGIN cleartext_plugin_server SONAME '$PLUGIN_AUTH';
-eval INSTALL PLUGIN cleartext_plugin_server2 SONAME '$PLUGIN_AUTH';
+eval INSTALL SONAME '$PLUGIN_AUTH';
 # Create u1@localhost, u2@localhost, u3@localhst
-CREATE USER u1@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
-CREATE USER u2@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
-CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
+CREATE USER u1@localhost IDENTIFIED WITH test_plugin_server AS 'u1';
+CREATE USER u2@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
+CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
 
 --source ../inc/save_variables.inc
 
@@ -119,7 +118,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 
 
 let $USER=u1;
-let $PASSWORD=abcd;
+let $PASSWORD=u1;
 let $SUCCESS=1;
 --source ../inc/check_connection_delay.inc
 
@@ -131,8 +130,7 @@ let $SERVER_RESPONSE_TIME= $DELAY_MIN_RESPONSE_TIME;
 connection default;
 
 --source ../inc/restore_variables.inc
-eval UNINSTALL PLUGIN cleartext_plugin_server ;
-eval UNINSTALL PLUGIN cleartext_plugin_server2;
+eval UNINSTALL SONAME '$PLUGIN_AUTH';
 DROP USER u1@localhost,u2@localhost,u3@localhost;
 # Wait till all disconnects are completed.
 --source include/wait_until_count_sessions.inc

@@ -279,10 +279,13 @@ static uint64 get_connection_delay_time(uint32 count)
                        : p->net_interactive_timeout) *
                   1000;
   uint64 step= timeout / (max_password_errors - password_errors_before_delay);
-  DBUG_PRINT("info",("The step for connection delay is %d milliseconds",step));
-  /* min  delay time is 1 seconds and max delay time is timeout */
-  uint64 delay=
-      (step > 1000 ? step : 1000) * (count - password_errors_before_delay);
+  /* If max_password_errors is big , step is very small which
+   * influence nothing , so 1 second is minim delay step */
+  step= step > 1000 ? step : 1000;
+  DBUG_PRINT("info",
+             ("The step for connection delay is %d milliseconds", step));
+  uint64 delay= step * (count - password_errors_before_delay);
+  /* Max delay time is timeout*/
   return delay < timeout ? delay : timeout;
 }
 

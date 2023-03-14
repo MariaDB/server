@@ -11,7 +11,7 @@ DROP USER proxied@localhost;
 
 # Uninstall test_plugin_server
 UNINSTALL PLUGIN test_plugin_server;
-UNINSTALL PLUGIN cleartext_plugin_server2;
+UNINSTALL PLUGIN cleartext_plugin_server;
 
 enable_result_log;
 enable_query_log;

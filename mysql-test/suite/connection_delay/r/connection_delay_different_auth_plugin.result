@@ -1,10 +1,9 @@
 #-----------------------------------------------------------------------
 # Setup
-INSTALL PLUGIN cleartext_plugin_server SONAME 'auth_test_plugin.so';
-INSTALL PLUGIN cleartext_plugin_server2 SONAME 'auth_test_plugin.so';
-CREATE USER u1@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
-CREATE USER u2@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
-CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server2 AS 'abcd';
+INSTALL SONAME 'auth_test_plugin.so';
+CREATE USER u1@localhost IDENTIFIED WITH test_plugin_server AS 'u1';
+CREATE USER u2@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
+CREATE USER u3@localhost IDENTIFIED WITH cleartext_plugin_server AS 'abcd';
 # Save original values of connection_delay variables
 SET @saved_connections_threshold = @@global.password_errors_before_delay;
 SET @saved_max_password_errors = @@global.max_password_errors;
@@ -63,7 +62,6 @@ SET @@global.max_password_errors = @saved_max_password_errors;
 SET @@global.wait_timeout = @saved_wait_timeout;
 SET @@global.interactive_timeout = @saved_interactive_timeout;
 SET GLOBAL DEBUG_DBUG=@old_debug;
-UNINSTALL PLUGIN cleartext_plugin_server ;
-UNINSTALL PLUGIN cleartext_plugin_server2;
+UNINSTALL SONAME 'auth_test_plugin.so';
 DROP USER u1@localhost,u2@localhost,u3@localhost;
 #-----------------------------------------------------------------------
