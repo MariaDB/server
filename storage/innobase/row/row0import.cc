@@ -478,13 +478,12 @@ page, as we can't get that from the tablespace header flags alone.
 
 @param block block to convert, it is not from the buffer pool.
 @retval DB_SUCCESS or error code. */
-dberr_t
-FetchIndexRootPages::operator()(buf_block_t *block) UNIV_NOTHROW
+dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 {
-  /* m_table_name is non-null iff we are trying to create a (stub)
-   table, and there's no table to compare the fsp flags and row format
-   against. */
-  ut_ad(!m_table_name);
+        /* m_table_name is non-null iff we are trying to create a (stub)
+        table, and there's no table to compare the fsp flags and row format
+        against. */
+        ut_ad(!m_table_name);
 
 	if (is_interrupted()) return DB_INTERRUPTED;
 
@@ -3099,36 +3098,41 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
   return DB_SUCCESS;
 }
 
-static dberr_t row_import_read_cfg_internal(const char* filename, THD* thd, row_import& cfg)
+/**
+Read the contents of a .cfg file.
+@param[in]  filename  Path to the cfg file
+@param[in]  thd       Session
+@param[out] cfg   Contents of the .cfg file.
+@return DB_SUCCESS or error code. */
+static dberr_t row_import_read_cfg_internal(const char* filename, THD* thd,
+                                            row_import& cfg)
 {
-	dberr_t		err;
+  dberr_t err;
 
-	FILE*	file = fopen(filename, "rb");
+  FILE* file = fopen(filename, "rb");
 
-	if (file == NULL) {
-		char	msg[BUFSIZ];
+  if (file == NULL) {
+    char msg[BUFSIZ];
 
-		snprintf(msg, sizeof(msg),
-			 "Error opening '%s', will attempt to import"
-			 " without schema verification", filename);
+    snprintf(msg, sizeof(msg),
+             "Error opening '%s', will attempt to import"
+             " without schema verification", filename);
 
-		ib_senderrf(
-			thd, IB_LOG_LEVEL_WARN, ER_IO_READ_ERROR,
-			(ulong) errno, strerror(errno), msg);
+    ib_senderrf(thd, IB_LOG_LEVEL_WARN, ER_IO_READ_ERROR,
+                (ulong) errno, strerror(errno), msg);
 
-		cfg.m_missing = true;
+    cfg.m_missing= true;
 
-		err = DB_FAIL;
-	} else
+    err= DB_FAIL;
+  } else
     {
-
       cfg.m_missing= false;
 
       err= row_import_read_meta_data(file, thd, cfg);
       fclose(file);
     }
 
-  return (err);
+  return err;
 }
 
 /**
@@ -3148,13 +3152,22 @@ row_import_read_cfg(
 
 	srv_get_meta_data_filename(table, name, sizeof(name));
 
-  return row_import_read_cfg_internal(name, thd, cfg);
+        return row_import_read_cfg_internal(name, thd, cfg);
 }
 
-dberr_t get_row_type_from_cfg(const char* dir_path, const char* name, THD* thd, rec_format_enum& result)
+/**
+Read the row type from a .cfg file.
+@param[in]  dir_path  Path to the data directory containing the .cfg file
+@param[in]  name      Name of the table
+@param[in]  thd       Session
+@param[out] result    The row format read from the .cfg file
+@return DB_SUCCESS or error code. */
+dberr_t get_row_type_from_cfg(const char* dir_path, const char* name,
+                              THD* thd, rec_format_enum& result)
 {
   const table_name_t table_name(const_cast<char*>(name));
-  const char* filename = fil_make_filepath(dir_path, table_name, CFG, dir_path != nullptr);
+  const char* filename = fil_make_filepath(dir_path, table_name, CFG,
+                                           dir_path != nullptr);
   row_import cfg;
   dberr_t err = row_import_read_cfg_internal(filename, thd, cfg);
   if (err == DB_SUCCESS)
@@ -3837,8 +3850,8 @@ Iterate over all or some pages in the tablespace.
 dberr_t
 fil_tablespace_iterate(
 /*===================*/
-  const char* dir_path,
-	const char*	name,
+        const char*             dir_path,
+	const char*	        name,
 	ulint			n_io_buffers,
 	AbstractCallback&	callback)
 {
@@ -3852,7 +3865,7 @@ fil_tablespace_iterate(
 	DBUG_EXECUTE_IF("ib_import_trigger_corruption_1",
 			return(DB_CORRUPTION););
 
-  table_name_t table_name(const_cast<char*>(name));
+        table_name_t table_name(const_cast<char*>(name));
 	filepath = fil_make_filepath(dir_path, table_name, IBD, dir_path != nullptr);
 	if (!filepath) {
 		return(DB_OUT_OF_MEMORY);
@@ -4001,7 +4014,8 @@ fil_tablespace_iterate(
 	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
 		? table->data_dir_path : nullptr;
 
-  return fil_tablespace_iterate(data_dir_path, table->name.m_name, n_io_buffers, callback);
+        return fil_tablespace_iterate(data_dir_path, table->name.m_name,
+                                      n_io_buffers, callback);
 }
 
 /*****************************************************************//**

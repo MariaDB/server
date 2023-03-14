@@ -367,6 +367,14 @@ fil_tablespace_iterate(
   ulint       n_io_buffers,
   AbstractCallback&   callback);
 
-dberr_t get_row_type_from_cfg(const char* dir_path, const char* name, THD* thd, rec_format_enum& result);
+/**
+Read the row type from a .cfg file.
+@param[in]  dir_path  Path to the data directory containing the .cfg file
+@param[in]  name      Name of the table
+@param[in]  thd       Session
+@param[out] result    The row format read from the .cfg file
+@return DB_SUCCESS or error code. */
+dberr_t get_row_type_from_cfg(const char* dir_path, const char* name, THD* thd,
+                              rec_format_enum& result);
 
 #endif /* row0import_h */

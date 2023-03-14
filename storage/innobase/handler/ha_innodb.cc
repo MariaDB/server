@@ -1924,7 +1924,10 @@ static int prepare_create_stub_for_import(THD *thd, const char *name,
   char norm_name[FN_REFLEN];
   normalize_table_name(norm_name, name);
   FetchIndexRootPages fetchIndexRootPages(name);
-  if (fil_tablespace_iterate(fil_path_to_mysql_datadir, name, IO_BUFFER_SIZE(srv_page_size), fetchIndexRootPages) != DB_SUCCESS)
+  if (fil_tablespace_iterate(fil_path_to_mysql_datadir, name,
+                             IO_BUFFER_SIZE(srv_page_size),
+                             fetchIndexRootPages)
+      != DB_SUCCESS)
   {
     sql_print_error("InnoDB: failed to get row format from ibd for %s.\n",
                     norm_name);
@@ -1938,7 +1941,9 @@ static int prepare_create_stub_for_import(THD *thd, const char *name,
   compact/dynamic and ibd reports not_used (indicating either compact
   or dynamic but not sure) */
   enum rec_format_enum rec_format_from_cfg;
-  if (get_row_type_from_cfg(fil_path_to_mysql_datadir, name, thd, rec_format_from_cfg) == DB_SUCCESS)
+  if (get_row_type_from_cfg(fil_path_to_mysql_datadir, name, thd,
+                            rec_format_from_cfg)
+      == DB_SUCCESS)
   {
     /* if ibd reports not_used but cfg reports compact or dynamic, go
     with cfg. */
@@ -1947,8 +1952,9 @@ static int prepare_create_stub_for_import(THD *thd, const char *name,
            rec_format_from_cfg == REC_FORMAT_DYNAMIC) &&
           create_info.row_type == ROW_TYPE_NOT_USED))
     {
-      sql_print_error("InnoDB: cfg and ibd disagree on row format for table %s.\n",
-                      norm_name);
+      sql_print_error(
+              "InnoDB: cfg and ibd disagree on row format for table %s.\n",
+              norm_name);
       DBUG_RETURN(ER_INNODB_IMPORT_ERROR);
     }
     else
@@ -10662,10 +10668,10 @@ create_table_info_t::create_table_def()
 				      ? doc_id_col : n_cols - num_v;
 	}
 
-  /* Assume the tablespace is not available until we are able to
-  import it.*/
-  if (thd_ddl_options(m_thd)->import_tablespace())
-    table->file_unreadable = true;
+        /* Assume the tablespace is not available until we are able to
+        import it.*/
+        if (thd_ddl_options(m_thd)->import_tablespace())
+                table->file_unreadable = true;
 
 	if (DICT_TF_HAS_DATA_DIR(m_flags)) {
 		ut_a(strlen(m_remote_path));
@@ -11680,10 +11686,10 @@ index_bad:
 		}
 	}
 
-  /* If we are trying to import a tablespace, mark tablespace as
-  discarded. */
-  if (thd_ddl_options(m_thd)->import_tablespace())
-    m_flags2 |= DICT_TF2_DISCARDED;
+        /* If we are trying to import a tablespace, mark tablespace as
+        discarded. */
+        if (thd_ddl_options(m_thd)->import_tablespace())
+                m_flags2 |= DICT_TF2_DISCARDED;
 
 	row_type = m_create_info->row_type;
 
@@ -13282,7 +13288,6 @@ int ha_innobase::create(const char *name, TABLE *form,
 {
   return create(name, form, create_info, srv_file_per_table);
 }
-
 
 /*****************************************************************//**
 Discards or imports an InnoDB tablespace.
