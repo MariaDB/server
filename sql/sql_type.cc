@@ -3008,8 +3008,7 @@ bool Type_handler::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3022,8 +3021,7 @@ bool Type_handler_null::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3037,8 +3035,7 @@ bool Type_handler_row::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3052,8 +3049,7 @@ bool Type_handler_temporal_result::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3067,8 +3063,7 @@ bool Type_handler_numeric::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3081,8 +3076,7 @@ bool Type_handler_newdecimal::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
@@ -3096,28 +3090,26 @@ bool Type_handler_bit::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
 {
   def->charset= &my_charset_numeric;
-  return def->prepare_stage1_bit(thd, mem_root, file, table_flags);
+  return def->prepare_stage1_bit(thd, mem_root);
 }
 
 bool Type_handler_typelib::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
 {
   return def->prepare_charset_for_string(derived_attr) ||
-         def->prepare_stage1_typelib(thd, mem_root, file, table_flags);
+         def->prepare_stage1_typelib(thd, mem_root, type);
 }
 
 
@@ -3125,14 +3117,13 @@ bool Type_handler_string_result::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
-                                        handler *file,
-                                        ulonglong table_flags,
+                                        column_definition_type_t type,
                                         const Column_derived_attributes
                                               *derived_attr)
                                         const
 {
   return def->prepare_charset_for_string(derived_attr) ||
-         def->prepare_stage1_string(thd, mem_root, file, table_flags);
+         def->prepare_stage1_string(thd, mem_root);
 }
 
 
@@ -3343,10 +3334,11 @@ bool Type_handler_bit::
                                         handler *file,
                                         ulonglong table_flags) const
 {
-  /* 
-    We have sql_field->pack_flag already set here, see
-    mysql_prepare_create_table().
-  */
+  if (!(table_flags & HA_CAN_BIT_FIELD))
+  {
+    def->pack_flag|= FIELDFLAG_TREAT_BIT_AS_CHAR;
+    def->create_length_to_internal_length_bit();
+  }
   return false;
 }
 

@@ -787,8 +787,9 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
     */
     sql_f->length= sql_f->char_length;
 
-    if (sql_f->prepare_stage1(thd, thd->mem_root, table->file,
-                              table->file->ha_table_flags(), &da))
+    if (sql_f->prepare_stage1(thd, thd->mem_root,
+                              COLUMN_DEFINITION_TABLE_FIELD,
+                              &da))
       goto err_exit;
 
     while ((jc2= it2++) != jc)
