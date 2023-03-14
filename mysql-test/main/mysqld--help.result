@@ -299,8 +299,6 @@ The following specify which files/extra groups are read (specified before remain
  --extra-port=#      Extra port number to use for tcp connections in a
  one-thread-per-connection manner. 0 means don't use
  another port
- --failed-attempts-before-delay=# 
- The failed login attempts before delay
  --flashback         Setup the server to use flashback. This enables binary
  log in row mode and will enable extra logging for DDL's
  needed by flashback feature
@@ -829,6 +827,8 @@ The following specify which files/extra groups are read (specified before remain
  Cost of checking the row against the WHERE clause.
  Increasing this will have the optimizer to prefer plans
  with less row combinations.
+ --password-errors-before-delay=# 
+ The failed login attempts before delay
  --performance-schema 
  Enable the performance schema.
  --performance-schema-accounts-size=# 
@@ -1615,7 +1615,6 @@ explicit-defaults-for-timestamp TRUE
 external-locking FALSE
 extra-max-connections 1
 extra-port 0
-failed-attempts-before-delay 0
 flashback FALSE
 flush FALSE
 flush-time 0
@@ -1765,6 +1764,7 @@ optimizer-trace
 optimizer-trace-max-mem-size 1048576
 optimizer-use-condition-selectivity 4
 optimizer-where-cost 0.032
+password-errors-before-delay 0
 performance-schema FALSE
 performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE
