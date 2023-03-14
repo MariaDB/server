@@ -228,7 +228,14 @@ static inline void wsrep_override_error(THD* thd,
       break;
     case wsrep::e_append_fragment_error:
       /* TODO: Figure out better error number */
-      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, 0, status);
+      if (status)
+        wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
+                             "Error while appending streaming replication fragment"
+                             "(provider status: %s)",
+                             wsrep::provider::to_string(status).c_str());
+      else
+        wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
+                             "Error while appending streaming replication fragment");
       break;
     case wsrep::e_not_supported_error:
       wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);
