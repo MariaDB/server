@@ -56,26 +56,21 @@ enable_result_log;
 let failed_count=3;
 
 #-- echo # --------------Set timeout and max_password_errors to default value-----------------
-let $step=1000;
-eval SET @@global.net_read_timeout=$timeout;
-eval SET @@global.max_password_errors=$max_password_errors;
+eval SET @@global.net_read_timeout=DEFAULT;
+eval SET @@global.max_password_errors=DEFAULT;
 
 let $HOST=%;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
 
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
 
 
 
@@ -83,33 +78,26 @@ let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
+
 
 -- echo # --------------Set timeout to default and max_password_errors to 100-----------------
 let $max_password_errors=100;
-eval SET @@global.net_read_timeout=$timeout;
+eval SET @@global.net_read_timeout=DEFAULT;
 eval SET @@global.max_password_errors=$max_password_errors;
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
---source ../inc/check_connection_delay_step.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
+
 
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
---source ../inc/check_connection_delay_step.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
+
 
 
 -- echo # --------------Set timeout to 24h and max_password_errors to 100-----------------
@@ -121,20 +109,16 @@ let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
---source ../inc/check_connection_delay_step.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
+
 
 
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
+
 
 -- echo # --------------Set  timeout  to 60 second and max_password_errors to 100-----------------
 let $timeout=60;
@@ -145,20 +129,16 @@ let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-let $step=`SELECT FLOOR(($timeout*1000)/($max_password_errors-3))`;
---source ../inc/check_connection_delay_step.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
+
 
 
 let $USER=u1;
 let $PASSWORD=hoho;
 let $SUCCESS=0;
 --source ../inc/check_connection_delay.inc
-inc $failed_count;
-let $SERVER_RESPONSE_TIME= `SELECT ($failed_count-$password_errors_before_delay) * $step`;
---source ../inc/check_response_delay_time.inc
+--source ../inc/check_delay.inc
+
 
 
 --echo #-----------------------Reach max password errors , server reject connection

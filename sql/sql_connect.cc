@@ -268,16 +268,16 @@ static uint64 get_connection_delay_time(uint32 count)
    * Based on that invalid password errors will cause user can't connect server
   ever and server close connection if it got message from client after
   wait_timeout
-   * so ,
+   * so,
    step = read_timeout/(max_password_errors - password_errors_before_delay)
   delay = step *(failed_count  -password_errors_before_delay)
 */
-  /* Time unit for delay step is seconds , convert to milliseconds*/
+  /* Time unit for delay step is seconds, convert to milliseconds*/
   uint64 read_timeout= global_system_variables.net_read_timeout * 1000;
   uint64 step=
       read_timeout / (max_password_errors - password_errors_before_delay);
-  /* If max_password_errors is big , step is very small which
-   * influence nothing , so 1 second is minim delay step */
+  /* If max_password_errors is large, step is very small which
+   * influence nothing, so 1 second is minim delay step */
   step= step > 1000 ? step : 1000;
   DBUG_PRINT("info",
              ("The step for connection delay is %d milliseconds", step));

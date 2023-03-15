@@ -1776,7 +1776,7 @@ static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS>
     Sys_password_errors_before_delay("password_errors_before_delay",
                                      "If there is more than this number of failed connect attempts "
-                                     "due to invalid password, user will be delayed from further connections as delay time increasing, until FLUSH_PRIVILEGES.",
+                                     "due to invalid password, user will be delayed from further connections as increasing delay time , until FLUSH_PRIVILEGES.",
                                      GLOBAL_VAR(password_errors_before_delay),
                                      CMD_LINE(REQUIRED_ARG),
                                      VALID_RANGE(0, UINT_MAX), DEFAULT(0),
