@@ -47,42 +47,42 @@ select "--- Local --" as "";
 # be time dependent (the Start events). Better than nothing.
 #
 let $MYSQLD_DATADIR= `select @@datadir`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --base64-output=never $MYSQLD_DATADIR/master-bin.000001 
 
 --disable_query_log
 select "--- offset --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --offset=5 $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- start-position --" as "";
 --enable_query_log
 let $start_pos= `select @binlog_start_pos + 696`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- stop-position --" as "";
 --enable_query_log
 let $stop_pos= `select @binlog_start_pos + 696`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --stop-position=$stop_pos $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- start and stop positions ---" as "";
 --enable_query_log
 let $start_pos= `select @binlog_start_pos + 696`;
 let $stop_pos= `select @binlog_start_pos + 857`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos --stop-position=$stop_pos  $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- start-datetime --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form "--start-datetime=1970-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001
 --disable_query_log
 select "--- stop-datetime --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form "--stop-datetime=1970-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001
 
 --disable_query_log
@@ -92,119 +92,119 @@ select "--- Local with 2 binlogs on command line --" as "";
 # This is to verify that some options apply only to first, or last binlog
 
 flush logs;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 
 --disable_query_log
 select "--- offset --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --offset=5 $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 --disable_query_log
 select "--- start-position --" as "";
 --enable_query_log
 let $start_pos= `select @binlog_start_pos + 696`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 --disable_query_log
 select "--- stop-position --" as "";
 --enable_query_log
 let $stop_pos= `select @binlog_start_pos + 134`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --stop-position=$stop_pos $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 --disable_query_log
 select "--- start-datetime --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form "--start-datetime=1970-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 --disable_query_log
 select "--- stop-datetime --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form "--stop-datetime=1970-01-21 15:32:24" $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 
 --disable_query_log
 select "--- Remote --" as "";
 --enable_query_log
 
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 
 
 --disable_query_log
 select "--- offset --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --offset=5 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 
 --disable_query_log
 select "--- start-position --" as "";
 --enable_query_log
 let $start_pos= `select @binlog_start_pos + 696`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 
 --disable_query_log
 select "--- stop-position --" as "";
 --enable_query_log
 let $stop_pos= `select @binlog_start_pos + 696`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --stop-position=$stop_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 
 --disable_query_log
 select "--- start and stop positions ---" as "";
 --enable_query_log
 let $start_pos= `select @binlog_start_pos + 696`;
 let $stop_pos= `select @binlog_start_pos + 812`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos --stop-position $stop_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
 --disable_query_log
 select "--- start-datetime --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form "--start-datetime=1970-01-21 15:32:24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
 --disable_query_log
 select "--- stop-datetime --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form "--stop-datetime=1970-01-21 15:32:24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
 
 --disable_query_log
 select "--- Remote with 2 binlogs on command line --" as "";
 --enable_query_log
 
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 master-bin.000002
 
 --disable_query_log
 select "--- offset --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --offset=5 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001  master-bin.000002
 --disable_query_log
 select "--- start-position --" as "";
 --enable_query_log
 let $start_pos= `select @binlog_start_pos + 696`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001  master-bin.000002
 --disable_query_log
 select "--- stop-position --" as "";
 --enable_query_log
 let $stop_pos= `select @binlog_start_pos + 109`;
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --stop-position=$stop_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001  master-bin.000002
 --disable_query_log
 select "--- start-datetime --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form "--start-datetime=19700121153224" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 master-bin.000002
 --disable_query_log
 select "--- stop-datetime --" as "";
 --enable_query_log
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form "--stop-datetime=1970/01/21 15@32@24" --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 master-bin.000002
 
 --disable_query_log
 select "--- to-last-log --" as "";
 --enable_query_log
 
---replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
+--replace_regex /collation_server=[0-9]+/collation_server=X/ /character_set_client=[a-zA-Z0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --short-form --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT --to-last-log master-bin.000001
 
 # clean up
