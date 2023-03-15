@@ -5927,18 +5927,7 @@ ha_innobase::open(const char* name, int, uint)
                 if (int err= prepare_create_stub_for_import(thd, name,
                                                             create_info))
                         DBUG_RETURN(err);
-                trx_t *trx= innobase_trx_allocate(thd);
-                trx_start_for_ddl(trx);
-                if (lock_sys_tables(trx) == DB_SUCCESS)
-                {
-                        row_mysql_lock_data_dictionary(trx);
-                        create(name, table, &create_info, true, trx);
-                        trx->commit();
-                        row_mysql_unlock_data_dictionary(trx);
-                }
-                else
-                        trx->rollback();
-                trx->free();
+                create(name, table, &create_info, true, nullptr);
 		DBUG_EXECUTE_IF("die_after_create_stub_for_import", ut_ad(0););
                 ib_table = open_dict_table(name, norm_name, is_part,
                                            DICT_ERR_IGNORE_FK_NOKEY);
@@ -13242,7 +13231,8 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   }
 
   if (!error)
-    error= info.create_table(own_trx);
+    error= info.create_table(own_trx &&
+                             !thd_ddl_options(ha_thd())->import_tablespace());
 
   if (own_trx || (info.flags2() & DICT_TF2_TEMPORARY))
   {
@@ -13264,7 +13254,8 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
 
       if (!error)
       {
-        dict_stats_update(info.table(), DICT_STATS_EMPTY_TABLE);
+        if (!thd_ddl_options(ha_thd())->import_tablespace())
+          dict_stats_update(info.table(), DICT_STATS_EMPTY_TABLE);
         if (!info.table()->is_temporary())
           log_write_up_to(trx->commit_lsn, true);
         info.table()->release();
